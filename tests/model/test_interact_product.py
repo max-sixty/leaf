@@ -42,7 +42,7 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
-from leaf import tasks as tasks_model
+from leaf import todos as todos_model
 from leaf.findings import Finding, Rejected
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
@@ -268,7 +268,7 @@ def test_sample_admits_interactive_widgets(page_dir):
     assert errs == []
 
 
-def test_question_context_frames_any_number_of_independent_sources(page_dir):
+def test_ask_context_frames_any_number_of_independent_sources(page_dir):
     """Context supplies one title without imposing source count or identity."""
     registry = registry_storage.load_registry(page_dir)
     first = (
@@ -305,32 +305,32 @@ def test_question_context_frames_any_number_of_independent_sources(page_dir):
         f'<lf-ask id="decision-untitled"><p>Context.</p>{first}</lf-ask>',
         registry,
     )
-    assert found(untitled, "question-context-headings", headings=[])
+    assert found(untitled, "ask-context-headings", headings=[])
 
     retitled = fragment_errors(
         f'<lf-ask id="decision-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-ask>',
         registry,
     )
-    assert found(retitled, "question-context-headings", headings=["h2", "h3"])
+    assert found(retitled, "ask-context-headings", headings=["h2", "h3"])
 
     context_first = fragment_errors(
         f'<lf-ask id="decision-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-ask>',
         registry,
     )
-    assert found(context_first, "question-context-heading-first", first="p")
+    assert found(context_first, "ask-context-heading-first", first="p")
 
     control_first = fragment_errors(
         f'<lf-ask id="decision-control-first">{first}<h2>Choose</h2></lf-ask>',
         registry,
     )
-    assert found(control_first, "question-context-heading-first", first="lf-options")
+    assert found(control_first, "ask-context-heading-first", first="lf-options")
 
     # A context framing no live source would show a question the banner never
     # counts. A retired source still counts: settling a decision keeps its context.
     empty = fragment_errors(
         '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>', registry
     )
-    assert found(empty, "empty-question-context", widgets=[])
+    assert found(empty, "empty-ask-context", widgets=[])
 
     def lacking(lacks):
         return [{"at": "<lf-options id=g-one>", "line": 1, "lacks": lacks}]
@@ -341,19 +341,19 @@ def test_question_context_frames_any_number_of_independent_sources(page_dir):
             f'<lf-ask id="decision-unasked"><h2>Choose</h2>{unasked}</lf-ask>',
             registry,
         ),
-        "empty-question-context",
+        "empty-ask-context",
         widgets=lacking({"choose": [True]}),
     )
     settled = first.replace(" choose", " choose settled")
     settled_ask = f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
     assert fragment_errors(settled_ask, registry) == []
-    # The registry's `retired` is what says the flag ended an asked Question; a flag
+    # The registry's `retired` is what says the flag ended an ask; a flag
     # that merely stops a widget asking leaves the context framing nothing.
     unretired = copy.deepcopy(registry)
     del unretired["lf-options"]["x-awaits"]["retired"]
     assert found(
         fragment_errors(settled_ask, unretired),
-        "empty-question-context",
+        "empty-ask-context",
         widgets=lacking({"settled": [False]}),
     )
     # A quoted Ask is a mention, and its widgets ask nothing by design.
@@ -1130,7 +1130,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert posted.exit_code == 0, posted.output
     update = json.loads(posted.output)
     assert update["ephemeral"] is True and "responds" not in update
-    start = tasks_model.start_reading(update)
+    start = todos_model.start_reading(update)
     assert (start["item"], start["text"]) == (root["id"], "Checking the camera.")
     assert events_model.read_events(claimed)[-1] == update
     [working] = page_state(claimed)["workflows"]
@@ -1169,7 +1169,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert [json.loads(line)["kind"] for line in later.output.splitlines()] == ["reply"]
 
 
-def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir):
+def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
     published(page_dir)
     root = append_carried_log_record(
         page_dir,

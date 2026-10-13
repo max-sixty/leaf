@@ -1,10 +1,10 @@
-"""Canonical Questions from widget state, conversations and stamped page sign-off.
+"""Canonical asks from widget state, conversations and stamped page sign-off.
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
 A widget source owns identity; context wrappers contribute only prompt words and arrival.
 The inventory is complete even when a work queue hides a resolved thread or an
-older prompt. Tasks never stand in for these records.
+older prompt. To-dos never stand in for these records.
 
 A record's `status` is one of four, and this module is their one producer: `open`;
 `answered`, its typed answer in the record; `answered_elsewhere`, a prose ask the
@@ -35,11 +35,11 @@ from leaf.page_memory import Slot
 from leaf.projection import (
     FrozenThreadReading,
     StateProjection,
+    ask_value,
     enclosing_widgets,
     folded_value,
     markup_value,
     page_reading,
-    question_value,
     state_projection,
 )
 from leaf.read_state import content_version
@@ -48,12 +48,12 @@ from leaf.structure import review_mode
 from leaf.thread_context import widget_messages
 
 
-def local_question_entry(entry: dict) -> bool:
-    """Whether a widget can originate a Question when its predicate holds."""
+def local_ask_entry(entry: dict) -> bool:
+    """Whether a widget can originate an ask when its predicate holds."""
     return entry.get("x-awaits") is not None
 
 
-class QuestionRegistration(NamedTuple):
+class AskRegistration(NamedTuple):
     """Compact registration inputs and the last event-dependent registration.
 
     No parser records or holder chains survive here. The last dynamic answer uses
@@ -67,10 +67,10 @@ class QuestionRegistration(NamedTuple):
     requested: Slot
 
 
-def question_registrations(document, registry: dict) -> dict[str, QuestionRegistration]:
+def ask_registrations(document, registry: dict) -> dict[str, AskRegistration]:
     """Compact immutable registration inputs, separate from a revision's parse."""
     return {
-        unit: QuestionRegistration(
+        unit: AskRegistration(
             record["tag"],
             asking(record["attrs"], declaration.get("when")),
             "restated" in record["attrs"],
@@ -89,7 +89,7 @@ def question_registrations(document, registry: dict) -> dict[str, QuestionRegist
 
 def settles(reaction: dict, turn: str, tokens: dict) -> bool:
     """Whether a message is the user's reaction on the agent's `turn` with a token
-    the registry declares `settles` (`$reactions`), which answers the question that
+    the registry declares `settles` (`$reactions`), which answers the ask that
     turn asks as a reply would. `tokens` is `$reactions.tokens`."""
     return (
         is_reaction(reaction)
@@ -100,19 +100,19 @@ def settles(reaction: dict, turn: str, tokens: dict) -> bool:
 
 
 @dataclass(frozen=True)
-class ThreadQuestions:
-    """Prose questions and their settlement from one standing thread.
+class ThreadAsks:
+    """Prose asks and their settlement from one standing thread.
 
     Each record retains its source message, content version, state and settling
-    event. Widget Questions have their own reading and never become prose questions.
-    `prompt` selects the latest unanswered prose question unless the thread is
-    closed or an open widget Question owns attention. Earlier unanswered questions
+    event. Widget asks have their own reading and never become prose asks.
+    `prompt` selects the latest unanswered prose ask unless the thread is
+    closed or an open widget ask owns attention. Earlier unanswered asks
     remain available when a later one is settled; a user turn answers all that
-    precede it. Consumers select these facts rather than recognizing questions
+    precede it. Consumers select these facts rather than recognizing asks
     or interpreting their answers again.
     """
 
-    questions: list[dict]
+    asks: list[dict]
     prompt: dict | None
 
 
@@ -126,8 +126,8 @@ def event_reference(event: dict | None) -> dict | None:
 
 
 def approval_blocking(records: list[dict]) -> list[dict]:
-    """The Questions that keep a version from being approved: each open widget
-    Question someone still owes, on the page or in a widget an agent sent. The append
+    """The asks that keep a version from being approved: each open widget
+    ask someone still owes, on the page or in a widget an agent sent. The append
     door refuses a sign-off while one stands, and the browser view serves their ids
     so the approve control says the same."""
     return [
@@ -148,12 +148,12 @@ def collection(records: list[dict]) -> dict:
     }
 
 
-def approval_question(document, revision: int, events: list) -> dict | None:
-    """Sign-off for an exact public stamp as one canonical Question.
+def approval_ask(document, revision: int, events: list) -> dict | None:
+    """Sign-off for an exact public stamp as one canonical ask.
 
     Draft revisions owe none. Only a standing done event for this public version
-    supplies the typed answer; an undo makes the same Question open again.
-    Approval admission counts widget Questions alone, so this record cannot
+    supplies the typed answer; an undo makes the same ask open again.
+    Approval admission counts widget asks alone, so this record cannot
     block its own answer.
     """
     version = stamped_version(events, revision)
@@ -182,28 +182,28 @@ def approval_question(document, revision: int, events: list) -> dict | None:
     }
 
 
-def thread_questions(
+def thread_asks(
     thread_id: str,
     thread: dict,
     registry: dict,
     reading: FrozenThreadReading,
     open_widget_threads: set[str],
     ends: dict[str, dict],
-) -> ThreadQuestions:
+) -> ThreadAsks:
     """Keep every prose request, selecting only the latest open prompt for work.
 
-    A user turn or settling reaction answers preceding questions. An agent task end
+    A user turn or settling reaction answers preceding asks. An agent's `todo_end`
     before any answer retires the request: `done` records it `answered_elsewhere`,
     the user having answered on another surface, and `dropped` records it
     `withdrawn`. Either keeps `answer` null, since the user's words are not in the
     log, and carries the end's detail and event as `end`. Resolving a thread
     suppresses attention without changing any of these facts. A message that
-    carries a widget question poses no second prose question.
+    carries a widget ask poses no second prose ask.
     """
     turns = conversation_turns(thread)
     user_turns = {message["id"] for message in turns if message["author"] == "user"}
     tokens = registry.get("$reactions", {}).get("tokens", {})
-    questions = []
+    asks = []
     for message in turns:
         if message["author"] != "agent":
             continue
@@ -212,7 +212,7 @@ def thread_questions(
             reading.registry_for_message(message["id"]) if fragment else registry
         )
         if any(
-            local_question_entry(vocabulary.get(rec["tag"]) or {})
+            local_ask_entry(vocabulary.get(rec["tag"]) or {})
             and asking(rec["attrs"], vocabulary[rec["tag"]]["x-awaits"].get("when"))
             and not quoted_in(rec, vocabulary)
             for rec in (fragment.lf_elements if fragment else [])
@@ -237,7 +237,7 @@ def thread_questions(
             status = "answered_elsewhere" if ending["state"] == "done" else "withdrawn"
         else:
             status = "open" if answer is None else "answered"
-        questions.append(
+        asks.append(
             {
                 "id": "reply:" + message["id"],
                 "source": {
@@ -267,7 +267,7 @@ def thread_questions(
             }
         )
     current = next(
-        (question for question in reversed(questions) if question["status"] == "open"),
+        (ask for ask in reversed(asks) if ask["status"] == "open"),
         None,
     )
     prompt = None
@@ -281,7 +281,7 @@ def thread_questions(
             "message": current["source"]["id"],
             "version": current["source"]["version"],
         }
-    return ThreadQuestions(questions, prompt)
+    return ThreadAsks(asks, prompt)
 
 
 def asking(attrs: dict, when: dict) -> bool:
@@ -362,7 +362,7 @@ def previously_requested(
 
 
 def answer_verbs(entry: dict) -> dict:
-    """Each x-state verb whose standing state answers this widget's local Question,
+    """Each x-state verb whose standing state answers this widget's local ask,
     mapped to the condition that state has to meet (x-awaits.answered)."""
     return (entry.get("x-awaits") or {}).get("answered") or {}
 
@@ -382,7 +382,7 @@ def verb_answers(
     The condition reads standing state and nothing else. `empty` asks the projected
     containment the verb's position records leave; an attribute or value record reads
     through authored markup as well as the fold, so a version that honors the answer
-    keeps it answered and a cleared value opens the Question again; any other verb answers
+    keeps it answered and a cleared value opens the ask again; any other verb answers
     while one of its actions stands on the widget.
     """
     condition = answer_verbs(entry)[verb]
@@ -406,7 +406,7 @@ def verb_answers(
     return held is not None
 
 
-def question_answered(
+def ask_answered(
     rec: dict,
     entry: dict,
     projection: StateProjection,
@@ -415,7 +415,7 @@ def question_answered(
     registry: dict,
     holders: dict[str, dict] | None = None,
 ) -> bool:
-    """Whether the user's own state answers this Question: one of its answering verbs'
+    """Whether the user's own state answers this ask: one of its answering verbs'
     conditions holds."""
     if holders is None:
         holders = projected_action_holders(projection, byid, registry)
@@ -451,7 +451,7 @@ def discussed(records: list[dict], sections: set[str], within: dict) -> None:
 
     A section is about the innermost ask whose widget encloses it, answered or not;
     failing one, about every ask whose prompt target (its framing
-    x-question-context) is the innermost to enclose it. So a note on one ask's
+    x-ask-context) is the innermost to enclose it. So a note on one ask's
     option leaves its framed sibling with the user, and one on the frame's heading
     is about them all. `within` is the document's containment (`Passages.enclosing`).
     """
@@ -568,7 +568,7 @@ def answering_action(
     registered: bool = False,
 ) -> bool:
     """Whether an action of `verb`, standing in `projection`, answers its widget's
-    Question: the instance asks or retains an earlier registration, and the verb's
+    ask: the instance asks or retains an earlier registration, and the verb's
     own condition holds with it in place. Editable answers retain user provenance
     after the author suppresses the request. Admission stamps `meaning.answer` on
     exactly these."""
@@ -589,8 +589,8 @@ def answering_action(
     )
 
 
-class _QuestionReducer:
-    """One page or frozen-thread Question fold over a shared state projection."""
+class _AskReducer:
+    """One page or frozen-thread ask fold over a shared state projection."""
 
     def __init__(
         self,
@@ -644,7 +644,7 @@ class _QuestionReducer:
         return self.registry[record["tag"]]
 
     def _is_declared(self, record):
-        return local_question_entry(self.registry.get(record["tag"]) or {})
+        return local_ask_entry(self.registry.get(record["tag"]) or {})
 
     def _declaration(self, record):
         return self._entry(record).get("x-awaits", {})
@@ -660,7 +660,7 @@ class _QuestionReducer:
         return self.positioned_holders.get(unit, record.get("holder"))
 
     def _answered(self, record):
-        return question_answered(
+        return ask_answered(
             record,
             self._entry(record),
             self.projection,
@@ -672,10 +672,10 @@ class _QuestionReducer:
 
     def _surface(self, record):
         """The reading and arrival region the user is sent to for this source: the
-        nearest `x-question-context` holder enclosing it, or the source itself."""
+        nearest `x-ask-context` holder enclosing it, or the source itself."""
         holder = self._holder(record)
         while holder:
-            if (self.registry.get(holder["tag"]) or {}).get("x-question-context"):
+            if (self.registry.get(holder["tag"]) or {}).get("x-ask-context"):
                 return holder
             holder = self._holder(holder)
         return record
@@ -764,7 +764,7 @@ class _QuestionReducer:
                 and prior is not None
             ):
                 for old_revision, old in history():
-                    registration = old.inventory.questions.get(unit)
+                    registration = old.inventory.asks.get(unit)
                     if registration is None or registration.tag != record["tag"]:
                         break
                     if registration.asking:
@@ -806,7 +806,7 @@ class _QuestionReducer:
             )
             value_verb = entry["x-awaits"]["value"]
             spec = entry["x-state"][value_verb]
-            value, has_content = question_value(
+            value, has_content = ask_value(
                 unit,
                 value_verb,
                 spec,
@@ -856,7 +856,7 @@ class _QuestionReducer:
         return records
 
 
-def page_question_readings(
+def page_ask_readings(
     source,
     projection,
     byid,
@@ -871,9 +871,9 @@ def page_question_readings(
     revision: int | None = None,
     events: list = (),
 ) -> dict:
-    """Questions in one document basis; a discussion changes attention, not answer:
+    """Asks in one document basis; a discussion changes attention, not answer:
     an ask a thread with the agent is about is the agent's (`sections_with_agent`)."""
-    reducer = _QuestionReducer(
+    reducer = _AskReducer(
         source, projection, byid, spk, registry, dropped, revision, events
     )
     records = reducer.inventory(settled_away or set(), prior)
@@ -881,7 +881,7 @@ def page_question_readings(
     return collection(records)
 
 
-def thread_question_readings(
+def thread_ask_readings(
     events: list,
     threads: dict,
     *,
@@ -895,7 +895,7 @@ def thread_question_readings(
     (`sections_with_agent`)."""
     records = []
     for publication in reading.publications.values():
-        reducer = _QuestionReducer(
+        reducer = _AskReducer(
             publication.structure,
             publication.projection,
             publication.structure.by_id,

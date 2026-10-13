@@ -2758,7 +2758,6 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
         ("x-verbatim", "false"),
         ("x-work", []),
         ("x-work", {"seat": "content"}),
-        ("x-unknown", True),
     ],
 )
 def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
@@ -2770,6 +2769,21 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "<lf-options> registry extensions are invalid" in result.output
+
+
+def test_check_refuses_a_vendored_entry_declaring_a_key_this_leaf_does_not_admit(
+    page_dir,
+):
+    """A layer entry declaring an x- key outside this Leaf's set is one this Leaf
+    cannot serve (`layer.incompatible_layer`), so the refusal names the re-vendor."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-unknown"] = True
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "x-unknown" in result.output
+    assert f"leaf page init {page_dir}" in result.output
 
 
 @pytest.mark.parametrize(
@@ -3550,9 +3564,7 @@ def test_check_refuses_a_predicate_no_page_could_carry(
         ({"value": "answer"}, "answered"),
     ],
 )
-def test_a_local_question_declares_its_answered_condition(
-    page_dir, declaration, message
-):
+def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, message):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-test-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -5863,11 +5875,11 @@ def test_state_definition_identity_ignores_only_annotations(case):
     assert same_state_definition(*definitions) is case["same"]
 
 
-def test_frozen_replies_keep_their_publications_command_and_question_meanings():
+def test_frozen_replies_keep_their_publications_command_and_ask_meanings():
     """Old and new renderers can share a tag without changing either reply's answer."""
+    from leaf.asks import thread_ask_readings
     from leaf.events import build_threads
     from leaf.projection import frozen_thread_reading
-    from leaf.questions import thread_question_readings
 
     old = model_layer()
     new = deepcopy(old)
@@ -5912,8 +5924,8 @@ def test_frozen_replies_keep_their_publications_command_and_question_meanings():
             f'<lf-option id="{name}-b">B</lf-option></lf-options>',
         )
 
-    def questions():
-        return thread_question_readings(
+    def asks():
+        return thread_ask_readings(
             log,
             build_threads(log, {}),
             reading=frozen_thread_reading(
@@ -5921,7 +5933,7 @@ def test_frozen_replies_keep_their_publications_command_and_question_meanings():
             ),
         )
 
-    assert [question["source"]["id"] for question in questions()["user"]] == [
+    assert [ask["source"]["id"] for ask in asks()["user"]] == [
         "old",
         "new",
         "old-later",
@@ -5939,9 +5951,9 @@ def test_frozen_replies_keep_their_publications_command_and_question_meanings():
         action="choose",
         detail={"value": ["old-later-a"]},
     )
-    answered = questions()
+    answered = asks()
     assert answered["user"] == []
-    assert [question["answer"]["event"]["id"] for question in answered["all"]] == [
+    assert [ask["answer"]["event"]["id"] for ask in answered["all"]] == [
         chosen["id"],
         picked["id"],
         later["id"],
@@ -5975,10 +5987,10 @@ def test_frozen_replies_keep_their_publications_command_and_question_meanings():
             action="choose",
             detail={"value": ["new-a"]},
         )
-    assert questions() == answered
+    assert asks() == answered
 
     append("undo", undoes=chosen["id"])
-    assert [question["source"]["id"] for question in questions()["user"]] == ["old"]
+    assert [ask["source"]["id"] for ask in asks()["user"]] == ["old"]
     reading = frozen_thread_reading(
         log, page.registry, available_revisions=page.revisions
     )

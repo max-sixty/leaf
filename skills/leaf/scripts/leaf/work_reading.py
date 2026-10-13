@@ -1,6 +1,6 @@
 """The durable work reading of one document and admitted log.
 
-Tasks, frozen thread questions, and exact-input workflows share one event basis.
+To-dos, frozen thread asks, and exact-input workflows share one event basis.
 Admission constructs it under the sending vocabulary; serving constructs it under
 its active document, and each view of a pinned revision under that revision's
 (`viewing`). Neither adds claim liveness: activity enriches these facts
@@ -10,12 +10,12 @@ This object is transaction-scoped and never written to disk.
 
 from functools import cached_property
 
+from .asks import collection, thread_ask_readings, thread_asks
 from .document_reading import read_document
 from .events import build_threads, standing_approvals
 from .projection import frozen_thread_reading
-from .questions import collection, thread_question_readings, thread_questions
-from .tasks import TaskReading
 from .thread_context import effective_thread_events
+from .todos import TodoReading
 
 
 class WorkReading:
@@ -41,7 +41,7 @@ class WorkReading:
         self.within = (
             within if within is not None else page.within if page is not None else {}
         )
-        self.log = log or TaskReading(events)
+        self.log = log or TodoReading(events)
         self._thread = thread
 
     def viewing(self, page) -> "WorkReading":
@@ -88,16 +88,14 @@ class WorkReading:
         return effective_thread_events(self.events, self.available_revisions)
 
     @cached_property
-    def widget_questions(self) -> dict:
-        return thread_question_readings(self.events, self.threads, reading=self.thread)
+    def widget_asks(self) -> dict:
+        return thread_ask_readings(self.events, self.threads, reading=self.thread)
 
     @cached_property
-    def thread_questions(self) -> dict:
-        open_widget_threads = {
-            question["thread"] for question in self.widget_questions["user"]
-        }
+    def thread_asks(self) -> dict:
+        open_widget_threads = {ask["thread"] for ask in self.widget_asks["user"]}
         return {
-            identity: thread_questions(
+            identity: thread_asks(
                 identity,
                 held,
                 self.registry,
@@ -109,24 +107,20 @@ class WorkReading:
         }
 
     @cached_property
-    def questions(self) -> dict:
+    def asks(self) -> dict:
         return collection(
             [
-                *self.widget_questions["all"],
-                *(
-                    question
-                    for reading in self.thread_questions.values()
-                    for question in reading.questions
-                ),
+                *self.widget_asks["all"],
+                *(ask for reading in self.thread_asks.values() for ask in reading.asks),
             ]
         )
 
     @cached_property
-    def all_questions(self) -> dict:
+    def all_asks(self) -> dict:
         return collection(
             [
-                *(self.document.questions["all"] if self.document is not None else []),
-                *self.questions["all"],
+                *(self.document.asks["all"] if self.document is not None else []),
+                *self.asks["all"],
             ]
         )
 
@@ -134,7 +128,7 @@ class WorkReading:
     def prompts(self) -> dict:
         return {
             identity: reading.prompt
-            for identity, reading in self.thread_questions.items()
+            for identity, reading in self.thread_asks.items()
             if reading.prompt is not None
         }
 
@@ -155,21 +149,21 @@ class WorkReading:
             self.thread if self.page is not None else None,
             page=self.page,
             events=self.events,
-            task_reading=self.log,
-            questions=self.all_questions,
+            todo_reading=self.log,
+            asks=self.all_asks,
         )
 
-    def page_tasks(self, aged: list[dict] = ()) -> tuple[list[dict], list[dict]]:
-        """Explicit tasks enriched with their thread and current activity."""
-        by_id = {task["id"]: task for task in aged}
+    def page_todos(self, aged: list[dict] = ()) -> tuple[list[dict], list[dict]]:
+        """To-dos enriched with their thread and current activity."""
+        by_id = {todo["id"]: todo for todo in aged}
         log = [
             {
-                **by_id.get(task["id"], task),
-                "thread": self.thread.subject_thread(task["subject"]),
+                **by_id.get(todo["id"], todo),
+                "thread": self.thread.subject_thread(todo["subject"]),
             }
-            for task in self.log.tasks
+            for todo in self.log.todos
         ]
         return (
-            [task for task in log if task["state"] == "open"],
-            [task for task in log if task["state"] != "open"],
+            [todo for todo in log if todo["state"] == "open"],
+            [todo for todo in log if todo["state"] != "open"],
         )

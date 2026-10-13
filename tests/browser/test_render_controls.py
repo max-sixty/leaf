@@ -920,9 +920,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     expect(result).to_have_text("Replacement applied")
 
 
-def test_restoring_question_focus_can_execute_its_command_in_the_same_turn(
-    browser, serve
-):
+def test_restoring_ask_focus_can_execute_its_command_in_the_same_turn(browser, serve):
     """Focus determines forwarded scopes synchronously, without a paint registering them."""
     page = open_page(
         browser,
@@ -1906,7 +1904,7 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_required_approval_is_a_question_until_approved(browser, serve, width):
+def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     """Sign-off belongs to Questions and leads to the real approval control,
     including its phone overflow seat. A task's Done cannot substitute for it."""
     html = LONG_PAGE.replace(
@@ -1920,15 +1918,13 @@ def test_required_approval_is_a_question_until_approved(browser, serve, width):
     )
     expect(questions).to_be_attached()
     target = page.evaluate("""async () => {
-      const {readQuestions, questionActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-      const question = readQuestions().all.find(q => q.source.kind === 'approval');
-      const target = document.getElementById(question.prompt.target);
-      await questionActions.open(question.id);
+      const {readAsks, askActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const ask = readAsks().all.find(q => q.source.kind === 'approval');
+      const target = document.getElementById(ask.prompt.target);
+      await askActions.open(ask.id);
       return target === document.querySelector('.lf-signoff') && document.activeElement === target;
     }""")
-    assert target, (
-        "the public Question route did not reach its declared approval target"
-    )
+    assert target, "the public ask route did not reach its declared approval target"
     page.keyboard.press("q")
     approval = page.locator(".lf-signoff")
     expect(approval).to_be_visible()
@@ -1961,7 +1957,7 @@ def test_required_approval_is_a_question_until_approved(browser, serve, width):
 
 
 def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serve):
-    """Approval, its Question and its history agree during send, undo and refusal.
+    """Approval, its ask and its history agree during send, undo and refusal.
 
     Holding each POST proves the result is visible before admission; a definitive
     refusal restores the same admitted approval through every consumer.
@@ -2478,7 +2474,7 @@ def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, ser
 
 
 def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
-    """On a phone Approval stands behind More as a waiting Question, and More wears
+    """On a phone Approval stands behind More as a waiting ask, and More wears
     its dot and names both reasons. Approving takes the dot down and taking the
     approval back puts it up again; on a desk Approval stands on the row and More
     wears no dot for it."""
@@ -2818,7 +2814,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     resized(page, 390, 900)
     expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
     assert answer_all.evaluate("button => button === window.__lfBulkControl")
-    assert answer_all.locator(":scope > lf-question-banner-face").count() == 1
+    assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
     order = page.evaluate(
         """() => [...document.querySelector('.lf-banner-menu').children,
                     ...document.querySelector('.lf-banner-actions').children]

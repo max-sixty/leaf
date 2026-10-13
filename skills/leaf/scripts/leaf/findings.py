@@ -247,12 +247,12 @@ def _reference_contract(at: str, v: dict) -> str:
     )
 
 
-def _question_context(at: str, v: dict) -> str:
+def _ask_context(at: str, v: dict) -> str:
     widgets = "; ".join(
         f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
         for w in v["widgets"]
     )
-    return f"{_line(at, v)}: a Question context registers no Question: " + (
+    return f"{_line(at, v)}: an ask context registers no ask: " + (
         widgets or "it holds no widget that declares x-awaits"
     )
 
@@ -357,7 +357,7 @@ _TEXT = {
     "unmarkable": lambda at, v: (
         f"{at} shows {v['w']}x{v['h']}px of words and offers no box to mark: it draws"
         " none of its own and no element inside it draws one either, so a comment"
-        " anchored here would outline nothing and the Question walk would travel to"
+        " anchored here would outline nothing and the Questions walk would travel to"
         " the top of the page. Put the words in an element that takes a box"
     ),
     "undeclared-shadow": lambda at, v: (
@@ -653,13 +653,13 @@ _TEXT = {
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
-    "empty-question-context": _question_context,
-    "question-context-headings": lambda at, v: (
-        f"{_line(at, v)}: a Question context must have exactly one direct heading,"
+    "empty-ask-context": _ask_context,
+    "ask-context-headings": lambda at, v: (
+        f"{_line(at, v)}: an ask context must have exactly one direct heading,"
         f" found {json_value(v['headings']) if v['headings'] else 'none'}"
     ),
-    "question-context-heading-first": lambda at, v: (
-        f"{_line(at, v)}: a Question context's direct heading must be its first"
+    "ask-context-heading-first": lambda at, v: (
+        f"{_line(at, v)}: an ask context's direct heading must be its first"
         " content, found "
         + ("text" if v["first"] == "#text" else f"<{v['first']}>")
         + " first"

@@ -19,7 +19,7 @@ def browser_document(document: DocumentReading, revision: int) -> dict:
         # The complete ask reading of this revision under the same transaction. The
         # browser draws its asks from these lists rather than folding the
         # declarations a second time.
-        "asks": document.questions,
+        "asks": document.asks,
     }
 
 

@@ -10,7 +10,7 @@ import {
   foldProjection,
   foldedValue,
   foldWidgetStates,
-  questionValue,
+  askValue,
   isProjectionEntry,
   stateCoordinate,
 } from "../../skills/leaf/assets/runtime/projection/model.js";
@@ -184,7 +184,7 @@ interface WireProjection {
 
 /** A request and its contained answer. The source owns the canonical value;
  * identity includes its kind so authored ids and message ids cannot collide. */
-interface QuestionRecord {
+interface AskRecord {
   id: string;
   source: { kind: "widget" | "reply"; id: string; tag?: string }
     | { kind: "approval"; version: number };
@@ -192,7 +192,7 @@ interface QuestionRecord {
   message: string | null;
   prompt: { text: string | null; target: string };
   answer: { value: unknown; event: Event | null } | null;
-  /** `questions.py` owns the statuses; only a prose ask is `answered_elsewhere`. */
+  /** `asks.py` owns the statuses; only a prose ask is `answered_elsewhere`. */
   status: "open" | "answered" | "answered_elsewhere" | "withdrawn";
   /** The agent's `leaf task end` that retired a prose ask: where the answer is, or why
    * the ask no longer applies. */
@@ -200,10 +200,10 @@ interface QuestionRecord {
   next_actor: "user" | "agent" | null;
 }
 
-interface WireQuestions {
-  all: QuestionRecord[];
-  user: QuestionRecord[];
-  unanswered: QuestionRecord[];
+interface WireAsks {
+  all: AskRecord[];
+  user: AskRecord[];
+  unanswered: AskRecord[];
 }
 
 /** One served workflow, as `served_state.browser.served_workflows` serializes it;
@@ -261,10 +261,10 @@ export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
   dropped?: boolean;
 };
 
-/** One to-do, as `served_state.browser` serves it (`tasks.page_tasks`): `todos` holds
+/** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
  * the open ones on either side and `ended_todos` the ones that ended, with their
  * outcome. Asks are separate records and never appear in this list. */
-interface WireTask {
+interface WireTodo {
   id: string;
   owner: "agent" | "user";
   subject: { kind: "thread" | "widget"; id: string } | { kind: "page" };
@@ -273,8 +273,8 @@ interface WireTask {
   state: "open" | "done" | "failed" | "dropped";
   ts: string;
   revision: number | null;
-  /** The start that holds the task, while one does; one gone quiet holds nothing
-   * (`activity._canonical_tasks`). */
+  /** The start that holds the to-do, while one does; one gone quiet holds nothing
+   * (`activity._canonical_todos`). */
   running: {
     id: string;
     text: string;
@@ -299,7 +299,7 @@ interface QueueItem {
   thread: string | null;
   /** Whether the agent has it in hand now. */
   live: boolean;
-  ask?: QuestionRecord;
+  ask?: AskRecord;
   [field: string]: unknown;
 }
 
@@ -374,21 +374,21 @@ interface AuthoritativeState {
         basis: { revision: number; through_seq: number };
         document: {
           projection: WireProjection;
-          asks: WireQuestions;
+          asks: WireAsks;
         };
         /** Frozen messages keep their admitted vocabularies, including the decisions,
          * asks and attention their widgets give, beside this revision's page. */
         thread: {
           threads: Thread[];
           projection: WireProjection;
-          asks: WireQuestions;
+          asks: WireAsks;
         };
         undo: { event: Event }[];
         coverage: Coverage[];
         reports: object[];
         published_at: string | null;
         queues: WireQueues;
-        /** The asks approving this version waits on (`questions.approval_blocking`). */
+        /** The asks approving this version waits on (`asks.approval_blocking`). */
         approval_blocking: string[];
       }
     >;
@@ -398,8 +398,8 @@ interface AuthoritativeState {
     /** Every thread whose history each logged event changes
      * (`thread_context.thread_memberships`). */
     thread_memberships: Record<string, string[]>;
-    todos: WireTask[];
-    ended_todos: WireTask[];
+    todos: WireTodo[];
+    ended_todos: WireTodo[];
   };
   activity: unknown;
   reading?: string;
@@ -448,66 +448,66 @@ function normalizedProjection(view: PageView | null | undefined) {
 const appliesTo = (descriptor: WidgetDescriptor, event: WidgetEvent | LocalAction) =>
   event.widget === descriptor.id;
 
-const NO_QUESTIONS = {
-  all: [] as QuestionRecord[],
-  user: [] as QuestionRecord[],
-  unanswered: [] as QuestionRecord[],
+const NO_ASKS = {
+  all: [] as AskRecord[],
+  user: [] as AskRecord[],
+  unanswered: [] as AskRecord[],
 };
 
 /* The admitted inventory owns membership and widget completion. Approval and its
  * undo draw their direct result immediately. Widget values come from
  * the same local-inclusive fold used by their controls, so a partial answer is
  * visible before its POST settles the ask. */
-function normalizedQuestions(
+function normalizedAsks(
   view: PageView | null,
   widgets: ReturnType<typeof foldWidgetStates>,
   document: SemanticDocument,
   projection: ReturnType<typeof foldProjection>,
   local: readonly LedgerEntry[],
-): WireQuestions {
+): WireAsks {
   const page = view?.document.asks;
   const thread = view?.thread.asks;
   const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map(
-    (question): QuestionRecord => {
-      if (question.source.kind === "approval") {
-        const version = question.source.version;
+    (ask): AskRecord => {
+      if (ask.source.kind === "approval") {
+        const version = ask.source.version;
         const undone = new Set(local.flatMap(({ event }) =>
           event.kind === "undo" ? [event.undoes] : []));
         const approving = local.some(({ event }) =>
           event.kind === "done" && event.version === version);
-        if (approving) return { ...question, answer: { value: true, event: null },
+        if (approving) return { ...ask, answer: { value: true, event: null },
           status: "answered", next_actor: null };
-        if (question.answer?.event && undone.has(question.answer.event.id))
-          return { ...question, answer: null, status: "open", next_actor: "user" };
-        return question;
+        if (ask.answer?.event && undone.has(ask.answer.event.id))
+          return { ...ask, answer: null, status: "open", next_actor: "user" };
+        return ask;
       }
-      if (question.source.kind !== "widget") return question;
-      const sourceId = question.source.id;
+      if (ask.source.kind !== "widget") return ask;
+      const sourceId = ask.source.id;
       const widget = widgets.get(sourceId);
-      const declaration = document.descriptors.get(question.source.id)?.declaration["x-awaits"] as
+      const declaration = document.descriptors.get(ask.source.id)?.declaration["x-awaits"] as
         { value?: string } | undefined;
       const verb = declaration?.value;
-      if (!verb || !widget) return question;
-      const completed = question.status === "answered" &&
-        !(question.answer?.event && projection.pendingWithdrawals.has(question.answer.event.id));
-      const { value, present } = questionValue(widget, verb, completed);
+      if (!verb || !widget) return ask;
+      const completed = ask.status === "answered" &&
+        !(ask.answer?.event && projection.pendingWithdrawals.has(ask.answer.event.id));
+      const { value, present } = askValue(widget, verb, completed);
       const pendingValue = (widget.entries as { e: Event }[]).some(({ e }) =>
         e.action === verb && !Number.isInteger(e.seq)) ||
         [...projection.pendingWithdrawals.values()].some(({ e }) =>
           e.widget === sourceId &&
-          (e.action === verb || e.id === question.answer?.event?.id));
+          (e.action === verb || e.id === ask.answer?.event?.id));
       const answer = present
-        ? { value, event: pendingValue ? null : question.answer?.event ?? null }
+        ? { value, event: pendingValue ? null : ask.answer?.event ?? null }
         : null;
-      return { ...question, answer };
+      return { ...ask, answer };
     },
   );
   const selection = (kind: "user" | "unanswered") => {
     const admitted = new Set([...(page?.[kind] ?? []), ...(thread?.[kind] ?? [])]
-      .map((question) => question.id));
-    return all.filter((question) => question.source.kind === "approval"
-      ? kind === "user" ? question.next_actor === "user" : question.status === "open"
-      : admitted.has(question.id));
+      .map((ask) => ask.id));
+    return all.filter((ask) => ask.source.kind === "approval"
+      ? kind === "user" ? ask.next_actor === "user" : ask.status === "open"
+      : admitted.has(ask.id));
   };
   return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
@@ -516,7 +516,7 @@ function normalizedQuestions(
  * user is ending stands ended in the gesture's own turn, and one whose Done they are
  * undoing stands open again; a refused gesture leaves the ledger and so puts the to-do
  * back as the log has it. */
-function localTasks(
+function localTodos(
   state: AuthoritativeState | null,
   local: readonly LedgerEntry[],
 ) {
@@ -528,21 +528,21 @@ function localTasks(
   );
   const served = state?.browser.todos ?? [];
   const ended = state?.browser.ended_todos ?? [];
-  const reopened = (task: WireTask) =>
-    task.outcome !== null && undoing.has(task.outcome.id ?? "");
+  const reopened = (todo: WireTodo) =>
+    todo.outcome !== null && undoing.has(todo.outcome.id ?? "");
   const open = [
     ...served,
     ...ended
       .filter(reopened)
-      .map((task) => ({ ...task, state: "open" as const, outcome: null })),
+      .map((todo) => ({ ...todo, state: "open" as const, outcome: null })),
   ];
-  const locallyEnded = (task: WireTask) => ending.has(task.id);
+  const locallyEnded = (todo: WireTodo) => ending.has(todo.id);
   return {
-    open: open.filter((task) => !locallyEnded(task)),
+    open: open.filter((todo) => !locallyEnded(todo)),
     ended: [
-      ...ended.filter((task) => !reopened(task)),
-      ...open.filter(locallyEnded).map((task) => ({
-        ...task,
+      ...ended.filter((todo) => !reopened(todo)),
+      ...open.filter(locallyEnded).map((todo) => ({
+        ...todo,
         state: "done" as const,
         running: null,
         outcome: { ts: null, detail: null },
@@ -566,8 +566,8 @@ function localQueues(
   served: WireQueues,
   threads: readonly Pick<Thread, "id" | "resolved" | "attention">[],
   workflows: readonly Workflow[],
-  todos: ReturnType<typeof localTasks>,
-  asks: WireQuestions,
+  todos: ReturnType<typeof localTodos>,
+  asks: WireAsks,
 ) {
   const record = new Map(asks.all.map((ask) => [ask.id, ask]));
   const asked = new Map(asks.all.map((ask, at) => [ask.id, at]));
@@ -591,7 +591,7 @@ function localQueues(
       reading.attention.reason === "resend",
     );
   };
-  const question = (item: QueueItem) => {
+  const askOf = (item: QueueItem) => {
     const local = record.get(item.id);
     if (!local) throw new Error(`Queue item ${item.id} names no ask`);
     return local;
@@ -600,7 +600,7 @@ function localQueues(
   const standsOpen = (item: QueueItem) => {
     switch (item.kind) {
       case "ask":
-        return question(item).next_actor === "user";
+        return askOf(item).next_actor === "user";
       case "todo":
         return open.has(item.id);
       case "resend":
@@ -614,23 +614,23 @@ function localQueues(
   // Whether an item the server listed as done stands open again in this tab.
   const reopened = (item: DoneItem) =>
     item.kind === "ask"
-      ? question(item).status === "open" && question(item).next_actor === "user"
+      ? askOf(item).status === "open" && askOf(item).next_actor === "user"
       : open.has(item.id);
   // Whether an item the server listed as open has ended in this tab.
   const endedHere = (item: QueueItem) =>
     item.kind === "ask"
-      ? question(item).status !== "open"
+      ? askOf(item).status !== "open"
       : item.kind === "todo" && ended.has(item.id);
   // An ask item carries this tab's record of its ask.
   const current = <T extends QueueItem>(item: T): T =>
-    item.kind === "ask" ? { ...item, ask: question(item) } : item;
+    item.kind === "ask" ? { ...item, ask: askOf(item) } : item;
   const asOpen = ({ state: _state, ended: _ended, detail: _detail, ...item }: DoneItem) =>
     current(item as QueueItem);
   const asDone = (item: QueueItem): DoneItem => ({
     ...current(item),
     live: false,
     state:
-      item.kind === "ask" && question(item).status === "withdrawn"
+      item.kind === "ask" && askOf(item).status === "withdrawn"
         ? "dropped"
         : "done",
     ended: null,
@@ -877,7 +877,7 @@ export function createSemanticApplication({
       pendingEntries: localProjections,
     });
     // Threads and Questions both wait for an admitted reading. Authored markup names every
-    // Question the page could hold, but only the log says which of them it still holds and
+    // ask the page could hold, but only the log says which of them it still holds and
     // whether they are answered, so before that reading there is no inventory to publish.
     const ready = phase === "ready";
     // The ledger's thread gestures, in the order the user made them.
@@ -894,10 +894,10 @@ export function createSemanticApplication({
       ? foldThreads(view?.thread.threads ?? [], gestures)
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
-    const questions = ready
-      ? normalizedQuestions(view, widgets, document, projection, local)
-      : NO_QUESTIONS;
-    const tasks = ready ? localTasks(state, local) : { open: [], ended: [] };
+    const asks = ready
+      ? normalizedAsks(view, widgets, document, projection, local)
+      : NO_ASKS;
+    const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
     // Thread attention is the server's reading, and one local fact adjusts it: a
     // refused send hands a thread the server left with the agent back to the user,
     // whose Retry it is.
@@ -1025,7 +1025,7 @@ export function createSemanticApplication({
         isTurnEvent(entry.event) ? (localWorkflow(entry, false) ?? []) : [],
       ),
       // A refused message or widget move has a destination to send again.
-      // Other gestures restore their own control or task when speculation ends.
+      // Other gestures restore their own control or to-do when speculation ends.
       ...refused.flatMap((entry) => localWorkflow(entry, true) ?? []),
     ];
     const threads = readThreadRecords(
@@ -1040,8 +1040,8 @@ export function createSemanticApplication({
       ready ? (view?.queues ?? NO_QUEUES) : NO_QUEUES,
       threads,
       workflows,
-      tasks,
-      questions,
+      todos,
+      asks,
     );
     const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
     const contextual = <T extends { id: string; kind: string }>(
@@ -1074,7 +1074,7 @@ export function createSemanticApplication({
         // included until the reading they restore is drawn (held-news.js, `gesturedOn`).
         gestured: [...new Set(unresolved.flatMap(threadsOfEntry))],
       },
-      asks: { phase, ...questions },
+      asks: { phase, ...asks },
       // Questions (on the user), Tasks (on the agent), and done: the served lists
       // with this tab's sends placed against them (`localQueues`).
       queues: {

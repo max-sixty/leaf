@@ -107,13 +107,13 @@ def validate_widget_record_contracts(
     path,
 ) -> None:
     # `resolves` is a reserved attribute: the comment thread an answer to this
-    # widget's own Question closes, which admission reads off the sending document into
-    # the answering action's meaning. On a widget with no local Question nothing would
+    # widget's own ask closes, which admission reads off the sending document into
+    # the answering action's meaning. On a widget with no local ask nothing would
     # ever read it, so the name means that or is refused here.
     if "resolves" in properties and not (entry.get("x-awaits") or {}).get("answered"):
         raise RegistryError(
             f"{path}: <{tag}> declares attribute `resolves`, a reserved name (the "
-            "thread an answer to its Question closes), but originates no local Question"
+            "thread an answer to its ask closes), but originates no local ask"
         )
     # One rule set for both writers: they differ in who sends the state, not in
     # how a verb, its unit, and record hang together.

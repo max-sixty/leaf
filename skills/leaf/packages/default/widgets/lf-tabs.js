@@ -44,7 +44,7 @@
  * while any ask the panel holds is unanswered, and once every one is answered a check, with
  * the answer's own words where the panel holds one ask. So a queue shows each item's state
  * and how far the user has worked through it, and an undo that reopens an ask puts the
- * open mark back. Which asks a panel holds is `asksIn` (questions/place.js), read from the
+ * open mark back. Which asks a panel holds is `asksIn` (asks/place.js), read from the
  * admitted ask inventory, so a tally of the queue counts the same asks. A row whose panel
  * authors an ask keeps the mark's room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
@@ -56,7 +56,7 @@ import {
   HIDDEN,
   PRESS,
   asksIn,
-  questionWords,
+  askWords,
   under,
   backgroundFlash,
   beginWalk,
@@ -90,7 +90,7 @@ import {
   setRuntimeRootStyle,
   sizeObserver,
   tabStore,
-  watchQuestions,
+  watchAsks,
   watchComparison,
   focusDestination,
   fragmentTarget,
@@ -126,7 +126,7 @@ const soleSubstantiveElement = (owner) => {
 
 export default class extends HTMLElement {
   #buttons = new Map(); // panel → its strip button
-  #stopQuestions = null;
+    #stopAsks = null;
   #active = null;
   #root = false;
   #contextObserver = null;
@@ -309,7 +309,7 @@ export default class extends HTMLElement {
       this.#replaceLocation(this.#active);
     }
     // The Δ count follows the version diff; the runtime announces each toggle.
-    this.#listenForQuestions();
+      this.#listenForAsks();
     watchComparison(this, () => this.#marks());
     whileConnected(this, (signal) => {
       this.#watchRootContext();
@@ -375,16 +375,16 @@ export default class extends HTMLElement {
         changed ? `Δ${changed}` : "",
       );
       const slot = btn.querySelector(":scope > .lf-tab-answer");
-      const questions = slot ? asksIn(panel) : [];
-      const done = questions.filter((question) => question.status === "answered");
-      const answered = questions.length > 0 && done.length === questions.length;
-      const only = questions.length === 1 ? questions[0] : null;
-      const answer = answered && only ? questionWords(only) : "";
+        const asks = slot ? asksIn(panel) : [];
+        const done = asks.filter((ask) => ask.status === "answered");
+        const answered = asks.length > 0 && done.length === asks.length;
+        const only = asks.length === 1 ? asks[0] : null;
+        const answer = answered && only ? askWords(only) : "";
       if (slot) {
         keeps(
           slot,
           "data-lf-asks",
-          answered ? "answered" : questions.length ? "open" : null,
+            answered ? "answered" : asks.length ? "open" : null,
         );
         keepsText(slot.firstElementChild, answer);
       }
@@ -393,17 +393,17 @@ export default class extends HTMLElement {
         group && `${group} group`,
         panel.getAttribute("summary"),
         changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
-        !questions.length
+          !asks.length
           ? ""
           : !answered
             ? only
               ? "Unanswered"
-              : `${done.length} of ${questions.length} Questions answered`
+                : `${done.length} of ${asks.length} answered`
             : only
               ? answer
                 ? `Answered: ${answer}`
                 : "Answered"
-              : `All ${questions.length} Questions answered`,
+                : `All ${asks.length} answered`,
       ]
         .filter(Boolean)
         .join(". ");
@@ -411,10 +411,10 @@ export default class extends HTMLElement {
     }
   }
 
-  // A side list's answers follow the page's Question reading.
-  #listenForQuestions() {
-    if (!this.#side || !this.#buttons.size || this.#stopQuestions) return;
-    this.#stopQuestions = watchQuestions(this, () => this.#marks());
+    // A side list's answers follow the page's ask reading.
+    #listenForAsks() {
+      if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
+      this.#stopAsks = watchAsks(this, () => this.#marks());
   }
 
   #activate(active, reason) {

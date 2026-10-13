@@ -2,6 +2,7 @@
 
 from typing import NamedTuple
 
+from ..asks import approval_blocking, collection
 from ..document_reading import DocumentReading
 from ..events import UndoReading
 from ..files import stamped_version
@@ -13,7 +14,6 @@ from ..projection import (
     canonical_reports,
     page_reading,
 )
-from ..questions import approval_blocking, collection
 from ..schema import WIDGET_KINDS
 from ..thread_context import thread_memberships
 from ..work_reading import WorkReading
@@ -87,7 +87,7 @@ def _apply_thread_attention(
     it is. `durable` combines the viewed page's vocabulary with each message's captured
     vocabulary, so pinning another page revision does not reclassify frozen asks.
     `workflows` are the page's, enriched with delivery liveness."""
-    owed = {ask["thread"] for ask in durable.questions["user"]}
+    owed = {ask["thread"] for ask in durable.asks["user"]}
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
         if workflow["thread"] is not None:
@@ -144,7 +144,7 @@ def browser_state(
         absorbed=active_page.projection.absorbed,
     )
     workflows = work.workflows
-    todos, ended_todos = durable.page_tasks(work.activity["tasks"])
+    todos, ended_todos = durable.page_todos(work.activity["todos"])
     agent_todos = [todo for todo in todos if todo["owner"] == "agent"]
 
     views = {}
@@ -225,7 +225,7 @@ def browser_state(
     activity = {
         key: value
         for key, value in work.activity.items()
-        if key not in {"workflows", "tasks"}
+        if key not in {"workflows", "todos"}
     }
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(

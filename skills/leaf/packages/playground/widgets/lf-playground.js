@@ -80,7 +80,7 @@ function jsonSnapshot(value, path = "configuration") {
 }
 
 export default class extends HTMLElement {
-  // What the Question was answered with: the instruction the chosen configuration sent.
+  // What the ask was answered with: the instruction the chosen configuration sent.
   static answerWords(value) {
     return value.instruction;
   }

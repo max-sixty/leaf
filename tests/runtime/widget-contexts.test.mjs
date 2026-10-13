@@ -43,7 +43,7 @@ test("publication binding follows element descendants across later reparenting",
 test("an earlier publication cannot lend its shadow, question or member roles", async () => {
   const { rememberVocabulary } = await import("/runtime/widget-contexts.js");
   const { shadowRootsIn } = await import("/runtime/shadow.js");
-  const { ownedQuestionControl } = await import("/runtime/questions/answer.js");
+  const { ownedAskControl } = await import("/runtime/asks/answer.js");
   const { worksInside } = await import("/runtime/widget-elements.js");
   const older = {
     revision: 9601,
@@ -78,9 +78,9 @@ test("an earlier publication cannot lend its shadow, question or member roles", 
   assert.deepEqual(shadowRootsIn(root), [shadows[0].shadowRoot]);
   const owner = root.querySelector("lf-mixed-owner");
   const question = owner.firstElementChild;
-  assert.equal(ownedQuestionControl(owner, question.firstElementChild), true);
+  assert.equal(ownedAskControl(owner, question.firstElementChild), true);
   bindVocabulary(question, older);
-  assert.equal(ownedQuestionControl(owner, question.firstElementChild), false);
+  assert.equal(ownedAskControl(owner, question.firstElementChild), false);
   const container = root.querySelector("lf-mixed-container");
   const part = container.firstElementChild;
   assert.equal(worksInside(part.firstElementChild, container), part);

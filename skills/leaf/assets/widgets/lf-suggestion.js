@@ -119,7 +119,7 @@ function toRanges(segments, spans) {
 }
 
 export default class extends HTMLElement {
-  // What the Question was answered with: the decision.
+  // What the ask was answered with: the decision.
   static answerWords(value) {
     return value.outcome === "accept" ? "Accepted" : "Rejected";
   }

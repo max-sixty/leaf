@@ -42,6 +42,8 @@
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
  * a box wants more than one run of text there, such as a label and the key that sends.
+ * It is drawn in the theme's muted ink; a box that wants another face for it styles
+ * `::part(placeholder)`, which a slotted child inherits.
  *
  * The editor lives while the element is in a document. A field removed and not put
  * back in the same task keeps its state and destroys its view, which releases the
@@ -406,6 +408,7 @@ class LeafText extends HTMLElement {
     this.#frame.className = "lf-field";
     this.#placeholderLayer.className = "lf-field-placeholder";
     this.#placeholderLayer.setAttribute("aria-hidden", "true");
+    this.#placeholderLayer.setAttribute("part", "placeholder");
     const hint = document.createElement("slot");
     hint.name = "placeholder";
     hint.append(this.#placeholderText);

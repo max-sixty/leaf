@@ -22,15 +22,21 @@ from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.render_gate import browser as browser_model
-from leaf_dev import LEAF_COMMAND
+from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
 from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts
 from leaf_dev.page_fixtures import package_selection_args
 from playwright.sync_api import sync_playwright
 
 __all__ = ["LEAF_COMMAND"]
 
-# The canonical subprocess command. Tests of the installed harness boundary invoke
-# that payload's `bin/leaf`; every other process test runs the checkout directly.
+# Test modules retain this shared sequence when importing it. The active fixture
+# selects its launcher in place, so subprocess page producers follow the same kernel
+# as in-process commands without depending on the order modules were collected.
+LEAF_COMMAND = list(SOURCE_LEAF_COMMAND)
+
+# The canonical subprocess command. Browser tiers select the prepared payload;
+# source-installation model/process tests run the checkout directly. Tests of a
+# particular installed harness invoke that payload's own `bin/leaf`.
 # Start every child the way a terminal starts one. A run launched as a shell's
 # background job is handed SIGINT set to SIG_IGN, and an inherited SIG_IGN
 # survives both Python startup and `exec`, so everything the run spawns ignores
@@ -44,9 +50,8 @@ pytest_plugins = ("interact_support", "render_harness")
 
 
 # The layer a page carries is the same bytes in every fixture, and the file it
-# is made of is what a copy costs: an initialized page is 195 files, 158 of them
-# runtime modules, and the suite wants one page per test. Measured when a page
-# was 146, copying them all made a complete run 2,272 pages and 393,473
+# is made of is what a copy costs. Historically, copying an initialized page's
+# 146 files per test made a complete run 2,272 pages and 393,473
 # directory entries, which is the number a filesystem event watcher charges for
 # — hard links share the bytes but not the entry. So the layer is written once
 # per shape and lent, and only what a test actually changed is put back. A
@@ -199,6 +204,40 @@ def _page_pool(tmp_path_factory):
     return PagePool(tmp_path_factory.mktemp("page-templates"))
 
 
+@pytest.fixture(scope="session")
+def compiled_installation():
+    """The existing prepared kernel, shared by workers and developer previews.
+
+    Preparation is serialized by content identity, so xdist workers reuse one build.
+    Source-only model tests need no compiler; the browser tiers request it lazily.
+    """
+    from leaf_dev.distribution import cached_installation
+
+    return cached_installation()
+
+
+@pytest.fixture(autouse=True)
+def compiled_pages(request, monkeypatch, isolated_session):
+    """Browser-tier page producers vendor the same kernel the website ships.
+
+    In-process commands retain their normal Python contracts and package resolution.
+    Only their kernel input comes from the prepared installation, whose manifest also
+    preserves the private-path protection after the source modules disappear.
+    Model and process tests of source installation keep that build-free boundary.
+    """
+    if request.path.parent.name not in {"smoke", "browser", "journeys"}:
+        return
+    installation = request.getfixturevalue("compiled_installation")
+    monkeypatch.setattr(layer_model, "ASSETS", installation / "skills/leaf/assets")
+    monkeypatch.setattr(layer_model, "PLUGIN_ROOT", installation)
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(installation / "bin/leaf"))
+    original_command = LEAF_COMMAND[:]
+    LEAF_COMMAND[:] = [str(installation / "bin/leaf")]
+    request.addfinalizer(
+        lambda: LEAF_COMMAND.__setitem__(slice(None), original_command)
+    )
+
+
 @pytest.fixture
 def initialized_page(_page_pool, tmp_path):
     """Put a page initialized with `packages` at `destination`, from the pool.
@@ -244,7 +283,7 @@ def initialized_page(_page_pool, tmp_path):
         if any(root.is_relative_to(own) for root in resolved):
             initialize(destination)
             return destination
-        shape = (packages, resolved, key)
+        shape = (layer_model.ASSETS, packages, resolved, key)
         page = _page_pool.lend(shape, destination, initialize)
         lent.append((shape, page))
         return page

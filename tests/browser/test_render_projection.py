@@ -453,7 +453,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
         held.pop(0).continue_()
         page.evaluate(
             """async () => {
-              const {loadMarkdown} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              const {loadMarkdown} = await window.__lfWidgetApi();
               await loadMarkdown();
             }"""
         )
@@ -1956,7 +1956,7 @@ def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve
     rendered(page)
     expect(tab).to_be_focused()
     assert tab.evaluate("""async tab => {
-        const {stuckBox, seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
+        const {stuckBox, seenRect} = await window.__lfCheckApi();
         return Boolean(stuckBox(tab) && seenRect(tab, new Map()));
     }"""), "the tab strip did not stick over the panel"
     landmark = page.evaluate("""() => [...document.querySelectorAll('#first p')].find(
@@ -2510,7 +2510,7 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
     template = "() => document.getElementById('tm-held').content.textContent"
     assert page.evaluate(template) == "The first account."
     quoted = (
-        "async () => { const api = await window.__lfRuntimeImport('/runtime/widget-api.js');"
+        "async () => { const api = await window.__lfWidgetApi();"
         " const reading = api.widgetController(document.getElementById('qt-opts')).read();"
         " return { choose: reading.actions.choose.available,"
         " label: document.getElementById('qt-b').textContent.trim() }; }"
@@ -3091,8 +3091,7 @@ def test_a_live_revision_reorders_the_page_and_ask_inventory_together(browser, s
     ]
     descriptors = page.evaluate(
         """async () => {
-          const {readApplication} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplication} = await window.__lfCheckApi();
           return [...readApplication().document.descriptors.keys()];
         }"""
     )
@@ -3629,7 +3628,7 @@ def test_a_panes_posture_change_keeps_the_reading_after_scrolling_past_focus(
         # Interleave at the announced handover, before its deferred restoration. The
         # platform input supersedes that restoration just as a trackpad gesture does.
         page.evaluate("""async () => {
-          const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const regions = await window.__lfWidgetApi();
           const stop = regions.watchReadingRegionTransitions(({phase, shifted}) => {
             if (phase !== 'shift' || !shifted.some(({region}) => region.id === 'reading'))
               return;
@@ -5225,7 +5224,7 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     told(page)
 
     reports = page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).reportSequence()"
+        "async () => (await window.__lfWidgetApi()).reportSequence()"
     )
     by_source = {report["source"]: report for report in reports}
     assert set(by_source) == {"report"}
@@ -5246,7 +5245,7 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     assert by_source["report"]["session"]
     targeted = page.evaluate(
         """async () => {
-            const feed = await window.__lfRuntimeImport('/runtime/widget-api.js');
+            const feed = await window.__lfWidgetApi();
             return {
                 widget: feed.reportSequence(document.querySelector('#ag-wren')),
                 thread: feed.reportSequence({kind: 'thread', id: 'ag-wren'}),
@@ -5278,7 +5277,7 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     wait_for_revision(page, 2)
 
     reports = page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/widget-api.js')).reportSequence()"
+        "async () => (await window.__lfWidgetApi()).reportSequence()"
     )
     by_source = {report["source"]: report for report in reports}
     assert by_source["report"]["disposition"] == "settled"
@@ -5311,8 +5310,7 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
 
     page.evaluate(
         """async () => {
-          const {dragging} = await window.__lfRuntimeImport(
-            '/runtime/widget-elements.js');
+          const {dragging} = await window.__lfWidgetApi();
           dragging(document.body, true);
         }"""
     )
@@ -5336,8 +5334,7 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
 
     page.evaluate(
         """async () => {
-          const {dragging} = await window.__lfRuntimeImport(
-            '/runtime/widget-elements.js');
+          const {dragging} = await window.__lfWidgetApi();
           dragging(document.body, false);
         }"""
     )
@@ -5376,9 +5373,9 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     expect(row.locator(".lf-doing")).to_have_text("first report")
     page.evaluate(
         """async holding => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {clockValue, tickClock} = await window.__lfRuntimeImport('/runtime/presence.js');
-          const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          const api = await window.__lfWidgetApi();
+          const {clockValue} = await window.__lfWidgetApi();
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
@@ -5386,10 +5383,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
             clockValue(() => window.__proofClock);
             window.__proofReads.push(reports.map(report => report.text));
           });
-          window.__proofTick = async () => {
-            window.__proofClock += 1;
-            await tickClock(message => { throw new Error(message); });
-          };
+          window.__proofTick = () => { window.__proofClock += 1; };
           window.__proofPending = () => {
             const proof = readApplicationPresentation();
             return api.reportSequence(owner).some(report => report.text === 'held report') &&
@@ -5420,6 +5414,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
         page.evaluate("window.__proofWatching.refresh()")
         assert page.evaluate("window.__proofReads.length") == reads
         page.evaluate("window.__proofTick()")
+        ticked(page)
         assert page.evaluate("window.__proofReads.length") == reads
     second = CliRunner().invoke(
         cli_model.cli,
@@ -5436,6 +5431,7 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     assert second.exit_code == 0, second.output
     page.wait_for_function("window.__proofPending()")
     page.evaluate("window.__proofTick()")
+    ticked(page)
     assert not page.evaluate(
         "window.__proofReads.some(read => read.includes('held report'))"
     )
@@ -5668,7 +5664,7 @@ export default class extends HTMLElement {
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     kept = page.evaluate(
         """async () => {
-          const {state} = (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+          const {state} = (await window.__lfWidgetApi())
             .widgetController(document.getElementById('tally-fitted')).read();
           return [state.set.value, state.observe.value];
         }"""
@@ -5792,7 +5788,7 @@ export default class extends HTMLElement {
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     kept = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfWidgetApi();
           return ['owner', 'piece'].map(id => {
             const widget = document.getElementById(id);
             const {state} = widgetController(widget).read();
@@ -5805,7 +5801,7 @@ export default class extends HTMLElement {
     # A data renderer can remount a part while retaining its owner. Both owning
     # coordinates must render onto the new node even when no winning event changed.
     page.evaluate("""async () => {
-      const {createWidgetElement} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {createWidgetElement} = await window.__lfWidgetApi();
       const piece = createWidgetElement(document.getElementById('piece'), 'lf-piece', document.getElementById('piece').constructor);
       piece.id = 'piece';
       piece.setAttribute('pinned', 'no');
@@ -5965,7 +5961,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
     signatures = page.evaluate("""async () => {
-        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/check-api.js");
+        const { shallowSigs } = await window.__lfCheckApi();
         const widget = document.getElementById("sug-refill");
         const read = () => shallowSigs(document.body).get(widget.id);
         const decided = read();
@@ -5987,7 +5983,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
         "rendered settlement paint became authored state in the replay signature"
     )
     positions = page.evaluate("""async () => {
-        const { shallowSigs } = await window.__lfRuntimeImport("/runtime/check-api.js");
+        const { shallowSigs } = await window.__lfCheckApi();
         const root = document.createElement("div");
         root.id = "signature-root";
         root.innerHTML = '<i></i><div id="first"><b id="nested"></b></div>' +
@@ -6685,8 +6681,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     holding(page, held, 1, "the frozen draft module")
     assert len(held) == 1
     frozen_reading = """async () => {
-      const {readApplication} = await window.__lfRuntimeImport(
-        '/runtime/semantic-state.js');
+      const {readApplication} = await window.__lfCheckApi();
       const root = readApplication();
       return {
         descriptor: root.document.descriptors.has('crossed-draft'),
@@ -7107,7 +7102,7 @@ def test_worktree_identity_does_not_follow_the_missing_evidence_placeholder(
 
     def status():
         return page.evaluate(
-            """anchor => window.__lfRuntimeImport('/runtime/anchor-resolution.js')
+            """anchor => window.__lfCheckApi()
               .then(({resolveAnchor}) => resolveAnchor(anchor)?.status)""",
             anchor,
         )

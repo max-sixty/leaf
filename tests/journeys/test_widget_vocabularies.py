@@ -43,8 +43,8 @@ def test_a_publication_stylesheet_failure_names_its_captured_resource(browser, s
     )
     reading = page.evaluate(
         """async root => {
-          const {requireVocabulary} = await window.__lfRuntimeImport('/runtime/widget-vocabularies.js');
-          const {exceptionText} = await window.__lfRuntimeImport('/runtime/layer-client.js');
+          const {requireVocabulary} = await window.__lfCheckApi();
+          const {exceptionText} = await window.__lfCheckApi();
           try { await requireVocabulary(1, root); return null; }
           catch (error) {
             return {name: error.name,
@@ -216,7 +216,7 @@ def test_historical_document_and_frozen_replies_keep_their_widget_vocabulary(
         "data-ready", "yes"
     )
     assert page.locator("#new-widget").evaluate("""async node => {
-      const {vocabularyFor} = await window.__lfRuntimeImport('/runtime/widget-contexts.js');
+      const {vocabularyFor} = await window.__lfCheckApi();
       const context = vocabularyFor(node);
       const child = node.querySelector('lf-generated-child');
       await context.load(node);
@@ -238,7 +238,7 @@ def test_historical_document_and_frozen_replies_keep_their_widget_vocabulary(
     answered_before = "1/2" if engine == "sample" else "2/3"
     expect_asks_answered(page, answered_before)
     page.evaluate("""async () => {
-      window.__vocabularyTestRead = (await window.__lfRuntimeImport('/runtime/semantic-state.js')).readApplication;
+      window.__vocabularyTestRead = (await window.__lfCheckApi()).readApplication;
     }""")
     page.locator("#new-b .lf-pick").click()
     expect(page.locator("#new-b .lf-pick")).to_have_attribute("aria-checked", "true")
@@ -385,7 +385,7 @@ def test_historical_decisions_keep_their_retired_passages(browser, serve):
     page.get_by_role("button", name="Accept revision").click()
     expect(page.locator("#before")).to_be_hidden()
     actual = page.evaluate(
-        """async () => {const p=await import('/runtime/passages.js');return {says:p.says(document.querySelector('#new-proposal')), settledAway:p.settledAway(document.querySelector('#before'))}}"""
+        """async () => {const p={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};return {says:p.says(document.querySelector('#new-proposal')), settledAway:p.settledAway(document.querySelector('#before'))}}"""
     )
     assert actual == {"says": "Replacement phrase", "settledAway": True}
 

@@ -478,12 +478,11 @@ def test_a_tall_shot_keeps_its_endpoint_labels_in_view(browser, serve, holder):
         page.mouse.wheel(0, 600)
         scroll_settled(page)
         landed = page.evaluate("""async () => {
-          const {scrollIntoReadingBand} = await window.__lfRuntimeImport('/runtime/landing-scroll.js');
-          const {scrollToFragment} = await window.__lfRuntimeImport('/runtime/anchor-travel.js');
-          const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const {scrollIntoReadingBand, scrollIntoView} = await window.__lfWidgetApi();
+          const {landingBand} = await window.__lfCheckApi();
           const passage = document.querySelector('#embedded-destination');
           const strip = document.querySelector('#embedded-tabs > .lf-tabstrip');
-          scrollToFragment(passage);
+          scrollIntoView(passage, {behavior: 'auto', block: 'start'});
           const elementTop = passage.getBoundingClientRect().top;
           const range = document.createRange();
           range.selectNodeContents(passage);

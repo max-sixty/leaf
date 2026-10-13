@@ -63,8 +63,8 @@ def _history_outstanding(page):
     """Local interaction finishes while history is still loading, before its deadline."""
     assert (
         page.evaluate("""async () => {
-      const {runtime} = await __lfRuntimeImport('/runtime/context.js');
-      return runtime.statePhase;
+      const {readApplication} = await window.__lfCheckApi();
+      return readApplication().phase;
     }""")
         == "waiting"
     )

@@ -1095,7 +1095,7 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
     """A held replacement navigation cannot keep a released child alive."""
     page = open_page(browser, serve(LIVE_SAMPLE_PAGE))
     page.evaluate("""async () => {
-        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+        const {mountSample} = await window.__lfWidgetApi();
         window.practiceFrame = document.createElement('iframe');
         document.body.append(practiceFrame);
         window.practiceHost = mountSample(practiceFrame, {template: 'first-source'});
@@ -1143,7 +1143,7 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
     page.route(re.compile(r"/api/samples/[^/]+/$"), fail_sample_startup)
     assert (
         page.evaluate("""async () => {
-        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+        const {mountSample} = await window.__lfWidgetApi();
         window.practiceHost = mountSample(practiceFrame, {template: 'first-source'});
         return practiceHost.ready.catch(error => error.message);
     }""")
@@ -1185,7 +1185,7 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
     held = []
     page.route("**/api/samples", lambda route: held.append(route))
     page.evaluate("""async () => {
-        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+        const {mountSample} = await window.__lfWidgetApi();
         window.pendingFrame = document.createElement('iframe');
         document.body.append(pendingFrame);
         window.pendingHost = mountSample(pendingFrame, {template: 'first-source'});
@@ -1205,7 +1205,7 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
     held.clear()
     page.route(re.compile(r"/api/samples/[^/]+/$"), lambda route: held.append(route))
     page.evaluate("""async () => {
-        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+        const {mountSample} = await window.__lfWidgetApi();
         window.pendingHost = mountSample(pendingFrame, {template: 'first-source'});
         window.pendingResult = pendingHost.ready.catch(error => error.name);
     }""")
@@ -1226,7 +1226,7 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
     # removed without consuming the next slot a surviving queued child needs.
     held.clear()
     page.evaluate("""async () => {
-        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+        const {mountSample} = await window.__lfWidgetApi();
         window.pendingResults = [];
         window.pendingHosts = Array.from({length: 5}, (_, index) => {
             const frame = document.createElement('iframe');
@@ -1268,7 +1268,7 @@ def test_slow_sample_state_does_not_hold_up_other_child_loads(browser, serve):
         lambda route: held.append(route),
     )
     page.evaluate("""async () => {
-      const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+      const {mountSample} = await window.__lfWidgetApi();
       window.practiceHosts = Array.from({length: 4}, () => {
         const frame = document.createElement('iframe');
         document.body.append(frame);
@@ -1436,7 +1436,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     # internal contribution boundary, just as asynchronous Ask and Page Map owners do.
     page.evaluate(
         """async () => {
-          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          const toolbar = await window.__lfCheckApi();
           for (let i = 0; i < 7; i++) {
             const button = document.createElement('button');
             button.className = 'lf-ui lf-btn lf-secondary-destination';
@@ -1464,7 +1464,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     # not its identity or connection to the document.
     page.evaluate(
         """async () => {
-          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          const toolbar = await window.__lfCheckApi();
           for (const control of document.querySelectorAll('.lf-secondary-destination'))
             toolbar.showBannerControl(control, false);
         }"""
@@ -1554,7 +1554,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     )
     positions = pinned.evaluate(
         """async () => {
-          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          const toolbar = await window.__lfCheckApi();
           const chip = document.querySelector('.lf-latest-chip');
           const threads = document.querySelector('.lf-threads-toggle');
           const door = document.querySelector('.lf-banner-more');
@@ -2414,7 +2414,7 @@ def test_a_phone_shows_a_notice_in_the_banner_s_status_words(browser, serve):
     # Once the gesture's acknowledgement has faded, background news owns its own
     # rendering. A shorter successor keeps the same first-line seat and press.
     page.evaluate("""async () => {
-      window.noticeOwner = await window.__lfRuntimeImport('/runtime/notifications.js');
+      window.noticeOwner = await window.__lfWidgetApi();
       noticeOwner.notice('A shared draft sent to the agent', {background: true});
     }""")
     expect(notice).to_have_text("A shared draft sent to the agent")
@@ -2576,9 +2576,7 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
     before = page.evaluate(
         """async () => {
           const face = document.querySelector('lf-leaves-banner-face');
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          const presentation = await window.__lfCheckApi();
           const schedule = face.scheduleUpdate.bind(face);
           let release;
           const held = new Promise(resolve => { release = resolve; });
@@ -2788,9 +2786,7 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
     )
     page.wait_for_function(
         """async () => {
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          const presentation = await window.__lfCheckApi();
           return presentation.readApplicationPresentation().pending.includes('leaves');
         }"""
     )
@@ -2805,9 +2801,7 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
     told(page)
     page.wait_for_function(
         """async () => {
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          const presentation = await window.__lfCheckApi();
           return !presentation.readApplicationPresentation().pending.includes('leaves');
         }"""
     )
@@ -3745,9 +3739,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             )
             page.evaluate(
                 """async () => {
-                  const { reachScrollers } = await window.__lfRuntimeImport(
-                    '/runtime/reach.js'
-                  );
+                  const { reachScrollers } = await window.__lfCheckApi();
                   reachScrollers(document.body);
                 }"""
             )
@@ -3875,9 +3867,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     # intent it hands over is the one that always holds.
                     target.evaluate(
                         """async node => {
-                          const elements = await window.__lfRuntimeImport(
-                            '/runtime/widget-elements.js'
-                          );
+                          const elements = await window.__lfCheckApi();
                           await elements.reveal(node, () => true);
                         }"""
                     )

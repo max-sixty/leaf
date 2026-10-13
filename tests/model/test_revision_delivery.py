@@ -8,7 +8,7 @@ import pytest
 import tinycss2
 from interact_support import PAGE
 from leaf import revisioning as revisioning_model
-from leaf.exporting import AssetInliner, ReadableAssets
+from leaf.exporting import AssetInliner, ReadableAssets, _module_urls
 from leaf.files import revision_path
 from leaf.http import scope_page_urls
 from leaf.revision_artifact import (
@@ -20,8 +20,10 @@ from leaf.revision_artifact import (
 from leaf.revision_delivery import (
     Delivery,
     DeliveryAddress,
+    PublicationAddress,
     compose_document,
     deliver_resource,
+    delivered_resource,
     json_script,
     mark_declared,
     rebase_document,
@@ -41,6 +43,45 @@ def capture_dir(tmp_path):
     (runtime / "widget-api.js").write_text("export {};")
     (tmp_path / "leaf.js").write_text("export {};")
     return tmp_path
+
+
+def test_package_module_graph_survives_capture_delivery_and_export(capture_dir):
+    """Native module helpers keep the same graph in a revision and offline file."""
+    modules = {
+        "/widgets/lf-soundings.js": 'export { draw } from "./Soundings/Draw_View%2B測量.mjs";',
+        "/widgets/Soundings/Draw_View+測量.mjs": (
+            'import "/runtime/widget-api.js"; '
+            'export { draw } from "../../runtime/soundings/format.v2.mjs";'
+        ),
+        "/runtime/soundings/format.v2.mjs": (
+            'import { unit } from "../../vendor/soundings/unit_names.js"; '
+            "export const draw = () => unit;"
+        ),
+        "/vendor/soundings/unit_names.js": 'export const unit = "meters";',
+    }
+    for logical, source in modules.items():
+        path = capture_dir / logical.lstrip("/")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source)
+    artifact = capture_artifact(
+        capture_dir,
+        SourceDocument('<main><lf-soundings id="harbor"></lf-soundings></main>'),
+        {"lf-soundings": {"x-upgrade": True}},
+    )
+
+    for logical, source in modules.items():
+        resource = artifact.resources[logical]
+        assert resource.data.decode() == source
+        assert resource.mime == "application/javascript"
+        delivered = delivered_resource(
+            artifact,
+            logical,
+            PublicationAddress(PAGE_ROOT, ROOT, artifact.shared_modules),
+        )
+        assert delivered.mime == resource.mime
+
+    urls = _module_urls(artifact.resources, ["/widgets/lf-soundings.js"])
+    assert set(urls) == {*modules, "/runtime/widget-api.js"}
 
 
 def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retained():

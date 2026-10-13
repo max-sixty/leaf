@@ -3,6 +3,7 @@
 import io
 import os
 import re
+from datetime import datetime, timedelta
 
 import pytest
 from browser_sources import browser_function
@@ -940,8 +941,8 @@ def test_restoring_ask_focus_can_execute_its_command_in_the_same_turn(browser, s
     rendered(page)
     immediate = page.evaluate(
         """async () => {
-          const {focusDestination} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {executeCommand} = await window.__lfRuntimeImport('/runtime/keyboard/dispatch.js');
+          const {focusDestination} = await window.__lfWidgetApi();
+          const {executeCommand} = await window.__lfCheckApi();
           focusDestination(document.getElementById('question'), 'move');
           const executed = executeCommand('probe.action-10');
           return {executed, held: document.activeElement.id,
@@ -989,8 +990,8 @@ export default class extends HTMLElement {
     rendered(page)
     routes = page.evaluate(
         """async () => {
-          const {availableCommandRoutes} = await window.__lfRuntimeImport('/runtime/keyboard/dispatch.js');
-          const {commandEntries} = await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
+          const {availableCommandRoutes} = await window.__lfCheckApi();
+          const {commandEntries} = await window.__lfCheckApi();
           return [...availableCommandRoutes()].flatMap(([row, bindings]) =>
             commandEntries(row, [...bindings]).filter(entry => entry.id === 'probe.escape')
               .map(entry => entry.binding));
@@ -1390,7 +1391,7 @@ def test_tab_walks_into_and_out_of_a_full_view_sample(browser, serve):
     expect(sample.get_by_role("button", name="Full view", exact=True)).to_be_focused()
     child.evaluate(
         """async () => {
-          const { tabStops } = await import("/runtime/focus.js");
+          const { tabStops } = await window.__lfCheckApi();
           tabStops(document.body).at(-1).focus();
         }"""
     )
@@ -1919,7 +1920,7 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     )
     expect(questions).to_be_attached()
     target = page.evaluate("""async () => {
-      const {readAsks, askActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {readAsks, askActions} = await window.__lfWidgetApi();
       const ask = readAsks().all.find(q => q.source.kind === 'approval');
       const target = document.getElementById(ask.prompt.target);
       await askActions.open(ask.id);
@@ -2617,7 +2618,7 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
     context = browser.new_context(reduced_motion="no-preference")
     page = open_page(browser, serve(source), context=context)
     result = page.evaluate("""async () => {
-      const owner = await __lfRuntimeImport('/runtime/motion.js');
+      const owner = await window.__lfWidgetApi();
       const chrome = document.querySelector('.lf-chrome');
       const cue = document.createElement('div');
       cue.className = 'lf-msg flash';
@@ -2628,13 +2629,13 @@ def test_stylesheet_motion_inputs_drive_css_and_web_animations(browser, serve):
       const cssFlash = getComputedStyle(cue).animationDuration;
       const cssArrival = getComputedStyle(arrival).animationDuration;
       const cssFold = getComputedStyle(document.querySelector('lf-old')).transitionDuration;
-      const animation = owner.backgroundFlash(document.querySelector('#subject'),
-        owner.flashDuration());
+      const {flashDuration, agentArrivalDuration} = await window.__lfCheckApi();
+      const animation = owner.backgroundFlash(document.querySelector('#subject'), flashDuration());
       const played = animation.effect.getTiming().duration;
       animation.finish();
       cue.remove(); arrival.remove();
       return {cssFlash, cssArrival, cssFold, played,
-        fold: owner.foldDuration(), agent: owner.agentArrivalDuration()};
+        fold: owner.foldDuration(), agent: agentArrivalDuration()};
     }""")
     assert result == {
         "cssFlash": "0.73s",
@@ -2733,7 +2734,7 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     """Passive removals and arrivals keep the reading and its keyboard destinations."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     page.evaluate("""async () => {
-      window.toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+      window.toolbar = await window.__lfCheckApi();
       for (const [key, rank, offered] of [
         ['retiring', -30, true], ['arriving', -25, false], ['staying', -20, true],
         ['returning', -15, false],
@@ -2775,7 +2776,7 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     # Explicit travel can reveal a newly offered destination in the held menu.
     # Both the shared reveal route and a nested layer's return use that same owner.
     page.evaluate("""async () => {
-      const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+      const {reveal} = await window.__lfCheckApi();
       const target = document.querySelector('.test-retiring');
       document.querySelector('.test-arriving').onclick = () => reveal(target, () => true);
       toolbar.showNews(target, true);
@@ -2830,7 +2831,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
 
     page.evaluate(
         """async () => {
-          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          const toolbar = await window.__lfCheckApi();
           for (let i = 0; i < 3; i++) {
             const control = document.createElement('button');
             control.className = `lf-ui lf-btn lf-focus-candidate-${i}`;
@@ -2850,7 +2851,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     retiring.focus()
     page.evaluate(
         """async control => {
-          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          const toolbar = await window.__lfCheckApi();
           toolbar.showBannerControl(control, false);
         }""",
         retiring.element_handle(),
@@ -2863,7 +2864,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     answer_all.focus()
     page.evaluate(
         """async button => {
-          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          const toolbar = await window.__lfCheckApi();
           toolbar.showNews(button, false);
         }""",
         answer_all.element_handle(),
@@ -2973,7 +2974,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
 def test_motion_preference_changes_are_heard_without_reloading(browser, serve):
     """The JS motion contract follows a live media preference, like the CSS does."""
     page = open_page(browser, serve(LONG_PAGE))
-    reading = """() => window.__lfRuntimeImport('/runtime/motion.js').then(
+    reading = """() => window.__lfWidgetApi().then(
       motion => ({reduced: motion.reducedMotion(), scroll: motion.scrollBehavior()}))"""
     assert page.evaluate(reading) == {"reduced": False, "scroll": "smooth"}
 
@@ -3109,7 +3110,7 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
     actions = page.locator(".lf-banner-actions")
     page.evaluate(
         """async () => {
-              const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+              const toolbar = await window.__lfCheckApi();
               for (let i = 0; i < 3; i++) {
                 const button = document.createElement('button');
                 button.className = 'lf-ui lf-btn';
@@ -3910,24 +3911,29 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
     browser, serve, other_leaf
 ):
     """A time-only Leaves repaint repairs presentation at the current epoch."""
-    page = open_page(browser, serve(LONG_PAGE))
+    now = datetime.now().astimezone()
+    page = browser.new_page()
+
+    def quiet_neighbor(route):
+        answer = route.fetch()
+        state = answer.json()
+        for neighbor in state["others"]:
+            activity = neighbor["activity"]
+            activity.update(kind="away", dropped=False, ts=now.isoformat())
+            activity["counts"]["overdue"] = 1
+        route.fulfill(response=answer, json=state)
+
+    # The test's neighbor arrives through the real state boundary. Its clock alone
+    # changes afterward; no second runtime reading is mutated beside the publisher.
+    page.route("**/api/state*", quiet_neighbor)
+    page.goto(serve(LONG_PAGE), wait_until="load")
+    wait_until_ready(page)
+    told(page, until=lambda state: bool(state["others"]))
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     before = page.evaluate(
         """async () => {
-          const context = await window.__lfRuntimeImport('/runtime/context.js');
-          const leaves = await window.__lfRuntimeImport('/runtime/live-leaves.js');
-          const presence = await window.__lfRuntimeImport('/runtime/presence.js');
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
-          const state = structuredClone(context.runtime.state);
-          state.others[0].activity.kind = 'away';
-          state.others[0].activity.counts.overdue = 1;
-          state.others[0].activity.dropped = false;
-          state.others[0].activity.ts = new Date().toISOString();
-          presence.observeServerNow(new Date().toISOString());
-          await leaves.renderOthers(state);
+          const presentation = await window.__lfCheckApi();
           const list = document.querySelector('lf-leaves-list');
           const schedule = list.scheduleUpdate.bind(list);
           let release;
@@ -3936,11 +3942,11 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
           list.scheduleUpdate = () => {
             if (!armed) return schedule();
             armed = false;
+            window.leavesClockHeld = true;
             return held.then(schedule);
           };
           window.releaseLeavesClock = release;
           window.leavesPresentation = presentation;
-          window.leavesPresence = presence;
           const reading = presentation.readApplicationPresentation();
           return {
             semanticEpoch: reading.semanticEpoch,
@@ -3951,12 +3957,12 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
     expect(page.locator("a.lf-others-row .lf-others-line")).to_have_text(
         "Quiet (just now)"
     )
+    page.unroute("**/api/state*", quiet_neighbor)
+    page.route("**/api/state*", refuse)
+    page.clock.set_fixed_time(now + timedelta(minutes=1))
+    page.wait_for_function("window.leavesClockHeld")
     held = page.evaluate(
         """() => {
-          leavesPresence.observeServerNow(
-            new Date(Date.now() + 60_000).toISOString()
-          );
-          window.leavesClockTick = leavesPresence.tickClock(() => {});
           window.leavesReady = false;
           leavesPresentation.whenApplicationPresented().then(() => {
             window.leavesReady = true;
@@ -3978,7 +3984,6 @@ def test_a_leaves_clock_change_reopens_only_its_same_epoch_presentation(
     }
     page.evaluate("releaseLeavesClock()")
     page.wait_for_function("window.leavesReady")
-    page.evaluate("leavesClockTick")
     expect(page.locator("a.lf-others-row .lf-others-line")).to_have_text(
         "Quiet (1m ago)"
     )
@@ -4009,7 +4014,7 @@ def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser,
     page.locator("#d > summary").focus()
     page.evaluate(
         """async () => {
-          const { holdFocus } = await window.__lfRuntimeImport('/runtime/focus.js');
+          const { holdFocus } = await window.__lfWidgetApi();
           window.__restore = holdFocus(document.querySelector('main'));
         }"""
     )
@@ -4022,7 +4027,7 @@ def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser,
     assert (
         page.evaluate(
             """async () => {
-          const { holdFocus } = await window.__lfRuntimeImport('/runtime/focus.js');
+          const { holdFocus } = await window.__lfWidgetApi();
           const details = document.querySelector('#d');
           details.remove();
           return holdFocus(details) !== null;
@@ -6183,7 +6188,7 @@ def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve)
     # A box a script builds is swept when its builder asks, as a module's would be.
     boxes = page.evaluate(
         """async () => {
-          const {reachScrollers} = await window.__lfRuntimeImport('/runtime/reach.js');
+          const {reachScrollers} = await window.__lfCheckApi();
           const ids = ["out", "in"].map((order) => {
           const box = document.createElement("div");
           box.id = `box-${order}`;
@@ -6208,7 +6213,7 @@ def test_a_control_tab_skips_leaves_a_scrolling_box_its_own_stop(browser, serve)
 # the button they stand on, and hiding it drops their focus. `shut` is a hidden button
 # and `open` a shown one, both at the end of `main`.
 HAND_BACK = """async (step) => {
-  const {handBack} = await window.__lfRuntimeImport('/runtime/focus.js');
+  const {handBack} = await window.__lfWidgetApi();
   const frame = () => new Promise((done) => requestAnimationFrame(() => done()));
   const main = document.querySelector('main');
   const made = (tag, id, parent = main, hidden = false) => {
@@ -6412,9 +6417,9 @@ def test_retained_moves_keep_native_editor_and_frame_state(
     )
     page.evaluate(
         """async ([nativeMove, renderer]) => {
-      const {render, repeat} = await window.__lfRuntimeImport('/vendor/browser-runtime.js');
-      const {orderChildren} = await window.__lfRuntimeImport('/runtime/dom-children.js');
-      const {move} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {render, repeat} = await window.__lfWidgetApi();
+      const {setChildren: orderChildren} = await window.__lfWidgetApi();
+      const {move} = await window.__lfWidgetApi();
       const rows = document.querySelector('#rows');
       if (!nativeMove) Element.prototype.moveBefore = undefined;
       const nodes = ['a', 'b', 'c'].map(id => {

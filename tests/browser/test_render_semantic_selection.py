@@ -42,17 +42,26 @@ def test_selection_snap_stops_at_explicit_table_line_break(browser, serve):
             )
         ),
     )
-    before, after, quote = page.evaluate("""async () => {
+    first = page.locator("td strong").bounding_box()
+    page.mouse.move(first["x"] + 2, first["y"] + first["height"] / 2)
+    page.mouse.down()
+    before = page.evaluate("""() => {
       const first = document.querySelector('td strong').firstChild;
       const next = document.querySelector('td span').firstChild;
       const selection = getSelection();
       selection.setBaseAndExtent(first, 0, next, 0);
-      const before = selection.toString();
-      const {snapSelection, selectionAnchor} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
-      snapSelection();
+      return selection.toString();
+    }""")
+    page.mouse.up()
+    rendered(page)
+    after, quote = page.evaluate("""async () => {
+      const first = document.querySelector('td strong').firstChild;
+      const next = document.querySelector('td span').firstChild;
+      const selection = getSelection();
       const after = selection.toString();
       selection.setBaseAndExtent(first, 0, next, 4);
-      return [before, after, selectionAnchor(selection).quote];
+      const {anchorForRange} = await window.__lfCheckApi();
+      return [after, anchorForRange(selection.getRangeAt(0)).quote];
     }""")
     assert before == "Short label here\n"
     assert after == before
@@ -858,8 +867,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
         """async () => {
           const selected = getSelection().getRangeAt(0);
           selected.startContainer.splitText(selected.startOffset + 1);
-          const {repaint} = await window.__lfRuntimeImport('/runtime/repaint.js');
-          repaint();
+          dispatchEvent(new Event('resize'));
         }"""
     )
     expect(position).to_be_hidden()
@@ -882,8 +890,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     page.evaluate(
         """async () => {
           getSelection().removeAllRanges();
-          const {repaint} = await window.__lfRuntimeImport('/runtime/repaint.js');
-          repaint();
+          dispatchEvent(new Event('resize'));
         }"""
     )
     expect(position).to_be_hidden()

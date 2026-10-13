@@ -728,42 +728,42 @@ def test_recursive_rows_share_the_window_and_keep_pane_furniture_in_view(
     assert flow["upper"]["height"] > 720, flow
 
 
-def test_readiness_reopens_on_current_presentation_and_ignores_superseded_work(
+def test_readiness_reopens_on_widget_preparation_and_retires_removed_work(
     browser, serve
 ):
-    """The presented stamp stays set while the page's readiness reopens on current
-    presentation work, and work a newer presentation superseded never holds it."""
-    readiness = "() => document.querySelector('script[data-lf-entry]').lfReadiness()"
-    page = open_page(browser, serve(LONG_PAGE))
-    assert page.evaluate(readiness) is None
+    """Current widget preparation holds readiness; a removed owner's work retires.
 
+    The pure coordinator tests cover ticket supersession. This browser case protects
+    its integration with captured widgets, native removal, and the readiness facade.
+    """
+    readiness = "() => document.querySelector('script[data-lf-entry]').lfReadiness()"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Current readiness",
+                '<lf-suggestion id="readiness">A proposed change.</lf-suggestion>',
+            )
+        ),
+    )
+    assert page.evaluate(readiness) is None
     page.evaluate(
         """async () => {
-          const {
-            attachApplicationPresentation,
-            setPresentationFailureReporter,
-          } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
-          setPresentationFailureReporter(() => {});
-          window.probePresentation = attachApplicationPresentation(
-            'test:current-readiness', document.body,
-          );
+          const {widgetController} = await window.__lfWidgetApi();
           window.probeOlderSettled = false;
-          const older = probePresentation.present('older');
-          older.resolve(new Promise(resolve => { window.releaseProbeOlder = resolve; }));
-          window.probeOlder = older.ready.then(() => { probeOlderSettled = true; });
+          const work = new Promise(resolve => { window.releaseProbeOlder = resolve; });
+          window.probeOlder = work.then(() => { probeOlderSettled = true; });
+          widgetController(document.getElementById('readiness')).present(work);
         }"""
     )
     assert page.locator("body").get_attribute("data-lf-presented") == "1"
     assert page.evaluate(readiness) == "presented"
-
-    page.evaluate("() => probePresentation.present('newer').resolve()")
+    page.locator("#readiness").evaluate("node => node.remove()")
     wait_until_ready(page)
     assert page.evaluate("() => probeOlderSettled") is False
-
     page.evaluate("() => releaseProbeOlder()")
     page.evaluate("() => probeOlder")
     assert page.evaluate(readiness) != "presented"
-    page.evaluate("() => probePresentation.disconnect()")
 
 
 def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
@@ -1245,7 +1245,7 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     """A direct complete-state replay retains the package's original exception."""
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate("""async () => {
-      const {validationWidgetStates} = await window.__lfRuntimeImport('/runtime/check-api.js');
+      const {validationWidgetStates} = await window.__lfCheckApi();
       const widget = validationWidgetStates().find(s => s.widget?.renderState).widget;
       window.restoreReplay = () => { widget.renderState = original; };
       const original = widget.renderState;
@@ -1720,7 +1720,7 @@ def test_the_render_gate_checks_custom_controls_at_their_form_boundary(browser, 
     page = open_page(browser, serve(leaf_page("Custom control", "<h1>Controls</h1>")))
     page.evaluate(
         """async () => {
-          const { offer } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const { offer } = await window.__lfWidgetApi();
           customElements.define('test-control', class extends HTMLElement {
             static formAssociated = true;
             constructor() {
@@ -1756,7 +1756,7 @@ def test_the_render_gate_checks_undeclared_shadow_roots_inside_thread_chrome(
     page = open_page(browser, serve(leaf_page("Reply widget", "<h1>Reply</h1>")))
     page.evaluate(
         """async () => {
-          const {offer} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {offer} = await window.__lfWidgetApi();
           for (const tag of ['generated-control', 'reply-widget'])
             customElements.define(tag, class extends HTMLElement {
               constructor() {
@@ -1958,7 +1958,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     page = open_page(browser, url)
     resized(page, 1280, 900)
     current = page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/validation.js'))"
+        "async () => (await window.__lfCheckApi())"
         ".validationWidgetStates().flatMap(({widget, state}) =>"
         " Object.values(state).map(current => [widget.id, current.action]))"
     )
@@ -2233,9 +2233,9 @@ def test_rest_waits_for_contained_arrival_before_arming(browser, serve):
     wait_until_ready(child)
     child.evaluate(
         """async () => {
-            const {deferredArrival} = await window.__lfRuntimeImport('/runtime/presentation.js');
+            const {afterPresentation} = await window.__lfWidgetApi();
             const entry = document.querySelector('script[data-lf-entry]');
-            deferredArrival(new Promise(resolve => {
+            afterPresentation(() => new Promise(resolve => {
                 entry.releaseArrival = () => {
                     document.body.setAttribute('data-arrived', 'yes');
                     resolve();
@@ -2519,10 +2519,10 @@ OPEN_THREADS = '.lf-threads-toggle[data-lf-count]:not([data-lf-count="0"])'
 # (geometry.js) holds to the viewport, every clip and the chrome, as
 # anchor-resolution.js composes the two for a passage.
 IN_THREAD = """async () => {
-  const {THREAD, SAY_BOX} = await window.__lfRuntimeImport('/runtime/thread/selectors.js');
-  const {focused} = await window.__lfRuntimeImport('/runtime/focus.js');
-  const {closestAcross} = await window.__lfRuntimeImport('/runtime/passages.js');
-  const {seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
+  const {THREAD, SAY_BOX} = await window.__lfCheckApi();
+  const {focused} = await window.__lfWidgetApi();
+  const {closestAcross} = await window.__lfCheckApi();
+  const {seenRect} = await window.__lfCheckApi();
   const at = focused();
   const thread = at && closestAcross(at, THREAD);
   const drawn = at?.checkVisibility({opacityProperty: true, visibilityProperty: true});
@@ -2658,7 +2658,7 @@ def resize_findings(page, path):
         rendered(page)
         page.wait_for_function(
             """async () => {
-            const {readingRegions} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+            const {readingRegions} = await window.__lfCheckApi();
             const boxes = new Set([document.scrollingElement, ...readingRegions().map(region => region.body)]);
             for (const box of boxes) box.scrollTo({left: 0, top: 0, behavior: 'instant'});
             return true;
@@ -2668,7 +2668,7 @@ def resize_findings(page, path):
         rendered(page)
         reading = page.wait_for_function(
             """async () => {
-            const {readingRegions} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+            const {readingRegions} = await window.__lfCheckApi();
             const position = box => [box.scrollLeft, box.scrollTop];
             return Object.fromEntries([
                 ['$page', position(document.scrollingElement)],
@@ -2748,9 +2748,9 @@ def into_the_page(page):
     for _ in range(12):
         page.keyboard.press("Tab")
         if page.evaluate("""async () => {
-            const {focused} = await window.__lfRuntimeImport('/runtime/focus.js');
-            const {takesLetters} = await window.__lfRuntimeImport('/runtime/focus.js');
-            const {closestAcross} = await window.__lfRuntimeImport('/runtime/passages.js');
+            const {focused} = await window.__lfWidgetApi();
+            const {takesLetters} = await window.__lfCheckApi();
+            const {closestAcross} = await window.__lfCheckApi();
             const at = focused();
             return Boolean(at && closestAcross(at, 'main') && !takesLetters(at));
         }"""):
@@ -4214,7 +4214,7 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, pointer):
     page.keyboard.press("ArrowLeft")
     page.keyboard.press("Shift+ArrowLeft")
     editing = composer.evaluate("""async input => {
-        const {captureDraftEditing} = await __lfRuntimeImport('/runtime/drafts.js');
+        const {captureDraftEditing} = await window.__lfCheckApi();
         return captureDraftEditing(input);
     }""")
     drag()
@@ -4251,7 +4251,7 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, pointer):
     expect(composer).to_be_focused()
     expect(composer).to_have_js_property("value", "half a comment")
     resumed = composer.evaluate("""async input => {
-        const {captureDraftEditing} = await __lfRuntimeImport('/runtime/drafts.js');
+        const {captureDraftEditing} = await window.__lfCheckApi();
         return captureDraftEditing(input);
     }""")
     assert resumed["context"] == editing["context"]

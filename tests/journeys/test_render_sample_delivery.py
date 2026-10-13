@@ -124,7 +124,7 @@ def interaction_records(page, page_dir, *, document=None):
     ):
         (document or page).evaluate(
             """async checkpoint => {
-              const {recordInteraction} = await __lfRuntimeImport('/runtime/interaction-log.js');
+              const {recordInteraction} = await window.__lfCheckApi();
               recordInteraction('test-checkpoint', {checkpoint});
             }""",
             checkpoint,
@@ -312,7 +312,7 @@ document.querySelector('#popup').addEventListener('click', () => {
         "document"
     ] == documents[-1]["document"]
     child.evaluate("""async () => {
-      const {registerSampleCommand} = await __lfRuntimeImport('/runtime/sample-child.js');
+      const {registerSampleCommand} = await window.__lfCheckApi();
       registerSampleCommand('thread', function rejectSampleCommand() {
         throw new RangeError('Sample command failed');
       });
@@ -482,7 +482,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
     child = sample.locator("iframe").element_handle().content_frame()
     previous = child.url
     child.evaluate("""async () => {
-      const {registerSampleCommand} = await __lfRuntimeImport('/runtime/sample-child.js');
+      const {registerSampleCommand} = await window.__lfCheckApi();
       registerSampleCommand('thread', () => {
         window.waitingCommand = true;
         return new Promise(() => {});

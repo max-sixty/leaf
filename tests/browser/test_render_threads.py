@@ -3892,7 +3892,7 @@ def test_diff_news_waits_only_where_its_growth_would_be_seen(browser, serve, foo
         return the banner's foot and the root's landing band top."""
         return node.evaluate(
             """async (node, offset) => {
-              const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
+              const {bannerFoot} = await window.__lfCheckApi();
               scrollBy({top: node.getBoundingClientRect().bottom - bannerFoot() - offset,
                 behavior: 'instant'});
               const root = getComputedStyle(document.documentElement);
@@ -3952,7 +3952,7 @@ def test_growth_is_seen_only_below_where_scroll_anchoring_holds(browser, serve):
     readings = page.evaluate(
         """async () => {
           const {bannerFoot, growthAfterIsSeen} =
-            await window.__lfRuntimeImport('/runtime/geometry.js');
+            await window.__lfCheckApi();
           const landing = parseFloat(
             getComputedStyle(document.documentElement).scrollPaddingTop);
           const frame = () => new Promise(requestAnimationFrame);
@@ -4034,7 +4034,7 @@ def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve)
     expect(strip).to_contain_class("lf-react-open")
     banner = trigger.evaluate(
         """async trigger => {
-          const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const {bannerFoot} = await window.__lfCheckApi();
           scrollBy({top: trigger.getBoundingClientRect().bottom - bannerFoot() + 4,
             behavior: 'instant'});
           return bannerFoot();
@@ -4139,8 +4139,11 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
     if destination == "message":
         page.evaluate(
             """async id => {
-              const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
-              await openThread(id, {part: 'message'});
+              const {readThreads, threadActions} = await window.__lfWidgetApi();
+              const thread = readThreads().threads.find(thread =>
+                thread.msgs.some(message => message.id === id));
+              const message = thread.msgs.find(message => message.id === id);
+              await threadActions.open(thread.key, {message: message.key});
             }""",
             reply["id"],
         )
@@ -4503,7 +4506,7 @@ def test_resolving_an_early_thread_keeps_the_rest_in_place(browser, serve):
 
 
 def test_a_failed_thread_list_update_keeps_one_coherent_reading(browser, serve):
-    """A failed child paint restores the retained card until the next reading paints."""
+    """A rejected list paint restores cards even after their child paint ran."""
     url = serve(LONG_PAGE, comments=2)
     roots = [
         event["id"]
@@ -4523,23 +4526,19 @@ def test_a_failed_thread_list_update_keeps_one_coherent_reading(browser, serve):
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     page.evaluate(
         """async (id) => {
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
-          const {ThreadView} = await window.__lfRuntimeImport(
-            '/runtime/thread/thread-card.js'
-          );
+          const presentation = await window.__lfCheckApi();
           const list = document.querySelector('leaf-thread-list');
-          const presentCard = ThreadView.prototype.present;
+          const presentList = list.present.bind(list);
           let armed = true;
-          ThreadView.prototype.present = function(model) {
-            const node = presentCard.call(this, model);
-            if (armed && model.id === id && (model.folding || model.resolved)) {
+          list.present = async model => {
+            const presented = await presentList(model);
+            const child = model.rows.find(row => row.descriptor?.id === id)?.descriptor;
+            if (armed && child && (child.folding || child.resolved)) {
               armed = false;
               window.threadChildFailed = true;
-              throw new Error('injected thread-card failure');
+              throw new Error('injected thread-list failure after child paint');
             }
-            return node;
+            return presented;
           };
           window.threadListPresentation = presentation;
           window.committedThread = document.querySelector(
@@ -4595,7 +4594,7 @@ def test_a_failed_thread_list_update_keeps_one_coherent_reading(browser, serve):
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
     assert [said(error) for error in take_browser_errors(page)] == [
-        "leaf: Presentation failed: injected thread-card failure"
+        "leaf: Presentation failed: injected thread-list failure after child paint"
     ]
 
     holding(page, held_events, 2, "the gesture and the page's report of its failure")
@@ -4639,8 +4638,7 @@ def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, se
     page.get_by_role("searchbox", name="Find in threads").fill("comment")
     page.wait_for_function(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           return readApplicationPresentation().pending.includes('thread');
         }"""
     )
@@ -4655,8 +4653,7 @@ def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, se
     page.get_by_role("searchbox", name="Find in threads").fill("")
     page.wait_for_function(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           return !readApplicationPresentation().pending.includes('thread');
         }"""
     )
@@ -4702,8 +4699,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
     )
     page.wait_for_function(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           return readApplicationPresentation().pending.includes('thread');
         }"""
     )
@@ -4736,8 +4732,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
     find.fill("")
     page.wait_for_function(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           return !readApplicationPresentation().pending.includes('thread');
         }"""
     )
@@ -4781,8 +4776,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
     holding(page, held, 2, "the reopen and its presentation report")
     page.wait_for_function(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           return readApplicationPresentation().pending.includes('thread');
         }"""
     )
@@ -4804,8 +4798,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
     round_trip(page)
     page.wait_for_function(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           return !readApplicationPresentation().pending.includes('thread');
         }"""
     )
@@ -4873,7 +4866,9 @@ def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, se
 
 def test_the_thread_clock_reopens_its_same_epoch_ticket(browser, serve):
     """A system-row age is presented mechanically without advancing semantic time."""
-    url = serve(LONG_PAGE, comments=1)
+    # The approval age is mechanical. An unanswered comment would also cross its
+    # server-owned workflow deadline, correctly requesting a fresh semantic reading.
+    url = serve(LONG_PAGE)
     append_carried_log_record(
         serve.page_dir,
         {
@@ -4903,21 +4898,19 @@ def test_the_thread_clock_reopens_its_same_epoch_ticket(browser, serve):
             throw new Error('superseded thread preparation failed');
           };
           window.releaseThreadClock = release;
-          window.threadPresence = await window.__lfRuntimeImport(
-            '/runtime/presence.js'
-          );
-          window.threadPresentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          window.threadClockHeld = false;
+          window.threadClockStaleFailed = false;
+          const now = Date.now.bind(Date);
+          window.threadClockAdvance = 0;
+          Date.now = () => now() + threadClockAdvance;
+          window.threadPresentation = await window.__lfCheckApi();
           return threadPresentation.readApplicationPresentation();
         }"""
     )
+    page.evaluate("window.threadClockAdvance = 60_000")
+    page.wait_for_function("threadClockHeld")
     held = page.evaluate(
         """() => {
-          threadPresence.observeServerNow(
-            new Date(Date.now() + 60_000).toISOString()
-          );
-          window.threadClockTick = threadPresence.tickClock(() => {});
           window.threadClockReady = false;
           threadPresentation.whenApplicationPresented().then(() => {
             window.threadClockReady = true;
@@ -4936,24 +4929,13 @@ def test_the_thread_clock_reopens_its_same_epoch_ticket(browser, serve):
     assert held["presentedEpoch"] == before["presentedEpoch"]
     assert held["ready"] is False
 
-    page.wait_for_function("threadClockHeld")
     # A second age change while preparation is held claims another pass. Its proof
     # cannot be acknowledged by the old reading, and it need not await that package.
-    second = page.evaluate(
-        """() => {
-          threadPresence.observeServerNow(
-            new Date(Date.now() + 120_000).toISOString()
-          );
-          window.threadClockTickAgain = threadPresence.tickClock(() => {});
-          return threadPresentation.readApplicationPresentation();
-        }"""
-    )
-    assert "thread" in second["pending"]
+    page.evaluate("window.threadClockAdvance = 120_000")
     page.wait_for_function("threadClockReady")
     expect(system).to_have_text("✓ Approved 2m ago")
     page.evaluate("releaseThreadClock()")
     page.wait_for_function("threadClockStaleFailed")
-    page.evaluate("Promise.all([threadClockTick, threadClockTickAgain])")
     expect(system).to_have_text("✓ Approved 2m ago")
     assert take_browser_errors(page) == []
     after = page.evaluate("threadPresentation.readApplicationPresentation()")
@@ -6318,8 +6300,7 @@ def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
     # a card news resolves stays where it stands (thread-list-view.js), and their own
     # settlement folds it.
     page.evaluate(
-        "async key => (await window.__lfRuntimeImport('/runtime/application.js'))"
-        ".threadActions.resolve(key)",
+        "async key => (await window.__lfWidgetApi()).threadActions.resolve(key)",
         source,
     )
     round_trip(page)
@@ -6382,8 +6363,7 @@ def test_a_render_arriving_mid_fold_keeps_the_place_the_fold_is_holding(browser,
     # a card news resolves stays where it stands (thread-list-view.js), and their own
     # settlement folds it.
     page.evaluate(
-        "async key => (await window.__lfRuntimeImport('/runtime/application.js'))"
-        ".threadActions.resolve(key)",
+        "async key => (await window.__lfWidgetApi()).threadActions.resolve(key)",
         source,
     )
     round_trip(page)
@@ -6965,7 +6945,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     )
     surface = page.evaluate("""async () => {
         const {chromeSheet: sheet, chromeSharedClasses: declared} =
-            await window.__lfRuntimeImport('/runtime/stylesheets.js');
+            await window.__lfCheckApi();
         const classes = sel => [...(sel || "").matchAll(/\\.([A-Za-z0-9_-]+)/g)].map(m => m[1]);
         const scoped = new Set(), unscoped = new Set(), themed = new Set();
         const collect = (rules, into, privateRules = null) => { for (const r of rules) {
@@ -7519,7 +7499,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
     focus_panel_thread(page.locator('.lf-thread[data-id="tv-decisioned"]'))
     parts = page.evaluate(
         """async () => {
-             const { shownParts } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+             const { shownParts } = await window.__lfWidgetApi();
              const el = document.getElementById('tv-decision');
              return { boxless: el.getBoundingClientRect().height === 0,
                       display: getComputedStyle(el).display,
@@ -8535,8 +8515,7 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
     rendered(page)
     held = log.evaluate(
         """async log => {
-          const { scrollerFor } = await window.__lfRuntimeImport(
-            '/runtime/reading-regions.js');
+          const { scrollerFor } = await window.__lfWidgetApi();
           return {
             scroller: scrollerFor(log.querySelector('p')) === log,
             atEnd: log.scrollHeight > log.clientHeight
@@ -9632,8 +9611,7 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
             # Exact message navigation belongs to Threads, not the local reply box.
             assert page.evaluate(
                 """async id => {
-                  const {surfaceFocusTarget} = await window.__lfRuntimeImport(
-                    '/runtime/thread/surfaces.js');
+                  const {surfaceFocusTarget} = await window.__lfCheckApi();
                   return surfaceFocusTarget(id, {part: 'message'}) === null;
                 }""",
                 sent["id"],
@@ -10870,8 +10848,7 @@ def test_a_zoomed_window_places_floating_surfaces_by_their_held_edges(browser, s
     readings = page.evaluate(
         """async () => {
           document.documentElement.style.zoom = '1.25';
-          const {floatingPlacement, floatingUi} = await window.__lfRuntimeImport(
-            '/runtime/annotation-overlay/floating.js');
+          const {floatingPlacement, floatingUi} = await window.__lfOverlayApi();
           const {computePosition, shift} = await floatingUi();
           const readings = [];
           for (const [transform, border] of [
@@ -12958,7 +12935,7 @@ export default class extends HTMLElement {
         "window.quoteSubject.show('Old plan', 'The revised requirement uses automatic review.')"
     )
     reading = page.evaluate(
-        """anchor => window.__lfRuntimeImport('/runtime/anchor-resolution.js')
+        """anchor => window.__lfCheckApi()
           .then(({resolveAnchor}) => {const {kind, exact, status} = resolveAnchor(anchor);
             return {kind, exact, status};})""",
         comment["anchor"],

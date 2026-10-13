@@ -150,9 +150,16 @@ def rebase_css(
     )
 
 
+def module_address(path: str, address: Address) -> str | None:
+    """Give a captured logical module path its URL spelling before addressing it."""
+    return address(quote(path, safe="/"))
+
+
 def rebase_module(data: bytes, base: str, address: Address) -> bytes:
     """Re-address every literal import of an authored module at `base`."""
-    return bind_imports(data, authored_imports(data, base), address)
+    return bind_imports(
+        data, authored_imports(data, base), lambda path: module_address(path, address)
+    )
 
 
 def rebase_document(
@@ -546,7 +553,10 @@ class PublicationAddress(DeliveryAddress):
     shared_modules: frozenset[str] = frozenset()
 
     def __call__(self, path: str) -> str:
-        if path.startswith("/runtime/") or path in self.shared_modules:
+        if (
+            path.startswith("/runtime/")
+            or unquote(urlsplit(path).path) in self.shared_modules
+        ):
             return path
         return super().__call__(path)
 
@@ -593,7 +603,7 @@ def deliver_resource(
                     )
                     if dependency_path(specifier, logical_path, module=True) is not None
                 ),
-                address,
+                lambda path: module_address(path, address),
             ),
             resource.mime,
         )

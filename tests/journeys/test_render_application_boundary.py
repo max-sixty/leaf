@@ -98,7 +98,11 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     assert record["topic"] == "Decision"
     root, reply = record["reading"]["threads"][0]["msgs"]
     assert root["text"] == "**Decision**" and root["body"]["text"].strip() == "Decision"
-    assert reply["body"]["document"] == {"thread": "question", "message": "answer"}
+    assert reply["body"]["document"] == {
+        "thread": "question",
+        "message": "answer",
+        "revision": 1,
+    }
     assert reply["body"]["kind"] == "authored"
     assert "North" in reply["body"]["text"]
     assert '"markup"' not in json.dumps(record) and '"html"' not in json.dumps(record)
@@ -326,7 +330,7 @@ def test_package_thread_mirrors_share_core_conversation_without_claiming_placeme
     assert second.evaluate("node => node.signals.at(-2).aborted")
     assert not page.evaluate(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           return readApplicationPresentation().pending.includes('thread');
         }"""
     )
@@ -541,9 +545,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     )
     page.evaluate(
         """async id => {
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          const presentation = await window.__lfCheckApi();
           let release;
           const promise = new Promise(done => { release = done; });
           window.threadPreparation = {promise, release};
@@ -940,7 +942,7 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
     if place == "scrolled":
         assert (
             page.evaluate("""async () => {
-            const {loadDraft} = await window.__lfRuntimeImport('/runtime/drafts.js');
+            const {loadDraft} = await window.__lfWidgetApi();
             return loadDraft('reply:first-thread');
         }""")
             == "A draft for this conversation"
@@ -1100,7 +1102,7 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
         choice.inForce && choice.glyph && choice.label && Object.isFrozen(choice);
     }""")
     assert page.evaluate("""async () => {
-      const {threadActions,readThreads} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {threadActions,readThreads} = await window.__lfWidgetApi();
       const thread = readThreads().threads[0];
       const agent = thread.msgs.find(message => message.author === 'agent');
       return threadActions.setReaction(thread.key, agent.key, 'keep', true) === null;
@@ -1198,7 +1200,7 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
     entries = page.evaluate("history.length")
     assert page.evaluate(
         """async ({travel, primary}) => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const api = await window.__lfWidgetApi();
           const thread = api.readThreads().threads.find(thread => thread.id === (primary ? 'opening' : 'anchored'));
           window.returnTripDestination = await api.threadActions.open(thread.key, {part:'reply', travel});
           return Boolean(returnTripDestination);
@@ -1371,7 +1373,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     expect(email).to_be_visible()
     page.evaluate(
         """async () => {
-        window.api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+        window.api = await window.__lfWidgetApi();
         window.nestedOption = document.querySelector('#email');
         }"""
     )
@@ -1428,7 +1430,7 @@ def test_primary_parts_keep_identity_and_nomination_order_through_admission(
     """A shared outlet follows nomination order without remounting admitted turns."""
     page = open_page(browser, package_workspace(serve))
     page.evaluate("""async () => {
-      window.api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      window.api = await window.__lfWidgetApi();
       const workspace = document.querySelector('#workspace');
       const present = (collection, parts) => {
         const messages = collection.threads.flatMap(thread =>
@@ -1493,7 +1495,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
     if mode == "Reply only":
         workspace.evaluate("""async workspace => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const api = await window.__lfWidgetApi();
           const outlet = workspace.outlet('reply-only');
           workspace.present = (collection, parts) => {
             api.setChildren(workspace.reader, [outlet]);
@@ -1506,7 +1508,8 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
     editor = workspace.get_by_role("textbox", name="Reply", exact=True)
     write(editor, "Keep this draft while updates wait.")
     assert editor.evaluate("""async editor => {
-      const {scrollerFor, readingRegionFor} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      const {scrollerFor} = await window.__lfWidgetApi();
+      const {readingRegionFor} = await window.__lfCheckApi();
       const reader = document.querySelector('#workspace').reader;
       return scrollerFor(editor) === reader && readingRegionFor(editor).body === reader;
     }""")

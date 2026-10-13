@@ -1189,7 +1189,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     )
     in_force = page.evaluate(
         """async ids => {
-          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfWidgetApi();
           return ids.flatMap(id => {
             const widget = document.getElementById(id);
             const state = widgetController(widget).read().state;

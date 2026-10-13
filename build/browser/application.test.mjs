@@ -36,6 +36,10 @@ const stamped = (registry) => ({
       ]),
   ),
 });
+const capturedDescriptor = (value) => ({
+  ...value,
+  states: stamped({ [value.tag]: value.declaration }).$states[value.tag],
+});
 const spec = {
   unit: "widget",
   detail: {
@@ -45,7 +49,7 @@ const spec = {
     additionalProperties: false,
   },
 };
-const descriptor = {
+const descriptor = capturedDescriptor({
   id: "choice",
   tag: "lf-choice",
   document: { kind: "page", revision: 1 },
@@ -53,7 +57,7 @@ const descriptor = {
   parent: null,
   ancestors: [],
   quoted: false,
-};
+});
 const empty = () => ({ entries: [], actions: [], reports: [], desired: [] });
 // The ask reading `served_state` sends, in its own wire spelling.
 const noAsks = () => ({
@@ -323,6 +327,95 @@ test("one widget selection publishes optimistic state without writable access", 
   app.refuse("first");
   assert.equal(outcomeOf(selected.read().state), null);
   stop();
+});
+
+test("page and frozen widgets keep their own verb writers and pending definitions", () => {
+  for (const [pageWriter, replyWriter, replyVerb] of [
+    ["user", "user", "pick"],
+    ["agent", "user", "decide"],
+    ["user", "agent", "decide"],
+  ]) {
+    const page = capturedDescriptor({
+      ...descriptor,
+      declaration: { "x-state": { decide: { ...spec, writer: pageWriter } } },
+    });
+    const replySpec = {
+      ...spec,
+      writer: replyWriter,
+      detail: { type: "object", properties: { outcome: { enum: ["defer"] } } },
+    };
+    const reply = capturedDescriptor({
+      ...descriptor,
+      id: "reply-choice",
+      document: { kind: "thread", revision: 2, thread: "root", message: "reply" },
+      declaration: { "x-state": { [replyVerb]: replySpec } },
+    });
+    const app = createSemanticApplication();
+    app.identify(1);
+    app.captureDocument({
+      ...app.read().document,
+      registry: stamped({ [page.tag]: page.declaration }),
+      descriptors: new Map([
+        [page.id, page],
+        [reply.id, reply],
+      ]),
+      authored: new Map(
+        [page, reply].map((widget) => [
+          widget.id,
+          {
+            tag: widget.tag,
+            specs: new Map(Object.entries(widget.declaration["x-state"])),
+            positions: {},
+            state: Object.fromEntries(
+              Object.keys(widget.states).map((verb) => [
+                verb,
+                { action: null, value: null, detail: {} },
+              ]),
+            ),
+          },
+        ]),
+      ),
+    });
+    app.adopt(state(1));
+    for (const [widget, verb, writer, outcome] of [
+      [page, "decide", pageWriter, "accept"],
+      [reply, replyVerb, replyWriter, "defer"],
+    ]) {
+      const selected = app.selectWidget(widget);
+      assert.deepEqual(
+        Object.keys(selected.read().actions),
+        writer === "user" ? [verb] : [],
+      );
+      if (writer !== "user") continue;
+      assert.equal(selected.read().actions[verb].available, true);
+      const pending = app.enqueue(
+        {
+          ...action(widget.id, outcome),
+          widget: widget.id,
+          action: verb,
+          revision: widget.document.revision,
+        },
+        "now",
+      );
+      assert.deepEqual(
+        pending.projection.e.meaning.state,
+        widget.states[verb].definition,
+      );
+      assert.equal(selected.read().state[verb].detail.outcome, outcome);
+      assert.equal(selected.read().actions[verb].undo[0].id, pending.localId);
+      app.refuse(widget.id);
+      assert.equal(selected.read().state[verb].action, null);
+    }
+  }
+});
+
+test("widget actions await a complete reading after loading or failed history", () => {
+  const app = setup();
+  const selected = app.selectWidget(descriptor);
+  for (const phase of ["waiting", "offline", "ready"]) {
+    app.setPhase(phase);
+    assert.equal(selected.read().actions.decide.available, phase === "ready", phase);
+  }
 });
 
 test("an offline document publishes every host command as unavailable", () => {
@@ -892,6 +985,7 @@ test("admitted edits, a raced undo refusal, and revisions share one sequence", (
             id: "draft-ops",
             tag: "lf-draft",
             declaration,
+            states: sequence.stamped,
             document: { kind: "page", revision },
             parent: null,
             ancestors: [],
@@ -1143,7 +1237,7 @@ test("refusal takes the gestures that depend on the refused one with it", () => 
 });
 
 test("thread acceptance is semantic before presentation can retire its local handle", () => {
-  const app = setup();
+  const app = capture();
   const comment = {
     kind: "comment",
     attempt: "comment",
@@ -1151,7 +1245,10 @@ test("thread acceptance is semantic before presentation can retire its local han
     revision: 1,
   };
   app.enqueue(comment, "now");
+  assert.equal(app.read().phase, "waiting");
   assert.equal(app.read().effective.thread.all[0].root.text, "Keep this");
+  assert.equal(app.read().effective.thread.collection.phase, "waiting");
+  assert.equal(app.read().effective.thread.collection.threads.length, 1);
   const accepted = { ...comment, id: "e1", author: "user", ts: "now" };
   const read = state(2);
   read.browser.receipts = [accepted];
@@ -1163,6 +1260,18 @@ test("thread acceptance is semantic before presentation can retire its local han
   app.present([accepted]);
   assert.equal(app.read().unresolved.length, 0);
   assert.equal(app.read().effective.thread.all[0].root.id, "e1");
+});
+
+test("refusal removes a local thread without requiring a saved reading", () => {
+  const app = capture();
+  app.enqueue(
+    { kind: "comment", attempt: "early", text: "Keep my words", revision: 1 },
+    "now",
+  );
+  assert.equal(app.read().effective.thread.collection.threads.length, 1);
+  app.refuse("early");
+  assert.equal(app.read().phase, "waiting");
+  assert.deepEqual(app.read().effective.thread.collection.threads, []);
 });
 
 test("widget selections publish the canonical held thread", () => {
@@ -1195,11 +1304,11 @@ test("widget selections publish the canonical held thread", () => {
 });
 
 for (const resolved of [null, { author: "user" }]) {
-  test(`a pending user reply leaves ${resolved ? "a resolved" : "an open"} question's turn to the log`, () => {
+  test(`a pending user reply leaves ${resolved ? "a resolved" : "an open"} ask's turn to the log`, () => {
     const app = setup();
     const root = {
       kind: "comment",
-      id: "question",
+      id: "ask",
       author: "agent",
       text: "Which one?",
       ts: "now",
@@ -1260,12 +1369,12 @@ for (const resolved of [null, { author: "user" }]) {
 }
 
 test("a pending gesture leaves asks and Questions as served until the log answers", () => {
-  // A settling reaction answered the agent's question, so the server lists the ask as
+  // A settling reaction answered the agent's ask, so the server lists the ask as
   // done. Which asks taking it back reopens is the log's reading, so Questions moves
   // when the server answers the undo, not before.
   const ask = {
     kind: "comment",
-    id: "question",
+    id: "ask",
     author: "agent",
     text: "Keep this chart?",
     ts: "now",
@@ -1343,7 +1452,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
   }
 
   const read = state(2);
-  const page = wireAsk("question", "lf-ask", "choice", "lf-choice");
+  const page = wireAsk("ask", "lf-ask", "choice", "lf-choice");
   const frozen = wireAsk(
     "frozen-ask",
     "lf-ask",
@@ -1390,13 +1499,13 @@ test("an unsettled report supplies desired widget state", () => {
     unit: "widget",
     record: { kind: "value", attr: "choice" },
   };
-  const source = {
+  const source = capturedDescriptor({
     ...descriptor,
     declaration: {
       properties: { choice: { type: "string" } },
       "x-state": { preview: { ...valueSpec, writer: "agent" } },
     },
-  };
+  });
   const app = setup([[source.id, source]]);
   const accepted = state(2);
   const report = {
@@ -1471,21 +1580,21 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
     return app;
   };
   const app = adopt("approval");
-  const questions = () => app.read().effective.queues.questions;
+  const asks = () => app.read().effective.queues.questions;
   const record = () => app.read().effective.asks.all[0];
   const ask = record();
   assert.equal(ask.source.kind, "approval");
-  assert.equal(questions()[0].id, ask.id);
-  assert.equal(questions()[0].kind, "ask");
-  assert.equal(questions()[0].offers.done, false);
+  assert.equal(asks()[0].id, ask.id);
+  assert.equal(asks()[0].kind, "ask");
+  assert.equal(asks()[0].offers.done, false);
   app.enqueue({ kind: "done", version: 2, attempt: "other-version" }, "now");
-  assert.equal(questions().length, 1);
+  assert.equal(asks().length, 1);
   app.refuse("other-version");
   const pending = app.enqueue(
     { kind: "done", version: 1, attempt: "approve" },
     "queued-at",
   );
-  assert.equal(questions().length, 0);
+  assert.equal(asks().length, 0);
   assert.equal(app.read().effective.queues.done[0].id, ask.id);
   assert.deepEqual(record().answer, { value: true, event: null });
   assert.equal(record().status, "answered");
@@ -1500,7 +1609,7 @@ test("approval leaves Questions in its sending turn and undo restores the exact 
   ]);
   app.refuse("approve");
   assert.deepEqual(app.read().effective.thread.approvalHistory, []);
-  assert.equal(questions().length, 1);
+  assert.equal(asks().length, 1);
   assert.equal(record().answer, null);
 
   const approved = adopt("approved");
@@ -1534,11 +1643,14 @@ test("a revision preserves pending delivery while replacing incompatible specula
     "x-state": { decide: revisedSpec },
   };
   document.registry = stamped({ ...document.registry, "lf-choice": declaration });
-  document.descriptors.set("choice", {
-    ...descriptor,
-    declaration,
-    document: { kind: "page", revision: 2 },
-  });
+  document.descriptors.set(
+    "choice",
+    capturedDescriptor({
+      ...descriptor,
+      declaration,
+      document: { kind: "page", revision: 2 },
+    }),
+  );
   document.authored.set("choice", {
     tag: "lf-choice",
     specs: new Map([["decide", revisedSpec]]),
@@ -1582,11 +1694,14 @@ test("a pending undo keeps withdrawing its target once the log admits it under a
     ...document.registry,
     "lf-choice": { "x-state": { decide: broadened } },
   });
-  document.descriptors.set("choice", {
-    ...descriptor,
-    declaration: document.registry["lf-choice"],
-    document: { kind: "page", revision: 2 },
-  });
+  document.descriptors.set(
+    "choice",
+    capturedDescriptor({
+      ...descriptor,
+      declaration: document.registry["lf-choice"],
+      document: { kind: "page", revision: 2 },
+    }),
+  );
   const reading = state(2, [{ ...action("decided"), id: "e1", seq: 1 }]);
   reading.active.revision = 2;
   reading.browser.views[2] = reading.browser.views[1];
@@ -1604,11 +1719,14 @@ test("a revision changing a verb's writer retains delivery without drawing the o
   const agentSpec = { ...spec, writer: "agent" };
   const declaration = { "x-state": { decide: agentSpec } };
   document.registry = stamped({ ...document.registry, "lf-choice": declaration });
-  document.descriptors.set("choice", {
-    ...descriptor,
-    declaration,
-    document: { kind: "page", revision: 2 },
-  });
+  document.descriptors.set(
+    "choice",
+    capturedDescriptor({
+      ...descriptor,
+      declaration,
+      document: { kind: "page", revision: 2 },
+    }),
+  );
   document.authored.get("choice").specs.set("decide", agentSpec);
   const reading = state(2);
   reading.active.revision = 2;
@@ -1620,13 +1738,13 @@ test("a revision changing a verb's writer retains delivery without drawing the o
 });
 
 test("An ask contains the local typed answer while completion waits for admission", () => {
-  const declared = {
+  const declared = capturedDescriptor({
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
       "x-awaits": { value: "decide", answered: { decide: {} } },
     },
-  };
+  });
   const app = capture([[declared.id, declared]]);
   const reading = state(2);
   const ask = wireAsk("choice-context", "lf-context", "choice", "lf-choice");
@@ -1658,13 +1776,13 @@ test("empty completed answer and wrapper changes preserve ask identity", () => {
     writer: "user",
     record: { kind: "attribute", attr: "chosen" },
   };
-  const declared = {
+  const declared = capturedDescriptor({
     ...descriptor,
     declaration: {
       "x-state": { choose },
       "x-awaits": { value: "choose", answered: { choose: {} } },
     },
-  };
+  });
   const app = capture(
     [[declared.id, declared]],
     [
@@ -1710,13 +1828,13 @@ test("pending undo removes completed empty ask values and refusal restores them"
   ]) {
     const choose = { unit: "widget", writer: "user", record };
     const answer = { unit: "widget", writer: "user" };
-    const declared = {
+    const declared = capturedDescriptor({
       ...descriptor,
       declaration: {
         "x-state": { choose, answer },
         "x-awaits": { value: "choose", answered: { answer: {} } },
       },
-    };
+    });
     const app = capture(
       [[declared.id, declared]],
       [
@@ -1771,13 +1889,13 @@ test("pending undo removes completed empty ask values and refusal restores them"
 });
 
 test("pending undo withdraws a decision an earlier Leaf recorded with another field", () => {
-  const declared = {
+  const declared = capturedDescriptor({
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
       "x-awaits": { value: "decide", answered: { decide: {} } },
     },
-  };
+  });
   const app = capture([[declared.id, declared]]);
   // Before #2329 the recorded definition carried the verb flag as `update`.
   const accepted = {
@@ -1810,13 +1928,13 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
 });
 
 test("pending undo removes a custom ask answer before authoritative completion changes", () => {
-  const declared = {
+  const declared = capturedDescriptor({
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
       "x-awaits": { value: "decide", answered: { decide: {} } },
     },
-  };
+  });
   const app = capture([[declared.id, declared]]);
   const accepted = { ...action("decided"), id: "e1", seq: 1 };
   const reading = state(2, [accepted]);

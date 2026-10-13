@@ -35,24 +35,27 @@
       }
     </style>
     <script type="module">
-      await customElements.whenDefined("lf-sample");
-      const views = {
-        "overview-sample": { surface: "panel" },
-        "on-you-sample": { thread: "98850286", surface: "page" },
-        "resolved-sample": { surface: "panel", status: "resolved" },
-        "summary-sample": { thread: "c1a39980", surface: "panel" },
-      };
-      function showView(sample) {
-        const { thread, ...view } = views[sample.id];
-        return sample.showThread(thread, view);
-      }
-      document.addEventListener("lf-sample-ready", (event) => {
-        if (views[event.target.id]) void showView(event.target);
+      import { afterPresentation } from "/runtime/widget-api.js";
+
+      void afterPresentation(() => {
+        const views = {
+          "overview-sample": { surface: "panel" },
+          "on-you-sample": { thread: "98850286", surface: "page" },
+          "resolved-sample": { surface: "panel", status: "resolved" },
+          "summary-sample": { thread: "c1a39980", surface: "panel" },
+        };
+        function showView(sample) {
+          const { thread, ...view } = views[sample.id];
+          return sample.showThread(thread, view);
+        }
+        document.addEventListener("lf-sample-ready", (event) => {
+          if (views[event.target.id]) void showView(event.target);
+        });
+        for (const id of Object.keys(views)) {
+          const sample = document.getElementById(id);
+          if (sample.ready) void showView(sample);
+        }
       });
-      for (const id of Object.keys(views)) {
-        const sample = document.getElementById(id);
-        if (sample.ready) void showView(sample);
-      }
     </script>
   </head>
   <body>
@@ -65,7 +68,7 @@
       </p>
       <nav id="thread-panel-jumps" aria-label="Panel views">
         <a href="#panel-overview">Open threads</a>
-        <a href="#panel-on-you">On you</a>
+        <a href="#panel-on-you">On me</a>
         <a href="#panel-resolved">Resolved</a>
         <a href="#panel-summary">Long discussion</a>
       </nav>
@@ -104,7 +107,7 @@
         </section>
 
         <section id="panel-on-you">
-          <h2>On you, beside the page</h2>
+          <h2>On me, beside the page</h2>
           <p>
             The anchored card shares the panel's message hierarchy and reply field. Open
             Threads inside the sample to read the same discussion there.

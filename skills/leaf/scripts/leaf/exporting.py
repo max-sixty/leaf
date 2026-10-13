@@ -1,8 +1,8 @@
 """A stamped version as one HTML file that opens offline.
 
-The export packages the captured revision, its resources, and the page's authoritative
-state reading into one file. Its resource owner allocates one object URL per embedded
-body before handing the composed document to the native HTML parser; Leaf's normal
+The export packages one current runtime, each page and message's captured widget
+vocabulary, and the page's authoritative state reading into one file. Its resource
+owner allocates one object URL per embedded body before handing the composed document to the native HTML parser; Leaf's normal
 runtime then boots from that document. The normal composer also supplies the
 scripts-off record: authored text, layout and alt text, with an explanation that
 embedded graphics, fonts and recordings require JavaScript. Media is
@@ -23,6 +23,7 @@ from urllib.parse import unquote, urlsplit
 
 from leaf.event_log import read_events
 from leaf.files import (
+    latest_revision,
     published_versions,
     version_name,
     version_revisions,
@@ -32,6 +33,7 @@ from leaf.refusals import Refused
 from leaf.revision_artifact import (
     Resource,
     RevisionArtifact,
+    artifact_name,
     bind_imports,
     captured_imports,
     read_artifact,
@@ -39,15 +41,33 @@ from leaf.revision_artifact import (
 )
 from leaf.revision_delivery import (
     Delivery,
+    PublicationAddress,
+    RuntimeDelivery,
     compose_document,
+    delivered_resource,
     json_script,
+    publication_css,
     rebase_css,
 )
 from leaf.served_state.service import PageStateService
 from leaf.structure import UTF8_BOM, SourceDocument
-from leaf.thread_context import logged_fragment
+from leaf.thread_context import effective_thread_events, logged_fragment
 
 ResourceReader = Callable[[str], Resource]
+
+
+def _export_css(source, base, address, *, declarations=False):
+    """Resolve captured CSS against its publication before embedding its graph."""
+    if base.startswith("/revisions/"):
+        _, _, publication, logical = base.split("/", 3)
+        publication_address = PublicationAddress("", "/revisions/" + publication)
+        return rebase_css(
+            source,
+            "/" + logical,
+            lambda path: address(publication_address(path)),
+            declarations=declarations,
+        )
+    return rebase_css(source, base, address, declarations=declarations)
 
 
 def _data_url(resource: Resource) -> str:
@@ -74,7 +94,7 @@ class _CssFrame:
         parent_reference: str | None = None,
     ) -> _CssFrame:
         addresses: dict[str, str | None] = {}
-        rebase_css(
+        _export_css(
             source,
             base,
             lambda path: addresses.setdefault(path, path),
@@ -163,7 +183,7 @@ class AssetInliner:
                     resource = Resource(b"", "text/css")
                 frame.addresses[reference] = _fragment(self.embed(resource), reference)
                 continue
-            rewritten = rebase_css(
+            rewritten = _export_css(
                 frame.source,
                 frame.base,
                 frame.addresses.__getitem__,
@@ -201,52 +221,62 @@ class ReadableAssets(AssetInliner):
 
 
 def _module_urls(
-    artifact: RevisionArtifact, markup: list[SourceDocument]
+    resources: Mapping[str, Resource], pending: list[str]
 ) -> dict[str, str]:
-    """Embed the module graph this file can reach, and no other module.
-
-    The computed imports an exported page makes are widget modules and their declared
-    initial producers, asked for only
-    where the widget's tag stands in markup about to be upgraded (`importWidgets` in
-    `runtime/widget-loader.js`). Offline that markup is the captured page and the frozen
-    markup its messages carry, since the embedded reading never activates another
-    revision. Every other import is literal, so the runtime entry, the page's own
-    modules, and the modules of the widgets that markup names close the graph: a page
-    that draws no diff carries no diff renderer.
-    """
-    tags = {record["tag"] for document in markup for record in document.lf_elements}
-    registry = artifact.registry
-    required = {f"/widgets/{tag}.js" for tag in tags}
-    widgets = {
-        alias: source
-        for alias, source in artifact.widget_aliases.items()
-        if alias in required
-    }
-    pending = [
-        "/leaf.js",
-        *(
-            path
-            for path in artifact.entries
-            if artifact.resources[path].mime == "application/javascript"
-        ),
-        *widgets.values(),
-        *(
-            initial
-            for tag in tags
-            if (initial := registry.get(tag, {}).get("x-initial"))
-        ),
-    ]
+    """Close the one runtime and publication-owned renderer graph into in-file modules."""
     urls = {}
     while pending:
         path = pending.pop()
         if path in urls:
             continue
-        resource = artifact.resources[path]
-        imports = list(captured_imports(resource.data, path, artifact.resources))
+        resource = resources[path]
+        imports = list(captured_imports(resource.data, path, resources))
         pending.extend(target for _, _, target in imports)
         source = bind_imports(resource.data, imports, lambda path: f"leaf:{path}")
         urls[path] = _data_url(Resource(source, resource.mime))
-    return urls | {alias: urls[path] for alias, path in widgets.items()}
+    return urls
+
+
+def _export_resources(kernel, publications, roots, markup, data_resources):
+    """Captured resource namespaces, module entries and classic initial producers."""
+    resources = dict(kernel.resources)
+    resources.update(data_resources)
+    pending = ["/leaf.js"]
+    initializers = set()
+    for revision, artifact in publications.items():
+        root = roots[str(revision)]
+        address = PublicationAddress("", root, artifact.shared_modules)
+        for logical in artifact.resources.keys() | artifact.widget_aliases.keys():
+            original = artifact.resources.get(logical)
+            if original is not None and original.mime == "text/css":
+                body = original.data.decode()
+                if logical == "/widget-theme.css":
+                    body = publication_css(body, revision)
+                resource = Resource(body.encode(), "text/css")
+            else:
+                resource = delivered_resource(artifact, logical, address)
+            resources[root + logical] = resource
+        pending.extend(
+            address(path)
+            for path in artifact.entries
+            if artifact.resources[path].mime == "application/javascript"
+        )
+        tags = {
+            record["tag"]
+            for document in markup[revision]
+            for record in document.lf_elements
+        }
+        pending.extend(
+            address(f"/widgets/{tag}.js")
+            for tag in tags
+            if artifact.registry.get(tag, {}).get("x-upgrade")
+        )
+        initializers.update(
+            root + initial
+            for tag in tags
+            if (initial := artifact.registry.get(tag, {}).get("x-initial"))
+        )
+    return resources, pending, initializers
 
 
 def export_document(
@@ -257,6 +287,9 @@ def export_document(
     revision: int,
     version: int,
     data_resources: Mapping[str, Resource],
+    *,
+    kernel: RevisionArtifact,
+    publications: dict[int, RevisionArtifact],
 ) -> str:
     """Package one captured revision for Leaf's normal runtime without a host.
 
@@ -269,18 +302,25 @@ def export_document(
     against the embedded authoritative reading, so the file opens offline wherever the
     page itself names no other server.
     """
-    modules = _module_urls(
-        artifact,
-        [
-            document,
-            *(
-                logged_fragment(event)
-                for event in state["events"]
-                if event.get("markup")
-            ),
-        ],
+    roots = {
+        str(publication): "/revisions/" + artifact_name(publication, captured)
+        for publication, captured in publications.items()
+    }
+    events = effective_thread_events(state["events"], publications)
+    state = {**state, "events": events}
+    markup = {publication: [] for publication in publications}
+    markup[revision].append(document)
+    for event in events:
+        if event.get("markup"):
+            markup[event["revision"]].append(logged_fragment(event))
+    resources, pending, initializers = _export_resources(
+        kernel, publications, roots, markup, data_resources
     )
-    resources = artifact.resources | data_resources
+    modules = _module_urls(resources, pending)
+    publication_address = PublicationAddress(
+        "", roots[str(revision)], artifact.shared_modules
+    )
+    state = {**state, "vocabularies": roots}
     inliner = AssetInliner(resources.__getitem__)
     # Replacement markers belong to delivery, never to authored prose, state, data or
     # CSS strings. Reserve a fresh namespace absent from every text it will rewrite.
@@ -289,7 +329,7 @@ def export_document(
         json_script({"state": state, "data": data}),
         *(
             resource.data.decode()
-            for resource in artifact.resources.values()
+            for resource in resources.values()
             if resource.mime == "text/css"
         ),
     ]
@@ -300,26 +340,48 @@ def export_document(
         for path, resource in resources.items()
         if resource.mime not in {"application/javascript", "text/css"}
     }
+    # Initial producers execute as classic scripts so registration can read the
+    # publication carried by document.currentScript. They are resources, not ESM.
+    embedded_resources.update(
+        (path, inliner.address(path)) for path in sorted(initializers)
+    )
     embedded_resources["/shadow.css"] = inliner.address("/shadow.css")
+    for root in roots.values():
+        for path in ("/shadow.css", "/widget-theme.css"):
+            embedded_resources[root + path] = inliner.address(root + path)
     embedded_resources["/registry.json"] = inliner.address("/registry.json")
     payload = json_script(
         {"state": state, "data": data, "resources": embedded_resources}
     )
+
     # An authored module is addressed at the same embedded URL the import map gives
     # its `leaf:` name, so a page module is one instance however it is reached.
+    def address(path):
+        located = publication_address(path)
+        return modules[located] if located in modules else inliner.address(located)
+
+    def stylesheet(path):
+        return inliner.stylesheet(
+            path if path == "/theme.css" else publication_address(path)
+        )
+
     composed = compose_document(
         artifact.html.decode("utf-8"),
         revision,
         version,
         executable=artifact.executable,
         widgets=artifact.widgets,
-        resources=resources,
+        resources=artifact.resources | data_resources,
         registry=artifact.registry,
         delivery=Delivery(
-            address=lambda path: (
-                modules[path] if path in modules else inliner.address(path)
+            address=address,
+            kernel=RuntimeDelivery(
+                kernel.resources,
+                lambda path: (
+                    modules[path] if path in modules else inliner.address(path)
+                ),
             ),
-            inline_stylesheet=inliner.stylesheet,
+            inline_stylesheet=stylesheet,
             import_map={
                 "imports": {
                     f"leaf:{path}": url for path, url in sorted(modules.items())
@@ -327,7 +389,8 @@ def export_document(
             },
             runtime=(
                 '<script type="application/json" data-lf-runtime data-lf-offline '
-                'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="">'
+                'data-lf-page-root="" data-lf-entry="leaf:/leaf.js" data-lf-probe="/registry.json" '
+                f'data-lf-vocabulary-root="{roots[str(revision)]}/registry.json">'
                 f"{payload}</script>"
             ),
         ),
@@ -349,18 +412,21 @@ def export_document(
         }
     )
     readable = ReadableAssets(inliner.resource)
-    bootstrap = artifact.resources["/runtime/offline-delivery.js"].data.decode()
+    bootstrap = kernel.resources["/runtime/offline-delivery.js"].data.decode()
     fallback = compose_document(
         artifact.html.decode("utf-8"),
         revision,
         version,
         executable=artifact.executable,
         widgets=artifact.widgets,
-        resources=resources,
+        resources=artifact.resources | data_resources,
         registry=artifact.registry,
         delivery=Delivery(
-            address=readable.address,
-            inline_stylesheet=readable.stylesheet,
+            address=lambda path: readable.address(publication_address(path)),
+            kernel=RuntimeDelivery(kernel.resources, readable.address),
+            inline_stylesheet=lambda path: readable.stylesheet(
+                path if path == "/theme.css" else publication_address(path)
+            ),
             html_attributes={"data-lf-export-pending": ""},
             head=(
                 "<style>[data-lf-export-pending] body {visibility:hidden}</style>"
@@ -421,6 +487,18 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
         revision,
         version,
         snapshot.data_resources,
+        kernel=read_artifact(page_dir, latest_revision(page_dir)),
+        publications={
+            publication: read_artifact(page_dir, publication)
+            for publication in {
+                revision,
+                *(
+                    event["revision"]
+                    for event in state["events"]
+                    if event.get("markup")
+                ),
+            }
+        },
     )
 
     out.parent.mkdir(parents=True, exist_ok=True)

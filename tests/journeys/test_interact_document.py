@@ -26,6 +26,7 @@ from interact_support import (
     fresh_process,
     publish,
     read_page_data,
+    refused_on,
     stamp,
     state_json,
     suggest,
@@ -230,10 +231,11 @@ def test_a_version_that_writes_the_move_owns_its_order(page_dir):
     assert check(page_dir).exit_code == 0, check(page_dir).output
     publish(page_dir)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
-    with pytest.raises(events_model.EventRefused, match="markup now places its unit"):
+    with pytest.raises(events_model.EventRefused) as refused:
         append_command(
             page_dir, {"kind": "undo", "author": "user", "undoes": move["id"]}
         )
+    assert refused_on(refused.value).code == "absorbed-move"
 
 
 def test_a_later_version_can_reposition_a_card_without_retracting_its_move(page_dir):
@@ -1114,9 +1116,10 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
 
     The active revision is no exception: whether the source is that revision is a
     question for its manifest's digest, not its bundle. So each revision opens the
-    files its reading asks for and no more — the document and the registry, and the
-    active revision its manifest besides. Exact counts are the control: a counter
-    that never saw a revision file would read zero for each.
+    files its reading asks for and no more: the document, registry and manifest.
+    Inventory reads the manifest to exclude stale captures; active identity also
+    reads it. The bounded metadata budget and filenames rule out materializing
+    resource bodies, including after the bundle descriptor cache has evicted them.
     """
     for edit in range(12):
         (page_dir / "index.html").write_text(
@@ -1132,7 +1135,7 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
 
     def counted_open(self, *args, **kwargs):
         if found := re.search(r"/revisions/r([1-9][0-9]*)-", str(self)):
-            opens[int(found.group(1))] += 1
+            opens[int(found.group(1)), self.name] += 1
         return native_open(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "open", counted_open)
@@ -1143,9 +1146,11 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
     assert activated.error is None, activated.error
     assert not activated.created
 
-    *history, active = revisions
-    assert opens[active] == 3
-    # One document and one registry apiece: the only two resources this reading reads.
-    assert {revision: opens[revision] for revision in history} == {
-        revision: 2 for revision in history
-    }
+    for revision in revisions:
+        metadata = {
+            name: count for (order, name), count in opens.items() if order == revision
+        }
+        marker = files_model.revision_path(page_dir, revision).name
+        assert set(metadata) == {marker, "registry.json", "manifest.json"}
+        assert metadata[marker] == metadata["registry.json"] == 1
+        assert 1 <= metadata["manifest.json"] <= 2

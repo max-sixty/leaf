@@ -21,6 +21,7 @@ from render_harness import (
     consume_browser_errors,
     expect_asks_answered,
     holding,
+    is_problem,
     leaf_page,
     open_page,
     page_comment,
@@ -28,6 +29,7 @@ from render_harness import (
     refuse,
     reported_browser_errors,
     round_trip,
+    said,
     scroll_settled,
     sending,
     take_browser_errors,
@@ -35,9 +37,9 @@ from render_harness import (
     write,
 )
 
-THREAD_READER = r"""
+THREAD_READER = """
 import {keepsText, watchThreads, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
-customElements.define('lf-thread-reader', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     this.output = document.createElement('pre');
     this.append(this.output);
@@ -45,13 +47,13 @@ customElements.define('lf-thread-reader', class extends HTMLElement {
       this.reading = collection;
       this.sameReading = collection === readThreads();
       keepsText(this.output, collection.threads.map(thread =>
-        threadTurns(thread).map(message => message.body.text).join('\n')
-      ).join('\n'));
+        threadTurns(thread).map(message => message.body.text).join('\\n')
+      ).join('\\n'));
       this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
     });
   }
   disconnectedCallback() { this.stop(); }
-});
+};
 """
 
 THREAD_READER_DECLARATION = {
@@ -65,9 +67,9 @@ THREAD_READER_DECLARATION = {
     "x-example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
 }
 
-THREAD_FILTER = r"""
+THREAD_FILTER = """
 import {keepsText, threadActions, readThreads, threadSummary, watchThreads} from '/runtime/widget-api.js';
-customElements.define('lf-thread-filter', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!this.input) {
       this.input = document.createElement('input');
@@ -107,7 +109,7 @@ customElements.define('lf-thread-filter', class extends HTMLElement {
     this.stop?.();
     this.stop = null;
   }
-});
+};
 """
 
 THREAD_FILTER_DECLARATION = {
@@ -124,9 +126,9 @@ THREAD_FILTER_DECLARATION = {
     "x-example": '<lf-thread-filter id="example"></lf-thread-filter>',
 }
 
-THREAD_MIRROR = r"""
+THREAD_MIRROR = """
 import {keeps, mountThreadViews, threadSummary} from '/runtime/widget-api.js';
-customElements.define('lf-thread-mirror', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!this.outlet) {
       this.input = document.createElement('input');
@@ -153,7 +155,7 @@ customElements.define('lf-thread-mirror', class extends HTMLElement {
     this.consumer?.unregister();
     this.consumer = null;
   }
-});
+};
 """
 
 THREAD_MIRROR_DECLARATION = {
@@ -314,7 +316,7 @@ def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, ser
     assert sum(row["type"] == "pointermove" for row in browser_rows) < 512
     sequences = sorted(row["sequence"] for row in browser_rows)
     assert any(later - earlier > 1 for earlier, later in pairwise(sequences))
-    consume_browser_errors(page, "503")
+    consume_browser_errors(page, {"code": "failed-load", "status": 503})
 
 
 def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser, serve):
@@ -360,7 +362,7 @@ def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser,
     browser_rows = [row for row in rows if row.get("source") == "client"]
     assert sum(row["type"] == "click" for row in browser_rows) == 512
     assert not any(row["type"] == "pointermove" for row in browser_rows)
-    consume_browser_errors(page, "503")
+    consume_browser_errors(page, {"code": "failed-load", "status": 503})
 
 
 PAGE_MODULE = """\
@@ -394,7 +396,7 @@ import {
   html, keeps, layerFact, once, render, widgetController,
 } from "/runtime/widget-api.js";
 
-customElements.define("lf-local", class extends HTMLElement {
+export default class extends HTMLElement {
   controller = widgetController(this);
   reading = this.controller.read();
 
@@ -406,7 +408,7 @@ customElements.define("lf-local", class extends HTMLElement {
   connectedCallback() {
     this.paint();
     if (!once(this)) return;
-    layerFact("$tones");
+    layerFact(this, "$tones");
     keeps(this, "data-page-widget", "ready");
     this.controller.subscribe(reading => {
       this.reading = reading;
@@ -453,7 +455,7 @@ customElements.define("lf-local", class extends HTMLElement {
     render(html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
       <output>${choice}</output>`, this.shadowRoot, {host: this});
   }
-});
+};
 """
 
 STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
@@ -499,7 +501,6 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
           const control = owner.shadowRoot.querySelector('button');
           control.click();
           return {
-            defined: customElements.get('lf-local') === owner.constructor,
             connected: owner.dataset.pageWidget,
             gestures: owner.dataset.gestures,
             order: owner.dataset.renderOrder,
@@ -507,7 +508,6 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
         }"""
     )
     assert installed == {
-        "defined": True,
         "connected": "ready",
         "gestures": "1",
         "order": "render,subscribe,",
@@ -888,7 +888,7 @@ def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
     )
     assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 1, "pending": []}
     errors = take_browser_errors(page)
-    assert [error.splitlines()[0] for error in errors] == [
+    assert [said(error) for error in errors] == [
         (
             "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
             "deliberate render failure"
@@ -957,11 +957,12 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
                 "x-example": '<lf-controller-stage id="stage-example"><p id="stage-words">Words</p></lf-controller-stage>',
             },
         }
-        modules["widgets/lf-controller-stage.js"] = """\
-import { once, shadowStage } from '/runtime/widget-api.js';
-customElements.define('lf-controller-stage', class extends HTMLElement {
+        modules[
+            "widgets/lf-controller-stage.js"
+        ] = """import { once, shadowStage } from '/runtime/widget-api.js';
+export default class extends HTMLElement {
   connectedCallback() { if (once(this)) shadowStage(this, [...this.children]); }
-});
+};
 """
     source = LIVE_V1.replace(
         "</main>",
@@ -1203,13 +1204,13 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
     errors = take_browser_errors(page)
-    assert [error.splitlines()[0] for error in errors] == [
+    assert [said(error) for error in errors] == [
         (
             "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
             "deliberate render failure"
         )
     ]
-    assert "Caused by: Error: deliberate render failure" in errors[0]
+    assert "Caused by: Error: deliberate render failure" in errors[0].values["text"]
 
 
 @pytest.mark.parametrize(
@@ -1293,7 +1294,9 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
         "deliberate preparation failure"
     )
     errors = take_browser_errors(page)
-    assert errors and all("deliberate preparation failure" in error for error in errors)
+    assert errors and all(
+        is_problem(error, "deliberate preparation failure") for error in errors
+    )
     page.evaluate("releaseSibling()")
     rendered(page)
 
@@ -1460,7 +1463,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     expect(page.locator("#thread-failing")).to_have_count(1)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+    assert [said(error) for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: frozen descendant failure"
     ]
 
@@ -1683,9 +1686,9 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     round_trip(page)
 
 
-THREAD_ACTIONS = r"""
+THREAD_ACTIONS = """
 import {keeps, threadActions, watchThreads} from '/runtime/widget-api.js';
-customElements.define('lf-thread-actions', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +
       '<button>Resolve</button><button>Reopen</button><button>React</button>';
@@ -1708,7 +1711,7 @@ customElements.define('lf-thread-actions', class extends HTMLElement {
     });
   }
   disconnectedCallback() { this.stop(); }
-});
+};
 """
 
 THREAD_ACTIONS_DECLARATION = {
@@ -1756,7 +1759,7 @@ def test_compact_reader_opens_the_native_interactive_message(browser, serve, sur
     page = open_page(browser, url)
     if surface == "margin":
         page.get_by_role(
-            "button", name=re.compile("Thread, On you to answer")
+            "button", name=re.compile("Thread, My turn to answer")
         ).first.click()
         compact = page.locator(".lf-margin-thread")
     else:
@@ -1785,7 +1788,7 @@ def test_frozen_ask_reveals_its_exact_message_in_a_selective_primary(
     """A message-only primary materializes the widget's turn, including later replies."""
     module = """
     import {registerThreadPresentation, threadTurns} from '/runtime/widget-api.js';
-    customElements.define('lf-message-reader', class extends HTMLElement {
+    export default class extends HTMLElement {
       connectedCallback() {
         this.outlet = document.createElement('section');
         this.append(this.outlet);
@@ -1801,7 +1804,7 @@ def test_frozen_ask_reveals_its_exact_message_in_a_selective_primary(
         });
       }
       disconnectedCallback() { this.presentation.unregister(); }
-    });
+    };
     """
     url = serve(
         leaf_page(
@@ -1935,12 +1938,12 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     counts = workspace.locator(".counts")
     workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
     expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
-    expect(counts).to_have_text("2 asks on you")
+    expect(counts).to_have_text("2 asks on me")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
             "button", name="Done: my picks here are complete", exact=True
         ).click()
-    expect(counts).to_have_text("1 asks on you · 1 answered · Chat")
+    expect(counts).to_have_text("1 asks on me · 1 answered · Chat")
 
 
 def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, serve):
@@ -2255,7 +2258,7 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
         layer_widgets={
             "lf-keyed-slot-list.js": """
             import {holdFocus, shadowStage} from '/runtime/widget-api.js';
-            customElements.define('lf-keyed-slot-list', class extends HTMLElement {
+            export default class extends HTMLElement {
               connectedCallback() {
                 this.scope = document.createElement('section');
                 this.row = document.createElement('div');
@@ -2283,7 +2286,7 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
                 this.editor = editor;
                 return restore();
               }
-            });
+            };
             """
         },
     )

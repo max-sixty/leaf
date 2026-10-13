@@ -119,7 +119,14 @@ def work_state(
         if source
         else None
     )
-    durable = WorkReading(events, source.registry if source else {}, page, log=log)
+    durable = WorkReading(
+        events,
+        source.registry if source else {},
+        page,
+        log=log,
+        registry_for_revision=lambda previous: revision_reader(previous).registry,
+        available_revisions=revisions,
+    )
     stream = live_stream or {}
     reply = canonical_stream_reply(present, now, stream.get("reply"))
     activity = canonical_activity(

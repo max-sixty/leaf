@@ -204,7 +204,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     # explicitly makes c enter the reply instead of adding an answer or opening
     # another comment box.
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
-    page.get_by_role("button", name=re.compile(r"Thread, On you to answer")).click()
+    page.get_by_role("button", name=re.compile(r"Thread, My turn to answer")).click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("c")
     expect(reply).to_be_focused()
@@ -260,7 +260,7 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
         for event in events_model.read_events(serve.page_dir)
         if event.get("kind") == "action" and event.get("widget") == "jobs"
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, serve):

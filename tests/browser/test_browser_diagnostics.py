@@ -32,13 +32,14 @@ def test_uncaught_errors_keep_the_throw_site_in_each_document(browser, collector
             )
     if collector is watched:
         errors = take_browser_errors(page)
-    assert len(errors) == 2, errors
-    assert all("camera failed" in error for error in errors)
-    assert "readCamera" in errors[0], errors
-    assert "readChildCamera" in errors[1], errors
+    stacks = [error.values["text"] for error in errors]
+    assert [error.code for error in errors] == ["page-exception"] * 2, stacks
+    assert all("camera failed" in stack for stack in stacks)
+    assert "readCamera" in stacks[0], stacks
+    assert "readChildCamera" in stacks[1], stacks
 
 
-def test_expected_http_status_does_not_consume_an_unrelated_stack(browser):
+def test_a_stack_location_does_not_consume_an_unrelated_error(browser):
     """A port or source line is evidence, never the reason an error is expected."""
     page = browser.new_page()
     with page.expect_event("pageerror"):
@@ -47,7 +48,7 @@ def test_expected_http_status_does_not_consume_an_unrelated_stack(browser):
             "\n//# sourceURL=https://diagnostics.test:40041/camera.js"
         )
     with pytest.raises(AssertionError, match="unrelated fault"):
-        consume_browser_errors(page, "400")
+        consume_browser_errors(page, "40041")
 
 
 @pytest.mark.parametrize("owner_read", [1, 2])

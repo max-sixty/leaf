@@ -110,8 +110,8 @@ function quoteReading(thread, anchors) {
               ? "Jump to the quoted item's current location"
               : "Jump to this passage"
         : thread.detached_from
-          ? "This passage is no longer in the version you're viewing"
-          : "This passage can't be identified in the version you're viewing",
+          ? "This passage is no longer in the version shown"
+          : "This passage can't be identified in the version shown",
   });
 }
 
@@ -290,7 +290,7 @@ function paintBoundary(node, kind) {
   keeps(
     node,
     "aria-label",
-    kind === "new" ? "New since you last looked" : "End of this new section",
+    kind === "new" ? "New since I last looked" : "End of this new section",
   );
 }
 

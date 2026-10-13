@@ -83,7 +83,7 @@ def test_message_delivery_appearance_and_first_frame(
         for stage in ("newer-draft-pending", "accepted"):
             assert observed[stage]["focused"]
             assert observed[stage]["caret"] == [len(NEXT_WORDS) - 3] * 2
-        consume_browser_errors(page, "400")
+        consume_browser_errors(page, {"code": "failed-load", "status": 400})
         run.finish()
     finally:
         (run.output / "observations.json").write_text(

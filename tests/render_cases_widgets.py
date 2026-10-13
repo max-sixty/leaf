@@ -137,8 +137,8 @@ def visual_widgets(
     return {
         "visual-fixture.js": browser_source("widgets/visual-fixture.js"),
         f"{tag}.js": (
-            "import { defineVisualFixture } from './visual-fixture.js';\n"
-            f"defineVisualFixture({json.dumps(configuration)});\n"
+            "import { createVisualFixture } from './visual-fixture.js';\n"
+            f"export default createVisualFixture({json.dumps(configuration)});\n"
         ),
     }
 

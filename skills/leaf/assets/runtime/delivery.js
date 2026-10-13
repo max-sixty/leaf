@@ -60,8 +60,8 @@ export function createDelivery({
         // than promising a retry that cannot succeed on its own.
         await retry(
           runtime.keyRefused
-            ? "Key refused — open Leaf's link in a new tab and your change will send"
-            : "Connection lost — retrying your change…",
+            ? "Key refused — open Leaf's link in a new tab and the change will send"
+            : "Connection lost — retrying the change…",
         );
         continue;
       }
@@ -71,7 +71,7 @@ export function createDelivery({
       // The loop already retries; what it reported without this was the failed decode
       // of a plain-text body rather than what the server said.
       if (sent.response.status === 503) {
-        await retry("The server isn't ready yet — retrying your change…");
+        await retry("The server isn't ready yet — retrying the change…");
         continue;
       }
       const decoded = await Promise.race([
@@ -83,7 +83,7 @@ export function createDelivery({
       ]);
       if (decoded.accepted) return { accepted: decoded.accepted };
       if (decoded.error) {
-        await retry("Couldn't read the answer — retrying your change…");
+        await retry("Couldn't read the answer — retrying the change…");
         continue;
       }
       const answer = decoded.answer;
@@ -110,7 +110,7 @@ export function createDelivery({
           refusal: `Couldn't send — ${answer.error || "the server refused it"}`,
         };
       }
-      await retry("Server answer was incomplete — retrying your change…");
+      await retry("Server answer was incomplete — retrying the change…");
     }
   }
 

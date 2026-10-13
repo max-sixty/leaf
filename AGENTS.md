@@ -41,12 +41,19 @@ primitive must give the user something that site would not:
 Leaf standardizes reading, commenting, and actions across sessions and agents.
 Page content and composition remain the agent's and user's choices.
 
+The agent that writes a page, sets its data, or changes Leaf works in a fast loop: it
+reads what fails and tries again. So Leaf lets a failure surface through the parser or
+check already in its path, and spends code preventing one only where the agent could
+not see it, where it would pass silently into what the user relies on, such as an
+admitted event or a stored decision. Every check, option, and special case is a
+permanent cost to every later maintainer, and one that buys nothing the agent's next
+attempt would not is removed.
+
 ## Stage
 
 Leaf has no users, deployment, database, or persisted state that constrains new
 code. Prefer the simpler interface even when it is incompatible. Delete and
-regenerate stale state. Add a guard only for a reachable condition with a useful
-response.
+regenerate stale state.
 
 Regenerate or discard claims, logs, and pages from earlier runtimes. Add no
 migration, compatibility shim, or removal promise. Leave old state and recovery

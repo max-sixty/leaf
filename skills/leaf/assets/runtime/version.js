@@ -68,6 +68,8 @@
  * open, including when the platform dismisses it. Scopes sharing a title merge their
  * rows; an unavailable contributor supplies none.
  */
+import { bindVocabulary, vocabularyFor } from "./widget-contexts.js";
+import { requireVocabulary } from "./widget-vocabularies.js";
 import {
   nextAnimation,
   nextRender,
@@ -104,7 +106,7 @@ import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusedInView } from "./user-place.js";
 import { patchTree, patchRetains } from "./dom-children.js";
 import { move } from "./dom-move.js";
-import { labelOf, PRESS } from "./keyboard/bindings.js";
+import { labelOf, PRESS, savedReadingSettled } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
@@ -119,7 +121,7 @@ import {
   wrote,
 } from "./passages.js";
 import { TEXT_BLOCK } from "./passage-facts.js";
-import { registry, tagsDeclaring } from "./registry.js";
+import { registryFor, tagsDeclaring } from "./registry.js";
 import {
   paintMarkdown,
   prepareDeclaredMarkdown,
@@ -446,28 +448,32 @@ export function renderVersions(state) {
 // Which blocks and which widgets is the registry's answer both times, so a widget added
 // to the vocabulary diffs on the strength of its declaration: a compound member whose content
 // model is prose is a block of the page's prose the same way a paragraph is.
-const diffBlockSel = () =>
+const diffBlockSel = (root = document) =>
   [
     TEXT_BLOCK,
     "aside",
-    ...tagsDeclaring((e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
+    ...tagsDeclaring(
+      (e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup",
+      root,
+    ),
     // Preserving widgets contribute their own prose. The leaf-blocks-only rule
     // below avoids counting nested blocks twice and keeps base and live readings
     // symmetric: a draft's authored <pre> and rendered body key the same words.
-    ...tagsDeclaring((e) => e["x-verbatim"]),
+    ...tagsDeclaring((e) => e["x-verbatim"], root),
   ].join(",");
 // Opaque: a widget whose upgrade renders its data body, so the text on screen is the
 // module's and can't compare; and one whose slots a decision retires, which holds two
 // versions of one passage and is already its own mark. Plus svg, drawn by either.
-const diffOpaqueSel = () =>
+const diffOpaqueSel = (root = document) =>
   [
     ...tagsDeclaring(
       (e) => e["x-upgrade"] && !e["x-verbatim"] && e["x-content"] === "data",
+      root,
     ),
     // External data is absent from both authored documents. Its seat is opaque, and
     // the authored binding and immutable selector below are the comparison key.
-    ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
-    ...Object.entries(registry.$decisions)
+    ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"], root),
+    ...Object.entries(registryFor(root).$decisions)
       .filter(([, { retires }]) => Object.keys(retires).length)
       .map(([owner]) => owner),
     "svg",
@@ -515,7 +521,7 @@ function diffWords(block) {
 // version is parsed unupgraded and holds none of them.
 function diffBlocks(root) {
   const pairs = [];
-  const [blocks, opaque] = [diffBlockSel(), diffOpaqueSel()];
+  const [blocks, opaque] = [diffBlockSel(root), diffOpaqueSel(root)];
   const authoredHere = authored(root);
   // A data body is one source value. Its formatted paragraphs are its reading,
   // not independent source units; comparing the source also detects changed emphasis.
@@ -534,7 +540,7 @@ function diffBlocks(root) {
     // changed. Symmetric for free — the base parses unupgraded, where the same
     // attribute would have painted the same words through the pseudo-element.
     for (const [attr, edge] of Object.entries(
-      registry[b.localName]?.["x-says"] ?? {},
+      registryFor(b)[b.localName]?.["x-says"] ?? {},
     )) {
       const said = b.getAttribute(attr);
       if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
@@ -546,7 +552,7 @@ function diffBlocks(root) {
   for (const w of root.querySelectorAll(opaque)) {
     // parentElement, not w itself: an svg a widget rendered stays its widget's.
     if (!authoredHere(w) || inChrome(w) || w.parentElement?.closest(opaque)) continue;
-    const entry = registry[w.localName] ?? {};
+    const entry = registryFor(w)[w.localName] ?? {};
     // A data binding is authored semantics even though the generated children
     // of an upgraded widget are opaque to comparison.
     const bindingAttrs = new Set();
@@ -975,6 +981,11 @@ async function authoredDocument(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
   const doc = new DOMParser().parseFromString(await response.text(), "text/html");
+  const revision = Number(doc.body.dataset.lfVocabulary);
+  const probe = doc.querySelector("script[data-lf-vocabulary-root]").dataset
+    .lfVocabularyRoot;
+  const root = new URL(".", new URL(probe, document.baseURI)).href.replace(/\/$/, "");
+  bindVocabulary(doc, await requireVocabulary(revision, root));
   // First-paint delivery wrappers have no place in the authored revision.
   return restoreInitialSource(doc);
 }
@@ -1100,7 +1111,7 @@ export function createVersionController({
   });
   const VERSION_WALK = {
     ...walk,
-    description: "Walk the versions, marking what changed since the one you are on",
+    description: "Walk the versions, marking what changed since the one shown",
     title: "walk — marking changes",
     when: versionsToWalk,
   };
@@ -1112,6 +1123,7 @@ export function createVersionController({
   // menu's own row (`version.close`), which closes it and returns the user to More.
   const VERSIONS = {
     title: "In the versions menu",
+    ready: savedReadingSettled,
     root: () => versionMenu,
     when: versionsOffered,
     at: versionMenuIsOpen,
@@ -1197,6 +1209,7 @@ export function createVersionController({
   // pressing it does.
   const PICKER = {
     id: "version.open",
+    ready: savedReadingSettled,
     keys: ["Shift+v"],
     description: "The versions, and what each one changed",
     title: "versions",
@@ -1301,7 +1314,8 @@ export function createVersionController({
     marker.content = String(revision.revision);
   }
 
-  const upgraded = (element) => Boolean(registry[element.localName]?.["x-upgrade"]);
+  const upgraded = (element) =>
+    Boolean(registryFor(element)[element.localName]?.["x-upgrade"]);
 
   // Every declared widget in one revision's authored page, named the way its capture
   // named it: by id where the author gave one, and otherwise by tag and place among the
@@ -1372,7 +1386,7 @@ export function createVersionController({
     return copy;
   };
   const reachesMembers = (before, after, arrivingRoot) =>
-    registry[before.localName]?.["x-patch"] === "members" &&
+    registryFor(before)[before.localName]?.["x-patch"] === "members" &&
     sameAuthoredMarkup(shell(before), shell(after), arrivingRoot);
 
   // Preparation and installation use the same matching, widget ownership, and resource
@@ -1496,7 +1510,7 @@ export function createVersionController({
     // owed again, and these are the roots the install dresses beside the arrivals.
     const touched = [];
     const arrive = (node, parent) => {
-      const arriving = document.importNode(node, true);
+      const arriving = vocabularyFor(source).importNode(node);
       pairSources(node, arriving, sourcePairs);
       if (arriving.nodeType === Node.ELEMENT_NODE) {
         rememberPassageParts(arriving);
@@ -2474,7 +2488,7 @@ export function createVersionController({
         },
         NEWEST,
       ],
-      versionsToWalk,
+      { when: versionsToWalk, ready: savedReadingSettled },
     );
     renderVersions(null);
   }

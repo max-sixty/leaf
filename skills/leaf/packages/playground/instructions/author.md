@@ -175,8 +175,8 @@ A preview that needs JavaScript keeps its page-specific behavior in an inline
 page-specific custom element, following `references/module-authoring.md`, "What a behavior
 module owes".
 
-Wait for `customElements.whenDefined("lf-playground")` before reading
-`closest("lf-playground").values`. Later snapshots arrive in the bubbling
+Read `closest("lf-playground").values` in `afterPresentation(() => …)`.
+Later snapshots arrive in the bubbling
 `lf-playground-change` event's `detail.values`.
 
 A custom state model joins the same configuration with

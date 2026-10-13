@@ -20,17 +20,9 @@ const current = {
 };
 
 test("a verb's stamped state answers only the event its writer sends", () => {
-  const registry = {
-    $states: { "lf-options": { choose: { writer: "user", definition: current } } },
-  };
+  const states = { choose: { writer: "user", definition: current } };
   const event = { widget: "options", action: "choose" };
-  assert.equal(
-    stampedState(registry, "lf-options", { ...event, kind: "action" })?.definition,
-    current,
-  );
-  assert.equal(
-    stampedState(registry, "lf-options", { ...event, kind: "report" }),
-    null,
-  );
-  assert.equal(stampedState(registry, "lf-other", { ...event, kind: "action" }), null);
+  assert.equal(stampedState(states, { ...event, kind: "action" })?.definition, current);
+  assert.equal(stampedState(states, { ...event, kind: "report" }), null);
+  assert.equal(stampedState({}, { ...event, kind: "action" }), null);
 });

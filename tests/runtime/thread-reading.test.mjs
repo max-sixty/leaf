@@ -209,10 +209,10 @@ test("attention names the outstanding question rather than the latest message", 
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
   const attention = threadAttention(thread);
-  assert.equal(attention.label, "On you to answer");
+  assert.equal(attention.label, "My turn to answer");
   assert.equal(
     threadAttention({ ...thread, user_prompt: null }).label,
-    "On you to answer",
+    "My turn to answer",
   );
   assert.equal(
     threadAttention({
@@ -226,7 +226,7 @@ test("attention names the outstanding question rather than the latest message", 
         }),
       ],
     }).label,
-    "On you to resend",
+    "My turn to resend",
   );
   assert.equal(
     threadAttention({
@@ -240,7 +240,7 @@ test("attention names the outstanding question rather than the latest message", 
         }),
       ],
     }).label,
-    "On you to retry",
+    "My turn to retry",
   );
   assert.equal(
     threadAttention({
@@ -344,6 +344,12 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(amounts["waiting:user"], 1);
   assert.equal(amounts["waiting:agent"], 1);
   assert.equal(model.presentation.userAvailable, true);
+  const incomplete = narrowingReading(DEFAULT_INTENT, threads, places, false);
+  assert.deepEqual(incomplete.shown, model.shown);
+  assert.equal(incomplete.presentation.summary, "");
+  assert.equal(incomplete.presentation.userAvailable, false);
+  for (const group of incomplete.presentation.groups)
+    for (const choice of group.choices) assert.equal(choice.amount, null);
 });
 
 test("a fold without prose is searchable by its visible label", () => {

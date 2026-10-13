@@ -7,8 +7,8 @@ from leaf.files import file_stamp, latest_revision, read_json
 from leaf.page_memory import Slot, memo
 
 from ..refusals import Refused
-from .contract import RegistryError, read_registry_declarations
-from .layer import layer_facts_error
+from .contract import RegistryError, read_registry_declarations, registry_error
+from .layer import check_layer_facts
 
 
 class _Layer(Slot):
@@ -41,8 +41,8 @@ def load_registry(page_dir: Path):
 def _read_layer(page_dir: Path, path: Path) -> dict | None:
     try:
         registry = read_registry_declarations(path)
-        if registry is not None and (error := layer_facts_error(registry)):
-            raise RegistryError(f"{path}: {error}")
+        if registry is not None:
+            check_layer_facts(registry, path)
     except RegistryError as error:
         raise _revendor(page_dir, error) from None
     return registry
@@ -144,7 +144,7 @@ def compose_candidate(
 
 def _revendor(page_dir: Path, error: RegistryError) -> RegistryError:
     """A fault in the vendored layer, which `page init` wrote and re-vendoring fixes."""
-    return RegistryError(f"{error}; run `leaf page init {page_dir}` to re-vendor it")
+    return RegistryError(error.findings[0].but(values={"revendor": str(page_dir)}))
 
 
 def _layer_packages(layer: dict, path: Path) -> list[str]:
@@ -154,9 +154,7 @@ def _layer_packages(layer: dict, path: Path) -> list[str]:
         or not all(isinstance(value, str) and value for value in packages)
         or len(set(packages)) != len(packages)
     ):
-        raise RegistryError(
-            f"{path}: $layer.packages must be a unique list of non-empty strings"
-        )
+        raise registry_error("layer-packages", path)
     return packages
 
 
@@ -179,9 +177,7 @@ def layer_metadata(page_dir: Path) -> dict:
     path = page_dir / "registry.json"
     layer = (read_registry_declarations(path) or {}).get("$layer", {})
     if not (layer.get("generation") and layer.get("fingerprint")):
-        raise RegistryError(
-            f"{path}: vendored registry lacks its $layer identity; run `leaf page init`"
-        )
+        raise registry_error("layer-identity", path)
     producer = {
         kind: value
         for kind in ("commit", "dirty", "committed", "installed")

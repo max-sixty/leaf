@@ -9,6 +9,7 @@ from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
 from render_harness import (
+    is_problem,
     judge_watches,
     leaf_page,
     open_page,
@@ -260,13 +261,13 @@ def test_real_floating_plane_retains_local_motion(
             state["expected"][axis] + before[axis] - holder_before[axis] + shifted,
             abs=1,
         )
-    expected = (
-        "typing in textarea#field moved textarea#field"
+    expected = {"node": "textarea#field"} | (
+        {"code": "typing-moved", "field": "textarea#field"}
         if guard_mode == "typing"
-        else "textarea#field moved without input"
+        else {"code": "moved-without-input"}
     )
     if fault:
-        error = next(error for error in errors if expected in error)
+        error = next(error for error in errors if is_problem(error, expected))
         evidence = shift_evidence(error)
         assert evidence["kind"] == guard_mode
         comparisons = evidence["comparisons"]

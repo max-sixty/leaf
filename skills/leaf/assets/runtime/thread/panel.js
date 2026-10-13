@@ -8,8 +8,7 @@
 import { scrollIntoView } from "../landing-scroll.js";
 import { keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { runtime } from "../context.js";
-import { pagePresented } from "../page-paint.js";
+import { savedReadingSettled } from "../keyboard/bindings.js";
 import { focusDestination, focused } from "../focus.js";
 import { rowWalk } from "../walk-position.js";
 
@@ -78,6 +77,7 @@ export function createThreadPanelKeys({
       },
       {
         id: "thread.waiting.toggle",
+        ready: savedReadingSettled,
         // `w` for the words the control says. It is the phrase the page already uses for
         // the same question the queue walk (q/Q) asks of the page, asked here of
         // the thread — so the user learns one idea and reaches it two ways rather
@@ -89,10 +89,10 @@ export function createThreadPanelKeys({
         description: () =>
           narrowing.needsYou()
             ? "Clear waiting filter"
-            : "Show only the threads waiting on you",
-        title: () => (narrowing.needsYou() ? "clear waiting filter" : "waiting on you"),
+            : "Show only the threads waiting on me",
+        title: () => (narrowing.needsYou() ? "clear waiting filter" : "waiting on me"),
         control: () => narrowingView.userControl,
-        when: () => runtime.statePhase === "ready" && narrowingView.canToggleUser,
+        when: () => narrowingView.canToggleUser,
         run: () => narrowingView.toggleUser(),
       },
       {
@@ -116,21 +116,16 @@ export function createThreadPanelKeys({
   // Search shares the text-entry scope's Escape: leave typing and keep the query.
   // Only Enter differs, walking into the first result of the narrowed list.
   function declareFindBoxKeys() {
-    keys(
-      findInput.input,
-      "In the find box",
-      [
-        {
-          id: "thread.find.first",
-          keys: ["Enter"],
-          description: "Go to the first thread found",
-          title: "first found",
-          when: hasThreads,
-          run: () => stepThread(1),
-        },
-      ],
-      pagePresented,
-    );
+    keys(findInput.input, "In the find box", [
+      {
+        id: "thread.find.first",
+        keys: ["Enter"],
+        description: "Go to the first thread found",
+        title: "first found",
+        when: hasThreads,
+        run: () => stepThread(1),
+      },
+    ]);
   }
 
   return {

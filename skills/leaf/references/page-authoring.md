@@ -3,7 +3,7 @@
 - [Read the registry](#read-the-registry)
 - [Document scaffold](#document-scaffold)
 - [Composing a page](#composing-a-page)
-- [Draw the subject](#draw-the-subject)
+- [Show the subject](#show-the-subject)
 - [Theme and vocabulary](#theme-and-vocabulary)
 - [Page behavior](#page-behavior)
 - [Live samples](#live-samples)
@@ -408,35 +408,35 @@ A page or package that shows conversations and actions in its own layout registe
 a presentation through "Page annotation presentation" in `module-authoring.md`; do
 not reconstruct the event log or annotation inventory in page code.
 
-## Draw the subject
+## Show the subject
 
-Decide what each view draws before writing its words. Most of what a page explains
-has a shape, and the user takes in a picture of it at a glance, where a description
-has to be rebuilt in their head:
+Decide what each view shows before writing its words. Find what the user would have
+to picture from a description to judge the view's point, and put that thing on the
+page in the form it takes:
 
-- where things sit, and what bounds, covers, or moves what: a layout, a page's
-  regions, the same page at two widths;
-- what contains, calls, or feeds what: a structure, an architecture, a data flow;
-- how a state changes: a sequence, a lifecycle, a plan's phases;
-- how two states differ: today beside proposed, before beside after;
-- how alternatives differ, when they differ in arrangement or mechanism.
+- An interface that exists is a screenshot, cropped or marked where the point sits
+  so the eye lands there; a visual change is an `lf-shot` before-and-after capture.
+- A behavior, such as an interaction, a motion, or a process over time, runs: in a
+  live sample the user operates ("Live samples"), or in a page module that draws it
+  from its state and the moment, with controls to pause and scrub, so every moment
+  stays readable and its parts stay commentable. A fixed recording or screen
+  capture follows `authoring-evidence.md`, "Source files and media".
+- A proposal or mechanism that nothing can show yet is drawn: where things sit and
+  what bounds, covers, or moves what; what contains, calls, or feeds what; how a
+  state changes; today beside proposed; alternatives in one frame at one scale.
+- Numbers whose shape is the point, such as a trend, a ranking, groups on one scale,
+  or series moving together, are an `lf-chart`, even when the numbers compare the
+  same dimensions across items. The chart labels the values the page's argument
+  cites (`lf-chart`'s instructions); put the rest in a table below it in
+  `<details>` when readers also need exact values.
+- Code, a command, a message, or any other wording is the text itself, as it would
+  appear.
 
-A page deciding, planning, or reviewing one of these draws it too. A table or list whose
-rows name places, sizes, or connections is a drawing written out.
+A page deciding, planning, or reviewing something shows it the same way: a work item
+that fixes a visible fault shows the fault, and an ask's options show what each
+answer gives the user (`authoring-asks.md`). A table or list whose rows name places,
+sizes, or connections is a drawing written out.
 
-Show a visible subject with an image instead of describing its appearance: an
-interface with a screenshot, cropped or marked where the point sits so the eye lands
-there, and a visual change with an `lf-shot` before-and-after capture. A proposal or
-a mechanism has nothing to capture yet, so draw it. A process that unfolds over time
-is a diagram that moves: draw it in a page module from its state and the moment,
-with controls to pause and scrub, so every moment stays readable and its parts stay
-commentable. For fixed recordings and screen captures,
-follow `authoring-evidence.md`, "Source files and media". When the shape of numbers is
-the point — a trend, ranking, groups on one scale, or series moving together —
-lead with an `lf-chart`, even if the numbers compare the same dimensions across
-items. The chart labels the values the page's argument cites (`lf-chart`'s
-instructions); put the rest in a table below it in `<details>` when readers also
-need exact values.
 Use a table for value lookup, mixed units that cannot share an axis, or comparisons
 with text-heavy cells; use native sections for a few alternatives read as wholes,
 and `lf-options` when the user must choose among them. A headline measurement is
@@ -448,10 +448,10 @@ of your own.
 For `lf-diagram`, omit `parts` when the whole drawing is one Comment target. When
 individual boxes need their own targets, set `parts="all"` to expose every named box.
 
-The prose beside a shape says only what the shape cannot. What is left for prose is
-the claim, the reason it holds, and the question the page is asking. A few sentences
-hold all three. A section that runs longer is carrying either a structure with a
-shape of its own or backing that belongs under `<details>`.
+The prose beside what the page shows says only what it cannot. What is left for prose
+is the claim, the reason it holds, the cost, and the question the page is asking. A
+few sentences hold them. A section that runs longer is carrying either something the
+page should show or backing that belongs under `<details>`.
 
 ## Theme and vocabulary
 

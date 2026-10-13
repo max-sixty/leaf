@@ -129,7 +129,7 @@ import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 import { onStanding, focused, standingNodes } from "../focus.js";
-import { readingIsContinuous } from "../reading-continuity.js";
+import { onReadingInterrupted, readingIsContinuous } from "../reading-continuity.js";
 import { pagePresented } from "../page-paint.js";
 import { watchOwner } from "../arrivals.js";
 
@@ -770,17 +770,29 @@ export class HeldReading {
  *  applies the new size now where it would move nothing the reader sees, which it does
  *  before the page presents, while their reading is interrupted, or while growth
  *  anywhere in `node` is unseen (geometry.js, `growthIsSeen`). Otherwise `node` stands
- *  as drawn and the change waits until that growth would move nothing seen. Returns a
- *  step that drops a waiting change. */
+ *  as drawn and the change waits until that growth would move nothing seen, or until
+ *  the reading breaks, as a hidden tab breaks it. Returns a step that drops a waiting
+ *  change. A gesture of the reader's into the box is theirs to move it: the owner,
+ *  which knows what counts as one, drops the wait and applies the change itself, as a
+ *  live sample does on input inside its child (lf-sample.js). */
 export function heldGrowth(node, change) {
   if (!pagePresented() || !readingIsContinuous() || !growthIsSeen(node)) {
     change();
     return () => {};
   }
-  const stop = whenNone([node], growthIsSeen, () => {
+  let waiting = true;
+  const stop = () => {
+    if (!waiting) return;
+    waiting = false;
+    unwatch();
+    uninterrupt();
+  };
+  const show = () => {
     stop();
     change();
-  });
+  };
+  const unwatch = whenNone([node], growthIsSeen, show);
+  const uninterrupt = onReadingInterrupted(show);
   return stop;
 }
 

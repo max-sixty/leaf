@@ -2016,11 +2016,13 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
 SAMPLE_DOCUMENT = re.compile(r"/api/samples/([^/]+)/$")
 
 
-def held_sample_page(browser, serve, body, *, head="", hold_first=True):
+def held_sample_page(browser, serve, body, *, head="", hold_first=True, **options):
     """A page whose live sample documents wait until `release()`: every sample's when
     `hold_first`, otherwise all but the first sample a page allocates, so an outer
-    sample presents while the one inside it waits. Returns the page and `release`."""
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    sample presents while the one inside it waits. `release(**answer)` answers each
+    held document with `route.fulfill(**answer)` instead of letting it through.
+    `options` go to `new_page`. Returns the page and `release`."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900}, **options)
     watched(page)
     held = []
     passing = []
@@ -2037,10 +2039,13 @@ def held_sample_page(browser, serve, body, *, head="", hold_first=True):
     page.goto(serve(leaf_page("Sample arrival", body, head=head)), wait_until="commit")
     holding(page, held, 1, "a sample's document")
 
-    def release():
+    def release(**answer):
         page.unroute(SAMPLE_DOCUMENT)
         for each in held:
-            each.continue_()
+            if answer:
+                each.fulfill(**answer)
+            else:
+                each.continue_()
 
     return page, release
 
@@ -2054,6 +2059,21 @@ def readiness(frame):
 PRACTICE = (
     '<lf-sample id="practice"{attributes}><template id="practice-source" data-sample>'
     "<p>Practice</p></template></lf-sample>"
+)
+# A window sample whose child holds a sample below its own window, so the child
+# presents while the inner sample's document can wait, and a link out of Leaf.
+NESTED = (
+    '<h1>Containing page</h1><lf-sample id="outer" window>'
+    '<template id="outer-source" data-sample><h1>Outer</h1>'
+    '<a href="about:blank" id="leave">Leave</a><div style="height: 300vh"></div>'
+    '<lf-sample id="inner"><template id="inner-source" data-sample>'
+    "<p>Inner</p></template></lf-sample></template></lf-sample>"
+)
+# A block sample whose child runs past the frame's loading height.
+TALL_PRACTICE = (
+    '<lf-sample id="practice"><template id="practice-source" data-sample>'
+    '<p id="top">Practice</p><div style="height: 1200px"></div><p>End</p>'
+    "</template></lf-sample>"
 )
 
 
@@ -2109,6 +2129,77 @@ def test_a_sample_reached_while_loading_resizes_once_it_is_out_of_sight(browser,
     )
 
 
+@pytest.mark.parametrize("cause", ["press", "hidden"])
+def test_a_held_sample_takes_its_height_on_input_or_a_hidden_tab(browser, serve, cause):
+    """A sample held at its loading height while the reader looks at it takes its
+    child's height once they press inside it, or once the tab is hidden, rather than
+    clipping the child's foot for as long as it stays on screen."""
+    page, release = held_sample_page(
+        browser,
+        serve,
+        '<h1>Containing page</h1><div style="height: 300vh"></div>'
+        + TALL_PRACTICE
+        + "<p><button id=after>After the sample</button></p>"
+        + '<div style="height: 300vh"></div>',
+    )
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    frame = page.locator("#practice iframe")
+    frame.scroll_into_view_if_needed()
+    loading = frame.bounding_box()["height"]
+    release()
+    wait_until_ready(page)
+    assert frame.bounding_box()["height"] == loading
+    if cause == "press":
+        frame.content_frame.locator("#top").click()
+    else:
+        page.evaluate("""() => {
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true, get: () => 'hidden',
+          });
+          document.dispatchEvent(new Event('visibilitychange'));
+        }""")
+    page.wait_for_function(
+        "h => document.querySelector('#practice iframe').offsetHeight > h", arg=loading
+    )
+
+
+def test_a_long_sample_failure_keeps_its_row_and_opens_by_key_or_tap(browser, serve):
+    """A failure too long for a narrow sample's status row keeps the row's one line,
+    so the frame stays put, and the reader opens it to read it whole by Tab and Enter
+    or by a tap."""
+    page, release = held_sample_page(
+        browser,
+        serve,
+        "<h1>Containing page</h1>" + PRACTICE.format(attributes=" window"),
+        head="<style>#practice { width: 180px }</style>",
+        has_touch=True,
+    )
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    status = page.locator("#practice .lf-sample-status")
+    expect(status).to_have_text("Loading sample…")
+    frame = page.locator("#practice iframe")
+    before = frame.bounding_box()
+    release(status=200, content_type="text/html", body="<p>Unavailable</p>")
+    summary = status.locator("details > summary")
+    expect(summary).to_have_text("The sample document did not start Leaf")
+    assert frame.bounding_box() == before
+    clipped = "summary => summary.scrollWidth > summary.clientWidth"
+    assert summary.evaluate(clipped)
+
+    page.locator("#practice").get_by_role("button", name="Full view").focus()
+    page.keyboard.press("Tab")
+    expect(summary).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(status.locator("details")).to_have_attribute("open", "")
+    assert not summary.evaluate(clipped)
+
+    summary.tap()
+    expect(status.locator("details")).not_to_have_attribute("open", "")
+    summary.tap()
+    expect(status.locator("details")).to_have_attribute("open", "")
+    assert not summary.evaluate(clipped)
+
+
 def test_a_window_samples_controls_keep_their_room_as_it_arrives(browser, serve):
     """The loading status leaving a narrow window sample's control row moves neither
     its frame nor what follows."""
@@ -2139,22 +2230,49 @@ def test_a_page_arrives_only_once_the_samples_inside_its_samples_have(browser, s
     """A sample's child counts as arrived only once its own samples have, so the page
     holding it reads as arriving until then. The inner sample stands below the child's
     window, so the child presents without it."""
-    inner = (
-        '<lf-sample id="inner"><template id="inner-source" data-sample>'
-        "<p>Inner</p></template></lf-sample>"
-    )
-    page, release = held_sample_page(
-        browser,
-        serve,
-        '<h1>Containing page</h1><lf-sample id="outer" window>'
-        f'<template id="outer-source" data-sample><h1>Outer</h1>'
-        f'<div style="height: 300vh"></div>{inner}</template>'
-        "</lf-sample>",
-        hold_first=False,
-    )
+    page, release = held_sample_page(browser, serve, NESTED, hold_first=False)
     page.locator("#outer").evaluate("sample => sample.ready")
     child = page.locator("#outer iframe").content_frame
     expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
+    assert readiness(page) == "arrived"
+    release()
+    wait_until_ready(page)
+
+
+@pytest.mark.parametrize("change", ["reset", "reload", "departure"])
+def test_a_sample_counts_each_document_its_frame_loads(browser, serve, change):
+    """Reset and the child's reload each begin a document the page counts as arriving
+    until it, and the samples inside it, have arrived; a departure to a page that is
+    not Leaf's ends the count of the document that left, whose inner sample never
+    comes."""
+    page, release = held_sample_page(browser, serve, NESTED, hold_first=False)
+    page.locator("#outer").evaluate("sample => sample.ready")
+    child = page.locator("#outer iframe").content_frame
+    expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
+    assert readiness(page) == "arrived"
+    if change == "departure":
+        child.locator("#leave").click()
+        wait_until_ready(page)
+        return
+    # Each new document starts with its admission: the outer one Reset allocates, or
+    # the inner one the reloaded child allocates.
+    admissions = []
+    page.on(
+        "request",
+        lambda request: request.method == "HEAD" and admissions.append(request),
+    )
+    if change == "reset":
+        page.locator("#outer").get_by_role("button", name="Reset").click()
+    else:
+        page.evaluate("""() => {
+            window.reloaded = new Promise(ready => document.addEventListener(
+                'lf-sample-ready', ready, { once: true }));
+        }""")
+        page.locator("#outer iframe").element_handle().content_frame().evaluate(
+            "location.reload()"
+        )
+        page.evaluate("reloaded")
+    holding(page, admissions, 1, "the new document's sample admission")
     assert readiness(page) == "arrived"
     release()
     wait_until_ready(page)

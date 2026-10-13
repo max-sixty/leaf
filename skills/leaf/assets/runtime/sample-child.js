@@ -50,6 +50,13 @@ if (child) {
     if (node && node !== document.body) standing = node;
     sampleNotice("standing", { focused: Boolean(node && node !== document.body) });
   });
+  // The reader's own input here, a press, a key or a wheel, is theirs to move the
+  // frame with, so the containing page applies a size it held while they read.
+  const input = ({ isTrusted }) => {
+    if (isTrusted) sampleNotice("input");
+  };
+  for (const type of ["pointerdown", "keydown", "wheel"])
+    window.addEventListener(type, input, { capture: true, passive: true });
   registerSampleCommand("restore-standing", () => {
     if (!standing?.isConnected || !canPlaceFocus()) return false;
     focusDestination(standing, "return");

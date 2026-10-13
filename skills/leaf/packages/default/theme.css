@@ -2625,12 +2625,28 @@
 .lf-sample-status {
   flex: 1 1 10em;
   min-width: 0;
-  min-height: 1lh;
-  overflow: hidden;
+  min-height: max(1lh, var(--aim-floor));
+  align-content: center;
   white-space: nowrap;
-  text-overflow: ellipsis;
   color: var(--muted);
   font: var(--t-6)/1.4 var(--sans);
+}
+.lf-sample-failure {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lf-sample-failure,
+.lf-sample-failure > summary {
+  font: inherit;
+  color: inherit;
+}
+.lf-sample-failure > summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lf-sample-failure[open] > summary {
+  white-space: normal;
 }
 .lf-sample-frame {
   display: block;

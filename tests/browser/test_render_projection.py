@@ -2072,6 +2072,29 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
     assert page.evaluate("[...document.body.style].includes('--live-added')")
 
 
+def test_a_revision_brings_its_page_layout_to_the_body(browser, serve):
+    """The body's geometry follows the page's Layout across a live revision.
+
+    A Layout's body rules read the Layout delivery repeats on the root, so a revision
+    that drops the Layout hands the body back the browser's margin, and one that names
+    it again takes the margin away."""
+    margin = "getComputedStyle(document.body).marginTop"
+    page = open_page(browser, live_url(serve(LIVE_V1)))
+    assert page.evaluate(margin) == "0px"
+
+    (serve.page_dir / "index.html").write_text(
+        LIVE_V2.replace('<main class="layout-column">', "<main>")
+    )
+    told(page)
+    expect(page).to_have_title("Live second")
+    assert page.evaluate(margin) == "8px"
+
+    (serve.page_dir / "index.html").write_text(LIVE_V3)
+    told(page)
+    expect(page).to_have_title("Live third")
+    assert page.evaluate(margin) == "0px"
+
+
 def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     browser, serve
 ):

@@ -18,10 +18,13 @@
   /* Each page Layout below owns its page's whole geometry, the body's included, so a
    * page with no Layout keeps the browser's. A Layout takes the window from its edges:
    * the body drops its margin and, on a live page other than a block sample (whose frame
-   * takes the body's height, theme.css), fills the window's height. On `main` it sets its
-   * gutter, its room above and below its blocks, whether its first and last blocks'
-   * margins trim, and the measure its text keeps (`--lf-measure`), which theme.css reads
-   * at the base layer, where a widget's own rule outranks it. */
+   * takes the body's height, theme.css), fills the window's height. The body is styled
+   * before the parser reaches `main`, so its rules read the Layout delivery repeats on
+   * the root (`data-lf-layout`, revision_delivery.py) rather than `main`'s class, which
+   * would hold the body at the browser's margin until then. On `main` it sets its gutter,
+   * its room above and below its blocks, whether its first and last blocks' margins
+   * trim, and the measure its text keeps (`--lf-measure`), which theme.css reads at the
+   * base layer, where a widget's own rule outranks it. */
   /* The pane role's grammar (theme.css, where its look and the rest of its contract
    * are): which row each child stands in, and a body held to the pane's width with no
    * margin of its own. It is not a Layout a page pulls on, but it resets what a widget
@@ -56,9 +59,9 @@
    *
    * The free room is the shell's (100cqi), so the column is a page's shape, on `main`,
    * and arranges no other box. */
-  body:has(> main.layout-column) { margin: 0; }
+  html[data-lf-layout="column"] body { margin: 0; }
   @media screen {
-    html[data-lf-live]:not([data-lf-sample-block]) body:has(> main.layout-column) {
+    html[data-lf-live][data-lf-layout="column"]:not([data-lf-sample-block]) body {
       min-height: 100%;
     }
   }
@@ -487,9 +490,9 @@
    * board declaring the width its columns need wraps the track below it rather than
    * clipping. A header or footer takes the whole row. The items' own block margins go,
    * since flex margins don't collapse into the gap. */
-  body:has(> main.layout-sidebar) { margin: 0; }
+  html[data-lf-layout="sidebar"] body { margin: 0; }
   @media screen {
-    html[data-lf-live]:not([data-lf-sample-block]) body:has(> main.layout-sidebar) {
+    html[data-lf-live][data-lf-layout="sidebar"]:not([data-lf-sample-block]) body {
       min-height: 100%;
     }
   }
@@ -573,9 +576,9 @@
    * sidebar page's gutters held them to 1,472px of the 1,896px this leaves. The type is the
    * theme's: a workspace usually takes working density (`.density-working`, theme.css),
    * which the Layout neither sets nor reads. */
-  body:has(> main.layout-workspace) { margin: 0; }
+  html[data-lf-layout="workspace"] body { margin: 0; }
   @media screen {
-    html[data-lf-live]:not([data-lf-sample-block]) body:has(> main.layout-workspace) {
+    html[data-lf-live][data-lf-layout="workspace"]:not([data-lf-sample-block]) body {
       min-height: 100%;
     }
   }

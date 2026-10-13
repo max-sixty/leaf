@@ -305,8 +305,13 @@ def export_document(
     payload = json_script(
         {"state": state, "data": data, "resources": embedded_resources}
     )
+
     # An authored module is addressed at the same embedded URL the import map gives
     # its `leaf:` name, so a page module is one instance however it is reached.
+    def address(path):
+        logical = unquote(urlsplit(path).path)
+        return modules[logical] if logical in modules else inliner.address(path)
+
     composed = compose_document(
         artifact.html.decode("utf-8"),
         revision,
@@ -316,9 +321,7 @@ def export_document(
         resources=resources,
         registry=artifact.registry,
         delivery=Delivery(
-            address=lambda path: (
-                modules[path] if path in modules else inliner.address(path)
-            ),
+            address=address,
             inline_stylesheet=inliner.stylesheet,
             import_map={
                 "imports": {

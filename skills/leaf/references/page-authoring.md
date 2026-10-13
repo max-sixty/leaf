@@ -102,7 +102,8 @@ stands alone, since whoever reads it there has none of the page around it.
 
 Most pages use a reading column, `<main class="layout-column">`. Text stays within
 the column's measure; wider blocks extend beside it without moving the prose.
-Without a Layout class, `main`'s blocks fill the window's width. A diagram or board
+Without a Layout class, Leaf sets no page geometry: the page lays out as the browser
+lays out plain HTML, and `main`'s blocks fill its width. A diagram or board
 declares its preferred width in the registry; `data-width` makes the same request
 for other blocks, such as a wide table ("Bounds and widths", below). Compose the page
 from these:
@@ -415,7 +416,9 @@ to picture from a description to judge the view's point, and put that thing on t
 page in the form it takes:
 
 - An interface that exists is a screenshot, cropped or marked where the point sits
-  so the eye lands there; a visual change is an `lf-shot` before-and-after capture.
+  so the eye lands there, its crop cutting through background rather than through
+  text the reader would try to read; a visual change is an `lf-shot` before-and-after
+  capture.
 - A behavior, such as an interaction, a motion, or a process over time, runs: in a
   live sample the user operates ("Live samples"), or in a page module that draws it
   from its state and the moment, with controls to pause and scrub, so every moment

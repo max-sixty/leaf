@@ -1074,6 +1074,7 @@ async function startPage() {
 }
 
 startPage().catch((error) => {
+  if (!document.documentElement.lfDocumentLifetime.active) return;
   const reason = `page failed to start: ${error?.message ?? error}`;
   window.dispatchEvent(
     new CustomEvent("lf-startup-failed", { detail: { reason, error } }),

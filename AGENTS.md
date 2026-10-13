@@ -52,19 +52,15 @@ attempt would not is removed.
 ## Stage
 
 Leaf has no users, deployment, database, or persisted state that constrains new
-code. Prefer the simpler interface even when it is incompatible. Delete and
+code. Prefer the simpler interface even when it is incompatible. Spend no code or
+test complexity on backward compatibility with earlier runtimes. Delete and
 regenerate stale state.
 
 Regenerate or discard claims, logs, and pages from earlier runtimes. Add no
-migration, compatibility shim, or removal promise. Leave old state and recovery
-instructions out of the handoff.
-
-The state home is one directory per machine, written at once by every worktree,
-harness and session on it, each running the leaf it was built from, so a record
-older than the code reading it is ordinary rather than exceptional. If a record
-lacks fields this version expects, Leaf ignores it where it is loaded and treats
-the thing it described as absent. It neither migrates the record nor fails the
-session: a session is never taken down by state it does not own.
+migration, compatibility shim, old-record validator, fallback read, or removal
+promise. This includes the state home shared by worktrees and sessions: its old
+records are disposable, not inputs a new reader must accommodate. Leave old
+state and recovery instructions out of the handoff.
 
 Tests should protect behavior a user depends on. Treat rewriting or deleting a
 test as an ordinary part of a code change. Check which behavior its assertion
@@ -414,7 +410,7 @@ user-visible benefit and why it cannot wait. Bytes off that path, such as a lazi
 loaded module, a vendored file, or the install's size, are not on their own a reason
 for a change.
 
-Land through a pull request or with `wt merge`, which squash-merges to `main`.
-A failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`, "Run
-what the change needs"). Tend sessions follow
-**Landing** in `.claude/skills/running-tend/SKILL.md`.
+Land through a pull request or with `wt merge`, which squash-merges to `main`. For
+now, a failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`, "Run
+what the change needs"). Tend sessions follow **Landing** in
+`.claude/skills/running-tend/SKILL.md`.

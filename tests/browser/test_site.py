@@ -80,9 +80,9 @@ def test_a_sample_waits_for_slow_contained_page_state(serve, browser):
         page.evaluate("sessionStorage.setItem('lf-view', 'outer reading')")
         storage = contained_document.evaluate(
             """async () => {
-                const {LIVE_ROOT} = await window.__lfRuntimeImport('/runtime/context.js');
+                const {readApplication} = await window.__lfCheckApi();
                 const {PAGE_SCOPE, tabStore, draftStore, userStore} =
-                    await window.__lfRuntimeImport('/runtime/storage.js');
+                    await window.__lfCheckApi();
                 for (const [name, store] of Object.entries({tabStore, draftStore, userStore})) {
                     if (!store.set('isolation-test', name) || store.get('isolation-test') !== name)
                         throw new Error(`${name} did not retain sample working state`);
@@ -92,7 +92,7 @@ def test_a_sample_waits_for_slow_contained_page_state(serve, browser):
                     if (store.get('isolation-test') !== null)
                         throw new Error(`${name} did not clear its retained state`);
                 }
-                return {liveRoot: LIVE_ROOT, pageScope: PAGE_SCOPE};
+                return {liveRoot: readApplication().document.live, pageScope: PAGE_SCOPE};
             }"""
         )
         assert storage["liveRoot"] is True

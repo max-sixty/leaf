@@ -10,7 +10,7 @@ from typing import NamedTuple
 
 from leaf.anchor_capture import resolve_quote
 from leaf.events import build_threads
-from leaf.files import list_revisions, revision_orders
+from leaf.files import list_revisions
 from leaf.findings import Finding
 from leaf.passages import SourceReading, page_passages
 from leaf.projection import (
@@ -161,7 +161,7 @@ def predecessor_reading(
         active,
         active
         if same_as_active and artifact is not None
-        else max(revision_orders(page_dir), default=0) + 1,
+        else max(list_revisions(page_dir), default=0) + 1,
         committed_active,
         bool(active and same_as_active and artifact is not None),
         predecessor,

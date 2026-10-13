@@ -119,15 +119,16 @@
       window.parent.postMessage({ type: "leaf-sample-connect", sample, nonce }, "*");
       window.addEventListener("pagehide", () => send({ type: "departed" }));
     }
-    window.addEventListener("lf-startup-failed", () =>
+    window.addEventListener("lf-startup-failed", () => {
+      if (!root.lfDocumentLifetime.active) return;
       root.lfSample.send({
         type: "error",
         detail: root.lfStartupException ?? {
           message:
             document.documentElement.dataset.lfStartupError || "Sample could not start",
         },
-      }),
-    );
+      });
+    });
   }
   // A served page draws the live chrome, the floating panel or the banner and the bottom
   // bar, so the theme reserves its room from the first paint (`html[data-lf-live]`). An export runs the

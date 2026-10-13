@@ -1760,7 +1760,7 @@ def test_compact_reader_opens_the_native_interactive_message(browser, serve, sur
     page = open_page(browser, url)
     if surface == "margin":
         page.get_by_role(
-            "button", name=re.compile("Thread, On you to answer")
+            "button", name=re.compile("Thread, My turn to answer")
         ).first.click()
         compact = page.locator(".lf-margin-thread")
     else:
@@ -1939,12 +1939,12 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     counts = workspace.locator(".counts")
     workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
     expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
-    expect(counts).to_have_text("2 asks on you")
+    expect(counts).to_have_text("2 asks on me")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
             "button", name="Done: my picks here are complete", exact=True
         ).click()
-    expect(counts).to_have_text("1 asks on you · 1 answered · Chat")
+    expect(counts).to_have_text("1 asks on me · 1 answered · Chat")
 
 
 def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, serve):

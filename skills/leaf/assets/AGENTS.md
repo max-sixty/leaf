@@ -131,7 +131,7 @@ representative desktop viewport.
   card news would take out of the panel's view; `reading-continuity.js` for a hidden
   tab.
 - **A turn of the user's own takes them with it.** A turn that takes its card out of
-  the Threads panel's view, as a reply under "Waiting on you" or a rewrite or Reopen
+  the Threads panel's view, as a reply under "Waiting on me" or a rewrite or Reopen
   under Resolved does, widens the view to one that holds the thread and takes the user
   with it; a refusal puts the view back only while they have not acted since. Owners:
   `thread/thread-card.js` (`#speak`), `thread/folding.js`.

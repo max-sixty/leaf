@@ -176,7 +176,7 @@ def test_authored_reply_is_read_when_its_visible_body_is_shown(browser, serve):
         re.compile(r"(^|\s)lf-unread(\s|$)")
     )
     expect(card.locator(".lf-mark-read")).to_have_count(0)
-    expect(card.locator(".lf-thread-status")).to_have_text("On you to answer")
+    expect(card.locator(".lf-thread-status")).to_have_text("My turn to answer")
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]

@@ -17,8 +17,8 @@
  * are counted.
  *
  * A passing notice shares the words' box (`presentNotice`), and on a phone stands over
- * them while it lasts; elsewhere the bottom status shows it (chrome.css,
- * `--lf-notice-seat`).
+ * them while it lasts; elsewhere the bottom status shows it, or in the floating panel
+ * its empty field does (chrome.css and floating-panel.css, `--lf-notice-seat`).
  */
 import {
   html,

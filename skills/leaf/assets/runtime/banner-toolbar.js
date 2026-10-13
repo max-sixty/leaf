@@ -39,9 +39,10 @@
  * the banner, so the partition changes only when the window crosses that width.
  *
  * Each contribution also says what it is as one line of a menu (`row`): its `label`,
- * a terse `value` such as a count, the `group` of controls it belongs with, and the
- * `press` that acts as the control would, given the standing the presentation held
- * when the user opened it (history.js, `readPlace`). The floating panel (floating-panel.js) draws
+ * a terse `value` such as a count, the `shortcut` that reaches it from the keyboard, spelled
+ * as a key chip spells it, the `group` of controls it belongs with, and the `press` that
+ * acts as the control would, given the place the presentation held when the user opened
+ * it (history.js, `readPlace`). The floating panel (floating-panel.js) draws
  * the run from these rows rather than from the native nodes, so a control appears
  * there without the panel naming it. `bannerRows` reads the run's rows in order, and
  * `watchBannerRows` calls back after each change to which stand.
@@ -177,6 +178,7 @@ const rowOf = (entry) => {
     key: entry.key,
     label: read(entry.row.label),
     value: read(entry.row.value) ?? "",
+    shortcut: read(entry.row.shortcut) ?? "",
     group: entry.row.group,
     urgent: entry.urgent,
     gesture: seatOf(entry) === "gesture",

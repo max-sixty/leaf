@@ -18,13 +18,15 @@
  * reload, is counted from when it begins (`deferredArrival`) until it arrives, fails,
  * departs or the sample leaves. A reload's document is counted once it connects; the
  * parent cannot tell its departure from one to a page outside Leaf, whose load can
- * land before the departure's notice, so nothing is counted between. Until a child has
- * arrived a resize the reader would see, because they scrolled to the sample while it
- * loaded, waits until it would move nothing they see, the frame keeping its loading
- * height (`heldGrowth`); a resize after Reset or Return to page, or after the
- * reader's own input inside the child, is theirs and applies at once. The status line
- * keeps its room through loading, ready and failure, so the frame below it stays put;
- * a failure's words that run past it stand in a disclosure the reader opens.
+ * land before the departure's notice, so nothing is counted between. An arrived child
+ * that begins arriving again, as when one of its own samples is Reset, is counted
+ * again until it says it has arrived. Until a child has arrived a resize the reader
+ * would see, because they scrolled to the sample while it loaded, waits until it would
+ * move nothing they see, the frame keeping its loading height (`heldGrowth`), or until
+ * the reader gives input inside the child; a resize after Reset or Return to page is
+ * theirs and applies at once. The status line keeps its room through loading, ready
+ * and failure, so the frame below it stays put; a failure's words that run past it
+ * stand in a disclosure the reader opens over the frame.
  * Reset stays focusable
  * while loading but accepts no new press, preserving the parent's keyboard position.
  * Ordinary children remain static
@@ -135,6 +137,12 @@ customElements.define(
           this.#host = host;
           host.on("height", ({ height }) => this.#height(height));
           host.on("arrived", () => this.#arrival?.reported?.());
+          // The arrived child began arriving again, as when one of its samples was
+          // Reset: the page reads as arriving until it reports arrival once more.
+          host.on("arriving", () => {
+            const arrival = this.#arrive();
+            arrival.reported = arrival.land;
+          });
           host.on("input", () => this.#release());
           host.on("loading", () => {
             this.#focusedContent = false;
@@ -291,10 +299,9 @@ customElements.define(
     }
 
     // The reader's input inside the child makes the frame theirs to move: a resize held
-    // while they read applies now, and so does each later one, such as a disclosure
-    // their press opened in the child, though the child is still arriving.
+    // while they read applies now. A later one the child makes while still arriving
+    // waits as before, since nothing tells this page whether their input caused it.
     #release() {
-      this.#arriving = false;
       if (!this.#heldFit) return;
       this.#heldFit();
       this.#heldFit = null;

@@ -2623,6 +2623,7 @@
   gap: 8px;
 }
 .lf-sample-status {
+  position: relative;
   flex: 1 1 10em;
   min-width: 0;
   min-height: max(1lh, var(--aim-floor));
@@ -2646,7 +2647,12 @@
   text-overflow: ellipsis;
 }
 .lf-sample-failure[open] > summary {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
   white-space: normal;
+  background: var(--paper);
+  border-bottom: 1px solid var(--border-2);
 }
 .lf-sample-frame {
   display: block;

@@ -2163,16 +2163,20 @@ def test_a_held_sample_takes_its_height_on_input_or_a_hidden_tab(browser, serve,
     )
 
 
-def test_a_long_sample_failure_keeps_its_row_and_opens_by_key_or_tap(browser, serve):
-    """A failure too long for a narrow sample's status row keeps the row's one line,
-    so the frame stays put, and the reader opens it to read it whole by Tab and Enter
-    or by a tap."""
+@pytest.mark.parametrize("touch", [False, True], ids=["mouse", "touch"])
+def test_a_long_sample_failure_keeps_its_row_and_opens_by_key_or_tap(
+    browser, serve, touch
+):
+    """A failure too long for a narrow sample's status row keeps the row's size, open
+    or shut, so the frame stays put, and the reader opens it to read it whole by Tab
+    and Enter or by a press or a tap. A finger's pressable floor is taller than a
+    line, so each pointer gets its own row."""
     page, release = held_sample_page(
         browser,
         serve,
         "<h1>Containing page</h1>" + PRACTICE.format(attributes=" window"),
         head="<style>#practice { width: 180px }</style>",
-        has_touch=True,
+        has_touch=touch,
     )
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     status = page.locator("#practice .lf-sample-status")
@@ -2192,12 +2196,15 @@ def test_a_long_sample_failure_keeps_its_row_and_opens_by_key_or_tap(browser, se
     page.keyboard.press("Enter")
     expect(status.locator("details")).to_have_attribute("open", "")
     assert not summary.evaluate(clipped)
+    assert frame.bounding_box() == before
 
-    summary.tap()
+    press = summary.tap if touch else summary.click
+    press()
     expect(status.locator("details")).not_to_have_attribute("open", "")
-    summary.tap()
+    press()
     expect(status.locator("details")).to_have_attribute("open", "")
     assert not summary.evaluate(clipped)
+    assert frame.bounding_box() == before
 
 
 def test_a_window_samples_controls_keep_their_room_as_it_arrives(browser, serve):
@@ -2239,12 +2246,12 @@ def test_a_page_arrives_only_once_the_samples_inside_its_samples_have(browser, s
     wait_until_ready(page)
 
 
-@pytest.mark.parametrize("change", ["reset", "reload", "departure"])
+@pytest.mark.parametrize("change", ["reset", "inner-reset", "reload", "departure"])
 def test_a_sample_counts_each_document_its_frame_loads(browser, serve, change):
-    """Reset and the child's reload each begin a document the page counts as arriving
-    until it, and the samples inside it, have arrived; a departure to a page that is
-    not Leaf's ends the count of the document that left, whose inner sample never
-    comes."""
+    """Reset, a Reset inside the sample's child and the child's reload each begin a
+    document the page counts as arriving until it, and the samples inside it, have
+    arrived; a departure to a page that is not Leaf's ends the count of the document
+    that left, whose inner sample never comes."""
     page, release = held_sample_page(browser, serve, NESTED, hold_first=False)
     page.locator("#outer").evaluate("sample => sample.ready")
     child = page.locator("#outer iframe").content_frame
@@ -2254,8 +2261,20 @@ def test_a_sample_counts_each_document_its_frame_loads(browser, serve, change):
         child.locator("#leave").click()
         wait_until_ready(page)
         return
+    if change == "inner-reset":
+        # The whole page arrives first, then the inner sample's next document waits.
+        release()
+        wait_until_ready(page)
+        held = []
+        page.route(SAMPLE_DOCUMENT, lambda route: held.append(route))
+
+        def release():
+            page.unroute(SAMPLE_DOCUMENT)
+            for each in held:
+                each.continue_()
+
     # Each new document starts with its admission: the outer one Reset allocates, or
-    # the inner one the reloaded child allocates.
+    # the inner one the reloaded child, or the inner Reset, allocates.
     admissions = []
     page.on(
         "request",
@@ -2263,6 +2282,8 @@ def test_a_sample_counts_each_document_its_frame_loads(browser, serve, change):
     )
     if change == "reset":
         page.locator("#outer").get_by_role("button", name="Reset").click()
+    elif change == "inner-reset":
+        child.locator("#inner").get_by_role("button", name="Reset").click()
     else:
         page.evaluate("""() => {
             window.reloaded = new Promise(ready => document.addEventListener(

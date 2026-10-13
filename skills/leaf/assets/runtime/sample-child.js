@@ -4,7 +4,7 @@
  * Commands that need history wait at their owning child capability. */
 import { canPlaceFocus, focusDestination, onStanding } from "./focus.js";
 import { pagePresented, pageUpgraded } from "./page-paint.js";
-import { whenArrived } from "./presentation.js";
+import { whenArrived, whenArriving } from "./presentation.js";
 import { sizeObserver } from "./rendering.js";
 const child = document.documentElement.lfSample;
 const commands = new Map();
@@ -94,10 +94,20 @@ if (child) {
       );
     // Presentation is not this document's whole arrival: work it deferred, its own
     // samples' children included, lands later, and the containing page reads as
-    // arriving until it has.
+    // arriving until it has. Arrival can begin again, as when one of its samples is
+    // Reset, and the containing page reads as arriving again until it lands.
     if (upgraded && !arriving && pagePresented()) {
       arriving = true;
-      void whenArrived().then(() => sampleNotice("arrived"));
+      void (async () => {
+        await whenArrived();
+        sampleNotice("arrived");
+        for (;;) {
+          await whenArriving();
+          sampleNotice("arriving");
+          await whenArrived();
+          sampleNotice("arrived");
+        }
+      })();
     }
     if (upgraded || !(document.body && pageUpgraded())) return;
     upgraded = true;

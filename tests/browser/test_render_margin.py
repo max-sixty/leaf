@@ -3355,6 +3355,8 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
 
     page.keyboard.press("Escape")
+    expect(options).to_be_hidden()
+    more.click()
     expect(options).to_be_visible()
     thread_margin_entry = options.locator(
         '.lf-margin-reading-option[data-lf-kinds="comment"]'

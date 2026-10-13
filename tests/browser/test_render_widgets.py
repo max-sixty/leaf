@@ -5083,8 +5083,6 @@ def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serv
             <lf-playground-control name="quoted" label="Quoted toggle" kind="toggle"
               value="true"></lf-playground-control>`;
           host.querySelector('lf-playground-preview').append(quote);
-          const revision = document.querySelector('#card-playground')
-            .closest('[data-lf-vocabulary]').dataset.lfVocabulary;
           const quotedOutput = document.createElement('lf-sample');
           quotedOutput.setAttribute('data-lf-exhibit', '');
           quotedOutput.innerHTML = `
@@ -5100,8 +5098,8 @@ def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serv
             </lf-playground>`;
           host.querySelector('lf-playground-output').append(quotedOutput);
           document.documentElement.lfInitial.paint(
-            quotedOutput.querySelector('lf-playground'), revision);
-          const initial = document.documentElement.lfInitial.paint(host, revision);
+            quotedOutput.querySelector('lf-playground'));
+          const initial = document.documentElement.lfInitial.paint(host);
           initial.renderValues({...initial.values, tone: 'bold'});
           return {
             controls: initial.controls.map(control => control.getAttribute('name')),
@@ -5257,7 +5255,7 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     expect(approve).to_be_enabled()
 
     choices.get_by_role(
-        "button", name="Take back Done: reopen this question", exact=True
+        "button", name="Take back Done: reopen this ask", exact=True
     ).tap()
     round_trip(page)
     expect_asks_answered(page, "0/1")

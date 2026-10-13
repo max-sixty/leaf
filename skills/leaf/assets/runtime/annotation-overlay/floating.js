@@ -269,6 +269,7 @@ export function floatingPlacement({ floating, update }) {
   let observer = null;
   let tenure = Object.freeze({});
   let stopWatching = null;
+  let lastAnchorStand = null;
   // Writes the held edges' insets and clears the free ones.
   const inset = (insets) => {
     for (const edge of INSETS)
@@ -277,6 +278,7 @@ export function floatingPlacement({ floating, update }) {
   };
   // Each held edge's inset from the same edge of the box's containing block.
   const placedAt = ({ x, y, middlewareData }) => {
+    lastAnchorStand = null;
     const { edges, width, height, block } = middlewareData.held;
     frame.style.removeProperty("position-anchor");
     inset({
@@ -293,21 +295,46 @@ export function floatingPlacement({ floating, update }) {
     (anchor, at) =>
     ({ x, y, middlewareData }) => {
       const { edges, width, height, block } = middlewareData.held;
+      const lengthX = atLayoutPrecision(
+        edges.x === "left" ? x - at.x : at.x - x - width,
+      );
+      const lengthY = atLayoutPrecision(
+        edges.y === "top" ? y - at.y : at.y - y - height,
+      );
+      // Scrolling carries the anchor itself. Re-solving an unchanged offset must
+      // not write a new fallback position and repaint the page's highlights.
+      if (
+        lastAnchorStand?.frame === frame &&
+        lastAnchorStand.anchor === anchor &&
+        lastAnchorStand.edgeX === edges.x &&
+        lastAnchorStand.edgeY === edges.y &&
+        lastAnchorStand.lengthX === lengthX &&
+        lastAnchorStand.lengthY === lengthY
+      )
+        return;
       const from = (side, length, fallback) =>
         `calc(anchor(${side}, ${px(fallback)}) + ${px(length)})`;
       frame.style.positionAnchor = anchorName(anchor);
       inset({
         [edges.x]: from(
           "left",
-          edges.x === "left" ? x - at.x : at.x - x - width,
+          lengthX,
           edges.x === "left" ? at.x : block.width - at.x,
         ),
         [edges.y]: from(
           "top",
-          edges.y === "top" ? y - at.y : at.y - y - height,
+          lengthY,
           edges.y === "top" ? at.y : block.height - at.y,
         ),
       });
+      lastAnchorStand = {
+        frame,
+        anchor,
+        edgeX: edges.x,
+        edgeY: edges.y,
+        lengthX,
+        lengthY,
+      };
     };
   let stand = placedAt;
   let scrollAnimations = [];
@@ -556,6 +583,7 @@ export function floatingPlacement({ floating, update }) {
     },
     stop() {
       epoch += 1;
+      lastAnchorStand = null;
       for (const animation of scrollAnimations) animation.cancel();
       scrollAnimations = [];
       stopWatching?.();

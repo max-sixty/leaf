@@ -21,6 +21,7 @@ from render_harness import (
     consume_browser_errors,
     expect_asks_answered,
     holding,
+    is_problem,
     leaf_page,
     open_page,
     page_comment,
@@ -28,6 +29,7 @@ from render_harness import (
     refuse,
     reported_browser_errors,
     round_trip,
+    said,
     scroll_settled,
     sending,
     take_browser_errors,
@@ -314,7 +316,7 @@ def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, ser
     assert sum(row["type"] == "pointermove" for row in browser_rows) < 512
     sequences = sorted(row["sequence"] for row in browser_rows)
     assert any(later - earlier > 1 for earlier, later in pairwise(sequences))
-    consume_browser_errors(page, "503")
+    consume_browser_errors(page, {"code": "failed-load", "status": 503})
 
 
 def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser, serve):
@@ -360,7 +362,7 @@ def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser,
     browser_rows = [row for row in rows if row.get("source") == "client"]
     assert sum(row["type"] == "click" for row in browser_rows) == 512
     assert not any(row["type"] == "pointermove" for row in browser_rows)
-    consume_browser_errors(page, "503")
+    consume_browser_errors(page, {"code": "failed-load", "status": 503})
 
 
 PAGE_MODULE = """\
@@ -886,7 +888,7 @@ def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
     )
     assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 1, "pending": []}
     errors = take_browser_errors(page)
-    assert [error.splitlines()[0] for error in errors] == [
+    assert [said(error) for error in errors] == [
         (
             "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
             "deliberate render failure"
@@ -1202,13 +1204,13 @@ export default class extends HTMLElement {
     page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
     errors = take_browser_errors(page)
-    assert [error.splitlines()[0] for error in errors] == [
+    assert [said(error) for error in errors] == [
         (
             "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
             "deliberate render failure"
         )
     ]
-    assert "Caused by: Error: deliberate render failure" in errors[0]
+    assert "Caused by: Error: deliberate render failure" in errors[0].values["text"]
 
 
 @pytest.mark.parametrize(
@@ -1292,7 +1294,9 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
         "deliberate preparation failure"
     )
     errors = take_browser_errors(page)
-    assert errors and all("deliberate preparation failure" in error for error in errors)
+    assert errors and all(
+        is_problem(error, "deliberate preparation failure") for error in errors
+    )
     page.evaluate("releaseSibling()")
     rendered(page)
 
@@ -1459,7 +1463,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     expect(page.locator("#thread-failing")).to_have_count(1)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+    assert [said(error) for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: frozen descendant failure"
     ]
 

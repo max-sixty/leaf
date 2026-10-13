@@ -60,7 +60,14 @@ def test_a_publication_stylesheet_failure_names_its_captured_resource(browser, s
         + url.split("/versions/")[0]
         + resource,
     }
-    consume_browser_errors(page, "503")
+    consume_browser_errors(
+        page,
+        {
+            "code": "failed-load",
+            "status": 503,
+            "url": url.split("/versions/")[0] + resource,
+        },
+    )
 
 
 @pytest.mark.parametrize(

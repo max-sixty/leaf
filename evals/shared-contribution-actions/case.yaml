@@ -41,7 +41,10 @@ assert:
     Every constructed entry must have a nonempty key and label and exactly one
     nonempty glyph or icon. Check spread objects too: the Edit entry needs its
     own glyph or icon. Entry options do not accept kind; that field belongs to
-    the whole reading. The accepted entry behaviors are action, disclosure,
+    the whole reading. The accepted entry options are key, glyph, icon, label,
+    accessibleLabel, context, description, behavior, tone, rank, state,
+    visible, disabled, count, pressed, workflowReceipt, relation, activation,
+    title, className and scope. The accepted entry behaviors are action, disclosure,
     status; tones neutral, positive, negative; ranks complete, escape, primary,
     secondary, reading, overflow; states idle, engaged, busy, failed. A missing
     required field, an unknown option, or a guessed enum value is a failure,

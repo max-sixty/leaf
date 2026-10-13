@@ -130,11 +130,11 @@ def arrival_findings(browser, url):
     def console_message(message):
         found = render_gate_model.console_finding(message, warnings=False)
         if found is not None:
-            errors.append(str(found))
+            errors.append(found)
 
     def window_error(error):
         found = render_gate_model.window_finding(error)
-        (notices if found.code == "resize-loop" else errors).append(str(found))
+        (notices if found.code == "resize-loop" else errors).append(found)
 
     page.on("console", console_message)
     render_gate_model.collect_page_exceptions(page, errors)
@@ -158,7 +158,10 @@ def arrival_findings(browser, url):
         return [
             "[arrivals] the page never came up unarranged, so nothing could be "
             "arranged — "
-            + ("; ".join([*errors, *notices]) or "and no console error says why")
+            + (
+                "; ".join(map(str, [*errors, *notices]))
+                or "and no console error says why"
+            )
         ]
     found += arrival_transition_findings(page, "first visit")
     for restore_case in user_view_restore_cases(page):
@@ -172,7 +175,10 @@ def arrival_findings(browser, url):
         except (PlaywrightTimeout, render_checks_model.PageNotReady):
             found.append(
                 f"[{restore_case['name']}] the page never finished coming up — "
-                + ("; ".join([*errors, *notices]) or "and no console error says why")
+                + (
+                    "; ".join(map(str, [*errors, *notices]))
+                    or "and no console error says why"
+                )
             )
             continue
         found += arrival_transition_findings(page, restore_case["name"])

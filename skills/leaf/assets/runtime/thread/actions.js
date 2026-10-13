@@ -3,7 +3,9 @@
    A package names a stable Thread key and the meaning of its gesture; this owner
    resolves the current message target and constructs the event. Core controls call
    these same commands. The application ledger remains the one optimistic and
-   admission path, so a stale or unavailable command returns null. */
+   admission path, so a stale or unavailable command returns null. A new comment
+   defaults to the active revision; a resumed draft supplies the revision captured
+   with its anchor, even after the active document has changed. */
 import { randomId } from "../ids.js";
 import { editable } from "./model.js";
 import { readThreads } from "./state.js";
@@ -19,6 +21,7 @@ export function createThreadActions({
     const {
       text,
       anchor,
+      revision = currentRevision(),
       attempt = randomId(),
       holds,
       about,
@@ -28,7 +31,7 @@ export function createThreadActions({
     if (!text && !drawing) return null;
     const delivery = post({
       kind: "comment",
-      revision: currentRevision(),
+      revision,
       ...(text !== undefined && { text }),
       ...(anchor !== undefined && { anchor: structuredClone(anchor) }),
       ...(attempt !== undefined && { attempt }),

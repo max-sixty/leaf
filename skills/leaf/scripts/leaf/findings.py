@@ -1,11 +1,15 @@
 """A finding: one thing a check found, as a record its readers take fields from.
 
-Every check behind `page check` and `package check --render` reports through this one
-type: the markup checks, the page-code run, the render gate in each color scheme and
-viewport, its width sweep and advice, and the widget quality report. Each is produced
-where it is detected, the browser probes included, which return records rather than
-sentences, and its words are written here and nowhere else. The command boundary
-prints `str(finding)` for a reader and `finding.json()` for `--json`; every
+Every check behind `page check` and `package check` reports through this one type: the
+registry's validation, the markup checks, the page-code run, the render gate in each
+color scheme and viewport, its width sweep and advice, and the widget quality report.
+The suite's browser fixture reports through it too: what the browser said, and what its
+health sensors (`tests/*_watch.js`) found. A refusal raised with what a check found
+(`Rejected`, such as `RegistryError`) carries the records, so a command that reports it
+reads them from it. Each is produced where it is detected, the browser probes and
+sensors included, which return records rather than sentences, and its words are written
+here and nowhere else. The command boundary prints `str(finding)` for a reader and
+`finding.json()` for `--json`, and a failing test prints the words; every
 other reader, the gate's retry policy and the suite among them, reads the fields.
 
 - `code` names what was found, and decides the words (`_TEXT`).
@@ -22,7 +26,9 @@ other reader, the gate's retry policy and the suite among them, reads the fields
   a template without one).
 
 A markup finding names its element by the tag the author reads in the file, with its
-id where the words name one, and keeps the line it opens on in `values`.
+id where the words name one, and keeps the line it opens on in `values`. A registry
+finding names the element declaration it concerns in `at`, and keeps the file or
+composition it was read in as `values.registry`.
 
 A record compares by all of these, so two readings of one fault in one place are one
 finding and the same fault at another width is another.
@@ -278,6 +284,62 @@ def _size(box: dict) -> str:
     return f"{round(box['width'])}x{round(box['height'])}"
 
 
+def _declared(words, sep: str = ": "):
+    """A registry finding's words: the file it read (`registry`), the element
+    declaration `at` names, then `words`; and, for a fault in a vendored layer, how to
+    replace it (`revendor`, the page to re-vendor)."""
+
+    def said(at: str, v: dict) -> str:
+        text = f"{at} {words(v)}" if at else words(v)
+        if "registry" in v:
+            text = f"{v['registry']}{sep}{text}"
+        if "revendor" in v:
+            text += f"; run `leaf page init {v['revendor']}` to re-vendor it"
+        return text
+
+    return said
+
+
+def _json_path(path: list) -> str:
+    """Where in a registry a schema complaint points, as `$data.contracts[0]`."""
+    where = "".join(
+        f"[{step}]" if isinstance(step, int) else f".{step}" for step in path
+    )
+    return where.lstrip(".") or "registry"
+
+
+def _plain(value) -> str:
+    """A declared value as the registry's words quote it: a word bare, else JSON."""
+    return value if isinstance(value, str) else json_value(value)
+
+
+def _predicate(v: dict, says: str) -> str:
+    return f"{v['key']} tests `{v['attr']}` {says}"
+
+
+def _created(v: dict, says: str) -> str:
+    return f"x-state verb `{v['verb']}` creates <{v['child']}>, {says}"
+
+
+def _answering(v: dict, says: str) -> str:
+    return f"x-awaits answering verb `{v['verb']}` {says}"
+
+
+def _box(box: dict) -> str:
+    return f"{round(box['left'])},{round(box['top'])} {_size(box)}"
+
+
+def _by(v: dict) -> str:
+    """How far a shift sensor's node moved, and what else its frame moved."""
+    left, top = v["by"]
+    beside = f"; the same frame moved {', '.join(v['beside'])}" if v["beside"] else ""
+    return f" by ({left}, {top})px{beside}"
+
+
+def _shift_evidence(v: dict) -> str:
+    return f"\nshift evidence: {json.dumps(v['evidence'], ensure_ascii=False)}"
+
+
 # The words for each code, from the finding's `at` and `values`. A console code's
 # words are what the console said; read by the gate in a color scheme, beside findings
 # of its own, it says "console: " first.
@@ -305,6 +367,36 @@ _TEXT = {
     ),
     "main-unlaid": lambda at, v: (
         "pre-upgrade: authored main has no measurable pre-upgrade layout"
+    ),
+    # The suite's health sensors (`tests/*_watch.js`), each naming a node as the
+    # sensors do (`textarea#field`).
+    "moved-without-input": lambda at, v: (
+        f"{v['node']} moved without input{_by(v)}{_shift_evidence(v)}"
+    ),
+    "typing-moved": lambda at, v: (
+        f"typing in {v['field']} moved {v['node']}{_by(v)}; the key found"
+        f" {_box(v['found'])}, the frame painted {_box(v['painted'])}"
+        f"{_shift_evidence(v)}"
+    ),
+    "shift-watch-missed": lambda at, v: (
+        f"shift watch missed a change to {v['node'] or "the page's nodes"}"
+        f" ({', '.join(v['changed'])})"
+        + (
+            f" and to {v['others']} other node{'' if v['others'] == 1 else 's'}"
+            if v["others"]
+            else ""
+        )
+        + ": a source of change is missing from the sensor's announcements"
+        ' (shift_watch.js, "Unchanged frames")'
+    ),
+    "unchanged-write": lambda at, v: (
+        f"unchanged write: children of {v['node']}"
+        if v["what"] == "children"
+        else f"unchanged write: {v['what']} on {v['node']}"
+    ),
+    "words-left-screen": lambda at, v: (
+        "typed words left the screen without a key or press:"
+        f" {json.dumps(v['words'], ensure_ascii=False)} in {v['place']}"
     ),
     # The gate's own run, where it could not read the page.
     "gate-failed": lambda at, v: (
@@ -498,6 +590,7 @@ _TEXT = {
     # markup. The source as a whole:
     "no-source": lambda at, v: f"no {v['path']}; write index.html first",
     "not-utf8": lambda at, v: f"{v['path']} is not UTF-8: {v['error']}",
+    # A layer this Leaf can neither serve nor write under (`layer.incompatible_layer`).
     "invalid-registry": lambda at, v: v["error"],
     "capture-failed": lambda at, v: v["error"],
     "sample-history": lambda at, v: v["error"],
@@ -757,6 +850,508 @@ _TEXT = {
             else "a detached thread"
         )
     ),
+    # A registry, the vocabulary a page or package declares: `registry` is the file it
+    # was read from, and `at` the element declaration a finding concerns. The file:
+    "registry-not-file": _declared(lambda v: "registry.json must be a file"),
+    "registry-json": _declared(
+        lambda v: f"invalid JSON ({v['error']}, line {v['line']})"
+    ),
+    "registry-not-utf8": _declared(lambda v: "must be UTF-8", sep=" "),
+    "registry-not-object": _declared(lambda v: "registry must be a JSON object"),
+    "declaration-not-object": _declared(
+        lambda v: f"registry declarations must be objects: {json_value(v['names'])}"
+    ),
+    "no-incoming-registry": _declared(
+        lambda v: "the incoming layer has no registry.json"
+    ),
+    "page-layer": _declared(lambda v: "$layer belongs to the selected layer"),
+    "layer-packages": _declared(
+        lambda v: "$layer.packages must be a unique list of non-empty strings"
+    ),
+    "layer-identity": _declared(
+        lambda v: "vendored registry lacks its $layer identity; run `leaf page init`"
+    ),
+    # Its shared layer facts.
+    "layer-facts": _declared(lambda v: f"{_json_path(v['path'])}: {v['reason']}"),
+    "fixed-events": _declared(
+        lambda v: (
+            f"$events.{v['key']} is Leaf's fixed transport contract and cannot"
+            " be changed by a layer"
+        )
+    ),
+    "undeclared-event-kind": _declared(
+        lambda v: (
+            f"$events.handling names {v['kind']!r}, which $events.kinds does"
+            " not declare"
+        )
+    ),
+    "invalid-when": _declared(
+        lambda v: (
+            f"$events.{v['key']}.{v['kind']} clause `when` is not a valid JSON"
+            f" Schema: {v['reason']}"
+        )
+    ),
+    "keys-documentation": _declared(
+        lambda v: (
+            "$keys must carry a description and one paragraph per x- key the"
+            f" lint admits — missing {json_value(v['missing'])}, unadmitted"
+            f" {json_value(v['unadmitted'])}"
+        )
+    ),
+    "idiom-selector": _declared(
+        lambda v: f"idiom {v['selector']!r} selector cannot be matched: {v['error']}"
+    ),
+    "idiom-fields": _declared(
+        lambda v: (
+            f"idiom {v['selector']!r} must carry a non-empty description and"
+            " x-example, with optional x-instructions and " + ", ".join(v["marks"])
+        )
+    ),
+    "idiom-value": _declared(
+        lambda v: (
+            f"idiom {v['selector']!r} declares"
+            f" {v['key']}={json_value(v['value'])}; the value must satisfy its $keys"
+            " declaration"
+        )
+    ),
+    "undeclared-language": _declared(
+        lambda v: (
+            f"$languages.paths maps {json_value(v['extensions'])} to languages"
+            " $languages.names does not declare"
+        )
+    ),
+    "contract-resource": _declared(
+        lambda v: (
+            f"$data contract {v['contract']!r} resource expression"
+            f" {v['expression']!r} is invalid: {v['error']}"
+        )
+    ),
+    "contract-records": _declared(
+        lambda v: (
+            f"$data contract {v['contract']!r} records must name distinct"
+            " items, key, and deferred fields"
+        )
+    ),
+    "contract-schema": _declared(
+        lambda v: (
+            f"$data contract {v['contract']!r} has an invalid JSON Schema:"
+            f" {v['reason']}"
+        )
+    ),
+    "contract-reference": _declared(
+        lambda v: (
+            f"$data contract {v['contract']!r} schema reference"
+            f" {v['reference']!r} does not resolve within the package; data contracts"
+            " must be self-contained"
+        )
+    ),
+    # An element declaration, on its own.
+    "declaration-schema": _declared(
+        lambda v: f"is not a valid JSON Schema: {v['reason']}"
+    ),
+    "no-description": _declared(lambda v: "must carry a non-empty description"),
+    "invalid-extensions": _declared(
+        lambda v: f"registry extensions are invalid: {v['reason']}"
+    ),
+    "invalid-example": _declared(
+        lambda v: f"x-example is invalid: {Finding.loads(v['finding'])}"
+    ),
+    "missing-module": _declared(
+        lambda v: (
+            "is upgraded but its module is missing; expected"
+            f" {v['expected'][0]} or {v['expected'][1]}"
+        )
+    ),
+    "markdown-needs-data": _declared(
+        lambda v: "block Markdown requires x-content: data"
+    ),
+    "requires": _declared(
+        lambda v: f"{v['key']} requires {v['needs']}: {_plain(v['value'])}"
+    ),
+    "needs-upgrade": _declared(
+        lambda v: f"declares {', '.join(v['keys'])} but has no upgraded handler"
+    ),
+    "initial-and-prepaint": _declared(
+        lambda v: "declares both x-initial and x-prepaint"
+    ),
+    "prepaint-as": _declared(
+        lambda v: (
+            f"x-prepaint names <{v['as']}>, which declares no x-prepaint markup"
+            " of its own"
+        )
+    ),
+    "prepaint-upgrade": _declared(
+        lambda v: (
+            "x-prepaint requires x-upgrade: true, since only the widget's"
+            " module takes it out"
+        )
+    ),
+    "prepaint-shape": _declared(
+        lambda v: (
+            "x-prepaint must be one element written as the parser reads it"
+            " back, every element closed"
+        )
+    ),
+    "prepaint-element": _declared(
+        lambda v: f"x-prepaint may not hold <{v['element']}>"
+    ),
+    "prepaint-marks": _declared(
+        lambda v: (
+            f"x-prepaint may carry no id and no data-lf- attribute (<{v['element']}>)"
+        )
+    ),
+    "unknown-declarations": _declared(
+        lambda v: (
+            f"{v['key']} names unknown element declarations {json_value(v['names'])}"
+        )
+    ),
+    "undeclared-attributes": _declared(
+        lambda v: f"{v['key']} names undeclared attributes {json_value(v['names'])}"
+    ),
+    "reading-role-attr": _declared(
+        lambda v: f"x-reading-role {v['role']} instances require a string {v['attr']}"
+    ),
+    "addressable-id": _declared(
+        lambda v: (
+            f"{v['key']} instances are addressable, so the element declaration"
+            " must declare a string `id` attribute"
+        )
+    ),
+    "ask-context-id": _declared(lambda v: "x-ask-context does not require an id"),
+    "ask-context-prose": _declared(
+        lambda v: "x-ask-context must admit prose around the ask it frames"
+    ),
+    "data-contract": _declared(
+        lambda v: (
+            f"x-data input `{v['input']}` names unknown contract {v['contract']!r}"
+        )
+    ),
+    "data-source": _declared(
+        lambda v: (
+            f"x-data input `{v['input']}` source attribute `{v['attr']}` must"
+            " be a canonical data source string"
+        )
+    ),
+    "measured-input": _declared(
+        lambda v: f"x-measured input `{v['input']}` is not one of its x-data inputs"
+    ),
+    "measured-source": _declared(
+        lambda v: (
+            f"x-measured input `{v['input']}` source attribute `{v['attr']}`"
+            " must be required"
+        )
+    ),
+    "measured-run": _declared(
+        lambda v: (
+            f"x-measured run attribute `{v['attr']}` must be required and"
+            " declare a nonempty string"
+        )
+    ),
+    "refers-unknown-member": _declared(
+        lambda v: (
+            f"x-refers `{v['attr']}` names unknown element declaration <{v['member']}>"
+        )
+    ),
+    "refers-unkeyed": _declared(
+        lambda v: (
+            f"x-refers `{v['attr']}` names <{v['member']}> by `{v['key']}`,"
+            f" which <{v['member']}> does not declare in x-unique"
+        )
+    ),
+    "refers-unknown-map": _declared(
+        lambda v: f"x-refers `{v['attr']}` names unknown registry map {v['via']!r}"
+    ),
+    "refers-unmatched": _declared(
+        lambda v: (
+            f"x-refers `{v['attr']}` requires {v['via']} where "
+            + ", ".join(
+                f"{key}={json_value(value)}" for key, value in v["where"].items()
+            )
+            + ", but no declared widget matches"
+        )
+    ),
+    "visual-id": _declared(
+        lambda v: (
+            "has addressable visual parts but does not require a string `id`"
+            " for their anchor"
+        )
+    ),
+    "visual-parts-attr": _declared(
+        lambda v: f"x-visual parts attribute `{v['attr']}` must be a non-empty string"
+    ),
+    "visual-upgrade": _declared(
+        lambda v: (
+            "declares addressable visual parts but has no upgraded handler to"
+            " resolve them"
+        )
+    ),
+    # Its conditions, read against its own attributes.
+    "predicate-attribute": _declared(
+        lambda v: f"{v['key']} names undeclared attribute `{v['attr']}`"
+    ),
+    "predicate-not-flag": _declared(
+        lambda v: _predicate(
+            v, f"as {json_value(v['value'])}, but that attribute is not a flag"
+        )
+    ),
+    "predicate-flag": _declared(
+        lambda v: (
+            f"{v['key']} tests flag `{v['attr']}` as {json_value(v['value'])};"
+            " a flag is there or it isn't"
+        )
+    ),
+    "predicate-enum": _declared(
+        lambda v: _predicate(
+            v, f"at {json_value(v['value'])}, which its own enum does not admit"
+        )
+    ),
+    "predicate-schema": _declared(
+        lambda v: _predicate(
+            v,
+            f"at {json_value(v['value'])}, which its own schema does not admit:"
+            f" {v['reason']}",
+        )
+    ),
+    "seat-written": _declared(
+        lambda v: (
+            "x-thread-seat predicate attributes are authored and static, but"
+            f" {json_value(v['attrs'])} are written by value records"
+        )
+    ),
+    "binding-written": _declared(
+        lambda v: (
+            "x-data binding attributes are authored, but"
+            f" {json_value(v['attrs'])} are written by value records"
+        )
+    ),
+    "run-written": _declared(
+        lambda v: (
+            f"x-measured run attribute `{v['attr']}` is an authored source"
+            " receipt, but is written by a value record"
+        )
+    ),
+    # Its interactions: local work, its ask, and the state its verbs write.
+    "work-inline": _declared(
+        lambda v: "declares x-work but is inline; local work chrome needs a block slot"
+    ),
+    "work-content": _declared(
+        lambda v: (
+            f"declares x-work but x-content is {v['content']}; generated local"
+            " chrome may only join authored prose"
+        )
+    ),
+    "awaits-unanswered": _declared(
+        lambda v: "x-awaits local ask declares no `answered` condition"
+    ),
+    "awaits-verbs": _declared(
+        lambda v: (
+            f"x-awaits answers with verbs {json_value(v['verbs'])}, which are"
+            " not x-state verbs the user writes"
+        )
+    ),
+    "awaits-value": _declared(
+        lambda v: "x-awaits value must name a user-written x-state verb"
+    ),
+    "awaits-retired": _declared(
+        lambda v: (
+            f"x-awaits retires with `{v['flag']}`, but its `when` does not"
+            f" require `{v['flag']}` absent"
+        )
+    ),
+    "awaits-blanket": _declared(
+        lambda v: (
+            f"x-awaits blanket answer `{v['outcome']}` is not an outcome of a"
+            " deciding verb that answers its ask"
+        )
+    ),
+    "unoverruled": _declared(
+        lambda v: (
+            "declares agent-written x-state verbs"
+            f" {json_value(v['verbs'])} but not the boolean `overruled` attribute a"
+            " version overrules a standing report with"
+        )
+    ),
+    "unrestated": _declared(
+        lambda v: (
+            "declares user x-state verbs that fold on the widget but not the"
+            " boolean `restated` attribute a version retracts a decision with"
+        )
+    ),
+    "reserved-resolves": _declared(
+        lambda v: (
+            "declares attribute `resolves`, a reserved name (the thread an"
+            " answer to its ask closes), but originates no local ask"
+        )
+    ),
+    "verb-detail-schema": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` has an invalid detail schema: {v['reason']}"
+        )
+    ),
+    "verb-detail-type": _declared(
+        lambda v: f"x-state verb `{v['verb']}` detail schema must declare an object"
+    ),
+    "verb-detail-open": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` detail schema must state"
+            " additionalProperties: false — a verb carries only the detail keys it"
+            " declares"
+        )
+    ),
+    "verb-detail-keys": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` detail schema declares"
+            f" {json_value(v['keys'])}; a detail states its type, properties, required"
+            " and additionalProperties and nothing else, so the keys a verb can carry"
+            " are the ones it names"
+        )
+    ),
+    "creates-unit": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` creates a child, so its fold unit must"
+            " name the detail field carrying the child's id and it declares no record"
+            " form"
+        )
+    ),
+    "creates-detail": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` creates a child, so its detail must be"
+            f" exactly the required element id `{v['unit']}` and the required non-empty"
+            f" words `{v['words']}`"
+        )
+    ),
+    "creates-unknown": _declared(
+        lambda v: f"x-state verb `{v['verb']}` creates unknown child <{v['child']}>"
+    ),
+    "creates-owner": _declared(
+        lambda v: _created(v, "whose x-owners does not admit the sender")
+    ),
+    "creates-content": _declared(
+        lambda v: _created(v, "which must declare x-content markup")
+    ),
+    "creates-required": _declared(
+        lambda v: _created(v, "which must require id and no other authored attributes")
+    ),
+    "creates-id": _declared(
+        lambda v: _created(
+            v, "whose required id must use the canonical element-id schema"
+        )
+    ),
+    "shared-slot": _declared(
+        lambda v: (
+            f"x-state verbs `{v['verbs'][0]}` and `{v['verbs'][1]}` claim the"
+            f" same physical record slot (unit `{v['unit']}`, {v['kind']}"
+            + (f" `{v['attr']}`" if v["attr"] else "")
+            + "); distinct verbs must record independently"
+        )
+    ),
+    "unit-undeclared": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` must declare and require its fold unit"
+            f" `{v['unit']}` in detail"
+        )
+    ),
+    "unit-type": _declared(
+        lambda v: f"x-state verb `{v['verb']}` fold unit `{v['unit']}` must be a string"
+    ),
+    "record-unit": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` record `{v['kind']}` requires unit:"
+            f" {v['unit']!r}"
+        )
+    ),
+    "record-within": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` records a position within unknown"
+            f" widget <{v['within']}>"
+        )
+    ),
+    "body-content": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` records its body, so x-content must be"
+            " data; projection states text rather than a prose subtree"
+        )
+    ),
+    "body-nested": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` records its body but admits nested"
+            f" widgets {json_value(v['widgets'])}; a text statement cannot reconstruct"
+            " their state"
+        )
+    ),
+    "record-undeclared": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` records undeclared attribute `{v['attr']}`"
+        )
+    ),
+    "record-says": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` records x-says attribute"
+            f" `{v['attr']}`, whose value is words the user sees — declared state may not"
+            " move the page's words"
+        )
+    ),
+    "record-type": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` record attribute `{v['attr']}` must be"
+            " a string or string enum; HTML attributes cannot restore another JSON type"
+        )
+    ),
+    "deciding-verbs": _declared(
+        lambda v: (
+            f"x-state verbs {json_value(v['verbs'])} all declare detail field"
+            " `outcome`, a reserved name only one deciding verb may carry"
+        )
+    ),
+    "deciding-verb": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` declares detail field `outcome`, a"
+            " reserved name: the deciding verb folds by widget, is written by the user,"
+            " and requires `outcome` as a string enum"
+        )
+    ),
+    "withdrawn-as": _declared(
+        lambda v: f"x-withdrawn-as `{v['outcome']}` is not a deciding outcome"
+    ),
+    "retired-when": _declared(
+        lambda v: (
+            f"x-retired-when `{v['outcome']}` is invalid: <{v['owner']}>"
+            " declares no deciding x-state verb with that outcome"
+        )
+    ),
+    "answering-part": _declared(
+        lambda v: _answering(
+            v, "folds on a part rather than the widget, so its condition needs `empty`"
+        )
+    ),
+    "answering-position": _declared(
+        lambda v: _answering(v, "tests an empty container but records no position")
+    ),
+    "answering-container": _declared(
+        lambda v: _answering(v, f"names unknown container <{v['within']}>")
+    ),
+    "answering-members": _declared(
+        lambda v: _answering(
+            v, f"names <{v['within']}>, whose x-content is not members"
+        )
+    ),
+    "answering-undeclared": _declared(
+        lambda v: _answering(
+            v, f"tests undeclared <{v['within']}> attribute `{v['attr']}`"
+        )
+    ),
+    "answering-mutable": _declared(
+        lambda v: _answering(
+            v, f"tests mutable <{v['within']}> attribute `{v['attr']}`"
+        )
+    ),
+    "answering-schema": _declared(
+        lambda v: _answering(
+            v,
+            f"tests <{v['within']}> `{v['attr']}` at {json_value(v['value'])}, which"
+            f" its schema does not admit: {v['reason']}",
+        )
+    ),
     # The package check's refusal.
     "package": lambda at, v: v["text"],
     "leaf-version": lambda at, v: (
@@ -802,9 +1397,14 @@ def _words(finding: Finding) -> str:
 
 
 class Rejected(Refused):
-    """A gate's refusal of what it found: the words list the findings under
-    `heading`, and `findings` keeps the records for a reader that wants the facts."""
+    """A refusal of what a check found: the words list the findings under `heading`,
+    or are the one finding's own where there is none, and `findings` keeps the
+    records for a reader that wants the facts."""
 
-    def __init__(self, heading: str, findings: list[Finding]):
-        super().__init__(f"{heading}:\n" + "\n".join(f"  - {f}" for f in findings))
+    def __init__(self, findings: list[Finding], heading: str | None = None):
+        super().__init__(
+            f"{heading}:\n" + "\n".join(f"  - {f}" for f in findings)
+            if heading
+            else "\n".join(map(str, findings))
+        )
         self.findings = findings

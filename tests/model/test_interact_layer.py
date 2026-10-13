@@ -27,6 +27,7 @@ from interact_support import (
     add_test_widget,
     append_carried_log_record,
     case_alias,
+    command_refusal,
     element_declaration,
     fetch,
     install_payload,
@@ -34,6 +35,7 @@ from interact_support import (
     lock_contention,
     publish,
     record_claim,
+    registry_refusal,
     shipped_payload,
     vendored_at_another_protocol,
     vendored_before_the_ask_rename,
@@ -53,9 +55,9 @@ from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
+from leaf.findings import Finding
 from leaf.page import page_instructions
 from leaf.refusals import Refused
-from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
 from leaf.render_gate import browser as browser_model
@@ -3071,29 +3073,26 @@ def test_init_preserves_tmp_files_even_when_a_layer_reads_one(tmp_path, monkeypa
 
 
 @pytest.mark.parametrize(
-    ("example", "message"),
+    ("example", "code"),
     [
         (
             '<lf-toned-note id="repeat"><p id="repeat">Two</p></lf-toned-note>',
-            "duplicate ids",
+            "duplicate-ids",
         ),
         (
             '<tr><td id="repeat">One</td><td id="repeat">Two</td></tr>',
-            "duplicate ids",
+            "duplicate-ids",
         ),
-        (
-            '<lf-toned-note id="lf-example">One</lf-toned-note>',
-            "lf- namespace",
-        ),
+        ('<lf-toned-note id="lf-example">One</lf-toned-note>', "reserved-ids"),
         (
             '<lf-toned-note id="note"><p id="two words">One</p></lf-toned-note>',
-            "whitespace",
+            "spaced-ids",
         ),
     ],
     ids=["duplicate", "table-duplicate", "reserved", "spaced"],
 )
 def test_init_refuses_invalid_ids_in_a_registry_example(
-    tmp_path, monkeypatch, example, message
+    tmp_path, monkeypatch, example, code
 ):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -3105,13 +3104,12 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     registry["lf-toned-note"]["x-example"] = example
     registry_path.write_text(json.dumps(registry))
 
-    result = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "./.leaf", str(tmp_path / "page")]
+    refused = command_refusal(
+        "page", "init", "--package", "./.leaf", str(tmp_path / "page")
     )
 
-    assert result.exit_code != 0
-    assert "<lf-toned-note> x-example is invalid" in result.output
-    assert message in result.output
+    assert (refused.code, refused.at) == ("invalid-example", "<lf-toned-note>")
+    assert refused.values["finding"]["code"] == code
 
 
 def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
@@ -3466,16 +3464,19 @@ def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeyp
     result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
 
     assert result.exit_code != 0
-    assert "<lf-toned-note> must carry a non-empty description" in result.output
-    # With --json the refusal is the result's one finding.
-    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf", "--json"])
-    assert result.exit_code == 1
-    report = json.loads(result.stdout)
+    # With --json the refusal is the result's one finding, in the words the
+    # command line printed.
+    report = json.loads(
+        runner.invoke(cli_model.cli, ["package", "check", ".leaf", "--json"]).stdout
+    )
     assert (report["status"], report["browser"]) == (1, None)
     [refusal] = report["findings"]
-    assert (refusal["code"], refusal["severity"]) == ("package", "error")
-    said = refusal["values"]["text"]
-    assert "<lf-toned-note> must carry a non-empty description" in said
+    assert (refusal["code"], refusal["at"], refusal["severity"]) == (
+        "no-description",
+        "<lf-toned-note>",
+        "error",
+    )
+    assert refusal["text"] in result.output
 
 
 def test_package_check_refuses_a_registry_example_that_violates_its_schema(
@@ -3494,11 +3495,12 @@ def test_package_check_refuses_a_registry_example_that_violates_its_schema(
     entry["required"].append("tone")
     registry_path.write_text(json.dumps(registry))
 
-    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+    refused = command_refusal("package", "check", ".leaf")
 
-    assert result.exit_code != 0
-    assert "<lf-toned-note> x-example is invalid" in result.output
-    assert "'tone' is a required property" in result.output
+    assert (refused.code, refused.at) == ("invalid-example", "<lf-toned-note>")
+    example = Finding.loads(refused.values["finding"])
+    assert (example.code, example.values["keyword"]) == ("attribute-schema", "required")
+    assert "'tone'" in example.values["reason"]
 
 
 def test_package_check_refuses_malformed_css_without_writing(tmp_path, monkeypatch):
@@ -3862,13 +3864,11 @@ def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monke
         packages_model, "starter_element_declaration", lambda tag: declaration
     )
 
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["package", "init", str(package), "--widget", "lf-risk-note"],
+    refused = command_refusal(
+        "package", "init", str(package), "--widget", "lf-risk-note"
     )
 
-    assert result.exit_code != 0
-    assert "<lf-risk-note> x-example is invalid" in result.output
+    assert (refused.code, refused.at) == ("invalid-example", "<lf-risk-note>")
     assert not package.exists()
 
 
@@ -4497,10 +4497,10 @@ def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch,
     registry["$reactions"] = {"tokens": {"nod": entry}}
     registry_path.write_text(json.dumps(registry))
 
-    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+    refused = command_refusal("package", "check", ".leaf")
 
-    assert result.exit_code != 0
-    assert "$reactions.tokens.nod" in result.output
+    assert refused.code == "layer-facts"
+    assert refused.values["path"][:3] == ["$reactions", "tokens", "nod"]
 
 
 def test_the_register_is_the_only_way_a_key_enters_the_runtime():
@@ -4949,12 +4949,15 @@ def test_widget_instructions_are_nonempty_text_and_reject_the_old_shape():
         ("x-guidance", {"author": "Use this."}),
     ):
         malformed = {**entry, key: value}
-        with pytest.raises(
-            registry_contract.RegistryError, match="registry extensions are invalid"
-        ):
-            registry_widgets.validate_widget_schemas(
+        refused = registry_refusal(
+            lambda malformed=malformed: registry_widgets.validate_widget_schemas(
                 {"lf-instruction-test": malformed}, {"contracts": {}}, "registry.json"
             )
+        )
+        assert (refused.code, refused.at) == (
+            "invalid-extensions",
+            "<lf-instruction-test>",
+        )
     registry_widgets.validate_widget_schemas(
         {"lf-instruction-test": {**entry, "x-instructions": "Use this."}},
         {"contracts": {}},

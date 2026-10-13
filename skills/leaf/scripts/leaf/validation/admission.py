@@ -47,7 +47,7 @@ def read_text_arg(page_dir: Path, text, *, allow_empty: bool = False) -> str:
     if not body and not allow_empty:
         raise Refused("empty text (pass --text or pipe via stdin)")
     if errs := text_media_errors(body, page_dir):
-        raise Rejected("text names media the page won't show", errs)
+        raise Rejected(errs, "text names media the page won't show")
     return body
 
 
@@ -180,7 +180,7 @@ def check_markup(
         thread,
         effective_events=effective_events,
     ):
-        raise Rejected(f"{kind} markup doesn't validate", errors)
+        raise Rejected(errors, f"{kind} markup doesn't validate")
     return frag
 
 

@@ -91,6 +91,7 @@ from render_harness import (
     expect_asks_answered,
     expect_banner_control_offered,
     holding,
+    is_problem,
     leaf_page,
     open_page,
     page_comment,
@@ -103,6 +104,7 @@ from render_harness import (
     resized,
     root_overflow,
     round_trip,
+    said,
     scroll_settled,
     select,
     sending,
@@ -1520,10 +1522,11 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
 
     resized(page, 390, 900)
     assert root_overflow(page) == 0
-    printed_query = (
-        'typed words left the screen without a key or press: "second" in '
-        + search.evaluate("field => window.lfPlace(field)")
-    )
+    printed_query = {
+        "code": "words-left-screen",
+        "words": "second",
+        "place": search.evaluate("field => window.lfPlace(field)"),
+    }
     page.emulate_media(media="print")
     # This fixture explicitly enters print rendering, where search tools disappear;
     # no native Print gesture is delivered by media emulation.
@@ -4513,7 +4516,9 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
         )
         wait_until_ready(page)
         problems = take_browser_errors(page)
-        assert len(problems) >= 2 and all("failed to load" in p for p in problems), (
+        assert len(problems) >= 2 and all(
+            is_problem(p, "failed to load") for p in problems
+        ), (
             "the beats did not come through with only their own refused asks behind "
             f"them: {problems}"
         )
@@ -5935,7 +5940,7 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
         bool,
         failure="the agent never heard the refusal",
     )
-    assert reports == [errors[0].splitlines()[0].removeprefix("leaf: ")], reports
+    assert reports == [said(errors[0]).removeprefix("leaf: ")], reports
 
 
 def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, serve):
@@ -6916,7 +6921,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
         )
     expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
     assert actions(serve.page_dir) == []
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
     page.unroute("**/api/event")
 
     page.locator("#tq-logs").click()
@@ -6952,7 +6957,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
         ("choose", {"value": ["tq-logs"]}),
         ("answer", {}),
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, serve):
@@ -7005,7 +7010,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     expect(done).not_to_have_attribute("aria-busy", "true")
     expect(done).to_have_attribute("aria-pressed", "false")
     assert actions(serve.page_dir) == []
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_done_press_answers_optimistically_and_only_once(browser, serve):

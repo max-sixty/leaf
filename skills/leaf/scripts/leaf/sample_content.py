@@ -269,7 +269,7 @@ def initial_sample_history(
                     if kind == "comment"
                     else thread_names(events).get(event.get("parent")),
                 ):
-                    raise Rejected(f"{kind} markup doesn't validate", errors)
+                    raise Rejected(errors, f"{kind} markup doesn't validate")
                 if collision := fragment.ids & (
                     {logged["id"] for logged in events} | {event["id"]}
                 ):

@@ -24,6 +24,7 @@ from leaf import media as media_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
+from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -80,6 +81,7 @@ from render_harness import (
     reported_browser_errors,
     resized,
     round_trip,
+    said,
     scroll_settled,
     select_words,
     sending,
@@ -897,7 +899,7 @@ def test_a_fold_at_the_foot_admits_no_change_above_it(browser, serve, request):
     told(page)
     expect(thread.locator(".lf-thread-checkpoint")).to_have_count(1)
     judge_watches()
-    consume_browser_errors(page, "moved without input")
+    consume_browser_errors(page, {"code": "moved-without-input"})
 
 
 def assert_arrival_returns_to_own_fill(page, destination):
@@ -2549,7 +2551,7 @@ def test_a_sent_page_comment_closes_and_a_refusal_restores_its_draft(browser, se
         "Couldn't send — refused before append"
     )
     page.unroute("**/api/event", hold)
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
     with sending(page, "the retried comment with its image"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -2748,7 +2750,7 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     expect(box).to_have_js_property("value", "Kept for later")
     assert card.evaluate(is_open)
     page.unroute("**/api/event")
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
     page.keyboard.press("Escape")
 
     # With Threads open, the card is still where a page thread starts: it hangs over
@@ -2795,7 +2797,7 @@ def test_a_refused_page_comment_respects_newer_reading_input(browser, serve):
     expect(card).to_be_hidden()
     expect(page.locator(".lf-page-comment")).to_be_focused()
     page.unroute("**/api/event", hold)
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
     page.keyboard.press("c")
     expect(box).to_be_focused()
 
@@ -4592,7 +4594,7 @@ def test_a_failed_thread_list_update_keeps_one_coherent_reading(browser, serve):
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+    assert [said(error) for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: injected thread-card failure"
     ]
 
@@ -4648,7 +4650,7 @@ def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, se
             "deliberate narrowing failure; deliberate narrowing failure"
         )
     ]
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == expected
+    assert [said(error) for error in take_browser_errors(page)] == expected
 
     page.get_by_role("searchbox", name="Find in threads").fill("")
     page.wait_for_function(
@@ -4727,7 +4729,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
             before.open === view.querySelector('[data-filter-value="open"]');
         }"""
     )
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+    assert [said(error) for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: injected narrowing-view failure"
     ]
 
@@ -4785,7 +4787,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
         }"""
     )
     expected = ["leaf: Presentation failed: deliberate reveal failure"]
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == expected
+    assert [said(error) for error in take_browser_errors(page)] == expected
 
     routes = {route.request.post_data_json["kind"]: route for route in held}
     held.clear()
@@ -6474,9 +6476,12 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
         expect(reply).to_have_js_property("value", "")
         return
     if finish == "filter":
-        withdrawn_words = (
-            f'typed words left the screen without a key or press: "{words}" in '
-            + reply.evaluate("field => window.lfPlace(field)")
+        withdrawn_words = Finding(
+            "words-left-screen",
+            values={
+                "words": words,
+                "place": reply.evaluate("field => window.lfPlace(field)"),
+            },
         )
         find = page.get_by_role("searchbox", name="Find in threads")
         find.click()
@@ -10166,7 +10171,7 @@ def _refused_file(serve, page):
     )
     told(page)
     expect(page.locator("lf-diff .lf-error")).to_contain_text("unavailable")
-    consume_browser_errors(page, "500")
+    consume_browser_errors(page, {"code": "failed-load", "status": 500})
 
 
 def _refused_patch(serve, page):
@@ -12099,7 +12104,7 @@ def test_a_second_rewrite_over_a_refused_first_goes_with_it(browser, serve):
     assert not [e for e in events_model.read_events(d) if e["kind"] == "edit"]
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
     assert stored_draft_text(page, f"rewrite:{mine['id']}") == "Third."
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
     page.unroute_all(behavior="wait")
 
 

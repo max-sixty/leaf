@@ -759,30 +759,28 @@ export default class extends HTMLElement {
     failed = run_page_code(RoutedBrowser(fail_helper=True), url)
     # The runtime's own report carries the error's stack; the check's refusal quotes
     # only the reason the page shows.
+    by_code = {}
+    for report in failed:
+        by_code.setdefault(report.code, []).append(report.values)
     assert any(
-        report.code == "page-report"
-        and report.values["text"].startswith("page failed to start:")
-        and "TypeError" in report.values["text"]
-        for report in failed
+        report["text"].startswith("page failed to start:")
+        and "TypeError" in report["text"]
+        for report in by_code["page-report"]
+    ), failed
+    assert by_code["not-ready"][0]["stage"] == "refused", failed
+    assert by_code["not-ready"][0]["error"].startswith("the runtime could not start:")
+    assert any(
+        report["kind"] == "Script"
+        and report["error"] == "net::ERR_FAILED"
+        and report["frame"] == url
+        and report["url"].endswith("/page/helper.js")
+        for report in by_code["request-failed"]
     ), failed
     assert any(
-        report.code == "not-ready" and report.values["stage"] == "refused"
-        for report in failed
-    ), failed
-    assert any(
-        report.code == "request-failed"
-        and report.values["kind"] == "Script"
-        and report.values["error"] == "net::ERR_FAILED"
-        and report.values["frame"] == url
-        and report.values["url"].endswith("/page/helper.js")
-        for report in failed
-    ), failed
-    assert any(
-        report.code == "request-status"
-        and report.values["status"] == 404
-        and report.values["kind"] == "Image"
-        and report.values["url"].endswith("/page/missing-image.png")
-        for report in failed
+        report["status"] == 404
+        and report["kind"] == "Image"
+        and report["url"].endswith("/page/missing-image.png")
+        for report in by_code["request-status"]
     ), failed
 
     assert run_page_code(RoutedBrowser(fail_helper=False), url) == []

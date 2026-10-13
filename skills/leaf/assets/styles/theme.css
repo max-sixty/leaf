@@ -514,8 +514,8 @@ html:not([data-lf-live]) {
 } }
 /* The floating panel replaces both bars (prepaint.js, `lfChrome`): the page reserves no
    banner, and its foot keeps the panel's resting row and the gap below it, so the end
-   of the page can scroll clear of the panel as it could of the bottom bar. A status
-   stands just above the row. */
+   of the page can scroll clear of the panel as it could of the bottom bar. A walk's
+   position stands at the window's head (floating-panel.css). */
 html[data-lf-live][data-lf-floating-chrome] {
   --lf-floating-row: max(48px, calc(var(--aim-floor) + 8px));
   --lf-floating-gap: 14px;

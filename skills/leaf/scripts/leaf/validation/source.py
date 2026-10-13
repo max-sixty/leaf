@@ -301,7 +301,7 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         registry = page_registry.registry if page_registry is not None else None
     except RegistryError as error:
         registry = None
-        errors.append(Finding("invalid-registry", values={"error": str(error)}))
+        errors.extend(error.findings)
     reading = SourceReading(document, registry)
     if registry is not None and (refusal := incompatible_layer(page_dir, registry)):
         return SourceCheck(

@@ -87,6 +87,7 @@ const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
   "margin options", // the margin entry cluster the user unfolded
   "drawer", // the drawer that holds the edge
+  "floating panel", // the menu or view the floating panel opened above its row
   "narrowing", // the narrowing the user put on the thread list
   "panel", // the thread panel
   "draw mode", // the drawing surface over the page
@@ -124,6 +125,7 @@ const PAGE_COMMANDS = [
   "capture.region.open",
   "design.mode.enter",
   "annotations.toggle",
+  "panel.floating.fold",
   // The reference's own binding. Its place here is nominal: renderShortcutBar gives it the
   // permanent More control instead of spending a hint slot on it.
   COMMAND_REFERENCE,

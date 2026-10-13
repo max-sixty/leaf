@@ -934,14 +934,14 @@ export function createMarginProjection({
     const primary = host.present(projection);
     const options = host.options;
     const lostOptionFocus = focus.focusedOption && !standingIn(options);
+    const lostPrimaryFocus = focus.focusedPrimary && !standingIn(host);
     if (!projection.hasOptions && (focused() === more || lostOptionFocus)) {
       const destination = primary ?? (primaryReading(entry) ? marker : null);
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
       else if (destination) focusDestination(destination, "return");
-    } else if (lostOptionFocus) {
-      // A secondary projection can become the primary when its press settles. Keep
-      // focus on that same semantic control instead of jumping to the first status
-      // reading merely because the cluster stayed engaged and replaced its peers.
+    } else if (lostOptionFocus || lostPrimaryFocus) {
+      // A changed contribution can replace either the focused primary or an option.
+      // Return to the corresponding control in the new projection.
       focus.restore?.(
         primary,
         clusterMarginEntries(options)[0],
@@ -1068,6 +1068,7 @@ export function createMarginProjection({
       host.lfTarget = targetFor(entry);
       marker.lfEntry = entry;
       const focus = {
+        focusedPrimary: Boolean(host.primary && standingIn(host.primary)),
         focusedOption: Boolean(host.options && standingIn(host.options)),
         // The entry the user stands on, by its contribution's key, across the projection
         // that may replace its control (focus.js, keyed `holdFocus`).

@@ -1,8 +1,10 @@
 """A stamped version as one HTML file that opens offline.
 
 The export packages the captured revision, its resources, and the page's authoritative
-state reading into one file. Its resource owner allocates one object URL per embedded
-body before handing the composed document to the native HTML parser; Leaf's normal
+state reading into one file. Neighboring live pages are omitted: their access URLs
+grant machine-wide server access and have no place in an offline record.
+Its resource owner allocates one object URL per embedded body before handing the
+composed document to the native HTML parser; Leaf's normal
 runtime then boots from that document. The normal composer also supplies the
 scripts-off record: authored text, layout and alt text, with an explanation that
 embedded graphics, fonts and recordings require JavaScript. Media is
@@ -269,6 +271,7 @@ def export_document(
     against the embedded authoritative reading, so the file opens offline wherever the
     page itself names no other server.
     """
+    state = {**state, "others": []}
     modules = _module_urls(
         artifact,
         [

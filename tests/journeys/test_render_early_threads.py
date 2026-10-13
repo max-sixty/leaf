@@ -339,7 +339,6 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
         failure="the retained key never appeared",
     )
     if key == "m":
-
         expect(page.locator("#cold-ask")).not_to_be_focused()
     expect(page.locator("#cold-a")).not_to_have_attribute("chosen", "")
     expect(page.locator("#cold-b")).not_to_have_attribute("chosen", "")
@@ -350,7 +349,6 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     _clock_until_ready(page)
     page.clock.resume()
     if key == "m":
-
         expect(page.locator("#cold-ask")).to_be_focused()
     elif key == "1":
         expect(page.locator("#cold-a")).to_have_attribute("chosen", "")

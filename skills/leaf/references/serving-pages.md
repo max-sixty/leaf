@@ -69,9 +69,9 @@ file.
 ## Re-vendoring and layer epochs
 
 A Leaf update leaves open pages served and writable until it changes the page
-protocol; then serving or writing the page refuses, naming the command that
-re-vendors it. Re-vendor the page from its owning session then, or to adopt a
-newer runtime, theme or package:
+protocol; then serving or writing the page refuses and tells the agent to update
+the page's Leaf runtime. Re-vendor the page from its owning session then, or to adopt
+a newer runtime, theme or package:
 
 ```bash
 leaf page init <page>
@@ -80,10 +80,8 @@ leaf page init <page>
 While Leaf is in alpha, an update can also break an older page without changing the
 protocol. Where the Leaf that vendored a page differs from the one running, `page
 check` names both with their dates, and the page's banner menu shows the user its own
-Leaf beside the one serving it. When a page misbehaves and its Leaf is much
-older than the running one, re-vendor it rather than working around the fault. A page
-that works needs no re-vendor for its age alone, since re-vendoring a changed layer
-reloads the user's open tabs.
+Leaf beside the one serving it. These version differences are informational; the
+upgrade instruction appears when the page protocol differs.
 
 Init validates incoming layer declarations and file destinations first; refusal
 leaves the page and server unchanged. An unchanged layer and serving payload

@@ -1116,10 +1116,10 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
 
     The active revision is no exception: whether the source is that revision is a
     question for its manifest's digest, not its bundle. So each revision opens the
-    files its reading asks for and no more: the document, registry and manifest.
-    Inventory reads the manifest to exclude stale captures; active identity also
-    reads it. The bounded metadata budget and filenames rule out materializing
-    resource bodies, including after the bundle descriptor cache has evicted them.
+    files its reading asks for and no more: the document and registry, plus the
+    active revision's manifest for its executable identity. The bounded metadata
+    budget and filenames rule out materializing resource bodies, including after
+    the bundle descriptor cache has evicted them.
     """
     for edit in range(12):
         (page_dir / "index.html").write_text(
@@ -1146,11 +1146,20 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
     assert activated.error is None, activated.error
     assert not activated.created
 
-    for revision in revisions:
+    *history, active = revisions
+    for revision in history:
         metadata = {
             name: count for (order, name), count in opens.items() if order == revision
         }
         marker = files_model.revision_path(page_dir, revision).name
-        assert set(metadata) == {marker, "registry.json", "manifest.json"}
+        assert set(metadata) == {marker, "registry.json"}
         assert metadata[marker] == metadata["registry.json"] == 1
-        assert 1 <= metadata["manifest.json"] <= 2
+    active_metadata = {
+        name: count for (order, name), count in opens.items() if order == active
+    }
+    assert set(active_metadata) == {
+        files_model.revision_path(page_dir, active).name,
+        "registry.json",
+        "manifest.json",
+    }
+    assert sum(active_metadata.values()) == 3

@@ -1164,6 +1164,8 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     page = open_page(browser, url)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     destination = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')
+    if resolved:
+        page.locator(".lf-resolved-summary").click()
     page.locator(".lf-page-thread-open").evaluate(
         """(open, destination) => open.addEventListener(
           'click',
@@ -1961,6 +1963,7 @@ def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     expect(thread).to_be_hidden()
     hold_visible_thread_presentation(page, root)
 
+    page.locator("#jobs .lf-resolved-summary").click()
     page.locator(
         f'#jobs .lf-page-thread[data-thread="{root}"] .lf-page-thread-open'
     ).click()
@@ -2005,8 +2008,12 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
     thread.get_by_role("button", name="Resolve thread", exact=True).focus()
     page.keyboard.press("Enter")
     round_trip(page)
+    # The resolved thread folds into the seat's Resolved disclosure, and the user with
+    # it onto the disclosure's summary, which opens to its Reopen.
+    summary = page.locator("#proposal .lf-resolved-summary")
+    expect(summary).to_be_focused()
+    page.keyboard.press("Enter")
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
-    expect(thread).to_be_focused()
     thread.get_by_role("button", name="Reopen").click()
     round_trip(page)
     expect(destination).to_be_focused()
@@ -2017,10 +2024,14 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
         ("Resolve thread", "Reopen"),
         ("Reopen", "Resolve thread"),
     ):
+        if action == "Reopen":
+            summary.click()
         with page.expect_request("**/api/event"):
             thread.get_by_role("button", name=action, exact=True).click()
         expect(
-            thread.get_by_role("button", name=optimistic, exact=True)
+            thread.get_by_role(
+                "button", name=optimistic, exact=True, include_hidden=True
+            )
         ).to_have_attribute("aria-busy", "true")
         page.locator("#later").fill("Keep my later focus here.")
         held.pop().continue_()
@@ -2570,6 +2581,7 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
     panel = page.locator(f'.lf-thread[data-id="{root}"]')
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Resolve thread", exact=True).click()
+    page.locator("#jobs .lf-resolved-summary").click()
     pending = inline.get_by_role("button", name="Reopen", exact=True)
     expect(pending).to_be_disabled()
     expect(pending).to_have_attribute("aria-busy", "true")
@@ -2638,6 +2650,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     with page.expect_request("**/api/event"):
         inline.get_by_role("button", name="Resolve thread", exact=True).click()
     holding(page, held, 1, "the resolution whose response remains held")
+    page.locator("#jobs .lf-resolved-summary").click()
     pending = inline.get_by_role("button", name="Reopen", exact=True)
     expect(pending).to_be_disabled()
     expect(pending).to_have_attribute("aria-busy", "true")
@@ -3923,8 +3936,8 @@ def test_taking_back_a_resolve_is_the_users_own_gesture(browser, serve):
 def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, serve):
     """A diff line's thread resolved elsewhere stays open behind its notice.
 
-    Resolving folds an outlet to its summary, which would lift the paragraph after
-    the diff under the reader."""
+    Resolving folds the thread into its outlet's Resolved disclosure, which would lift
+    the paragraph after the diff under the reader."""
     url = serve(
         leaf_page(
             "inline diff thread",
@@ -3984,7 +3997,8 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
     assert after.bounding_box() == before
     notice.click()
     expect(thread).to_have_attribute("data-resolved", "true")
-    expect(thread).not_to_have_attribute("open", "")
+    expect(thread).to_be_hidden()
+    expect(page.locator("lf-diff .lf-resolved-summary")).to_have_text("Resolved · 1")
 
 
 def long_diff_thread(serve):
@@ -4142,9 +4156,10 @@ def test_growth_is_seen_only_below_where_scroll_anchoring_holds(browser, serve):
 def test_an_agent_settling_a_diff_thread_above_the_screen_moves_nothing_below(
     browser, serve
 ):
-    """A diff thread folds shut when the agent resolves it and opens when it reopens
-    it. Above the screen, either change is scroll anchoring's to absorb, so the line
-    the user reads stays put, though each also changes what the thread holds."""
+    """A diff thread folds into its outlet's Resolved disclosure when the agent
+    resolves it and comes back out when it reopens it. Above the screen, either change
+    is scroll anchoring's to absorb, so the line the user reads stays put, though each
+    also changes what the outlet holds."""
     url, root = long_diff_thread(serve)
     page = open_page(browser, url)
     resized(page, 1280, 800)
@@ -4164,10 +4179,69 @@ def test_an_agent_settling_a_diff_thread_above_the_screen_moves_nothing_below(
         )
         told(page)
         rendered(page)
-        expect(thread).to_have_js_property("open", opened)
+        expect(thread).to_be_visible() if opened else expect(thread).to_be_hidden()
         # Anchoring lands the scroll on a device pixel, so the line may settle a
         # fraction of one from where it stood.
         assert read.bounding_box()["y"] == pytest.approx(before, abs=0.5), kind
+
+
+@pytest.mark.parametrize("disclosure", ["closed", "open"])
+def test_a_reopening_waits_where_the_reopened_thread_would_stand(
+    browser, serve, disclosure
+):
+    """A diff thread in its outlet's Resolved disclosure reopens ahead of the open
+    threads that came after it, not where the disclosure stands. With the disclosure
+    below the window, closed or open, and a later open thread on screen, an agent's
+    reply that reopened the earlier thread pushed the open one down under the reader.
+    It waits, and the disclosure's summary says so."""
+    url, first = long_diff_thread(serve)
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "user", "parent": first}
+    )
+    later = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "And keep the old name working.",
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
+            },
+        },
+    )["id"]
+    for turn in range(8):
+        append_agent_reply(
+            serve.page_dir, later, f"Step {turn}: " + "the alias stays. " * 12
+        )
+    page = open_page(browser, url)
+    resized(page, 1280, 800)
+    open_thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{later}"]')
+    summary = page.locator("lf-diff .lf-resolved-summary")
+    expect(summary).to_have_text("Resolved · 1")
+    if disclosure == "open":
+        summary.click()
+        expect(
+            page.locator(f'lf-diff .lf-page-thread[data-thread="{first}"]')
+        ).to_be_visible()
+    open_thread.evaluate(
+        "node => scrollBy({top: node.getBoundingClientRect().top - 200,"
+        " behavior: 'instant'})"
+    )
+    rendered(page)
+    assert summary.bounding_box()["y"] > 800
+    page.wait_for_function(
+        "at => performance.now() - at > 600", arg=page.evaluate("performance.now()")
+    )
+    before = open_thread.bounding_box()["y"]
+    append_agent_reply(serve.page_dir, first, "The check now covers both paths.")
+    told(page)
+    rendered(page)
+    expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
+    assert open_thread.bounding_box()["y"] == pytest.approx(before, abs=0.5)
 
 
 def test_a_reaction_list_closes_once_its_trigger_is_out_of_sight(browser, serve):
@@ -6697,6 +6771,7 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     round_trip(page)
     expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(1)
 
+    page.locator("#jobs .lf-resolved-summary").click()
     inline.get_by_role("button", name="Open interactive reply").click()
     expect(page.locator(f'.lf-going[data-id="{root}"]')).to_have_count(0)
     message = page.locator(
@@ -9999,9 +10074,10 @@ def test_an_agent_turn_arriving_holds_still_the_page_box_being_typed_in(
 def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
     browser, serve
 ):
-    """The pressed Resolve leaves with the state it changed, and the thread took the
-    focus back with a landing: the nearest edge of a thread taller than the window was
-    a 700px jump to its head."""
+    """The pressed Resolve leaves with the state it changed, and the thread folds into
+    its seat's Resolved disclosure, taking the focus to the disclosure's summary. It
+    took it back with a landing on the thread: the nearest edge of a thread taller than
+    the window was a 700px jump to its head."""
     kind = "verdict"
     url, root = seated_thread(serve, kind, 12)
     page = open_page(browser, url)
@@ -10015,15 +10091,15 @@ def test_resolving_a_long_page_thread_by_its_button_leaves_the_page_still(
         page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     rendered(page)
     scroll_settled(page)
-    expect(thread).to_be_focused()
+    expect(page.locator(".lf-resolved-summary")).to_be_focused()
     after = page.evaluate("() => document.scrollingElement.scrollTop")
     assert abs(after - before) < 10, f"the page jumped {after - before}px"
 
 
 def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
-    """A diff thread folds to its summary when resolved and unfolds when reopened, and
-    nothing landed it either way: the summary the user stood on went above the window,
-    and the reopened thread with it."""
+    """A diff thread folds into its outlet's Resolved disclosure when resolved and
+    comes back out when reopened, and nothing landed it either way: the summary the
+    user stood on went above the window, and the reopened thread with it."""
     url, root = seated_thread(serve, "diff", 12)
     page = open_page(browser, url)
     thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
@@ -10038,6 +10114,9 @@ def test_settling_a_long_diff_thread_by_key_keeps_it_in_view(browser, serve):
     rendered(page)
     scroll_settled(page)
     assert focus_clear_of_the_bar(page), "the resolved thread left the window"
+    expect(page.locator("lf-diff .lf-resolved-summary")).to_be_focused()
+    page.keyboard.press("Enter")
+    thread.focus()
     with sending(page, "the reopen"):
         page.keyboard.press("r")
     rendered(page)

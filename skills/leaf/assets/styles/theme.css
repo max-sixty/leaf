@@ -196,9 +196,10 @@
      A number local to a component's own stacking context stays where it is written. */
   --lf-z-page-paint: 8890;        /* paint on a page element */
   --lf-z-margin-raised: 8895;     /* the margin item under pointer or focus */
+  --lf-z-page-hints: 8898;        /* page-target key chips, under surfaces covering the page */
   --lf-z-surface: 8900;           /* an open drawer or thread panel */
   --lf-z-margin-preview: 8920;    /* the thread card, under the bars it scrolls beneath */
-  --lf-z-page-hints: 8930;        /* a key chip naming a page target, under the bars */
+  --lf-z-region-capture: 8930;    /* viewport crop selection, over the thread card */
   --lf-z-shortcut-bar: 8940;
   --lf-z-menu: 8950;              /* a door's menu */
   --lf-z-banner: 9000;

@@ -877,7 +877,8 @@ function clipWalk(item, clips, held) {
 }
 
 // A surface that stands over the page without clipping it: the thread panel, over the
-// right of a live page at a desktop window. Nothing in the page's own tree says so,
+// right of a live page at a desktop window, or a view open in the floating panel, over
+// the page's foot (floating-panel.js). Nothing in the page's own tree says so,
 // since the surface is fixed chrome beside the page rather than an ancestor of what it
 // stands over, so the surface declares itself. The
 // clip walk then takes what it stands over away from any box stacked beneath it, and a
@@ -897,14 +898,23 @@ export const LEAVING = "data-lf-leaving";
 const standsNow = (surface) =>
   !surface.hasAttribute(LEAVING) && surface.checkVisibility();
 // Where an occluder stands, not where its slide has carried it this frame: every declared
-// occluder is fixed to the window, so its offset box is its viewport box without the
-// slide's transform.
-const restingBox = (surface) => ({
-  left: surface.offsetLeft,
-  top: surface.offsetTop,
-  right: surface.offsetLeft + surface.offsetWidth,
-  bottom: surface.offsetTop + surface.offsetHeight,
-});
+// occluder is fixed to the window or stands in a box that is, so its offsets, summed up
+// to that box, are its viewport box without the slide's transform. Each offset runs
+// from inside its parent's border, which the sum steps across.
+function restingBox(surface) {
+  let left = 0,
+    top = 0;
+  for (let at = surface; at; at = at.offsetParent) {
+    left += at.offsetLeft + (at === surface ? 0 : at.clientLeft);
+    top += at.offsetTop + (at === surface ? 0 : at.clientTop);
+  }
+  return {
+    left,
+    top,
+    right: left + surface.offsetWidth,
+    bottom: top + surface.offsetHeight,
+  };
+}
 export const declareOccluder = (surface) => {
   occluders.add(surface);
   watchChrome(surface);
@@ -937,23 +947,33 @@ export const clipsPast = (surfaces) => new Map([[PAST, new Set(surfaces)]]);
 // the top layer still hangs from a trigger the thread panel stands over.
 export const clipsPastSurfaces = () => clipsPast(occluders);
 // Whether an occluder hides a destination, an element or a Range, wherever travel lands
-// it: whether it stands over most of it, more than half its width. A block the width of
-// the column keeps most of itself clear of the thread panel at a desktop window and is
-// seen where it stands, beside the panel; words at the right end of a line, or a box in
-// the right margin, land under it. The one kind declared stands the window's height at
-// one side of it, and travel moves a destination along its scroller's block axis only,
-// so the question is the inline one, asked of what the page's clips leave of the
-// destination. One scrolled out of the window is asked it at its own box, which is
-// where the landing will bring it into view.
+// it: whether it stands over most of it, asked of what the page's clips leave of the
+// destination. Travel moves a destination along its scroller's block axis only, so a
+// surface standing the whole height of the room the page shows, as a side panel does,
+// covers every place the landing can bring it to, and the question is the inline one:
+// more than half its width. A block the width of the column keeps most of itself clear
+// of the thread panel at a desktop window and is seen where it stands, beside the panel;
+// words at the right end of a line, or a box in the right margin, land under it. One
+// scrolled out of the window is asked it at its own box, which is where the landing will
+// bring it into view. A surface standing over part of that height, as a view open in the
+// floating panel stands over its foot, covers a destination only where it stands now,
+// so it is asked of both axes there: more than half the destination's area.
 export function hides(surface, where) {
   const holder = placeHolder(where);
   if (!holder || !occluders.has(surface) || !standsNow(surface)) return false;
   if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;
   const box = placeBox(where);
-  const { left, right } = clippedPlace(where, clipsPast([surface]), box) ?? box;
-  const column = restingBox(surface);
-  const covered = Math.min(right, column.right) - Math.max(left, column.left);
-  return covered > (right - left) / 2;
+  const { left, top, right, bottom } =
+    clippedPlace(where, clipsPast([surface]), box) ?? box;
+  const over = restingBox(surface);
+  const across = Math.min(right, over.right) - Math.max(left, over.left);
+  const room = shownWindow({ viewport: "layout" });
+  if (over.top <= room.top + 1 && over.bottom >= room.bottom - 1)
+    return across > (right - left) / 2;
+  const down = Math.min(bottom, over.bottom) - Math.max(top, over.top);
+  return (
+    across > 0 && down > 0 && across * down > ((right - left) * (bottom - top)) / 2
+  );
 }
 // Whether any open occluder hides `where`, by the same measure. A seat a panel stands
 // over is no place to put the user, since the panels dominate what focus reaches.

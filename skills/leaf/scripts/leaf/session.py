@@ -26,6 +26,7 @@ from .harness import Harness, claim_harness, session_harness
 from .leases import (
     end_if_terminated,
     release_lease,
+    supersede_lease,
     take_lease,
     waiter_lease_path,
 )
@@ -47,7 +48,7 @@ from .service import (
     session_claims,
     unacknowledged,
 )
-from .state import SESSION_SUFFIX, session_file
+from .state import SESSION_SUFFIX, session_file, still_named
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
 # without a pass on a page whose files have not moved: nothing else a pass reads
@@ -190,17 +191,25 @@ class Watch:
         self.changes = None
         self.change_pages = None
 
-    def acquire(self) -> bool:
-        """Hold the session lease, or every explicitly watched standalone page."""
+    def acquire(self, *, supersede: bool = False) -> bool:
+        """Hold the session lease, or every explicitly watched standalone page,
+        taking it from a live holder where `supersede` says to."""
         if self.leases:
             return True
         for path in self.lease_paths:
-            lease = take_lease(path)
+            lease = supersede_lease(path) if supersede else take_lease(path)
             if lease is None:
                 self.release()
                 return False
             self.leases.append(lease)
         return True
+
+    def holds(self) -> bool:
+        """Whether no later watch has superseded this one's leases."""
+        return all(
+            still_named(lease.fileno(), path)
+            for lease, path in zip(self.leases, self.lease_paths, strict=True)
+        )
 
     def pages(self) -> list:
         """Read the current ownership set and include explicitly named pages."""
@@ -227,6 +236,7 @@ class Watch:
         return (
             file_stamp(self.claims),
             tuple((target, file_stamp(target)) for target in sorted(discovery)),
+            tuple(map(file_stamp, self.lease_paths)),
             *map(_page_reading_or_none, self.watched),
         )
 
@@ -240,6 +250,7 @@ class Watch:
         }
         if self.session_id:
             targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
+        targets.update(path.resolve() for path in self.lease_paths)
         roots = {existing_root(self.claims): False}
         roots.update({existing_root(target.parent): False for target in targets})
         for page in pages:
@@ -580,24 +591,32 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         print(f"another `leaf wait` is already active for {target}", file=sys.stderr)
         return 2
 
-    def print_delivery(reading: PageTick) -> None:
+    def print_delivery(reading: PageTick) -> bool:
         """Print immutable input; only the consumer can confirm receipt.
 
         An explicit wait is a complete delivery route. Earlier successful hooks
         cannot prove that a later one will run, so it never delegates its input
-        to the next hook. The native between-turn watch owns hook wakes.
+        to the next hook. The native between-turn watch owns hook wakes, and a
+        wait it has superseded prints nothing, since that watch carries the input.
         """
+        if not watch.holds():
+            return False
         print(delivery_json(reading, harness), flush=True)
+        return True
 
     try:
-        while True:
+        while watch.holds():
             mark = watch.mark()
             reading = read_watch_pass(watch, named, print_delivery)
+            if reading.delivered is False:
+                break
             if reading.outcome is not None:
                 return reading.outcome
             if not reading.live:
                 return _ended_watch(reading.readings, named)
             watch.await_news(mark)
+        print("a watch between turns took over this session's pages", file=sys.stderr)
+        return 2
     finally:
         watch.release()
 
@@ -638,15 +657,17 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     wake, while that turn's received input waits for a prompt.
     Settled thread input alone never wakes; it remains in the next receipt batch.
     The session lease and each page transaction retain ownership of delivery,
-    revival and competing-watch decisions.
+    revival and competing-watch decisions. The newest watch takes the lease from
+    any holder, and a watch superseded that way ends without a word: the newest
+    runs the Leaf its harness runs now, while an older one may run a Leaf the
+    session has since left, one that cannot read a page the session now holds.
     """
     # Event timestamps have millisecond precision. Include the startup millisecond
     # in immediate delivery rather than delaying an arrival in that millisecond.
     began = int(time.time() * 1000) / 1000
     settled = time.monotonic() + STOP_HOOK_S
     watch = Watch(harness)
-    if not watch.acquire():
-        return None
+    watch.acquire(supersede=True)
 
     def ready(reading: PageTick) -> bool:
         pending = wake_inputs(reading.transaction, reading.batch)
@@ -668,6 +689,9 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
         while harness.process_runs():
             mark = watch.mark()
             reading = read_watch_pass(watch, None, lambda tick: tick.page_dir, ready)
+            # Superseded during the pass, it leaves what it found to its successor.
+            if not watch.holds():
+                return None
             if reading.delivered is not None:
                 return new_input_line(reading.delivered)
             if reading.outcome is not None:

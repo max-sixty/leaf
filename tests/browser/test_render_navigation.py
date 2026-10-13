@@ -14390,14 +14390,13 @@ ASK_THREAD_PAGE = leaf_page(
 )
 
 
-# Each route once, at both widths between them.
-@pytest.mark.parametrize(
-    ("route", "width"), [("comment", 390), ("thread", 1200), ("marker", 390)]
-)
-def test_ask_work_keeps_its_discussion_closed_until_requested(
-    browser, serve, width, route
+@pytest.mark.parametrize("width", [390, 1200])
+def test_walking_to_an_ask_shows_its_discussion_clear_of_its_choices(
+    browser, serve, width
 ):
-    """An Ask arrival leaves its choices clear; explicit routes retain discussion identity."""
+    """`q` lands on a tall Ask and its thread comes up in the card, which stands clear
+    of the Ask's choices at either width, so a digit still answers and `c` continues
+    the thread rather than starting another."""
     source = ASK_THREAD_PAGE.replace(
         "<h2>Which cache should we keep?</h2>",
         "<h2>Which cache should we keep?</h2>"
@@ -14411,28 +14410,30 @@ def test_ask_work_keeps_its_discussion_closed_until_requested(
     page.set_viewport_size({"width": width, "height": 900})
     page.keyboard.press("q")
     expect(page.locator("#cache-ask")).to_be_focused()
-    rendered(page)
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    page.keyboard.press("1")
-    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
-    if route == "comment":
-        page.keyboard.press("c")
-    elif route == "thread":
-        page.keyboard.press("t")
-    else:
-        page.locator(
-            '[data-lf-margin-for="cache-ask"] .lf-margin-marker[data-lf-kinds~="comment"]'
-        ).click()
     thread = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
     expect(thread).to_be_visible()
-    if route == "comment":
-        expect(thread.locator("leaf-text")).to_be_focused()
-        expect(page.locator(".lf-fab-input")).to_be_hidden()
+    rendered(page)
+    card = page.locator(".lf-margin-preview").bounding_box()
+    for option in page.locator("#cache-ask lf-option").all():
+        box = option.bounding_box()
+        assert (
+            box["x"] >= card["x"] + card["width"]
+            or card["x"] >= box["x"] + box["width"]
+            or box["y"] >= card["y"] + card["height"]
+            or card["y"] >= box["y"] + box["height"]
+        ), (card, box)
+    page.keyboard.press("1")
+    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    page.keyboard.press("c")
+    expect(thread.locator("leaf-text")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
 
 
 @pytest.mark.parametrize("family", ["decision", "suggestion"])
-def test_ask_controls_do_not_automatically_open_discussion(browser, serve, family):
-    """Working an Ask retains its surface; passive passage arrival still accompanies."""
+def test_walking_to_an_ask_opens_its_discussion(browser, serve, family):
+    """`q` selects an Ask and its thread comes up beside it, as at any target the user
+    stands at, taking over from the passage's card. Working the Ask's controls keeps it
+    there, and `c` continues it."""
     if family == "decision":
         ask = '<lf-ask id="work"><h2>Keep the plan?</h2><lf-options id="decision" choose><lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option></lf-options></lf-ask>'
     else:
@@ -14449,15 +14450,15 @@ def test_ask_controls_do_not_automatically_open_discussion(browser, serve, famil
         serve.page_dir, "Please compare the alternatives.", {"section": "work"}
     )
     page = open_page(browser, url)
+    card = page.locator(".lf-margin-preview")
+    discussion = card.locator(f'.lf-page-thread[data-thread="{root}"]')
     page.keyboard.press("Shift")
     page.locator("#passage").focus()
-    expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{passive}"]')
-    ).to_be_visible()
+    expect(card.locator(f'.lf-page-thread[data-thread="{passive}"]')).to_be_visible()
     page.keyboard.press("q")
     expect(page.locator("#work")).to_be_focused()
-    rendered(page)
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    expect(discussion).to_be_visible()
+    expect(card.locator(f'.lf-page-thread[data-thread="{passive}"]')).to_have_count(0)
     if family == "decision":
         page.keyboard.press("Tab")
     else:
@@ -14469,32 +14470,13 @@ def test_ask_controls_do_not_automatically_open_discussion(browser, serve, famil
         == "work"
     )
     rendered(page)
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    expect(discussion).to_be_visible()
     page.keyboard.press("c")
-    reply = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"] leaf-text'
-    )
-    expect(reply).to_be_focused()
-    control = (
-        page.locator("#yes lf-option-control")
-        if family == "decision"
-        else suggestion_control(page, "work", "accept")
-    )
-    control.focus()
-    expect(control).to_be_focused()
-    assert (
-        page.evaluate(
-            'async () => (await window.__lfRuntimeImport("/runtime/standing-target.js")).heldAsk()?.id'
-        )
-        == "work"
-    )
-    # A deliberately opened discussion stays while the keyboard returns to its Ask.
-    rendered(page)
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(discussion.locator("leaf-text")).to_be_focused()
 
 
 def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
-    """An Ask and its deliberately opened thread are one place held from two sides
+    """An Ask and the thread its card shows are one place held from two sides
     (glossary, Standing target). From the Ask, `c` continues that thread and `t` steps
     on past it; from its thread, in the card or in the Threads list, the Ask keeps its
     ring and its digits. A thread about an enclosing block is that block's, so an Ask
@@ -14519,12 +14501,11 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     ask = page.locator("#cache-ask")
     ask_thread = card.locator(f'.lf-page-thread[data-thread="{about_ask}"]')
 
-    # Ask work keeps the decision clear. Comment deliberately opens its existing
-    # discussion, preserving the subject without needing an already visible card.
+    # `q` lands on the Ask and its thread comes up in the card beside it, which `c`
+    # continues rather than starting a second one.
     page.keyboard.press("q")
     expect(ask).to_be_focused()
-    rendered(page)
-    expect(card).to_be_hidden()
+    expect(ask_thread).to_be_visible()
     expect(line).to_contain_text("comment on the thread")
     page.keyboard.press("c")
     expect(ask_thread.locator("leaf-text")).to_be_focused()
@@ -14544,13 +14525,13 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     expect(ask).to_have_attribute("data-lf-ask", "1")
     expect(line).to_contain_text("Keep the disk cache")
 
-    # Working the nested Ask leaves its enclosing task's discussion closed.
+    # The nested Ask's card shows its task's thread, which is about the task, so `c`
+    # still starts the Ask a thread of its own.
     page.keyboard.press("q")
     expect(page.locator("#ship-ask")).to_be_focused()
     page.keyboard.press("q")
     expect(page.locator("#retry-ask")).to_be_focused()
-    rendered(page)
-    expect(card).to_be_hidden()
+    expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
     expect(line).to_contain_text("comment on the question")
     page.keyboard.press("Escape")
 

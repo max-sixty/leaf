@@ -6,7 +6,9 @@ The reading uses one transaction and prints the two lists the active view serves
 Tasks holds the answers the agent owes, its work in hand and its to-dos. The ask
 inventory also retains finished records, whatever their `status` (`questions`). `source` states whether a
 document is live and whether an invalid source save leaves the last valid version
-active.
+active. A page this Leaf cannot serve as vendored (`layer.incompatible_layer`) is
+still read, its `source.error` the refusal naming the re-vendor: the reading gives the
+agent the page's context, and the error says not to act on it before `page init`.
 """
 
 import json

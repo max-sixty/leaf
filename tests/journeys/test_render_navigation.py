@@ -187,7 +187,7 @@ def test_reading_keys_scroll_drawers_without_moving_the_document(
 def test_a_comment_box_moves_home_when_a_panel_comes_to_cover_its_seat(browser, serve):
     """The panels dominate what focus reaches (Max, 2026-10-06). A comment box whose
     seat the Threads panel comes to stand over moves to its home in the panel's foot,
-    keeping its words, rather than standing hidden under the panel."""
+    keeping its words, rather than staying hidden under the panel."""
     walkthrough = next(p for p in EXAMPLES if p.stem == "pr-walkthrough")
     page = open_page(browser, serve(walkthrough))
     resized(page, 1440, 900)
@@ -199,7 +199,9 @@ def test_a_comment_box_moves_home_when_a_panel_comes_to_cover_its_seat(browser, 
     box = page.locator("leaf-text.lf-fab-input")
     expect(page.locator("#pr-exact-patch leaf-text.lf-fab-input")).to_be_focused()
     page.locator(".lf-threads-toggle").click()
-    expect(panel).to_be_visible()
+    # The dialog envelope draws nothing (#2613); its Threads panel is what shows.
+    expect(panel).to_have_attribute("open", "")
+    expect(panel.locator(".lf-thread-panel")).to_be_visible()
     page_at_rest(page)
     edge = page.locator(".lf-thread-panel > .lf-edge").bounding_box()
     middle = edge["y"] + edge["height"] / 2
@@ -1099,7 +1101,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
     page.keyboard.press("w")
-    # The standing narrowing is what `w` offers to clear, at every level above it.
+    # The active narrowing is what `w` offers to clear, at every level above it.
     expect(line).to_contain_text("clear waiting filter")
     while not page.evaluate("() => document.activeElement.closest('.lf-thread')"):
         page.keyboard.press("Tab")
@@ -1420,7 +1422,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # The complete reference shows each command once, preferring an executable intrinsic
     # route over its contextual Go-to route. Keep identities across all sections so that
-    # a command such as Align current item can be covered by its standing page route.
+    # a command such as Align current item can be covered by its permanent page route.
     page.keyboard.press("?")
     page.keyboard.press("?")
     goto = command_reference_rows(page, "Go to")

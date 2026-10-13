@@ -779,7 +779,7 @@ def _capture_artifact(
         for tag, source in widget_sources.items()
     }
     layer = registry.get("$layer", {})
-    # Which of this capture's inputs a standing document cannot take on in place. A
+    # Which of this capture's inputs the current document cannot take on in place. A
     # module graph is evaluated once per document and a custom element is defined
     # once, so new bytes behind either need a new document. Stylesheets, media,
     # prose, and markup are absent because an open document can be given all of

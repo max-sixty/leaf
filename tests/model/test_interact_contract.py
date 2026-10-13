@@ -287,7 +287,7 @@ STATED_MOVE = {
 
 
 def test_a_pick_names_only_options_its_group_holds():
-    """A `choose` names authored options or ones a standing `add` created.
+    """A `choose` names authored options or ones an `add` in force created.
 
     The user's own option travels as two sends, the `add` and then the pick of it.
     Were the `add` refused, the pick behind it would otherwise answer the Ask with an
@@ -374,7 +374,7 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
     wrote it, as its inline Markdown shows them. The pick of it reads by those
     words even after the add is undone, since that is what the user picked, and an
     id an undone add freed and a later add reused reads each gesture by the add
-    standing when that gesture was made."""
+    in force when that gesture was made."""
     question = model.leaf_page(
         "Route",
         """<h1>Route</h1>
@@ -451,11 +451,11 @@ def test_the_move_that_empties_the_queue_answers_its_ask():
     assert (unknown.code, unknown.values["unit"]) == ("unknown-unit", "not-a-card")
 
 
-def test_admission_decides_from_the_markup_and_the_standing_log_alone():
+def test_admission_decides_from_the_markup_and_the_current_log_alone():
     """The door reads a page through `PageView` and reaches past it for nothing.
 
     What makes an event admissible is the authored document it names, the
-    vocabulary that document captured, and the log standing in front of it. So a
+    vocabulary that document captured, and the current log in front of it. So a
     page whose revisions are stated rather than stored reaches the same verdicts,
     and a test of one rule can be the markup that rule is about — which is what
     `ModelPage` is. Each verdict below comes from a different gate, so a gate
@@ -615,7 +615,7 @@ def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
 def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
     """An action names the thread it settles, and it settles it only while the
     user still stands behind it. Withdrawing the answer is one of the three ways
-    an action stops standing — a `restated` version and a later answer from the
+    an action stops being in force — a `restated` version and a later answer from the
     same widget are the others — and the thread reading owes all three the same
     reply, or a question would read as answered by a gesture the log itself records
     as taken back."""
@@ -661,7 +661,7 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
     assert threads["c1"]["resolved"] is None
 
 
-def test_server_takes_back_only_a_standing_gesture_of_the_users_own(server, page_dir):
+def test_server_takes_back_only_a_gesture_in_force_of_the_users_own(server, page_dir):
     """`undoes` is checked completely where it enters, so nothing downstream asks a
     second time whether it points at something real. What an undo may name is one
     unwithdrawn gesture of the user's own: an agent's `leaf thread resolve` is not
@@ -825,7 +825,7 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
 
 
 def test_a_reject_after_an_accept_reopens_the_thread():
-    """A thread stands settled by its widget's standing answer, not by the fact an
+    """A thread stands settled by its widget's answer in force, not by the fact an
     answer was once given. Turning the fix down and leaving the question filed away
     as answered by it is invisible from both sides — the fold reports the suggestion
     rejected while the panel reports the thread closed, and nothing says so.
@@ -857,10 +857,10 @@ def test_a_resolve_between_two_decisions_outlives_the_second():
 
 
 def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again():
-    """The two ways an answer stops standing compose, and this is where they meet: a
+    """The two ways an answer stops being in force compose, and this is where they meet: a
     reject supersedes the accept before it, and taking the reject back leaves the
-    accept standing as the widget's answer once more. A withdrawal read only by the
-    walk and not by the standing answer would leave the thread open with the log
+    accept in force as the widget's answer once more. A withdrawal read only by the
+    walk and not by the answer in force would leave the thread open with the log
     holding nothing that says so."""
     assert settlement(ASKED, PICKED, TURNED_DOWN) is None
     # The reject is the third event written, so `e3` is what the undo names.
@@ -1814,7 +1814,7 @@ def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page
 def test_an_action_an_earlier_runtime_logged_is_left_out_of_the_fold(page_dir):
     """A pick logged before admission recorded its state operation, in the payload
     shape of its day, folds as absent: `leaf page state` reads on with the current
-    pick standing instead of failing on the old record."""
+    pick in force instead of failing on the old record."""
     source = PAGE.replace(
         "</section>",
         '<lf-options id="picks" choose><lf-option id="first">First</lf-option>'
@@ -3594,7 +3594,7 @@ def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, mess
 
 
 def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
-    """A part record does not answer its whole Ask merely by standing."""
+    """A part record does not answer its whole Ask merely by being in force."""
     registry = queue_board_registry(
         json.loads((page_dir / "registry.json").read_text())
     )
@@ -4259,7 +4259,7 @@ confirms the delivery, or is null where the route confirmed it; and the
 comment's `answer` is a `reply`, for `leaf response reply`, except on App Server,
 where it is a `turn` the turn's own messages write. The `handling` follows from
 the answer, so each agent is told only its own route.
-The agent's standing instructions (its harness contract, and on leaf.page the
+The agent's lasting instructions (its harness contract, and on leaf.page the
 developer instructions) are not part of a delivery; test_website_server records
 leaf.page's.
 
@@ -5426,7 +5426,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     assert memberships["label1"] == []
 
 
-def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_standing_there():
+def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there():
     """A later action on a deciding widget changes the thread an earlier answer there
     closed, and its undo the same, until that answer is taken back or a version
     retracts what it rested on: after either, the thread it closed is no longer the
@@ -5549,7 +5549,7 @@ def test_every_change_to_a_threads_resolution_reaches_its_membership():
         }
 
     for history in itertools.product(steps, repeat=3):
-        events, revision, standing = list(comments), 1, []
+        events, revision, in_force = list(comments), 1, []
         for index, step in enumerate(history):
             if step[0] == "act":
                 event = {
@@ -5561,11 +5561,11 @@ def test_every_change_to_a_threads_resolution_reaches_its_membership():
                     "detail": {},
                     "meaning": {"unit": "w", "depends": [*step[2]], "answer": step[1]},
                 }
-                standing.append(event["id"])
+                in_force.append(event["id"])
             elif step[0] == "undo":
-                if not standing:
+                if not in_force:
                     break
-                event = {"kind": "undo", "id": f"u{index}", "undoes": standing.pop()}
+                event = {"kind": "undo", "id": f"u{index}", "undoes": in_force.pop()}
             else:
                 revision += 1
                 event = {
@@ -5584,7 +5584,7 @@ def test_every_change_to_a_threads_resolution_reaches_its_membership():
 
 def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
     """A child page sampling a thread holds one revision, its parent's document, so
-    what a later version of the parent retracted stays behind rather than standing
+    what a later version of the parent retracted stays behind rather than staying in force
     again on that one revision: an answer the parent no longer counts leaves the
     child's copy of its thread open too, and the action it had superseded, which
     answered nothing, decides the widget there as it does in the parent."""
@@ -5867,8 +5867,8 @@ def test_revised_state_definitions_keep_original_history_and_admit_new_typed_sta
             "detail": {"value": next_value},
         },
     )
-    [standing] = state_json(page_dir)["state"]
-    assert standing["detail"] == {"value": next_value}
+    [chosen] = state_json(page_dir)["state"]
+    assert chosen["detail"] == {"value": next_value}
     assert (
         revised["meaning"]["state"] != original["meaning"]["state"]
         or change == "description"

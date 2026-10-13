@@ -711,7 +711,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
 def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     """Own file changes, watcher and agent lifetime reach other pages with no tab.
 
-    The agent exits normally while the standing server continues. Releasing the
+    The agent exits normally while the persistent server continues. Releasing the
     server lease then removes even its still-present cached row immediately.
     """
     neighbor = machine_model.state_home() / "pages" / "invisible"
@@ -728,7 +728,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
         {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
     declare_work(neighbor, "measuring", ts=cleanup_model.now_iso())
-    hosting_model.start_server(neighbor, standing=True, harness=None)
+    hosting_model.start_server(neighbor, persistent=True, harness=None)
 
     def rows():
         return presence_model.other_leaves(page_dir)

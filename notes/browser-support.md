@@ -117,7 +117,7 @@ what fails and what still works.
   even while the child already owns focus. Native dialog close can return focus
   after the parent has reclaimed input, including into another modal that escapes
   ancestor inertness. Temporarily making the opening layer, or the document and
-  standing modal roots during close, inert prevents these transfers before they
+  open modal roots during close, inert prevents these transfers before they
   occur. Leaf then places its own intended arrival without native scrolling.
 - **Reproduction:** serve a window sample with a tall body, a focusable SVG
   link, a dialog containing an autofocus input, and a popover containing an

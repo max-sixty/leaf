@@ -10,6 +10,14 @@
  * x-refers). This producer checks only what needs the values themselves, such as a
  * range value against its bounds or a choice control's value among its choices. */
 const own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
+// A control stands in the rail as a direct child, or where the preview's markup puts
+// it, beside the item it changes (x-within); a nested playground's are its own.
+const ownControls = (host, preview) => [
+  ...own(host, "lf-playground-control"),
+  ...[...(preview?.querySelectorAll("lf-playground-control") ?? [])].filter(
+    (control) => control.parentElement.closest("lf-playground") === host,
+  ),
+];
 const COPY_LABELS = [
   ["rest", "Copy instruction"],
   ["success", "Copied"],
@@ -17,10 +25,10 @@ const COPY_LABELS = [
 ];
 
 function render(host, { tabStore, offer, keeps }) {
-  const controls = own(host, "lf-playground-control");
   const presets = own(host, "lf-playground-preset");
   const outputs = own(host, "lf-playground-output");
   const previews = own(host, "lf-playground-preview");
+  const controls = ownControls(host, previews[0]);
   if (!controls.length || outputs.length !== 1 || previews.length !== 1)
     throw new Error("playground needs controls, one preview and one output");
   const output = outputs[0],
@@ -149,12 +157,13 @@ function render(host, { tabStore, offer, keeps }) {
     copy = null,
     reset = null;
   if (interactive) {
+    const railed = controls.filter((control) => control.parentElement === host);
     const panel = node("div", "lf-playground-controls");
     const panelTitle = node("p", "lf-playground-controls-title", "Controls");
     panelTitle.id = `${host.id}-controls-title`;
     panel.setAttribute("role", "group");
     panel.setAttribute("aria-labelledby", panelTitle.id);
-    panel.append(panelTitle, ...controls);
+    panel.append(panelTitle, ...railed);
     for (const control of controls) {
       const name = control.getAttribute("name"),
         kind = control.getAttribute("kind"),
@@ -203,7 +212,9 @@ function render(host, { tabStore, offer, keeps }) {
     }
     let presetBar = null;
     if (presets.length) {
-      presetBar = node("header", "lf-playground-presets");
+      // The presets head the rail's controls, or are the whole pane when every
+      // control stands in the preview.
+      presetBar = node(railed.length ? "header" : "div", "lf-playground-presets");
       const title = node("span", "lf-playground-presets-title", "Starting points");
       title.id = `${host.id}-presets-title`;
       presetBar.setAttribute("role", "group");
@@ -256,9 +267,16 @@ function render(host, { tabStore, offer, keeps }) {
     const previewBody = node("div", "lf-playground-preview-body");
     previewBody.append(preview);
     const split = node("div", "lf-playground-split");
+    // The rail's controls pane holds the controls written there and the presets; a
+    // playground whose every control stands in its preview and that offers no preset
+    // has none.
     split.append(
       pane("preview", "Preview", null, previewBody),
-      pane("controls", "Controls", presetBar, panel),
+      ...(railed.length
+        ? [pane("controls", "Controls", presetBar, panel)]
+        : presetBar
+          ? [pane("controls", "Controls", null, presetBar)]
+          : []),
       pane(
         "instruction",
         "Instruction to agent",

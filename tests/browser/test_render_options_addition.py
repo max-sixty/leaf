@@ -218,7 +218,7 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
 
     The press paints that option before the log has answered, so the words have moved and
     the box they came from is empty in that same turn; a user who saw both would read
-    their own answer as still unsent. The generation is standing rather than settled, and
+    their own answer as still unsent. The generation is open rather than settled, and
     the refusal shows the difference. It takes the option away and gives the words back,
     out of a record that never left the store.
     """

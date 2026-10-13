@@ -103,10 +103,10 @@ def arrival_findings(browser, url):
     write and cannot fix.
 
     What it reads: a fresh context holds nothing, so every other reading in the suite
-    is of a first visit — the thread panel shut, no drawer standing, design mode off —
+    is of a first visit — the thread panel shut, no drawer open, design mode off —
     and each of those is something a user turns on once and gets back on every load
     afterwards. That left the restores as the one road onto a page with nothing
-    watching it, and a drawer someone had left standing came up as a ReferenceError
+    watching it, and a drawer someone had left open came up as a ReferenceError
     instead of a page: it was put up by code running while the runtime was still
     evaluating, which could reach almost nothing. It reached the user, who reported
     it.

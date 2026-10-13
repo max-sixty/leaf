@@ -1,4 +1,4 @@
-/* The durable provenance a standing unit carries, derived from the same values that
+/* The durable provenance a unit in force carries, derived from the same values that
    render its widget state.
 
    Each provenance channel gets one reading on a target: independent user verbs
@@ -41,7 +41,7 @@ test("user, reported and restated origins stand separately on one unit", () => {
   ]);
 });
 
-test("a recorded verb standing at its authored value overrides nothing", () => {
+test("a recorded verb in force at its authored value overrides nothing", () => {
   const record = { kind: "value", attr: "status" };
   const authored = new Map([
     [

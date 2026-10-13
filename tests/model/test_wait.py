@@ -274,7 +274,7 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
             "bind": "127.0.0.1",
             "port": available_loopback_port(),
             "enabled": True,
-            "lifetime": "standing",
+            "lifetime": "persistent",
         },
     )
     session_model.cmd_waiting(page_dir, "review the page")
@@ -318,7 +318,7 @@ def test_a_revival_that_does_not_hold_ends_the_wait(
             "bind": "127.0.0.1",
             "port": available_loopback_port(),
             "enabled": True,
-            "lifetime": "standing",
+            "lifetime": "persistent",
         },
     )
     session_model.cmd_waiting(page_dir, "review the page")
@@ -671,7 +671,7 @@ def test_session_end_cannot_be_overtaken_by_wait_revival(claimed, spawn):
 def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(
     claimed, comment_once_served
 ):
-    """A standing page comes back standing. The lifetime is the page's record
+    """A persistent page comes back persistent. The lifetime is the page's record
     rather than the reviving process's, so the restarts a page doesn't choose —
     a crash, the revival a `leaf wait` makes under it — leave it as the serve
     that started it declared, and `leaf server stop` is still the one thing that
@@ -685,16 +685,16 @@ def test_a_revived_server_keeps_the_lifetime_it_was_serving_under(
             "bind": "127.0.0.1",
             "port": available_loopback_port(),
             "enabled": True,
-            "lifetime": "standing",
+            "lifetime": "persistent",
         },
     )
     comment_once_served(claimed)
     assert session_model.cmd_wait(claimed) == 0
     # The reviving session did claim the page, so a lifetime read off this
-    # launch would have said "session" — the claim is what the standing
+    # launch would have said "session" — the claim is what the persistent
     # record has to outrank.
     assert service_model.page_claim(claimed)["id"] == "s1"
-    assert files_model.read_json(claimed / "service.json")["lifetime"] == "standing"
+    assert files_model.read_json(claimed / "service.json")["lifetime"] == "persistent"
 
 
 def test_wait_ends_when_the_leaf_does(page_dir, capsys, snapshot):

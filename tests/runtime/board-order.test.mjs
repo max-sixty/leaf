@@ -1,7 +1,7 @@
 /* A position record places its unit on a coordinate of its own.
 
    Each card's latest move stands at its own fold coordinate, and undo withdraws one of
-   them. The container order has to come out of those standing moves alone, whichever
+   them. The container order has to come out of those moves in force alone, whichever
    others stand beside them: an index counted the siblings another move had left, so
    withdrawing that move re-read the index against a different column. Each gesture here
    is dispatched the way lf-board does it, as `rankAt` over the state the user was
@@ -184,7 +184,7 @@ test("a move a later revision absorbed leaves the order that revision wrote", ()
 });
 
 // The position fold's cases `test_interact_document.py` holds `folded_positions` to:
-// authored containers and the standing moves, in log order, give each container's order.
+// authored containers and the moves in force, in log order, give each container's order.
 for (const { name, authored: containers, moves, order } of cases.folds) {
   test(`the shared fold: ${name}`, () => {
     const ranks = Object.fromEntries(

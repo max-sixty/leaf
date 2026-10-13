@@ -260,7 +260,7 @@ function stepReading(amount, unit, coveringAuxiliaryScroller) {
   if (first) stepAlong(first.box, amount, unit, first);
 }
 // The step walks the chain from `from` to the first box that can take it. A box that
-// contains its overscroll, or one a standing modal leaves outside, ends the walk. A
+// contains its overscroll, or one an open modal leaves outside, ends the walk. A
 // sample's chain runs on past its document into the containing page, as the wheel's
 // does, so a chain spent without either boundary passes the step on, and the
 // containing page's navigation takes it up from the frame; outside a sample the notice

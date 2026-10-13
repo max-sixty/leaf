@@ -258,7 +258,7 @@ export function createMarginProjection({
   let refoldQueued = false;
   // An explicit mode can focus one contribution inside the target's existing cluster.
   // The rail then shows that owner's complete control set without spending margin entries on
-  // standing readings or unrelated actions; Page Map still reads the whole entry.
+  // readings in force or unrelated actions; Page Map still reads the whole entry.
   let expandedOptionsOwner = null;
   let hoveredHost = null;
   let highlighted = null;
@@ -388,7 +388,7 @@ export function createMarginProjection({
           });
           return options.visible.length + (options.spill ? 1 : 0) + 1;
         },
-        // Whether the pin, standing folded, shows its options beside the toggle. The
+        // Whether the pin, while folded, shows its options beside the toggle. The
         // row's own `data-lf-options-open` describes the face it stands in now, and an
         // unfolded face shows its peers inline, so a row this pass folds reads it open.
         open: () =>
@@ -1252,7 +1252,7 @@ export function createMarginProjection({
   }
 
   // The thread view, for the owners that open and close it from outside. What
-  // takes it off again is the Page Map's own Escape step, read off the card standing
+  // takes it off again is the Page Map's own Escape step, read off the card that is open
   // rather than off whatever put it up. The view's own close control, pressed by
   // pointer, hands focus to the margin entry the view hangs from, since that is where
   // the pointer is.
@@ -1486,7 +1486,7 @@ export function createMarginProjection({
   // same frame. comment-placement.js clears the renewed row only where the full
   // preferred message width fits beyond it; otherwise the message may cover it.
 
-  // Standing selection belongs to the reading, not to focus or a particular feature's
+  // The selection belongs to the reading, not to focus or a particular feature's
   // control. Resolve it through the same inventory that decides which reading is the
   // visible marker and which is an unfolded option, then paint one shared state on the
   // compact projection. An open disclosure continues to use aria-expanded instead.

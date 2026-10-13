@@ -211,7 +211,11 @@ export default class extends HTMLElement {
       this.addEventListener("mousedown", (event) => {
         if (event.target.closest(".lf-playground-control-label")) return;
         const pressed = event.target.closest(ONE_PRESS);
-        if (pressed?.closest("lf-playground") === this && this.#standsInPreview()) {
+        if (
+          pressed?.closest("lf-playground") === this &&
+          !this.#preview.contains(pressed) &&
+          this.#standsInPreview()
+        ) {
           const selection = getSelection();
           if (selection && !this.#preview.contains(selection.focusNode))
             selection.removeAllRanges();
@@ -274,9 +278,12 @@ export default class extends HTMLElement {
   // Readable labels allow the browser's selection gesture. Text and colour controls
   // take focus to be operated, and a key reaches any control by moving focus onto it
   // first, so the keyboard still acts where it stands.
+  // A control written in the preview is not a candidate: standing on one is standing
+  // on a control.
   #standsInPreview() {
     let at = focused(document);
-    if (!this.#preview.contains(at)) return false;
+    if (!this.#preview.contains(at) || at.closest("lf-playground-control"))
+      return false;
     // A sample's frame holds focus for its child page, which may stand on nothing.
     while (at?.contentDocument) at = at.contentDocument.activeElement;
     if (at?.localName === "iframe")

@@ -961,9 +961,9 @@ main {
   }
   /* A box allocated the column widens to the widest allocation among its own blocks, so
    * an Ask or a callout around a chart or table that declares `wide` or `available`
-   * frames that block rather than clipping it to the measure. On a column page the box
-   * stays in the column and the block breaks out of it (layouts.css); in a wider flow
-   * the box takes the room. Only its children count: a block inside one of them, such as
+   * frames that block rather than clipping it to the measure. On a column page the block
+   * breaks out of the column (layouts.css), and an Ask, which draws no frame of its own,
+   * spans it (ask.css); in a wider flow the box takes the room. Only its children count: a block inside one of them, such as
    * a table in an option or a folded disclosure, is held to that child's width, so an
    * option list keeps the measure whatever one option holds. */
   :where([data-lf-space="column"]:has(> [data-lf-space="wide"])) {

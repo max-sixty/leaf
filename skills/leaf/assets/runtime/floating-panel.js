@@ -14,18 +14,19 @@
  *   user folds it from the leaf's menu; a press on the leaf unfolds it, and it stays as
  *   it was left across pages (`rest`).
  * - **The row**: the leaf, the comment field, and marks with counts for Questions and
- *   Threads, and on a desk a pen for annotating. The empty field says what the agent is
- *   doing or wants, or what a passing notice says, where a placeholder would say
- *   "Comment"; in a thread it says whose turn it is. Clicking in opens one quiet line
- *   above it naming where the words go.
+ *   Threads. The empty field says what the agent is doing or wants, or what a passing
+ *   notice says, where a placeholder would say "Comment"; in a thread it says whose turn
+ *   it is. Clicking in opens one quiet line above it naming where the words go.
  * - **Opened**: a view above the same row (Questions, Threads, a thread, Versions, or a
  *   group of the page's controls) with where the user is at its top edge. It lasts while
  *   it is used: Escape or a press on the page puts it away.
  *
  * The leaf's menu is a small list above the leaf holding the rest of the page's
- * controls, each one line, with its key where it has one. The field the user clicks in
- * is the field they write in: a page comment where no thread is open, a reply where one
- * is. Each destination keeps its own native editor (its draft, caret and send), and the
+ * controls, each one line, with its key where it has one, and a chevron on a row that
+ * opens a list of its own (Versions, and the groups: Navigate, Annotations, About). A
+ * row the keyboard reaches and the menu has no use for leaves it (banner-toolbar.js,
+ * the `keys` group). The field the user clicks in is the field they write in: a page
+ * comment where no thread is open, a reply where one is. Each destination keeps its own native editor (its draft, caret and send), and the
  * panel stands the current one in the field's place, so words never move between
  * editors.
  *
@@ -556,11 +557,19 @@ export function createFloatingPanel({
   });
 
   // ---------- the leaf's menu ----------
+  // A row that opens a list of its own ends in a chevron, past its value, so the user
+  // knows before pressing that it leads further rather than acting.
   const menuItem = (
     label,
     end,
     press,
-    { urgent = false, disabled = false, role = "menuitem", row = null } = {},
+    {
+      urgent = false,
+      disabled = false,
+      role = "menuitem",
+      row = null,
+      opens = false,
+    } = {},
   ) =>
     html`<button
       type="button"
@@ -569,18 +578,21 @@ export function createFloatingPanel({
       class="lf-fp-item"
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
+      ?data-opens=${opens}
       @click=${press}
     >
-      <span class="lf-fp-label">${label}</span>${end}
+      <span class="lf-fp-label">${label}</span
+      ><span class="lf-fp-end"
+        >${end}${opens ? iconTemplate("next", "lf-fp-chevron") : nothing}</span
+      >
     </button>`;
-  // A row's end says its value, or else its shortcut where a keyboard is there to press
-  // it.
+  // A row's end says its value, then its shortcut where a keyboard is there to press it.
   const rowEnd = (entry) =>
-    entry.value
-      ? html`<span class="lf-fp-value">${entry.value}</span>`
-      : entry.shortcut && advertisesKeys()
+    html`${entry.value ? html`<span class="lf-fp-value">${entry.value}</span>` : nothing}${
+      entry.shortcut && advertisesKeys()
         ? html`<kbd class="lf-fp-key">${entry.shortcut}</kbd>`
-        : nothing;
+        : nothing
+    }`;
   function rowFor(entry) {
     const view = OWN_VIEWS[entry.key];
     return menuItem(
@@ -600,6 +612,7 @@ export function createFloatingPanel({
         disabled: entry.disabled,
         role: menuOpen ? "menuitem" : null,
         row: entry.key,
+        opens: Boolean(view),
       },
     );
   }
@@ -640,8 +653,11 @@ export function createFloatingPanel({
       ${groups.map((group) =>
         menuItem(
           GROUPS[group],
-          html`<span class="lf-fp-value">${groupValue(group)}</span>`,
+          groupValue(group)
+            ? html`<span class="lf-fp-value">${groupValue(group)}</span>`
+            : nothing,
           () => open({ view: "group", group }),
+          { opens: true },
         ),
       )}
       <hr />
@@ -660,7 +676,34 @@ export function createFloatingPanel({
     return html`<div class="lf-fp-list">
       ${rows()
         .filter((entry) => entry.group === group && listed(entry))
-        .map(rowFor)}
+        .map((entry) => (entry.copies ? copyRow(entry) : rowFor(entry)))}
+    </div>`;
+  }
+  // A row whose press copies a text, such as the share link, shows that text for the
+  // user to select as well, with its press beside it, since a browser offers the
+  // clipboard only to a secure context (https or localhost) and may refuse a write; the
+  // view stays open across the press, so the text is still there if the copy failed.
+  // Its value, which a one-line row would end with, says beneath it what the text is.
+  function copyRow(entry) {
+    const field = `lf-fp-copy-${entry.key}`;
+    return html`<div class="lf-fp-copy">
+      <label class="lf-fp-copy-label" for=${field}>${entry.label}</label>
+      <input
+        id=${field}
+        class="lf-fp-copy-text"
+        type="url"
+        readonly
+        .value=${entry.copies}
+        @focus=${(event) => event.target.select()}
+      /><button
+        type="button"
+        class="lf-fp-quiet"
+        ?disabled=${entry.disabled}
+        @click=${() => entry.press(heldStanding)}
+      >
+        Copy
+      </button>
+      ${entry.value ? html`<p class="lf-fp-copy-note">${entry.value}</p>` : nothing}
     </div>`;
   }
 
@@ -1383,15 +1426,7 @@ export function createFloatingPanel({
         >
           ${iconTemplate("comment", "lf-action-icon")}<span class="lf-fp-num"
             >${openCount() || ""}</span
-          ><span class="lf-fp-news" ?hidden=${!news}></span></button
-        ><button
-          type="button"
-          class="lf-fp-chip lf-fp-annotate"
-          aria-pressed=${String(top?.view === "group" && top.group === "annotate")}
-          aria-label="Annotate"
-          @click=${() => open({ view: "group", group: "annotate" })}
-        >
-          ${iconTemplate("edit", "lf-action-icon")}
+          ><span class="lf-fp-news" ?hidden=${!news}></span>
         </button>`,
       quick,
     );
@@ -1553,8 +1588,8 @@ export function createFloatingPanel({
       { capture: true },
     );
 
-  // Version travel (Shift+V, `g V`, the picker's own press) opens the versions menu,
-  // whichever route asks; in this chrome that opening is the panel's Versions view.
+  // Version travel (`g V`, the picker's own press) opens the versions menu, whichever
+  // route asks; in this chrome that opening is the panel's Versions view.
   versionMenu.addEventListener("beforetoggle", (event) => {
     if (event.newState !== "open") return;
     event.preventDefault();

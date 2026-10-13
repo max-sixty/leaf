@@ -40,9 +40,10 @@
  *
  * Each contribution also says what it is as one line of a menu (`row`): its `label`,
  * a terse `value` such as a count, the `shortcut` that reaches it from the keyboard, spelled
- * as a key chip spells it, the `group` of controls it belongs with, and the `press` that
- * acts as the control would, given the place the presentation held when the user opened
- * it (history.js, `readPlace`). The floating panel (floating-panel.js) draws
+ * as a key chip spells it, the `group` of controls it belongs with, the text its press
+ * copies where it copies one (`copies`), which a presentation shows for the user to
+ * select as well, and the `press` that acts as the control would, given the place the
+ * presentation held when the user opened it (history.js, `readPlace`). The floating panel (floating-panel.js) draws
  * the run from these rows rather than from the native nodes, so a control appears
  * there without the panel naming it. `bannerRows` reads the run's rows in order, and
  * `watchBannerRows` calls back after each change to which stand.
@@ -105,8 +106,11 @@ overflowBtn.append(iconElement("more", "lf-action-icon"));
 
 const SEATS = ["row", "menu", "gesture"];
 // What a row is about, which decides where a menu built from rows puts it: on the menu
-// itself (`page`), or behind its Navigate, Annotations or About entry.
-const ROW_GROUPS = Object.freeze(["page", "navigate", "annotate", "about"]);
+// itself (`page`), behind its Navigate, Annotations or About entry, or nowhere (`keys`):
+// a convenience the keyboard reaches, such as Resume writing, whose key and line in the
+// command reference stand for it there. The bars' More lists every row, as a finger's
+// way to each.
+const ROW_GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
 // The render-blocking theme decides posture once, before the banner arrives.
 const bannerFace = () =>
   getComputedStyle(document.documentElement)
@@ -180,6 +184,7 @@ const rowOf = (entry) => {
     value: read(entry.row.value) ?? "",
     shortcut: read(entry.row.shortcut) ?? "",
     group: entry.row.group,
+    copies: read(entry.row.copies) ?? "",
     urgent: entry.urgent,
     gesture: seatOf(entry) === "gesture",
     disabled: entry.focusTarget.matches(":disabled, [aria-disabled='true']"),

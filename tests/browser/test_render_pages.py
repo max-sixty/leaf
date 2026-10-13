@@ -1407,9 +1407,11 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     """On a sidebar page an Ask and a callout keep the prose's width and left edge, so
     the Ask's ring and pin stand beside what it asks, as on a column page. One granted
     `data-width`, or holding a block of its own that declares one, takes that room for
-    the evidence. On a column page the Ask stays in the column and its wide block breaks
-    out of it, as the block would from a section; the table's twelve columns need the
-    room, since a table granted it takes only what its columns need."""
+    the evidence. On a column page the wide block breaks out of the column, as it would
+    from a section, and the Ask spans it, so the ring it wears goes round the block
+    rather than cutting across it, while its heading keeps the column; the table's
+    twelve columns need the room, since a table granted it takes only what its columns
+    need."""
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     ask = (
@@ -1453,9 +1455,12 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     column = open_page(browser, serve(leaf_page("Column", body)))
     resized(column, 1726, 900)
     at = column.evaluate(measure)
-    assert at["holds"]["width"] == at["prose"]["width"] == 720, at
     assert at["holds-t"]["width"] == 1080, at
     assert at["holds-t"]["left"] < at["prose"]["left"], at
+    assert at["holds"] == at["holds-t"], at
+    heading = column.locator("#holds h3").bounding_box()
+    assert round(heading["x"]) == at["prose"]["left"], (heading, at)
+    assert at["ask"] == at["prose"], at
 
 
 NOTE = '<aside class="sidenote" id="note"><p>A note that needs a sidenote.</p></aside>'

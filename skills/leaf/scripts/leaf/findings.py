@@ -2,10 +2,12 @@
 
 Every check behind `page check` and `package check --render` reports through this one
 type: the markup checks, the page-code run, the render gate in each color scheme and
-viewport, its width sweep and advice, and the widget quality report. Each is produced
-where it is detected, the browser probes included, which return records rather than
-sentences, and its words are written here and nowhere else. The command boundary
-prints `str(finding)` for a reader and `finding.json()` for `--json`; every
+viewport, its width sweep and advice, and the widget quality report. The suite's
+browser fixture reports through it too: what the browser said, and what its health
+sensors (`tests/*_watch.js`) found. Each is produced where it is detected, the browser
+probes and sensors included, which return records rather than sentences, and its words
+are written here and nowhere else. The command boundary prints `str(finding)` for a
+reader and `finding.json()` for `--json`, and a failing test prints the words; every
 other reader, the gate's retry policy and the suite among them, reads the fields.
 
 - `code` names what was found, and decides the words (`_TEXT`).
@@ -288,6 +290,21 @@ def _size(box: dict) -> str:
     return f"{round(box['width'])}x{round(box['height'])}"
 
 
+def _box(box: dict) -> str:
+    return f"{round(box['left'])},{round(box['top'])} {_size(box)}"
+
+
+def _by(v: dict) -> str:
+    """How far a shift sensor's node moved, and what else its frame moved."""
+    left, top = v["by"]
+    beside = f"; the same frame moved {', '.join(v['beside'])}" if v["beside"] else ""
+    return f" by ({left}, {top})px{beside}"
+
+
+def _shift_evidence(v: dict) -> str:
+    return f"\nshift evidence: {json.dumps(v['evidence'], ensure_ascii=False)}"
+
+
 # The words for each code, from the finding's `at` and `values`. A console code's
 # words are what the console said; read by the gate in a color scheme, beside findings
 # of its own, it says "console: " first.
@@ -315,6 +332,36 @@ _TEXT = {
     ),
     "main-unlaid": lambda at, v: (
         "pre-upgrade: authored main has no measurable pre-upgrade layout"
+    ),
+    # The suite's health sensors (`tests/*_watch.js`), each naming a node as the
+    # sensors do (`textarea#field`).
+    "moved-without-input": lambda at, v: (
+        f"{v['node']} moved without input{_by(v)}{_shift_evidence(v)}"
+    ),
+    "typing-moved": lambda at, v: (
+        f"typing in {v['field']} moved {v['node']}{_by(v)}; the key found"
+        f" {_box(v['found'])}, the frame painted {_box(v['painted'])}"
+        f"{_shift_evidence(v)}"
+    ),
+    "shift-watch-missed": lambda at, v: (
+        f"shift watch missed a change to {v['node'] or "the page's nodes"}"
+        f" ({', '.join(v['changed'])})"
+        + (
+            f" and to {v['others']} other node{'' if v['others'] == 1 else 's'}"
+            if v["others"]
+            else ""
+        )
+        + ": a source of change is missing from the sensor's announcements"
+        ' (shift_watch.js, "Unchanged frames")'
+    ),
+    "unchanged-write": lambda at, v: (
+        f"unchanged write: children of {v['node']}"
+        if v["what"] == "children"
+        else f"unchanged write: {v['what']} on {v['node']}"
+    ),
+    "words-left-screen": lambda at, v: (
+        "typed words left the screen without a key or press:"
+        f" {json.dumps(v['words'], ensure_ascii=False)} in {v['place']}"
     ),
     # The gate's own run, where it could not read the page.
     "gate-failed": lambda at, v: (

@@ -260,7 +260,7 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
         for event in events_model.read_events(serve.page_dir)
         if event.get("kind") == "action" and event.get("widget") == "jobs"
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, serve):

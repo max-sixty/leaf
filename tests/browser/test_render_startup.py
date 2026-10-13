@@ -30,6 +30,7 @@ from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import user_views as user_views_model
+from leaf.findings import Finding
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
@@ -88,6 +89,7 @@ from render_harness import (
     expect_asks_answered,
     expect_banner_control_offered,
     holding,
+    is_problem,
     leaf_page,
     nudge,
     open_page,
@@ -98,8 +100,10 @@ from render_harness import (
     refuse,
     reported_browser_errors,
     round_trip,
+    said,
     select,
     sending,
+    shown,
     stamp_page,
     stored_draft_text,
     ticked,
@@ -166,7 +170,9 @@ window.authoredModuleRan = true;
         == "blocked"
     )
     errors = consume_browser_errors(page, 'MIME type of "application/json"')
-    assert any('MIME type of "application/json"' in error for error in errors), errors
+    assert any(
+        is_problem(error, 'MIME type of "application/json"') for error in errors
+    ), errors
     framed = page.locator("body").evaluate(
         """async (body, url) => {
               const frame = document.createElement('iframe');
@@ -227,7 +233,7 @@ def test_a_live_page_refuses_a_same_site_parent_at_another_port(browser, serve):
     assert TOKEN in response.request.all_headers()["cookie"]
     assert "t=" not in response.url
     errors = consume_browser_errors(parent, "Content Security Policy")
-    assert any("frame-ancestors 'self'" in error for error in errors), errors
+    assert any(is_problem(error, "frame-ancestors 'self'") for error in errors), errors
     assert parent.locator("#blocked-leaf").evaluate(
         "frame => frame.contentDocument === null"
     )
@@ -406,7 +412,11 @@ def test_a_website_example_shows_its_public_session_reference(browser, serve):
 @pytest.mark.parametrize(
     ("response", "status_words", "problem"),
     [
-        ({"status": 503, "body": ""}, "Server offline — reconnecting", "503"),
+        (
+            {"status": 503, "body": ""},
+            "Server offline — reconnecting",
+            {"code": "failed-load", "status": 503},
+        ),
         (
             {"status": 200, "body": "{"},
             "Page couldn't apply current state",
@@ -3038,7 +3048,7 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     expect(page.locator(".lf-status-detail")).not_to_contain_text(
         "Server offline — reconnecting"
     )
-    consume_browser_errors(page, "503")
+    consume_browser_errors(page, {"code": "failed-load", "status": 503})
 
 
 def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
@@ -3886,7 +3896,8 @@ def test_the_tab_wears_what_the_banner_says(browser, serve, tmp_path, dead_pid):
             # no tone on it, and the reason it refused is the only thing that says why.
             found = page.evaluate(TAB_AND_DOT, want)
             pytest.fail(
-                f"the tab never said {why} as the banner does: {found} {page.lf_errors}"
+                f"the tab never said {why} as the banner does: {found}\n"
+                + shown(page.lf_errors)
             )
 
     def declare(state, **status):
@@ -4364,9 +4375,12 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       return replies.replyIsEditing(key);
     }"""
     assert page.evaluate(editing, roots[0])
-    retired_words = (
-        'typed words left the screen without a key or press: "Keep this unsent reply." in '
-        + input.evaluate("field => window.lfPlace(field)")
+    retired_words = Finding(
+        "words-left-screen",
+        values={
+            "words": "Keep this unsent reply.",
+            "place": input.evaluate("field => window.lfPlace(field)"),
+        },
     )
     strip = broken.locator(".lf-react-strip")
     trigger = strip.locator(".lf-react-trigger")
@@ -5385,7 +5399,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
         "kept": 2,
     }
     errors = consume_browser_errors(page, "paint failed")
-    reported = sorted(error.splitlines()[0] for error in errors)
+    reported = sorted(said(error) for error in errors)
     assert reported == sorted(
         f"leaf: paint failed for div#failing-{name}: {name} paint failed"
         for name in ["watchAsks", "watchReports", "watchHistory"]
@@ -5743,18 +5757,19 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     assert result["afterMount"] == result["before"], result
     assert result["afterUpdate"] == result["version"], result
     errors = consume_browser_errors(page, "paint failed")
-    assert {error.splitlines()[0] for error in errors} == {
+    assert {said(error) for error in errors} == {
         f"leaf: paint failed for lf-feed#deployments: {message} projection failed"
         for message in ("mount", "update", "synchronous update")
     }
-    assert len(errors) == 3 and all("\n" in error for error in errors), errors
+    texts = [error.values["text"] for error in errors]
+    assert len(texts) == 3 and all("\n" in text for text in texts), texts
     told(page)
     agent_errors = [
         event["text"]
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "error"
     ]
-    assert set(agent_errors) == {error.removeprefix("leaf: ") for error in errors}
+    assert set(agent_errors) == {text.removeprefix("leaf: ") for text in texts}
 
 
 def test_widget_errors_keep_exception_evidence(browser, serve):
@@ -5779,8 +5794,10 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
     errors = consume_browser_errors(page, "projection rejected")
     assert len(errors) == 1, errors
     assert any(
-        error.startswith('leaf: <lf-feed id="deployments"> failed: projection rejected')
-        and "widgetProjection" in error
+        said(error).startswith(
+            'leaf: <lf-feed id="deployments"> failed: projection rejected'
+        )
+        and "widgetProjection" in error.values["text"]
         for error in errors
     ), errors
     told(page)

@@ -706,6 +706,7 @@ leaf-text.lf-fab-input,
   min-width: 0;
   margin: var(--lf-msg-body-gap) 0 0;
   overflow-wrap: anywhere;
+  --lf-measure: var(--col);
 }
 :is(.lf-msg-text, .lf-msg-editor) {
   display: block;

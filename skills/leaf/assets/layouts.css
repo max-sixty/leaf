@@ -15,23 +15,13 @@
   inherits: false;
 }
 @layer lf-layouts {
-  /* A page Layout owns the page's geometry, the body's included, so a page with no
-   * Layout keeps the browser's. A page Layout takes the window from its edges: the body
-   * drops its margin and, on a live page other than a block sample (whose frame takes
-   * the body's height, theme.css), fills the window's height. `main` trims its
-   * first and last blocks' margins and leaves its own room above and below them
-   * (`--page-pad-start`, `--page-pad-end`); each Layout sets its gutter. */
-  body:has(> main:is(.layout-column, .layout-sidebar, .layout-workspace)) { margin: 0; }
-  @media screen {
-    html[data-lf-live]:not([data-lf-sample-block])
-      body:has(> main:is(.layout-column, .layout-sidebar, .layout-workspace)) {
-      min-height: 100%;
-    }
-  }
-  main:is(.layout-column, .layout-sidebar, .layout-workspace) {
-    --lf-block-frame: trim;
-    padding-block: var(--page-pad-start) var(--page-pad-end);
-  }
+  /* Each page Layout below owns its page's whole geometry, the body's included, so a
+   * page with no Layout keeps the browser's. A Layout takes the window from its edges:
+   * the body drops its margin and, on a live page other than a block sample (whose frame
+   * takes the body's height, theme.css), fills the window's height. On `main` it sets its
+   * gutter, its room above and below its blocks, whether its first and last blocks'
+   * margins trim, and the widths text and media keep (`--lf-measure`, `--lf-media-max`),
+   * which theme.css reads at the base layer, where a widget's own rule outranks them. */
   /* The pane role's grammar (theme.css, where its look and the rest of its contract
    * are): which row each child stands in, and a body held to the pane's width with no
    * margin of its own. It is not a Layout a page pulls on, but it resets what a widget
@@ -66,10 +56,20 @@
    *
    * The free room is the shell's (100cqi), so the column is a page's shape, on `main`,
    * and arranges no other box. */
+  body:has(> main.layout-column) { margin: 0; }
+  @media screen {
+    html[data-lf-live]:not([data-lf-sample-block]) body:has(> main.layout-column) {
+      min-height: 100%;
+    }
+  }
   main.layout-column {
     max-width: var(--col);
     margin-inline: auto;
     padding-inline: var(--col-pad);
+    padding-block: var(--page-pad-start) var(--page-pad-end);
+    --lf-block-frame: trim;
+    --lf-measure: var(--col);
+    --lf-media-max: 100%;
     --lf-width: min(var(--col), max(0px, 100cqi - 2 * var(--col-pad)));
     --lf-beside: calc((100cqi - var(--lf-width)) / 2);
     --lf-shift: var(--lf-column-shift, 0px);
@@ -488,8 +488,18 @@
    * board declaring the width its columns need wraps the track below it rather than
    * clipping. A header or footer takes the whole row. The items' own block margins go,
    * since flex margins don't collapse into the gap. */
+  body:has(> main.layout-sidebar) { margin: 0; }
+  @media screen {
+    html[data-lf-live]:not([data-lf-sample-block]) body:has(> main.layout-sidebar) {
+      min-height: 100%;
+    }
+  }
   main.layout-sidebar {
     padding-inline: clamp(var(--col-pad), 4cqi, 64px);
+    padding-block: var(--page-pad-start) var(--page-pad-end);
+    --lf-block-frame: trim;
+    --lf-measure: var(--col);
+    --lf-media-max: 100%;
     max-width: var(--wide-page-max);
     margin-inline: auto;
     --lf-room: 100%;
@@ -565,9 +575,18 @@
    * sidebar page's gutters held them to 1,472px of the 1,896px this leaves. The type is the
    * theme's: a workspace usually takes working density (`.density-working`, theme.css),
    * which the Layout neither sets nor reads. */
+  body:has(> main.layout-workspace) { margin: 0; }
+  @media screen {
+    html[data-lf-live]:not([data-lf-sample-block]) body:has(> main.layout-workspace) {
+      min-height: 100%;
+    }
+  }
   main.layout-workspace {
     padding-inline: 12px;
-    padding-block-start: var(--sp-2);
+    padding-block: var(--sp-2) var(--page-pad-end);
+    --lf-block-frame: trim;
+    --lf-measure: var(--col);
+    --lf-media-max: 100%;
     --lf-room: 100%;
   }
   /* The header takes the window's height before the panes do, so it is one row: the

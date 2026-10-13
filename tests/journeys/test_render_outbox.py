@@ -86,7 +86,9 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
     ]
     expect(pick).to_have_attribute("aria-checked", "true")
     expect(page.locator(".lf-status-text")).not_to_contain_text("Key refused")
-    consume_browser_errors(page, "401", "Leaf interaction log rejected")
+    consume_browser_errors(
+        page, {"code": "failed-load", "status": 401}, "Leaf interaction log rejected"
+    )
 
 
 def test_a_withdrawal_restores_what_still_stands_not_what_stood_then(browser, serve):

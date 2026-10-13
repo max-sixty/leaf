@@ -350,7 +350,7 @@ registerBannerControl({
   control: keyboardSettings,
   rank: BANNER_CONTROL_RANK.keyboard,
   seat: "menu",
-  row: { label: "Keyboard shortcuts", value: "?", group: "page" },
+  row: { label: "Keyboard shortcuts", shortcut: "?", group: "page" },
 });
 function advanceShortcutHelp() {
   if (!shortcutHelpAvailable() || shortcutBarIsExpanded) return openCompleteReference();

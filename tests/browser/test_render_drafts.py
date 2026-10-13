@@ -12,6 +12,7 @@ from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
+from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -1907,7 +1908,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     # The fixture deliberately removes the editor's subject. Consume that allowed
     # disappearance at the frame where the words watcher observes the removal.
     one_frame(page)
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
     page.evaluate(
         """() => {
           const {node, parent, next} = window.__lfEditingDraft;
@@ -2051,7 +2052,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
         {"value": sent},
         {"value": "Keep the revised unsent words."},
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, one_user):
@@ -2132,7 +2133,10 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     round_trip(first)
     # The forged selection is not the state's, so the `add` renders it away and the pick
     # that follows in the same task puts it back.
-    consume_browser_errors(first, "unchanged write: chosen on lf-option#job-mounts")
+    consume_browser_errors(
+        first,
+        {"code": "unchanged-write", "what": "chosen", "node": "lf-option#job-mounts"},
+    )
 
     moves = [
         event
@@ -2251,7 +2255,7 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == words
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_intent(
@@ -2286,7 +2290,7 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     expect(page.locator(".lf-notice")).to_have_text(
         "Couldn't send — refused before append"
     )
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
@@ -2328,7 +2332,7 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
     assert stored_draft_text(page, "general") == later
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 @pytest.mark.parametrize("reply_sent", [True, False], ids=["sent", "unsent"])
@@ -2421,12 +2425,8 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     # went, which is what the guard's report is about.
     consume_browser_errors(
         page,
-        "400",
-        *(
-            []
-            if reply_sent
-            else [f'typed words left the screen without a key or press: "{reply}"']
-        ),
+        {"code": "failed-load", "status": 400},
+        *([] if reply_sent else [{"code": "words-left-screen", "words": reply}]),
     )
 
 
@@ -2488,7 +2488,7 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
     assert sent["anchor"]["section"] == "p5"
     thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
     expect(thread.locator("leaf-text").first).to_have_js_property("value", reply)
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
@@ -2543,7 +2543,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == words
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
@@ -3355,7 +3355,9 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
                 },
             )
         expect(first.locator(".lf-notice")).to_contain_text("Couldn't send")
-        expected_error = f"400 {refused.value.url}"
+        expected_error = Finding(
+            "failed-load", values={"status": 400, "url": refused.value.url}
+        )
         first_errors = first.lf_errors
         first_errors.remove(expected_error)
         expect(first_say.locator("leaf-text")).to_have_js_property("value", newer or "")
@@ -3690,10 +3692,13 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     # and leaves it standing. `held_stale`'s refusal is lifted here rather than earlier,
     # with the older attempt in the log and the older generation still cached, which is
     # the only arrangement that asks anything.
-    accepted_words = (
-        f'typed words left the screen without a key or press: "{old}" in '
-        + stale_say.locator("leaf-text").evaluate("field => window.lfPlace(field)")
-    )
+    accepted_words = {
+        "code": "words-left-screen",
+        "words": old,
+        "place": stale_say.locator("leaf-text").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+    }
     stale_held.restore()
     told(stale)
     # The fixture blocked the real storage gesture, then explicitly accepted its
@@ -4448,7 +4453,7 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
         # Escape itself, active settlement, and every other field remain strict.
         errors = consume_browser_errors(
             page,
-            f'typed words left the screen without a key or press: "{words}" in leaf-text.lf-ui',
+            {"code": "words-left-screen", "words": words, "place": "leaf-text.lf-ui"},
         )
         assert len(errors) == 1
 
@@ -4840,9 +4845,7 @@ def test_replaced_reply_compositions_keep_their_carets_and_leave_commands(
     # its words and caret until the user selects its next route, so its words are off
     # the screen meanwhile.
     page.evaluate("() => window.lfWordsJudged()")
-    consume_browser_errors(
-        page, f'typed words left the screen without a key or press: "{words[0]}"'
-    )
+    consume_browser_errors(page, {"code": "words-left-screen", "words": words[0]})
     for root, word in zip(roots, words):
         box = page.locator(f'.lf-thread[data-id="{root}"] leaf-text')
         expect(box).to_have_js_property("value", word)
@@ -6227,7 +6230,7 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
     )
     errors = consume_browser_errors(page, "mechanical caret fixture failed")
     assert len(errors) == 1, errors
-    assert "Revision continuity failed" in errors[0], errors
+    assert "Revision continuity failed" in errors[0].values["text"], errors
     page.wait_for_function(
         "async()=> (await window.__lfRuntimeImport('/runtime/semantic-state.js')).readApplication().document.revision===2"
     )
@@ -6269,7 +6272,7 @@ def test_a_fresh_revision_caret_failure_does_not_strand_deferred_arrivals(
     assert page.evaluate("Boolean(window.__presentationDispatched)")
     page.wait_for_function("window.__deferredArrivalRan===true")
     assert len(errors) == 1, errors
-    assert "Revision continuity failed" in errors[0], errors
+    assert "Revision continuity failed" in errors[0].values["text"], errors
 
 
 def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, serve):
@@ -6302,7 +6305,7 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
     expect(draft_control(page, "retry", "first-draft")).to_be_visible()
     expect(draft_control(page, "cancel", "first-draft")).to_be_visible()
     assert page.locator("#following").bounding_box() == before
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, serve):

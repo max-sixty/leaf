@@ -62,8 +62,11 @@ def test_words_a_scroll_hides_fail(browser):
     judge_watches()
     consume_browser_errors(
         page,
-        'typed words left the screen without a key or press: "Half a thought"'
-        " in textarea#field",
+        {
+            "code": "words-left-screen",
+            "words": "Half a thought",
+            "place": "textarea#field",
+        },
     )
 
 
@@ -77,14 +80,14 @@ def test_words_a_scroll_hides_fail_after_moving_among_them(browser):
     page.keyboard.press("Shift")
     scrolled(page)
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 def test_words_a_scroll_clears_fail(browser):
     page = box_page(browser, "scroll-clears")
     scrolled(page)
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 @pytest.mark.parametrize("announced", [False, True])
@@ -104,9 +107,7 @@ def test_words_a_handler_clears_in_their_own_turn_fail(browser, announced):
     )
     page.locator("#field").press_sequentially("x")
     judge_watches()
-    consume_browser_errors(
-        page, 'typed words left the screen without a key or press: "x"'
-    )
+    consume_browser_errors(page, {"code": "words-left-screen", "words": "x"})
 
 
 def test_words_a_native_paste_observes_only_its_actual_editor_edit(browser, serve):
@@ -168,8 +169,11 @@ def test_words_a_native_paste_observes_only_its_actual_editor_edit(browser, serv
             judge_watches()
             consume_browser_errors(
                 page,
-                f'typed words left the screen without a key or press: "{words}" in '
-                f"leaf-text#field-{operation}",
+                {
+                    "code": "words-left-screen",
+                    "words": words,
+                    "place": f"leaf-text#field-{operation}",
+                },
             )
     finally:
         page.evaluate("""async () => {
@@ -238,7 +242,7 @@ def command_commits_only_its_edit(page, field, command):
         judge_watches()
         consume_browser_errors(
             page,
-            f'typed words left the screen without a key or press: "{words}" in {name}',
+            {"code": "words-left-screen", "words": words, "place": name},
         )
 
     write(field, "Keep these words")
@@ -293,7 +297,7 @@ def command_commits_only_its_edit(page, field, command):
     judge_watches()
     consume_browser_errors(
         page,
-        f'typed words left the screen without a key or press: "{words}" in {name}',
+        {"code": "words-left-screen", "words": words, "place": name},
     )
 
 
@@ -352,7 +356,7 @@ def test_words_editcontext_tracks_the_exact_native_field_and_committed_words(
     )
     judge_watches()
     consume_browser_errors(
-        page, 'typed words left the screen without a key or press: "Keep these words"'
+        page, {"code": "words-left-screen", "words": "Keep these words"}
     )
 
     def fresh_field():
@@ -379,7 +383,7 @@ def test_words_editcontext_tracks_the_exact_native_field_and_committed_words(
     judge_watches()
     consume_browser_errors(
         page,
-        'typed words left the screen without a key or press: "Keep these words continued"',
+        {"code": "words-left-screen", "words": "Keep these words continued"},
     )
 
     fresh_field()
@@ -390,7 +394,7 @@ def test_words_editcontext_tracks_the_exact_native_field_and_committed_words(
     expect(field).to_have_js_property("value", "Forged words")
     judge_watches()
     consume_browser_errors(
-        page, 'typed words left the screen without a key or press: "Keep these words"'
+        page, {"code": "words-left-screen", "words": "Keep these words"}
     )
 
 
@@ -538,8 +542,11 @@ def test_words_a_committed_value_editor_close_retires_only_its_exact_edit(
             judge_watches()
             consume_browser_errors(
                 page,
-                "typed words left the screen without a key or press: "
-                '"Another edit stays mine" in textarea#other',
+                {
+                    "code": "words-left-screen",
+                    "words": "Another edit stays mine",
+                    "place": "textarea#other",
+                },
             )
         if exit_kind in {"new-edit", "same-value-new-edit"}:
             page.locator("#field").fill(
@@ -565,7 +572,11 @@ def test_words_a_committed_value_editor_close_retires_only_its_exact_edit(
         field_id = "heir" if exit_kind == "replaced-in-dispatch" else "field"
         consume_browser_errors(
             page,
-            f'typed words left the screen without a key or press: "{words}" in textarea#{field_id}',
+            {
+                "code": "words-left-screen",
+                "words": words,
+                "place": f"textarea#{field_id} in shadow of native-value-editor#editor",
+            },
         )
 
 
@@ -599,8 +610,11 @@ def test_words_a_passive_selection_change_cannot_close_a_draft(browser):
     judge_watches()
     consume_browser_errors(
         page,
-        'typed words left the screen without a key or press: "Half a thought"'
-        " in textarea#field",
+        {
+            "code": "words-left-screen",
+            "words": "Half a thought",
+            "place": "textarea#field",
+        },
     )
 
 
@@ -656,7 +670,7 @@ def test_words_a_prevented_disclosure_press_cannot_own_a_passive_close(
         assert page.locator("details").evaluate("details => details.open")
         page.evaluate("closeDetails()")
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 def test_words_a_native_disclosure_cannot_own_passive_loss_outside_it(browser):
@@ -675,7 +689,7 @@ def test_words_a_native_disclosure_cannot_own_passive_loss_outside_it(browser):
     page.locator("summary").click()
     assert not page.locator("details").evaluate("details => details.open")
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 def test_words_a_control_in_a_summary_cannot_own_a_passive_disclosure_close(browser):
@@ -695,7 +709,7 @@ def test_words_a_control_in_a_summary_cannot_own_a_passive_disclosure_close(brow
     page.locator("#other").click()
     assert not page.locator("details").evaluate("details => details.open")
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 def test_words_a_later_listener_can_cancel_native_disclosure_activation(browser):
@@ -715,7 +729,7 @@ def test_words_a_later_listener_can_cancel_native_disclosure_activation(browser)
     page.locator("#field").fill("Keep my words")
     page.locator("summary").click()
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 POPOVER = """<button id=open popovertarget=pop>Open</button>
@@ -762,7 +776,7 @@ def test_words_a_popover_a_timer_closes_still_fail(browser, pressed_inside):
     if pressed_inside:
         page.mouse.up()
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 def test_words_a_press_in_the_page_holding_their_frame_puts_away_are_put_away(browser):
@@ -859,9 +873,7 @@ def test_words_message_ports_keep_their_scheduling_source(browser, cause):
     assert page.evaluate("answer") == [3, 1, 4]
     judge_watches()
     if cause != "press":
-        consume_browser_errors(
-            page, "typed words left the screen without a key or press"
-        )
+        consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 def test_unclassified_worker_ports_keep_native_message_values(browser):
@@ -939,9 +951,7 @@ def test_words_child_work_reads_its_executing_parent_owner(browser, continuation
     expect(field).to_have_value("")
     judge_watches()
     if continuation != "captured":
-        consume_browser_errors(
-            page, "typed words left the screen without a key or press"
-        )
+        consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 @pytest.mark.parametrize("passive_middle", [False, True])
@@ -970,9 +980,7 @@ def test_words_a_middle_frame_can_seal_its_parent_callback(browser, passive_midd
     expect(field).to_have_value("")
     judge_watches()
     if passive_middle:
-        consume_browser_errors(
-            page, "typed words left the screen without a key or press"
-        )
+        consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 @pytest.mark.parametrize(
@@ -1028,9 +1036,7 @@ def test_words_a_component_value_edge_needs_its_own_matching_paint(browser, scen
         page.evaluate("paint()")
     judge_watches()
     if scene != "owned":
-        consume_browser_errors(
-            page, "typed words left the screen without a key or press"
-        )
+        consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 @pytest.mark.parametrize(
@@ -1103,9 +1109,7 @@ def test_words_an_input_attempt_needs_an_actual_edit_to_replace_its_words(
         "cancelled-commit",
         "cancelled",
     }:
-        consume_browser_errors(
-            page, "typed words left the screen without a key or press"
-        )
+        consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 def test_words_redirected_native_typing_does_not_put_away_another_edit(browser):
@@ -1126,7 +1130,7 @@ def test_words_redirected_native_typing_does_not_put_away_another_edit(browser):
     page.wait_for_function("window.cleared === true")
     assert page.locator("#other").input_value() == "x"
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 def test_words_a_new_gesture_supersedes_a_held_key_without_revoking_its_owned_close(
@@ -1168,7 +1172,11 @@ field.addEventListener('keydown', async event => {
     judge_watches()
     consume_browser_errors(
         page,
-        'typed words left the screen without a key or press: "Other new edit stays watched" in textarea#other',
+        {
+            "code": "words-left-screen",
+            "words": "Other new edit stays watched",
+            "place": "textarea#other",
+        },
     )
 
 
@@ -1245,7 +1253,7 @@ def test_coalesced_rendering_jobs_keep_their_own_input_source(
     judge_watches()
     consume_browser_errors(
         page,
-        'typed words left the screen without a key or press: "Words lost without permission"',
+        {"code": "words-left-screen", "words": "Words lost without permission"},
     )
 
 
@@ -1289,7 +1297,7 @@ def test_a_rendering_jobs_returned_async_tail_stays_passive(browser, serve, sche
     judge_watches()
     consume_browser_errors(
         page,
-        'typed words left the screen without a key or press: "This awaited work has no input owner"',
+        {"code": "words-left-screen", "words": "This awaited work has no input owner"},
     )
 
 
@@ -1344,7 +1352,7 @@ def test_words_unrelated_work_during_a_send_still_fails(browser):
     page.evaluate("loseWords()")
     page.wait_for_function("window.lost === true")
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
     page.evaluate("completeSend()")
     page.wait_for_function("window.done === true")
 
@@ -1381,7 +1389,7 @@ def test_words_passive_loss_after_a_completed_press_still_fails(browser):
     judge_watches()
     page.evaluate("box.remove()")
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 def test_words_restored_after_a_replacement_gap_remain_watched(browser):
@@ -1412,7 +1420,7 @@ def test_words_restored_after_a_replacement_gap_remain_watched(browser):
     judge_watches()
     page.evaluate("field.remove()")
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 def test_words_editing_updates_the_words_still_watched(browser):
@@ -1424,7 +1432,7 @@ def test_words_editing_updates_the_words_still_watched(browser):
     judge_watches()
     consume_browser_errors(
         page,
-        'typed words left the screen without a key or press: "Half a thought continue"',
+        {"code": "words-left-screen", "words": "Half a thought continue"},
     )
 
 
@@ -1524,7 +1532,7 @@ def test_words_a_passive_async_commit_cannot_borrow_a_waiting_send(browser):
     page.evaluate("releasePassive()")
     page.wait_for_function("window.lost === true")
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
     page.evaluate("completeSend()")
     page.wait_for_function("window.done === true")
     assert not page.evaluate("window.passiveDone === true")
@@ -1557,7 +1565,7 @@ def test_words_a_native_passive_await_stays_passive_inside_a_press(browser, defe
     page.locator("#send").click()
     page.wait_for_function("window.lost === true")
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
     page.evaluate("completeSend()")
     page.wait_for_function("window.done === true")
 
@@ -1655,6 +1663,9 @@ def test_words_a_reactive_update_nothing_requested_still_fails(browser, cause):
     judge_watches()
     consume_browser_errors(
         page,
-        'typed words left the screen without a key or press: "Half a thought"'
-        " in input#inner in shadow of reactive-field#host",
+        {
+            "code": "words-left-screen",
+            "words": "Half a thought",
+            "place": "input#inner in shadow of reactive-field#host",
+        },
     )

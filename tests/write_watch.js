@@ -2,8 +2,9 @@
 // before the first byte parses. The browser fixture installs it on every page a test
 // opens (render_harness.watched).
 //
-// A write that changes nothing is reported on the console as a browser problem, which
-// fails the test like any other. "Nothing" is judged per script, up to the microtask
+// A write that changes nothing is reported as an `unchanged-write` record through the
+// fixture's `__leafWatchFinding` binding, a browser problem that fails the test like any
+// other. "Nothing" is judged per script, up to the microtask
 // checkpoint that ends it (an event listener, a frame callback, a task), which is when
 // the observer delivers: the writes one script makes to one place (an attribute, a text
 // node's data) change nothing when the place ends the script holding the value it
@@ -92,10 +93,12 @@
     /^class on div\.pswp(?:\.|$)/,
   ];
   const reported = new Set();
-  const report = (what) => {
-    if (reported.has(what) || EXPECTED.some((known) => known.test(what))) return;
-    reported.add(what);
-    console.error(`unchanged write: ${what}`);
+  // `what` is the attribute written, `text`, or `children`, and `node` the place.
+  const report = (what, node) => {
+    const words = what === "children" ? `children of ${node}` : `${what} on ${node}`;
+    if (reported.has(words) || EXPECTED.some((known) => known.test(words))) return;
+    reported.add(words);
+    window.__leafWatchFinding({ code: "unchanged-write", what, node });
   };
   const valueOf = (record) =>
     record.type === "attributes"
@@ -208,7 +211,7 @@
         !nativeTransition(record) &&
         !(through.length && putBack(write))
       )
-        report(`${record.attributeName ?? "text"} on ${place(record.target)}`);
+        report(record.attributeName ?? "text", place(record.target));
     }
     started.clear();
     dialogTransitions = new WeakSet();
@@ -218,7 +221,7 @@
     for (const record of records) {
       const key = `${number(record.target)} ${record.type} ${record.attributeName}`;
       if (record.type === "childList") {
-        if (restored(record)) report(`children of ${place(record.target)}`);
+        if (restored(record)) report("children", place(record.target));
       } else if (started.has(key)) started.get(key).through.push(record.oldValue);
       else {
         started.set(key, { record, through: [] });

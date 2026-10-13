@@ -16,6 +16,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate.scheme import console_finding
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -125,9 +126,8 @@ def test_sort_film_readout_and_narration(browser, serve):
     page = open_page(browser, serve(example))
     readings = page.evaluate(
         """async () => {
-          const widget = performance.getEntriesByType('resource')
-            .find(resource => resource.name.endsWith('/page/widgets/lf-sort-film.js'));
-          const source = new URL('../sort.js', widget.name);
+          const imports = JSON.parse(document.querySelector('script[type="importmap"]').textContent).imports;
+          const source = new URL('../page/sort.js', new URL(imports['/runtime/'], location.href));
           const {makeInput, trace} = await import(source);
           const steps = trace(makeInput('random', 7)).steps;
           const film = document.querySelector('#sort-film');
@@ -352,8 +352,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
                 "text": "candidate root",
             },
         )
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
 
     inline = seat.locator(f':scope > .lf-page-thread[data-thread="{root["id"]}"]')
     expect(inline).to_have_count(0)
@@ -424,8 +423,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
             serve.page_dir,
             {"kind": "resolve", "author": "agent", "parent": root["id"]},
         )
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
 
     expect(reply).to_have_js_property("value", "keep this inline reply")
     expect(reply).to_be_focused()
@@ -495,8 +493,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
             {"kind": "resolve", "author": "agent", "parent": root["id"]},
         )
 
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
     expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
         "value", "keep this unfinished reply"
     )
@@ -553,8 +550,7 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
         nudge(d)
     expect(menu).to_be_visible()
     expect(row).to_be_focused()
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
 
     page.unroute("**/api/state*")
     nudge(d)
@@ -1127,12 +1123,12 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     drawing's first node is the one a user follows the graph from."""
     page = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
     # Linux's DejaVu labels draw this graph at 1217px. Use a width where the drawing
-    # fits the room after a classic scrollbar has been taken, with the rail standing.
+    # fits the room after a classic scrollbar has been taken, with the rail shown.
     resized(page, 1920, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
 
     assert at["place"] == "rail", (
-        "the row is not in the rail, so nothing here shows a standing rail leaving the "
+        "the row is not in the rail, so nothing here shows a rail leaving the "
         "margin to the drawing"
     )
     assert at["small"]["width"] < at["col"]["right"] - at["col"]["left"], (
@@ -2119,7 +2115,7 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     page = open_page(browser, serve(LONG_PAGE))
     room = page.evaluate(CHROME_ROOM)
     assert room["banner"] > 0 and room["line"] > 0, (
-        f"neither bar is standing, so there is nothing here to reserve for: {room}"
+        f"neither bar is shown, so there is nothing here to reserve for: {room}"
     )
     assert abs(room["head"] - room["banner"]) <= 1, (
         f"the document starts {room['head']:.0f}px down, under a "
@@ -3187,20 +3183,20 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
     box, needs = at["column"]["box"], at["needs"]
     sidebar_from = round(box + needs["rail"] + needs["sidebar"])
     note_from = round(box + needs["sidebar"] + needs["note"])
-    for width, standing in (
+    for width, postures in (
         (sidebar_from - 1, "rail"),
         (sidebar_from, "rail sidebar"),
         (note_from - 1, "rail sidebar"),
         (note_from, "rail sidebar note"),
     ):
         resized(page, width, 800)
-        expect(page.locator("main")).to_have_attribute("data-lf-margin", standing)
+        expect(page.locator("main")).to_have_attribute("data-lf-margin", postures)
         at = page.evaluate(reading)
         assert at["column"]["width"] == 720, (width, at)
         assert root_overflow(page) == 0, (width, at)
         first, second = at["sidebars"]
         assert (second["float"], second["position"]) == ("none", "static"), (width, at)
-        if "sidebar" in standing:
+        if "sidebar" in postures:
             assert (first["float"], first["position"]) == ("left", "sticky"), (
                 width,
                 at,
@@ -3216,7 +3212,7 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
             )
             centre = (at["column"]["left"] + at["column"]["right"]) / 2
             assert abs(centre - at["shell"] / 2) <= 1, (width, at)
-        if "note" in standing:
+        if "note" in postures:
             assert at["note"]["float"] == "right", (width, at)
             assert at["note"]["left"] >= at["column"]["right"] + 23, (width, at)
             assert at["note"]["right"] <= at["shell"], (width, at)
@@ -3274,7 +3270,7 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
 
     assert schema_model.NO_KEY in page.locator("body").inner_text()
     # The refusal is the subject: a user without the key is answered 401.
-    consume_browser_errors(page, "401")
+    consume_browser_errors(page, {"code": "failed-load", "status": 401})
 
 
 @pytest.mark.parametrize(
@@ -3557,9 +3553,10 @@ def test_the_write_gate_allows_only_the_column_measurement_property(
     }""",
         bad_write,
     )
-    failures = consume_browser_errors(page, "unchanged write:")
+    failures = consume_browser_errors(page, {"code": "unchanged-write"})
     assert len(failures) == 1
-    assert "style on body" in failures[0]
+    assert failures[0].values["what"] == "style", failures
+    assert failures[0].values["node"].startswith("body"), failures
 
 
 def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(

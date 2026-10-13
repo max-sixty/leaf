@@ -19,10 +19,12 @@ from interact_support import (
     append_carried_log_record,
     assert_revendor_serializes_writer,
     check,
+    check_findings,
     decide,
     declare_data_input,
     element_declaration,
     fetch,
+    found,
     live_versions,
     page_packages,
     publish,
@@ -188,9 +190,9 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
     assert result.exit_code == 0, result.output
     registry["lf-trial"]["x-withdrawn-as"] = "missing"
     (trial_page / "registry.json").write_text(json.dumps(registry))
-    invalid = check(trial_page)
-    assert invalid.exit_code != 0
-    assert "not a deciding outcome" in invalid.output
+    status, findings = check_findings(trial_page)
+    assert status != 0
+    assert found(findings, "withdrawn-as", "<lf-trial>", outcome="missing")
 
 
 @pytest.mark.parametrize(
@@ -284,9 +286,9 @@ def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):
             '<h2>Plan</h2><p><img alt="x" src="/media/deadbeefdeadbeef.png"></p>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "/media/deadbeefdeadbeef.png isn't in the page directory" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "missing-media", ref="/media/deadbeefdeadbeef.png")
 
     # A mention is not a reference: a page explaining leaf writes one of these
     # paths in its prose, and reading the markup rather than the attributes would
@@ -315,14 +317,16 @@ def test_sample_body_declarations_use_the_child_document_boundary(page_dir):
         (page_dir / "index.html").write_text(source)
         parser = structure_model.SourceDocument(source)
         [sample] = parser.samples
-        result = check(page_dir)
-        assert (result.exit_code == 0) is valid, result.output
+        status, findings = check_findings(page_dir)
         if valid:
+            assert status == 0, findings
             assert structure_model.annotation_mode(sample["document"]) == mode
             assert structure_model.annotation_mode(parser) == "overlay"
         else:
-            assert "sample 'practice'" in result.output
-            assert "invalid value" in result.output
+            assert status == 1
+            assert [(f.code, f.samples, f.values["value"]) for f in findings] == [
+                ("allocation-value", ("practice",), "unknown")
+            ]
 
 
 def test_check_keeps_parent_and_sibling_sample_ids_independent(page_dir):
@@ -404,10 +408,11 @@ def test_sample_references_see_only_selected_threads(
             f'<template id="practice" data-sample{selection}>{child}</template></main>',
         )
     )
-    result = check(page_dir)
-    assert (result.exit_code == 0) == seeded, result.output
+    status, findings = check_findings(page_dir)
+    assert (status == 0) == seeded, findings
     if not seeded:
-        assert "names no thread in this document" in result.output
+        samples = ("practice", "nested") if nested else ("practice",)
+        assert [(f.code, f.samples) for f in findings] == [("unknown-thread", samples)]
 
 
 def test_check_tokenizes_only_the_page_stylesheet(page_dir, monkeypatch):

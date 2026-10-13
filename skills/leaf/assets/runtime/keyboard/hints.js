@@ -4,7 +4,7 @@
    page targets, and the target picker's map of addressable elements. Arming reads a
    scene, gives each member an opaque prefix-free code, and paints a chip on it. Typed
    letters narrow the map, Tab walks it aloud, Enter takes the one just heard, and
-   Escape gives a letter back. A letter that names nothing is reported and the standing
+   Escape gives a letter back. A letter that names nothing is reported and the current
    map is left alone, because a mistyped route should not cost the user the letters
    they had right. A scroll holds the map as it stands, each chip riding with what it
    names, and the map is read and seated again once the scroll settles, so a target
@@ -128,6 +128,51 @@ function spreadHints(seats, hints, { barriers = [], lineBox, viewportTop = 0 } =
   }));
 }
 
+// Whether `outer` encloses `inner` and is larger across or down: an equal box is the same
+// place rather than a box around it.
+const encloses = (outer, inner) =>
+  outer.left <= inner.left &&
+  outer.top <= inner.top &&
+  outer.right >= inner.right &&
+  outer.bottom >= inner.bottom &&
+  (outer.right - outer.left > inner.right - inner.left ||
+    outer.bottom - outer.top > inner.bottom - inner.top);
+
+// How far out of its target each before seat stands, beyond its own width and the gap.
+// Chips before nested targets that share a left edge would stand in one flush column,
+// leaving nothing to say which names the group and which each member, so a before seat
+// steps out once for each level of nesting it has below the deepest before seat in its
+// own tree, the targets its outermost enclosing target holds: every chip stands right of
+// the chips of the targets around it, the deepest stand where they would alone, none
+// crosses into its own target, and a target in no nest keeps its chip beside it. The
+// step narrows to fit the outermost chips in the room the window leaves, down to a floor
+// below which the levels would not read as distinct; past it the window clamps them. A
+// chip the window clamps already has no room, so it does not narrow everyone else's.
+const NEST_STEP = 10;
+const NEST_FLOOR = 4;
+function nestOutsets(faces, room) {
+  const before = faces.flatMap(({ placement }, at) =>
+    placement === "before" ? [at] : [],
+  );
+  const around = (at) =>
+    before.filter((by) => by !== at && encloses(faces[by].target, faces[at].target));
+  const depth = new Map(before.map((at) => [at, around(at).length]));
+  const root = new Map(
+    before.map((at) => [at, around(at).find((by) => depth.get(by) === 0) ?? at]),
+  );
+  const deepest = new Map();
+  for (const at of before)
+    deepest.set(root.get(at), Math.max(deepest.get(root.get(at)) ?? 0, depth.get(at)));
+  const levels = faces.map((_, at) =>
+    depth.has(at) ? deepest.get(root.get(at)) - depth.get(at) : 0,
+  );
+  const fits = faces
+    .map((face, at) => (levels[at] ? room(face) / levels[at] : null))
+    .filter((step) => step > 0);
+  const step = Math.floor(clamp(Math.min(NEST_STEP, ...fits), NEST_FLOOR, NEST_STEP));
+  return levels.map((level) => level * step);
+}
+
 // Where each face stands, folded from rectangles `spreadHints` has already read. Each
 // face is `{ start, target, placement }`, `start` the box it was drawn at; the answer
 // is one box per face, in order, each clear of the barriers, the key line and every face
@@ -159,12 +204,14 @@ export function seatHints(
   const edgeTop = viewport.top + band;
   const edgeRight = viewport.right - band;
   const edgeBottom = viewport.bottom - band;
-  const measured = faces.map(({ start, target, placement = "corner" }) => {
+  const beforeLeft = ({ start, target }) => target.left - start.width - clear;
+  const outsets = nestOutsets(faces, (face) => beforeLeft(face) - edgeLeft);
+  const measured = faces.map(({ start, target, placement = "corner" }, at) => {
     const preferredLeft =
       placement === "below"
         ? target.left + (target.width - start.width) / 2
         : placement === "before"
-          ? target.left - start.width - clear
+          ? beforeLeft({ start, target }) - outsets[at]
           : placement === "above"
             ? target.left
             : start.left;
@@ -227,14 +274,14 @@ export function seatHints(
    taken. `read` answers which members the map holds and what codes name them, each
    member already carrying its `code` because a scene can be a subset of a wider reading
    whose codes it keeps; that answer is held until something invalidates it. `layout`
-   answers where those members are, and runs every paint over the whole standing set from
+   answers where those members are, and runs every paint over the whole current set from
    one `scene` reading, because a chip's place among its neighbours and its own box are
    the same measurement: derived from different readings they put the chip where neither
    reading said. `identity` names the element a walk and a re-read recognize a member by.
 
    `extras` are chips the caller keeps outside the coded map, such as named destinations
    on fixed chrome; they are seated first and become barriers for the coded ones.
-   `chrome` reads the standing furniture the placement pass must keep clear.
+   `chrome` reads the fixed furniture the placement pass must keep clear.
    A map stands through a scroll once it has stood still long enough to be read: its
    chips ride with the things they name (chip-seats.js), so the codes the user is
    reading stay where they were read and stay pressable, while membership and seats
@@ -360,6 +407,38 @@ export function createHintSession({
     return true;
   }
 
+  // The walk's own rows, so both vocabularies offer Tab, Shift+Tab and Enter as one
+  // declaration: each caller names them under `id`, says what taking a member does in
+  // `choose`, and decides `when` the walk is offered.
+  function walkRows({ id, when = () => candidates.length > 0, choose }) {
+    return [
+      {
+        id: `${id}.walk`,
+        keys: ["Tab", "Shift+Tab"],
+        routes: [
+          { id: `${id}.next`, binding: "Tab", title: "Hear the next visible target" },
+          {
+            id: `${id}.previous`,
+            binding: "Shift+Tab",
+            title: "Hear the previous visible target",
+          },
+        ],
+        title: "browse hints",
+        repeat: true,
+        when,
+        run: (binding) => walk(binding === "Tab" ? 1 : -1),
+      },
+      {
+        id: `${id}.choose`,
+        keys: ["Enter"],
+        description: choose.description,
+        title: choose.title,
+        when: () => at >= 0,
+        run: () => take(hinted()[at]),
+      },
+    ];
+  }
+
   function draw(extraPlans, codedPlans) {
     codedPlans = codedPlans.filter(shown);
     const plans = [...extraPlans, ...codedPlans];
@@ -375,7 +454,7 @@ export function createHintSession({
       };
     });
     // Fixed chips stay where the caller put them and reserve their own pixels; the
-    // coded map is spread around them, the standing chrome, and the key line.
+    // coded map is spread around them, the fixed chrome, and the key line.
     const reserved = spreadHints(seats, drawn.slice(0, extraPlans.length));
     const coded = codedPlans.length
       ? spreadHints(seats, drawn.slice(extraPlans.length), {
@@ -400,7 +479,7 @@ export function createHintSession({
         ...layout(hinted(), { current: hinted()[at], reading: scene() }).filter(shown),
       ];
       for (const plan of plans) {
-        const seat = seats.standing(plan.model.key);
+        const seat = seats.seated(plan.model.key);
         if (seat) render(face(plan), seat);
       }
       seats.keepOnly(new Set(plans.map(({ model }) => model.key)));
@@ -456,7 +535,6 @@ export function createHintSession({
     armed: () => armed,
     backOneLetter,
     candidates: () => candidates,
-    choose: () => take(hinted()[at]),
     disarm,
     invalidate,
     mount,
@@ -464,7 +542,6 @@ export function createHintSession({
     prefix: () => prefix,
     refresh,
     type,
-    walk,
-    walking: () => at >= 0,
+    walkRows,
   };
 }

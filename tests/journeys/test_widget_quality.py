@@ -38,12 +38,12 @@ def test_bundled_widgets_meet_the_widget_quality_checks(browser, package):
     new = [
         str(finding)
         for finding in findings
-        if (finding.tag, finding.check) not in known
+        if (finding.values["tag"], finding.code) not in known
     ]
     assert not new, "findings known_widget_findings.py does not list:\n" + "\n".join(
         new
     )
-    fixed = known - {(finding.tag, finding.check) for finding in findings}
+    fixed = known - {(finding.values["tag"], finding.code) for finding in findings}
     assert not fixed, f"fixed, so delete from known_widget_findings.py: {sorted(fixed)}"
 
 
@@ -120,48 +120,46 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     registry_path.write_text(json.dumps(registry))
 
     ran = subprocess.run(
-        [*LEAF_COMMAND, "package", "check", str(package), "--render"],
+        [*LEAF_COMMAND, "package", "check", str(package), "--render", "--json"],
         capture_output=True,
         text=True,
         check=False,
         env=os.environ | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
     )
     assert ran.returncode == 0, ran.stderr
-    lines = ran.stdout.splitlines()
-    assert lines[1] == (
-        f"widget quality: 11 finding(s) for 12 widget(s) in {headless_shell}, "
-        "advice for the widgets' author:"
-    ), ran.stdout
-    assert lines[2] == "  · <lf-bare> example: no worked example shows it"
-    finding = re.compile(
-        r"  · <(lf-[a-z]+) id='(\w+)'> keeps-first-box: "
-        r"first painted (\d+)x(\d+), (\d+)x(\d+) once presented"
-    )
-    advice = (
-        "and scrolls inside it; let it grow with its content, or declare "
-        "--lf-holds-height: 1 where the task needs its own scroll"
-    )
-    assert lines[-3:] == [
-        (
-            "  · <lf-keyed id='keyed'> shows-context-keys: keyed.go declares "
-            "context keys and no bindingBadge, so its key works with nothing on the "
-            "page showing it; lend the command a face, or request a corner badge "
-            "with bindingBadge: null"
-        ),
-        (
-            "  · <lf-pinned id='pinned'> grows-with-content: <lf-pinned id=pinned> "
-            f"holds 100px {advice}"
-        ),
-        (
-            "  · <lf-shallow id='shallow'> grows-with-content: <lf-shallow id=shallow> "
-            f"holds 10px {advice}"
-        ),
-    ], ran.stdout
-    readings = [finding.fullmatch(line) for line in lines[3:-3]]
-    assert all(readings), lines
-    grown = {reading[2]: int(reading[6]) - int(reading[4]) for reading in readings}
-    assert all(grown.pop(word) > 0 for word in ("word", "spoken", "line")), lines
-    assert grown == {"grow": 40, "held": 40, "fixed": 40, "inner": 40}, lines
+    report = json.loads(ran.stdout)
+    assert report["status"] == 0
+    assert report["browser"] == {
+        "asked": ["widget quality"],
+        "ran": ["widget quality"],
+        "browser": headless_shell,
+    }
+    findings = report["findings"]
+    assert {f["severity"] for f in findings} == {"advice"}, findings
+    named = {}
+    for f in findings:
+        named.setdefault(f["code"], {})[f["at"]] = f["values"]
+    assert set(named) == {
+        "example",
+        "keeps-first-box",
+        "shows-context-keys",
+        "grows-with-content",
+    }, findings
+    assert list(named["example"]) == ["<lf-bare>"]
+    assert named["shows-context-keys"] == {
+        "<lf-keyed id=keyed>": {"tag": "lf-keyed", "command": "keyed.go"}
+    }
+    assert {at: v["height"] for at, v in named["grows-with-content"].items()} == {
+        "<lf-pinned id=pinned>": 100,
+        "<lf-shallow id=shallow>": 10,
+    }
+    grown = {
+        re.fullmatch(r"<lf-[a-z]+ id=(\w+)>", at)[1]: round(v["now"]["height"])
+        - round(v["first"]["height"])
+        for at, v in named["keeps-first-box"].items()
+    }
+    assert all(grown.pop(word) > 0 for word in ("word", "spoken", "line")), findings
+    assert grown == {"grow": 40, "held": 40, "fixed": 40, "inner": 40}, findings
 
 
 @pytest.mark.parametrize("width", [1200, 390])

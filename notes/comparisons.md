@@ -24,7 +24,7 @@ Codex App Server receive delivery turns through that server. Read the owning
 [Claude Code](../skills/leaf/references/harness-claude-code.md),
 [Codex queue](../skills/leaf/references/harness-codex.md), and
 [App Server](../skills/leaf/references/harness-codex-app-server.md) contracts rather
-than deriving a handoff from this comparison. Serving, authentication, standing
+than deriving a handoff from this comparison. Serving, authentication, persistent
 lifetimes, and offline export belong to
 [serving-pages.md](../skills/leaf/references/serving-pages.md).
 
@@ -58,7 +58,7 @@ proves a result; version checks are optional across API writes. Its
 [chief contract](https://workbench.md/chief.md) prescribes independent artifact
 and completion checks, but no supervisor run was observed. Nimbalyst's
 [recovery owner](https://github.com/nimbalyst/nimbalyst/blob/main/packages/runtime/src/ai/server/SessionStateManager.ts)
-resets missing running processes to idle. Leaf's [tasks](../skills/leaf/scripts/leaf/tasks.py)
+resets missing running processes to idle. Leaf's [tasks](../skills/leaf/scripts/leaf/todos.py)
 already outlive replies and sessions. Preserve that obligation across execution
 attempts, distinguish interrupted/resumable work from a terminal result, and
 name consequential changes to the expected result rather than resetting on every edit.
@@ -115,15 +115,6 @@ following are the baseline, not proposed additions.
   sends empty user input and a structured `leaf_delivery` tool result. Desktop
   access and rendering remain unverified. Prove agent wake-up and exact
   input/reply identity while keeping automatic user-message text out of chat.
-- **#3 — Prevent superseded executions from closing continued work.** Leaf
-  already preserves the task when a session ends, and `task start` records a
-  later execution's session on the same task, plus its turn when it holds the
-  page claim. Reuse those starts rather
-  than adding a Pause state or a second attempt record. The missing guard is at
-  completion: [tasks.py](../skills/leaf/scripts/leaf/tasks.py) admits an end from
-  an older session after a newer start. A direct fold/admission probe confirmed
-  this case. Test competing continuations and prevent an obsolete execution's
-  delayed result from silently closing the continued work.
 - **#4 — Make finished task results easy to read.** The Queue panel already
   lists ended tasks under Done with their outcome. Their detail is in the row's
   native tooltip; show it as visible text or a disclosure usable by a finger.
@@ -502,7 +493,7 @@ page directory and event log remain the durable record.
   task; frameworks such as CopilotKit provide the application and agent runtime.
 - **Durable hosted collaboration.** leaf.page runs agents in private trial
   containers, but their storage is ephemeral and the site has no durable user
-  identity or state store ([website design](../docs/website.html)). A standing
+  identity or state store ([website design](../docs/website.html)). A persistent
   local server and an offline export do not supply that service either.
 - **Direct document editing.** Leaf's user comments or uses authored controls;
   unrestricted editing of the document calls for an editor rather than an

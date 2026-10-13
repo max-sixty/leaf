@@ -10,10 +10,12 @@
    (navigation.js).
 
    Arrival belongs to the item's owner, so the walk adds no arrival of its own beside
-   theirs: an ask arrives through the ask view's `arriveAtQuestion`; a thread through the
+   theirs: an ask arrives through the ask view's `arriveAtAsk`; a thread through the
    t/T walk's own (navigation.js, `arriveAtThread`), so it lands wherever that walk
    lands; a page widget action, or a to-do on an element or the page, by travel's `arrive`,
-   onto the widget the action was made on, the element, or the page's head.
+   onto the widget the action was made on, the element, or the page's head; the
+   version's approval by the chrome showing it, travel onto the banner's control or
+   the floating panel's own arrival (banner.js, `registerApprovalPresentation`).
    A Questions panel row arrives through the same function (`arriveAtItem`), for an item on
    either list or one that is done.
 
@@ -31,16 +33,16 @@
    a to-do Done ends, `x` is that Done, a step on the banner's row under a finger
    (`queue-api.js`, `done`): the user's `todo_end`, which leaves Questions in the turn it is pressed.
 
-   Page order is each item's place in the document: an ask's own element, or its
+   Page order is each item's place in the page as rendered: an ask's own element, or its
    thread's passage for an ask seated in a thread; a thread's passage; the widget an action
    was made on or the element a to-do is on; the page's head for a to-do on the whole
    page. An item with no place on the page, a general thread or one whose passage is
    gone, comes after every placed one in the list's own order, as the t/T walk reaches
    such threads from its list's ends. A step past either end comes round to the other.
 
-   The walk can also step within one region of the page (`questionActions.next`, as an
+   The walk can also step within one region of the page (`askActions.next`, as an
    `lf-tally`'s Next question presses it): its stops are then the asks waiting on the user
-   that the region holds (`asksIn`, questions/place.js), stepped by the same standing and
+   that the region holds (`asksIn`, asks/place.js), stepped by the same standing and
    page order, and its position counts them alone. A press from outside the region, such as
    one on the tally's own control above it, counts from the ask the user last went to, if
    it is in the region: Tab and Shift+Tab pass over what they cross on the way to the
@@ -54,26 +56,26 @@
    Experimental: the lists and the walk over them are new, and their shape is
    expected to change a lot (notes/what-needs-you/). Change them freely.
 */
-import { cycledRow } from "./keyboard/bindings.js";
+import { cycledRow, savedReadingSettled } from "./keyboard/bindings.js";
 import { pageCommand, pageScope } from "./keyboard/register.js";
-import { documentFocused, paintKeys } from "./keyboard/scopes.js";
-import { onStanding } from "./focus.js";
+import { paintKeys } from "./keyboard/scopes.js";
+import { focused, onStanding } from "./focus.js";
 import { coarsePointer } from "./pointer.js";
-import { questionHolding, placeOf, walkOrigin } from "./standing-target.js";
+import { askHolding, placeOf, stepFrom, walkOrigin } from "./standing-target.js";
 import { seenRect } from "./geometry.js";
 import { elementById, inChrome, pageDocument } from "./passages.js";
-import { hostIn, inUi, under } from "./shadow.js";
-import { readQuestions } from "./questions/model.js";
-import { asksIn, questionPlace } from "./questions/place.js";
+import { byRenderedOrder, inUi, under } from "./shadow.js";
+import { readAsks } from "./asks/model.js";
+import { asksIn, askPlace } from "./asks/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
-import { taskNoun } from "./queues.js";
+import { itemNoun } from "./queues.js";
 import { watchSemantic } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
-import { approvalTarget } from "./banner.js";
+import { approvalTarget, presentedApproval } from "./banner.js";
 
-const QUALIFIER = "waiting on you";
-const WITHIN = "waiting on you here";
+const QUALIFIER = "waiting on me";
+const WITHIN = "waiting on me here";
 const NOUNS = Object.freeze({
   ask: "Ask",
   thread: "Thread",
@@ -84,7 +86,7 @@ const NOUNS = Object.freeze({
 // What a stop is called: by where it is arrived at, but a to-do on an element is a To-do
 // rather than the Update a widget's stop otherwise is.
 const nounOf = (item, stop) =>
-  stop.kind === "widget" && taskNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
+  stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
 
 // Where an item of either list, or one that is done, is arrived at: a widget ask by
 // the ask's own id, anything else by the thread it stands in, a to-do on the page as a
@@ -110,10 +112,10 @@ const pageHead = () =>
   document.body.firstElementChild;
 
 export function createQueueWalk({
-  arriveAtQuestion,
+  arriveAtAsk,
   arriveAtThread,
   threadHere,
-  threadTarget,
+  threadPlace,
   prepareTrip,
   arrive,
   readableDestination,
@@ -126,17 +128,16 @@ export function createQueueWalk({
       ? approvalTarget()
       : stop.kind === "ask"
         ? stop.thread !== null
-          ? threadTarget(stop.thread)
-          : questionPlace(stop.ask).node
+          ? threadPlace(stop.thread)
+          : askPlace(stop.ask).node
         : stop.kind === "page"
           ? pageHead()
           : stop.thread !== null
-            ? threadTarget(stop.thread)
+            ? threadPlace(stop.thread)
             : elementById(stop.id);
 
   function stops() {
-    const placed = [];
-    const loose = [];
+    const list = [];
     const listed = new Set();
     for (const item of readQueues().questions) {
       const stop = stopOf(item);
@@ -145,22 +146,14 @@ export function createQueueWalk({
       if (listed.has(`${stop.kind}:${stop.id}`)) continue;
       listed.add(`${stop.kind}:${stop.id}`);
       const at = stopElement(stop);
-      const place = at && !inChrome(at) ? hostIn(at, document) : null;
-      (place ? placed : loose).push({
+      list.push({
         ...stop,
         key: `${stop.kind}:${stop.id}`,
         noun: nounOf(item, stop),
-        place,
+        place: at?.isConnected && !inChrome(at) ? at : null,
       });
     }
-    placed.sort((a, b) =>
-      a.place === b.place
-        ? 0
-        : a.place.compareDocumentPosition(b.place) & Node.DOCUMENT_POSITION_FOLLOWING
-          ? -1
-          : 1,
-    );
-    return [...placed, ...loose];
+    return byRenderedOrder(list, (stop) => stop.place);
   }
 
   // The stops of a walk within `region`: the asks waiting on the user it holds.
@@ -172,12 +165,12 @@ export function createQueueWalk({
 
   // The item the user stands on, if any: the thread holding them, the ask holding their
   // place, or the innermost element that does, in page order the last that holds them,
-  // as `questionHolding` reads asks. The page's own stop is its head element alone, never
+  // as `askHolding` reads asks. The page's own stop is its head element alone, never
   // what that holds, since on a page without a heading the head is `main`. Standing in
   // a thread that holds an open ask is not standing on that ask. `here` is the place
   // the step counts from, the user's own unless a caller names another.
   function standingStop(list, here = walkOrigin()) {
-    if (documentFocused() === approvalTarget())
+    if (focused(document) === approvalTarget())
       return list.find((stop) => stop.kind === "approval") ?? null;
     const held = threadHere();
     const thread = held?.dataset.id ?? held?.dataset.thread;
@@ -188,10 +181,10 @@ export function createQueueWalk({
       if (stop) return stop;
     }
     if (!here) return null;
-    const question = questionHolding(readQuestions().all, placeOf(here));
-    if (question) {
+    const ask = askHolding(readAsks().all, placeOf(here));
+    if (ask) {
       const stop = list.find(
-        (candidate) => candidate.kind === "ask" && candidate.id === question.id,
+        (candidate) => candidate.kind === "ask" && candidate.id === ask.id,
       );
       if (stop) return stop;
     }
@@ -206,32 +199,17 @@ export function createQueueWalk({
   }
 
   // The stop `dir` steps to, and whether it came round an end to reach it: off the one
-  // the user stands on, else the nearest on that side of their place, else the far end.
-  // A stop whose place holds the user's, such as a thread on the paragraph their caret
-  // is in, is the nearest either way, since they are at it without standing on it. A
-  // stop with no place stands after every placed one, so it is ahead of any place on
-  // the page. Within a region, a place outside it enters at the end the step faces.
-  // `stands` false reads the origin as a place the user is at without standing on it, as
-  // the first ask they see in a region is.
+  // the user stands on, else from their place by the page walks' rule (`stepFrom`,
+  // standing-target.js). Within a region, a place outside it enters at the end the step
+  // faces. `stands` false reads the origin as a place the user is at without standing on
+  // it, as the first ask they see in a region is.
   function step(list, dir, region, origin = walkOrigin(), stands = true) {
     // Outside the region nothing the user stands on is one of its stops, even where the
     // press sits inside an ask's context.
     if (region && !under(origin, region)) return cycledRow(list, null, dir);
     const standing = stands ? standingStop(list, origin) : null;
-    const here = !standing && origin;
-    if (!here) return cycledRow(list, standing, dir);
-    const side =
-      dir > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
-    const reach = list.filter((stop) => {
-      if (!stop.place) return dir > 0;
-      if (stop.place === here || under(here, stop.place)) return true;
-      const rel = here.compareDocumentPosition(stop.place);
-      return !(rel & Node.DOCUMENT_POSITION_CONTAINS) && rel & side;
-    });
-    const row = dir > 0 ? reach[0] : reach.at(-1);
-    return row
-      ? { row, wrapped: false }
-      : { row: dir > 0 ? list[0] : list.at(-1), wrapped: true };
+    if (standing) return cycledRow(list, standing, dir);
+    return stepFrom(list, origin, dir, (stop) => stop.place);
   }
 
   // A page widget action handed back to the user, or a to-do on an element or the page, has
@@ -261,10 +239,13 @@ export function createQueueWalk({
   // rows return the user to one to review or revise it.
   function arriveAt(stop) {
     if (stop.kind === "ask") {
-      const record = readQuestions().all.find((question) => question.id === stop.id);
-      return record ? arriveAtQuestion(record) : Promise.resolve(false);
+      const record = readAsks().all.find((ask) => ask.id === stop.id);
+      return record ? arriveAtAsk(record) : Promise.resolve(false);
     }
     if (stop.kind === "thread") return arriveAtThread(stop.id);
+    // A chrome presenting the approval elsewhere brings the user to it itself.
+    if (stop.kind === "approval" && presentedApproval())
+      return presentedApproval().arrive();
     return arriveAtElement(() => stopElement(stop));
   }
 
@@ -316,9 +297,9 @@ export function createQueueWalk({
   // caret or selection stands on the page the step keeps the to-do it was shown for,
   // if it is still on the user; anywhere else, the to-do the user stands on.
   let shownFor = null;
-  function doneTask() {
+  function doneTodo() {
     const stop = standingStop(stops());
-    const focus = documentFocused();
+    const focus = focused(document);
     if (
       stop ||
       !coarsePointer.matches ||
@@ -337,7 +318,7 @@ export function createQueueWalk({
 
   // The user's Done on a to-do on them: their `todo_end`, through the one append door.
   // The to-do leaves their Questions in the turn they press it (`application.ts`).
-  function endTask(id) {
+  function endTodo(id) {
     return actions.done(queueItemKey({ kind: "todo", id }));
   }
 
@@ -363,6 +344,7 @@ export function createQueueWalk({
 
   pageCommand({
     id: "queue.walk",
+    ready: savedReadingSettled,
     touch: false,
     keys: ["q", "Shift+q"],
     routes: [
@@ -370,13 +352,13 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "q",
         title: "Next question",
-        description: "Next ask, thread, to-do or resend waiting on you",
+        description: "Next ask, thread, to-do or resend waiting on me",
       },
       {
         id: "queue.previous",
         binding: "Shift+q",
         title: "Previous question",
-        description: "Previous ask, thread, to-do or resend waiting on you",
+        description: "Previous ask, thread, to-do or resend waiting on me",
       },
     ],
     title: "Questions",
@@ -392,20 +374,21 @@ export function createQueueWalk({
 
   // Where `q` lands on a to-do the user ends with Done, Done is a key, and a step on the
   // banner's row under a finger. Its row in the Questions panel carries the same Done.
-  pageScope("task", {
-    title: "On a to-do waiting on you",
-    at: () => Boolean(doneTask()),
+  pageScope("todo", {
+    title: "On a to-do waiting on me",
+    ready: savedReadingSettled,
+    at: () => Boolean(doneTodo()),
     rows: [
       {
-        id: "queue.task.done",
+        id: "queue.todo.done",
         keys: ["x"],
         title: "done",
-        description: "Mark the to-do waiting on you done",
+        description: "Mark this to-do done",
         touch: "Done",
-        when: () => Boolean(doneTask()),
+        when: () => Boolean(doneTodo()),
         run: () => {
-          const task = doneTask();
-          if (task) endTask(task.id);
+          const todo = doneTodo();
+          if (todo) endTodo(todo.id);
         },
       },
     ],
@@ -424,26 +407,26 @@ export function createQueueWalk({
   let wentTo = null;
   onStanding((node, cause) => {
     if (cause === "step") return;
-    const place = node && placeOf(hostIn(node, document));
-    wentTo = (place && questionHolding(readQuestions().all, place)?.id) ?? null;
+    const place = node && placeOf(node);
+    wentTo = (place && askHolding(readAsks().all, place)?.id) ?? null;
   });
 
-  // The public walk within a region (`questionActions.next`).
+  // The public walk within a region (`askActions.next`).
   function nextWithin({ within, dir = 1 }) {
     if (!(within instanceof Element))
-      throw new TypeError("leaf: questionActions.next needs an element `within`");
+      throw new TypeError("leaf: askActions.next needs an element `within`");
     const here = walkOrigin();
     const asks = asksIn(within);
     const kept = asks.find((ask) => ask.id === wentTo);
     const toward = dir < 0 ? -1 : 1;
     if (under(here, within)) return walk(toward, within, here);
-    if (kept) return walk(toward, within, questionPlace(kept).source);
+    if (kept) return walk(toward, within, askPlace(kept).source);
     // What the user reads in the region: the first of its asks any of which they see,
     // where they are without standing on it, so a waiting one is the next and an
     // answered one leads to the next after it.
     const clips = new Map();
     const shown = asks
-      .map((ask) => questionPlace(ask).node)
+      .map((ask) => askPlace(ask).node)
       .find((node) => node && seenRect(node, clips));
     return shown ? walk(toward, within, shown, false) : walk(toward, within, here);
   }

@@ -20,7 +20,7 @@ and implementation terms retain their exact spelling when the reader needs them.
 | Term | Meaning and visible use |
 |---|---|
 | **Page** | The document the user reads and acts on; *page instance* below names its durable directory |
-| **Update** | One input the user sends the agent, of any kind, or a mixed collection of them: “Your updates are saved” |
+| **Update** | One input the user sends the agent, of any kind, or a mixed collection of them: “Updates are saved” |
 | **Response** | Work owed to user input whose kind is not known: “2 responses owed” |
 | **Answer** | The current value within an ask, or the response that satisfies a user update. An ask contains its answer; no separate Answer record exists |
 | **Reply** | A message in a conversation, including an answer or a proactive message |
@@ -31,12 +31,22 @@ and implementation terms retain their exact spelling when the reader needs them.
 | **Threads** | The control and panel listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
 
+Visible copy speaks in the user's voice, since the page is their own space. What is
+theirs is named in the first person: **Me** as an author, **Waiting on me**, **My turn
+to answer**, **my change**, and commands such as **Edit my last message**. What Leaf
+reports to them drops the pronoun rather than saying *you* or *my*: “The draft is
+kept”, “retrying the change”, “not in the version shown”. Text addressed to the agent,
+such as `x-instructions` and event handling, stays in the second person, as does the
+website's prose to a visitor.
+
 Name an update's kind where it is known: a **comment**, **reply**, **choice**,
 **reaction** or **approval**; in protocol text a widget's is an **action**, after its
 event kind. Don't call an update a *move* or *feedback*, or an *input* as a count noun
 (“an input”, “inputs”); *input* stays as a mass noun (“waiting for input”). Only the
 user's input is an update: a worker's news is a **report**, and the agent's interim
-thread message a **progress message**. Update counts do not count revisions. Where the
+thread message a **progress message**. Until an answer folds it, the thread draws the agent's
+current line at its foot as the **working message**: a message's head over dim words, with
+the sheen of a title being generated while the work runs. Update counts do not count revisions. Where the
 kind is known, say **answer** or **reply** rather than *response*; the Questions panel
 lists a reply the agent owes as **Reply** and a revision it owes as **Answer**. Undo
 keeps its name whatever widget verb it withdraws.
@@ -53,6 +63,7 @@ session currently holds the page, on both the banner and neighboring-page rows.
 | **Package** | One composable source directory of declarations and their payload |
 | **Leaf layer** | One checked, vendored composition of packages |
 | **User session** | One browser tab's temporary interaction with a page instance |
+| **In force** | An action, report, reaction or decision that no undo withdrew and no version note retracted; at each owner-unit-verb coordinate the latest in force wins (`events.InForce`, `StateProjection.in_force`; the served event field keeps its name, `stands`) |
 
 Core Leaf owns revision activation, scoped serving, the executable and inert-input
 boundaries, target identity, event admission, comments, and export. A package owns
@@ -81,7 +92,9 @@ For an authored occurrence say *Leaf element*, never *instance* alone.
 An element declaration keeps independent dimensions in separate keys:
 
 - `x-content`, what its body holds: `markup`, `members`, `data`, or `empty`.
-- `x-owners`, the compound owner types that may hold it directly.
+- `x-owners`, the compound owner types that may hold it directly; with `x-within`, it
+  may also stand at any depth inside the regions that key names, belonging to the
+  nearest owner around them.
 - `x-reading-role`, an authored reading-structure role.
 - Every other `x-*` key declares a capability, not an element family.
 
@@ -120,9 +133,10 @@ stylesheet decides whether their bodies scroll.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
-| **Banner** | The persistent chrome row at the window's top: page status ending with the agent's Tasks count, the primary Approval, Comment on the page, Questions and Threads controls, and an overflow disclosure of secondary controls (`banner-toolbar.js` says where each control sits) |
+| **Leaf panel** | Opt-in chrome (`?lf-chrome=floating`, `floating-panel.js`): one box floating over the window's foot whose resting row holds the leaf, coloured by the agent's state and opening the leaf's menu of the page's other controls; the comment field, which shows the agent's status and passing notices while empty; and the Questions and Threads marks. Threads, Questions, Versions and the menu's groups open as views above that row, and folding leaves the leaf alone in the window's corner. It stands for the banner and the bottom bar, drawing their controls from the toolbar's rows (`banner-toolbar.js`) |
+| **Banner** | Default chrome, which `?lf-chrome=classic` also restores after the Leaf panel was chosen (`prepaint.js`): the fixed row at the window's top: page status ending with the agent's Tasks count, the primary Approval, Comment on the page, Questions and Threads controls, and an overflow disclosure of secondary controls (`banner-toolbar.js` says where each control sits) |
 | **Page comment card** | The card hung from the banner's Comment on the page control, holding the page's general comment box, the one place a page thread starts (`thread/page-comment.js`) |
-| **Bottom bar** | The row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
+| **Bottom bar** | Classic chrome's row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
 | **Side panel** | The right-edge slot, with one width and one drawn edge, that the thread panel and the Questions panel take turns in; Questions and Threads are its two banner doors |
 | **Thread panel** | The auxiliary surface listing threads, one of the two that take turns in the side panel |
@@ -146,7 +160,7 @@ two ways: the compact **margin projection** beside the page, and the searchable 
 | **Rail** | The strip right of `main` where margin rows sit beside their targets. Seated where the room beside `main` holds it, it never moves the column; only `data-rail="right"` on `body` makes the shell give up the rail's width, so the page's layout gets narrower (`annotation-theme.css`). `page-authoring.md`, "The rail and the margin", says when a page has one |
 | **Margin resident** | Something the page's margin holds: the rail, the contents map, a column's first sidebar, its sidenotes. One measurement, prepaint.js `residency`, admits each where the room beside `main` holds it |
 | **Margin row** | One target-anchored row whose placement is `rail`, `pin`, or `withheld` |
-| **Pin** | A margin row drawn over the page by its target, used where the row cannot sit in the rail (`rowPosture`). It sits at the end of its target's text or inside its target's top-right corner, or, where that would cover words, a control, another block or another pin, at the nearest free spot that still reads as its target's (`pinSpot` in `margin-placement.js`). Where no such spot exists, it folds, or stays at the end of the text or in the corner and covers what lies under it (`seatRows`) |
+| **Pin** | A margin row drawn over the page by its target, used where the row cannot sit in the rail (`rowPosture`). It sits at the end of its target's text or inside its target's top-right corner, or, where that would cover words, a control, another block or another pin, at the nearest free spot that still reads as its target's (`pinSpot` in `margin-placement.js`). Where no such spot exists, it folds or tries clear space outside its containing boundary. Without a clear seat it is withheld, and Page Map retains its thread and actions (`seatRows`, `margin-layout.js`) |
 | **Folded pin** | A pin drawn as its options' toggle alone (`data-lf-folded`) because its whole face found no room (`seatRows` in `margin-placement.js`) |
 | **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, and one lane per bounded reading region, clipped to what that region shows |
 | **Margin cluster** | The visible group attached to one target |
@@ -178,7 +192,7 @@ the document's height.
 | **Target picker** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
 | **Walk** | Ordered semantic movement among one category of destination: open threads (`t`), the user's Questions (`q`), a list's rows |
-| **Questions** | The user's list, everything waiting on the user (`queues.questions`): open asks, to-dos the agent put on the user, and resends. The banner's Questions control opens the Questions panel, and the `q` walk steps through the same list; the panel's Done fold holds completed asks and to-dos |
+| **Questions** | The user's list, everything waiting on the user (`queues.questions`): open asks, to-dos the agent put on the user, and resends. An open ask the user has commented on leaves it until the agent replies, since the comment's answer is then on Tasks. The banner's Questions control opens the Questions panel, and the `q` walk steps through the same list; the panel's Done fold holds completed asks and to-dos |
 | **Tasks** | The agent's list, everything waiting on the agent (`queues.tasks`): answers it owes, work in hand, and its own to-dos. The banner ends with its count, and the Questions panel shows it as its Tasks section. A message the user sends counts among Tasks as an answer the agent owes before any to-do exists |
 | **Ask** | One core record of a request for the user's input, with its typed answer and its lifecycle. A widget ask has identity `widget:<source-id>`; a prose ask, from a reply sent with `--ask`, has `reply:<agent-message-id>`; an approval ask, `approval:v<version>`, tracks a stamped version's sign-off. Widget state owns a widget ask's values, and the conversation owns a prose ask's settlement. An optional `lf-ask` frames one or more asks with prompt context without changing their identity. An ask is distinct from a to-do and from a resend |
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user. An ask is a separate record, not a to-do |
@@ -225,7 +239,10 @@ These terms name Leaf concepts that no standard term covers, so they stay:
 
 - **Standing**, not *focus*: a user stands at a target from its margin cluster, its
   thread card, or its note on the details shelf as well as from the element, while DOM
-  focus is on one node. Where the two coincide, say *focus*.
+  focus is on one node. Where the two coincide, say *focus*. *Standing* means only
+  where the user is: say *in force* for an event not withdrawn, *current* for the
+  latest value, *open* for something still owed or on screen, and *persistent* for a
+  serve that outlives sessions.
 - **Trip** and **Journey**, not *navigation*: a trip decides whether to leave a history
   entry (it stays when the user already has the destination), and a journey shares one
   entry across trips. Web navigation always adds an entry, or replaces one.

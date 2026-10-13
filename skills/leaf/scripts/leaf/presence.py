@@ -179,7 +179,7 @@ def other_leaves(page_dir: Path) -> list:
     """Live neighboring pages, from their own compact canonical publications.
 
     A closed page is not one of them. Its server stays up so the page stays
-    readable, a standing one for good, so nothing else would ever drop its row, and
+    readable, a persistent one for good, so nothing else would ever drop its row, and
     a count the user glances at to find who needs them would become a tally of
     everything that has run here. This page's own row is never in the list, so a
     user looking at a closed page still sees it.
@@ -222,7 +222,7 @@ def other_leaves(page_dir: Path) -> list:
     return sorted(others, key=lambda entry: entry["title"].lower())
 
 
-def live_facts(page_dir: Path, claim: dict | None) -> dict:
+def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> dict:
     """The presence facts no page file records, read from processes and the harness
     at this moment: whether the claimant's wait lease is held, whether its
     lifetime stands, and what its harness says of its turn (`Harness.live_turn`).
@@ -230,7 +230,8 @@ def live_facts(page_dir: Path, claim: dict | None) -> dict:
     keys on them, and the freshness token carries them."""
     active = claim if claim_is_active(claim) else None
     return {
-        "listening": wait_is_live(page_dir, active["id"] if active else None),
+        "listening": process
+        and wait_is_live(page_dir, active["id"] if active else None),
         # None when nothing claimed the page — leaf run outside an agent harness.
         "session_alive": active is not None if claim else None,
         "live_turn": claim_harness(active).live_turn() if active else None,
@@ -240,6 +241,8 @@ def live_facts(page_dir: Path, claim: dict | None) -> dict:
 def presence_with_activity(
     page_dir: Path,
     events: list,
+    *,
+    process: bool = True,
 ) -> tuple[dict, dict | None]:
     """Gather public presence and server-only live activity as separate values.
 
@@ -250,15 +253,19 @@ def presence_with_activity(
 
     `full_state` spreads it into the page's own state answer, so the runtime's one
     claim-against-proof judgment reads these fields. The server's row publication
-    carries only the compact presentation fields derived from these facts."""
-    stored_status = read_status(page_dir)
+    carries only the compact presentation fields derived from these facts. A captured
+    host publication without a process keeps durable acknowledgement and pending
+    input, while omitting claimant, watcher, turn and live activity facts."""
+    stored_status = (
+        read_status(page_dir) if process else {"state": "waiting", "detail": ""}
+    )
     # The declaration's own fields; the harness's stream stays server-side.
     status = {
         key: value
         for key, value in stored_status.items()
         if key in {"state", "detail", "ts"}
     }
-    claim = page_claim(page_dir)
+    claim = page_claim(page_dir) if process else None
     active = claim if claim_is_active(claim) else None
     # What the wait owner has acknowledged after the complete batch reached its
     # next durable consumer. An action past this seq has not reached that point,
@@ -266,7 +273,7 @@ def presence_with_activity(
     cursor = read_cursor(page_dir)
     reading = {
         "status": status,
-        **live_facts(page_dir, claim),
+        **live_facts(page_dir, claim, process=process),
         "cursor": cursor,
         # The user's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
@@ -302,7 +309,7 @@ def presence_with_activity(
         # nobody has ever viewed, which keeps it distinct from one the user studied
         # and left. Hidden tabs stop their freshness reads, so this records
         # user attention rather than tab lifetime.
-        "viewed": _viewed_at(page_dir),
+        "viewed": _viewed_at(page_dir) if process else None,
         # Where the claimant is working (claim_page), for the drawer's hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that

@@ -1,0 +1,400 @@
+preference: 'A lasting preference for all my pages from now on: I read them in a window about
+  900px wide, beside my editor. At that width, keep the page''s summary, status, contents or
+  queue beside the main content rather than stacked above or below it.'
+reachable: A labeled control whose content is out of view, such as a collapsed section, an unselected
+  item or a scroll region's remainder, counts as reachable but costs the user a step; content
+  cut off with no visible way to reach it does not count.
+widths:
+  laptop:
+    viewport:
+    - 1440
+    - 900
+    description: a 1440px laptop window
+  narrow:
+    viewport:
+    - 900
+    - 900
+    description: a 900px window
+  short:
+    viewport:
+    - 900
+    - 600
+    description: a short 900px by 600px window
+  phone:
+    viewport:
+    - 390
+    - 844
+    description: a 390px phone
+prompts:
+  first:
+    leaf: |-
+      Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code) for this page. $LEAF is its launcher, {payload}/bin/leaf. Check the page with `$LEAF page check {page} --render`, fix findings and stamp it.
+
+      Write the page at {page}/index.html and hand it over to me in my browser. Produce a finished record with readable evidence and the choices or
+      navigation the request needs. You may use the browser tooling available on this
+      machine.
+
+      The user's request follows.
+
+      {request}
+    html: |-
+      Build with ordinary HTML, CSS and JavaScript. No Leaf instructions, widgets or runtime are available. Check your output in the browser and fix findings.
+
+      Write the page at {page}/index.html; I'll open it in my browser. Reply with one line naming the path, and I'll answer here. Produce a finished record with readable evidence and the choices or
+      navigation the request needs. You may use the browser tooling available on this
+      machine.
+
+      The user's request follows.
+
+      {request}
+  preference: '{preference} Please revise the page to follow it.'
+  comment: 'On {target}: {text}'
+  apply:
+    page: 'I''ve made my decisions on the page. Apply them: update the page so it records them
+      as final.'
+    copied: |-
+      I've made my decisions on the page, and this is what it gave me to copy:
+
+      {copied}
+
+      Apply them: update the page so it records them as final.
+    typed: |-
+      {typed}
+
+      Apply them: update the page so it records them as final.
+  reading: |-
+    {situation} For each item below, give one of its listed values, or
+    "undecided" where nothing says.
+
+    {items}
+  reading_applied: |-
+    A user had an assistant build a page, made decisions on it and asked the assistant to update the page so it records them as final. Read the page's files:
+    {listed}
+
+    and the assistant's answers at {answer}. Say what the page's files now record as the final decision. The answers may tell you where to look, but what they claim counts only where the files show it.
+  reading_decision: 'Read the Leaf skill at {payload}/skills/leaf/SKILL.md. The page at {page}
+    has been reviewed by a user who made decisions on it. Read its current state: what did the
+    user decide? Don''t edit the page or serve it.'
+cases:
+  document:
+    inputs:
+      comment:
+        target: the recommendation's ask of the database owners
+        quotes:
+        - the database owners to say whether 55% peak CPU is acceptable
+        - whether 55% peak CPU is acceptable
+        - 55% peak CPU
+        text: The database owners are Mei Tanaka's team. Name them here and ask for their answer
+          by Wednesday, the day before the decision.
+        applied: Mei Tanaka
+      decision:
+        task: 'As the platform team, decide the review''s question: choose option 1, staying
+          on managed Redis and shortening the TTL to 7 days.'
+        typed: 'We''ve decided: stay on managed Redis and shorten the TTL to 7 days.'
+        chosen:
+          option: stay on managed Redis, 7-day TTL
+        values:
+          option:
+          - stay on managed Redis, 7-day TTL
+          - Postgres
+          - stateless tokens with a revocation list
+      reveal: ''
+    assert:
+    - &phase_1_quality
+      type: agent-rubric
+      metric: phase-1-quality
+      value: 'Open every screenshot the output lists for version 1 before judging. Each width''s
+        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page''s
+        content. A labeled control whose content is out of view, such as a collapsed section,
+        an unselected item or a scroll region''s remainder, counts as reachable but costs the
+        user a step; content cut off with no visible way to reach it does not count. Judge only
+        what a user sees; don''t infer interaction behavior from an unoperated screenshot. Pass
+        only if, at every width, version 1 keeps the request''s substantive information, lets
+        the user find and read the evidence, and provides the decisions or navigation the request
+        needs. '
+    - &phase_2_quality
+      type: agent-rubric
+      metric: phase-2-quality
+      value: 'Open every screenshot the output lists for version 2 before judging. Each width''s
+        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page''s
+        content. A labeled control whose content is out of view, such as a collapsed section,
+        an unselected item or a scroll region''s remainder, counts as reachable but costs the
+        user a step; content cut off with no visible way to reach it does not count. Judge only
+        what a user sees; don''t infer interaction behavior from an unoperated screenshot. Pass
+        only if, at every width, version 2 keeps the request''s substantive information, lets
+        the user find and read the evidence, and provides the decisions or navigation the request
+        needs. '
+    - &phase_3_quality
+      type: agent-rubric
+      metric: phase-3-quality
+      value: 'Open every screenshot the output lists for version 3 before judging. Each width''s
+        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page''s
+        content. A labeled control whose content is out of view, such as a collapsed section,
+        an unselected item or a scroll region''s remainder, counts as reachable but costs the
+        user a step; content cut off with no visible way to reach it does not count. Judge only
+        what a user sees; don''t infer interaction behavior from an unoperated screenshot. Pass
+        only if, at every width, version 3 keeps the request''s substantive information, lets
+        the user find and read the evidence, and provides the decisions or navigation the request
+        needs. '
+    - &phase_4_quality
+      type: agent-rubric
+      metric: phase-4-quality
+      value: 'Open every screenshot the output lists for version 4 before judging. Each width''s
+        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page''s
+        content. A labeled control whose content is out of view, such as a collapsed section,
+        an unselected item or a scroll region''s remainder, counts as reachable but costs the
+        user a step; content cut off with no visible way to reach it does not count. Judge only
+        what a user sees; don''t infer interaction behavior from an unoperated screenshot. Pass
+        only if, at every width, version 4 keeps the request''s substantive information, lets
+        the user find and read the evidence, and provides the decisions or navigation the request
+        needs. '
+    - &phase_2_preference
+      type: agent-rubric
+      metric: phase-2-preference
+      value: Open every screenshot the output lists for version 2 before judging. Each width's
+        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page's
+        content. A labeled control whose content is out of view, such as a collapsed section,
+        an unselected item or a scroll region's remainder, counts as reachable but costs the
+        user a step; content cut off with no visible way to reach it does not count. Judge only
+        what a user sees; don't infer interaction behavior from an unoperated screenshot. Pass
+        only if version 2 follows the lasting width preference the output quotes.
+    - &comment_answered
+      type: agent-rubric
+      metric: comment-answered
+      value: Pass only if the author's answer to the user's comment, which the output quotes,
+        tells the user that the change the comment asked for is made.
+  dashboard:
+    inputs:
+      comment:
+        target: the follow-up to confirm the timeout change with the payments team
+        quotes:
+        - Confirm the timeout change with the payments team (Dana).
+        - Confirm the timeout change with the payments team
+        - timeout change with the payments team
+        text: Dana confirmed at 15:52 that 7.2's 3 s connect timeout is the cause. Mark this
+          follow-up done and say so where the page explains the cause.
+        applied: '15:52'
+      decision:
+        task: 'Decide eu-west: roll it back to 4.11 and ship 4.12.1 with the old timeout.'
+        typed: Roll eu-west back to 4.11 and ship 4.12.1 with the old timeout.
+        chosen:
+          eu-west: roll back to 4.11
+          next release: 4.12.1 with the old timeout
+        values:
+          eu-west:
+          - resume to 100%
+          - hold at 50%
+          - roll back to 4.11
+          next release:
+          - 4.12.1 with the old timeout
+          - none
+      reveal: ''
+    assert:
+    - *phase_1_quality
+    - *phase_2_quality
+    - *phase_3_quality
+    - *phase_4_quality
+    - *phase_2_preference
+    - *comment_answered
+  queue:
+    inputs:
+      comment:
+        target: ESC-4110 (Brightline Dental)'s suggested action
+        quotes:
+        - point to the feature request board, already planned for Q4
+        - point to the feature request board
+        - feature request board
+        text: 'Brightline is on a Team trial that converts next week, so don''t just close it:
+          route it to their account manager, Sam Okafor, with the Q4 plan.'
+        applied: Sam Okafor
+      decision:
+        task: 'Work through the queue and decide each ticket: ESC-4107: fix; ESC-4108: close;
+          ESC-4109: fix; ESC-4111: escalate to engineering; ESC-4112: escalate to engineering;
+          ESC-4113: refund; ESC-4114: escalate to engineering. ESC-4110 is settled by your earlier
+          comment; leave it as it is.'
+        typed: 'My decisions: ESC-4107: fix; ESC-4108: close; ESC-4109: fix; ESC-4111: escalate
+          to engineering; ESC-4112: escalate to engineering; ESC-4113: refund; ESC-4114: escalate
+          to engineering. ESC-4110 as I said in my comment.'
+        chosen:
+          ESC-4107: fix
+          ESC-4108: close
+          ESC-4109: fix
+          ESC-4111: escalate to engineering
+          ESC-4112: escalate to engineering
+          ESC-4113: refund
+          ESC-4114: escalate to engineering
+        values:
+          ESC-4107:
+          - refund
+          - fix
+          - escalate to engineering
+          - close
+          ESC-4108:
+          - refund
+          - fix
+          - escalate to engineering
+          - close
+          ESC-4109:
+          - refund
+          - fix
+          - escalate to engineering
+          - close
+          ESC-4111:
+          - refund
+          - fix
+          - escalate to engineering
+          - close
+          ESC-4112:
+          - refund
+          - fix
+          - escalate to engineering
+          - close
+          ESC-4113:
+          - refund
+          - fix
+          - escalate to engineering
+          - close
+          ESC-4114:
+          - refund
+          - fix
+          - escalate to engineering
+          - close
+      reveal: ESC-4110
+    assert:
+    - *phase_1_quality
+    - *phase_2_quality
+    - *phase_3_quality
+    - *phase_4_quality
+    - *phase_2_preference
+    - *comment_answered
+  configuration:
+    inputs:
+      comment:
+        target: the ledger-reconciliation-lag alert
+        quotes:
+        - minutes since the last successful ledger reconciliation run
+        - last successful ledger reconciliation run
+        - ledger-reconciliation-lag
+        text: Finance owns this alert. If it pages, it pages the finance-ops rotation, not payments
+          on-call; show that beside its routing.
+        applied: finance-ops
+      decision:
+        task: 'Set each alert''s threshold and routing: payments-5xx-rate: over 2%, pages; payments-p99-latency:
+          over 1,200 ms, opens a ticket; card-auth-decline-spike: over 3×, opens a ticket; webhook-backlog:
+          over 20,000, pages; ledger-reconciliation-lag: over 180 min, pages; gateway-cert-expiry:
+          under 30 days, opens a ticket.'
+        typed: 'Final settings: payments-5xx-rate: over 2%, pages; payments-p99-latency: over
+          1,200 ms, opens a ticket; card-auth-decline-spike: over 3×, opens a ticket; webhook-backlog:
+          over 20,000, pages; ledger-reconciliation-lag: over 180 min, pages; gateway-cert-expiry:
+          under 30 days, opens a ticket.'
+        chosen:
+          payments-5xx-rate threshold: over 2%
+          payments-5xx-rate routing: pages
+          payments-p99-latency threshold: over 1,200 ms
+          payments-p99-latency routing: opens a ticket
+          card-auth-decline-spike threshold: over 3×
+          card-auth-decline-spike routing: opens a ticket
+          webhook-backlog threshold: over 20,000
+          webhook-backlog routing: pages
+          ledger-reconciliation-lag threshold: over 180 min
+          ledger-reconciliation-lag routing: pages
+          gateway-cert-expiry threshold: under 30 days
+          gateway-cert-expiry routing: opens a ticket
+        values:
+          payments-5xx-rate threshold:
+          - over 0.5%
+          - over 1%
+          - over 2%
+          - over 5%
+          payments-5xx-rate routing:
+          - pages
+          - opens a ticket
+          - 'off'
+          payments-p99-latency threshold:
+          - over 600 ms
+          - over 800 ms
+          - over 1,200 ms
+          - over 2,000 ms
+          payments-p99-latency routing:
+          - pages
+          - opens a ticket
+          - 'off'
+          card-auth-decline-spike threshold:
+          - over 1.5×
+          - over 2×
+          - over 3×
+          card-auth-decline-spike routing:
+          - pages
+          - opens a ticket
+          - 'off'
+          webhook-backlog threshold:
+          - over 1,000
+          - over 5,000
+          - over 20,000
+          webhook-backlog routing:
+          - pages
+          - opens a ticket
+          - 'off'
+          ledger-reconciliation-lag threshold:
+          - over 60 min
+          - over 90 min
+          - over 180 min
+          ledger-reconciliation-lag routing:
+          - pages
+          - opens a ticket
+          - 'off'
+          gateway-cert-expiry threshold:
+          - under 30 days
+          - under 14 days
+          - under 7 days
+          gateway-cert-expiry routing:
+          - pages
+          - opens a ticket
+          - 'off'
+      reveal: ledger-reconciliation-lag
+    assert:
+    - *phase_1_quality
+    - *phase_2_quality
+    - *phase_3_quality
+    - *phase_4_quality
+    - *phase_2_preference
+    - *comment_answered
+  sidebar-page-at-900px:
+    inputs:
+      comment: null
+      decision: null
+      reveal: ''
+    assert:
+    - type: agent-rubric
+      metric: phase-1-quality
+      value: Open every screenshot the output lists for version 1 before judging. Each width's
+        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page's
+        content. A labeled control whose content is out of view, such as a collapsed section,
+        an unselected item or a scroll region's remainder, counts as reachable but costs the
+        user a step; content cut off with no visible way to reach it does not count. Judge only
+        what a user sees; don't infer interaction behavior from an unoperated screenshot. Pass
+        only if, at every width, version 1 keeps the request's substantive information, lets
+        the user find and read the evidence, and provides the decisions or navigation the request
+        needs. The completed rollout's forty entries must remain readable in the document's
+        scroll, rather than showing only one screen of a separate listing. At both 900px window
+        heights, all six checks and their failing result stay accessible beside the log as it
+        scrolls. Page navigation and any supporting sidebar content remain reachable; a sticky
+        box must not hold them below the window. On a phone, the regions stack without covering
+        the log or hiding its entries.
+    - type: agent-rubric
+      metric: phase-2-quality
+      value: Open every screenshot the output lists for version 2 before judging. Each width's
+        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page's
+        content. A labeled control whose content is out of view, such as a collapsed section,
+        an unselected item or a scroll region's remainder, counts as reachable but costs the
+        user a step; content cut off with no visible way to reach it does not count. Judge only
+        what a user sees; don't infer interaction behavior from an unoperated screenshot. Pass
+        only if, at every width, version 2 keeps the request's substantive information, lets
+        the user find and read the evidence, and provides the decisions or navigation the request
+        needs. The completed rollout's forty entries must remain readable in the document's
+        scroll, rather than showing only one screen of a separate listing. At both 900px window
+        heights, all six checks and their failing result stay accessible beside the log as it
+        scrolls. Page navigation and any supporting sidebar content remain reachable; a sticky
+        box must not hold them below the window. On a phone, the regions stack without covering
+        the log or hiding its entries.
+    - *phase_2_preference

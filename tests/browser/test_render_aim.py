@@ -134,7 +134,7 @@ AIM_PRESS_CASES = (
     (
         "ship-review",
         next(p for p in EXAMPLES if p.stem == "ship-review"),
-        frozenset({"option click", "standing mark"}),
+        frozenset({"option click", "existing mark"}),
     ),
 )
 
@@ -1025,11 +1025,11 @@ ROWS_ON = """([target]) => {
 
 
 @pytest.mark.parametrize("case", ["ask", "thread"])
-def test_a_pointed_comment_moves_only_its_own_row(browser, serve, case):
+def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
     """A comment pointed at a row deep in its target stands its own margin row there;
-    the rest of the target's margin does not follow it. An Ask's marker stays with the
-    Ask it accompanies, and a comment already on the target stays at the target's top,
-    where `t` still lands it."""
+    the rest of the target's margin does not follow it. Commenting on an Ask hands it
+    to the agent, so its ask marker leaves. A comment already on a thread target
+    stays at the target's top, where `t` still lands it."""
     if case == "ask":
         url, target = serve(TALL_ASK_PAGE), "way"
         row = f"#{target} p >> nth=25"
@@ -1070,11 +1070,20 @@ def test_a_pointed_comment_moves_only_its_own_row(browser, serve, case):
         target,
     )
     after = dict(page.evaluate(ROWS_ON, [target]))
-    for index, top in before:
-        assert abs(after.get(index, 1e9) - top) <= 8, (
-            f"row {index} of the target moved from {top} to {after.get(index)}: {after}"
-        )
-    added = [top for index, top in after.items() if index not in dict(before)]
+    if case == "ask":
+        expect(
+            page.locator(f'[data-lf-margin-for="{target}"] > .lf-margin-marker')
+        ).to_have_attribute("data-lf-kinds", "comment")
+    else:
+        for index, top in before:
+            assert abs(after.get(index, 1e9) - top) <= 8, (
+                f"row {index} of the target moved from {top} to {after.get(index)}: {after}"
+            )
+    added = (
+        list(after.values())
+        if case == "ask"
+        else [top for index, top in after.items() if index not in dict(before)]
+    )
     assert len(added) == 1 and abs(added[0] - depth) <= 30 and depth > 400, (
         f"the pointed comment has no row of its own at {depth}: {after}"
     )
@@ -1638,7 +1647,7 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     """A covering auxiliary surface owns its pixels, and in Design mode stays Leaf's.
 
     Covered page content is inert, so neither the aim nor a design comment reaches it
-    through the visible remainder, and the page's standing design legend paints beneath
+    through the visible remainder, and the page's fixed design legend paints beneath
     the sheet. The sheet itself is Leaf's chrome, which the mode leaves working: nothing
     on it is a design target, and a press on its scrim puts it away as it would outside
     the mode, which is how a phone the sheet covers gets back to its page.
@@ -2055,9 +2064,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         "draw",
     ],
 )
-def test_target_picker_selects_in_the_standing_comment_mode(
-    browser, serve, mode, route
-):
+def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode, route):
     """Target selection nests inside Design; Draw retains the page for ink."""
     page = open_page(
         browser,
@@ -2489,11 +2496,11 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     expect(panel).to_be_visible()
     expect(composer).to_be_hidden()
 
-    standing = geometry(page, edge)
+    resting = geometry(page, edge)
     draw_edge(page, edge, 160)
     held = geometry(page, edge)
-    assert held["width"] > standing["width"] and held["chosen"], (
-        f"the mode took the edge rather than drawing it: {standing} then {held}"
+    assert held["width"] > resting["width"] and held["chosen"], (
+        f"the mode took the edge rather than drawing it: {resting} then {held}"
     )
     expect(composer).to_be_hidden()
 
@@ -2868,33 +2875,6 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     assert page.eval_on_selector_all(
         ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
     ) == ["path", "line"]
-    page.keyboard.up("Alt")
-
-
-def test_an_undeclared_nested_part_does_not_shadow_its_declared_parent(browser, serve):
-    """Authored tokens bound hit-testing, not only the event after it has chosen a hit.
-
-    The package may register more parts than this instance exposes. A hit inside one of
-    those parts still belongs to the nearest declared ancestor rather than widening to
-    the visual as a whole.
-    """
-    page = open_page(
-        browser,
-        serve(
-            GENERIC_VISUAL_PAGE.replace(
-                'parts="outer inner html"', 'parts="outer html"'
-            ),
-            layer_registry=GENERIC_VISUAL_LAYER,
-            layer_widgets=GENERIC_VISUAL_WIDGETS,
-        ),
-    )
-
-    page.locator("#inner path").hover()
-    page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "outer")
-    assert page.eval_on_selector_all(
-        ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
-    ) == ["rect"]
     page.keyboard.up("Alt")
 
 
@@ -3371,18 +3351,12 @@ def test_a_rounded_diagram_part_aim_has_room_to_cover_the_shape_edge(browser, se
 def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, serve):
     """The authored Mermaid id, rather than its generated SVG id, is the anchor.
 
-    An unlisted node is the control: it still takes the whole diagram. A listed node
-    outlines only its current SVG group, while the diagram holds the accessible note
-    and the panel place. Reloading makes Mermaid generate the SVG again and proves the
+    A named node outlines only its current SVG group, while the diagram holds the
+    accessible note and the panel place. Reloading makes Mermaid generate the SVG again and proves the
     stable token resolves to that new box.
     """
     page = open_page(browser, live_url(serve(PART_DIAGRAM_PAGE)))
     diagram = page.locator("#flow")
-
-    unlisted = diagram.locator('g[data-id="U"]')
-    unlisted.click(modifiers=["Alt"])
-    expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
-    page.keyboard.press("Escape")
 
     start = diagram.locator('g[data-id="S"]')
     start.click(modifiers=["Alt"])
@@ -3451,7 +3425,7 @@ def test_a_sequence_actor_is_an_addressable_visual_part(browser, serve):
         "sequence diagram parts",
         """
 <h1 id="t">Exchange</h1>
-<lf-diagram id="exchange" parts="node:A"><pre>
+<lf-diagram id="exchange" parts="all"><pre>
 sequenceDiagram
   participant A as User
   participant B as Server
@@ -3558,7 +3532,7 @@ def test_an_aim_in_a_pane_stands_anchored_to_what_it_outlines(browser, serve, su
       <div>
         <div style="height: 200px"></div>
         <p id="pane-words">The first finding, aimed at.</p>
-        <lf-diagram id="flow" parts="node:S"><pre>
+        <lf-diagram id="flow" parts="all"><pre>
 graph LR
   S[Start request] --> H[Handle request]
 </pre></lf-diagram>
@@ -3910,8 +3884,9 @@ main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {disp
 )
 
 
-def _draft_in_view(page, words):
-    field = page.locator(".lf-fab-input")
+def _draft_in_view(page, words, field=None):
+    if field is None:
+        field = page.locator(".lf-fab-input")
     box = field.bounding_box()
     viewport = page.viewport_size
     return (
@@ -4015,6 +3990,86 @@ def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, ser
     rendered(page)
     assert not page.locator(".lf-fab-input").is_visible()
     assert json.loads(stored_draft_text(page, context))["text"] == words
+
+
+@pytest.mark.parametrize("reopen", ["resume", "reload", "withheld", "comment"])
+def test_explicit_reopening_keeps_a_css_hidden_subject_draft_reachable(
+    browser, serve, reopen
+):
+    page, words = _open_attachment_draft(
+        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a"
+    )
+    if reopen not in {"withheld", "comment"}:
+        page.keyboard.press("Escape")
+        page.mouse.click(5, 600)
+    resized(page, 480, 900)
+    if reopen == "reload":
+        page.reload()
+        wait_until_ready(page)
+    elif reopen == "comment":
+        page.keyboard.press("c")
+    else:
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    assert _draft_in_view(page, words)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-plane", "window")
+
+
+@pytest.mark.parametrize("reply", [False, True])
+def test_a_withheld_draft_observes_visibility_without_a_layout_change(
+    browser, serve, reply
+):
+    page, words = _open_attachment_draft(
+        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#ordinary"
+    )
+    field = page.locator(".lf-fab-input")
+    if reply:
+        with sending(page, "the visibility target comment"):
+            page.keyboard.press("ControlOrMeta+Enter")
+        page.keyboard.press("c")
+        field = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
+        words = "A reply with the same visibility owner."
+        write(field, words)
+    page.locator("#ordinary").evaluate("el => el.style.visibility='hidden'")
+    expect(field).not_to_be_visible()
+    page.locator("#ordinary").evaluate("el => el.style.visibility='visible'")
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    assert _draft_in_view(page, words, field)
+
+
+def test_a_display_contents_comment_editor_observes_visibility_without_layout(
+    browser, serve
+):
+    """An aimed comment editor follows its boxless target's visible parts without
+    relying on a resize or render pass to invalidate floating placement."""
+    source = leaf_page(
+        "a display contents comment target",
+        '<h1>Comment visibility</h1><div id="pair" style="display: contents">'
+        "<p><span>The first half.</span></p><p><span>The second half.</span></p></div>",
+        layout=None,
+    )
+    page = open_page(browser, serve(source))
+    rendered(page)
+    page.locator("#pair span").first.click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    words = "An unfinished comment remains with its display contents target."
+    write(field, words)
+    expect(field).to_have_js_property("value", words)
+
+    parts = page.locator("#pair > p")
+    expect(parts).to_have_count(2)
+    parts.evaluate_all("els => els.forEach(el => el.style.visibility='hidden')")
+    expect(field).not_to_be_visible()
+    parts.evaluate_all("els => els.forEach(el => el.style.visibility='visible')")
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", words)
 
 
 DESIGN_PANE_PAGE = leaf_page(
@@ -4172,7 +4227,14 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
         if scroller == "pane"
         else "document.scrollingElement",
     )
-    painted = [w for w in writes if PAINT.search(w["target"])]
+    # Near-window membership may add distinct boxes to a carrier as targets cross
+    # the observer's boundary. Their placement must still need no per-frame writes.
+    painted = [
+        w
+        for w in writes
+        if PAINT.search(w["target"])
+        and not (w["type"] == "childList" and "lf-paint-carrier" in w["target"])
+    ]
     assert not scroll_followers(painted, frames), painted
 
 

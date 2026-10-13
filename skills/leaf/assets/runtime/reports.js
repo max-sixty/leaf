@@ -11,7 +11,7 @@
    append-only log, in one envelope: `id`, typed `target`, `source`, `action`,
    structured `detail`, declared human-readable `text`, `ts`, attribution,
    `disposition`, and the report's version and sequence. The work the agent has in hand
-   is no report: it is the served workflows' Working stage and the open tasks' `running`
+   is no report: it is the served workflows' Working stage and the open to-dos' `running`
    start.
 
    A report holds until a stamped revision's note absorbs or overrules it. The closed

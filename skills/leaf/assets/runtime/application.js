@@ -12,7 +12,7 @@ import {
   presentDocument,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
-import { readQuestions } from "./questions/model.js";
+import { readAsks } from "./asks/model.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
@@ -92,7 +92,7 @@ export function mountApplication(dependencies) {
         ),
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "thread", "questions", "queue"],
+        ["projection:chrome", "thread", "asks", "queue"],
         stillCurrent,
       ),
     ]);
@@ -101,7 +101,7 @@ export function mountApplication(dependencies) {
     const released = ledger
       .releasable()
       .filter((entry) => attempts.has(entry.event.attempt));
-    // Widget updates and the thread, projection, and Question owners have now committed
+    // Widget updates and the thread, projection, and ask owners have now committed
     // this surviving semantic reading. Paint its command surface while the same pending
     // records still stand; removing an accounted record is then a semantic no-op.
     if (!released.length) return false;
@@ -251,10 +251,10 @@ export function mountApplication(dependencies) {
   };
 
   const annotations = createAnnotationInventory({
-    readQuestions,
+    readAsks,
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
-    goToQuestion: dependencies.annotationCommands.goToQuestion,
+    goToAsk: dependencies.annotationCommands.goToAsk,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -480,7 +480,15 @@ export function mountApplication(dependencies) {
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
-  const registerThreadPresentation = (owner, { render, reveal, replyBox = null }) => {
+  // One reader is the page's primary at a time (thread/destination.js). Leaf's own
+  // chrome registers one that yields (`registerChromeThreadPresentation`, which the
+  // runtime alone is handed): a reader the page's package registers
+  // takes the place while it stands, since the author's presentation outranks Leaf's
+  // defaults, and the chrome's returns when it leaves. `primary` says which holds it. The
+  // chrome's `yielded`, asked before its reader goes, returns how to hand the reader
+  // taking its place the conversation it shows, which runs once the package holds its
+  // registration, as that reader may ask it to present.
+  const attachPresentation = (owner, { render, reveal, replyBox = null }) => {
     const reader = createPrimaryReader(
       owner,
       render,
@@ -497,17 +505,66 @@ export function mountApplication(dependencies) {
       reader.unregister();
       throw error;
     }
+    return {
+      reader,
+      detach() {
+        detachDestination();
+        detachPresentation();
+      },
+    };
+  };
+  let yielding = null;
+  let authored = null;
+  const restoreYielding = () => {
+    if (yielding && !yielding.attached)
+      yielding.attached = attachPresentation(yielding.owner, yielding.spec);
+  };
+  const presentThreads = (owner, spec, yields) => {
+    const entry = { owner, spec, attached: null };
+    if (yields) {
+      if (yielding)
+        throw new Error("The page already has a yielding Thread presentation");
+      yielding = entry;
+      // A package's reader registered first keeps the place.
+      if (!authored) entry.attached = attachPresentation(owner, spec);
+    } else {
+      const displaced = yielding?.attached;
+      const handOff = displaced ? yielding.spec.yielded() : null;
+      if (displaced) {
+        displaced.detach();
+        yielding.attached = null;
+      }
+      try {
+        entry.attached = attachPresentation(owner, spec);
+      } catch (error) {
+        if (displaced) restoreYielding();
+        throw error;
+      }
+      authored = entry;
+      if (handOff)
+        queueMicrotask(() => {
+          if (authored === entry) handOff();
+        });
+    }
     let active = true;
     return Object.freeze({
+      get primary() {
+        return Boolean(entry.attached);
+      },
       update: ({ release = false } = {}) => {
-        if (release) reader.release();
+        if (release) entry.attached?.reader.release();
         return threadPresenter.present();
       },
       unregister() {
         if (!active) return;
         active = false;
-        detachDestination();
-        detachPresentation();
+        entry.attached?.detach();
+        entry.attached = null;
+        if (yielding === entry) yielding = null;
+        if (authored === entry) {
+          authored = null;
+          restoreYielding();
+        }
       },
     });
   };
@@ -527,7 +584,9 @@ export function mountApplication(dependencies) {
     read,
     mountThread: threadPresenter.mount,
     mountRead: read.mount,
-    registerThreadPresentation,
+    registerThreadPresentation: (owner, spec) => presentThreads(owner, spec, false),
+    registerChromeThreadPresentation: (owner, spec) =>
+      presentThreads(owner, spec, true),
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
     post,
     projectData: dataProjection.projectData,
@@ -542,24 +601,21 @@ export function mountApplication(dependencies) {
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     queueActions,
-    openQuestion(id) {
-      const question = readQuestions().all.find((item) => item.id === id);
-      if (!question) return Promise.resolve(false);
-      if (question.source.kind === "approval")
-        return queueActions.open(JSON.stringify(["ask", question.id]));
-      if (question.source.kind === "reply") {
-        showHeld(question.thread);
-        return threadDestinations.openPageThread(question.message, {
+    openAsk(id) {
+      const ask = readAsks().all.find((item) => item.id === id);
+      if (!ask) return Promise.resolve(false);
+      if (ask.source.kind === "approval")
+        return queueActions.open(JSON.stringify(["ask", ask.id]));
+      if (ask.source.kind === "reply") {
+        showHeld(ask.thread);
+        return threadDestinations.openPageThread(ask.message, {
           part: "message",
         });
       }
-      return dependencies.annotationCommands.goToQuestion(
-        question,
-        readQuestions().all,
-      );
+      return dependencies.annotationCommands.goToAsk(ask, readAsks().all);
     },
     // The Questions walk within one region (queue-walk.js), the walk an `lf-tally` steps.
-    nextQuestion: (options) => dependencies.nextQuestionWithin(options),
+    nextAsk: (options) => dependencies.nextAskWithin(options),
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
   };
@@ -593,9 +649,9 @@ export const threadActions = Object.freeze({
   reopen: (...args) => app().threadActions.reopen(...args),
   setReaction: (...args) => app().threadActions.setReaction(...args),
 });
-export const questionActions = Object.freeze({
-  open: (...args) => app().openQuestion(...args),
-  next: (...args) => app().nextQuestion(...args),
+export const askActions = Object.freeze({
+  open: (...args) => app().openAsk(...args),
+  next: (...args) => app().nextAsk(...args),
 });
 export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),

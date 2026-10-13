@@ -356,22 +356,25 @@ browser, or `loadId`.
 | `serverMs`, `firstByteMs`, `firstContentfulPaintMs` | Worker time, network time to the first byte, and first paint |
 | `upgradedMs` | First widget upgrade in the body |
 | `firstStateResponseMs` | First completed `api/state` response for the page (Resource Timing `responseEnd`) |
-| `presentedMs` | When the page came up |
-| `outcome` | How the record closed: `presented`, `failed` (the page reported it could not start), `timeout` (fifteen seconds passed without either), or `abandoned` (the user left first) |
+| `presentedMs` | When authoritative state or the offline fallback presented |
+| `outcome` | How the record closed: `presented`, `failed` (the page reported it could not start), `timeout` (fifteen seconds passed without widget upgrade or a declared failure), or `abandoned` (the user left first) |
 | `reason` | What went wrong during startup, when anything did |
 
 `serverMs` is how long the Worker took to answer, from its `Server-Timing` header. Every
 other time is milliseconds since navigation started. A time not observed is `null`.
-Widgets can upgrade while private state still waits for its container. The page
+Widgets can upgrade while the first saved-state response still waits. The page
 presents after the state answer is applied, except that the offline fallback can
 present authored content with `firstStateResponseMs: null`.
 
-`presentedMs` says whether the page came up; `outcome` says only how the record closed.
-A page that comes up and then waits on a subresource reports `timeout`, or `abandoned`
-if the user leaves, with `presentedMs` set in both cases.
+`upgradedMs` says when the interface became usable, including new comments while
+saved state loads. `presentedMs` says when that read answered or failed; `outcome`
+says only how the record closed. A healthy state read can take more than fifteen
+seconds after upgrade without reporting a startup timeout.
+A page that presents while a native subresource still loads closes after native
+load, or as `abandoned` if the user leaves first, with `presentedMs` set.
 
 `reason` is at most 300 characters: the entry module or theme that failed to load, the
-message and source position of a script that threw before presentation, or what the
+message and source position of a script that threw before upgrade, or what the
 runtime said when it reported it could not start. A page that recovers and presents
 still carries it, so these records find faults in browsers this repository cannot run.
 Apart from `reason`, the record holds no page content, URL details, cookies, IP
@@ -474,7 +477,7 @@ Codex falling back from its WebSocket probe to HTTP.
 
 When a hosted turn cannot answer, the user's update gets a failure receipt: a reply
 carrying `failure` in its thread for a message, or a failed pickup for an answer to an
-ask, which leaves the answer standing and lets the user answer again
+ask, which leaves the answer in force and lets the user answer again
 (`fail_answer` in `skills/leaf/scripts/leaf/thread.py`). The receipt's `failure` field holds one of three codes, and
 `worker/leaf_website/__init__.py` declares the words the user reads for each in
 `FAILURE_RECEIPTS`:
@@ -489,18 +492,29 @@ ask, which leaves the answer standing and lets the user answer again
 at once on any other failure receipt.
 
 The Worker starts each turn inside the request's `waitUntil`, which Cloudflare allows
-30 seconds. Nothing stores the accepted event or the running turn in Durable Object
-storage, and nothing recovers a start that outlasts that window.
+30 seconds. The accepted event is durable; the running turn is not, and nothing
+recovers a start that outlasts that window.
 
 ## Configuration
 
-### Prewarm and capacity
+### Saved state and capacity
 
-`AGENT_PREWARM` in `wrangler.toml` starts a visitor's container in the background on
-each browser document navigation when it is `"true"`. Set it to `"false"` to compare
-cold starts; read-only visits then stay at the edge. Wrangler environments do not
-inherit variables, so it is set for production and again under `env.dev`. Prewarming
-draws on the task-start rate limiter under its own per-source key.
+Read-only visits do not prewarm a container. The existing session Durable Object
+serves saved documents, comments, choices and private resources while compute is
+stopped. A write or a missing saved response starts Python, which restores the
+canonical page record before accepting requests. `leaf_website.storage` publishes
+canonical files and matching Python-produced responses atomically before a write
+is acknowledged; a failed publication fails the request and permits an idempotent
+retry. File modification dates survive restore, including the publication date of
+an unstamped revision. A release selects fresh demo records, while container
+replacement preserves the current release's records. `docs/website.html`, **Private sessions**, owns the
+storage and identity contract.
+
+The append lease admits one staged successor per page. Replacing or committing it
+collects chunks no committed record, staged successor, delivery stream or restore
+snapshot uses.
+An interrupted upload therefore retains at most one successor until that page
+retries; other pages' concurrent uploads and readers remain protected.
 
 `max_instances` caps concurrent `basic` containers: 5,900 for production and 90 for
 `dev`, under Cloudflare's account limit of 6,000. A container with no requests stops

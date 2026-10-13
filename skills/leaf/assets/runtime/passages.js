@@ -88,7 +88,8 @@
    until it finds the actual control.
 
    Hit testing asks two different questions. `elementFromPointAcross` and `markAt`
-   (anchor-resolution.js) may descend into a shadow root when the exact marked text matters.
+   (anchor-resolution.js) may descend into a declared shadow root when the exact marked
+   text matters.
    `aimedTarget` (composing/aim.js) may keep document retargeting when the host is the
    addressable element. Choose the reading by the question, not by convenience.
 
@@ -116,7 +117,7 @@ import {
   upFrom,
 } from "./shadow.js";
 import { decisionFor, registry } from "./registry.js";
-import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./page-paint.js";
+import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
 import { readApplication } from "./semantic-state.js";
 import { COLLAPSE, TEXT_BLOCK } from "./passage-facts.js";
@@ -162,8 +163,8 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // and never back from the mark that paint leaves: a mark a module wrote where the log
 // decided nothing silences no words.
 //
-// `settlements` is that reading per holder id: its tag, and the tags its standing
-// outcome retires.
+// `settlements` is that reading per holder id: its tag, and the tags its outcome
+// in force retires.
 // It is rebuilt once per publication or registry, and `settledKey` names it, so the
 // page reading is forgotten exactly when it changes (`catchUpReading`).
 let settledFrom = [];
@@ -186,10 +187,10 @@ function settlements() {
   return settled;
 }
 // A slot its holder's decision took off the page: a child of the holder, in its light
-// tree or its shadow root, whose tag the standing outcome retires. Only this
+// tree or its shadow root, whose tag the outcome in force retires. Only this
 // document's holders are settled; a parsed revision's elements share their ids.
 function retiredSlot(el) {
-  const holder = el.parentElement ?? shadowHost(el.parentNode);
+  const holder = upFrom(el);
   if (!holder?.id || el.ownerDocument !== document) return false;
   const settlement = settlements().get(holder.id);
   return (
@@ -321,11 +322,11 @@ export const elementOver = (n) => {
 // refuses the text once, here, whichever reader reaches it first, and no reader meets it
 // again. Thrown out of each reader instead, it was refused again on every repaint frame,
 // key and selection, each an uncaught error and each a report. The one refusal is
-// reported to the agent here, and before the page presents it is also the page's
+// reported to the agent here, and before the page upgrades it is also the page's
 // startup failure, its own fault, which no server update fixes: it is declared
 // (`lf-startup-failed`, `page`), so the readable fallback shows at once, the notice says
 // the page has a problem, and the page never presents (leaf.js). A page already
-// presented keeps running without those words, and without the root: a mark or a
+// upgraded keeps running without those words, and without the root: a mark or a
 // projection painted into it is never cleared, and an id inside it stops resolving,
 // since every sweep of declared roots (`shadowRootsIn`) has dropped it.
 function refusesBareText(root) {
@@ -335,7 +336,7 @@ function refusesBareText(root) {
   refuseShadowRoot(root);
   const refusal = bareTextRefusal(bare);
   reportPageError(refusal);
-  if (!pagePresented())
+  if (!pageUpgraded())
     window.dispatchEvent(
       new CustomEvent("lf-startup-failed", {
         detail: { reason: refusal.message, error: refusal, page: true },
@@ -658,10 +659,12 @@ export const authoredScope = (node) =>
 // elementFromPoint retargets to the host for a point over a shadow tree, so it names the
 // widget rather than the thing in it, and each root answers for its own. Mark hit testing
 // and item aim both use this exact reading, so a projected datum inside a declared shadow
-// tree can outrank its host.
+// tree can outrank its host. Only a declared root is entered: another library's tree is
+// its control's insides, whose ids (Web Awesome Copy's `#copy-button`) the page never
+// authored, so the hit stays at the control.
 export const elementFromPointAcross = (x, y) => {
   let el = document.elementFromPoint(x, y);
-  while (el?.shadowRoot) {
+  while (el && declaredRoot(el)) {
     const inner = el.shadowRoot.elementFromPoint(x, y);
     if (!inner || inner === el) break;
     el = inner;
@@ -1029,7 +1032,7 @@ export function neighbourhood(reading, at, want, before) {
 // The reading is a function of the document and the user's settlements, so those are
 // what say when it may change. Everything it is built out of is here: the page's words
 // and their shape, the markers those words are read through, the vocabulary the markers
-// mean something against, the slots the standing decisions retire (`settlements`), and
+// mean something against, the slots the decisions in force retire (`settlements`), and
 // the widget parts the cell walk fences on. The first two a MutationObserver reports;
 // the rest have one door each.
 //

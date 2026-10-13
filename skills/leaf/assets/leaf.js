@@ -17,20 +17,21 @@ import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
   markPagePresented,
+  markPageUpgraded,
   whenArrived,
   pageReadiness,
   settlePageInterface,
+  afterPresentation,
   PRESENTATION,
 } from "./runtime/presentation.js";
-import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./runtime/page-paint.js";
-import { nextFrame, renderingState } from "./runtime/rendering.js";
+import { pagePresented } from "./runtime/page-paint.js";
+import { nextFrame, renderingState, observePreparations } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
-import { approvalBlockingQuestions } from "./runtime/questions/model.js";
+import { approvalBlockingAsks } from "./runtime/asks/model.js";
 import { beginRead } from "./runtime/state-feed.js";
 import {
   applicationState,
-  observeWidgetPreparations,
   whenApplicationPresented,
 } from "./runtime/semantic-state.js";
 import { createEngagement } from "./runtime/composing/engagement.js";
@@ -92,10 +93,10 @@ import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
 import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
-import { createQuestionView } from "./runtime/questions/view.js";
+import { createAskView } from "./runtime/asks/view.js";
 import { createQueueWalk } from "./runtime/queue-walk.js";
 import { createQueuePanel } from "./runtime/queue-panel.js";
-import { QUESTION_CONTROL } from "./runtime/questions/view-elements.js";
+import { ASK_CONTROL } from "./runtime/asks/view-elements.js";
 import {
   commandHintLayer,
   createCommandHints,
@@ -136,7 +137,7 @@ import {
   createGoToSequence,
   goToHintLayer,
 } from "./runtime/keyboard/go-to-sequence.js";
-import { bannerFoot } from "./runtime/geometry.js";
+import { bannerFoot, windowChromeBoxes } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
 import { declareStanding } from "./runtime/keyboard/page.js";
@@ -149,7 +150,6 @@ import {
   mountShortcutBar,
   renderShortcutBar,
   shortcutBarEl,
-  standingStatusBoxes,
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
 import {
@@ -197,7 +197,7 @@ if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingState = renderingState;
   validationEntry.lfObserveQueuedWork = observeQueuedWork;
-  validationEntry.lfObserveWidgetPreparations = observeWidgetPreparations;
+  validationEntry.lfObserveWidgetPreparations = observePreparations;
   validationEntry.lfNativeLayers = nativeLayers;
 }
 
@@ -226,16 +226,15 @@ const narrowing = createThreadNarrowing({
   view: narrowingView,
   listRoot: threadsBox,
   readThreads: threadList,
-  ready: () => runtime.statePhase === "ready",
   repaint: () => app.presentThread(),
 });
-const paintVersionApproval = () => paintApproval(approvalBlockingQuestions());
+const paintVersionApproval = () => paintApproval(approvalBlockingAsks());
 let threadPanelController;
 let drawers;
 let layout;
 let landing;
 let pageMapDialog;
-let questions;
+let asks;
 let panelKeys;
 let pageComment;
 let responseSurface;
@@ -288,15 +287,16 @@ const navigation = createNavigation({
     scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
     threadHere: () => app.threadDestinations.threadHere(),
     threadAtStanding: () => app.threadDestinations.threadAtStanding(),
-    threadTarget: (...args) => app.threadDestinations.threadTarget(...args),
+    threadPlace: (...args) => app.threadDestinations.threadPlace(...args),
   },
 });
 
-// The standing furniture every generated-hint map is spread around. Both maps read the
-// same three boxes, and they are passed rather than imported so the hint machine keeps
-// no ownership edge back to the shortcut bar it is placed against.
+// The fixed furniture every generated-hint map is spread around: the window's
+// declared chrome (geometry.js), the key line and the banner's foot. Both maps read the
+// same boxes, and they are passed rather than imported so the hint machine keeps no
+// ownership edge back to the shortcut bar it is placed against.
 const hintChrome = {
-  barriers: standingStatusBoxes,
+  barriers: windowChromeBoxes,
   lineBox: () => shortcutBarEl.getBoundingClientRect(),
   viewportTop: bannerFoot,
 };
@@ -414,8 +414,8 @@ const version = createVersionController({
   captureRetainedStanding: () => app?.overlay?.captureStanding() ?? null,
   restoreRetainedStanding: (standing) =>
     app?.overlay?.restoreStanding(standing) ?? false,
-  captureQuestionStanding: () => questions.captureStanding(),
-  restoreQuestionStanding: (standing) => questions.restoreStanding(standing),
+  captureAskStanding: () => asks.captureStanding(),
+  restoreAskStanding: (standing) => asks.restoreStanding(standing),
 });
 
 const inputs = createCompositionInputs({
@@ -425,7 +425,7 @@ const inputs = createCompositionInputs({
 
 app = mountApplication({
   arriveAtQueueItem: (item) => queueWalk.arriveAtItem(item),
-  nextQuestionWithin: (options) => queueWalk.nextWithin(options),
+  nextAskWithin: (options) => queueWalk.nextWithin(options),
   panel,
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
@@ -475,7 +475,7 @@ app = mountApplication({
     pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
     renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
     scrollThreadIntoView,
-    goToQuestion: (...args) => questions.goToQuestion(...args),
+    goToAsk: (...args) => asks.goToAsk(...args),
   },
   state: {
     prepareActivation: (state) => version.prepareActivation(state),
@@ -515,7 +515,7 @@ declareReading(landingPlace);
 // And where it goes instead while a surface covers the page: the page is inert under one,
 // so the reading above cannot take the user and a step that let go would leave them
 // wherever the closing layer happened to drop them. The modality that covers already
-// answers both halves for whichever surface is standing — the panel, either drawer — and
+// answers both halves for whichever surface is open — the panel, either drawer — and
 // the keyboard register carries the same pair to the dispatcher.
 declareCovering({
   surface: auxiliarySurfaces.coveringSurface,
@@ -541,8 +541,8 @@ pageMapDialog = createPageMapDialog({
   annotationFocus: app.overlay?.mapFocusTarget,
 });
 
-// Question view is constructed below by its owner factory; all accesses above are inert closures.
-questions = createQuestionView({
+// The ask view is constructed below by its owner factory; all accesses above are inert closures.
+asks = createAskView({
   focusForNavigation,
   presentedControl: app.overlay?.presentedControl,
   prepareTrip: anchorTravel.prepareTrip,
@@ -553,10 +553,10 @@ questions = createQuestionView({
 });
 const queueWalk = createQueueWalk({
   actions: app.queueActions,
-  arriveAtQuestion: questions.arriveAtQuestion,
+  arriveAtAsk: asks.arriveAtAsk,
   arriveAtThread: navigation.arriveAtThread,
   threadHere: () => app.threadDestinations.threadHere(),
-  threadTarget: (id) => app.threadDestinations.threadTarget(id),
+  threadPlace: (id) => app.threadDestinations.threadPlace(id),
   prepareTrip: anchorTravel.prepareTrip,
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,
@@ -573,8 +573,8 @@ const commandHints = createCommandHints({
 });
 
 const standingTarget = createStandingTarget({
-  isQuestionControl: (node) => node?.matches?.(QUESTION_CONTROL),
-  standingIn: questions.standingIn,
+  isAskControl: (node) => node?.matches?.(ASK_CONTROL),
+  standingIn: asks.standingIn,
 });
 
 panelKeys = createThreadPanelKeys({
@@ -593,17 +593,17 @@ pageComment = createPageComment({
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
-// The floating panel stands in for the banner and bottom bar where the user chose it
+// The floating panel stands in for the banner and bottom bar where the reader chose it
 // (prepaint.js, `lfChrome`); a choice made later reloads the page.
 const floatingPanel =
   document.documentElement.lfChrome?.mode === "floating"
     ? createFloatingPanel({
         wireInput: inputs.wireInput,
         threadActions: app.threadActions,
-        registerThreadPresentation: app.registerThreadPresentation,
-        questions: {
-          choicesOf: questions.choicesOf,
-          open: (id) => app.openQuestion(id),
+        registerChromeThreadPresentation: app.registerChromeThreadPresentation,
+        asks: {
+          choicesOf: asks.choicesOf,
+          open: (id) => app.openAsk(id),
         },
         queueActions: app.queueActions,
         withdraw: app.withdraw,
@@ -753,19 +753,30 @@ if (document.documentElement.lfSample) {
     viewOperation?.abort();
     viewOperation = new AbortController();
     const { signal } = viewOperation;
-    if (surface === "panel")
-      return threadPanelController.showView({ thread: id, status, waiting, signal });
     const retained = retainUserIntent({ available: () => !signal.aborted });
     // A host view never takes focus, but newer child input still supersedes it.
     const intent = restrictUserIntent(retained, retained);
-    intent.handoff(() => threadPanelController.setPanel(false));
-    return Boolean(
-      await app.threadDestinations.openPageThread(id, {
-        focus: false,
-        travel: false,
-        intent,
-      }),
-    );
+    // The host's usable interface includes comments while history still loads.
+    // Selecting a saved conversation needs the child's authoritative reading.
+    return afterPresentation(async () => {
+      if (!intent()) return false;
+      if (surface === "panel")
+        return threadPanelController.showView({
+          thread: id,
+          status,
+          waiting,
+          signal,
+          intent,
+        });
+      intent.handoff(() => threadPanelController.setPanel(false));
+      return Boolean(
+        await app.threadDestinations.openPageThread(id, {
+          focus: false,
+          travel: false,
+          intent,
+        }),
+      );
+    });
   });
 }
 
@@ -805,11 +816,11 @@ goToSequence = createGoToSequence({
   coveringAuxiliarySurface: auxiliarySurfaces.coveringSurface,
 });
 const standingPainters = {
-  markHere: questions.markHere,
+  markHere: asks.markHere,
   paintStanding: anchorPaint?.paintStanding,
   paintSelectedMarginEntries: () =>
     app.overlay?.paintSelectedMarginEntries([
-      { kind: "ask", target: questions.standingIn() },
+      { kind: "ask", target: asks.standingIn() },
       {
         kind: "comment",
         target: anchorPlacement.placedAt(standingThreadId())?.place,
@@ -894,7 +905,7 @@ if (!offlineInteractive) {
   anchorControls.mount();
   pageGeometry.mount();
   pageMapDialog.mount(chromeForeground);
-  questions.mount();
+  asks.mount();
   queueWalk.mount();
   queue.mount();
   commandHints.mount();
@@ -972,28 +983,12 @@ const { landArrival, savedView } = offlineInteractive
 const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
 
 async function presentPage() {
-  if (pagePresented() || startupFailed) return;
+  // Saved state gates state-dependent interaction, not the commenting interface.
+  if (applicationState.read().phase === "waiting" || pagePresented() || startupFailed)
+    return;
   await whenApplicationPresented();
+  if (applicationState.read().phase === "waiting") return;
   if (pagePresented()) return;
-  setAnchoringReady(true);
-  try {
-    const draftOpened =
-      !offlineInteractive &&
-      recoverComposer() &&
-      responseSurface.openDraft(savedComposer);
-    await app.presentThread();
-    // Anchoring changes where thread chrome is painted. That final paint is part
-    // of initial presentation too: opening interaction before it commits can expose a
-    // malformed page that the unanchored provisional pass could not yet inspect.
-    await whenApplicationPresented();
-    if (draftOpened) {
-      await responseSurface.fabPositioned();
-      paintKeys();
-    }
-  } catch (error) {
-    setAnchoringReady(false);
-    throw error;
-  }
   if (startupFailed) return;
   markPagePresented();
   // Optional author context begins after the presented frame. It neither imports
@@ -1007,13 +1002,11 @@ async function presentPage() {
       }, 0),
     );
   void whenArrived().then(landFragment);
-  anchorControls.publishVisualActions();
   if (offlineInteractive) {
     landFragment();
     document.dispatchEvent(new Event(PRESENTATION));
     return;
   }
-  responseSurface.updateFab();
   auxiliarySurfaces.present();
   presentLeaves();
   paintKeys();
@@ -1052,12 +1045,31 @@ async function startPage() {
   openResidency({ onRead: annotationRenderer?.syncMarginResidency });
   if (!offlineInteractive) {
     layout.syncLayout();
-    questions.buildBulkAnswers();
-    questions.syncQuestions();
+    asks.buildBulkAnswers();
+    asks.syncAsks();
   }
   await settlePageInterface();
   landFragment();
-  document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.upgraded, "1");
+  // Comments name the shown document, not the private history still loading. Its
+  // widgets and words are now settled; prepare the anchor-dependent chrome before
+  // opening keyboard capture, so malformed coordinates never become controls.
+  setAnchoringReady(true);
+  try {
+    const draftOpened =
+      !offlineInteractive &&
+      recoverComposer() &&
+      responseSurface.openDraft(savedComposer);
+    await app.presentThread();
+    await whenApplicationPresented();
+    if (draftOpened) await responseSurface.fabPositioned();
+  } catch (error) {
+    setAnchoringReady(false);
+    throw error;
+  }
+  markPageUpgraded();
+  anchorControls.publishVisualActions();
+  responseSurface.updateFab();
+  paintKeys();
   app.startFeed(presentPage, initialStateRead);
 }
 

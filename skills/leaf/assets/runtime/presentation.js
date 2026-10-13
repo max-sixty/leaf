@@ -57,6 +57,11 @@ import { renderingState } from "./rendering.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./page-paint.js";
 
+export const UPGRADE = "lf-upgraded";
+export function markPageUpgraded() {
+  setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.upgraded, "1");
+  document.dispatchEvent(new Event(UPGRADE));
+}
 // The stamp is written here and nowhere else, and never taken back, so the promise it
 // resolves answers every later waiter too.
 const { promise: presented, resolve: resolvePresented } = Promise.withResolvers();

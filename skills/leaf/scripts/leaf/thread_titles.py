@@ -35,7 +35,7 @@ request runs beside the agent's work and never delays it.
 
 The title is written as the session that holds the page's claim, and only while the
 thread is still untitled (`thread.name_untitled`), so a name the agent gave first
-stands, and an agent's reply that comes later leaves this one standing. A request
+stands, and an agent's reply that comes later leaves this one in place. A request
 that fails or finds no words leaves the thread untitled for the agent's reply to
 name, and tells the caller's `record`.
 """
@@ -258,7 +258,7 @@ def app_server_title(endpoint: str, model: str | None) -> Generate:
                 socket, next(request_ids), "leaf-thread-titles", "Leaf thread titles"
             )
             # A thread starts every MCP server the user configured, its project's
-            # included, and an override replacing the table leaves them standing,
+            # included, and an override replacing the table leaves them configured,
             # so each is turned off by name, read from the directory the thread
             # runs in.
             configured = app_server_request(
@@ -394,9 +394,15 @@ def _name_thread(
             return
         reading = generate(request, page_dir)
         written = write_title(page_dir, thread, reading.pop("title"), session_id)
-    # A refusal's words can quote the title, which is drawn from the user's.
+    # A refusal's words can quote the title, which is drawn from the user's; its
+    # code cannot.
     except EventRefused as error:
-        record("thread_title_failed", thread=thread, error=type(error).__name__)
+        record(
+            "thread_title_failed",
+            thread=thread,
+            error=type(error).__name__,
+            code=error.findings[0].code,
+        )
         return
     # Every class, because this thread's only way to report is `record`: a failure
     # here leaves the thread untitled, and nothing else would say why.

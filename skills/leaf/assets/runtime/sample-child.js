@@ -1,7 +1,9 @@
 /* The isolated child's explicit interface to its containing page. Values cross the
- * port; documents, DOM nodes, functions and browser owners remain in this realm. */
+ * port; documents, DOM nodes, functions and browser owners remain in this realm.
+ * `ready` announces the usable, upgraded interface, independently of saved state.
+ * Commands that need history wait at their owning child capability. */
 import { canPlaceFocus, focusDestination, onStanding } from "./focus.js";
-import { pagePresented } from "./page-paint.js";
+import { pagePresented, pageUpgraded } from "./page-paint.js";
 import { whenArrived } from "./presentation.js";
 import { sizeObserver } from "./rendering.js";
 const child = document.documentElement.lfSample;
@@ -38,7 +40,8 @@ if (child)
   });
 
 if (child) {
-  let presented = false;
+  let upgraded = false;
+  let arriving = false;
   let height = null;
   // A parent cannot inspect focus in this opaque document. Report whether a
   // control holds it, and retain its node while a parent control borrows focus.
@@ -82,8 +85,15 @@ if (child) {
         "error",
         document.documentElement.lfStartupException ?? { message: error },
       );
-    if (presented || !(document.body && pagePresented())) return;
-    presented = true;
+    // Presentation is not this document's whole arrival: work it deferred, its own
+    // samples' children included, lands later, and the containing page reads as
+    // arriving until it has.
+    if (upgraded && !arriving && pagePresented()) {
+      arriving = true;
+      void whenArrived().then(() => sampleNotice("arrived"));
+    }
+    if (upgraded || !(document.body && pageUpgraded())) return;
+    upgraded = true;
     child.present();
     measure();
     sizeObserver(measure, { counted: false }).observe(document.body);
@@ -91,17 +101,14 @@ if (child) {
       height,
       block: document.documentElement.hasAttribute("data-lf-sample-block"),
     });
-    // Presentation is not this document's whole arrival: work it deferred, its own
-    // samples' children included, lands later, and the containing page reads as
-    // arriving until it has.
-    void whenArrived().then(() => sampleNotice("arrived"));
+    inspect();
   };
   const observer = new MutationObserver(inspect);
   observer.observe(document, {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["data-lf-presented", "data-lf-startup-error"],
+    attributeFilter: ["data-lf-upgraded", "data-lf-presented", "data-lf-startup-error"],
   });
   inspect();
 }

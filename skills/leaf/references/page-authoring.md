@@ -372,12 +372,11 @@ scrolling; page-local width overrides and wheel handlers should not be needed.
 
 ### The rail and the margin
 
-Lay out the page without reserving space for Leaf's annotation markers. With room
-beside the content, Leaf puts markers in a rail; otherwise it puts them near their
-targets on the page. Pins can overlap text in a crowded view. The user hides pins
-and passage marks with `o`, or Hide annotations in the banner's More menu under
-a finger, to read the content beneath them. Padding a heading for its pin leaves
-unused space when the marker is in the rail.
+Lay out the page without reserving space for Leaf's annotation markers. Leaf seats
+markers in a rail or clear space near their targets. Crowded views retain their
+threads and actions in Page Map. User-opened controls and threads can overlay
+content. Padding a heading for its pin leaves unused space when the marker is in
+the rail.
 
 On a column page, write its contents outline in the first `aside.sidebar` and
 short notes in `aside.sidenote`. Leaf moves them into the margin when they fit;
@@ -447,8 +446,7 @@ Use images only when they carry information.
 of your own.
 
 For `lf-diagram`, omit `parts` when the whole drawing is one Comment target. When
-individual boxes need their own targets, list every nameable box in `parts`;
-`page check --render` reports a partial list so adjacent boxes do not behave differently.
+individual boxes need their own targets, set `parts="all"` to expose every named box.
 
 The prose beside a shape says only what the shape cannot. What is left for prose is
 the claim, the reason it holds, and the question the page is asking. A few sentences
@@ -546,9 +544,9 @@ particular, its `once()`, `quoted()`, `offer()`, `layoutChanged()`, and durable-
 rules keep authored controls correct after reconnection and thread quoting.
 
 A page module that shows the state of the asks in each card, section or item of its
-own layout reads them from Leaf rather than keeping a copy: `watchQuestions()` with
+own layout reads them from Leaf rather than keeping a copy: `watchAsks()` with
 `asksIn(region)` selects each region's asks, answered or open, by the rule `lf-tabs`
-rows and `lf-tally` read, and `questionActions.next({within})` steps to the next one
+rows and `lf-tally` read, and `askActions.next({within})` steps to the next one
 waiting on the user (`references/module-authoring.md`, "Reading asks and obligation
 queues").
 
@@ -668,7 +666,7 @@ and use this declaration rather than posting setup events from a page module.
 
 To begin with threads from the parent, set `data-sample-threads` on the
 template to their space-separated thread ids. The declaration selects from the
-parent's standing log rather than requiring it: a page whose log does not hold one
+parent's current log rather than requiring it: a page whose log does not hold one
 of those threads yet — a first version, or a copy made from the source alone — opens
 the sample without that thread. Their anchored content must exist in the
 child. Reset copies those threads again from the parent; subsequent child
@@ -681,21 +679,24 @@ not reach it; neither page can read the other's DOM, browser storage, or runtime
 functions. Scripts, embedded frames, forms, popups, and downloads work in the child,
 and native resource loaders and module-relative URLs reach its own captured assets. A
 page module can await the element's `ready` promise for the current child's
-presentation; Reset, and the child leaving its page, each replace that promise. The
-surrounding page presents and takes keys without waiting for a sample whose arrival
-the reader would not see, such as one below the first screen, so a module that needs
-the child awaits `ready` rather than the page's presentation. `await
+upgraded, usable interface. The child's banner can still say saved state is loading;
+its comments already work, independently of the containing page.
+Reset, and the child leaving its page, each replace that promise. The surrounding
+page presents and takes keys without waiting for a sample whose arrival the reader
+would not see, such as one below the first screen, so a module that needs the child
+awaits `ready` rather than the page's presentation. `await
 sample.reset()` replaces the child with a fresh copy of its initial state, and a
 reload inside the child reconnects the same child. When the child cannot be loaded,
 `ready` rejects and the sample shows the error with Reset available. The bubbling
-`lf-sample-ready` event carries `detail.sample` after each presentation, including
+`lf-sample-ready` event carries `detail.sample` after each upgrade, including
 Reset and a reload, so host controls can reapply a selected view without inspecting
 the Reset button. Once the child leaves its Leaf page, `ready` waits for the next one,
 which a reload brings. The containing page cannot tell a reload from a link to another
 document, so after such a link the wait lasts until Reset, which rejects it with
 `AbortError`.
 To select a conversation, call `await sample.showThread(id)` with its root event id;
-this shows the same page destination as its marker. To inspect it in Threads,
+this waits for the child's authoritative state reading, then shows the same page
+destination as its marker. To inspect it in Threads,
 call `await sample.showThread(id, {surface: "panel"})`. The panel view accepts
 `status: "open" | "resolved" | "all"` and `waiting: "user" | "agent" | "all"`;
 omitted values restore Open and unrestricted waiting. A panel view may omit the
@@ -779,6 +780,10 @@ leaf page check <page> --render
 
 It runs the browser gate in both color schemes, including when the host gives you
 no separate browser tool. Fix every failure; a screenshot is not a substitute.
+Add `--json` where a script reads the result: it prints one object with the exit
+`status`, each finding as a record (`code`, the element it names as `at`, the
+measured `values`, `severity` of `error` or `advice`, where it was read, and its
+`text`), and the browser that ran and the screens it saved.
 
 A clean check saves labeled screens at desktop, widest-window, and phone widths,
 up to eight screens down the page at each width. If the page extends beyond those,

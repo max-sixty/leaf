@@ -94,7 +94,7 @@ const reaction = (token) => layerFact("$reactions")?.tokens?.[token]?.glyph ?? t
 
 const actorOf = (row) =>
   row.author === "user"
-    ? "You"
+    ? "Me"
     : row.author === "page"
       ? "Page"
       : (row.agent ?? row.author);

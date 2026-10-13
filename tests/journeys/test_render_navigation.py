@@ -15,6 +15,7 @@ from render_cases_interaction import (
     PANEL_PAGE,
     WORKSHOP_THREAD_EVENTS,
     WORKSHOP_THREADS_PAGE,
+    answered_comment,
     live_url,
     panel_comment,
 )
@@ -186,7 +187,7 @@ def test_reading_keys_scroll_drawers_without_moving_the_document(
 def test_a_comment_box_moves_home_when_a_panel_comes_to_cover_its_seat(browser, serve):
     """The panels dominate what focus reaches (Max, 2026-10-06). A comment box whose
     seat the Threads panel comes to stand over moves to its home in the panel's foot,
-    keeping its words, rather than standing hidden under the panel."""
+    keeping its words, rather than staying hidden under the panel."""
     walkthrough = next(p for p in EXAMPLES if p.stem == "pr-walkthrough")
     page = open_page(browser, serve(walkthrough))
     resized(page, 1440, 900)
@@ -198,7 +199,9 @@ def test_a_comment_box_moves_home_when_a_panel_comes_to_cover_its_seat(browser, 
     box = page.locator("leaf-text.lf-fab-input")
     expect(page.locator("#pr-exact-patch leaf-text.lf-fab-input")).to_be_focused()
     page.locator(".lf-threads-toggle").click()
-    expect(panel).to_be_visible()
+    # The dialog envelope draws nothing (#2613); its Threads panel is what shows.
+    expect(panel).to_have_attribute("open", "")
+    expect(panel.locator(".lf-thread-panel")).to_be_visible()
     page_at_rest(page)
     edge = page.locator(".lf-thread-panel > .lf-edge").bounding_box()
     middle = edge["y"] + edge["height"] / 2
@@ -274,8 +277,8 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-detail > footer")).to_contain_text(
         "This revision incorporates both answers"
     )
-    # The revision settles both questions; the Question inventory retains answers
-    # after an authored revision settles their sources (`questions.py`).
+    # The revision settles both questions; the ask inventory retains answers
+    # after an authored revision settles their sources (`asks.py`).
     expect_asks_answered(page, "2/2")
 
     actions = [
@@ -387,7 +390,7 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
     )
     expect(page.locator("#comparison-policy")).to_have_attribute("settled", "")
     # The Ask reading keeps an Ask the user answered after a later version settles it
-    # (`questions.py`, the retained answered inventory).
+    # (`asks.py`, the retained answered inventory).
     expect_asks_answered(page, "1/1")
 
     actions = [
@@ -1098,13 +1101,13 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
     page.keyboard.press("w")
-    # The standing narrowing is what `w` offers to clear, at every level above it.
+    # The active narrowing is what `w` offers to clear, at every level above it.
     expect(line).to_contain_text("clear waiting filter")
     while not page.evaluate("() => document.activeElement.closest('.lf-thread')"):
         page.keyboard.press("Tab")
     expect(line).to_contain_text("clear waiting filter")
     page.keyboard.press("Escape")
-    expect(line).to_contain_text("waiting on you")
+    expect(line).to_contain_text("waiting on me")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
@@ -1135,7 +1138,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
     expect(heading).to_be_focused()
     page.keyboard.press("q")
-    expect(page.locator(".lf-thread lf-ask[data-lf-question]")).to_be_focused()
+    expect(page.locator(".lf-thread lf-ask[data-lf-ask]")).to_be_focused()
     expect(line).to_contain_text("close threads")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
@@ -1156,16 +1159,8 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             '<p id="dsc-body"><a id="revealed-link" href="#p2">Read next passage</a> ',
         )
     )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "A visible thread.",
-            "id": "filterthread",
-            "anchor": {"section": "opts-decision"},
-        },
+    thread = answered_comment(
+        serve.page_dir, "A visible thread.", {"section": "opts-decision"}
     )
     page = open_page(browser, url)
     resized(page, 1280, 800)
@@ -1282,21 +1277,21 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     )
 
     # Navigation can change the visible scene. This new map assigns its own hints;
-    # filtering must preserve this map's Question code rather than the earlier map's.
+    # filtering must preserve this map's ask code rather than the earlier map's.
     expect(
         page.locator(f'{CHIPS}[data-lf-go-to-target="revealed-link"]')
     ).to_have_count(1)
     ask_code = address_code(page, "Margin entry", "opts-decision", ask_key)
     page.keyboard.type(ask_code)
     expect(page.locator("#opts-decision")).to_be_focused()
-    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-ask", "1")
 
     # Scroll past the links to give the hyperlinks filter no members. An empty
     # filter stays empty through resize; Escape restores the complete map.
     page.locator("#opt-a").click()
     append_carried_log_record(
         serve.page_dir,
-        {"kind": "resolve", "author": "user", "parent": "filterthread"},
+        {"kind": "resolve", "author": "user", "parent": thread},
     )
     round_trip(page)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="ask"]')).to_have_count(0)
@@ -1365,7 +1360,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
         "node => getComputedStyle(node).backgroundColor"
     )
 
-    # The Question route may scroll these hyperlinks out of the visible target map.
+    # The ask route may scroll these hyperlinks out of the visible target map.
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
@@ -1427,7 +1422,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # The complete reference shows each command once, preferring an executable intrinsic
     # route over its contextual Go-to route. Keep identities across all sections so that
-    # a command such as Align current item can be covered by its standing page route.
+    # a command such as Align current item can be covered by its permanent page route.
     page.keyboard.press("?")
     page.keyboard.press("?")
     goto = command_reference_rows(page, "Go to")

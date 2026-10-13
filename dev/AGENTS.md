@@ -15,7 +15,7 @@ probe results leave the tracked tree unchanged.
 ## Where tooling goes
 
 When agents keep writing the same throwaway script, the job becomes a `leaf-dev`
-command: a module here that owns its mechanism, registered in `cli.py`. Standing
+command: a module here that owns its mechanism, registered in `cli.py`. Recurring
 tooling that CI, a hook or an alias runs is a command here too, so the repository
 has no directory of loose scripts. A mechanism two tools need, such as building an
 arm or serving a page, lives in one module here and the others import it. Code
@@ -31,7 +31,9 @@ reaches a module by importing it from this package, never through `sys.path`,
   `eval_user.py` is that user in a browser: a comment from a selection, and a
   decision a user agent makes through the page's own controls.
 - `page_fixtures.py` builds a page directory from an authored source;
-  `example_data.py` reads the catalog, names, and each page's companions.
+  `example_data.py` reads the catalog, names, and each page's companions; `docs.py`
+  composes into a product document under `docs/` the parts other sources own, so
+  every builder of one, the site and a preview alike, shows them.
 - `browser.py` launches Chrome, and opens and settles a tab, the same way for every
   command that reads one.
 - `leaf-dev probe SOURCE` opens a page built from this working tree, runs input
@@ -79,6 +81,9 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev eval [CASE]... --harness claude-code|codex|both` runs the eval catalog
   through Promptfoo on the working tree, and with `--base` the merge base too.
   `evals/README.md` owns the format and how to read the results.
+- `authoring_eval.py` runs short cases that need a writable page and native tools,
+  using the shared isolated child and page checks; their assertions read the saved
+  HTML. `metadata.authoring` selects this mode in the catalog.
 - `leaf-dev eval-pairs RUN...` judges an authored task's samples across a run's two
   columns side by side, in both orders, and `leaf-dev eval-report PAGE RUN...` writes
   those samples, their spend and the verdicts to a Leaf page.
@@ -90,9 +95,6 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev preview [EXAMPLE]` serves one example or developer fixture as a live
   page, or exports it with `--export`. `/developing-leaf` says when to pass `--user`.
 - `leaf-dev corpus` generates `examples/corpus.html` and its companions.
-- `leaf-dev keydocs` writes the `x-` key index in `docs/registry.html`.
-- `leaf-dev catalog` refreshes `docs/examples.html` descriptions from example metadata;
-  the site build derives them again before publication.
 
 ## Website and demo
 
@@ -118,7 +120,7 @@ in `leaf-assets.json` and the README's image URLs that name it.
   and retained logs under `.tmp/verify-site/run-*/`. `worker/README.md` owns hosted-agent
   diagnostics and the failure contract.
 - `worker/deploy-dev.sh` (`pnpm run deploy:dev`) deploys the checkout
-  to the standing `leaf-website-dev` environment and verifies it. Production deploys
+  to the persistent `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.
 - `leaf-dev fetch-assets` fetches the `max-sixty/leaf-assets` revision pinned in
   `leaf-assets.json` (`leaf_assets.py`, which the site build also calls).

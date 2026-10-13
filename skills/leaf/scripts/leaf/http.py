@@ -37,8 +37,9 @@ from .files import (
     version_num,
     version_revisions,
 )
+from .findings import Rejected
 from .interaction_log import append_interactions, client_records
-from .layer import incompatible_layer, running_leaf, same_leaf
+from .layer import incompatible_layer, incompatible_revision, running_leaf, same_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
@@ -158,6 +159,7 @@ def page_delivery(
     page_root: str = "",
     asset_root: str | None = None,
     share_url: str | None = None,
+    probe: str | None = None,
 ) -> Delivery:
     """How an HTTP host delivers a page's document: supervised before anything loads.
 
@@ -168,6 +170,11 @@ def page_delivery(
     themselves. A keyed top-level page declares its share address here, including
     on a bare-URL reload. Disposable samples and public website documents have no
     such address. `write_live_shell` delivers published documents the same way.
+
+    `probe` is where a tab asks whether its source has moved on to another layer or
+    release (`layer-client.js`, `sourceMovedOn`, and `bootstrap.js`'s startup
+    recovery), so its answer must name the layer or release a fresh document would
+    start under. It defaults to the kernel's registry, whose answer names its release.
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
@@ -188,7 +195,7 @@ def page_delivery(
         f'data-lf-layer="{layer_id}"{release}{share} '
         f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
         f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
-        f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
+        f'data-lf-probe="{html.escape(probe or address("/registry.json"), quote=True)}">'
         f"{bootstrap}</script>"
     )
 
@@ -700,7 +707,7 @@ class PageEndpoint:
     def _refuse(self, error: str, status: int = 400) -> Response:
         """Answer a refusal in the shape spoken by the route that produced it."""
         if self._speaks_events():
-            status, body = event_rejection(self.posted, error, status)
+            status, body = event_rejection(self.posted, Refused(error), status)
             return self._json(body, status)
         return self._json({"error": error}, status)
 
@@ -864,7 +871,10 @@ class PageEndpoint:
     def _serve_document(
         self, artifact: RevisionArtifact, revision: int, version: int | None
     ) -> Response:
-        """Serve one immutable document under the current delivery boundary."""
+        """Serve one immutable document under the current delivery boundary, unless
+        it was saved at another protocol (`incompatible_revision`)."""
+        if refusal := incompatible_revision(revision, artifact.registry):
+            return self._json({"error": str(refusal)}, 409)
         self.response_layer = artifact.registry["$layer"]["generation"]
         projected = compose_document(
             artifact.html.decode("utf-8"),
@@ -889,6 +899,11 @@ class PageEndpoint:
             release_id=self.release,
             page_root=self.page_root,
             asset_root=self._document_asset_root(revision),
+            probe=(
+                self.page_root.rstrip("/") + "/registry.json"
+                if self.release is None
+                else None
+            ),
             share_url=(
                 str(
                     self.request.url.replace(
@@ -1304,7 +1319,7 @@ def page_endpoint(
     request: they are facts about the vendored page this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
     or temporary, passes here before it binds, and refuses naming the re-vendor when
-    the page was vendored at another protocol (`incompatible_layer`).
+    the page's layer is one this Leaf cannot serve (`incompatible_layer`).
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
@@ -1319,7 +1334,7 @@ def page_endpoint(
         else load_registry(page_dir)
     )
     if refusal := incompatible_layer(page_dir, registry):
-        raise Refused(refusal)
+        raise Rejected([refusal])
     return partial(
         endpoint,
         page_dir=page_dir,

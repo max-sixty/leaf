@@ -59,8 +59,6 @@ class MarginClusterView extends HTMLElement {
   }
 
   present(model) {
-    if (!Object.isFrozen(model))
-      throw new Error("Margin presentation models must be immutable");
     if (!this.#owner) throw new Error("Margin presentation needs its view owner");
     const restoreFocus = holdFocus(this);
     this.lfEntry = model.entry;
@@ -103,6 +101,7 @@ class MarginClusterView extends HTMLElement {
     keeps(this.#more, "aria-label", model.moreLabel);
     keeps(this.#more, "aria-expanded", model.optionsOpen);
     this.toggleAttribute("data-lf-options-open", model.optionsOpen);
+    this.toggleAttribute("data-lf-options-expanded", model.optionsExpanded);
     this.toggleAttribute("data-lf-folded", model.folded);
     keeps(this, "data-lf-state", model.state);
     if (!this.#options) {

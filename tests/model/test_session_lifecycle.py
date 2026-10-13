@@ -423,7 +423,7 @@ def test_reconnect_notices_respect_intent_and_the_exact_page_owner(page_dir, cap
     }
     for case in (
         "stop",
-        "standing",
+        "persistent",
         "preview",
         "transferred",
         "foreign-harness",
@@ -441,9 +441,9 @@ def test_reconnect_notices_respect_intent_and_the_exact_page_owner(page_dir, cap
         events = (page_dir / "events.jsonl").read_bytes()
         if case == "stop":
             assert not hosting_model.cmd_stop(page_dir)
-        elif case == "standing":
+        elif case == "persistent":
             cleanup_model.write_json(
-                page_dir / "service.json", {**service, "lifetime": "standing"}
+                page_dir / "service.json", {**service, "lifetime": "persistent"}
             )
         elif case == "preview":
             cleanup_model.write_json(page_dir / "preview.json", {})

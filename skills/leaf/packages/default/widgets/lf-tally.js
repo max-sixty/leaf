@@ -1,7 +1,7 @@
 /* lf-tally: how many of a region's asks are still to answer, and the way to the next.
  *
  * The region is the element `for` names, and which asks it holds is `asksIn`
- * (runtime/questions/place.js), the rule a side list's rows read too, so "7 of 8 to
+ * (runtime/asks/place.js), the rule a side list's rows read too, so "7 of 8 to
  * answer" counts the asks whose open marks the queue shows. An ask counts as to answer
  * until the log admits its answer, including one the user discussed and left with the
  * agent; it leaves the count when the page adopts the answering reading, never on a
@@ -9,7 +9,7 @@
  * count of an inventory it has not seen.
  *
  * With `next`, a Next question control steps to the next ask waiting on the user inside
- * the region (`questionActions.next`), from where the user stands, so a press keeps
+ * the region (`askActions.next`), from where the user stands, so a press keeps
  * them standing there rather than taking focus onto the control, as the Questions
  * panel's Next question does. It is a native button: Tab and Enter reach it, and a
  * finger taps it. Pressed by keyboard, focus is on the control outside the region, so
@@ -27,9 +27,9 @@ import {
   keepsText,
   offer,
   once,
-  questionActions,
+  askActions,
   relabel,
-  watchQuestions,
+  watchAsks,
 } from "/runtime/widget-api.js";
 
 // The count's words: what remains of the whole, or that nothing does.
@@ -59,17 +59,17 @@ customElements.define(
         this.#next = offer("button", "lf-btn lf-tally-next");
         seat.replaceWith(this.#next);
         relabel(this.#next, "Next question", { says: false });
-        this.#next.title = "Go to the next question waiting on you here";
+        this.#next.title = "Go to the next question waiting on me here";
         this.#next.setAttribute("aria-controls", this.getAttribute("for"));
         this.#next.addEventListener("mousedown", (event) => event.preventDefault());
         this.#next.addEventListener("click", () => {
           const region = this.#region();
-          if (region) questionActions.next({ within: region });
+          if (region) askActions.next({ within: region });
         });
       } else seat.remove();
       this.querySelector(":scope > [data-lf-prepaint]")?.remove();
       this.append(face);
-      watchQuestions(this, (asks) => this.#paint(asks));
+      watchAsks(this, (asks) => this.#paint(asks));
     }
 
     #region() {

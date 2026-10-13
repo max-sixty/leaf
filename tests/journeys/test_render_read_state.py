@@ -23,6 +23,7 @@ from render_harness import (
     Traffic,
     _traffic,
     holding,
+    is_problem,
     leaf_page,
     open_page,
     panel_settled,
@@ -77,10 +78,11 @@ def _agent_update_reply(page_dir, root, number, for_event=None):
     )["id"]
 
 
-def test_main_reply_replaces_unread_progress_before_the_thread_is_opened(
+def test_progress_is_never_unread_and_reading_its_answer_leaves_it_folded(
     browser, serve
 ):
-    """Reading a main reply clears unread without unfolding its completed progress."""
+    """Pending progress pulls the user back to nothing; the answer that folds it is
+    the thread's one unread message, and reading it unfolds nothing."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "An earlier conversation.")
     root = panel_comment(serve.page_dir, "Check the schedule.")
@@ -92,7 +94,7 @@ def test_main_reply_replaces_unread_progress_before_the_thread_is_opened(
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(card).not_to_have_attribute("open", "")
-    expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
+    expect(card.locator(".lf-thread-unread")).to_have_count(0)
 
     answer = thread_model.post_reply(
         serve.page_dir, {"to": root, "for": root}, "Both mounts fit."
@@ -303,7 +305,8 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         for text in page.locator(".lf-notice").all_text_contents()
     )
     assert all(
-        "/api/event" in error or "Failed to load" in error
+        is_problem(error, "Failed to load")
+        or (error.code == "failed-load" and "/api/event" in error.values["url"])
         for error in take_browser_errors(page)
     )
 

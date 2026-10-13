@@ -34,6 +34,7 @@ from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import presence as presence_model
+from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -562,11 +563,11 @@ def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
         )
     changed = (claimed / "status.json").read_bytes()
     assert changed != unchanged
-    standing = files_model.read_json(claimed / "status.json")["stream"]["activity"]
-    assert standing["detail"] == "Reviewing the result"
+    observed = files_model.read_json(claimed / "status.json")["stream"]["activity"]
+    assert observed["detail"] == "Reviewing the result"
 
     renewed_at = (
-        datetime.fromisoformat(standing["ts"]) + timedelta(minutes=6)
+        datetime.fromisoformat(observed["ts"]) + timedelta(minutes=6)
     ).isoformat()
     with monkeypatch.context() as patch:
         patch.setattr(service_model, "now_iso", lambda: renewed_at)
@@ -925,3 +926,43 @@ def test_state_reports_whether_the_owning_session_still_exists(claimed, dead_pid
     assert page_state(claimed)["session_alive"] is True
     record_claim(claimed, pid=dead_pid)
     assert page_state(claimed)["session_alive"] is False
+
+
+def test_a_process_free_publication_keeps_input_without_claimant_facts(claimed):
+    """Captured host delivery retains the log but cannot publish a sleeping process."""
+    comment = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Keep this input"}
+    )
+    session_model.cmd_waiting(claimed, "Review the result")
+    claim = service_model.page_claim(claimed)
+    lease = leases_model.take_lease(
+        leases_model.waiter_lease_path(claimed, claim["id"])
+    )
+    assert lease
+    try:
+        live, _ = presence_model.presence_with_activity(claimed, [comment])
+        assert live["listening"]
+        assert live["claim_session"] == claim["id"]
+        captured, stream = presence_model.presence_with_activity(
+            claimed, [comment], process=False
+        )
+        assert stream is None
+        assert captured["cursor"] == live["cursor"]
+        assert captured["pending"] == live["pending"] == 1
+        assert captured["status"] == {"state": "waiting", "detail": ""}
+        assert captured["agent"] == schema_model.UNNAMED_AGENT
+        assert not captured["listening"]
+        for field in (
+            "session_alive",
+            "live_turn",
+            "claim_session",
+            "claim_turn",
+            "turn_closed",
+            "turn_opened",
+            "session_cwd",
+            "viewed",
+        ):
+            assert captured[field] is None
+        assert not captured["turn_takes_input"]
+    finally:
+        leases_model.release_lease(lease)

@@ -11,8 +11,8 @@ before a final newline (`"abc\n"` passed `^[a-z]+$`) and which refuses ECMAScrip
 `\p{L}`. It has no option for another engine, so this module points the one call it
 makes, `re.search`, in the modules that make it at regress, an ECMAScript engine; that
 covers `pattern`, `patternProperties` and the `additionalProperties` and
-`unevaluatedProperties` accounting built on it, and `check_schema` compiles patterns
-with the same engine.
+`unevaluatedProperties` accounting built on it, and `check_schema` compiles patterns,
+and the `regex` format checks a value, with the same engine.
 """
 
 import functools
@@ -92,6 +92,8 @@ jsonschema._utils.re = _EcmaSearch
 META_FORMAT_CHECKER = FormatChecker()
 
 
+# A value a schema declares `format: regex` is read as ECMAScript too.
+@FORMAT_CHECKER.checks("regex", raises=regress.RegressError)
 @META_FORMAT_CHECKER.checks("regex", raises=regress.RegressError)
 def is_ecma_regex(value) -> bool:
     return not isinstance(value, str) or bool(_ecma(value))
@@ -156,8 +158,25 @@ def _validator(canonical: str) -> Draft202012Validator:
 
 def schema_error(schema: dict, instance) -> str | None:
     """The first deterministic complaint about an instance, if it is invalid."""
+    complaint = schema_complaint(schema, instance)
+    return complaint["error"] if complaint else None
+
+
+def schema_complaint(schema: dict, instance) -> dict | None:
+    """`schema_error` with the place it concerns: `field`, the JSON pointer of the
+    value it is about (empty for the instance itself), and `rule`, the schema keyword
+    that value breaks, beside `error`."""
     error = min(json_validator(schema).iter_errors(instance), key=str, default=None)
-    return schema_error_message(error) if error else None
+    if error is None:
+        return None
+    return {
+        "field": "".join(
+            f"/{str(part).replace('~', '~0').replace('/', '~1')}"
+            for part in error.absolute_path
+        ),
+        "rule": error.validator if error.schema is not False else "false",
+        "error": schema_error_message(error),
+    }
 
 
 def json_value(value) -> str:
@@ -196,6 +215,16 @@ def schema_error_message(error) -> str:
     }:
         return f"{actual} does not satisfy {error.validator}: {expected}"
     return error.message
+
+
+def schema_reading(error) -> dict:
+    """A validator's complaint as a finding's values: the schema `keyword` it broke,
+    the `path` into the instance it read, and its words (`schema_error_message`)."""
+    return {
+        "keyword": error.validator,
+        "path": list(error.absolute_path),
+        "reason": schema_error_message(error),
+    }
 
 
 def unresolved_schema_reference(schema: dict) -> str | None:

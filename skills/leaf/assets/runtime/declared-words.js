@@ -13,8 +13,8 @@
    - `paintSettlements` (projection/presentation.js) paints every holder's
      authoritative settlement, whether or not its module renders anything.
    - `renderRetired` marks slots retired by the declared holder relation.
-   - The Question model (questions/model.js) reads `x-awaits`, while the Question drawer
-     projects a declared `x-question-context` region around that source where one exists;
+   - The ask model (asks/model.js) reads `x-awaits`, while the ask view (asks/view.js)
+     projects a declared `x-ask-context` region around that source where one exists;
      neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
@@ -81,16 +81,16 @@ export const isPagePaint = (name) =>
 export function quietWord(el, word) {
   const title = el.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el.firstChild;
-  const standing = el.querySelector(":scope > .lf-quiet");
-  if (standing) {
+  const existing = el.querySelector(":scope > .lf-quiet");
+  if (existing) {
     // Nothing to say that isn't already said, in the place it belongs: a screen
     // reader rebuilds its buffer from the mutations, so a pass that finds the page
     // as it left it re-reads the element to whoever is on it for no reason. The seat
     // is part of that — a module that rebuilds its chip row between two runs of this
-    // leaves the word standing behind it, and the fix is to move it, not to leave it
+    // leaves the word behind it, and the fix is to move it, not to leave it
     // where the rebuild happened to put it.
-    if (standing === seat && standing.textContent === word) return;
-    standing.remove();
+    if (existing === seat && existing.textContent === word) return;
+    existing.remove();
   }
   if (!word) return;
   const span = Object.assign(document.createElement("span"), {
@@ -373,13 +373,13 @@ export function renderSaid(root) {
     for (const el of elementsIn(root, tag))
       for (const [attr, edge] of Object.entries(entry["x-says"])) {
         const text = el.getAttribute(attr);
-        const standing = el.querySelector(`:scope > [data-lf-said="${attr}"]`);
+        const existing = el.querySelector(`:scope > [data-lf-said="${attr}"]`);
         // A live revision may change or drop the attribute under a span already
         // standing for it; the span follows the attribute rather than the first word
         // it ever said.
-        if (standing) {
-          if (text === null) standing.remove();
-          else if (standing.textContent !== text) standing.textContent = text;
+        if (existing) {
+          if (text === null) existing.remove();
+          else if (existing.textContent !== text) existing.textContent = text;
           continue;
         }
         if (text === null) continue;
@@ -430,9 +430,9 @@ export function renderSaid(root) {
 // report, and restatement origins without three writers fighting over the same seat.
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
-    ? ["rewritten since your decision"]
+    ? ["rewritten since I decided"]
     : [];
-  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.userOverride)) words.push("your change");
+  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.userOverride)) words.push("my change");
   if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.reported)) words.push("reported state");
   return words.join(", ");
 }

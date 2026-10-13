@@ -1,5 +1,8 @@
 """The website route adapter preserves Leaf's canonical served-page contract."""
 
+import base64
+import hashlib
+import io
 import itertools
 import json
 import os
@@ -8,6 +11,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tarfile
 import threading
 import time
 import urllib.error
@@ -16,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import replace
 from email.message import Message
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -26,8 +31,11 @@ from interact_support import (
     PAGE,
     STATED_TIMEOUT,
     Prose,
+    add_test_widget,
     append_command,
+    page_packages,
     publish,
+    refused_on,
     running_http_server,
     take_stream_activity,
     wait_for,
@@ -39,20 +47,23 @@ from interact_support import (
 from leaf import codex as leaf_codex
 from leaf.codex import AppServerRequestRejected, accept_codex_delivery, delivery_records
 from leaf.codex_state import delivery_lock_path
-from leaf.delivery import current_responses
-from leaf.event_log import read_events
-from leaf.files import revision_path
+from leaf.delivery import current_responses, receive_batch
+from leaf.event_log import read_cursor, read_events
+from leaf.files import latest_revision, revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
 from leaf.machine import pid_alive
+from leaf.packages import cmd_package_install
 from leaf.refusals import Refused
+from leaf.registry.storage import layer_packages
 from leaf.revision_artifact import capture_artifact
 from leaf.revision_delivery import compose_document
 from leaf.served_state import page as served_page
-from leaf.service import delivery_reply_attempt
+from leaf.service import PageTransaction, delivery_reply_attempt, unacknowledged
 from leaf.state import flocked, open_session_turn, session_record, start_session_turn
 from leaf.structure import SourceDocument
 from leaf.thread import cmd_resolve, post_reply
+from leaf.vendoring import cmd_init
 from leaf_dev import example_previews, journey, startup, verify_site
 from websockets.exceptions import ConnectionClosedError
 
@@ -134,6 +145,525 @@ def write_manifest(site: Path, pages: dict[str, tuple[str, str]]) -> None:
     target = site / website_server.SITE_MANIFEST
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(manifest), encoding="utf-8")
+
+
+@contextmanager
+def durable_page_store():
+    """A real HTTP store boundary; Leaf still performs every admission and fold."""
+    stored = {
+        "publications": [],
+        "records": {},
+        "blobs": {},
+        "uploads": [],
+        "restores": 0,
+        "truncate": False,
+        "inventories": 0,
+        "fail": False,
+    }
+
+    class Store(BaseHTTPRequestHandler):
+        def do_GET(self):
+            assert self.path == "/records"
+            stored["restores"] += 1
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-tar")
+            self.end_headers()
+            with tarfile.open(fileobj=self.wfile, mode="w|") as archive:
+
+                def add(name, data):
+                    member = tarfile.TarInfo(name)
+                    member.size = len(data)
+                    archive.addfile(member, io.BytesIO(data))
+
+                add("records.json", json.dumps(stored["records"]).encode())
+                names = dict.fromkeys(
+                    digest
+                    for record in stored["records"].values()
+                    for file in record.values()
+                    for digest in file["chunks"]
+                )
+                for digest in names:
+                    add(digest, stored["blobs"][digest])
+                    if stored["truncate"]:
+                        break
+
+        def do_PUT(self):
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            if self.path.startswith("/blobs/"):
+                assert len(body) <= 1024 * 1024
+                digest = self.path.removeprefix("/blobs/")
+                assert hashlib.sha256(body).hexdigest() == digest
+                stored["blobs"][digest] = body
+                stored["uploads"].append(digest)
+            elif self.path == "/prepare":
+                stored["inventories"] += 1
+                publication = json.loads(body)
+                digests = {
+                    digest
+                    for entry in (
+                        *publication["record"].values(),
+                        *publication["responses"].values(),
+                    )
+                    for digest in entry["chunks"]
+                }
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(
+                    json.dumps(
+                        {
+                            "missing": [
+                                digest
+                                for digest in digests
+                                if digest not in stored["blobs"]
+                            ]
+                        }
+                    ).encode()
+                )
+                return
+            else:
+                assert self.path == "/publication"
+                publication = json.loads(body)
+                if stored["fail"]:
+                    self.send_response(503)
+                    self.end_headers()
+                    return
+                stored["publications"].append(publication)
+                stored["records"][publication["root"]] = publication["record"]
+            self.send_response(204)
+            self.end_headers()
+
+        def log_message(self, *_args):
+            pass
+
+    with running_http_server(ThreadingHTTPServer(("127.0.0.1", 0), Store)) as server:
+        yield f"http://127.0.0.1:{server.server_address[1]}", stored
+
+
+def test_public_and_private_snapshots_keep_a_stored_revisions_publication_date(
+    page_dir, monkeypatch
+):
+    from leaf import page_snapshot
+
+    activation = website_server.activate_source(page_dir)
+    assert activation.error is None
+    revision = activation.revision
+    assert not any(event["kind"] == "note" for event in read_events(page_dir))
+    marker = revision_path(page_dir, revision)
+    os.utime(marker, (1_700_000_000, 1_700_000_000))
+    captured_at = "2030-01-01T00:00:00+00:00"
+    monkeypatch.setattr(page_snapshot, "now_iso", lambda: captured_at)
+    live = website_server.PageStateService(page_dir).page_state()
+    public = website_server.initial_state(page_dir, "/example", "example", "release")
+    expected = live["browser"]["views"][str(revision)]["published_at"]
+    assert expected == "2023-11-14T22:13:20+00:00"
+    assert public["browser"]["views"][str(revision)]["published_at"] == expected
+    candidate = page_snapshot.capture_page_snapshot(
+        page_dir,
+        SourceDocument(PAGE.replace("Plan", "A fresh candidate")),
+        revision + 1,
+        url="/",
+    )
+    assert candidate.context.active["activated_at"] == captured_at
+
+
+def test_saved_state_verifier_fixture_returns_the_admitted_event_ids(
+    page_dir, tmp_path, monkeypatch
+):
+    """Run the exact container fixture through its real admission API."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<lf-options>", '<lf-options id="heat-first" choose>').replace(
+            'id="backfill-first"', 'id="heat-opt-window"'
+        )
+    )
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/examples/heat-loss": ("page", "example")})
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
+    result = subprocess.run(
+        [sys.executable, "-c", verify_site.SAVED_STATE_FIXTURE],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+    )
+    assert result.returncode == 0, result.stderr
+    seeded = json.loads(result.stdout)
+    events = {event["id"]: event for event in read_events(private)}
+    assert events[seeded["choice"]]["detail"]["value"] == ["heat-opt-window"]
+    assert events[seeded["comment"]]["text"] == "Saved before the container stopped."
+    assert seeded["revision_name"] == revision_path(private, seeded["revision"]).name
+    assert (private / "page/saved-state-recall.css").read_text() == seeded["stylesheet"]
+
+
+def test_website_restore_streams_shared_chunks_once_across_files_and_pages(
+    tmp_path, monkeypatch
+):
+    from leaf_website.storage import CHUNK_BYTES, restore
+
+    site = tmp_path / "site"
+    site.mkdir()
+    write_manifest(site, {"/first": ("first", "example"), "/next": ("next", "example")})
+    chunks = [b"a" * CHUNK_BYTES, b"b" * CHUNK_BYTES, b"tail"]
+    digests = [hashlib.sha256(chunk).hexdigest() for chunk in chunks]
+    modified = 1_700_000_000.25
+    shared = {"chunks": [*digests[:2], digests[0], digests[2]], "modified": modified}
+    with durable_page_store() as (store_url, stored):
+        stored["blobs"].update(zip(digests, chunks, strict=True))
+        stored["records"] = {
+            "/first": {
+                "page/shared.js": shared,
+                "revisions/r2-private/shared.js": shared,
+            },
+            "/next": {"page/shared.js": shared},
+        }
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        restore(site)
+        assert stored["restores"] == 1
+        expected = chunks[0] + chunks[1] + chunks[0] + chunks[2]
+        for directory, record in stored["records"].items():
+            for name in record:
+                target = site / directory.strip("/") / name
+                assert target.read_bytes() == expected
+                assert target.stat().st_mtime == modified
+        # A complete TAR can still omit bodies its descriptors reference.
+        # Refuse that snapshot before replacing the previous local inputs.
+        previous = site / "first/page/shared.js"
+        previous.write_bytes(b"previous local input")
+        stored["truncate"] = True
+        with pytest.raises(ValueError, match="missing referenced chunks"):
+            restore(site)
+        assert previous.read_bytes() == b"previous local input"
+
+
+def test_saved_website_record_keeps_an_unstamped_revisions_publication_date(
+    page_dir, tmp_path, monkeypatch
+):
+    from leaf_website.storage import restore
+
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    activation = website_server.activate_source(private)
+    assert activation.error is None
+    os.utime(revision_path(private, activation.revision), (1_700_000_000,) * 2)
+    expected = website_server.PageStateService(private).page_state()["browser"][
+        "views"
+    ][str(activation.revision)]["published_at"]
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    with durable_page_store() as (store_url, _stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        restore(site)
+        with PageTransaction(private):
+            pass
+        replacement = tmp_path / "replacement"
+        shutil.copytree(site, replacement)
+        restore(replacement)
+    recovered = website_server.initial_state(
+        replacement / "page", "/example", "example", "release"
+    )
+    assert (
+        recovered["browser"]["views"][str(activation.revision)]["published_at"]
+        == expected
+    )
+
+
+def test_saved_website_record_restores_comments_choices_and_private_revision(
+    page_dir, tmp_path, monkeypatch
+):
+    """A container's replacement recovers the record, not a second state model."""
+    from leaf_website.storage import restore
+
+    (page_dir / "page").mkdir(exist_ok=True)
+    (page_dir / "page" / "obsolete.txt").write_text("Remove this input")
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    )
+    publish(page_dir)
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    manifest_path = site / website_server.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    manifest["pages"]["/example"]["states"] = {"1": "unused"}
+    manifest_path.write_text(json.dumps(manifest))
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
+        # Restore installs the inherited transaction provider before serving.
+        restore(site)
+        assert os.environ["LEAF_PAGE_COMMIT"] == "leaf_website.storage:publish"
+        (private / "page" / "obsolete.txt").unlink()
+        chosen = append_command(
+            private,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "choice",
+                "action": "choose",
+                "detail": {"value": ["backfill-first"]},
+            },
+        )
+        comment = append_command(
+            private,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Retain this comment",
+                "attempt": "saved-comment-0001",
+            },
+        )
+        reply = append_command(
+            private,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "revision": 1,
+                "parent": comment["id"],
+                "responds": comment["id"],
+                "text": "Retain this reply",
+            },
+        )
+        with (
+            PageTransaction(private) as page,
+            receive_batch(page, {"events": [chosen, comment, reply]}, session_id=None),
+        ):
+            pass
+        (private / "index.html").write_text(
+            (private / "index.html")
+            .read_text()
+            .replace("<h2>Plan</h2>", "<h2>Revised plan</h2>")
+        )
+        with PageTransaction(private):
+            pass
+        httpd = LeafHTTPServer(
+            ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
+        )
+        with running_http_server(httpd):
+            media = base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII="
+            )
+            request = urllib.request.Request(
+                f"http://127.0.0.1:{httpd.server_address[1]}/example/api/media",
+                data=media,
+                headers={
+                    "Content-Type": "image/png",
+                    "Leaf-Layer": website_server.page_binding(private)[0]["generation"],
+                },
+            )
+            with urllib.request.urlopen(request) as response:
+                media_answer = json.load(response)
+                assert "path" in media_answer, media_answer
+                media_path = media_answer["path"]
+        # A fresh process with no local receipts negotiates against the store's
+        # inventory. Only newly captured responses may need new chunks.
+        uploads = len(stored["uploads"])
+        previous = set(stored["blobs"])
+        inventories = stored["inventories"]
+        subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "from pathlib import Path; import sys; from leaf.service import PageTransaction; "
+                    "page = PageTransaction(Path(sys.argv[1])); page.__enter__(); page.__exit__(None, None, None)"
+                ),
+                str(private),
+            ],
+            env={**os.environ, "XDG_STATE_HOME": str(tmp_path / "fresh-process-state")},
+            check=True,
+        )
+        assert not previous.intersection(stored["uploads"][uploads:])
+        assert stored["inventories"] == inventories + 1
+        publication = stored["publications"][-1]
+
+        def body(path):
+            response = publication["responses"][path]
+            return b"".join(stored["blobs"][digest] for digest in response["chunks"])
+
+        state = json.loads(body("api/state"))
+        assert {chosen["id"], comment["id"], reply["id"]} <= {
+            event["id"] for event in state["events"]
+        }
+        assert state["cursor"] == reply["seq"]
+        assert state["pending"] == 0
+        assert state["active"]["revision"] == 2
+        assert state["session_alive"] is None and state["listening"] is False
+        assert state["activity"].get("next_transition_at") is None
+        assert body("api/news").decode() == state["reading"]
+        assert b"Revised plan" in body("")
+        [private_entry] = [
+            key
+            for key in publication["responses"]
+            if key.startswith("revisions/r2-") and key.endswith("/leaf.js")
+        ]
+        assert body(private_entry) == (private / "leaf.js").read_bytes()
+        # Start a fresh filesystem from the same release image.
+        replacement = tmp_path / "replacement"
+        shutil.copytree(site, replacement, ignore=shutil.ignore_patterns("page"))
+        shutil.copytree(page_dir, replacement / "page")
+        restore(replacement)
+        recovered = replacement / "page"
+        assert read_events(recovered) == read_events(private)
+        assert read_cursor(recovered) == reply["seq"]
+        assert (recovered / "index.html").read_bytes() == (
+            private / "index.html"
+        ).read_bytes()
+        assert revision_path(recovered, 2).is_file()
+        assert (recovered / media_path.lstrip("/")).read_bytes() == media
+        assert not (recovered / "page" / "obsolete.txt").exists()
+        recovered_state = website_server.initial_state(
+            recovered, "/example", "example", manifest["release"]
+        )
+        assert {
+            key: view["document"]
+            for key, view in recovered_state["browser"]["views"].items()
+        } == {key: view["document"] for key, view in state["browser"]["views"].items()}
+        # Reads do not republish an unchanged canonical record.
+        count = len(stored["publications"])
+        with PageTransaction(private):
+            pass
+        assert len(stored["publications"]) == count
+        # Storage failure prevents success; retries can commit the local log.
+        stored["fail"] = True
+        with pytest.raises(urllib.error.HTTPError):
+            append_command(
+                private,
+                {
+                    "kind": "comment",
+                    "author": "user",
+                    "revision": 2,
+                    "text": "Retry this commit",
+                    "attempt": "saved-comment-0002",
+                },
+            )
+        stored["fail"] = False
+        with PageTransaction(private):
+            pass
+        assert len(stored["publications"]) == count + 1
+        (private / "index.html").write_text(
+            "<html><body>No valid document</body></html>"
+        )
+        with PageTransaction(private):
+            pass
+        publication = stored["publications"][-1]
+        invalid_state = json.loads(body("api/state"))
+        assert invalid_state["source_error"]
+        assert invalid_state["active"]["revision"] == 2
+        monkeypatch.setenv("LEAF_SITE_ROOT", str(replacement))
+        next_comment = append_command(
+            recovered,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 2,
+                "text": "Only this needs delivery",
+                "attempt": "saved-comment-0003",
+            },
+        )
+        assert [
+            event["id"]
+            for event in unacknowledged(read_events(recovered), read_cursor(recovered))
+        ] == [next_comment["id"]]
+
+
+def test_saved_website_record_restores_an_installed_layer(
+    page_dir, tmp_path, monkeypatch
+):
+    """A package vendored by the agent remains usable in a fresh release image."""
+    from leaf_website.storage import restore
+
+    publish(page_dir)
+    (page_dir / "vendor" / "obsolete.txt").write_text("Remove this installed input")
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    manifest_path = site / website_server.SITE_MANIFEST
+    manifest = json.loads(manifest_path.read_text())
+    manifest["pages"]["/example"]["states"] = {"1": "unused"}
+    manifest_path.write_text(json.dumps(manifest))
+    source = tmp_path / "saved-widget"
+    add_test_widget(source, "lf-restored", upgrade=True)
+    (source / "instructions" / "author.md").write_text(
+        "Use lf-restored to preserve the installed widget.\n"
+    )
+    cmd_package_install(source)
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    monkeypatch.delenv("LEAF_PAGE_COMMIT", raising=False)
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        restore(site)
+        cmd_init(private, (*page_packages(), "saved-widget"))
+        (private / "index.html").write_text(
+            (private / "index.html")
+            .read_text()
+            .replace(
+                "</main>",
+                '<lf-restored id="installed">Installed widget</lf-restored></main>',
+            )
+        )
+        with PageTransaction(private):
+            pass
+        revision = latest_revision(private)
+        assert "lf-restored" in json.loads((private / "registry.json").read_text())
+        replacement = tmp_path / "replacement"
+        shutil.copytree(site, replacement, ignore=shutil.ignore_patterns("page"))
+        shutil.copytree(page_dir, replacement / "page")
+        monkeypatch.setenv("LEAF_SITE_ROOT", str(replacement))
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "empty-machine-state"))
+        restore(replacement)
+        recovered = replacement / "page"
+        assert not (recovered / "vendor" / "obsolete.txt").exists()
+        for name in (
+            "registry.json",
+            "leaf.js",
+            "widgets/lf-restored.js",
+            "runtime/layer-generation.js",
+        ):
+            assert (recovered / name).read_bytes() == (private / name).read_bytes()
+        assert (recovered / "instructions" / "author.md").read_bytes() == (
+            private / "instructions" / "author.md"
+        ).read_bytes()
+        # Mutable restored layer files must not share writable inodes with the
+        # immutable same-release revision used as their storage reference.
+        baseline = revision_path(recovered, 1).with_suffix("") / "resources" / "leaf.js"
+        original = baseline.read_bytes()
+        (recovered / "leaf.js").write_bytes(b"edited mutable layer")
+        assert baseline.read_bytes() == original
+        (recovered / "leaf.js").write_bytes((private / "leaf.js").read_bytes())
+        state = website_server.initial_state(
+            recovered, "/example", "example", manifest["release"]
+        )
+        assert state["source_error"] is None
+        assert state["active"]["revision"] == revision
+        assert "lf-restored" in json.loads((recovered / "registry.json").read_text())
+        # A restored process negotiates once and never retransmits stored blobs.
+        uploads = len(stored["uploads"])
+        previous = set(stored["blobs"])
+        with PageTransaction(recovered):
+            pass
+        assert not previous.intersection(stored["uploads"][uploads:])
+        # Package contract: delivery is self-contained, but rebuilding a selected
+        # package on another machine requires installing its original source there.
+        # Refusal must leave the already-restored layer usable.
+        registry = (recovered / "registry.json").read_bytes()
+        with pytest.raises(Refused, match="unknown package 'saved-widget'"):
+            cmd_init(recovered, tuple(layer_packages(recovered)))
+        assert (recovered / "registry.json").read_bytes() == registry
+        assert latest_revision(recovered) == revision
+        assert (
+            website_server.initial_state(
+                recovered, "/example", "example", manifest["release"]
+            )["source_error"]
+            is None
+        )
 
 
 def hosted_follower(
@@ -1179,12 +1709,14 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         "    assert json.loads((plugin / '.agents/plugins/marketplace.json').read_text())['name'] == 'leaf'\n"
         "    assert not (plugin / '.venv').exists()\n"
         "    assert not record.exists()\n"
+        "    response = {}\n"
         "else:\n"
         "    assert args == ['plugin', 'add', 'leaf@leaf', '--json']\n"
         "    assert len(record.read_text().splitlines()) == 1\n"
+        "    response = {'installedPath': str(home / 'plugins/cache/leaf/leaf/local')}\n"
         "with record.open('a') as output:\n"
         "    output.write(json.dumps(args) + '\\n')\n"
-        "print(json.dumps({'installed': args}, indent=2))\n"
+        "print(json.dumps(response, indent=2))\n"
     )
     codex.chmod(0o755)
     serve_site = tmp_path / "serve_site.py"
@@ -1282,7 +1814,9 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     @contextmanager
     def worker():
         lifecycle.append("worker")
-        yield "http://127.0.0.1:8787", "b" * 40
+        yield verify_site.LocalWorker(
+            "http://127.0.0.1:8787", "b" * 40, "test-worker", ROOT / ".tmp"
+        )
 
     @contextmanager
     def browser():
@@ -1482,6 +2016,10 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     assert "LEAF_REPLY_TOKEN" not in launched["options"]["env"]
     assert launched["options"]["cwd"] == str(site_root)
     assert launched["options"]["env"][website_server.APP_SERVER_ENV] == harness.endpoint
+    assert launched["options"]["env"]["LEAF"] == website_server.LEAF_COMMAND
+    assert (
+        launched["options"]["env"]["LEAF_HOST_LAUNCHER"] == website_server.LEAF_COMMAND
+    )
     assert launched["command"] == [
         "codex",
         "app-server",
@@ -1495,7 +2033,7 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     # exactly this reason. The shared contract describes `leaf status`, so what the
     # agent receives has to hand the status to the harness.
     instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
-    assert "Leave the page's status to the harness" in instructions
+    assert "Leave status to the harness" in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -1876,7 +2414,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     acknowledgement is a request App Server may well have acted on. So the
     provider is told to stop whatever it started, and the delivery gives the
     moves back — both the offer and its reply reservation, because either
-    left standing blocks the `startup_failed` receipt this raise asks the Worker
+    left held blocks the `startup_failed` receipt this raise asks the Worker
     for, and that receipt is what invites the user to send again.
     """
     comment = append_event(
@@ -1887,13 +2425,14 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     competing_writer_rejected = []
 
     def refuse(*args, **kwargs):
-        with pytest.raises(Refused, match="answered by this turn's messages"):
+        with pytest.raises(Refused) as refused:
             post_reply(
                 page_dir,
                 {"to": comment["id"], "for": comment["id"]},
                 "Competing tool reply",
                 identity={"agent": "Codex", "session": "hosted-thread"},
             )
+        assert refused_on(refused.value).code == "reserved-answer"
         competing_writer_rejected.append(True)
         if refusal is None:
             return {"turn": {}}
@@ -2115,7 +2654,7 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     The hosted site starts a turn for every move that owes an answer: a message or
     an answer to a page Ask. Each takes the failure its own answer takes, and each
     leaves the next step with the user, so none stays owed with no turn coming for
-    it. A pick keeps standing on the page, and the workflow says it was
+    it. A pick stays in force on the page, and the workflow says it was
     not answered until the user answers again. A message is told in its own
     thread.
     """
@@ -2882,7 +3421,7 @@ def test_a_stream_that_goes_silent_ends_its_turn_like_a_dropped_one(
     )
     # Without the lease this page is not listening, and a page that is not
     # listening reads `away` whatever its stream reading holds — which would pass
-    # the activity assertion below on a follower that left one standing.
+    # the activity assertion below on a follower that left one held.
     harness._hold_waiter(page_dir, "hosted-thread")
 
     hosted_follower(harness, page_dir, prepared, silent).follow()
@@ -4086,11 +4625,14 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
 def test_local_verification_settles_host_network(monkeypatch):
     @contextmanager
     def worker():
-        yield "http://127.0.0.1:8787", "release"
+        yield verify_site.LocalWorker(
+            "http://127.0.0.1:8787", "release", "test-worker", ROOT / ".tmp"
+        )
 
     attempts = []
 
-    def verify(origin, release, *, settle_after_activation=None):
+    def verify(origin, release, *, settle_after_activation=None, worker=None):
+        assert worker.origin == origin
         attempts.append(settle_after_activation)
         raise RuntimeError("page did not present: net::ERR_NETWORK_CHANGED")
 
@@ -4186,7 +4728,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
 def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
     """The other half of the same reading: nothing is coming, so do not wait it out.
 
-    A container that dropped its session leaves the obligation standing with no turn
+    A container that dropped its session leaves the obligation open with no turn
     behind it. Extending the wait there would spend the step's whole budget to raise
     the failure it could already raise.
     """
@@ -4360,7 +4902,7 @@ class _FailedFirstTurn:
     def get(self, url: str, **kwargs) -> _Read:
         if url.endswith("/api/state"):
             return _Read(self.state())
-        return _Read({}, f"<h1>{self.recorded}</h1>")
+        return _Read({}, f"<main><h1>{self.recorded}</h1></main>")
 
     def state(self) -> dict:
         events = [

@@ -8,6 +8,8 @@
    changes the page's geometry. A surface whose rows need the first server reading
    declares presentation-time arrival, so its rendering and covering boundary wait for
    that reading.
+   A delayed restored surface keeps document-arrival intent: newer input supersedes
+   that arrival, so saved chrome cannot cover a page the reader has begun using.
 
    Selecting a surface ordinarily keeps the user's place beside it. A navigation
    activation requests `focus` and enters the surface's declared destination; the
@@ -22,7 +24,7 @@
    The selected surface is seated in one native dialog, nonmodal beside the page and
    modal where it covers. Its actual nodes and the chrome foreground permitted above
    the scrim have permanent homes in that dialog: changing posture never disconnects
-   editors, disclosures, embedded documents or standing native layers. The browser excludes
+   editors, disclosures, embedded documents or open native layers. The browser excludes
    every background subtree, including one a page revision adds. The retained visual
    scrim stays inside the dialog so page and chrome targeting keep their paint planes.
 
@@ -67,6 +69,7 @@ import {
 } from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./page-paint.js";
+import { retainUserIntent } from "./user-intent.js";
 import { keeps, keepsHidden } from "./keeps.js";
 import { nextRender } from "./rendering.js";
 
@@ -99,15 +102,16 @@ export function createAuxiliarySurfaces({
   envelope.setAttribute("role", "presentation");
   envelope.append(scrim);
   let active = null;
-  let standing = null;
+  let seated = null;
   let mounted = false;
   let arriving = null;
+  let arrivalIntent = null;
 
   // The node a surface lands the user on, or the surface itself.
   const landingIn = (controller) => controller.landing() ?? controller.surface;
   function seat(selected) {
     const next = selected?.covers() ? selected : null;
-    if (standing === selected && active === next) return;
+    if (seated === selected && active === next) return;
     const previous = active;
     const changedPosture = Boolean(active) !== Boolean(next);
     if (next) dismissPopoversOutside(next.surface);
@@ -116,7 +120,7 @@ export function createAuxiliarySurfaces({
       () => {
         if (previous) previous.surface.removeAttribute("data-lf-covered");
         active = next;
-        standing = selected;
+        seated = selected;
         keeps(band, "inert", next && !next.underBand ? "" : null);
         if (next) keeps(next.surface, "data-lf-covered", "");
         if (changedPosture || !envelope.open) {
@@ -245,6 +249,7 @@ export function createAuxiliarySurfaces({
       !pagePresented()
         ? selected
         : null;
+    arrivalIntent = arriving ? retainUserIntent({ since: 0 }) : null;
     // The native boundary lifts before the previous surface hides, so the focus it
     // hands back lands on a live page. The selected surface takes the boundary at sync.
     if (!selected || arriving || Boolean(active) !== selected.covers()) seat(null);
@@ -276,8 +281,13 @@ export function createAuxiliarySurfaces({
 
   function present() {
     if (!arriving) return;
+    if (!arrivalIntent()) {
+      select(null, { remember: false });
+      return;
+    }
     const surface = arriving;
     arriving = null;
+    arrivalIntent = null;
     surface.show({ phase: "arrival" });
     sync();
     syncLayout();
@@ -294,7 +304,7 @@ export function createAuxiliarySurfaces({
   // Travel that promises to show a destination clears the selected surface hiding it:
   // one covering the page, for anything outside it, or one standing over most of the
   // destination where it lands (geometry.js, `hides`). A destination inside the surface
-  // is the surface's own to show. The one owner of this, so a trip to a thread, a Question
+  // is the surface's own to show. The one owner of this, so a trip to a thread, an ask
   // or a datum each clears whatever surface happens to stand.
   function clearFor(where) {
     const selected = controllers.get(selectedKey);

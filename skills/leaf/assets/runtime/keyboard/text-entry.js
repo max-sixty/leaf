@@ -2,6 +2,7 @@
    text entry, a choice's arrow navigation, and native activation. */
 import { controlNavigationKeys, takesLetters } from "../focus.js";
 import { parsed, PRESS } from "./bindings.js";
+import { CARET_KEYS } from "../control-selectors.js";
 
 export function EVERYTHING() {
   return true;
@@ -16,19 +17,7 @@ function CHARACTER(binding) {
   return [...parsed(binding).key].length === 1;
 }
 
-const EDITING = new Set([
-  "Enter",
-  "Backspace",
-  "Delete",
-  "ArrowLeft",
-  "ArrowRight",
-  "ArrowUp",
-  "ArrowDown",
-  "Home",
-  "End",
-  "PageUp",
-  "PageDown",
-]);
+const EDITING = new Set(["Enter", "Backspace", "Delete", ...CARET_KEYS]);
 
 export function TEXT_ENTRY(binding) {
   return CHARACTER(binding) || EDITING.has(parsed(binding).key);

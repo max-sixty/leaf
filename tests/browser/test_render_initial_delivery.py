@@ -82,7 +82,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(browser):
         source,
         1,
         None,
-        executable=None,
+        executable="sha256:fixture",
         widgets={},
         resources=resources,
         registry=registry,

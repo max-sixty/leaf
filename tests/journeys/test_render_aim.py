@@ -37,6 +37,7 @@ from render_harness import (
     panel_settled,
     resized,
     round_trip,
+    sending,
     stamp_page,
     told,
     write,
@@ -197,7 +198,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     url = serve(example)
     if case_name == "ship-review":
         # The native section replaced the task widget that used to carry this mark.
-        # Seed one on a remaining widget so the aim still crosses a standing mark.
+        # Seed one on a remaining widget so the aim still crosses an existing mark.
         append_carried_log_record(
             serve.page_dir,
             {
@@ -212,7 +213,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     # What the log already held. A shipped seed can carry a decision the user made
     # before this page was opened, and what an aim may not do is add one of its own —
     # so the reading below is against this rather than against nothing.
-    standing = [
+    seeded = [
         e["id"]
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
@@ -271,7 +272,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             f"holding ⌥ over {label} in {case_name} promised {promised} and pointed "
             f"a {page.evaluate(AIM_CURSOR)} cursor at it"
         )
-        # An element a standing thread already marks, read before the press marks it
+        # An element an existing thread already marks, read before the press marks it
         # as the draft's too.
         already_marked = bool(
             promised and page.locator(f"#{promised}.lf-mark-el").count()
@@ -297,10 +298,10 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             # The sequence promised Comment, so the press focuses its compact field.
             open_compact_comment(page)
             mark = page.evaluate(DRAFT_MARK)
-            # A standing thread draws nothing on its element at rest, so a draft on an
+            # An existing thread draws nothing on its element at rest, so a draft on an
             # element the log already marks wears the pending contour like any other.
             if already_marked:
-                reached_paths.add("standing mark")
+                reached_paths.add("existing mark")
             assert mark == promised, (
                 f"⌥-clicking {label} in {case_name} promised {promised} and "
                 f"commented on {mark}"
@@ -354,7 +355,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         e["id"]
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
-    ] == standing, (
+    ] == seeded, (
         f"⌥-clicking through {case_name} left a decision in the log that the aim "
         "never promised"
     )
@@ -558,14 +559,27 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     expect(state).to_have_class(re.compile(r"\blf-mark-el\b"))
 
 
+@pytest.mark.parametrize("reply", [False, True])
 def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
-    browser, serve
+    browser, serve, reply
 ):
     url = serve(COMPOSER_ATTACHMENT_PAGE)
     for target in ("#ordinary", "#bg-contents a"):
         page, words = _open_attachment_draft(browser, url, target)
         field = page.locator(".lf-fab-input")
-        assert _draft_in_view(page, words)
+        if reply:
+            with sending(page, "the responsive-target comment"):
+                page.keyboard.press("ControlOrMeta+Enter")
+            preview = page.locator(".lf-margin-preview")
+            expect(preview).to_be_visible()
+            rendered(page)
+            page.keyboard.press("c")
+            field = preview.locator("leaf-text").first
+            expect(field).to_be_focused()
+            words = "A reply about " + target
+            write(field, words)
+            rendered(page)
+        assert _draft_in_view(page, words, field)
         for width in (480, 1200):
             resized(page, width, 900)
             rendered(page)
@@ -573,12 +587,15 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
             if target == "#bg-contents a" and width == 480:
                 # Authored CSS hides the sidebar at this width. The editor retains
                 # its native node and draft until the page gives the target room.
-                assert not _draft_in_view(page, words)
+                expect(page.locator(target).first).not_to_be_visible()
+                expect(field).not_to_be_visible()
+                assert not _draft_in_view(page, words, field)
             else:
-                expect(page.locator(".lf-fab-bar")).to_have_attribute(
-                    "data-lf-plane", "page"
-                )
-                assert _draft_in_view(page, words)
+                if not reply:
+                    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+                        "data-lf-plane", "page"
+                    )
+                assert _draft_in_view(page, words, field)
 
 
 def test_resume_reveals_an_open_draft_when_its_existing_subject_hides(browser, serve):

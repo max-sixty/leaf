@@ -312,7 +312,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    faces and version rows keep the padding floor described above. Inline offered words
    remain inline: like links in prose, their words determine their target.
 
-   .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
+   .lf-outline-chip is halved on how it is spelled, because the class dresses a plain
    chip as well as a press and a chip is not something to aim at. */
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-skip)),
 .lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-msg-control,
@@ -409,11 +409,12 @@ summary { align-content: center; }
 /* Every message header holds the same control-height row, including sticky margin
    heads. Thread actions and reactions must not change its metadata-to-body gap.
    An author may ellipsize while time and receipt use their own intrinsic room. */
-.lf-msg-head { display: flex; align-items: center; gap: var(--sp-2);
+:is(.lf-msg-head, .lf-thread-working-head) { display: flex; align-items: center;
+          gap: var(--sp-2);
           min-block-size: var(--lf-msg-head-height); box-sizing: border-box;
           min-width: 0; overflow: hidden; white-space: nowrap;
           font-size: var(--t-6); --lf-msg-name-size: 13px; }
-.lf-msg-head .lf-msg-meta { flex: 0 1 auto; overflow: hidden; }
+:is(.lf-msg-head, .lf-thread-working-head) .lf-msg-meta { flex: 0 1 auto; overflow: hidden; }
 /* A primary reader's message part holds its thread's news notice at the head's end,
    beside the message's own control rather than under it (controls.css). */
 .lf-primary-message > .lf-msg-head { position: relative; --lf-msg-head-room: 5rem;
@@ -425,7 +426,8 @@ summary { align-content: center; }
           max-inline-size: 5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lf-msg-head .lf-msg-sending { min-width: 0; overflow: hidden;
           text-overflow: ellipsis; }
-.lf-msg-head b { flex: 0 1 auto; min-width: 0; overflow: hidden;
+:is(.lf-msg-head, .lf-thread-working-head) b { flex: 0 1 auto; min-width: 0;
+          overflow: hidden;
           text-overflow: ellipsis; font-size: var(--lf-msg-name-size);
           font-weight: 600; color: var(--ink); }
 /* A checkpoint is agent-written reading context, followed by the retained originals
@@ -462,6 +464,37 @@ summary { align-content: center; }
 .lf-summary-originals { min-width: 0; }
 .lf-summary-originals[hidden] { display: none; }
 .lf-summary-originals > .lf-msg { margin-block: 8px; }
+/* The working message: the step of work in hand, at the transcript's foot just above
+   the reply box. It takes a message's head and body faces, but its words stay dim, and
+   while the work runs a sheen passes over them, as over a title being generated, so a
+   step reads as work under way rather than as a reply. A step is a line, and the
+   words keep to one, ellipsized, so each new step leaves the message's box, and what
+   stands below it, where it was. Its arrival and departure are held when they would
+   move what the reader sees (held-news.js). Assistive technology reads the whole line. */
+.lf-thread-working { margin-top: 16px;
+  --lf-working-dim: color-mix(in oklab, var(--muted) 80%, var(--paper)); }
+.lf-thread-working-words { margin-top: var(--lf-msg-body-gap);
+  inline-size: fit-content; max-inline-size: 100%;
+  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--lf-working-dim);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.lf-thread-working[data-lf-live] .lf-thread-working-words { color: transparent;
+  background: linear-gradient(110deg, var(--lf-working-dim) 42%, var(--ink) 50%,
+    var(--lf-working-dim) 58%);
+  background-size: 200% 100%; background-clip: text;
+  animation: lf-working-sheen 2s ease-in-out infinite alternate; }
+@keyframes lf-working-sheen {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lf-thread-working[data-lf-live] .lf-thread-working-words { animation: none;
+    background: none; color: var(--lf-working-dim); }
+}
+@media (forced-colors: active) {
+  .lf-thread-working-words,
+  .lf-thread-working[data-lf-live] .lf-thread-working-words { animation: none;
+    background: none; color: GrayText; }
+}
 .lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring); --lf-focus-ring: summary-fold;
   outline-offset: calc(-1 * var(--focus-ring-w)); }
@@ -550,3 +583,5 @@ button.lf-thread-notice[data-lf-focus] { outline: var(--focus-ring);
 .lf-msg-head :is(.lf-edited, .lf-msg-kept) { color: var(--muted-2); }
 /* A thread projected inline uses the same receipt emphasis as the panel. */
 .lf-msg-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }
+/* What an answer leaves standing reads beside its time like a receipt. */
+.lf-msg-head .lf-msg-leaves { color: var(--ink-2); font-weight: 600; }

@@ -1,11 +1,11 @@
-"""Native traces retain commands, turn outcomes and actual delivery inputs."""
+"""Isolated task environments and native command, turn and delivery traces."""
 
 import json
 
 import pytest
 from interact_support import TOKEN, publish
 from leaf.event_log import read_events
-from leaf_dev.arms import PageClient, commands, completed, trace_result
+from leaf_dev.arms import PageClient, commands, completed, environment, trace_result
 from leaf_dev.eval_codex import records_for
 
 EVENT_ENVELOPE = {
@@ -15,6 +15,49 @@ EVENT_ENVELOPE = {
     "author": "agent",
     "seq": 1,
 }
+
+
+def test_an_arm_selects_its_own_launcher(monkeypatch):
+    """A child cannot inherit the host launcher, but may select one explicitly."""
+    monkeypatch.setenv("LEAF", "/agent/bin/leaf")
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", "/parent/bin/leaf")
+    assert "LEAF_HOST_LAUNCHER" not in environment()
+    assert environment()["LEAF"] == "/agent/bin/leaf"
+    assert environment(LEAF_HOST_LAUNCHER="/arm/bin/leaf")["LEAF_HOST_LAUNCHER"] == (
+        "/arm/bin/leaf"
+    )
+
+
+def test_codex_children_give_native_tools_private_temporary_directories(
+    tmp_path, monkeypatch
+):
+    """Replace only App Server startup; tool environment and login homes are real."""
+    from leaf_dev import eval_codex
+
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "shared-host-temp"))
+    observed = []
+    monkeypatch.setattr(
+        eval_codex,
+        "private_app_server",
+        lambda executable, *, env: observed.append(env),
+    )
+    for name in ("first", "second"):
+        cwd = tmp_path / name
+        cwd.mkdir()
+        eval_codex.CodexChild(
+            cwd,
+            "Write a page",
+            stderr=cwd / "err",
+            limit=1,
+            timed_out=cwd / "timeout",
+        )
+        assert (cwd / "tmp").is_dir()
+        assert observed[-1]["TMPDIR"] == str(cwd / "tmp")
+    assert observed[0]["TMPDIR"] != observed[1]["TMPDIR"]
 
 
 def test_codex_command_and_turn_success_are_observed_harness_results():

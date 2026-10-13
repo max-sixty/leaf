@@ -15,8 +15,97 @@ from render_harness import (
     consume_browser_errors,
     holding,
     open_page,
+    page_comment,
+    said,
     take_browser_errors,
+    write,
 )
+
+
+@pytest.mark.parametrize("surface", ["panel", "page"])
+@pytest.mark.parametrize("newer_input", [False, True])
+def test_sample_upgrade_does_not_wait_for_child_saved_state(
+    browser, serve, surface, newer_input
+):
+    """A saved-thread request waits for history and yields to a newer child draft."""
+    source = leaf_page(
+        "Independent sample startup",
+        '<h1>Independent sample startup</h1><p id="outer">Parent passage.</p>'
+        '<lf-sample id="practice" label="Practice" window>'
+        '<template id="practice-source" data-sample data-sample-events="history">'
+        '<h1>Practice</h1><p id="inner">Child passage.</p>'
+        "</template></lf-sample>",
+        head="""<script id="history" type="application/json">
+          [{"id":"saved-thread","kind":"comment","anchor":{"section":"inner"},
+            "text":"A saved child conversation."}]
+        </script>""",
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held = []
+    route_pattern = re.compile(r"/api/samples/[^/]+/api/state")
+    page.route(route_pattern, lambda route: held.append(route))
+    page.goto(serve(source), wait_until="load")
+    holding(page, held, 1, "the child's unanswered saved-state read")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    expect(child.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    expect(child.locator("body")).not_to_have_attribute("inert")
+    expect(child.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(child.locator(".lf-status-text")).to_have_text("Loading saved state…")
+    outer_box = page_comment(page)
+    write(outer_box, "Parent draft")
+    page.keyboard.press("Escape")
+    inner_box = page_comment(child)
+    write(inner_box, "Child draft")
+    page.keyboard.press("Escape")
+    child.evaluate("""() => {
+      window.sampleRequestReceived = false;
+      document.documentElement.lfSample.receive(({method}) => {
+        if (method === 'thread') window.sampleRequestReceived = true;
+      });
+    }""")
+    sample.evaluate(
+        """(sample, surface) => {
+      window.sampleSelected = false;
+      sample.showThread('saved-thread', {surface}).then(result => {
+        window.sampleSelectionResult = result;
+        window.sampleSelected = true;
+      });
+    }""",
+        surface,
+    )
+    # The child has received this command before newer input supersedes it.
+    child.wait_for_function("window.sampleRequestReceived")
+    assert page.evaluate("window.sampleSelected") is False
+    child_words = "Child draft"
+    if newer_input:
+        inner_box = page_comment(child)
+        child_words = "A newer child draft owns this view"
+        write(inner_box, child_words)
+    expect(outer_box).to_have_js_property("value", "Parent draft")
+    expect(inner_box).to_have_js_property("value", child_words)
+    page.unroute(route_pattern)
+    for route in held:
+        route.continue_()
+    page.wait_for_function("window.sampleSelected")
+    assert page.evaluate("window.sampleSelectionResult") is (not newer_input)
+    expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(outer_box).to_have_js_property("value", "Parent draft")
+    expect(inner_box).to_have_js_property("value", child_words)
+    if newer_input:
+        expect(child.locator(".lf-thread-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
+        )
+        expect(inner_box).to_be_focused()
+    else:
+        destination = child.locator(
+            ".lf-thread-panel" if surface == "panel" else ".lf-page-thread"
+        )
+        expect(
+            destination.get_by_text("A saved child conversation.", exact=True)
+        ).to_be_visible()
 
 
 def interaction_records(page, page_dir, *, document=None):
@@ -139,7 +228,7 @@ document.querySelector('#popup').addEventListener('click', () => {
         "loading",
         "loaded",
         "connected",
-        "presented",
+        "upgraded",
     }
     assert {row["allocation"] for row in initial} == {1}
     child_records = interaction_records(page, serve.page_dir, document=child)
@@ -182,7 +271,7 @@ document.querySelector('#popup').addEventListener('click', () => {
         for row in child_records
         if row.get("type") == "sample"
         and row["template"] == "nested-source"
-        and row["phase"] == "presented"
+        and row["phase"] == "upgraded"
     )
     grandchild_records = interaction_records(page, serve.page_dir, document=grandchild)
     grandchild_page = [
@@ -218,7 +307,7 @@ document.querySelector('#popup').addEventListener('click', () => {
     assert documents[-1]["reloading"] is True
     assert documents[0]["document"] != documents[-1]["document"]
     assert {row["allocation"] for row in reloaded} == {1}
-    assert [row for row in reloaded if row["phase"] == "presented"][-1][
+    assert [row for row in reloaded if row["phase"] == "upgraded"][-1][
         "document"
     ] == documents[-1]["document"]
     child.evaluate("""async () => {
@@ -283,7 +372,7 @@ def test_sample_release_failure_records_the_retired_allocation(
     assert records[-1]["document"] == next(
         row["document"] for row in records if row["phase"] == "connected"
     )
-    consume_browser_errors(page, "503")
+    consume_browser_errors(page, {"code": "failed-load", "status": 503})
 
 
 @pytest.mark.parametrize("status", [404, 200])
@@ -346,11 +435,15 @@ def test_sample_document_without_bootstrap_retires_and_can_reset(
     )
     replacement = sample_records(page, serve)
     assert {row["host"] for row in replacement} == {records[0]["host"]}
-    completed = [row for row in replacement if row["phase"] == "presented"][-1]
+    completed = [row for row in replacement if row["phase"] == "upgraded"][-1]
     assert completed["allocation"] == 2
     assert completed["document"]
     if status == 404:
-        consume_browser_errors(page, "404", "The sample document did not start Leaf")
+        consume_browser_errors(
+            page,
+            {"code": "failed-load", "status": 404},
+            "The sample document did not start Leaf",
+        )
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
@@ -424,7 +517,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
         row for row in departed_records if row["phase"] == "departed"
     )
     assert departed_record["document"] == next(
-        row["document"] for row in departed_records if row["phase"] == "presented"
+        row["document"] for row in departed_records if row["phase"] == "upgraded"
     )
     # The selection and `ready` wait for a next document, which only Reset brings here.
     assert page.evaluate("window.departedCall") is None
@@ -453,7 +546,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
         next(row for row in reset_records if row["phase"] == "retired")["reason"]
         == "reset"
     )
-    completed = [row for row in reset_records if row["phase"] == "presented"][-1]
+    completed = [row for row in reset_records if row["phase"] == "upgraded"][-1]
     assert completed["allocation"] == 2
     assert completed["document"] != departed_record["document"]
     # Only account for teardown refusals from the proven departing capability.
@@ -465,8 +558,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
     )
     departure_errors = take_browser_errors(page)
     assert all(
-        cancellation_error.fullmatch(error.splitlines()[0])
-        for error in departure_errors
+        cancellation_error.fullmatch(said(error)) for error in departure_errors
     ), departure_errors
     # A fresh header forces a new native preflight rather than reusing the old
     # document's cached one. Revocation must remain an HTTP refusal in both engines.
@@ -482,4 +574,6 @@ def test_sample_native_departure_keeps_destination_and_reset(
         )
         == 404
     )
-    consume_browser_errors(page, "404 " + previous + "api/state")
+    consume_browser_errors(
+        page, {"code": "failed-load", "status": 404, "url": previous + "api/state"}
+    )

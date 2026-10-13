@@ -97,6 +97,7 @@ from render_harness import (
     scroll_settled,
     select,
     sending,
+    shown,
     stamp_page,
     take_browser_errors,
     told,
@@ -923,9 +924,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     expect(result).to_have_text("Replacement applied")
 
 
-def test_restoring_question_focus_can_execute_its_command_in_the_same_turn(
-    browser, serve
-):
+def test_restoring_ask_focus_can_execute_its_command_in_the_same_turn(browser, serve):
     """Focus determines forwarded scopes synchronously, without a paint registering them."""
     page = open_page(
         browser,
@@ -1913,7 +1912,7 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_required_approval_is_a_question_until_approved(browser, serve, width):
+def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     """Sign-off belongs to Questions and leads to the real approval control,
     including its phone overflow seat. A task's Done cannot substitute for it."""
     html = LONG_PAGE.replace(
@@ -1923,19 +1922,17 @@ def test_required_approval_is_a_question_until_approved(browser, serve, width):
     page = open_page(browser, serve(html))
     page.set_viewport_size({"width": width, "height": 900})
     questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on you", exact=True, include_hidden=True
+        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
     )
     expect(questions).to_be_attached()
     target = page.evaluate("""async () => {
-      const {readQuestions, questionActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-      const question = readQuestions().all.find(q => q.source.kind === 'approval');
-      const target = document.getElementById(question.prompt.target);
-      await questionActions.open(question.id);
+      const {readAsks, askActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const ask = readAsks().all.find(q => q.source.kind === 'approval');
+      const target = document.getElementById(ask.prompt.target);
+      await askActions.open(ask.id);
       return target === document.querySelector('.lf-signoff') && document.activeElement === target;
     }""")
-    assert target, (
-        "the public Question route did not reach its declared approval target"
-    )
+    assert target, "the public ask route did not reach its declared approval target"
     page.keyboard.press("q")
     approval = page.locator(".lf-signoff")
     expect(approval).to_be_visible()
@@ -1945,7 +1942,7 @@ def test_required_approval_is_a_question_until_approved(browser, serve, width):
     expect(
         page.get_by_role(
             "button",
-            name="Questions: 0 waiting on you",
+            name="Questions: 0 waiting on me",
             exact=True,
             include_hidden=True,
         )
@@ -1968,7 +1965,7 @@ def test_required_approval_is_a_question_until_approved(browser, serve, width):
 
 
 def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serve):
-    """Approval, its Question and its history agree during send, undo and refusal.
+    """Approval, its ask and its history agree during send, undo and refusal.
 
     Holding each POST proves the result is visible before admission; a definitive
     refusal restores the same admitted approval through every consumer.
@@ -1986,7 +1983,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     panel_settled(page)
     history = page.locator(".lf-threads > .lf-system")
     questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on you", exact=True, include_hidden=True
+        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -2018,7 +2015,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     round_trip(page)
     expect(button).to_have_text("✓ Version approved")
     expect(button).to_have_attribute(
-        "title", "Approved. Press z to undo while approval is still your latest update"
+        "title", "Approved. Press z to undo while approval is still the latest update"
     )
 
     expect(history).to_contain_text("Approved")
@@ -2485,7 +2482,7 @@ def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, ser
 
 
 def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
-    """On a phone Approval stands behind More as a waiting Question, and More wears
+    """On a phone Approval stands behind More as a waiting ask, and More wears
     its dot and names both reasons. Approving takes the dot down and taking the
     approval back puts it up again; on a desk Approval stands on the row and More
     wears no dot for it."""
@@ -2745,7 +2742,7 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     page.evaluate("""async () => {
       window.toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
       for (const [key, rank, offered] of [
-        ['retiring', -30, true], ['arriving', -25, false], ['standing', -20, true],
+        ['retiring', -30, true], ['arriving', -25, false], ['staying', -20, true],
         ['returning', -15, false],
       ]) {
         const control = document.createElement('button');
@@ -2758,11 +2755,11 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     more.focus()
     page.keyboard.press("Enter")
     retiring = page.locator(".test-retiring")
-    standing = page.locator(".test-standing")
+    staying = page.locator(".test-staying")
     arriving = page.locator(".test-arriving")
     retiring.focus()
     expect(retiring).to_be_focused()
-    before = standing.bounding_box()
+    before = staying.bounding_box()
     page.evaluate("""() => {
       toolbar.showNews(document.querySelector('.test-retiring'), false);
       toolbar.showNews(document.querySelector('.test-arriving'), true);
@@ -2770,9 +2767,9 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     }""")
     expect(retiring).to_be_hidden()
     assert arriving.is_hidden()
-    expect(standing).to_be_focused()
+    expect(staying).to_be_focused()
     expect(more).to_have_attribute("aria-label", re.compile("new action"))
-    assert standing.bounding_box() == before
+    assert staying.bounding_box() == before
     assert retiring.evaluate("node => node.offsetHeight") > 0
     page.keyboard.press("Tab")
     expect(arriving).not_to_be_focused()
@@ -2825,7 +2822,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     resized(page, 390, 900)
     expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
     assert answer_all.evaluate("button => button === window.__lfBulkControl")
-    assert answer_all.locator(":scope > lf-question-banner-face").count() == 1
+    assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
     order = page.evaluate(
         """() => [...document.querySelector('.lf-banner-menu').children,
                     ...document.querySelector('.lf-banner-actions').children]
@@ -3237,11 +3234,9 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     it — the widget flips, nothing is logged, no notice fires, and the next poll puts it
     back with nothing anywhere saying why.
 
-    The subject is the project widget SEATED_ASK_ENTRY declares rather than an entry out
-    of the default package, because the pair the split needs — a visible ask and a seat
-    of the widget's own — is a pair of declarations and not a tag. No shipped entry has
-    carried both since 292de9c took `x-thread-seat` off `lf-options`, and the reading
-    under test never asked which widget it was."""
+    The subject is the project widget SEATED_ASK_ENTRY declares, whose seat is where a
+    user most often starts such a thread; any thread anchored on an ask splits it the
+    same way, and the reading under test never asks which widget it is."""
     url = serve(
         leaf_page(
             "seated eligibility",
@@ -3601,7 +3596,7 @@ def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve
     row, and the agent's Tasks count leads the second, under the sentence's start, where
     the run leaves it room whole. A finger's search steps share that row: the count
     stands whole beside them where the font leaves it room, or gives way to them, never
-    cutting a step or standing cut itself, and comes back where it stood once the search
+    cutting a step or being cut itself, and comes back where it stood once the search
     closes."""
     context = browser.new_context(
         viewport={"width": 490, "height": 800}, has_touch=True, is_mobile=True
@@ -3658,7 +3653,7 @@ def test_a_phone_s_one_row_seats_a_finger_s_steps_and_leaves_the_counts_out(
         viewport={"width": 390, "height": 800}, has_touch=True, is_mobile=True
     )
     page = open_page(browser, serve(SUGGESTION_PAGE), context=context)
-    expect(page.locator(".lf-status-detail")).to_contain_text("Waiting on you")
+    expect(page.locator(".lf-status-detail")).to_contain_text("Waiting on me")
     page_at_rest(page)
     resting = page.evaluate(BANNER_ROWS)
     assert_banner_as_stated(resting, wrapped=False)
@@ -3835,7 +3830,7 @@ def test_a_panel_row_follows_its_pages_status_live(
 
 def test_a_closed_leaf_clears_itself_off_the_drawer(browser, serve, other_leaf):
     """A closed leaf leaves the drawer on the poll that says so. Its server stays
-    up — a standing one for good — so the row would otherwise stand forever and the
+    up — a persistent one for good — so the row would otherwise stand forever and the
     count a user glances at to find who needs them would become a tally of
     everything that has ever run here. This page's own row never drops — a user
     looking at a closed page is still looking at it — so a drawer with nothing live
@@ -4074,7 +4069,8 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
             # The console with it: the press can move nothing because the runtime
             # threw, and this names what it said.
             pytest.fail(
-                f"{key} moved nothing on a page nobody had clicked in: {page.lf_errors}"
+                f"{key} moved nothing on a page nobody had clicked in:\n"
+                + shown(page.lf_errors)
             )
         # And then the rest of the glide, so the next key's reset lands on a scroll
         # that is over rather than on one still on its way somewhere.
@@ -6124,9 +6120,10 @@ def _each_aim_surface(page, page_dir):
     yield
     page.keyboard.press("Escape")
 
-    # Twice: the first press expands the shortcut bar, the second opens the reference.
+    # The first press can open the reference or expand the shortcut bar.
     page.keyboard.press("?")
-    page.keyboard.press("?")
+    if not page.locator(".lf-command-reference").is_visible():
+        page.keyboard.press("?")
     expect(page.locator(".lf-command-reference-command").first).to_be_visible()
     yield
 
@@ -6320,7 +6317,7 @@ def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
     append_carried_log_record(
         serve.page_dir,
         {
-            "id": "standing-reaction",
+            "id": "reaction-in-force",
             "kind": "comment",
             "author": "user",
             "revision": 1,
@@ -6354,7 +6351,7 @@ def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert (withdrawn["kind"], withdrawn["undoes"]) == (
         "undo",
-        "standing-reaction",
+        "reaction-in-force",
     )
 
 

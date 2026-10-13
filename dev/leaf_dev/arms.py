@@ -45,9 +45,9 @@ import click
 from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
-from leaf.hook_transport import hands_delivery
-from leaf.tasks import start_reading
+from leaf.hook_transport import DELIVERY_FIELD
 from leaf.thread import successful_replies
+from leaf.todos import start_reading
 
 from leaf_dev import ROOT
 from leaf_dev.page_fixtures import prepare_page, read_fixture
@@ -72,6 +72,8 @@ PAYLOAD = (
     "uv.lock",
     "dev/pyproject.toml",
     "worker/pyproject.toml",
+    "worker/leaf_website",
+    "worker/codex-config.toml",
 )
 
 # The harnesses an arm's child runs, named as the shipped harness names itself.
@@ -101,12 +103,12 @@ def environment(**extra: str) -> dict[str, str]:
     A harness run from a Claude Code or Codex session inherits that session's
     identity: its id, job directory, effort level and App Server endpoint. A `leaf`
     command would sign events as that session, and a child would use its transport
-    and settings. `CLAUDE_CONFIG_DIR`
-    stays, since it names where the login lives."""
+    and settings. An inherited LEAF_HOST_LAUNCHER would override the arm's launcher.
+    `CLAUDE_CONFIG_DIR` stays, since it names where the login lives."""
     env = {
         key: value
         for key, value in os.environ.items()
-        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV)
+        if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV, "LEAF_HOST_LAUNCHER")
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
     return {**env, **extra}
@@ -140,7 +142,8 @@ def run_leaf(
 @contextmanager
 def serving(arm: Path, state: Path, page: Path):
     """Serve `page` with the arm's `leaf server run --temporary` under the state home
-    `state`, and yield the tokened URL it prints."""
+    `state`, and yield the tokened URL it prints. Retirement joins the owned process
+    through its active requests and sample cleanup before the caller reuses its page."""
     server = subprocess.Popen(
         [str(arm / "bin" / "leaf"), "server", "run", "--temporary", str(page)],
         env=environment(XDG_STATE_HOME=str(state)),
@@ -152,22 +155,19 @@ def serving(arm: Path, state: Path, page: Path):
     try:
         yield json.loads(server.stdout.readline())["url"]
     finally:
-        # A loaded host can take longer than this to wind a server down; its page is
-        # scratch, so a server still running then is killed rather than failing the run.
-        # The launcher is uv, which cannot pass a kill on, so the kill takes the group.
         server.terminate()
-        try:
-            server.wait(10)
-        except subprocess.TimeoutExpired:
-            os.killpg(server.pid, signal.SIGKILL)
-            server.wait()
+        server.wait()
 
 
 def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
     launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
     its working tree."""
-    prepare_page(page, read_fixture(source), partial(run_leaf, arm, state, check=True))
+    prepare_page(
+        page,
+        read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
+        partial(run_leaf, arm, state, check=True),
+    )
 
 
 @contextmanager
@@ -290,25 +290,31 @@ def install_codex_plugin(
     cwd: Path,
     env: dict[str, str],
     output: IO[str] | None = None,
-) -> None:
+) -> Path:
     """Install a complete Leaf payload through Codex's native marketplace commands.
 
-    Callers supply the isolated task's environment and its CLI. Output is captured
-    on subprocess failures, or streamed whole to `output` when the caller keeps a
-    log; native installer JSON documents are separate from task JSON-lines logs.
+    Return the install directory reported by the CLI. Callers supply the isolated
+    task's environment and its CLI. Installer output is captured on failures and
+    copied whole to `output` when the caller keeps a log.
     """
-    streams = (
-        {"stdout": output, "stderr": subprocess.STDOUT}
-        if output is not None
-        else {"capture_output": True, "text": True}
-    )
     for arguments in (
         ("plugin", "marketplace", "add", str(payload), "--json"),
         ("plugin", "add", "leaf@leaf", "--json"),
     ):
-        subprocess.run(
-            [str(codex), *arguments], cwd=cwd, env=env, check=True, **streams
+        result = subprocess.run(
+            [str(codex), *arguments],
+            cwd=cwd,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
         )
+        if output is not None:
+            output.write(result.stdout)
+            output.write(result.stderr)
+            output.flush()
+        result.check_returncode()
+    return Path(json.loads(result.stdout)["installedPath"])
 
 
 def codex_home(path: Path, config: str = "") -> Path:
@@ -398,13 +404,62 @@ def claude_environment(home: Path, **extra: str) -> dict[str, str]:
     return env
 
 
+def instruction_context(payload: Path, source: str) -> str:
+    """An arm's instruction source, retaining the origin of relative references."""
+    path = payload / source
+    return f"Instructions from {path}:\n\n" + path.read_text()
+
+
+def retire_sessions(payload: Path, state: Path) -> None:
+    """End this sample's generations and join detached delivery retirement.
+
+    The arm owns its records and leases, so its interpreter applies its canonical
+    lifecycle transition. A private App Server ending does not end persisted-chat
+    ownership. Take each adapter's lease, then its startup lock: the former joins
+    the watch, and the latter joins the final writes its retirement makes after
+    releasing that lease. No native session may still use this state home.
+    """
+    subprocess.run(
+        [
+            str(payload / ".venv/bin/python"),
+            "-c",
+            """
+import json
+from leaf.state import SESSION_SUFFIX, end_session, flocked, state_home_path
+from leaf.leases import adapter_lease_path
+from leaf.codex_adapter import adapter_start_lock_path
+
+sessions = state_home_path() / "sessions"
+for path in sessions.glob(f"*.{SESSION_SUFFIX}"):
+    session = json.loads(path.read_text())["id"]
+    end_session(session)
+    with flocked(adapter_lease_path(session)), flocked(adapter_start_lock_path(session)):
+        pass
+""",
+        ],
+        env=environment(XDG_STATE_HOME=str(state)),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+
 @contextmanager
-def scratch():
-    """Own a scenario's cwd and sibling credential home until scoring ends."""
+def scratch(payload: Path | None = None, *, state: Path | None = None):
+    """Own a scenario's cwd and sibling credential home until scoring ends.
+
+    An owning sample supplies its arm and, when outside the cwd, its state home.
+    It retires native session resources before removing their files. A nested
+    reader sharing its parent's state omits the arm and owns only its workspace.
+    """
     with tempfile.TemporaryDirectory(prefix="leaf-eval-") as directory:
         work = Path(directory) / "cwd"
         work.mkdir()
-        yield work
+        try:
+            yield work
+        finally:
+            if payload is not None:
+                retire_sessions(payload, state if state is not None else work / "state")
 
 
 def private_tmp(*owned: Path) -> str:
@@ -947,10 +1002,16 @@ def waits_started(record: dict) -> list[str]:
 
 
 def hook_delivered(record: dict) -> bool:
-    """Whether one stream record is a Leaf hook handing a delivery to the turn."""
-    return record.get("subtype") == "hook_response" and hands_delivery(
-        record.get("output") or ""
-    )
+    """Whether one stream record is a Leaf hook handing a delivery to the turn: its
+    output, the hook's whole stdout, names one in `DELIVERY_FIELD`. Other hooks in
+    the same trace, such as the background watch, print text that is not JSON."""
+    if record.get("subtype") != "hook_response":
+        return False
+    try:
+        output = json.loads(record.get("output") or "")
+    except json.JSONDecodeError:
+        return False
+    return isinstance(output, dict) and DELIVERY_FIELD in output
 
 
 def inputs_received(events: list[dict], attempts: set[str]) -> bool:

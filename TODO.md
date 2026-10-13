@@ -56,10 +56,10 @@ has tried; settle that before building it.
   `PiHarness` has no `title_generator`, so a Pi page's thread is named only by the
   agent's reply. Give the page server a request on Pi's configured model, such as
   a print-mode run with tools, extensions and hooks off, and measure it.
-- **Keep a long Thread's standing visible.** Summary checkpoints already condense
+- **Keep a long Thread's current status visible.** Summary checkpoints already condense
   older messages. Test a current one-line reading of what is decided and what remains
   open, distinct from a historical summary, and decide how a revision invalidates it.
-  See the [Thread plan](notes/threads.md#current-standing).
+  See the [Thread plan](notes/threads.md#current-status).
 - **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
   search in Threads and use Page Map on narrow pages; show only one margin treatment
@@ -72,16 +72,17 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Questions,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **#28 — Overhaul the floating panel's appearance.** The opt-in floating panel
-  (`?lf-chrome=floating`, off by default) works, but the user doesn't like its
-  aesthetic. It landed so work can continue from `main`. Redesign how it looks
-  before offering it to anyone; [its goal](notes/floating-panel/GOAL.md) holds the
-  spec, the approved prototype, and the departures taken so far.
+- **#28 — Finish the floating panel.** The opt-in floating panel
+  (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
+  user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Work
+  through its remaining list (status in the field, opened sizes, one home per thread,
+  the menu's rows, waiting marks, phone, motion) before making it the default or
+  removing the banner, bottom bar, and preference.
 
 ### Agent and author experience
 
 - **Decide whether `page check` should still refuse an `lf-ask` without a leading
-  heading.** The heading is the Question's title in the Questions panel, the banner
+  heading.** The heading is the ask's title in the Questions panel, the banner
   and the `q` announcement, which all show an empty title without one, and the
   `lf-ask` instructions already ask for it. Wait until the other narrow checks
   removed in October 2026 have been gone a while; if pages written since still
@@ -92,11 +93,6 @@ has tried; settle that before building it.
   currently remain unrestricted; decide whether such a reminder helps before
   adding one.
 
-- **#3 — Prevent an obsolete execution from closing continued work.** A later
-  `task start` records a new execution, but admission still accepts an older
-  session's `todo_end`. Test competing continuations and keep the delayed result
-  from closing the newer work ([comparison proposal](notes/comparisons.md#concrete-follow-up-proposals-2026-10-04-revised-2026-10-05)).
-
 - **#20 — Act on the plain HTML comparison.** The
   [comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)
   found Leaf authors write much less CSS and script but spend 2–3 times the cost,
@@ -104,7 +100,12 @@ has tried; settle that before building it.
   plain HTML's configurations, which put each alert's controls beside its evidence,
   and Leaf's documents, which put decisions on the page.
   [Teach the compositions that prove useful](notes/workspace-followups.md#item-20),
-  starting with per-item controls for configuration and progress through a queue.
+  starting with progress through a queue; per-item controls for configuration
+  landed in #2711.
+- **Give a recommendation's reason beside the options, not in its card.** The
+  default registry's `lf-options` example writes the reason into the recommended
+  card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
+  options on 2026-10-12. Score the change with `evals/` before and after.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
@@ -177,7 +178,7 @@ has tried; settle that before building it.
   before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling"). The
   redesign also settles how focus stays off page content a panel covers (Max,
   2026-10-10). His rule (2026-10-06): the panels dominate focus, so moving focus never
-  closes or changes a standing panel, and focus never lands on content a panel covers.
+  closes or changes an open panel, and focus never lands on content a panel covers.
   Tab walked onto page content under Threads, or under the Questions panel that shares
   its right edge, at 1440×900 on an example since retired; no surviving page has been
   checked for it. Making covered content inert
@@ -274,6 +275,22 @@ and its chrome coordinate.
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
+- **Keep a playground's rail in view beside a tall preview.** With controls beside
+  each item in the preview (#2711), the user works down a long stage while the
+  page-wide controls, the instruction and the submit button scroll away above it.
+  Bound the rail to the window's height, as the sidebar's sticky panel is (#2636).
+- **Decide whether a sidebar built from several blocks sticks.** A sidebar panel
+  sticks only when it is a single block, so existing multi-panel pages keep
+  flowing; dropping that condition makes every sidebar page's panel stick.
+- **Decide whether a too-narrow table fails a page at the fixed widths.** It is
+  advice at every width, the two fixed viewports included, where it once refused
+  the page.
+- **Report a control clipped anywhere in the width sweep.** The clipped-control
+  check runs only at the two fixed viewports, so a control cut off only between
+  360 and 440px goes unreported.
+- **Clear a quoted playground's empty item boxes.** A playground quoted in a static
+  sample hides its controls, those written beside items in its preview included,
+  but leaves the author's settings boxes standing empty.
 
 ### Layout stability
 
@@ -315,12 +332,21 @@ height and where a switch lands wait on the workspace decision under Layout.
   label sticky at the row's start, stepping clear of the start press while stuck
   (`scroll-state(stuck)`, Chrome 133+), keeps it named, but `#showTab` then has to
   bring a tab in clear of a label whose width changes once it sticks.
+- **Close the tally's small gaps.** On a phone the workspace header, tally
+  included, scrolls away after Next; Undo's announcement doesn't name what it
+  undid; the `q` help text is ambiguous; and a row's ○ mark has no legend.
 
 ### Recorded interaction review
 
 Keep the optional Leaf timeline alongside Playwright's viewer, as Max chose
 on 2026-10-07.
 
+- **Start videos without a flash or oversized play animation.** Provide shared,
+  quiet video controls with compact play/pause and a timeline, keeping the image
+  stable during startup. Firefox's native controls expand the initial play button
+  to three times its size while fading it out over 400 ms; rewinding and replaying
+  skips that effect. Verify first play and replay, including keyboard and touch
+  access ([Firefox implementation](https://github.com/mozilla-firefox/firefox/blob/main/toolkit/content/widgets/videocontrols.js)).
 - **Explore DOM selection in the imported timeline.** The optional `playwright`
   package imports native actions, checkpoint images, captured frames and saved
   accessibility elements; following their comments restores the moment. Reuse
@@ -331,6 +357,9 @@ on 2026-10-07.
 
 ### The agent's text interface
 
+- **Answer a comment that arrived before the page changed hands.** Its new owner
+  has no delivery to answer it from. A command that hands out a fresh recovery
+  delivery for it would give one.
 - **Keep a blocked stop from hiding the agent's answer.** When Leaf's Stop hook blocks
   a stop, the agent writes one more message, and where the harness shows only the last
   message (Claude Code's focus mode) that message replaces the answer: a user who typed
@@ -394,6 +423,14 @@ on 2026-10-07.
   broad selection is about 3,700 s of test time on a CI runner. If the rate rose,
   look at which escapes a cheap fixed set of tests would have caught, and choose
   that set by measured catches per second rather than by kind.
+- **Resume the thread appearance gate.** Since 2026-10-12 the message-delivery
+  journey and acceptance tests in `tests/*/test_render_thread_snapshots.py` are
+  skipped to save test time while development moves fast; the references had already
+  drifted twice unnoticed, since only a manual macOS run compares them. Once
+  development slows, remove the skips, then capture, review and accept current images
+  (`leaf-dev thread-snapshots`), and have landing run the comparison so it cannot
+  drift again, such as `wt merge`'s macOS pre-merge when the thread runtime or theme
+  changes.
 - **Guard thread appearance on CI again.** The thread snapshot gate compares images
   on macOS only (`dev/leaf_dev/thread_snapshots.py`), so a pull request's Linux CI
   checks the delivery journey but not how it looks. Fonts and antialiasing differ by
@@ -597,6 +634,19 @@ Revisit these when their stated trigger becomes real; they are not an active que
   container's Durable Object, and nothing recovers a dispatch whose container
   disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that
   way.
+- **Start each release's containers on its own image.** The Worker goes live on a
+  release before Cloudflare rolls its image out, so for up to ten minutes after a
+  deploy a session's new container can start on the previous image. The Worker
+  holds requests behind `503 Retry-After` (`rollingOut` in `worker/src/index.ts`),
+  and only event sends retry it, so a sample opened then fails until a reload.
+  Cloudflare's `durable_object` scheduling policy uploads the image map with the
+  Worker version and lets the session pick its image at start
+  ([docs](https://developers.cloudflare.com/containers/configuration/scheduling-policy/)),
+  which removes the window, `rollingOut`, the retry, and `verify-site`'s rollout
+  wait. Moving costs a new container application, a port off the `Container` class
+  (pings, sleep, outbound interception) and `standard-1` in place of `basic`.
+  Trigger: the policy leaves beta, or leaf.page gains visitors a deploy would
+  interrupt.
 - **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

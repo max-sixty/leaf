@@ -594,8 +594,8 @@
               <code>leaf page state</code> lists <code>asks</code> and
               <code>todos</code>. The commands keep their names,
               <code>leaf task open</code>, <code>start</code> and <code>end</code>, and
-              so do some internal names, such as <code>tasks.py</code> and
-              <code>questions.py</code>.
+              so do some internal names, such as <code>todos.py</code> and
+              <code>asks.py</code>.
             </p>
             <p>
               <em>Task</em> meant two things then, and a third already: the harness's
@@ -988,8 +988,8 @@
               its own that its answer ends. A to-do is explicit work with an
               <code>owner</code> and a subject (a thread, a widget, any element or the
               page), open until it is ended. <kbd>q</kbd> pages through Questions. The
-              contracts live in the code: <code>questions.py</code> owns asks,
-              <code>tasks.py</code> to-dos and starts, and
+              contracts live in the code: <code>asks.py</code> owns asks,
+              <code>todos.py</code> to-dos and starts, and
               <code>served_state/queues.py</code> the two lists. The agent's
               instructions are in <code>conversation-loop.md</code>, “Questions and
               Tasks”.
@@ -1203,7 +1203,7 @@ leaf task end PAGE TODO done "Version 4"
               Tasks, and the banner names it. An ended to-do stays on the page: the
               Questions panel lists it under Done, beside answered and withdrawn asks.
             </p>
-            <lf-diagram id="task-states" parts="node:Open node:Ended node:Unobserved">
+            <lf-diagram id="task-states" parts="all">
               <pre>
 stateDiagram-v2
   state "Open, on the agent" as Open
@@ -1444,8 +1444,8 @@ stateDiagram-v2
                 <strong>A to-do and the message it came from.</strong> Your message
                 opens an owed answer. The agent's reply settles it, and a to-do it opens
                 carries the work on; a reply with <code>--todo</code> does both in one
-                write. Nothing records which message a to-do answers, beyond both
-                standing on one thread.
+                write. Nothing records which message a to-do answers, beyond both being
+                on one thread.
               </li>
               <li>
                 <strong>A prose ask answered.</strong> Your reply answers the ask and

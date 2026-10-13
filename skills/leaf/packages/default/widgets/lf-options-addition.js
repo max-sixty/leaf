@@ -1,5 +1,5 @@
 /* The option the author did not list: its draft, the `add` and `choose` bound to that
- * draft generation, and the option nodes each standing `add` puts in the group. */
+ * draft generation, and the option nodes each `add` in force puts in the group. */
 import {
   loadDraft,
   inlineMarkdownFragment,
@@ -27,7 +27,7 @@ export class OptionAddition {
   #input = null;
   #add = null;
   #syncInput = () => {};
-  #standing = new Set();
+  #inForce = new Set();
 
   constructor(host, { offered, available, commit }) {
     this.#host = host;
@@ -105,7 +105,7 @@ export class OptionAddition {
   /* The choice the generation recorded, less any option the group no longer holds:
    * an undo since then may have taken back an added option the draft still names, and
    * the door refuses a pick of an option the group lacks. Membership is the authored
-   * options and the standing adds of the latest reading, not whatever this tab last
+   * options and the adds in force of the latest reading, not whatever this tab last
    * painted. */
   #draftChoice(payload) {
     if (
@@ -115,7 +115,7 @@ export class OptionAddition {
     )
       return this.detailFor(this.#picked());
     return {
-      value: payload.value.filter((id) => this.#standing.has(id) || this.#authored(id)),
+      value: payload.value.filter((id) => this.#inForce.has(id) || this.#authored(id)),
     };
   }
 
@@ -132,8 +132,8 @@ export class OptionAddition {
   async #submit(text, owns) {
     const accepted = await sendDraft(this.#context, owns, (attempt, payload) => {
       const id = `${this.#host.id}-option-${attempt}`;
-      const standing = this.#draftChoice(payload);
-      const picked = new Set(this.#host.hasAttribute("multiple") ? standing.value : []);
+      const choice = this.#draftChoice(payload);
+      const picked = new Set(this.#host.hasAttribute("multiple") ? choice.value : []);
       picked.add(id);
       return this.#commit({ option: id, text }, { value: [...picked] }, attempt);
     });
@@ -146,10 +146,10 @@ export class OptionAddition {
 
   /* Keep surviving nodes: replay must not discard focus or selection. Return only
    * nodes the selection owner still needs to dress with a mark and key scope.
-   * `added` maps each standing option id to its words, in log order. */
+   * `added` maps each option id in force to its words, in log order. */
   reconcile(added = {}, fallbackBefore = null) {
     const wanted = new Map(Object.entries(added));
-    this.#standing = new Set(wanted.keys());
+    this.#inForce = new Set(wanted.keys());
     for (const option of this.#host.querySelectorAll(
       ":scope > lf-option[data-lf-added]",
     ))

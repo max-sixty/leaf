@@ -3,7 +3,7 @@
 A delivery is transport-independent input: one or more complete page batches,
 each preserving the page's monotonic event order. Thread membership is
 context, not a partition key, and response requirements are a snapshot of the
-standing projection at capture. Response commands validate the current page
+current projection at capture. Response commands validate the current page
 again when they write, so this snapshot never becomes settlement authority.
 Receipt validates the current receiver and captured event identities under the
 page transaction before advancing its cursor. Pickup records harness acceptance or
@@ -25,7 +25,7 @@ stands and when it clears. While it stands, no other delivery can reserve the
 address, the turn's final message commits as the reply, and failure receipts and
 other provider finals are refused or write nothing. A direct `leaf response reply` still commits at once,
 and the turn's final then yields to it. `writer` is the hint captured at freeze;
-only a standing reservation decides who writes. Neither changes the answer's
+only an open reservation decides who writes. Neither changes the answer's
 operation: reply and markup answers mean the same on every transport.
 
 Freeze emits an exact `answer.ref`, qualified by delivery, page batch and input.
@@ -35,7 +35,7 @@ of the page, such as a refusal naming the input a thread owes, recovers the ref
 without the envelope's id; an input no receipt has carried has none, and nothing
 mints one outside a delivery. Direct authors and provider
 finals resolve it through `response_address` before the rich durable reply writer
-rechecks the captured logical owner, exact input and standing obligation under the
+rechecks the captured logical owner, exact input and open obligation under the
 page lock. An address may be forwarded to a worker without changing its own
 author identity; another session's claim supersedes its authorization even after
 release or end. The owning session's process restart preserves it.
@@ -723,7 +723,7 @@ def receive_batch(
         if not may_receive(page.claim, session_id):
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
         if refusal := write_refusal(page.page_dir):
-            raise ReceiptRefused(refusal)
+            raise ReceiptRefused(str(refusal))
         expected = {event["seq"]: event["id"] for event in batch["events"]}
         delivered = {event["seq"]: event for event in page.events}
         if not expected or any(

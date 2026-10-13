@@ -6,6 +6,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 from leaf.files import version_num
+from leaf.findings import Finding
 from leaf.registry.contract import element_declarations
 from leaf.render_checks import (
     HANDOVER_DEADLINE_MS,
@@ -70,13 +71,6 @@ def _projection_was_applied(failed_stage: str | None) -> bool:
     return failed_stage in (None, "arrived", "rendering", "pageSettled")
 
 
-RESIZE_OBSERVER_ERROR = "window error: ResizeObserver loop"
-
-
-def resize_observer_error(text: str) -> bool:
-    return text.startswith(RESIZE_OBSERVER_ERROR)
-
-
 # The browser's own console entry for a response with an error status, in Chromium and
 # WebKit alike: it names the status but not the resource, which the entry's location
 # carries instead.
@@ -85,55 +79,74 @@ _FAILED_LOAD = re.compile(
 )
 
 
-def console_error(message) -> str | None:
-    """A console error, as what the page reported failing.
+def console_finding(message, *, warnings: bool = True) -> Finding | None:
+    """A console entry that says the page did not load cleanly, as a finding: an
+    error, or with `warnings` a warning too.
 
     A response with an error status is reported as its status and URL. The console
     entry is the browser's one report of it, from the page and every frame in it, so
     nothing listens to responses for it: a response listener has every request of a
-    load — a few hundred modules — sent to and built in this process."""
+    load — a few hundred modules — sent to and built in this process. The browser
+    words that entry and nothing else carries the status, so its words are read here,
+    once, into the finding's fields. Any other entry keeps its words and the script
+    that wrote it (`url`, empty where the browser names none)."""
+    said = {"text": message.text, "url": message.location["url"]}
+    if message.type == "warning" and warnings:
+        return Finding("console-warning", values=said)
     if message.type != "error":
         return None
     if failed := _FAILED_LOAD.fullmatch(message.text):
-        return f"{failed[1]} {message.location['url']}"
-    return message.text
+        return Finding(
+            "failed-load",
+            values={"status": int(failed[1]), "url": message.location["url"]},
+        )
+    return Finding("console-error", values=said)
 
 
-def console_problem(message) -> str | None:
-    """A console entry that says the page did not load cleanly: an error, or a
-    warning."""
-    if message.type == "warning":
-        return f"warning: {message.text}"
-    return console_error(message)
+def window_finding(error: dict) -> Finding:
+    """An error a window raised with no exception behind it (`install_window_errors`)."""
+    code = "resize-loop" if error["resizeLoop"] else "window-error"
+    return Finding(code, values={"text": error["text"]})
 
 
-def _exception_text(error) -> str:
-    """Retain the browser's throw site as well as the exception's message.
+def exception_finding(error) -> Finding:
+    """A native page exception, retaining the browser's throw site as well as the
+    exception's message.
 
     Native page errors cover every document in a tab. Their stacks identify the
     failing call even when separate frames throw the same message; engines that
     supply frames alone still need the message beside them.
     """
     message, stack = str(error), error.stack
-    if not stack:
-        return message
-    return stack if message in stack else f"{message}\n{stack}"
+    if stack:
+        message = stack if message in stack else f"{message}\n{stack}"
+    return Finding("page-exception", values={"text": message})
 
 
-def collect_page_exceptions(page, errors: list[str]) -> None:
-    """Collect native exceptions from every document without discarding stacks."""
-    page.on("pageerror", lambda error: errors.append(_exception_text(error)))
+def collect_page_exceptions(page, errors: list[Finding]) -> None:
+    """Collect native exceptions from every document, as findings."""
+    page.on("pageerror", lambda error: errors.append(exception_finding(error)))
 
 
-def collect_page_errors(page, errors: list[str]) -> None:
-    """Collect the page's console errors and native exceptions, from every document."""
+def collect_page_errors(page, errors: list[Finding]) -> None:
+    """Collect the page's console errors and native exceptions, from every document,
+    as findings."""
 
     def heard(message):
-        if (error := console_error(message)) is not None:
+        if (error := console_finding(message, warnings=False)) is not None:
             errors.append(error)
 
     page.on("console", heard)
     collect_page_exceptions(page, errors)
+
+
+class PreUpgradeFailed(RuntimeError):
+    """The authored document never reached what the pre-upgrade proof waits for.
+    `finding` says what, with an empty `console` its reader fills in."""
+
+    def __init__(self, code: str, **values):
+        self.finding = Finding(code, values={**values, "console": []})
+        super().__init__(str(self.finding))
 
 
 INTERCEPTION_ARM = "**/__leaf_arms_interception__"
@@ -156,8 +169,9 @@ def arm_interception(page):
     page.route(INTERCEPTION_ARM, lambda route: route.abort())
 
 
-def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
-    """Inspect the authored document while its first Leaf entry request is held.
+def start_with_pre_upgrade_proof(page, url: str) -> list[Finding]:
+    """Inspect the authored document while its first Leaf entry request is held, and
+    return what it found there, or raise `PreUpgradeFailed`.
 
     The hold outlives the entry it holds. Playwright turns a page's request
     interception off as soon as its last route handler is spent, and a `times=1`
@@ -187,7 +201,7 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
 
     def hold_entry(route):
         # Only the first is held. A later one is passed through rather than left
-        # standing, because this handler has to outlive the entry it holds and a
+        # held, because this handler has to outlive the entry it holds and a
         # second hold nothing releases would be a wait with no end.
         if held:
             route.continue_()
@@ -212,9 +226,8 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
             mine = set() if released else {route.request for route in held}
             waiting = open_requests - mine
             asking = sorted({urlsplit(request.url).path for request in waiting})
-            raise RuntimeError(
-                f"the document never reached {arrival}"
-                + (f"; still requesting {', '.join(asking)}" if asking else "")
+            raise PreUpgradeFailed(
+                "never-reached", arrival=arrival, requesting=asking
             ) from None
 
     page.on("request", opened)
@@ -228,7 +241,7 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
             lambda: page.wait_for_selector("body > main", state="attached"),
         )
         if page.locator('script[src$="/leaf.js"]').count() != 1:
-            raise RuntimeError("the document has no single canonical Leaf entry")
+            raise PreUpgradeFailed("entry-not-single")
         reaching("its theme stylesheet", lambda: wait_for_theme(page))
         # The held entry is a module script, which runs only once the parser is done,
         # so the whole authored document is parsed here and not yet upgraded.
@@ -236,9 +249,9 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
             "the end of its markup",
             lambda: page.wait_for_function("document.readyState !== 'loading'"),
         )
-        findings = pre_upgrade_findings(page)
+        findings = [Finding.read(record) for record in pre_upgrade_findings(page)]
         if len(held) != 1:
-            raise RuntimeError("the browser did not request one canonical Leaf entry")
+            raise PreUpgradeFailed("entry-not-requested")
         held[0].continue_()
         released = True
         reaching("load", lambda: page.wait_for_load_state("load"))
@@ -255,7 +268,9 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[str]:
 def _render_scheme(
     browser, url, scheme, viewport, served_timeout_ms, opened_pages, then=None
 ):
-    """Read and report the browser gate for one color scheme and viewport.
+    """Read and report the browser gate for one color scheme and viewport: the
+    findings that refuse the version, the ResizeObserver loop notices its retry
+    policy judges (`version.render_version`), and whether every reading completed.
 
     `then`, when given, is handed the settled page and its registry after every reading
     here, for additional version-level readings before the page closes."""
@@ -273,18 +288,30 @@ def _render_scheme(
         return served(page, url, path, timeout_ms=served_timeout_ms)
 
     def console_message(message):
-        problem = console_problem(message)
-        if problem is None:
-            return
-        (resize_notices if resize_observer_error(problem) else errors).append(problem)
+        if (problem := console_finding(message)) is not None:
+            errors.append(problem)
 
-    def probe_failure(error):
+    def window_error(error):
+        problem = window_finding(error)
+        (resize_notices if problem.code == "resize-loop" else errors).append(problem)
+
+    def ended(found, notices=(), complete=False):
         page.close()
         return (
-            [f"[{scheme}] the browser probe module failed: {str(error).strip()}"],
-            [],
-            False,
+            [finding.but(scheme=scheme) for finding in found],
+            [notice.but(scheme=scheme) for notice in notices],
+            complete,
         )
+
+    def explained(code, **values):
+        # The named wait says what never arrived; the console and the response
+        # statuses collected above are what says why, and a refused document has
+        # nothing else to offer a reader.
+        console = [problem.json(text=False) for problem in [*errors, *resize_notices]]
+        return ended([Finding(code, values={**values, "console": console})])
+
+    def probe_failure(error):
+        return ended([Finding("probe-failed", values={"error": str(error).strip()})])
 
     page.on("console", console_message)
     collect_page_exceptions(page, errors)
@@ -292,39 +319,19 @@ def _render_scheme(
     # takes it.
     answer_reports(page, lambda text: None)
     devtools = DevtoolsIssues(page)
-    install_window_errors(page)
+    install_window_errors(page, window_error)
     try:
         # Hold the entry in this navigation: this is the only point at which
         # pre-upgrade authored structure exists without racing module execution.
         pre_upgrade = start_with_pre_upgrade_proof(page, url)
         wait_for_probe(page, "runtimeStarted")
     except PlaywrightTimeout:
-        page.close()
-        explanations = [*errors, *resize_notices]
-        return (
-            [
-                f"[{scheme}] the runtime never injected its banner — "
-                + ("\n".join(explanations) or "and no console message explains why")
-            ],
-            [],
-            False,
-        )
+        return explained("no-banner")
     except PlaywrightError as error:
         return probe_failure(error)
-    except RuntimeError as error:
-        page.close()
-        # The named wait says what never arrived; the console and the response
-        # statuses collected above are what says why, and a refused document has
-        # nothing else to offer a reader.
-        explanations = [*errors, *resize_notices]
-        return (
-            [
-                f"[{scheme}] pre-upgrade proof failed: {error}"
-                + (" — " + "\n".join(explanations) if explanations else "")
-            ],
-            [],
-            False,
-        )
+    except PreUpgradeFailed as error:
+        values = {k: v for k, v in error.finding.values.items() if k != "console"}
+        return explained(error.finding.code, **values)
     # Every reading below is of a settled page. The widget layer writes half the
     # document, so a box measured while it is still drawing belongs to no version of
     # the page — which is the stamp `page export` waits on for the same reason.
@@ -339,16 +346,7 @@ def _render_scheme(
     try:
         wait_for_probe(page, "upgraded", timeout_ms=handover_left())
     except PlaywrightTimeout:
-        page.close()
-        explanations = [*errors, *resize_notices]
-        return (
-            [
-                f"[{scheme}] the widget layer never finished upgrading — "
-                + ("\n".join(explanations) or "and no console message explains why")
-            ],
-            [],
-            False,
-        )
+        return explained("never-upgraded")
     except PlaywrightError as error:
         return probe_failure(error)
     # The served documents every reading below is asked against, read once each
@@ -371,23 +369,10 @@ def _render_scheme(
             # What the console already said stays: another widget's failure is a
             # fault of its own, and a presentation the inventory broke is one the
             # user would see.
-            page.close()
-            return (
-                [
-                    *[f"[{scheme}] console: {error}" for error in errors],
-                    *[
-                        f"[{scheme}] console: pre-upgrade: {finding}"
-                        for finding in pre_upgrade
-                    ],
-                    *[
-                        f"[{scheme}] <{problem['tag']} id={problem['id']!r}> "
-                        "declares addressable visual parts but its module "
-                        + "; ".join(problem["problems"])
-                        for problem in visual_provider_problems
-                    ],
-                ],
-                [f"[{scheme}] console: {notice}" for notice in resize_notices],
-                True,
+            return ended(
+                [*errors, *pre_upgrade, *map(Finding.read, visual_provider_problems)],
+                resize_notices,
+                complete=True,
             )
         state = served_here("/api/state").json()
         markup = served_here(urlsplit(url).path).text()
@@ -396,18 +381,10 @@ def _render_scheme(
         # uses the synthetic active revision exposed only by its preview server.
         here = rendered_revision(url, state)
     except PlaywrightTimeout as e:
-        page.close()
         # The first line only: the rest is playwright's call log, which says
         # nothing about the page that a reader of this failure needs.
-        return (
-            [
-                *[f"[{scheme}] console: {error}" for error in errors],
-                *[f"[{scheme}] console: {notice}" for notice in resize_notices],
-                (f"[{scheme}] the server stopped answering: {str(e).splitlines()[0]}"),
-            ],
-            [],
-            False,
-        )
+        stopped = Finding("server-stopped", values={"error": str(e).splitlines()[0]})
+        return ended([*errors, *resize_notices, stopped])
     # Every reading below is of a page at rest, and the upgrade stamp above is
     # one part of that. The first read runs beside upgrade, but its answer may still
     # be pending when the stamp lands; a gate reading there sees the authored board,
@@ -422,23 +399,23 @@ def _render_scheme(
     try:
         wait_until_ready(page, state, timeout_ms=handover_left())
     except PageNotReady as error:
-        failed_stage, unsettled = error.stage, [str(error)]
+        failed_stage = error.stage
+        unsettled = [
+            Finding("not-ready", values={"stage": error.stage, "error": str(error)})
+        ]
     else:
         try:
             wait_for_probe(page, "pageSettled")
             failed_stage, unsettled = None, []
         except PlaywrightTimeout:
             failed_stage = "pageSettled"
-            unsettled = [
-                "the page never stopped moving: "
-                + ", ".join(evaluate_probe(page, "moving"))
-            ]
+            moving = evaluate_probe(page, "moving")
+            unsettled = [Finding("never-settled", values={"moving": moving})]
     replayed = _projection_was_applied(failed_stage)
     context = _SchemeContext(
         page=page,
-        scheme=scheme,
-        errors=[*errors, *[f"pre-upgrade: {item}" for item in pre_upgrade]],
-        resize_notices=resize_notices,
+        light=scheme == "light",
+        errors=[*errors, *pre_upgrade],
         registry=registry,
         declarations=declarations,
         state=state,
@@ -448,16 +425,7 @@ def _render_scheme(
         unsettled=unsettled,
         devtools=devtools,
     )
-    found, notices = _scheme_findings(context)
+    found = _scheme_findings(context)
     if then is not None:
         then(page, registry)
-    # Revealing a part moves its visual off the state every reading above checked, so
-    # the reveals come last, on a page nothing reads again.
-    found += [
-        f"[{scheme}] <{problem['tag']} id={problem['id']!r}> "
-        "declares addressable visual parts but its module "
-        + "; ".join(problem["problems"])
-        for problem in evaluate_probe(page, "unrevealedVisualProviders", declarations)
-    ]
-    page.close()
-    return found, notices, True
+    return ended(found, resize_notices, complete=True)

@@ -27,6 +27,7 @@ from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import service as service_model
+from leaf.findings import Finding
 from leaf.registry.contract import is_element_name
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import readings as render_gate_readings
@@ -74,7 +75,6 @@ from render_cases_navigation import (
 )
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
-    GENERIC_VISUAL_PAGE,
     PART_DIAGRAM_PAGE,
     prefixed_visual_layer,
     visual_widgets,
@@ -86,7 +86,6 @@ from render_harness import (
     EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
-    RECURRING_RESIZE_NOTICE,
     RELEASE_FOCUS,
     TOKEN,
     _traffic,
@@ -96,6 +95,7 @@ from render_harness import (
     leaf_page,
     left_alone,
     live_counts,
+    names,
     open_page,
     pane_posture,
     panel_settled,
@@ -243,25 +243,27 @@ lf-test-drawn { display: block; }
         ),
     )
 
-    overflow = [f for f in reading.failures if "page scrolls sideways" in f]
+    overflow = [f for f in reading.failures if f.code == "page-scrolls"]
     assert len(overflow) == 2, reading.failures
-    assert all("(at 540x720)" in failure for failure in overflow), overflow
-    assert {failure.split("]", 1)[0] + "]" for failure in overflow} == {
-        "[light]",
-        "[dark]",
-    }
-    assert reading.advice == [
+    assert all(f.viewports == ("540x720",) for f in overflow), overflow
+    assert {f.scheme for f in overflow} == {"light", "dark"}
+    assert [(f.code, f.at, f.values) for f in reading.advice] == [
         (
-            "<lf-test-drawn id='unreserved'> draws 120px tall where its first paint "
-            "reserves no height, so what follows it moves when it is drawn: state "
-            'data-height="120"'
+            "unreserved-height",
+            "<lf-test-drawn id=unreserved>",
+            {"drawn": 120, "reserved": None},
         ),
         (
-            "<lf-test-drawn id='misreserved'> draws 120px tall where its first paint "
-            "reserves 40px, so what follows it moves when it is drawn: state "
-            'data-height="120"'
+            "unreserved-height",
+            "<lf-test-drawn id=misreserved>",
+            {"drawn": 120, "reserved": "40"},
         ),
     ]
+    assert str(reading.advice[1]) == (
+        "<lf-test-drawn id=misreserved> draws 120px tall where its first paint "
+        "reserves 40px, so what follows it moves when it is drawn: state "
+        'data-height="120"'
+    )
 
 
 def _panel(name: str) -> str:
@@ -298,16 +300,12 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
 
     reading = render_gate_model.render_version(browser, serve(source, packages=()))
 
-    assert len(reading.failures) == 2, reading.failures
-    assert any(
-        failure.startswith("at 600–880px wide, the page scrolls sideways by ")
-        for failure in reading.failures
-    ), reading.failures
-    assert any(
-        failure.startswith("at 600–880px wide, <div id=strip> leaves 0px")
-        and "overlay scrollbar" in failure
-        for failure in reading.failures
-    ), reading.failures
+    assert {(f.code, f.at, f.widths) for f in reading.failures} == {
+        ("page-scrolls", "", (600, 880)),
+        ("scrollbar-clearance", "<div id=strip>", (600, 880)),
+    }, reading.failures
+    [strip] = [f for f in reading.failures if f.code == "scrollbar-clearance"]
+    assert strip.values["clear"] == 0, strip
     assert reading.advice == []
 
 
@@ -465,7 +463,7 @@ def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
         page, serve(source, packages=())
     )
 
-    assert findings == ["authored main has no measurable pre-upgrade layout"]
+    assert [finding.code for finding in findings] == ["main-unlaid"]
 
 
 def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, serve):
@@ -501,9 +499,9 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
 
     assert holding, "the page asked for no runtime module, so nothing was held"
     path = urlsplit(holding[0].request.url).path
-    assert str(stopped.value) == (
-        f"the document never reached load; still requesting {path}"
-    )
+    assert stopped.value.finding.code == "never-reached"
+    assert stopped.value.finding.values["arrival"] == "load"
+    assert stopped.value.finding.values["requesting"] == [path]
 
 
 def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
@@ -532,10 +530,8 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
 
     assert holding, "the page asked for no theme stylesheet, so nothing was held"
     path = urlsplit(holding[0].request.url).path
-    message = str(stopped.value)
-    assert message.startswith("the document never reached ")
-    assert message.endswith(f"; still requesting {path}")
-    assert "leaf.js" not in message
+    assert stopped.value.finding.code == "never-reached"
+    assert stopped.value.finding.values["requesting"] == [path]
 
 
 @pytest.fixture
@@ -594,9 +590,9 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     ).path
 
     assert asked.is_set(), "the browser never asked for the entry, so nothing dropped"
-    assert str(stopped.value) == (
-        f"the document never reached load; still requesting {entry_path}"
-    )
+    assert stopped.value.finding.code == "never-reached"
+    assert stopped.value.finding.values["arrival"] == "load"
+    assert stopped.value.finding.values["requesting"] == [entry_path]
 
 
 def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
@@ -620,11 +616,14 @@ def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
     )
 
     assert completed is False
-    assert len(failures) == 1
-    assert failures[0].startswith(
-        "[light] pre-upgrade proof failed: the document never reached an authored main"
-    )
-    assert f"401 {refused}" in failures[0]
+    [failure] = failures
+    assert (failure.code, failure.scheme) == ("never-reached", "light")
+    assert failure.values["arrival"] == "an authored main"
+    assert {
+        "code": "failed-load",
+        "severity": "error",
+        "values": {"status": 401, "url": refused},
+    } in failure.values["console"], failure
 
 
 def test_the_pre_upgrade_proof_holds_its_entry_route_past_the_load_event(
@@ -789,7 +788,8 @@ def test_an_async_reading_probe_is_refused_instead_of_awaited(browser, serve):
 
     assert failures
     assert all(
-        "probe invalidPaints must be synchronous" in failure for failure in failures
+        "probe invalidPaints must be synchronous" in failure.values["error"]
+        for failure in failures
     ), f"an async reading has to name itself, and this came back as {failures}"
 
 
@@ -837,7 +837,10 @@ def test_a_rendering_turn_is_polled_from_the_driver(browser, serve):
     ).failures
 
     assert failures
-    assert all("no rendering update arrived within 3000ms" in f for f in failures)
+    assert all(
+        "no rendering update arrived within 3000ms" in f.values["error"]
+        for f in failures
+    ), failures
 
 
 def test_a_reload_mid_flight_never_wedges_round_trip(browser, serve, monkeypatch):
@@ -995,8 +998,11 @@ def test_page_navigation_classifies_only_its_resize_notices(browser, serve):
 
     page.evaluate(RESIZE_LOOP_EVENT)
     errors = take_browser_errors(page)
-    assert errors == [
-        "window error: ResizeObserver loop completed with undelivered notifications."
+    assert [(e.code, e.values) for e in errors] == [
+        (
+            "resize-loop",
+            {"text": "ResizeObserver loop completed with undelivered notifications."},
+        )
     ], "a notice after the classified navigation was hidden too"
 
 
@@ -1007,7 +1013,9 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=every_load)
 
     errors = take_browser_errors(page)
-    assert errors == [RECURRING_RESIZE_NOTICE]
+    assert [(e.code, e.values.get("confirmation")) for e in errors] == [
+        ("resize-loop", "recurred")
+    ]
 
 
 def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
@@ -1054,106 +1062,25 @@ def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
         browser, serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     ).failures
 
-    assert (
-        "[light] <lf-unseated id='unseated-note'> declares x-thread-seat but rendered 0 "
+    seats = [f for f in failures if f.code == "missing-thread-seat"]
+    assert [(f.at, f.scheme, f.values["hosts"]) for f in seats] == [
+        ("<lf-unseated id=unseated-note>", "light", 0)
+    ], failures
+    assert str(seats[0]) == (
+        "[light] <lf-unseated id=unseated-note> declares x-thread-seat but rendered 0 "
         "matching hosts; its module must place exactly one threadBox"
-    ) in failures
-    assert not [f for f in failures if "custom-note" in f], failures
+    )
+    assert not [f for f in failures if "custom-note" in f.at], failures
     assert any(
-        "upgraded widgets did not define their elements: <lf-undefined>" in failure
-        for failure in failures
-    ), failures
-
-
-def test_the_render_gate_resolves_registered_visual_inventories(browser, serve):
-    """The gate resolves every authored token through the generic package contract,
-    one registered visual per case on one page: one that draws every part, and one
-    that draws `inner` only in another state, which resolves through its
-    registration's reveal. Reveals come after every other reading, so a defect in the
-    opening state stands even when revealing a part draws it away. A reveal that throws
-    is a caught package fault, and its finding keeps the throw site even without a
-    pageerror event."""
-    cases = {
-        "lf-test-visual": {},
-        "lf-test-visual-staged": {"staged": True},
-        "lf-test-visual-repaired": {
-            "staged": True,
-            "opening_fill": "var(--accent-glow)",
-            "repair_fill_on_reveal": True,
-        },
-    }
-    entry = GENERIC_VISUAL_LAYER["lf-test-visual"]
-    layer = {
-        tag: {
-            **entry,
-            "x-example": f'<{tag} id="example" parts="outer inner html"></{tag}>',
-        }
-        for tag in cases
-    }
-    widgets = {}
-    for tag, configuration in cases.items():
-        widgets |= visual_widgets(tag=tag, **configuration)
-    # Its own copy of the fixture, whose reveal throws, under a path of its own.
-    throws = visual_widgets(tag="lf-test-visual-throws", staged=True)
-    layer["lf-test-visual-throws"] = {
-        **entry,
-        "x-example": '<lf-test-visual-throws id="example" parts="outer inner html">'
-        "</lf-test-visual-throws>",
-    }
-    widgets["throws/visual-fixture.js"] = throws["visual-fixture.js"].replace(
-        'if (id !== "inner") return;',
-        'if (id !== "inner") return; null.revealInner();',
-    )
-    widgets["lf-test-visual-throws.js"] = throws["lf-test-visual-throws.js"].replace(
-        "./visual-fixture.js", "./throws/visual-fixture.js"
-    )
-    markup = GENERIC_VISUAL_PAGE.replace(
-        "</main>",
-        '<lf-test-visual-staged id="staged" parts="outer inner html">'
-        "</lf-test-visual-staged>\n"
-        '<lf-test-visual-repaired id="repaired" parts="outer inner html">'
-        "</lf-test-visual-repaired>\n"
-        '<lf-test-visual-throws id="throws" parts="outer inner html">'
-        "</lf-test-visual-throws>\n</main>",
-    )
-
-    failures = render_gate_model.render_version(
-        browser.unwatched, serve(markup, layer_registry=layer, layer_widgets=widgets)
-    ).failures
-
-    thrown = [f for f in failures if "id='throws'" in f]
-    assert len(thrown) == 2, failures
-    assert all('File "' not in failure for failure in thrown), thrown
-    assert all(
-        "could not reveal visual parts" in failure
-        and "TypeError:" in failure
-        and "visual-fixture.js:" in failure
-        and "at reveal" in failure
-        for failure in thrown
-    ), thrown
-    rest = [f for f in failures if f not in thrown]
-    assert rest, "the repaired visual's opening fill went unread"
-    assert all(
-        "repaired" in f and "does not resolve to valid fill" in f for f in rest
+        f.code == "missing-upgrades" and f.values["tags"] == ["lf-undefined"]
+        for f in failures
     ), failures
 
 
 def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     browser, serve, tmp_path, monkeypatch
 ):
-    """A visual's inventory is checked before anything is read off the page, so these
-    refusals share a page whose readings end there.
-
-    A part declaration without a registered inventory cannot silently fall back: the
-    CLI can validate authored tokens without rendering them, so the browser gate holds
-    the other half, and every matching instance must register the inventory from
-    which Leaf derives both lookup directions before semantic visual anchors can
-    publish. An inventory that leaves a declared part unregistered, or names a part
-    with no descendant surface, is refused by element with the throw site of what it
-    could not read. And a prefixed visual authors no tokens, so the gate has none to
-    resolve; what it holds is the widget to its own declaration, refusing a registered
-    id outside it and only that one: `outer` and `inner` stand inside the prefixes
-    left."""
+    """A provider must register a valid inventory whose ids its prefixes admit."""
     monkeypatch.chdir(tmp_path)
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     callout = json.loads((tmp_path / ".leaf" / "registry.json").read_text())[
@@ -1175,8 +1102,7 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     )
     markup = CUSTOM_WIDGET_PAGE.replace(
         "</main>",
-        """<lf-test-visual id="missing" parts="outer absent"></lf-test-visual>
-<lf-test-visual id="outside" parts="outer inner html"></lf-test-visual>
+        """<lf-test-visual id="outside" parts="all"></lf-test-visual>
 <lf-test-visual-prefixed id="prefixed"></lf-test-visual-prefixed>
 </main>""",
     )
@@ -1185,38 +1111,36 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
         serve(markup, layer_registry=layer, layer_widgets=widgets),
     ).failures
 
-    def first_lines(tag):
-        return [f.splitlines()[0] for f in failures if f"<{tag} " in f]
+    def problems(tag):
+        return [
+            (f.scheme, f.at, problem)
+            for f in failures
+            if f.code == "visual-parts" and f.at.startswith(f"<{tag} ")
+            for problem in f.values["problems"]
+        ]
 
-    assert any(
-        "declares addressable visual parts but its module did not call "
-        "registerVisualParts" in failure
-        for failure in first_lines("lf-callout")
-    ), failures
-    unread = (
-        "could not read visual parts: Visual part outer has no descendant Element "
-        "surface"
-    )
-    assert first_lines("lf-test-visual") == [
-        (
-            f"[{scheme}] <lf-test-visual id='{ident}'> declares addressable visual "
-            f"parts but its module {problem}"
-        )
+    assert {problem["kind"] for _, _, problem in problems("lf-callout")} == {
+        "unregistered"
+    }, failures
+    visual = problems("lf-test-visual")
+    assert [(scheme, at, problem["kind"]) for scheme, at, problem in visual] == [
+        (scheme, "<lf-test-visual id=outside>", "unreadable")
         for scheme in ("light", "dark")
-        for ident, problem in (
-            ("missing", "did not register declared parts absent"),
-            ("outside", unread),
-        )
-    ]
-    inventory_errors = [f for f in failures if "could not read visual parts" in f]
-    assert len(inventory_errors) == 2, failures
+    ], failures
+    unread = [problem["error"] for _, _, problem in visual if "error" in problem]
+    assert len(unread) == 2, failures
     assert all(
-        "TypeError:" in failure and "registeredVisualParts" in failure
-        for failure in inventory_errors
-    )
-    assert first_lines("lf-test-visual-prefixed") == [
-        f"[{scheme}] <lf-test-visual-prefixed id='prefixed'> declares addressable "
-        "visual parts but its module registered parts its prefixes do not admit html"
+        "Visual part outer has no descendant Element surface" in error
+        and "TypeError:" in error
+        and "registeredVisualParts" in error
+        for error in unread
+    ), unread
+    assert problems("lf-test-visual-prefixed") == [
+        (
+            scheme,
+            "<lf-test-visual-prefixed id=prefixed>",
+            {"kind": "unadmitted-parts", "parts": ["html"]},
+        )
         for scheme in ("light", "dark")
     ]
 
@@ -1235,21 +1159,15 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
         findings = render_checks_model.evaluate_probe(page, "relativeReplays")
     finally:
         page.evaluate("restoreReplay()")
-    assert len(findings) == 1, findings
-    assert 'File "' not in findings[0], findings
-    assert (
-        "renderState threw when the complete state was rendered a second time: replay rejected"
-        in findings[0]
-    )
-    assert "TypeError: replay rejected" in findings[0]
-    assert "replayProjection" in findings[0]
+    [finding] = findings
+    assert finding["code"] == "render-threw", finding
+    assert 'File "' not in finding["error"], finding
+    assert "TypeError: replay rejected" in finding["error"]
+    assert "replayProjection" in finding["error"]
 
 
-def test_the_render_gate_reports_each_refusing_diagram(browser, serve):
-    """A parts list leaving a node unlisted and a class sharing its namespace's
-    identity, which layout cannot traverse, are independent refusals, and the gate
-    reports both: an invalid inventory ends a scheme's reading early but keeps what
-    the console already said."""
+def test_the_render_gate_refuses_duplicate_diagram_identities(browser, serve):
+    """A class sharing its namespace's identity fails before layout traverses it."""
     page = PART_DIAGRAM_PAGE.replace(
         "</lf-diagram>",
         """</lf-diagram>
@@ -1262,20 +1180,17 @@ classDiagram
         1,
     )
     failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
-    assert [failure.splitlines()[0] for failure in failures] == [
-        line
-        for scheme in ("light", "dark")
-        for line in (
-            (
-                f'[{scheme}] console: leaf: <lf-diagram id="model"> failed: '
-                "Mermaid declares diagram identity Job more than once"
-            ),
-            (
-                f"[{scheme}] <lf-diagram id='flow'> declares addressable visual parts "
-                "but its module leaves nameable parts unlisted node:U"
-            ),
+    assert [(f.scheme, f.code, f.at) for f in failures] == [
+        (scheme, "console-error", "") for scheme in ("light", "dark")
+    ], failures
+    assert all(
+        f.values["text"].startswith(
+            'leaf: <lf-diagram id="model"> failed: '
+            "Mermaid declares diagram identity Job more than once"
         )
-    ]
+        for f in failures
+        if f.code == "console-error"
+    ), failures
 
 
 def test_diagrams_preserve_late_state_labels_and_sequence_titles(browser, serve):
@@ -1462,10 +1377,9 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
     )
 
     assert completed is True
-    assert any("x-verbatim" in failure for failure in failures) is expects_projection
-    assert any("never stopped moving" in failure for failure in failures) is (
-        failed_stage == "pageSettled"
-    )
+    codes = {failure.code for failure in failures}
+    assert ("verbatim" in codes) is expects_projection
+    assert ("never-settled" in codes) is (failed_stage == "pageSettled")
 
 
 def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
@@ -1670,26 +1584,31 @@ customElements.define("field-host", class extends HTMLElement {{
         ),
     ).failures
 
-    def reported(*parts):
-        return [f for f in failures if all(part in f for part in parts)]
+    def reported(code, at=""):
+        return [f for f in failures if f.code == code and at in f.at]
 
-    assert reported("x-verbatim", "custom-note"), failures
-    assert reported("shadow roots the registry doesn't declare", "<div>"), failures
-    dusk = reported("x-verbatim", "dusk-note")
-    assert len(dusk) == 1, failures
-    assert dusk[0].startswith("[dark]"), dusk
-    assert reported('never says "09:00"'), failures
-    assert reported('never says "Escalated"'), failures
+    assert reported("verbatim", "custom-note"), failures
+    assert any("<div>" in f.values["hosts"] for f in reported("undeclared-shadow")), (
+        failures
+    )
+    dusk = reported("verbatim", "dusk-note")
+    assert [f.scheme for f in dusk] == ["dark"], failures
+    assert {f.values["value"] for f in reported("silent-word")} >= {
+        "09:00",
+        "Escalated",
+    }, failures
     # Delivery serves media under the revision, so the issue names that URL.
-    assert sorted(
-        re.sub(r'url="[^"]*(/media/[^"]+)"', r'url="\1"', failure)
-        for failure in failures
-        if "DevTools issue" in failure
-    ) == sorted(
-        f'[{scheme}] DevTools issue LazyLoadImageIssue at {where} (url="{src}")'
+    issues = reported("devtools-issue")
+    assert sorted((f.scheme, f.at, f.values["issue"]) for f in issues) == sorted(
+        (scheme, where, "LazyLoadImageIssue")
         for scheme in ("light", "dark")
         for where in ("<img id=unsized>", "<img id=authored>", "<iframe id=frame>")
-    )
+    ), failures
+    assert all(
+        [key for key, _ in f.values["details"]] == ["url"]
+        and dict(f.values["details"])["url"].endswith(src)
+        for f in issues
+    ), issues
 
 
 def test_the_render_gate_checks_custom_controls_at_their_form_boundary(browser, serve):
@@ -1774,10 +1693,10 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     it is not a color.
 
     And the replay check reaches a decision made in the panel. `RELATIVE_REPLAYS`
-    applies every standing winner again and asks whether anything moved; a widget an
+    applies every winner in force again and asks whether anything moved; a widget an
     agent sent in a reply is folded by a projection of its own and replayed into a tree
     the panel built, and the probe reads the validation state adapter, which returns
-    early when nothing is standing. No page the gate was ever run over held such an
+    early when nothing is in force. No page the gate was ever run over held such an
     action, so it was reporting clean on an empty list, and the population is asserted
     before the gate is asked anything. Both of the group's verbs stand: `choose`
     declares a record, so a second application that moved anything is a finding;
@@ -1935,48 +1854,47 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     # The population first: the probe returns clean for an empty list.
     page = open_page(browser, url)
     resized(page, 1280, 900)
-    standing = page.evaluate(
+    current = page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/validation.js'))"
         ".validationWidgetStates().flatMap(({widget, state}) =>"
-        " Object.values(state).map(standing => [widget.id, standing.action]))"
+        " Object.values(state).map(current => [widget.id, current.action]))"
     )
     page.close()
-    assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (
+    assert ["an-set", "choose"] in current and ["an-set", "answer"] in current, (
         f"the user's decisions are not among what the runtime hands the gate: "
-        f"{standing} — the replay would be handed nothing and report clean"
+        f"{current} — the replay would be handed nothing and report clean"
     )
 
     failures = render_gate_model.render_version(browser, url).failures
 
-    assert not [f for f in failures if "an-set" in f], failures
-    dishonest = [failure for failure in failures if "x-verbatim" in failure]
-    anonymous = [failure for failure in dishonest if "lf-anon" in failure]
-    assert len(anonymous) == 4, failures
-    assert sum("[light]" in failure for failure in anonymous) == 2, anonymous
-    assert sum("[dark]" in failure for failure in anonymous) == 2, anonymous
-    assert sum("page occurrence 2" in failure for failure in anonymous) == 2, anonymous
-    assert (
-        sum("event r-anonymous occurrence 2" in failure for failure in anonymous) == 2
+    assert not [f for f in failures if "an-set" in f.at], failures
+    dishonest = [failure for failure in failures if failure.code == "verbatim"]
+    anonymous = [failure for failure in dishonest if "lf-anon" in failure.at]
+    assert sorted((f.scheme, f.values["provenance"]) for f in anonymous) == sorted(
+        (scheme, provenance)
+        for scheme in ("light", "dark")
+        for provenance in (["page", None, 1], ["event", "r-anonymous", 1])
     ), anonymous
-    wrapped = [failure for failure in dishonest if "lf-anon" not in failure]
-    assert len(wrapped) == 4, failures
-    assert all("honest-shell" not in failure for failure in wrapped)
-    assert sum("prose-shell" in failure for failure in wrapped) == 2
-    assert sum("order-shell" in failure for failure in wrapped) == 2
-
-    unresolved = [f for f in failures if "does not resolve to valid fill" in f]
-    assert len(unresolved) == 4, failures
-    for diagram in ("flow", "sent"):
-        expected = (
-            f"<lf-paint id='{diagram}'> renders fill='var(--accent-glow)' on <rect> "
-            "for data-id='missing'"
-        )
-        assert sum(expected in failure for failure in unresolved) == 2, unresolved
-    assert not any(
-        token in failure
-        for failure in failures
-        for token in ("--diagram-safe", "--diagram-gradient")
+    wrapped = [failure for failure in dishonest if "lf-anon" not in failure.at]
+    assert sorted(f.at for f in wrapped) == sorted(
+        ["<lf-shell id=prose-shell>", "<lf-shell id=order-shell>"] * 2
     ), failures
+
+    unresolved = [f for f in failures if f.code == "invalid-paint"]
+    assert sorted((f.at, f.values["element"]) for f in unresolved) == sorted(
+        [("<lf-paint id=flow>", "rect"), ("<lf-paint id=sent>", "rect")] * 2
+    ), failures
+    assert all(
+        f.values | {"at": f.at}
+        == {
+            "at": f.at,
+            "part": "missing",
+            "element": "rect",
+            "property": "fill",
+            "value": "var(--accent-glow)",
+        }
+        for f in unresolved
+    ), unresolved
 
 
 def _author_stateful_verbatim_widget(tmp_path):
@@ -2046,7 +1964,7 @@ def test_widget_state_excuses_only_the_verbatim_prose_it_projects(
     own state projects and nothing else: a widget whose state rewrites its unrelated
     prose is reported, and so is a child whose action rewrites its preserving
     wrapper's prose. Beside them, the changes projections honestly make (a draft's
-    standing rewrite, a suggestion accepted and so retired, and one accepted then
+    rewrite in force, a suggestion accepted and so retired, and one accepted then
     withdrawn) are not."""
     monkeypatch.chdir(tmp_path)
     _author_stateful_verbatim_widget(tmp_path)
@@ -2088,7 +2006,7 @@ def test_widget_state_excuses_only_the_verbatim_prose_it_projects(
             "detail": {"value": "corrupt"},
         },
     )
-    edit = {"action": "edit", "detail": {"value": "User's standing draft."}}
+    edit = {"action": "edit", "detail": {"value": "User's current draft."}}
     append_command(serve.page_dir, user | edit | {"widget": "edited"})
     accept = {"action": "decide", "detail": {"outcome": "accept"}}
     append_command(serve.page_dir, user | accept | {"widget": "retired"})
@@ -2100,14 +2018,11 @@ def test_widget_state_excuses_only_the_verbatim_prose_it_projects(
 
     failures = render_gate_model.render_version(browser, url).failures
 
-    dishonest = [failure for failure in failures if "x-verbatim" in failure]
-    assert len(dishonest) == 6, failures
-    for owner in (
-        "<lf-stateful id='acted'>",
-        "<lf-stateful id='reported'>",
-        "<lf-shell id='shell'>",
-    ):
-        assert sum(owner in failure for failure in dishonest) == 2, dishonest
+    dishonest = [failure for failure in failures if failure.code == "verbatim"]
+    assert sorted(f.at for f in dishonest) == sorted(
+        ["<lf-stateful id=acted>", "<lf-stateful id=reported>", "<lf-shell id=shell>"]
+        * 2
+    ), failures
 
 
 # The page's longest scroller, the one its reader spends the scroll in.
@@ -2132,7 +2047,7 @@ def unread_syntax(page):
             "(a) => a instanceof CSSTransition && a.finish())"
         )
         unread += [
-            f"[{scheme}] {u}"
+            Finding.read(u, scheme=scheme)
             for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
         ]
     return unread
@@ -2817,7 +2732,7 @@ def unshown_key_findings(page, source):
     """Each command in a widget that declares context keys the page never shows
     (`shows-context-keys`, widget_quality.py), in the page and each Leaf document it
     frames. A worked example shows one state of its widget, and a command a widget
-    declares only in another, such as a multiple-choice Question's Done, goes unseen
+    declares only in another, such as a multiple-choice ask's Done, goes unseen
     there; the corpus holds those states. Widgets and `KNOWN` are read as for
     `held_scroller_findings`."""
     local = source.with_suffix(".page")
@@ -3734,7 +3649,9 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
 
     squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
 
-    assert any("<table id=held> scrolls" in f["text"] for f in squeezed), squeezed
+    assert any(
+        f["code"] == "squeezed-table" and f["at"] == "<table id=held>" for f in squeezed
+    ), squeezed
 
 
 def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
@@ -3946,38 +3863,45 @@ def test_the_render_gate_tells_what_a_column_loses_from_what_stands_beside_it(
         primed(browser, scroll_it), url
     ).failures
 
-    def reported(*parts):
-        return [f for f in failures if all(part in f for part in parts)]
+    def reported(code, at):
+        return [f for f in failures if f.code == code and f.at == at]
 
-    assert reported("<div id=too-wide> is set", "px past the column"), failures
-    assert not reported("scrolls sideways"), (
+    def naming(*words):
+        return [f for f in failures if names(f, *words)]
+
+    assert reported("past-column", "<div id=too-wide>"), failures
+    assert not [f for f in failures if f.code == "page-scrolls"], (
         "the window absorbed it, which is what leaves the column reading the only one "
         f"that sees it: {failures}"
     )
-    assert reported("<div id=half-out> is set", "past the column"), failures
-    assert not [f for f in failures if "in-the-margin" in f or "logical" in f], (
+    assert reported("past-column", "<div id=half-out>"), failures
+    assert not naming("in-the-margin", "logical"), (
         "a float whose own margin carried it clear of the column is where it meant to be"
     )
-    assert not reported("inner-word"), (
+    assert not naming("inner-word"), (
         "a resident's own words were named for standing where their parent put them"
     )
-    assert reported("<div id=off-window> is drawn", "outside <root scrollport>"), (
+    assert [
+        f
+        for f in reported("clipped-out", "<div id=off-window>")
+        if f.values["container"] == "<root scrollport>"
+    ], (
         f"a float carried off the edge of the window went out with the handover: {failures}"
     )
-    assert not reported("fixed-margin"), (
+    assert not naming("fixed-margin"), (
         f"the fixed margin resident was reported for standing where it was put: {failures}"
     )
-    assert reported("<div id=fixed-half> is set", "past the column"), (
+    assert reported("past-column", "<div id=fixed-half>"), (
         f"a fixed box crossing the column escaped the gate: {failures}"
     )
-    assert reported("<div id='ghost'>", "no box to mark"), (
+    assert reported("unmarkable", "<div id=ghost>"), (
         f"the gate said nothing about words no mark can be shown on: {failures}"
     )
-    assert not [f for f in failures if "veiled" in f or "seen" in f], (
+    assert not naming("veiled", "seen"), (
         "a wrapper whose words are in a box of their own is what every suggestion is, "
         f"and the gate reported it: {failures}"
     )
-    assert not [f for f in failures if "riding" in f or "rolled" in f], (
+    assert not naming("riding", "rolled"), (
         f"a scrolled box was read as having lost what it was scrolled past: {failures}"
     )
 
@@ -4008,21 +3932,15 @@ def test_misplaced_boxes_checks_page_overflow_but_not_an_authored_scroller(
           return scroller.scrollWidth - scroller.clientWidth;
         }"""
     )
-    misplaced = [
-        finding["text"]
-        for finding in render_checks_model.evaluate_probe(page, "misplacedBoxes")
-    ]
+    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     overflow = root_overflow(page)
     page.close()
 
     assert scroller_short > 1, "the authored scroller fits, so it proves nothing"
-    assert not [finding for finding in misplaced if "<span" in finding], misplaced
-    assert not [finding for finding in misplaced if "leaf-margin-cluster" in finding], (
-        misplaced
-    )
-    assert [finding for finding in misplaced if "<div id=root-spill>" in finding], (
-        misplaced
-    )
+    ats = [finding["at"] for finding in misplaced]
+    assert not [at for at in ats if at.startswith("<span")], misplaced
+    assert not [at for at in ats if "leaf-margin-cluster" in at], misplaced
+    assert "<div id=root-spill>" in ats, misplaced
     assert overflow > 1, "the true page spill did not reach the root scrollport"
 
 
@@ -4056,7 +3974,9 @@ def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
     assert level["across"] <= 0 or level["down"] <= 0, (
         f"the change's controls were drawn over the note: {level}"
     )
-    assert not [f for f in covered if "level-note" in f], covered
+    assert not [
+        f for f in covered if "level-note" in f["at"] or "level-note" in f["under"]
+    ], covered
 
 
 def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve):
@@ -4082,9 +4002,11 @@ def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve
     page.locator("#under").scroll_into_view_if_needed()
     covered = render_checks_model.evaluate_probe(page, "coveredWords")
     page.close()
-    assert [f for f in covered if "id=under" in f and "id=over" in f], (
-        f"a control the page put in the flow covered a paragraph unreported: {covered}"
-    )
+    assert [
+        f
+        for f in covered
+        if {f["at"], f["under"]} == {"<p id=under>", "<span id=over>"}
+    ], f"a control the page put in the flow covered a paragraph unreported: {covered}"
 
 
 # A sidenote beside a section of prose and tiles, the content a strip crushing the
@@ -4149,7 +4071,7 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, pointer):
                     {"type": event, "touchPoints": [{"x": at, "y": y}]},
                 )
         if pointer == "mouse":
-            # A pointer drag leaves the existing keyboard focus standing.
+            # A pointer drag leaves the existing keyboard focus in place.
             assert handle.evaluate(
                 "e => e.matches(':focus') && e.hasAttribute('data-lf-focus')"
             )
@@ -4302,7 +4224,7 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     past what the user chose is a window, not a retraction: the user said 580 once, and a
     laptop lid opened narrower is not them saying 500 instead.
 
-    So the choice and the standing width are two facts. Clamping the stored one would read
+    So the choice and the current width are two facts. Clamping the stored one would read
     identically on the narrow window and lose the user's answer for good on the wide one
     they came back to, which is the failure this reading is here to catch — the third
     geometry below is the whole of it."""
@@ -4410,7 +4332,7 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     assert readable["background"] == faint["background"], population
     assert readable["ink"] != faint["ink"], population
 
-    assert len(syntax) == 4, "\n".join(syntax)
+    assert len(syntax) == 4, "\n".join(map(str, syntax))
     for appearance, color in (
         ("light", "keyword"),
         ("light", "string"),
@@ -4418,10 +4340,9 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
         ("dark", "number"),
     ):
         assert any(
-            finding.startswith(
-                f'[{appearance}] code styled "color: var(--syn-{color});'
-            )
-            and "reads at " in finding
+            finding.scheme == appearance
+            and finding.values["style"].startswith(f"color: var(--syn-{color});")
+            and finding.values["ratio"] < 4.5
             for finding in syntax
         ), syntax
 

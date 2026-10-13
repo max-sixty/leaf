@@ -10,14 +10,13 @@ from leaf.schema import (
 )
 
 from .contract import (
-    RegistryError,
     deciding_outcomes,
     deciding_verb,
-    reference_relation_error,
+    reference_relation_problem,
+    registry_error,
     state_specs,
-    visual_part_attribute,
 )
-from .schema import check_schema, json_validator, json_value, schema_error_message
+from .schema import check_schema, json_validator, schema_reading
 from .state import (
     validate_deciding_verb,
     validate_widget_record_contracts,
@@ -33,12 +32,12 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
         try:
             check_schema(entry)
         except SchemaError as error:
-            raise RegistryError(
-                f"{path}: <{tag}> is not a valid JSON Schema: {schema_error_message(error)}"
+            raise registry_error(
+                "declaration-schema", path, tag, **schema_reading(error)
             ) from error
         description = entry.get("description")
         if not isinstance(description, str) or not description.strip():
-            raise RegistryError(f"{path}: <{tag}> must carry a non-empty description")
+            raise registry_error("no-description", path, tag)
         extensions = {
             key: value for key, value in entry.items() if key.startswith("x-")
         }
@@ -46,42 +45,32 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
             json_validator(EXTENSION_SCHEMA).iter_errors(extensions), key=str
         )
         if errors:
-            raise RegistryError(
-                f"{path}: <{tag}> registry extensions are invalid: {schema_error_message(errors[0])}"
+            raise registry_error(
+                "invalid-extensions", path, tag, **schema_reading(errors[0])
             )
         if (
             entry.get("x-text-format") == "markdown"
             and entry.get("x-content") != "data"
         ):
-            raise RegistryError(
-                f"{path}: <{tag}> block Markdown requires x-content: data"
-            )
+            raise registry_error("markdown-needs-data", path, tag)
         for verb, spec in state_specs(entry):
             if spec.get("record"):
                 continue
             try:
                 check_schema(spec["detail"])
             except SchemaError as error:
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` has an invalid "
-                    f"detail schema: {schema_error_message(error)}"
+                raise registry_error(
+                    "verb-detail-schema", path, tag, verb=verb, **schema_reading(error)
                 ) from error
             if spec["detail"].get("type") != "object":
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` detail schema "
-                    "must declare an object"
-                )
+                raise registry_error("verb-detail-type", path, tag, verb=verb)
             # A verb carries only the detail keys its declaration names — the
             # premise the layer's own field meanings rest on: both runtimes
             # dispatch thread settlement on `resolves` being present, which
             # is safe exactly because a closed schema makes carrying it a
             # declaration.
             if spec["detail"].get("additionalProperties") is not False:
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` detail schema "
-                    "must state additionalProperties: false — a verb carries "
-                    "only the detail keys it declares"
-                )
+                raise registry_error("verb-detail-open", path, tag, verb=verb)
             # And nothing beside those four keys, because that clause closes an
             # object only against names `properties` does not match: a
             # `patternProperties` beside it admits a field no declaration
@@ -92,11 +81,8 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
             # approximate at once.
             spelled = {"type", "properties", "required", "additionalProperties"}
             if beyond := sorted(set(spec["detail"]) - spelled):
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` detail schema "
-                    f"declares {json_value(beyond)}; a detail states its type, properties, "
-                    "required and additionalProperties and nothing else, so the "
-                    "keys a verb can carry are the ones it names"
+                raise registry_error(
+                    "verb-detail-keys", path, tag, verb=verb, keys=beyond
                 )
 
 
@@ -120,57 +106,57 @@ def validate_widget_relations(
 def _validate_widget_structure(
     tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
 ) -> tuple[dict, set]:
-    if unknown := sorted(set(entry.get("x-owners", [])) - set(declarations)):
-        raise RegistryError(
-            f"{path}: <{tag}> x-owners names unknown element declarations {json_value(unknown)}"
-        )
-    if unknown := sorted(set(entry.get("x-unique", {}).values()) - set(declarations)):
-        raise RegistryError(
-            f"{path}: <{tag}> x-unique names unknown element declarations {json_value(unknown)}"
-        )
+    for key, named in (
+        ("x-owners", entry.get("x-owners", [])),
+        ("x-unique", entry.get("x-unique", {}).values()),
+        ("x-within", entry.get("x-within", [])),
+    ):
+        if unknown := sorted(set(named) - set(declarations)):
+            raise registry_error(
+                "unknown-declarations", path, tag, key=key, names=unknown
+            )
     properties = entry.get("properties", {})
     if entry.get("x-initial"):
         if not entry["x-upgrade"]:
-            raise RegistryError(f"{path}: <{tag}> x-initial requires x-upgrade: true")
-        if entry.get("x-prepaint") is not None:
-            raise RegistryError(
-                f"{path}: <{tag}> declares both x-initial and x-prepaint"
+            raise registry_error(
+                "requires", path, tag, key="x-initial", needs="x-upgrade", value=True
             )
+        if entry.get("x-prepaint") is not None:
+            raise registry_error("initial-and-prepaint", path, tag)
     if (prepaint := entry.get("x-prepaint")) is not None:
         if isinstance(prepaint, dict):
             named = declarations.get(prepaint["as"], {}).get("x-prepaint")
             if not isinstance(named, str):
-                raise RegistryError(
-                    f"{path}: <{tag}> x-prepaint names <{prepaint['as']}>, which "
-                    "declares no x-prepaint markup of its own"
-                )
+                raise registry_error("prepaint-as", path, tag, **{"as": prepaint["as"]})
             prepaint = named
         _validate_prepaint(tag, entry, prepaint, path)
     layout = entry.get("x-reading-role")
     if layout:
         if entry.get("x-content") != "markup":
-            raise RegistryError(
-                f"{path}: <{tag}> x-reading-role requires x-content: markup"
+            raise registry_error(
+                "requires",
+                path,
+                tag,
+                key="x-reading-role",
+                needs="x-content",
+                value="markup",
             )
         required = set(entry.get("required", []))
         if "id" not in required or properties.get("id", {}).get("type") != "string":
-            raise RegistryError(
-                f"{path}: <{tag}> x-reading-role {layout} instances require a string id"
-            )
+            raise registry_error("reading-role-attr", path, tag, role=layout, attr="id")
         if layout == "pane" and (
             "label" not in required
             or properties.get("label", {}).get("type") != "string"
         ):
-            raise RegistryError(
-                f"{path}: <{tag}> x-reading-role pane instances require a string label"
+            raise registry_error(
+                "reading-role-attr", path, tag, role="pane", attr="label"
             )
     for input_name, spec in entry.get("x-data", {}).items():
         contract = spec["contract"]
         source_attr = spec["source"]
         if contract not in data["contracts"]:
-            raise RegistryError(
-                f"{path}: <{tag}> x-data input `{input_name}` names unknown "
-                f"contract {contract!r}"
+            raise registry_error(
+                "data-contract", path, tag, input=input_name, contract=contract
             )
         source_schema = properties.get(source_attr, {})
         if (
@@ -178,22 +164,17 @@ def _validate_widget_structure(
             or source_schema.get("type") != "string"
             or source_schema.get("pattern") != f"^{DATA_SOURCE_NAME}$"
         ):
-            raise RegistryError(
-                f"{path}: <{tag}> x-data input `{input_name}` source attribute "
-                f"`{source_attr}` must be a canonical data source string"
+            raise registry_error(
+                "data-source", path, tag, input=input_name, attr=source_attr
             )
     if measured := entry.get("x-measured"):
         input_name = measured["input"]
         if input_name not in entry.get("x-data", {}):
-            raise RegistryError(
-                f"{path}: <{tag}> x-measured input `{input_name}` is not one "
-                "of its x-data inputs"
-            )
+            raise registry_error("measured-input", path, tag, input=input_name)
         source_attr = entry["x-data"][input_name]["source"]
         if source_attr not in entry.get("required", []):
-            raise RegistryError(
-                f"{path}: <{tag}> x-measured input `{input_name}` source "
-                f"attribute `{source_attr}` must be required"
+            raise registry_error(
+                "measured-source", path, tag, input=input_name, attr=source_attr
             )
         run_attr = measured["run"]
         run_schema = properties.get(run_attr)
@@ -203,56 +184,43 @@ def _validate_widget_structure(
             and run_schema.get("type") == "string"
             and run_schema.get("minLength", 0) >= 1
         ):
-            raise RegistryError(
-                f"{path}: <{tag}> x-measured run attribute `{run_attr}` "
-                "must be required and declare a nonempty string"
-            )
+            raise registry_error("measured-run", path, tag, attr=run_attr)
     said = set(entry.get("x-says", {}))
     for role in ("x-awaits", "x-thread-seat"):
         if entry.get(role) is not None and (
             not isinstance(properties.get("id"), dict)
             or properties["id"].get("type") != "string"
         ):
-            raise RegistryError(
-                f"{path}: <{tag}> {role} instances are addressable, so the "
-                "element declaration must declare a string `id` attribute"
-            )
+            raise registry_error("addressable-id", path, tag, key=role)
     for key in ATTRIBUTE_KEYS:
         declared = entry.get(key) or ()
         named = {declared} if isinstance(declared, str) else set(declared)
         if unknown := sorted(named - set(properties)):
-            raise RegistryError(
-                f"{path}: <{tag}> {key} names undeclared attributes {json_value(unknown)}"
+            raise registry_error(
+                "undeclared-attributes", path, tag, key=key, names=unknown
             )
     for attribute, reference in entry.get("x-refers", {}).items():
-        if error := reference_relation_error(reference, registry, declarations):
-            raise RegistryError(f"{path}: <{tag}> x-refers `{attribute}` {error}")
+        if problem := reference_relation_problem(reference, registry, declarations):
+            code, values = problem
+            raise registry_error(code, path, tag, attr=attribute, **values)
     if isinstance(entry.get("x-visual"), dict):
         if not (
             "id" in entry.get("required", [])
             and isinstance(properties.get("id"), dict)
             and properties["id"].get("type") == "string"
         ):
-            raise RegistryError(
-                f"{path}: <{tag}> has addressable visual parts but does not "
-                "require a string `id` for their anchor"
-            )
-        part_attribute = visual_part_attribute(entry)
-        part_schema = properties.get(part_attribute)
-        if part_attribute and not (
-            isinstance(part_schema, dict)
-            and part_schema.get("type") == "string"
-            and part_schema.get("minLength", 0) >= 1
-        ):
-            raise RegistryError(
-                f"{path}: <{tag}> x-visual parts attribute `{part_attribute}` "
-                "must be a non-empty string"
+            raise registry_error("visual-id", path, tag)
+        part_attribute = entry["x-visual"].get("parts")
+        if part_attribute and part_attribute not in properties:
+            raise registry_error(
+                "undeclared-attributes",
+                path,
+                tag,
+                key="x-visual.parts",
+                names=[part_attribute],
             )
         if not entry["x-upgrade"]:
-            raise RegistryError(
-                f"{path}: <{tag}> declares addressable visual parts but has no "
-                "upgraded handler to resolve them"
-            )
+            raise registry_error("visual-upgrade", path, tag)
     return properties, said
 
 
@@ -269,27 +237,16 @@ def _validate_prepaint(tag: str, entry: dict, prepaint: str, path) -> None:
     `data-lf-` marks (`revision_delivery.mark_declared`).
     """
     if entry.get("x-upgrade") is not True:
-        raise RegistryError(
-            f"{path}: <{tag}> x-prepaint requires x-upgrade: true, since only the "
-            "widget's module takes it out"
-        )
+        raise registry_error("prepaint-upgrade", path, tag)
     nodes = list(turbohtml.parse(prepaint, scripting=True).find("body").children)
     if len(nodes) != 1 or getattr(nodes[0], "html", None) != prepaint:
-        raise RegistryError(
-            f"{path}: <{tag}> x-prepaint must be one element written as the parser "
-            "reads it back, every element closed"
-        )
+        raise registry_error("prepaint-shape", path, tag)
     for element in [nodes[0], *nodes[0].find_all(True)]:
         attrs = element.attrs
         if "-" in element.tag or element.tag in ("script", "style", "template", "slot"):
-            raise RegistryError(
-                f"{path}: <{tag}> x-prepaint may not hold <{element.tag}>"
-            )
+            raise registry_error("prepaint-element", path, tag, element=element.tag)
         if "id" in attrs or any(name.startswith("data-lf-") for name in attrs):
-            raise RegistryError(
-                f"{path}: <{tag}> x-prepaint may carry no id and no data-lf- "
-                f"attribute (<{element.tag}>)"
-            )
+            raise registry_error("prepaint-marks", path, tag, element=element.tag)
 
 
 def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -> dict:
@@ -298,15 +255,11 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     # attribute's own schema — a flag is there or it isn't, an enum admits what it
     # lists — and a subschema that states neither contradicts nothing.
     awaits = entry.get("x-awaits", {})
-    if entry.get("x-question-context"):
+    if entry.get("x-ask-context"):
         if "id" not in entry.get("required", []):
-            raise RegistryError(
-                f"{path}: <{tag}> x-question-context does not require an id"
-            )
+            raise registry_error("ask-context-id", path, tag)
         if entry.get("x-content") != "markup":
-            raise RegistryError(
-                f"{path}: <{tag}> x-question-context must admit prose around the Question it frames"
-            )
+            raise registry_error("ask-context-prose", path, tag)
     conditions = [
         ("x-awaits", awaits.get("when", {})),
         *(
@@ -318,12 +271,13 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     for declaration, condition in conditions:
         for attr, values in condition.items():
             if attr not in properties:
-                raise RegistryError(
-                    f"{path}: <{tag}> {declaration} names undeclared attribute `{attr}`"
+                raise registry_error(
+                    "predicate-attribute", path, tag, key=declaration, attr=attr
                 )
             schema = properties[attr]
             declared = schema if isinstance(schema, dict) else {}
             for value in values:
+                tested = {"key": declaration, "attr": attr, "value": value}
                 if isinstance(value, bool):
                     # A subschema saying neither a type nor an enum contradicts
                     # nothing; one that says either has told us this attribute
@@ -332,27 +286,20 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
                         None,
                         "boolean",
                     ) or declared.get("enum"):
-                        raise RegistryError(
-                            f"{path}: <{tag}> {declaration} tests `{attr}` as "
-                            f"{json_value(value)}, but that attribute is not a flag"
-                        )
+                        raise registry_error("predicate-not-flag", path, tag, **tested)
                 elif declared.get("type") == "boolean":
-                    raise RegistryError(
-                        f"{path}: <{tag}> {declaration} tests flag `{attr}` as "
-                        f"{json_value(value)}; a flag is there or it isn't"
-                    )
+                    raise registry_error("predicate-flag", path, tag, **tested)
                 if (
                     allowed := declared.get("enum")
                 ) is not None and value not in allowed:
-                    raise RegistryError(
-                        f"{path}: <{tag}> {declaration} tests `{attr}` at "
-                        f"{json_value(value)}, which its own enum does not admit"
-                    )
+                    raise registry_error("predicate-enum", path, tag, **tested)
                 if errors := sorted(json_validator(schema).iter_errors(value), key=str):
-                    raise RegistryError(
-                        f"{path}: <{tag}> {declaration} tests `{attr}` at "
-                        f"{json_value(value)}, which its own schema does not admit: "
-                        f"{schema_error_message(errors[0])}"
+                    raise registry_error(
+                        "predicate-schema",
+                        path,
+                        tag,
+                        **tested,
+                        **schema_reading(errors[0]),
                     )
     thread = entry.get("x-thread-seat", {})
     mutable_values = {
@@ -361,22 +308,12 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
         if (spec.get("record") or {}).get("kind") == "value"
     }
     if dynamic := sorted(set(thread.get("when", {})) & mutable_values):
-        raise RegistryError(
-            f"{path}: <{tag}> x-thread-seat predicate attributes are authored "
-            f"and static, but {json_value(dynamic)} are written by value records"
-        )
+        raise registry_error("seat-written", path, tag, attrs=dynamic)
     data_bindings = {spec["source"] for spec in entry.get("x-data", {}).values()}
     if dynamic := sorted(data_bindings & mutable_values):
-        raise RegistryError(
-            f"{path}: <{tag}> x-data binding attributes are authored, "
-            f"but {json_value(dynamic)} are written by value records"
-        )
+        raise registry_error("binding-written", path, tag, attrs=dynamic)
     if (measured := entry.get("x-measured")) and measured["run"] in mutable_values:
-        raise RegistryError(
-            f"{path}: <{tag}> x-measured run attribute "
-            f"`{measured['run']}` is an authored source receipt, but is written "
-            "by a value record"
-        )
+        raise registry_error("run-written", path, tag, attr=measured["run"])
     return awaits
 
 
@@ -389,49 +326,31 @@ def _validate_widget_interactions(
 ) -> None:
     if entry.get("x-work"):
         if entry.get("x-inline"):
-            raise RegistryError(
-                f"{path}: <{tag}> declares x-work but is inline; "
-                "local work chrome needs a block slot"
-            )
+            raise registry_error("work-inline", path, tag)
         if entry.get("x-content") != "markup":
-            raise RegistryError(
-                f"{path}: <{tag}> declares x-work but x-content is "
-                f"{entry.get('x-content')}; generated local chrome may only join "
-                "authored prose"
+            raise registry_error(
+                "work-content", path, tag, content=entry.get("x-content")
             )
     answered = awaits.get("answered", {})
     if entry.get("x-awaits") is not None and not answered:
-        raise RegistryError(
-            f"{path}: <{tag}> x-awaits local Question declares no `answered` condition"
-        )
-    # The user answers their own Question, so only a verb the user writes can answer it.
+        raise registry_error("awaits-unanswered", path, tag)
+    # The user answers their own ask, so only a verb the user writes can answer it.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if unknown := sorted(set(answered) - user_verbs):
-        raise RegistryError(
-            f"{path}: <{tag}> x-awaits answers with verbs {json_value(unknown)}, which are not "
-            "x-state verbs the user writes"
-        )
+        raise registry_error("awaits-verbs", path, tag, verbs=unknown)
     if awaits and awaits["value"] not in user_verbs:
-        raise RegistryError(
-            f"{path}: <{tag}> x-awaits value must name a user-written x-state verb"
-        )
-    # A retired Question was asked and has ended, so the flag that retires it has to be
+        raise registry_error("awaits-value", path, tag)
+    # A retired ask was asked and has ended, so the flag that retires it has to be
     # one registration already reads as stopping the widget asking.
     retired = awaits.get("retired")
     if retired and awaits.get("when", {}).get(retired) != [False]:
-        raise RegistryError(
-            f"{path}: <{tag}> x-awaits retires with `{retired}`, but its `when` does not "
-            f"require `{retired}` absent"
-        )
-    # A blanket answer is one decision per Question, taken through the widget's deciding
-    # verb, so it names an outcome that verb declares and the verb answers the Question.
+        raise registry_error("awaits-retired", path, tag, flag=retired)
+    # A blanket answer is one decision per ask, taken through the widget's deciding
+    # verb, so it names an outcome that verb declares and the verb answers the ask.
     if (blanket := awaits.get("all")) and (
         deciding_verb(entry) not in answered or blanket not in deciding_outcomes(entry)
     ):
-        raise RegistryError(
-            f"{path}: <{tag}> x-awaits blanket answer `{blanket}` is not an outcome "
-            "of a deciding verb that answers its Question"
-        )
+        raise registry_error("awaits-blanket", path, tag, outcome=blanket)
     needs_upgrade = [
         key
         for key in (
@@ -446,11 +365,8 @@ def _validate_widget_interactions(
         if entry.get(key) and not entry["x-upgrade"]
     ]
     if needs_upgrade:
-        raise RegistryError(
-            f"{path}: <{tag}> declares {', '.join(needs_upgrade)} "
-            "but has no upgraded handler"
-        )
-    # A version overrules a standing report with `overruled` on the element,
+        raise registry_error("needs-upgrade", path, tag, keys=needs_upgrade)
+    # A version overrules a report in force with `overruled` on the element,
     # so a widget with an agent-written verb that doesn't declare the attribute
     # is one whose every report contradiction is unpublishable.
     agent_verbs = [verb for verb, _spec in state_specs(entry, writer="agent")]
@@ -458,11 +374,7 @@ def _validate_widget_interactions(
         isinstance(properties.get("overruled"), dict)
         and properties["overruled"].get("type") == "boolean"
     ):
-        raise RegistryError(
-            f"{path}: <{tag}> declares agent-written x-state verbs {json_value(agent_verbs)} but "
-            "not the boolean `overruled` "
-            "attribute a version overrules a standing report with"
-        )
+        raise registry_error("unoverruled", path, tag, verbs=agent_verbs)
     # A user decision folded on the widget needs an explicit withdrawal route:
     # `restated` names that intent; ordinary source edits leave the decision in
     # force. Child-folding verbs place it on elements this declaration does not name.
@@ -473,8 +385,4 @@ def _validate_widget_interactions(
         isinstance(properties.get("restated"), dict)
         and properties["restated"].get("type") == "boolean"
     ):
-        raise RegistryError(
-            f"{path}: <{tag}> declares user x-state verbs that fold on the widget "
-            "but not the boolean `restated` attribute a version retracts a "
-            "decision with"
-        )
+        raise registry_error("unrestated", path, tag)

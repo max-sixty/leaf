@@ -66,6 +66,7 @@ from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
+from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev.browser import (
@@ -499,7 +500,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
     things that example ships beside itself: the media it names, external data,
     and the event log, where it has one. The log for the same reason
     `test_page_fixtures_pass_check` reads one — a page is what its markup and its
-    standing log make together, and a corpus that reads only the markup is reading
+    current log make together, and a corpus that reads only the markup is reading
     half of it. A thread and any widget a message carries exist nowhere else, so
     without this every sweep is green over a page the user never gets.
 
@@ -1099,7 +1100,7 @@ def ticked(page):
 #
 # So the press waits on the fact the page states rather than on the gesture before it
 # having painted. The line and the dispatcher ask one predicate (`live`), so no surface
-# can promise a press the dispatcher refuses — which makes the offer standing on the
+# can promise a press the dispatcher refuses — which makes the offer shown on the
 # line the page saying this press will be taken. Then the trip: the press's own send is
 # not counted at the moment it is made, and a `round_trip` that reads the counters
 # before the browser has reported the request is a wait on a page that has not started
@@ -1274,7 +1275,7 @@ def clean_browser(test=None):
         for page, problem_list in captured
         for problem in problem_list
     ]
-    assert problems == [], problems
+    assert not problems, "\n".join(problems)
 
 
 def judge_watches():
@@ -1358,13 +1359,17 @@ def _frame_owners_drawn(frame):
 
 
 def watched(page, *, java_script_enabled=True):
-    """Collect browser problems into one retained list per page.
+    """Collect browser problems into one retained list per page, each a record
+    (`leaf/findings.py`) a test reads by its fields.
 
-    Console warnings/errors and uncaught exceptions are joined by window errors
-    without exceptions, installed through the same `install_window_errors` helper
-    the render gate uses, by DOM writes that change nothing (`write_watch.js`), and
-    by layout shifts without input or that carry a field being typed in
-    (`shift_watch.js`), and by typed words leaving the screen without a key or press
+    The browser's own reports, taken from Playwright's events as the render gate takes
+    them: console warnings and errors, a failed response, and uncaught exceptions.
+    Window errors without exceptions join them, installed through the same
+    `install_window_errors` helper the render gate uses, and so do the health
+    sensors' findings, which each sensor hands over as a record through the
+    `__leafWatchFinding` binding: DOM writes that change nothing (`write_watch.js`),
+    layout shifts without input or that carry a field being typed in
+    (`shift_watch.js`), and typed words leaving the screen without a key or press
     (`words_watch.js`).
     Call before navigation so the init scripts take effect. With scripting disabled,
     retain native console and page errors but install no script-driven sensors and
@@ -1381,15 +1386,27 @@ def watched(page, *, java_script_enabled=True):
     page.lf_java_script_enabled = java_script_enabled
 
     def console_message(message):
-        problem = render_gate_model.console_problem(message)
-        if problem:
+        if (problem := render_gate_model.console_finding(message)) is not None:
+            errors.append(problem)
+
+    def window_error(error):
+        # `navigate` takes the ResizeObserver notices of a navigation it is making;
+        # any other notice, like every other error, reaches the fixture.
+        problem = render_gate_model.window_finding(error)
+        notices = getattr(page, "lf_resize_notices", None)
+        if problem.code == "resize-loop" and notices is not None:
+            notices.append(problem)
+        else:
             errors.append(problem)
 
     page.on("console", console_message)
     render_gate_model.collect_page_exceptions(page, errors)
     if not java_script_enabled:
         return errors
-    render_checks_model.install_window_errors(page)
+    render_checks_model.install_window_errors(page, window_error)
+    page.expose_binding(
+        "__leafWatchFinding", lambda _source, found: errors.append(Finding.read(found))
+    )
     page.add_init_script(path=WRITE_WATCH_SOURCE)
     # One init script keeps cause tracking installed before its words subscriber;
     # Playwright does not promise an order between separately registered scripts.
@@ -1445,15 +1462,67 @@ def restarting(page):
     del page.lf_errors[mark:]
 
 
+def names(finding, *words):
+    """Whether a render-gate finding names an element whose name holds one of
+    `words`: the element it is about, or another it names in its values, such as the
+    box that clips it. A probe's record (a dict) answers the same way."""
+    if isinstance(finding, dict):
+        at, values = finding.get("at", ""), finding
+    else:
+        at, values = finding.at, finding.values
+    named = [at, *(value for value in values.values() if isinstance(value, str))]
+    return any(word in name for name in named for word in words)
+
+
 def take_browser_errors(page):
-    """Return and consume problems a test intentionally caused on one page."""
+    """Return and consume problems a test intentionally caused on one page, as the
+    fixture's records (`watched`)."""
     errors = page.lf_errors[:]
     page.lf_errors.clear()
     return errors
 
 
+def said(problem):
+    """The first line of what the page itself said in a browser problem: a console
+    entry, an uncaught exception, or a window error. None for a problem the browser or
+    a health sensor reports in fields of its own, such as a failed response's `status`
+    and `url`."""
+    text = problem.values.get("text")
+    return None if text is None else text.splitlines()[0]
+
+
+_ABSENT = object()
+
+
+def is_problem(problem, expected):
+    """Whether a browser problem is the one a test expects.
+
+    A string is a fragment of what the page said (`said`), so stack locations cannot
+    authorize a problem. A dict names the record as a probe returns one,
+    `{code, at, ...values}`: its `code`, and each field the test cares about, equal to
+    what was found, such as `{"code": "failed-load", "status": 400}`. A function of the
+    record answers for itself, for a field read other than by equality."""
+    if callable(expected):
+        return expected(problem)
+    if isinstance(expected, str):
+        return (line := said(problem)) is not None and expected in line
+    fields = dict(expected)
+    if problem.code != fields.pop("code"):
+        return False
+    return all(
+        (problem.at if name == "at" else problem.values.get(name, _ABSENT)) == value
+        for name, value in fields.items()
+    )
+
+
+def shown(problems):
+    """Browser problems in their words, for a failing assertion's message."""
+    return "\n".join(map(str, problems))
+
+
 def reported_browser_errors(page, *expected):
-    """Wait for the complete report a fault draws, then consume it.
+    """Wait for the complete report a fault draws, then consume it: one problem for
+    each of `expected` (`is_problem`), in order.
 
     One exception is reported once, but one injected fault can raise several, and the
     later reports can be separated from the first by whatever the page does on the way.
@@ -1465,81 +1534,66 @@ def reported_browser_errors(page, *expected):
     The wait is a Playwright call rather than a sleep, because the sync driver hands
     console messages to this process only while it is inside one."""
     assert expected, "expected browser problems cannot be empty"
-    wanted = list(expected)
+
+    def complete(errors):
+        return len(errors) == len(expected) and all(map(is_problem, errors, expected))
+
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    while [
-        error.splitlines()[0] for error in page.lf_errors
-    ] != wanted and time.monotonic() < deadline:
+    while not complete(page.lf_errors) and time.monotonic() < deadline:
         page.wait_for_timeout(25)
     errors = take_browser_errors(page)
-    assert [error.splitlines()[0] for error in errors] == wanted, errors
+    assert complete(errors), shown(errors)
     return errors
-
-
-def _names(fragment, line):
-    """Whether an expected fragment names a browser problem's first line. An HTTP
-    status names the entry a failed response is recorded as, `"<status> <url>"`
-    (`render_gate.scheme.console_error`), by its start: elsewhere in a line, a port
-    or a stack's address can hold the same digits."""
-    if fragment.isdigit():
-        return line.startswith(f"{fragment} ")
-    return fragment in line
 
 
 def consume_browser_errors(page, *expected):
-    """Assert intentional messages; stack locations cannot authorize a problem."""
-    assert expected, "expected browser-error fragments cannot be empty"
+    """Consume the problems a test caused on one page, each of which must be one of
+    `expected` (`is_problem`)."""
+    assert expected, "expected browser problems cannot be empty"
     errors = take_browser_errors(page)
     assert errors and all(
-        any(_names(fragment, error.splitlines()[0]) for fragment in expected)
-        for error in errors
-    ), errors
+        any(is_problem(error, wanted) for wanted in expected) for error in errors
+    ), shown(errors)
     return errors
-
-
-# What navigate reports when a ResizeObserver loop notice comes back on the confirming
-# navigation, so a one-off notice is dropped and a recurring one fails the test.
-RECURRING_RESIZE_NOTICE = (
-    "window error: ResizeObserver loop notice recurred on the confirming navigation"
-)
 
 
 def navigate(page, url, *, wait_until="load", upgraded=True):
     """Navigate through a complete page handover, classifying only the
     ResizeObserver notices raised during that navigation.
 
-    A platform notice seen once under load is not a page fault; one repeated by the
-    confirming navigation is. Everything else remains on the page from the attempt that
+    A platform notice seen once under load is not a page fault; one the confirming
+    navigation repeats is, reported with the `confirmation` value `recurred`, as the
+    render gate reports one. Everything else remains on the page from the attempt that
     reported it, and anything arriving after this helper returns remains strict.
     """
 
     errors = page.lf_errors
 
     def complete_navigation():
-        start = len(errors)
-        page.goto(
-            url, wait_until=wait_until, timeout=render_checks_model.HANDOVER_DEADLINE_MS
-        )
-        if upgraded:
-            wait_until_ready(page)
-        else:
-            page.wait_for_function(
-                "() => document.querySelector('.lf-banner') !== null",
+        # A test that adjudicates the page's notices itself keeps its own list.
+        outside = getattr(page, "lf_resize_notices", None)
+        notices = page.lf_resize_notices = []
+        try:
+            page.goto(
+                url,
+                wait_until=wait_until,
                 timeout=render_checks_model.HANDOVER_DEADLINE_MS,
             )
-        # Let the rendering turn that earned the readiness stamp finish. A loop
-        # notice is delivered by that turn, rather than by the DOM write alone.
-        one_frame(page)
-        fresh = errors[start:]
-        del errors[start:]
-        notices = [
-            error for error in fresh if render_gate_model.resize_observer_error(error)
-        ]
-        errors.extend(
-            error
-            for error in fresh
-            if not render_gate_model.resize_observer_error(error)
-        )
+            if upgraded:
+                wait_until_ready(page)
+            else:
+                page.wait_for_function(
+                    "() => document.querySelector('.lf-banner') !== null",
+                    timeout=render_checks_model.HANDOVER_DEADLINE_MS,
+                )
+            # Let the rendering turn that earned the readiness stamp finish. A loop
+            # notice is delivered by that turn, rather than by the DOM write alone.
+            one_frame(page)
+        except BaseException:
+            errors.extend(notices)
+            raise
+        finally:
+            page.lf_resize_notices = outside
         return notices
 
     notices = complete_navigation()
@@ -1551,7 +1605,7 @@ def navigate(page, url, *, wait_until="load", upgraded=True):
         errors.extend(notice for notice in notices if notice not in errors)
         raise
     if confirming_notices:
-        errors.append(RECURRING_RESIZE_NOTICE)
+        errors.append(confirming_notices[0].but(values={"confirmation": "recurred"}))
 
 
 def shortcut_bar_text(page):
@@ -2041,7 +2095,7 @@ def live_leaf(tmp_path, monkeypatch):
         )
         # Use the durable server's maintenance loop: the row remains canonical
         # even while no browser has visited this neighboring page.
-        url = hosting_model.start_server(d, standing=True, harness=None).url
+        url = hosting_model.start_server(d, persistent=True, harness=None).url
         served.append(d)
         return url.split("?")[0].rstrip("/"), d
 
@@ -2109,7 +2163,7 @@ def suggestion_owner(suggestion_id: str) -> str:
 
 
 def draft_control(scope, key: str, draft_id: str, *, visible=True):
-    """A draft's local command button (edit, save, cancel, close or retry)."""
+    """A draft's local command button (edit, save, cancel or retry)."""
     action = "save" if key == "retry" else key
     return scope.locator(
         f'lf-draft[id="{draft_id}"] [data-lf-draft-action="{action}"]'

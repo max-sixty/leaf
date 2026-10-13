@@ -153,12 +153,12 @@ test("a thread's unread is the server reading less what this tab is acknowledgin
   const read = (acknowledging) =>
     readThreadRecords(threads, NO_DOCUMENT, new Map(), [], acknowledging)[0];
 
-  const standing = read([]);
+  const unread = read([]);
   assert.deepEqual(
-    standing.msgs.map((message) => message.unread),
+    unread.msgs.map((message) => message.unread),
     [true, true],
   );
-  assert.equal(standing.unread.length, 2);
+  assert.equal(unread.unread.length, 2);
 
   // Acknowledging the reply's earlier version leaves its current one unread.
   const stale = read([{ message: "reply", version: "reply" }]);
@@ -209,10 +209,10 @@ test("attention names the outstanding question rather than the latest message", 
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
   const attention = threadAttention(thread);
-  assert.equal(attention.label, "On you to answer");
+  assert.equal(attention.label, "My turn to answer");
   assert.equal(
     threadAttention({ ...thread, user_prompt: null }).label,
-    "On you to answer",
+    "My turn to answer",
   );
   assert.equal(
     threadAttention({
@@ -226,7 +226,7 @@ test("attention names the outstanding question rather than the latest message", 
         }),
       ],
     }).label,
-    "On you to resend",
+    "My turn to resend",
   );
   assert.equal(
     threadAttention({
@@ -240,7 +240,7 @@ test("attention names the outstanding question rather than the latest message", 
         }),
       ],
     }).label,
-    "On you to retry",
+    "My turn to retry",
   );
   assert.equal(
     threadAttention({
@@ -344,6 +344,12 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(amounts["waiting:user"], 1);
   assert.equal(amounts["waiting:agent"], 1);
   assert.equal(model.presentation.userAvailable, true);
+  const incomplete = narrowingReading(DEFAULT_INTENT, threads, places, false);
+  assert.deepEqual(incomplete.shown, model.shown);
+  assert.equal(incomplete.presentation.summary, "");
+  assert.equal(incomplete.presentation.userAvailable, false);
+  for (const group of incomplete.presentation.groups)
+    for (const choice of group.choices) assert.equal(choice.amount, null);
 });
 
 test("a fold without prose is searchable by its visible label", () => {
@@ -437,14 +443,14 @@ test("panel narrowing controllers keep independent intent over shared threads", 
 
   // Revealing a destination already in this view keeps the intent that retained
   // arrivals use to distinguish repainting from a deliberate change of view.
-  const standing = second.narrowing.model(threads, places).intent;
+  const kept = second.narrowing.model(threads, places).intent;
   await second.narrowing.revealThread("open");
-  assert.equal(second.narrowing.model(threads, places).intent, standing);
+  assert.equal(second.narrowing.model(threads, places).intent, kept);
   assert.equal(second.narrowing.widen(), false);
-  assert.equal(second.narrowing.model(threads, places).intent, standing);
+  assert.equal(second.narrowing.model(threads, places).intent, kept);
 
   await second.narrowing.revealThread("resolved");
-  assert.notEqual(second.narrowing.model(threads, places).intent, standing);
+  assert.notEqual(second.narrowing.model(threads, places).intent, kept);
   assert.deepEqual(second.narrowing.model(threads, places).shown, [resolved]);
   first.narrowing.widen();
   assert.deepEqual(first.narrowing.model(threads, places).shown, [open]);

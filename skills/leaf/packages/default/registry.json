@@ -26,7 +26,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-question-context": true,
+    "x-ask-context": true,
     "x-upgrade": false,
     "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><small class=\"tag\">editing: continues</small><small class=\"tag ok\">recommended</small><strong>Drop the oldest documents</strong> Editing continues. <em>My take: this keeps work moving without losing server data.</em></lf-option>\n      <lf-option id=\"store-stop\"><small class=\"tag\">editing: paused</small><strong>Pause offline editing</strong> Nothing leaves.</lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
   },
@@ -176,7 +176,7 @@
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
     "x-space": "column",
-    "x-instructions": "Keep shared premises and evidence with the group; lf-ask can frame its question and context. Keep each alternative's case and decision-relevant evidence inside its lf-option; an accept-or-reject proposal's figure of today beside the change compares both answers, so it stays with the group. Use multiple when the selections form one answer because they depend on each other, such as a limit on how many; leave it off for mutually exclusive alternatives. Items each answerable on its own are separate asks (references/authoring-questions.md). The built-in Another option field accepts unlisted answers, so author the alternatives you mean without a catch-all option. Use for only to select sections or work items that exist independently of the decision; do not create sections solely to hold alternatives. A user-added option stays in the group from the log, where the user put it; leave it out of revisions. A multiple-choice ask still needs the user's Done even when chosen is authored. Use settled to collapse a retired decision while preserving its options and anchors.",
+    "x-instructions": "Keep shared premises and evidence with the group; lf-ask can frame its question and context. Keep each alternative's case and decision-relevant evidence inside its lf-option; an accept-or-reject proposal's figure of today beside the change compares both answers, so it stays with the group. Use multiple when the selections form one answer because they depend on each other, such as a limit on how many; leave it off for mutually exclusive alternatives. Items each answerable on its own are separate asks (references/authoring-asks.md). The built-in Another option field accepts unlisted answers, so author the alternatives you mean without a catch-all option. Use for only to select sections or work items that exist independently of the decision; do not create sections solely to hold alternatives. A user-added option stays in the group from the log, where the user put it; leave it out of revisions. A multiple-choice ask still needs the user's Done even when chosen is authored. Use settled to collapse a retired decision while preserving its options and anchors.",
     "type": "object",
     "properties": {
       "id": {
@@ -470,7 +470,7 @@
   },
   "lf-tabs": {
     "description": "Several views of one artifact, as page navigation, a local tabbed section, or a side-list queue.",
-    "x-instructions": "Place the first set directly in main for page navigation; other placements make a framed local tabbed section. Put the shared title and lede before page tabs and the primary current view first. Each lf-tab is a self-contained view, while history, Threads, Questions, versions, and sign-off belong to the whole page. Retire obsolete views once current work no longer depends on them, preserving needed context and passages anchoring open threads or standing decisions in details within the relevant tab. Use list=\"side\" for a queue beside its selected item; it remains framed and its list does not stick.",
+    "x-instructions": "Place the first set directly in main for page navigation; other placements make a framed local tabbed section. Put the shared title and lede before page tabs and the primary current view first. Each lf-tab is a self-contained view, while history, Threads, Questions, versions, and sign-off belong to the whole page. Retire obsolete views once current work no longer depends on them, preserving needed context and passages anchoring open threads or decisions in force in details within the relevant tab. Use list=\"side\" for a queue beside its selected item; it remains framed and its list does not stick.",
     "type": "object",
     "properties": {
       "id": {

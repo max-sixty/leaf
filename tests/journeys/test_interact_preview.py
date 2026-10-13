@@ -488,7 +488,7 @@ def test_preview_tracks_committed_layer_across_refused_source_edits(
 
     The scripted filesystem stream batches real edits without relying on timing.
     A committed layer survives a later source refusal without being re-vendored on
-    retry. A refused deletion stays a layer change until it can be committed.
+    retry. Fixture-history edits do not block a concurrent layer update.
     """
     import os
 
@@ -535,13 +535,14 @@ def test_preview_tracks_committed_layer_across_refused_source_edits(
         theme.unlink()
         seed.write_text("\n")
         yield {str(theme), str(seed)}
-        assert layer()["generation"] == committed["generation"]
+        removed = layer()
+        assert removed["generation"] != committed["generation"]
 
         seed.write_text("")
         source.write_text(original.replace("Original", "Revised"))
         yield {str(seed), str(source)}
         after = layer()
-        assert after["generation"] != committed["generation"]
+        assert after["generation"] == removed["generation"]
         assert after["fingerprint"] != committed["fingerprint"]
         assert "Revised" in (page / "index.html").read_text()
 

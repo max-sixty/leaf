@@ -383,8 +383,8 @@ coordinate. At each coordinate the latest surviving action stands, and different
 coordinates stand side by side. Moving a card again therefore replaces that card's
 earlier position, while positions of different cards coexist. Recorded body, attribute,
 and value verbs use `unit: "widget"`; position verbs use `unit: "unit"`, naming the
-canonical detail field for the moved element. `record` says how the standing state reads in markup: here, the
-card's position inside a column. Standing decisions supply the current state;
+canonical detail field for the moved element. `record` says how the current state reads in markup: here, the
+card's position inside a column. Decisions in force supply the current state;
 `restated` explicitly retracts a decision, and revisions may change their authored
 baseline without a historical-state veto. The `$keys`
 entries in `assets/registry.json` define each key exactly.
@@ -446,11 +446,11 @@ on the answer's truthiness: partial choices can be open, and an empty selected
 set can be complete. If the ask's `when` stops holding, a complete source
 remains answered and an incomplete one becomes withdrawn.
 
-`x-question-context` contributes the leading heading and arrival target to a
+`x-ask-context` contributes the leading heading and arrival target to a
 nested ask. It does not replace its source identity or own the answer.
 `lf-ask` is the default context adapter. The module's `static answerWords(value,
 element)` formats values for presentation ([module-authoring.md, "Declared widget
-state"](module-authoring.md#declared-widget-state)); `readQuestions()` exposes
+state"](module-authoring.md#declared-widget-state)); `readAsks()` exposes
 typed values directly ([module-authoring.md, "Reading asks and obligation
 queues"](module-authoring.md#reading-asks-and-obligation-queues)).
 
@@ -614,9 +614,9 @@ Each source is one JSON publication at `data/<source>.json`, holding its opaque
 `run` receipt, `updated` instant, and complete `value`; `data.json` records its
 contract. Write a value through `leaf data set`, which checks the binding, validates
 the value and replaces the publication atomically. A rejected value leaves it
-untouched. Every reading validates the publication and value against the contract,
-so corrupted data reaches users as that source's error, and `page check` and
-`page state` report it. Tabs hear a new publication as they hear any page change.
+untouched. Every reading validates the value against the contract the source is
+bound to now, so a value that no longer fits it reaches users as that source's error,
+and `page check` and `page state` report it. Tabs hear a new publication as they hear any page change.
 
 A contract that carries media URLs declares `resources`, a list of
 [JMESPath expressions](https://jmespath.org/tutorial.html) selecting each URL string
@@ -643,7 +643,7 @@ to be derived from a file — a text excerpt, a patch split into files — is th
 producer's to build, and a contract that needs more than `jq` says how in its
 producer `instructions`. A package may ship that tool
 as a Python file under `scripts/`, declaring its dependencies in inline script metadata
-(PEP 723) with floors and no cap. `leaf package run NAME SCRIPT [ARGS]...` finds the
+(PEP 723). `leaf package run NAME SCRIPT [ARGS]...` finds the
 package by the name `--package` selects it by, bundled or installed, and runs the
 script with `uv run --script` in the environment its header declares, apart from
 Leaf's own. The script owns stdin, stdout, and the exit status, so the instructions state the
@@ -654,11 +654,10 @@ git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE 
 ```
 
 `package check` and `package install` refuse a `scripts/*.py` without that header,
-since uv would run it in whatever project the caller's directory reaches, and refuse a
-constraint other than a `>=` floor. A subdirectory of `scripts/` holds helpers and is
-not checked or run. A page never vendors `scripts/`. When a producer upstream of `data set` fails and
-writes nothing, `data set` refuses the empty input and points back at that producer's
-own error.
+since uv would run it in whatever project the caller's directory reaches. A
+subdirectory of `scripts/` holds helpers and is not checked or run. A page never
+vendors `scripts/`. When a producer upstream of `data set` fails and writes nothing,
+`data set` refuses the empty input and points back at that producer's own error.
 
 A revision may replace a source's contract, including its schema, record declaration,
 and resource selectors. `data set` validates against the current binding and replaces
@@ -674,8 +673,9 @@ paint. Do not put credentials or private host state in it.
 A contract whose value holds keyed rows declares `records`: the top-level array field
 and each row's key field. A source replacement is accepted only when every row has a
 non-empty, unique string key. Rows that each carry a large, independently useful
-payload may name that field `deferred`. The source file still holds the complete value,
-and readings validate all of it, but `/api/state` sends each row with that field
+payload may name that field `deferred`; the item schema decides which rows carry it.
+The source file still holds the complete value, and readings validate all of it,
+but `/api/state` sends each row with that field
 omitted; a widget uses `loadDeferred(snapshot, key)` to fetch one row's payload
 using the delivery `watchData` handed it. A request naming a source revision the file
 no longer holds is refused instead of combining a new payload with an old manifest.
@@ -718,7 +718,10 @@ nothing, and the exit status ignores it. The command fails only where the packag
 check does or the examples cannot be drawn; where no browser launches, it says the
 examples were not drawn. Examples share a
 page where their ids allow, so one example may point at an element another declares,
-and a blank image stands in for any media an example names. The checks:
+and a blank image stands in for any media an example names. `--json` prints the
+result as one object in the shape `page check --json` prints, each finding a record
+with its `code`, the element it names as `at`, and the measured `values`; a package
+the check refuses is reported as its one `package` finding. The checks:
 
 - `example`: no worked example shows the tag, so no other check reads it.
 - `keeps-first-box`: the widget's box once the page presents differs from its box at

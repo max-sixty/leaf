@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, replace
 
+from leaf.findings import Finding
 from leaf.registry.contract import element_declarations
 from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
 
@@ -26,25 +27,32 @@ RENDER_VIEWPORTS = (
 
 @dataclass(frozen=True, slots=True)
 class RenderReading:
-    """What the browser gate read of a version: a failure refuses it, advice does not.
-    `margin_widths` are the widths, besides the fixed viewports, it rendered because the
-    page's margin content changes there. `arrangement` is each swept width at which the
-    page's own arrangement is at its tightest before it changes, with what changes."""
+    """What the browser gate read of a version: its findings, of which an `error`
+    refuses it and `advice` does not. `margin_widths` are the widths, besides the fixed
+    viewports, it rendered because the page's margin content changes there.
+    `arrangement` is each swept width at which the page's own arrangement is at its
+    tightest before it changes, with what changes."""
 
-    failures: list[str]
-    advice: list[str]
+    findings: list[Finding]
     margin_widths: list[int]
     arrangement: list[tuple[int, str, str]]
+
+    @property
+    def failures(self) -> list[Finding]:
+        return [f for f in self.findings if f.severity == "error"]
+
+    @property
+    def advice(self) -> list[Finding]:
+        return [f for f in self.findings if f.severity == "advice"]
 
 
 def _viewport_label(viewport: dict) -> str:
     return f"{viewport['width']}x{viewport['height']}"
 
 
-def _findings_with_viewports(
-    findings: list[tuple[str, str]], rendered: list[dict]
-) -> list[str]:
-    """Identify viewport-specific findings without duplicating universal ones."""
+def _findings_with_viewports(findings: list[tuple[Finding, str]]) -> list[Finding]:
+    """Name the viewports of viewport-specific findings without duplicating universal
+    ones."""
     viewports_by_finding = {}
     for finding, viewport in findings:
         viewports = viewports_by_finding.setdefault(finding, [])
@@ -54,11 +62,7 @@ def _findings_with_viewports(
     # scheme only, so a dark finding never reaches them.
     fixed = {_viewport_label(viewport) for viewport in RENDER_VIEWPORTS}
     return [
-        (
-            finding
-            if fixed <= set(viewports)
-            else f"{finding} (at {', '.join(viewports)})"
-        )
+        finding if fixed <= set(viewports) else finding.but(viewports=tuple(viewports))
         for finding, viewports in viewports_by_finding.items()
     ]
 
@@ -72,13 +76,13 @@ def _render_version_attempt(
     an upgrade module that never defines its declared element, an x-thread-seat whose module
     placed no matching page host, a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored
-    there would outline nothing and the Question walk would travel to the top of the page,
+    there would outline nothing and the Questions walk would travel to the top of the page,
     the page scrolling sideways, content set past the column and out into the margin,
     words the user can read and can't select, words drawn on top of other words — each
     in both color schemes at wide and compact viewports, because the dark theme and
     responsive layout are real CSS nobody otherwise renders — plus, in one scheme at
     each viewport, a word the registry promised that never reached
-    the page (a declaration is scheme-blind), an attribute a module left standing on a
+    the page (a declaration is scheme-blind), an attribute a module left on a
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
     renderState is relative, so a read's replay of the sender's own gesture moves the
@@ -160,14 +164,10 @@ def _render_version_attempt(
             if not page.is_closed():
                 page.close()
         raise
-    rendered = [*RENDER_VIEWPORTS, *margins]
     reading = RenderReading(
-        _findings_with_viewports(failures, rendered) + swept,
-        advice,
-        changes,
-        arrangement,
+        [*_findings_with_viewports(failures), *swept, *advice], changes, arrangement
     )
-    return reading, _findings_with_viewports(notices, rendered), all(completed)
+    return reading, _findings_with_viewports(notices), all(completed)
 
 
 def render_version(
@@ -199,18 +199,15 @@ def render_version(
                 browser, url, served_timeout_ms=served_timeout_ms
             )
         except PlaywrightError as error:
-            failure = (
-                "the browser gate failed while running its probe module: "
-                + str(error).strip()
-            )
-            return RenderReading([failure], [], [], []), [], False
+            failure = Finding("gate-failed", values={"error": str(error).strip()})
+            return RenderReading([failure], [], []), [], False
 
     first, notices, complete = attempt()
     retain(first.failures)
 
     def reading():
         # Advice and the other readings are the first attempt's; failures accumulate.
-        return replace(first, failures=failures)
+        return replace(first, findings=[*failures, *first.advice])
 
     if not complete:
         retain(notices)
@@ -221,12 +218,12 @@ def render_version(
     confirming, confirming_notices, complete = attempt()
     retain(confirming.failures)
     if not complete:
-        for notice in [*notices, *confirming_notices]:
-            retain([f"{notice} (the confirming render attempt did not complete)"])
-        return reading()
-    if confirming_notices:
-        failures.extend(
-            f"{notice} (recurred on the confirming render attempt)"
-            for notice in confirming_notices
+        retain(
+            notice.but(values={"confirmation": "incomplete"})
+            for notice in [*notices, *confirming_notices]
         )
+        return reading()
+    failures.extend(
+        notice.but(values={"confirmation": "recurred"}) for notice in confirming_notices
+    )
     return reading()

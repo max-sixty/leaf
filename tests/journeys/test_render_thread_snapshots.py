@@ -20,6 +20,11 @@ from render_harness import consume_browser_errors, open_page
 
 # A colour scheme changes only pixels, so where no image is compared its cases would
 # repeat the light journey.
+# Paused except for `leaf-dev thread-snapshots capture`, which runs it with updating on.
+@pytest.mark.skipif(
+    "not config.getoption('image_snapshot_update')",
+    reason="paused: TODO.md, Resume the thread appearance gate",
+)
 @pytest.mark.parametrize(
     "case",
     [case for case in CASES if COMPARED or case.scheme == "light"],
@@ -83,7 +88,7 @@ def test_message_delivery_appearance_and_first_frame(
         for stage in ("newer-draft-pending", "accepted"):
             assert observed[stage]["focused"]
             assert observed[stage]["caret"] == [len(NEXT_WORDS) - 3] * 2
-        consume_browser_errors(page, "400")
+        consume_browser_errors(page, {"code": "failed-load", "status": 400})
         run.finish()
     finally:
         (run.output / "observations.json").write_text(

@@ -37,7 +37,7 @@ export function clocked(owner, paint, invalidate) {
   let painted = false;
   let reads = [];
   let generation = 0;
-  let standing = false;
+  let connected = false;
   let stopLifetime = null;
   const entry = {
     owner,
@@ -49,17 +49,17 @@ export function clocked(owner, paint, invalidate) {
     },
   };
   const listen = () => {
-    if (standing && reads.length) clockPaints.add(entry);
+    if (connected && reads.length) clockPaints.add(entry);
     else clockPaints.delete(entry);
   };
   const follow = () =>
     watchOwner(owner, {
       connect() {
-        standing = true;
+        connected = true;
         listen();
       },
       disconnect() {
-        standing = false;
+        connected = false;
         listen();
       },
     });

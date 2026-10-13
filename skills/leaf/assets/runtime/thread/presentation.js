@@ -95,7 +95,6 @@ export function createThreadPresentation({
               thread: root.effective.thread,
               document: root.document,
             },
-    current: () => (available ? readApplication().effective.thread : null),
     paint: async (value, current) => {
       const phase = readApplication().phase;
       // A pass reads the latest root. Clock changes claim another pass through the

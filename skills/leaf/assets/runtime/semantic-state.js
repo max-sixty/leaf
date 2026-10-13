@@ -79,16 +79,16 @@ const documentPresenters = [];
 // (snapshot.ts), so a reading that names the parts it draws claims only when one of
 // them moves. What the paint reads beyond the root — the clock, a draft, the document's
 // own nodes — is a mechanical change, and its owner claims through `present`, which
-// selects the root as it stands, or `current` where the region owes a reading the
-// publication's selection withholds. A renderer withholds a reading it does owe by
-// returning `PRESENTATION_HELD`, which keeps its region pending until a later claim
-// supersedes it.
+// selects the root as it stands. `reading` is the region's one decision of whether it
+// owes anything, for a publication's claim and `present` alike, and a claim always
+// paints, so a reading that stands still is still painted when asked for. A renderer
+// withholds a reading it does owe by returning `PRESENTATION_HELD`, which keeps its
+// region pending until a later claim supersedes it.
 export const applicationPresenter = ({
   region,
   renderer = document,
   order,
   reading,
-  current = () => reading(readApplication()),
   paint,
   failSoft,
 }) => {
@@ -99,7 +99,7 @@ export const applicationPresenter = ({
     failSoft,
   });
   const claim = (value) => (value === null ? schedule.passed() : presenter.sync(value));
-  const present = () => claim(current());
+  const present = () => claim(reading(readApplication()));
   documentPresenters.push(present);
   // A document-wide region lives as long as the page; `disconnect` releases its renderer,
   // and a region that may mount again reads null while it is not mounted.

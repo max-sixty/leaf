@@ -114,6 +114,7 @@ export interface Thread {
   })[];
   unread: readonly ContentVersion[];
   attention: Attention;
+  todos: readonly { id: string; title: string; line: string | null }[];
   settling?: "resolve" | "unresolve";
 }
 export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {

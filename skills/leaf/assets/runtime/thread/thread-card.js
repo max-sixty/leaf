@@ -64,8 +64,12 @@ import { iconTemplate } from "../icons.js";
 import { SAY_BOX } from "./selectors.js";
 import { focusThread, threadFocusStop } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
-import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
-import { threadAttention } from "./workflow.js";
+import {
+  summaryRanges,
+  unreadBoundaries,
+  withPendingProgress,
+} from "./summary-ranges.js";
+import { threadAttention, workflowLabel } from "./workflow.js";
 import { growthAfterIsSeen, growthIsSeen, seenRect, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -115,6 +119,52 @@ function quoteReading(thread, anchors) {
   });
 }
 
+// The thread's progress line: what the agent is doing about the work it has in hand
+// here, while no answer has come. Its words are the line the agent last gave for that
+// work, which is the request's state (a start, `todos.py`), so the line agrees with the
+// banner and Tasks. The work is read from the thread's workflows and to-dos, not from
+// whose turn the thread is, since the agent can be working on one message while an ask
+// in the same thread waits on the user. A message's work speaks before a to-do's, and
+// a proactive progress message, which takes no request in hand, gives its own words.
+// `live` while the work runs; work whose turn ended or went stale without an answer
+// says so beside its last line. The progress messages behind the line are gathered by
+// `withPendingProgress`, and the line's disclosure shows them. An answer already
+// streaming at the thread's end is the agent's next word, so the line gives way to it
+// and the answer's head holds the disclosure, as it will once its fold arrives.
+const STOPPED = new Set(["ended", "stale", "interrupted"]);
+function progressLine(thread, attention, messages) {
+  if (thread.resolved || messages.at(-1)?.provisional) return null;
+  const covered = new Set(thread.summaries.flatMap(({ covers }) => covers));
+  const pending = messages.filter(
+    (message) => message.progress && !covered.has(message.id),
+  );
+  const said = pending.at(-1)?.body.plainText ?? "";
+  const workflows = thread.workflows ?? [];
+  const running = workflows.find(
+    (workflow) =>
+      !workflow.condition && ["working", "replying"].includes(workflow.stage),
+  );
+  const stopped = workflows.find(
+    (workflow) => STOPPED.has(workflow.condition?.kind) && workflow.detail,
+  );
+  const todo = (thread.todos ?? []).find(({ line }) => line);
+  const [words, live, condition, agent] = running
+    ? [running.detail || said, true, null, running.agent]
+    : todo
+      ? [todo.line, true, null, null]
+      : stopped
+        ? [stopped.detail, false, workflowLabel(stopped), stopped.agent]
+        : [said, false, null, null];
+  if (!words || (!pending.length && !live && !condition)) return null;
+  const agentMessage = messages.findLast((message) => message.author === "agent");
+  return Object.freeze({
+    who: agent || agentMessage?.by || "Agent",
+    words: words.trim().replace(/\.$/, ""),
+    live,
+    condition,
+  });
+}
+
 export function threadReading(thread, surface, commands, options) {
   const { visible = true, kept = null, grow = false, search = null } = options;
   const panel = surface === "panel";
@@ -129,6 +179,16 @@ export function threadReading(thread, surface, commands, options) {
   const word = resolved ? "Reopen" : "Resolve";
   const label = resolved ? word : "Resolve thread";
   const attention = threadAttention(thread);
+  // An answer says what it leaves (`--ask`, `--todo`); its head says so while that
+  // stands: the prose ask the user still owes, the to-do still open on the thread.
+  const asking = thread.user_prompt?.message;
+  const openTodos = new Set((thread.todos ?? []).map(({ id }) => id));
+  const leaves = (message) =>
+    message.ask && message.id === asking
+      ? "Asks you"
+      : message.todo && openTodos.has(message.id)
+        ? "To-do open"
+        : null;
   const messages = turns(thread).map((message) =>
     messageReading(message, {
       panel,
@@ -138,6 +198,7 @@ export function threadReading(thread, surface, commands, options) {
           : Boolean(commands.nativeAuthored ?? panel),
       reactions: panel || surface === "outlet" ? message.reactions : null,
       workflows: message.workflows,
+      leaves: leaves(message),
     }),
   );
   return Object.freeze({
@@ -192,11 +253,29 @@ export function threadReading(thread, surface, commands, options) {
     reply: replyAvailable(thread),
     summaries: Object.freeze(thread.summaries),
     messages: Object.freeze(messages),
+    progress: progressLine(thread, attention, messages),
     // The thread this reads, and the same reading of another state of it: the one a
     // seat holding news draws, the thread as it drew it (held-news.js).
     source: thread,
     reread: (held) => threadReading(held, surface, commands, options),
   });
+}
+
+// The progress line's contents: who is working, on what, and the disclosure of the
+// progress messages it stands for. The line itself is the transcript's last child, so
+// it stands at the conversation's inset on every surface and scrolls with it.
+function progressView(progress, toggle) {
+  return html`<span class="lf-thread-progress-words" aria-live="polite"
+      ><span class="lf-thread-progress-who">${progress.who}</span> ${
+        progress.condition
+          ? html`<span class="lf-thread-progress-condition"
+              >${progress.condition} ·</span
+            >`
+          : nothing
+      }
+      ${progress.words}</span
+    >
+    ${toggle}`;
 }
 
 function navigationSummary(model, control) {
@@ -333,6 +412,11 @@ export class ThreadView {
   #settlements = new Map();
   #actions = document.createElement("span");
   #transcript = document.createElement("div");
+  #progress = document.createElement("div");
+  // Each pending progress range's covered message ids, as last drawn, so a fold that
+  // takes the range over can take its disclosure state with it.
+  #pendingCovers = new Map();
+  #pendingOpen = false;
   #checkpoints = new Map();
   #markers = new Map();
   #expandedSummaries = new Set();
@@ -432,6 +516,7 @@ export class ThreadView {
     }
     this.#actions.className = "lf-thread-meta-actions";
     this.#transcript.className = "lf-thread-transcript";
+    this.#progress.className = "lf-thread-progress";
     // Native disclosure opens at the attribute checkpoint; queued toggle may arrive
     // after paint. Release held news here so the first opened body is current,
     // whether a summary, the panel list's choice (a walk to the card) or a
@@ -764,10 +849,36 @@ export class ThreadView {
       setChildren(this.#actions, actions);
       threadActions = actions.length || model.news ? this.#actions : null;
     }
-    const describedRanges = summaryRanges(model.messages, model.summaries);
-    const summaries = new Set(model.summaries.map(({ id }) => id));
+    // A resolved thread holds no work in hand, so its progress stands as messages.
+    const summarized = summaryRanges(model.messages, model.summaries);
+    const describedRanges = model.resolved
+      ? summarized
+      : withPendingProgress(summarized);
+    const summaries = new Set(
+      describedRanges.flatMap((range) => (range.summary ? [range.summary.id] : [])),
+    );
+    // Progress the reader opened stays open when a fold takes it over or splits it, the
+    // answer's or a summary's: every range that now covers one of its messages takes
+    // over the disclosure it stood behind, and so does the toggle the reader stood on.
+    const successors = new Map();
+    for (const [id, covers] of this.#pendingCovers)
+      successors.set(
+        id,
+        describedRanges.filter((range) =>
+          range.summary?.covers.some((covered) => covers.includes(covered)),
+        ),
+      );
+    for (const id of [...this.#expandedSummaries])
+      for (const range of successors.get(id) ?? [])
+        this.#expandedSummaries.add(range.summary.id);
     for (const id of this.#expandedSummaries)
       if (!summaries.has(id)) this.#expandedSummaries.delete(id);
+    this.#pendingCovers = new Map(
+      describedRanges
+        .filter((range) => range.summary?.pending)
+        .map((range) => [range.summary.id, range.summary.covers]),
+    );
+    const standingToggle = this.node.querySelector(".lf-summary-expand:focus");
     const rangeState = describedRanges.map((range) => {
       if (range.kind === "message") return range;
       const forced = Boolean(range.summary.protected?.length);
@@ -785,9 +896,20 @@ export class ThreadView {
       };
     });
     const boundaries = panel ? unreadBoundaries(rangeState) : new Map();
+    // The progress no answer has folded yet stands behind the progress line's disclosure.
+    const pendingRanges = rangeState.filter((range) => range.summary?.pending);
+    this.#pendingOpen = pendingRanges.some((range) => range.expanded);
+    const pendingToggle = pendingRanges.length
+      ? this.#summaryToggle(pendingRanges, true, false)
+      : nothing;
     // Automatic progress folds name the reply that completed them. Its header owns
-    // their disclosure, even when a user's intervening reply split the originals.
+    // their disclosure, even when a user's intervening reply split the originals. An
+    // answer still streaming at the thread's end holds the pending progress's
+    // disclosure the same way, until the fold it brings takes the progress over.
     const progressByReply = new Map();
+    const streaming = model.messages.at(-1);
+    if (streaming?.provisional && pendingRanges.length)
+      progressByReply.set(streaming.id, pendingRanges);
     for (const range of rangeState) {
       if (range.kind !== "summary" || !range.summary.trigger || range.forced) continue;
       const trigger = range.summary.trigger;
@@ -840,6 +962,11 @@ export class ThreadView {
         checkpoint.originals,
         range.messages.flatMap((message) => placed(message.key, id)),
       ]);
+    }
+    if (model.progress) {
+      keeps(this.#progress, "data-lf-live", model.progress.live ? "" : null);
+      render(progressView(model.progress, pendingToggle), this.#progress);
+      transcript.push(this.#progress);
     }
     this.#checkpoints = checkpoints;
     this.#markers = markers;
@@ -980,11 +1107,32 @@ export class ThreadView {
     // A summary gathering the message the user stands on moves it; a page thread whose
     // render took their place puts them in its reply, or on the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
+    // A progress disclosure the user stood on that this render replaced, as the
+    // answer's head takes it over from the progress line, hands them to its successor.
+    const toggleFor = (id) =>
+      this.node.querySelector(
+        `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`,
+      );
+    const succeeded = standingToggle?.dataset.summaryToggle;
+    const toggleHandedOn =
+      standingToggle && !standingToggle.isConnected
+        ? ([
+            succeeded,
+            ...(successors.get(succeeded) ?? []).map(({ summary }) => summary.id),
+          ]
+            .map(toggleFor)
+            .find(Boolean) ?? null)
+        : null;
+    const handOn = handedOn ?? toggleHandedOn;
     restoreFocus?.(
       panel
-        ? handedOn && (() => (focusDestination(handedOn, "return"), true))
-        : () =>
-            this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node),
+        ? handOn && (() => (focusDestination(handOn, "return"), true))
+        : toggleHandedOn
+          ? () => (focusDestination(toggleHandedOn, "return"), true)
+          : () =>
+              this.#commands.landInThread(
+                this.node.querySelector(SAY_BOX) ?? this.node,
+              ),
     );
     return this.node;
   }
@@ -1127,7 +1275,7 @@ export class ThreadView {
   }
 
   #paintCheckpoint({ node, originals }, range) {
-    const progress = Boolean(range.summary.trigger);
+    const progress = Boolean(range.summary.trigger || range.summary.pending);
     keeps(node, "data-expanded", range.expanded);
     keepsHidden(node, progress && !range.expanded);
     keepsHidden(originals, !range.expanded);
@@ -1165,10 +1313,24 @@ export class ThreadView {
     );
   }
 
-  #summaryToggle(ranges, progress = false) {
+  // `counted` names how many messages the toggle shows. The progress line's own toggle
+  // leaves the count out, since a count that grew with each step would move the line.
+  // Whether the progress behind the progress line stood open when last drawn, opened by
+  // the reader or by a search matching it, so each step that joins it shows: held news
+  // counts those steps as news here (held-news.js).
+  get progressOpen() {
+    return this.#pendingOpen;
+  }
+
+  #summaryToggle(ranges, progress = false, counted = true) {
     const ids = ranges.map((range) => range.summary.id);
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
+    const label = counted
+      ? `${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${count} ${
+          progress ? "progress" : "earlier"
+        } message${count === 1 ? "" : "s"}`
+      : `${expanded ? "Hide" : "Show"} progress`;
     return html`<button
       type="button"
       class="lf-thread-disclosure lf-summary-expand"
@@ -1179,8 +1341,7 @@ export class ThreadView {
         .join(" ")}
       @click=${() => this.#setSummaryExpanded(ids, !expanded)}
     >
-      ${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${count}
-      ${progress ? "progress" : "earlier"} message${count === 1 ? "" : "s"}
+      ${label}
     </button>`;
   }
 

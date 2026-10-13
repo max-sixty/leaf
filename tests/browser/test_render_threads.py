@@ -24,6 +24,7 @@ from leaf import media as media_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
+from leaf import todos as todos_model
 from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from PIL import Image
@@ -823,6 +824,136 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     assert opening.bounding_box() == standing, "the fold moved what stood above it"
 
 
+def test_pending_progress_is_the_threads_progress_line_and_never_unread(
+    browser, serve, request
+):
+    """While the agent works, its progress shows as one quiet line above the reply
+    box, not as replies: each step replaces the last, nothing counts unread, and the
+    line's disclosure shows the steps. The answer takes the line's place and folds
+    the steps behind its own disclosure."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Make the banner quieter", {"section": "h-how"}
+    )
+    claim_for_codex(serve.page_dir, request)
+    codex = {"agent": "Codex", "session": "codex-thread"}
+    steps = [
+        thread_model.post_reply(
+            serve.page_dir,
+            {"to": root, "for": root},
+            text,
+            ephemeral=True,
+            identity=codex,
+        )
+        for text in ("Reading the banner's styles.", "Trying a lighter weight.")
+    ]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(thread.locator(".lf-thread-unread")).to_have_count(0)
+    thread.locator(":scope > .lf-thread-summary").click()
+    line = thread.locator(".lf-thread-progress")
+    expect(line.locator(".lf-thread-progress-words")).to_have_text(
+        "Codex Trying a lighter weight"
+    )
+    expect(line).to_have_attribute("data-lf-live", "")
+    for step in steps:
+        expect(thread.locator(f'.lf-msg[data-mid="{step["id"]}"]')).to_be_hidden()
+
+    show = line.get_by_role("button", name="Show progress", exact=True)
+    show.press("Enter")
+    for step in steps:
+        expect(thread.locator(f'.lf-msg[data-mid="{step["id"]}"]')).to_be_visible()
+    line.get_by_role("button", name="Hide progress", exact=True).press("Enter")
+
+    answer = thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Done in v4: the banner is one weight lighter.",
+        identity=codex,
+    )
+    told(page)
+    expect(line).to_have_count(0)
+    expect(thread.locator(f'.lf-msg[data-mid="{answer["id"]}"]')).to_be_visible()
+    expect(
+        thread.get_by_role("button", name="Show 2 progress messages", exact=True)
+    ).to_be_visible()
+
+
+def test_a_streaming_answer_takes_the_progress_lines_place_and_disclosure(
+    browser, serve, request
+):
+    """An answer streaming in is the agent's next word: the progress line gives way to
+    it, and its head holds the progress disclosure the fold will hold once it lands."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
+    claim_for_codex(serve.page_dir, request)
+    step = thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Checking the board",
+        ephemeral=True,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(thread.locator(".lf-thread-progress")).to_be_visible()
+
+    stream_reply(serve.page_dir, root, "Recording the release now.")
+    told(page)
+    expect(thread.locator(".lf-thread-progress")).to_have_count(0)
+    streamed = thread.locator(".lf-msg.agent").last
+    expect(streamed.locator(".lf-msg-text")).to_have_text("Recording the release now.")
+    show = streamed.locator(".lf-msg-head").get_by_role(
+        "button", name="Show 1 progress message", exact=True
+    )
+    show.press("Enter")
+    expect(thread.locator(f'.lf-msg[data-mid="{step["id"]}"]')).to_be_visible()
+
+
+def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request):
+    """An answer that asks back or promises work says so in its head, beside its time,
+    for as long as the ask is the user's or the to-do stays open."""
+    url = serve(PANEL_PAGE)
+    asked = panel_comment(serve.page_dir, "Which store owns it?", {"section": "h-how"})
+    promised = panel_comment(serve.page_dir, "Rebuild the banner", {"section": "lede"})
+    claim_for_codex(serve.page_dir, request)
+    codex = {"agent": "Codex", "session": "codex-thread"}
+    question = thread_model.post_reply(
+        serve.page_dir,
+        {"to": asked, "for": asked},
+        "The session store or the page store?",
+        ask=True,
+        identity=codex,
+    )
+    promise = thread_model.post_reply(
+        serve.page_dir,
+        {"to": promised, "for": promised},
+        "Rebuilding it; it lands in v4.",
+        todo="Rebuild the banner quieter",
+        identity=codex,
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    for root, reply, words in (
+        (asked, question, "Asks you"),
+        (promised, promise, "To-do open"),
+    ):
+        thread = page.locator(f'.lf-thread[data-id="{root}"]')
+        thread.locator(":scope > .lf-thread-summary").click()
+        head = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"] .lf-msg-head')
+        expect(head.locator(".lf-msg-leaves")).to_have_text(words)
+
+    todos_model.cmd_end(serve.page_dir, promise["id"], "done", "Rebuilt in v4")
+    told(page)
+    head = page.locator(f'.lf-msg[data-mid="{promise["id"]}"] .lf-msg-head')
+    expect(head.locator(".lf-msg-leaves")).to_have_count(0)
+
+
 def answer_folding_progress(page_dir, root):
     """The agent's answer to `root`, which folds the progress before it."""
     return thread_model.post_reply(
@@ -835,7 +966,8 @@ def answer_folding_progress(page_dir, root):
 
 
 def open_card_with_progress(browser, serve, request):
-    """An idle open card whose thread ends with the agent's progress."""
+    """An idle open card whose thread ends with the agent's progress, opened from its
+    progress line so the progress message itself shows."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
     claim_for_codex(serve.page_dir, request)
@@ -850,7 +982,11 @@ def open_card_with_progress(browser, serve, request):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    thread.locator(".lf-thread-progress").get_by_role(
+        "button", name="Show progress", exact=True
+    ).click()
     progress = thread.locator(".lf-msg.agent .lf-msg-text")
+    expect(progress).to_be_visible()
     expect(progress).to_have_text("Checking the board for the release entry")
     return page, root, thread, progress
 
@@ -1218,7 +1354,9 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
 def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     browser, serve, surface, interleaved
 ):
-    """The answer and its fold arrive together; originals remain a keyboard route."""
+    """The answer and its fold arrive together; originals remain a keyboard route.
+    Pending progress stands behind the progress line, so the reader opens it there to
+    stand on it, and the answer that would fold it waits behind its notice."""
     url = serve(SEATED_ASK_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
@@ -1261,8 +1399,13 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     card = show(page)
     identity = "data-mid" if surface == "panel" else "data-event"
     original = card.locator(f'.lf-msg[{identity}="{progress["id"]}"]')
+    expect(original).to_be_hidden()
+    runs = 2 if interleaved else 1
+    expect(card.locator(".lf-thread-checkpoint")).to_have_count(runs)
+    card.locator(".lf-thread-progress").get_by_role(
+        "button", name="Show progress", exact=True
+    ).click()
     expect(original).to_be_visible()
-    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
     original.focus()
     if surface == "panel":
         expect(original).to_be_focused()
@@ -1274,7 +1417,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     notice = card.get_by_role("button", name="1 new reply", exact=True)
     expect(notice).to_be_visible()
     expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_have_count(0)
-    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
+    expect(card.locator(".lf-thread-checkpoint")).to_have_count(runs)
     expect(original).to_be_visible()
     assert original.evaluate(
         "node => { const box = node.getBoundingClientRect(); "

@@ -84,7 +84,7 @@ def _apply_thread_attention(
     durable: WorkReading, workflows: list[dict], threads: list[dict], todos: list[dict]
 ):
     """Attach each served thread's `attention`, the browser's one reading of whose turn
-    it is. `durable` is the reading of the view these threads are served in, so a pinned
+    it is, and its `todos`, the agent's to-dos still open on it. `durable` is the reading of the view these threads are served in, so a pinned
     revision's threads take the attention its own vocabulary reads; `workflows` are
     the page's, enriched with delivery liveness."""
     owed = {ask["thread"] for ask in durable.asks["user"]}
@@ -96,6 +96,19 @@ def _apply_thread_attention(
         thread["attention"] = _thread_attention(
             thread, thread["id"] in owed, by_thread.get(thread["id"], []), todos
         )
+        # The agent's open to-dos on the thread, each with the line of the start
+        # running on it: a reply that promised one says it is still open (a to-do a
+        # reply opens takes the reply's id, `todos.py`), and a running one is work
+        # the thread's progress line reads whoever's turn the thread is.
+        thread["todos"] = [
+            {
+                "id": todo["id"],
+                "title": todo["title"],
+                "line": todo["running"]["text"] if todo["running"] else None,
+            }
+            for todo in todos
+            if todo["thread"] == thread["id"]
+        ]
 
 
 def browser_state(

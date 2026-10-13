@@ -420,6 +420,40 @@ summary {
 .lf-summary-originals > .lf-msg {
   margin-block: 8px;
 }
+.lf-thread-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--sp-2);
+  margin-top: 10px;
+  color: var(--muted);
+  font: var(--t-6)/1.45 var(--sans);
+  overflow-wrap: anywhere;
+}
+.lf-thread-progress-who {
+  margin-inline-end: 4px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+.lf-thread-progress-condition {
+  margin-inline-end: 4px;
+}
+.lf-thread-progress[data-lf-live] .lf-thread-progress-words::after {
+  content: "…";
+  display: inline-block;
+  inline-size: 1.1em;
+  overflow: hidden;
+  vertical-align: bottom;
+  animation: lf-progress-ellipsis 1.6s steps(4, end) infinite;
+}
+@keyframes lf-progress-ellipsis {
+  from {
+    inline-size: 0;
+  }
+}
+.lf-thread-progress > .lf-thread-disclosure {
+  padding-block: 0;
+}
 .lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: summary-fold;
@@ -540,6 +574,10 @@ button.lf-thread-notice[data-lf-focus] {
 }
 .lf-msg-head .lf-msg-failure {
   color: var(--warn-ink);
+  font-weight: 600;
+}
+.lf-msg-head .lf-msg-leaves {
+  color: var(--ink-2);
   font-weight: 600;
 }
 

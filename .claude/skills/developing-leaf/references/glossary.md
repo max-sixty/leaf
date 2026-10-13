@@ -44,7 +44,7 @@ Name an update's kind where it is known: a **comment**, **reply**, **choice**,
 event kind. Don't call an update a *move* or *feedback*, or an *input* as a count noun
 (“an input”, “inputs”); *input* stays as a mass noun (“waiting for input”). Only the
 user's input is an update: a worker's news is a **report**, and the agent's interim
-thread message a **progress message**. Update counts do not count revisions. Where the
+thread message a **progress message**, which the thread shows as its **progress line** until an answer folds it. Update counts do not count revisions. Where the
 kind is known, say **answer** or **reply** rather than *response*; the Questions panel
 lists a reply the agent owes as **Reply** and a revision it owes as **Answer**. Undo
 keeps its name whatever widget verb it withdraws.

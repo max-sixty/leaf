@@ -209,6 +209,7 @@ export function foldThreads(threads, gestures) {
         summaries: [],
         unread: [],
         attention: reaction ? null : sending(gesture),
+        todos: [],
       };
       opened.push(thread);
       byName.set(gesture.id, thread);
@@ -422,6 +423,7 @@ export function readThreadRecords(
       settling: thread.settling ?? null,
       user_prompt: thread.user_prompt,
       attention: thread.attention,
+      todos: thread.todos,
       workflows: workflows.filter((workflow) => workflow.thread === thread.id),
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,

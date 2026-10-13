@@ -2,7 +2,7 @@
 
 The log owns the fact, and this module is its one reading. A message's original id and
 each later edit id name distinct content versions. Content needs evidence the user
-took it in unless it is superseded progress. Two kinds of read evidence count:
+took it in unless it is progress. Two kinds of read evidence count:
 
 - a `read` event naming that exact version, which the browser posts when its visible
   body has been shown to the user;
@@ -21,16 +21,18 @@ shows the user what the thread says, so neither is evidence here. An update the 
 took back is no evidence either, as it is none for every other fold over the
 standing log.
 
-The next ordinary agent reply supersedes preceding progress (`progress_completions`),
-so completed progress leaves unread even when its body was never exposed. The reply
-itself still needs read evidence. Edits to completed progress remain superseded; an
-edit to other content is a new version needing fresh evidence. An explicit summary
+A progress message (`ephemeral`) is never unread. While its update is in hand the
+thread draws it as the one live progress line, not as a reply, and once the next
+ordinary agent reply supersedes it (`events.progress_completions`) it folds behind
+that reply, which itself needs read evidence. Neither is something the user reads in
+order to keep up, so neither pulls them back to the thread. An edit to other content
+is a new version needing fresh evidence. An explicit summary
 does not mark read what it covers. Unread is independent of turn-taking and of the
 user's outstanding work: reading never answers an ask, and answering one does
 mark it read.
 """
 
-from .events import progress_completions, taken_back
+from .events import taken_back
 from .findings import Finding
 from .schema import MESSAGE_KINDS
 from .thread_context import event_threads
@@ -101,12 +103,11 @@ def unread_content(
     unread = {}
     for thread_id, thread in threads.items():
         moved = latest_move.get(thread_id, 0)
-        completed = progress_completions(thread)
         unread[thread_id] = [
             {"message": message["id"], "version": version}
             for message in thread["msgs"]
             if user_message_content(message)
-            and message["id"] not in completed
+            and not message.get("ephemeral")
             and message.get("edited", {}).get("seq", message["seq"]) > moved
             and (message["id"], version := content_version(message)) not in marked
         ]

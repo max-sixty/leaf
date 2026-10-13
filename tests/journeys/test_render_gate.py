@@ -608,8 +608,8 @@ def test_rest_watches_a_frame_created_by_contained_arrival(browser, serve):
     wait_until_ready(child)
     child.evaluate(
         """async () => {
-            const {deferredArrival} = await window.__lfRuntimeImport('/runtime/presentation.js');
-            deferredArrival(new Promise(resolve => setTimeout(() => {
+            const {afterPresentation} = await window.__lfWidgetApi();
+            afterPresentation(() => new Promise(resolve => setTimeout(() => {
                 const nested = document.createElement('iframe');
                 nested.srcdoc = `<body><script>
                     Object.defineProperty(window, 'lfRest', {

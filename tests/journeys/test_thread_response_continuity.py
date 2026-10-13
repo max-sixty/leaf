@@ -229,18 +229,18 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
         else:
             other.bring_to_front()
         resting = reply_editing_pose(editor)
-        other.evaluate(
+        if edit == "mirrored-composing":
+            expect(editor).to_be_focused()
+        assert other.evaluate(
             """async parent => {
-              const {saveDraft, tellDraft} = await window.__lfRuntimeImport('/runtime/drafts.js');
-              saveDraft('reply:' + parent, 'First line');
-              tellDraft('reply:' + parent, 'First line');
+              const {saveDraft} = await window.__lfWidgetApi();
+              return saveDraft('reply:' + parent, 'First line');
             }""",
             parent,
         )
-        expect(other.locator(selector).locator("leaf-text")).to_have_js_property(
-            "value", "First line"
-        )
         expect(editor).to_have_js_property("value", "First line")
+        if edit == "mirrored-composing":
+            expect(editor).to_be_focused()
         page.bring_to_front()
         editor.focus()
         rendered(page)
@@ -327,11 +327,10 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
             "Wrap this passage naturally at the editor's inline measure. " * 5,
         ]
     )
-    other.evaluate(
+    assert other.evaluate(
         """async ({parent, value}) => {
-          const {saveDraft, tellDraft} = await window.__lfRuntimeImport('/runtime/drafts.js');
-          saveDraft('reply:' + parent, value);
-          tellDraft('reply:' + parent, value);
+          const {saveDraft} = await window.__lfWidgetApi();
+          return saveDraft('reply:' + parent, value);
         }""",
         {"parent": parent, "value": replacement},
     )
@@ -468,7 +467,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     if place == "nested-end":
         page.evaluate("""async () => {
           const body = document.querySelector('#continuity-scroll');
-          const {registerReadingRegion} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const {registerReadingRegion} = await window.__lfWidgetApi();
           registerReadingRegion({id: 'continuity-scroll', host: body, body});
         }""")
     held = []

@@ -137,7 +137,9 @@ DOCUMENT = (
 )
 
 
-def test_live_loop_carries_each_phase_to_the_author(tmp_path, monkeypatch):
+def test_live_loop_carries_each_phase_to_the_author(
+    tmp_path, monkeypatch, compiled_installation
+):
     """Script only the model and the user agent: the served page takes a comment
     from a browser selection, its delivery is recorded, the user's pick reaches
     the log, and each phase's page and request stay apart."""
@@ -154,16 +156,34 @@ def test_live_loop_carries_each_phase_to_the_author(tmp_path, monkeypatch):
     def stamp(body):
         (page / "index.html").write_text(DOCUMENT.format(body=body))
         run_leaf(
-            ROOT, run.state, "page", "stamp", str(page), "--text", body, check=True
+            compiled_installation,
+            run.state,
+            "page",
+            "stamp",
+            str(page),
+            "--text",
+            body,
+            check=True,
         )
 
     def turn(message):
         versions.append(message)
         if len(versions) == 1:
-            run_leaf(ROOT, run.state, "page", "init", str(page), check=True)
+            run_leaf(
+                compiled_installation, run.state, "page", "init", str(page), check=True
+            )
             stamp("Author version 1")
-            run_leaf(ROOT, run.state, "server", "start", str(page), check=True)
-            return read_page_state(ROOT, run.state, page)["server"]["url"]
+            run_leaf(
+                compiled_installation,
+                run.state,
+                "server",
+                "start",
+                str(page),
+                check=True,
+            )
+            return read_page_state(compiled_installation, run.state, page)["server"][
+                "url"
+            ]
         if len(versions) == 2:
             assert "900px" in message
             stamp("Author version 2")
@@ -245,7 +265,7 @@ def test_live_loop_carries_each_phase_to_the_author(tmp_path, monkeypatch):
 
 
 def test_completed_record_has_a_render_correction_loop_without_a_decision(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, compiled_installation
 ):
     """Script only the model; actual checks reject, repair and render its page."""
     from leaf_dev import arrangement_eval
@@ -259,7 +279,9 @@ def test_completed_record_has_a_render_correction_loop_without_a_decision(
         page = child.cwd / "page"
 
         def leaf(*arguments):
-            return arrangement_eval.run_leaf(ROOT, child.state, *arguments)
+            return arrangement_eval.run_leaf(
+                compiled_installation, child.state, *arguments
+            )
 
         if len(calls) == 1:
             assert f"page check {page} --render" in prompt

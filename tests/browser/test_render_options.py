@@ -406,7 +406,7 @@ def test_option_markdown_visible_words_match_file_reading(browser, serve):
     )
     words = page.locator("#cases > lf-option").evaluate_all(
         """async options => {
-          const {wrote} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {wrote} = await window.__lfWidgetApi();
           return options.map(wrote);
         }"""
     )
@@ -477,9 +477,7 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
             authoredOption.querySelector(':scope > strong') === authoredTitle &&
             authoredOption.querySelector(':scope > lf-option-control') === optionControl;
 
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          const presentation = await window.__lfCheckApi();
           window.whenOptionsPresented = presentation.whenApplicationPresented;
           window.readOptionsPresentation = presentation.readApplicationPresentation;
         }""",

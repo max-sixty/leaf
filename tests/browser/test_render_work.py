@@ -17,7 +17,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def reading(page, scope):
     return page.evaluate(
         """async id => {
-          const {readWork} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {readWork} = await window.__lfWidgetApi();
           const view = readWork(document.getElementById(id));
           return {done: view.done, leaves: view.leaves.map(row => row.element.id),
             stopped: view.stopped.map(row => row.element.id),

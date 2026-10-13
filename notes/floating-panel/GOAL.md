@@ -4,6 +4,10 @@
 > on `main` behind the preference, off by default. The user disliked their look, so
 > a second round redesigned it from a sketch they tried and configured (below, "The
 > overhaul"). The rebuilt panel remains non-default while its remaining work is done.
+>
+> On 13 October the user retired the Codex reference: the panel is judged by Leaf's
+> own aesthetic and the user's eye, not against the Codex app. The phone waits until
+> the desktop design is firm, and gets no work before then.
 
 ## The overhaul
 
@@ -299,7 +303,7 @@ comments as they arrive. Give them a new checkpoint at each milestone:
 - the resting panel, the leaf mark's status, and the menu;
 - Threads, opening, answering and resolving a thread, and writing in the one box;
 - asks answered inline in the On view, Versions, approval, modes, and the Moderate display;
-- motion and polish, measured against the Codex reference.
+- motion and polish.
 
 Budget about eight hours of work. If the user hasn't answered a checkpoint
 after two more milestones, stop adding scope. Polish what they have seen, and
@@ -310,7 +314,6 @@ subagents, running Opus or Fable, the following:
 
 - this file, including "Intended departures";
 - the prototype, live and in stills;
-- the Codex reference;
 - your build.
 
 Each reviewer uses the prototype and the build through the same journeys, at

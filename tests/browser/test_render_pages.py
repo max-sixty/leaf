@@ -774,7 +774,7 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
     # the screenshot's own endpoint actions live in its native control rail.
     page.evaluate("""async () => {
       const {contributionEntry, registerContribution} =
-        await window.__lfRuntimeImport('/runtime/widget-api.js');
+        await window.__lfWidgetApi();
       registerContribution({key: 'review-capture',
         target: document.querySelector('#rn-console-shot'),
         read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
@@ -2892,7 +2892,7 @@ def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve
     footer = "<footer id='foot'><p>Reviewed by the platform team.</p></footer>"
     read = """async () => {
       const box = (id) => document.getElementById(id)?.getBoundingClientRect();
-      const { scrollerFor } = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      const { scrollerFor } = await window.__lfWidgetApi();
       return { top: box('block').top, bottom: box('block').bottom,
                foot: box('foot')?.top ?? Infinity, innerHeight,
                position: getComputedStyle(document.getElementById('block')).position,
@@ -3001,7 +3001,7 @@ def test_a_revision_keeps_the_readers_place_in_a_sidebar_tracks_block(browser, s
     the block scrolls, before the reader's place returns."""
     paragraphs = "".join(f"<p id='f{n}'>Follow-up {n} to check.</p>" for n in range(60))
     body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
-    regions = """async () => (await window.__lfRuntimeImport('/runtime/reading-regions.js'))
+    regions = """async () => (await window.__lfCheckApi())
       .readingRegions().map((region) => region.id)"""
 
     def source(track, block=""):
@@ -3035,88 +3035,68 @@ def test_a_revision_keeps_the_readers_place_in_a_sidebar_tracks_block(browser, s
 
 
 @pytest.mark.parametrize("rail", [True, False])
-def test_authored_residency_runs_without_annotation_geometry(browser, serve, rail):
-    """Content residency imports inertly and admits authored residents independently
-    of annotation selection. Its one document listener owns disclosure changes; RTL
-    and a removed main still complete a reading without a second layout authority."""
-    page = open_page(
-        browser, serve(leaf_page("content owner", "<h1>Content owner</h1>"))
-    )
-    asset = page.evaluate("""new URL('runtime/content-layout.js', new URL(
-      document.querySelector('script[data-lf-entry]').dataset.lfEntry, location)).href""")
-    fixture = page.evaluate("new URL('content-owner-proof', location).href")
-    page.route(
-        fixture,
-        lambda route: route.fulfill(
-            content_type="text/html",
-            body="""<!doctype html><html><head><style>
+def test_authored_residency_follows_native_disclosure_in_both_annotation_modes(
+    browser, serve, rail
+):
+    """The compiled runtime seats authored residents through native disclosure.
+
+    RTL and a removed main still settle the document's layout. Import inertness
+    and the independent annotation boundary are held by content-layout.test.mjs.
+    """
+    source = leaf_page(
+        "content owner",
+        """<h1>Neutral authored layout</h1>
+<aside>Sidebar</aside><aside class="note" id="initial-note">Hidden until resident note</aside>
+<details><summary>More</summary><aside class="note">Disclosed note</aside></details>""",
+        head="""<style>
 body { margin: 0 }
 main { width: 720px; margin: auto; position: relative;
  --rail: 100px; --sidebar: 150px; --note: 80px }
 aside { --lf-resident: sidebar }
 aside.note { --lf-resident: note; display: none }
-</style></head><body data-annotations="ANNOTATION_MODE"><main><h1>Neutral authored layout</h1>
-<aside>Sidebar</aside><aside class="note">Hidden until resident note</aside>
-<details><summary>More</summary><aside class="note">Disclosed note</aside></details>
-</main></body></html>""".replace("ANNOTATION_MODE", "overlay" if rail else "page"),
-        ),
+</style>""",
+        layout=None,
+    ).replace(
+        "<body>", '<body data-annotations="' + ("overlay" if rail else "page") + '">'
     )
-    page.set_viewport_size({"width": 950, "height": 800})
-    loaded = []
-    page.on("request", lambda request: loaded.append(request.url))
-    page.goto(fixture)
-    # Runtime modules read the storage and initial-drawing services installed by
-    # the classic prepaint script before their module graph is imported.
-    page.add_script_tag(url=asset.replace("content-layout.js", "prepaint.js"))
-    reading = page.evaluate(
-        """async ({asset, rail}) => {
-      const owner = await import(asset);
-      window.residency = owner; window.completed = [];
-      owner.scheduleResidency();
-      await new Promise(requestAnimationFrame);
-      const main = document.querySelector('main');
-      const inert = !owner.residencyStarted();
-      owner.openResidency({onRead: changed => window.completed.push(changed)});
-      return {inert, tokens: main.getAttribute('data-lf-margin'),
-              shift: document.body.style.getPropertyValue('--lf-column-shift')};
-    }""",
-        {"asset": asset, "rail": rail},
-    )
-    expected = {
-        "inert": True,
-        "tokens": "rail note" if rail else "note",
-        "shift": "",
-    }
-    assert reading == expected
-    page.evaluate("document.documentElement.dir='rtl'; residency.scheduleResidency()")
-    page.wait_for_function("completed.length >= 2")
+    context = browser.new_context(viewport={"width": 950, "height": 800})
+    page = open_page(browser, serve(source), context=context)
+    main = page.locator("main")
+    expected = "rail note" if rail else "note"
+    expect(main).to_have_attribute("data-lf-margin", expected)
     assert (
         page.locator("body").evaluate(
             "node => node.style.getPropertyValue('--lf-column-shift')"
         )
-        == expected["shift"]
+        == ""
     )
-    page.evaluate("document.querySelector('details').open = true")
-    page.wait_for_function("completed.length >= 3")
-    expect(page.locator("main")).to_have_attribute("data-lf-margin", expected["tokens"])
     page.evaluate(
-        "document.querySelector('main').remove(); residency.scheduleResidency()"
+        "document.documentElement.dir='rtl'; dispatchEvent(new Event('resize'))"
     )
-    page.wait_for_function("completed.length >= 4")
-    assert page.evaluate("completed.at(-1)") is False
-    assert not [
-        url
-        for url in loaded
-        if any(
-            name in url
-            for name in (
-                "margin-layout",
-                "margin-projection",
-                "annotation-layer",
-                "page-map-dialog",
-            )
+    rendered(page)
+    expect(main).to_have_attribute("data-lf-margin", expected)
+    assert (
+        page.locator("body").evaluate(
+            "node => node.style.getPropertyValue('--lf-column-shift')"
         )
-    ]
+        == ""
+    )
+    page.evaluate(
+        "document.querySelector('#initial-note').remove(); dispatchEvent(new Event('resize'))"
+    )
+    if rail:
+        expect(main).to_have_attribute("data-lf-margin", "rail")
+    else:
+        expect(main).not_to_have_attribute("data-lf-margin", re.compile(r"\S"))
+    # Opening native details is the causal input: no private residency solver runs.
+    main.locator("summary").press("Enter")
+    expect(main.locator("details")).to_have_attribute("open", "")
+    expect(main).to_have_attribute("data-lf-margin", expected)
+    page.evaluate(
+        "document.querySelector('main').remove(); dispatchEvent(new Event('resize'))"
+    )
+    rendered(page)
+    expect(main).to_have_count(0)
 
 
 def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
@@ -3346,7 +3326,7 @@ def test_margin_residents_keep_their_first_painted_posture(
             "document.body.style.getPropertyValue('--lf-column-shift')"
         ) == (initial_shift if resident else "")
     assert page.evaluate("""async () => {
-      const {runtimeRootState} = await window.__lfRuntimeImport('/runtime/root-state.js');
+      const {runtimeRootState} = await window.__lfCheckApi();
       return runtimeRootState(document.body).attributes.has('data-lf-column-shell');
     }""")
     for revision, layout in ((5, "sidebar"), (6, "column")):
@@ -3430,7 +3410,7 @@ def test_document_reading_survives_width_reflow(browser, serve, notes, local_reg
     page = open_page(browser, serve(leaf_page("Reading through reflow", body)))
     if local_region:
         page.evaluate("""async () => {
-          const {registerReadingRegion} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {registerReadingRegion} = await window.__lfWidgetApi();
           const body = document.querySelector('#local-region');
           registerReadingRegion({id: body.id, host: body, body});
         }""")
@@ -3440,8 +3420,7 @@ def test_document_reading_survives_width_reflow(browser, serve, notes, local_reg
     page.mouse.wheel(0, 160)
     scroll_settled(page)
     reading = """async () => {
-      const entry = new URL(document.querySelector('script[data-lf-entry]').dataset.lfEntry, location);
-      const {capturePlace} = await import(new URL('runtime/reading-place.js', entry));
+      const {capturePlace} = await window.__lfWidgetApi();
       return capturePlace();
     }"""
     if local_region == "bounded":

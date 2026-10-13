@@ -28,6 +28,8 @@ import {
   pageText,
   pageWords,
   pointAt,
+  programmaticSelection,
+  selectEnds,
   says,
   watchPassageRoot,
 } from "/runtime/passages.js";
@@ -318,4 +320,19 @@ test("spoken context bounds unspaced languages and oversized tokens", () => {
     assert.ok([...around.before].length <= 56);
     assert.ok([...around.after].length <= 56);
   }
+});
+
+// Endpoint equality keeps an asynchronous selectionchange on its writer, but a
+// native divergence retires that provenance even when the endpoints return.
+test("selection write provenance ends at native divergence", () => {
+  document.body.innerHTML = "<main><p>The amber passage keeps its identity.</p></main>";
+  const word = document.querySelector("p").firstChild;
+  const selection = getSelection();
+  selectEnds([word, 4], [word, 9]);
+  assert.equal(programmaticSelection(selection), true);
+  assert.equal(programmaticSelection(selection), true);
+  selection.extend(word, 17);
+  assert.equal(programmaticSelection(selection), false);
+  selection.extend(word, 9);
+  assert.equal(programmaticSelection(selection), false);
 });

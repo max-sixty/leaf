@@ -184,7 +184,7 @@ def test_a_drawing_uses_its_anonymous_svg_inside_its_semantic_figure(browser, se
     start = native_ink_start(page, "#visuals svg:nth-of-type(2)")
     assert start == pytest.approx([108, 129.2], abs=0.03)
     second.evaluate("""async svg => {
-      const {layoutChanged} = await import('/runtime/widget-elements.js');
+      const {layoutChanged} = await window.__lfWidgetApi();
       svg.setAttribute('viewBox', '50 50 400 160');
       await layoutChanged(svg);
     }""")
@@ -319,7 +319,7 @@ def test_native_frames_resolve_css_positions_in_supported_engines(
         ),
     )
     results = page.evaluate("""async () => {
-      const {elementFrame} = await import('/runtime/element-frame.js');
+      const {elementFrame} = await window.__lfCheckApi();
       const image = document.querySelector('#pixels');
       await image.decode();
       const readings = [];
@@ -1162,10 +1162,10 @@ def test_page_mode_keeps_visible_native_ink_and_exact_drawing_comment(browser, s
     expect(
         page.locator(".lf-thread-panel .lf-msg").filter(has_text="The bend I mean")
     ).to_be_visible()
-    physical = page.evaluate(
-        "() => performance.getEntriesByType('resource').some(e=>new URL(e.name).pathname.includes('/annotation-overlay/'))"
-    )
-    assert not physical
+    expect(
+        page.locator(".lf-margin-layer, .lf-margin-cluster, .lf-margin-preview")
+    ).to_have_count(0)
+    expect(page.locator('[data-lf-command="annotations.toggle"]')).to_have_count(0)
 
 
 CLIPPED_DRAWING_PAGE = leaf_page(
@@ -1191,7 +1191,7 @@ def test_drawing_ink_follows_its_targets_transform(browser, serve, transform):
     )
     transformed.evaluate(
         """async (el, value) => {
-      const {layoutChanged} = await import('/runtime/widget-elements.js');
+      const {layoutChanged} = await window.__lfWidgetApi();
       el.style.transformOrigin = '0 0';
       el.style.transform = value;
       await layoutChanged(el);
@@ -1231,7 +1231,7 @@ def test_a_drawing_captured_on_a_scaled_svg_keeps_its_local_feature(browser, ser
     assert drawing["box"] == pytest.approx([180, 100], abs=0.02)
     assert drawing["strokes"][0][0] == pytest.approx([180 * 0.22, 100 * 0.62], abs=0.02)
     target.evaluate("""async el => {
-      const {layoutChanged} = await import('/runtime/widget-elements.js');
+      const {layoutChanged} = await window.__lfWidgetApi();
       el.style.transform = 'none';
       await layoutChanged(el);
     }""")

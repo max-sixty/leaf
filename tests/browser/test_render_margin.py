@@ -309,13 +309,7 @@ def _layout_passes_batch_without_refolding_controls(page):
     # pass after it — a resize costs 3 as well, so the reconciliation is page startup rather
     # than the price of a changed pass. Spend it before the count starts: what this test
     # bounds is the five passes below, which touch nothing.
-    page.evaluate(
-        """async () => {
-          const {layoutMarginRows} =
-            await window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
-          layoutMarginRows();
-        }"""
-    )
+    margins_laid_out(page)
     session = page.context.new_cdp_session(page)
     session.send("Performance.enable")
     before = {
@@ -324,7 +318,7 @@ def _layout_passes_batch_without_refolding_controls(page):
     }
     reading = page.evaluate(
         """async () => {
-          const {layoutMarginRows} = await window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+          const {layoutChanged} = await window.__lfWidgetApi();
           const rows = [...document.querySelectorAll('.lf-margin-cluster')];
           const boxes = () => rows.map(row => {
             const {x, y, width, height} = row.getBoundingClientRect();
@@ -338,7 +332,10 @@ def _layout_passes_batch_without_refolding_controls(page):
           const observer = new MutationObserver(list => seen.push(...list));
           observer.observe(document.body, {subtree: true, attributes: true,
             attributeFilter: ['data-lf-margin-entry-primary', 'data-lf-margin-entry-overflow']});
-          for (let i = 0; i < 5; i++) layoutMarginRows();
+          for (let i = 0; i < 5; i++) await new Promise(done => {
+            document.addEventListener('lf-margin-layout', done, {once: true});
+            layoutChanged(document.body);
+          });
           const mutations = seen.length + observer.takeRecords().length;
           observer.disconnect();
           return {before, after: boxes(), mutations};
@@ -665,7 +662,7 @@ def test_an_inline_contribution_name_needs_no_physical_margin(
     page.evaluate(
         """async () => {
           const {contributionEntry, presentContributionEntry} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           presentContributionEntry(document.getElementById('inline'),
             contributionEntry({key: 'inline', icon: 'dot', label: 'Read inline name'}));
         }"""
@@ -688,7 +685,7 @@ def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           registerContribution({key: 'names', target: document.getElementById('target'),
             read: () => ({entries: ['action', 'disclosure'].map(behavior =>
               contributionEntry({key: behavior, behavior, icon: 'dot',
@@ -744,7 +741,7 @@ def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, se
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           for (const id of ['first', 'second']) {
             registerContribution({key: id, target: document.getElementById(id),
               read: () => ({entries: [contributionEntry({
@@ -927,7 +924,7 @@ def test_lit_margin_projection_reorders_retained_controls_without_moving_the_use
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let swapped = false;
           let changed = false;
           const registration = registerContribution({
@@ -1023,7 +1020,7 @@ def test_lit_inline_margin_projection_keys_controls_inside_thread_chrome(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let target = document.createElement('span');
           target.id = 'inline-margin-target';
           target.textContent = 'Inline decision';
@@ -1556,7 +1553,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     grammar = page.evaluate(
         """async () => {
           const {CONTRIBUTION_ENTRY_SCHEMA} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           return CONTRIBUTION_ENTRY_SCHEMA;
         }"""
     )
@@ -1868,7 +1865,7 @@ def test_a_margin_row_is_unseen_until_its_first_placement_lands(browser, serve):
     unplaced = page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           return new Promise(resolve => requestAnimationFrame(() => {
             const registration = registerContribution({
               key: 'first-placement', target: document.querySelector('#how-cap'),
@@ -1920,7 +1917,7 @@ def test_a_margin_row_leaves_with_its_target_before_the_next_paint(
     page.evaluate(
         """async kind => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const holder = document.querySelector('#holder');
           window.lifetimeTarget = document.querySelector('#target');
           if (kind === 'shadow') holder.attachShadow({mode: 'open'}).append(lifetimeTarget);
@@ -1989,7 +1986,7 @@ def test_margin_projection_keeps_opaque_owner_and_entry_identities_distinct(
     readings = page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const target = document.querySelector('#how-cap');
           const first = registerContribution({
             key: 'a:b', target,
@@ -2023,7 +2020,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let state = {state: 'engaged', expanded: true, popup: 'dialog',
             pressed: true, disabled: false, behavior: 'disclosure'};
           const read = () => ({entries: [contributionEntry({
@@ -2184,7 +2181,7 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const target = document.querySelector('#how-cap');
           window.lfIdentityActivations = [];
           const register = (owner, key, label) => registerContribution({
@@ -2264,7 +2261,7 @@ def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
     page.evaluate(
         """async () => {
           const {commandScope, contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let swapped = false;
           window.lfKeyedCommandRuns = 0;
           const scope = commandScope('On the retained Page Map action', [{
@@ -2567,7 +2564,7 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     resized(page, 1440, 900)
     page.evaluate("""async () => {
       const {contributionEntry, registerContribution} =
-        await window.__lfRuntimeImport('/runtime/widget-api.js');
+        await window.__lfWidgetApi();
       for (let index = 0; index < 30; index++) {
         registerContribution({key: `capture-${index}`,
           target: document.querySelector(`#action-${index}`),
@@ -2775,7 +2772,7 @@ def test_keyboard_arrival_at_a_margin_entry_cluster_replaces_ellipsis_with_all_e
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           registerContribution({key: 'extra', target: document.querySelector('#sug-refill'),
             read: () => ({entries: [contributionEntry({
               key: 'details', icon: 'comment', label: 'Details',
@@ -2945,7 +2942,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const tones = ['neutral', 'positive', 'negative'];
           let currentState = 'idle';
           let stage = null;
@@ -3678,7 +3675,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     # primary must retain the workflow, and its own accessible description survives it.
     page.evaluate("""async () => {
       const {contributionEntry, registerContribution} =
-        await window.__lfRuntimeImport('/runtime/widget-api.js');
+        await window.__lfWidgetApi();
       let cancelReceipt = null;
       window.agentContribution = registerContribution({
         key: 'carrier-probe', target: document.querySelector('#bracket'),
@@ -3708,8 +3705,8 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     )
     # A secondary entry can publish the same canonical workflow receipt.
     page.evaluate("""async () => {
-      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-      const receipt = runtime.workflows.find(
+      const {readApplication} = await window.__lfCheckApi();
+      const receipt = readApplication().effective.workflows.find(
         item => item.stage === 'working' && !item.condition
       );
       window.setAgentCancelReceipt(receipt);
@@ -3790,7 +3787,7 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
         seat = page.locator("#receipt-view")
         page.evaluate("""async () => {
           const {consumeAnnotations} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const box = document.createElement('aside');
           box.id = 'receipt-view';
           document.querySelector('#bracket').after(box);
@@ -3807,9 +3804,9 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
         }""")
     page.evaluate("""async () => {
       const {contributionEntry, registerContribution} =
-        await window.__lfRuntimeImport('/runtime/widget-api.js');
-      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-      const ownReceipt = runtime.workflows.find(item => item.stage === 'picked_up');
+        await window.__lfWidgetApi();
+      const {readApplication} = await window.__lfCheckApi();
+      const ownReceipt = readApplication().effective.workflows.find(item => item.stage === 'picked_up');
       let approving = false;
       const contribution = registerContribution({
         key: 'receipt-probe', target: document.querySelector('#bracket'),
@@ -4412,7 +4409,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           window.lfReceiptSecondary = registerContribution({
             key: 'workflow-primary-probe', target: document.querySelector('#jobs'),
             read: () => ({entries: [contributionEntry({
@@ -4489,7 +4486,7 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let visible = {act: true, backup: true, locked: true, details: true};
           window.lfPrimaryClicks = 0;
           window.lfBackupClicks = 0;
@@ -4621,7 +4618,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           window.contributionEntryFixtures = [];
           for (const [index, id] of ['first', 'second'].entries()) {
             const target = document.getElementById(id);
@@ -4766,7 +4763,7 @@ def test_a_reading_marker_remains_visible_beside_offered_actions(browser, serve)
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           registerContribution({
             key: 'reading-actions', target: document.querySelector('#how-cap'),
             read: () => ({entries: Array.from({length: 2}, (_, index) =>
@@ -4792,7 +4789,7 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const entries = [];
           const registration = registerContribution({
             key: 'details', target: document.getElementById('sug-refill'),
@@ -4861,10 +4858,7 @@ def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser,
         "anchor": {"section": "hline"},
     }
     page = open_page(browser, serve(source, events=[comment]))
-    page.wait_for_function(
-        "() => window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js')"
-        ".then(({layoutMarginRows}) => (layoutMarginRows(), true))"
-    )
+    margins_laid_out(page)
 
     line = page.locator("#hline")
     assert line.evaluate("node => node.getBoundingClientRect().height") == 0
@@ -5044,7 +5038,7 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let primaryVisible = true;
           let peers = [];
           const registration = registerContribution({
@@ -5154,8 +5148,9 @@ def test_a_secondary_thread_keeps_card_ownership_through_membership_and_posture(
     expect(options).to_be_visible()
     assert page.evaluate(
         """async id => {
-          const {openThread} = await window.__lfRuntimeImport('/runtime/application.js');
-          return Boolean(await openThread(id, {part: 'thread'}));
+          const {readThreads, threadActions} = await window.__lfWidgetApi();
+          const thread = readThreads().threads.find(thread => thread.id === id);
+          return Boolean(await threadActions.open(thread.key, {part: 'thread'}));
         }""",
         second["id"],
     )
@@ -5214,7 +5209,7 @@ def test_shadow_targets_keep_common_shape_identity_and_composed_order(browser, s
     readings = page.evaluate(
         """async () => {
               const { contributionEntry, registerContribution } =
-                await window.__lfRuntimeImport('/runtime/widget-api.js');
+                await window.__lfWidgetApi();
           const makeRecord = label => {
             const shell = document.createElement('div');
             const root = shell.attachShadow({mode: 'open'});
@@ -5350,7 +5345,7 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     page.evaluate(
         """async () => {
               const {contributionEntry, registerContribution} =
-                await window.__lfRuntimeImport('/runtime/widget-api.js');
+                await window.__lfWidgetApi();
           registerContribution({
             key: 'shape-status', target: document.querySelector('#outer'),
             read: () => ({entries: [contributionEntry({
@@ -5899,9 +5894,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
             "text": "A new answer at the end of this thread. " * 8,
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     incoming = transcript.locator(f'[data-event="{newest["id"]}"]')
     expect(incoming).to_be_visible()
     page.wait_for_function(
@@ -5927,9 +5920,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
             "text": "The answer now has more detail. " * 25,
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     append_carried_log_record(
         serve.page_dir,
         {
@@ -5940,9 +5931,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
             "text": "The answer now has even more detail. " * 30,
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     page.wait_for_function(
         "before => document.querySelector('.lf-margin-preview .lf-thread-transcript').scrollTop > before",
         arg=at_tail,
@@ -5970,9 +5959,7 @@ def test_an_incoming_margin_reply_follows_only_at_the_tail(browser, serve):
             "text": "A later answer should not interrupt earlier reading.",
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     assert transcript.evaluate("list => list.scrollTop") == pytest.approx(
         earlier, abs=2
     )
@@ -6247,7 +6234,7 @@ def test_the_thread_card_s_transcript_is_its_scroller_when_it_opens(browser, ser
     page = open_page(browser, url)
     resized(page, 1440, 700)
     scroller = """async () => {
-      const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      const regions = await window.__lfCheckApi();
       const list = document.querySelector('.lf-margin-preview .lf-thread-transcript');
       const box = regions.effectiveScroller('lf-margin-preview');
       return list && box === list ? 'transcript'
@@ -6255,7 +6242,7 @@ def test_the_thread_card_s_transcript_is_its_scroller_when_it_opens(browser, ser
     }"""
     assert page.evaluate(scroller) == "page"
     page.evaluate("""async () => {
-      const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      const regions = await window.__lfWidgetApi();
       window.__previewShifts = [];
       regions.watchReadingRegionTransitions(({phase, shifted}) => {
         if (phase === 'shift')
@@ -6461,7 +6448,7 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
     )
     expect(page.locator(".lf-margin-entry")).to_have_count(0)
     prospective = page.evaluate("""async () => {
-      const owner = await __lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+      const owner = await window.__lfOverlayApi();
       return owner.marginSpot(document.querySelector('#subject'));
     }""")
     assert prospective["right"] - prospective["left"] == pytest.approx(55)
@@ -6482,7 +6469,7 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
     assert actual["left"] == pytest.approx(prospective["left"])
     assert actual["right"] == pytest.approx(prospective["right"])
     reused = page.evaluate("""async () => {
-      const owner = await __lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+      const owner = await window.__lfOverlayApi();
       const observer = new MutationObserver(() => {});
       observer.observe(document.body, {childList:true, subtree:true});
       const spot = owner.marginSpot(document.querySelector('#next-subject'));
@@ -6497,7 +6484,7 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
     # wider row cannot supply the allocation of a new single-entry comment row.
     page.evaluate("""async () => {
       const {contributionEntry, registerContribution} =
-        await __lfRuntimeImport('/runtime/widget-api.js');
+        await window.__lfWidgetApi();
       registerContribution({key: 'rail-details', target: document.querySelector('#subject'),
         read: () => ({entries: [contributionEntry({
           key: 'details', icon: 'comment', label: 'Rail details',
@@ -6509,7 +6496,7 @@ def test_the_first_rail_allocation_matches_its_native_row(browser, serve):
         entry.locator("xpath=..").locator(":scope > .lf-margin-options")
     ).to_be_visible()
     expanded = page.evaluate("""async () => {
-      const owner = await __lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js');
+      const owner = await window.__lfOverlayApi();
       return owner.marginSpot(document.querySelector('#next-subject'));
     }""")
     assert expanded["right"] - expanded["left"] == pytest.approx(55)
@@ -7277,7 +7264,7 @@ CARD_AND_REPLY = """async () => {
   const box = card.getBoundingClientRect();
   const editor = card.querySelector('leaf-text');
   const reply = editor.getBoundingClientRect();
-  const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
+  const geometry = await window.__lfWidgetApi();
   return {cardTop: box.top, cardBottom: box.bottom,
           turn: card.querySelector('.lf-msg').getBoundingClientRect().top,
           editorTop: reply.top, editorBottom: reply.bottom, scrolled: editor.scrollTop,
@@ -8451,7 +8438,7 @@ def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_attribute("data-lf-thread-placement", "right")
     reading = """async id => {
-      const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const geometry = await window.__lfWidgetApi();
       const target = document.getElementById(id).getBoundingClientRect();
       return {
         card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
@@ -8886,7 +8873,7 @@ def test_a_pin_stands_after_its_run_of_text_rather_than_over_it(browser, serve):
 
 
 PIN_READING = """async (id) => {
-  const {shownParts} = await window.__lfRuntimeImport('/runtime/geometry.js');
+  const {shownParts} = await window.__lfWidgetApi();
   const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
   const words = [];
   const walk = document.createTreeWalker(document.querySelector('main'),
@@ -9569,7 +9556,7 @@ def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
           if (change === 'size') target.previousElementSibling.style.height = '224px';
           else {
             target.setAttribute('data-offset', '');
-            const {layoutChanged} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+            const {layoutChanged} = await window.__lfWidgetApi();
             await layoutChanged(target);
           }
         }""",
@@ -9586,9 +9573,8 @@ def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
         # notification must settle that seat as a full geometry reading would.
         assert after["top"] != before["top"]
         page.evaluate("""async () => {
-          const {layoutMarginRows} = await window.__lfRuntimeImport(
-            '/runtime/annotation-overlay/margin-layout.js');
-          layoutMarginRows();
+          const {layoutChanged} = await window.__lfWidgetApi();
+          layoutChanged(document.body);
         }""")
         assert page.evaluate(reading) == after
     assert after["hit"]
@@ -9770,7 +9756,7 @@ def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, 
     page = open_page(browser, serve(source))
     page.evaluate("""async () => {
       const { registerReadingRegion } =
-        await window.__lfRuntimeImport('/runtime/widget-api.js');
+        await window.__lfWidgetApi();
       const host = document.getElementById('reader-host');
       const root = host.attachShadow({mode:'open'});
       root.innerHTML = '<section style="height:240px; overflow:auto">'
@@ -9816,7 +9802,7 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
     page.evaluate(
         """async ({tree, native}) => {
           const { contributionEntry, registerContribution } =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           if (!native) window.ScrollTimeline = undefined;
           const host = document.createElement('div');
           const root = host.attachShadow({mode: 'open'});
@@ -9942,7 +9928,7 @@ def test_document_overlay_follows_the_scrollers_signed_origin(browser, serve):
     page.evaluate(
         """async () => {
           const {scrollMotions, followScroll} =
-            await window.__lfRuntimeImport('/runtime/scroll-motion.js');
+            await window.__lfCheckApi();
           window.__signedScroll = [...document.querySelectorAll('.scroll-source')]
             .map(source => {
               const target = source.querySelector('.scroll-target');
@@ -10280,7 +10266,7 @@ def test_the_rail_s_way_in_is_a_marker_in_front_of_the_user(browser, serve):
     expect(first).to_have_attribute("tabindex", "0")
     banner = first.evaluate(
         """async row => {
-          const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const {bannerFoot} = await window.__lfCheckApi();
           scrollBy({top: row.getBoundingClientRect().bottom - bannerFoot() + 4,
             behavior: 'instant'});
           return bannerFoot();
@@ -10481,7 +10467,7 @@ def test_page_map_disclosure_arrival_yields_to_newer_search(
     page.evaluate(
         """async () => {
           const {registerContribution, contributionEntry} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           let expanded = false;
           const registration = registerContribution({
             key: 'disclosure', target: document.querySelector('#target'),
@@ -10610,7 +10596,7 @@ def test_observed_scroll_retains_the_seat_of_a_constrained_target(
     page.evaluate(
         """async ({position, native}) => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           if (!native) window.ScrollTimeline = undefined;
           document.querySelector('main').dataset.lfMargin = 'none';
           const host = document.createElement('div');
@@ -10688,7 +10674,7 @@ def test_distant_margin_coordinates_follow_small_moves_without_restatement(
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const main = document.querySelector('main');
           main.dataset.lfMargin = 'none';
           const space = document.createElement('div');
@@ -10746,7 +10732,7 @@ def test_signed_scroll_motion_survives_unobserved_extent_changes(browser, serve)
     page.evaluate(
         """async () => {
           const {scrollMotions, followScroll} =
-            await window.__lfRuntimeImport('/runtime/scroll-motion.js');
+            await window.__lfCheckApi();
           const source = document.createElement('div');
           source.style.cssText = 'height: 160px; width: 400px; overflow: auto; direction: rtl';
           source.innerHTML = '<p style="width: 200px; height: 30px; margin: 0 100px 0 0">'
@@ -10804,7 +10790,7 @@ def test_signed_scroll_motion_survives_unobserved_extent_changes(browser, serve)
     page.evaluate(
         """async () => {
           const {scrollMotions, followScroll} =
-            await window.__lfRuntimeImport('/runtime/scroll-motion.js');
+            await window.__lfCheckApi();
           const {source, target, stand} = window.__extentMotion;
           const layer = stand.parentElement;
           for (const animation of layer.getAnimations()) animation.cancel();
@@ -10957,7 +10943,7 @@ def test_exhausted_seat_uses_map_then_restores(browser, serve):
         context=context,
     )
     page.evaluate(
-        "async () => {\n      const {contributionEntry, registerContribution} = await window.__lfRuntimeImport('/runtime/widget-api.js');\n      let reviewed = false;\n      const contribution = registerContribution({\n        key: 'review-exhausted', target: document.querySelector('#target'),\n        read: () => ({entries: [contributionEntry({key:'review',glyph:'R',label:reviewed ? 'Plot reviewed' : 'Mark plot reviewed'})]}),\n        activate: () => {reviewed = true; contribution.update();},\n      });\n    }"
+        "async () => {\n      const {contributionEntry, registerContribution} = await window.__lfWidgetApi();\n      let reviewed = false;\n      const contribution = registerContribution({\n        key: 'review-exhausted', target: document.querySelector('#target'),\n        read: () => ({entries: [contributionEntry({key:'review',glyph:'R',label:reviewed ? 'Plot reviewed' : 'Mark plot reviewed'})]}),\n        activate: () => {reviewed = true; contribution.update();},\n      });\n    }"
     )
     margins_laid_out(page)
     row = page.locator('[data-lf-margin-for="target"]')
@@ -11044,7 +11030,8 @@ def test_a_pin_keeps_native_presses_inside_painted_walls_reachable(browser, serv
     """No clear seat leaves native controls reachable and the thread in Page Map.
 
     Adjacent painted cards leave no clear seat beside the second card. A pin at
-    its bounded home previously covered Action inside a tinted header.
+    its bounded home previously covered Action inside a tinted header. The cards
+    run edge to edge and end clear of the window's foot.
     """
     cards = "".join(
         f'<section id="card{i}" style="border:1px solid var(--rule);'
@@ -11054,7 +11041,14 @@ def test_a_pin_keeps_native_presses_inside_painted_walls_reachable(browser, serv
         "onclick=\"this.textContent='Opened'\">Action</button></div></section>"
         for i in range(12)
     )
-    url = serve(leaf_page("Pin controls", "<h1>Pin controls</h1>" + cards, layout=None))
+    url = serve(
+        leaf_page(
+            "Pin controls",
+            "<h1>Pin controls</h1>" + cards,
+            head="<style>body { margin: 0 } main { padding-block: 28px 72px }</style>",
+            layout=None,
+        )
+    )
     append_carried_log_record(
         serve.page_dir,
         {
@@ -11234,7 +11228,7 @@ def test_new_rail_keeps_a_pin_reachable(browser, serve, focused):
         page.mouse.move(20, 20)
     before = pin.bounding_box()
     page.evaluate("""async()=>{
-      const {contributionEntry,registerContribution}=await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {contributionEntry,registerContribution}=await window.__lfWidgetApi();
       registerContribution({key:'new-rail',target:document.querySelector('#rail-target'),read:()=>({entries:[contributionEntry({key:'activate',glyph:'R',label:'Activate rail'})]}),activate:()=>{window.railActivated=true;}});
     }""")
     margins_laid_out(page)
@@ -11270,7 +11264,7 @@ def test_new_pin_keeps_a_rail_reachable(browser, serve, focused):
         browser, serve(leaf_page("Held rail and new pin", body)), context=context
     )
     page.evaluate("""async()=>{
-      const {contributionEntry,registerContribution}=await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {contributionEntry,registerContribution}=await window.__lfWidgetApi();
       window.registerPlacementControl=id=>registerContribution({key:id,target:document.getElementById(id+'-target'),read:()=>({entries:[contributionEntry({key:'activate',glyph:'R',label:'Activate '+id})]}),activate:()=>{window.placementActivated=id;}});
       window.registerPlacementControl('rail');
     }""")

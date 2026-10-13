@@ -232,7 +232,7 @@ def test_a_conversation_reader_arriving_later_takes_the_open_thread(browser, ser
     assert stood_on
     page.evaluate(
         """async () => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const api = await window.__lfWidgetApi();
           const host = document.createElement('div');
           document.querySelector('main').append(host);
           window.revealed = [];
@@ -269,7 +269,7 @@ def test_a_reader_arriving_later_leaves_focus_the_user_moved_elsewhere(browser, 
           box.id = 'elsewhere';
           document.querySelector('main').prepend(box);
           box.focus();
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const api = await window.__lfWidgetApi();
           const host = document.createElement('div');
           document.querySelector('main').append(host);
           api.registerThreadPresentation(host, { render: () => {}, reveal: () => {} });
@@ -284,7 +284,7 @@ def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):
     words, which hide that, on the line above it, so a refused send's reason is seen
     beside the words it returned; on a folded panel, the leaf's peek says it."""
     page = floating(browser, serve(LONG_PAGE))
-    say = """async (text) => (await window.__lfRuntimeImport('/runtime/notifications.js'))
+    say = """async (text) => (await window.__lfWidgetApi())
       .notice(text)"""
     page.evaluate(say, "Saved for later")
     expect(field(page)).to_have_attribute(
@@ -319,7 +319,7 @@ def test_the_room_the_page_shows_stands_between_the_walk_and_the_panel(browser, 
     the bottom bar."""
     page = floating(browser, serve(ASK_PAGE))
     room = """async () => {
-      const shown = (await window.__lfRuntimeImport('/runtime/geometry.js')).shownWindow();
+      const shown = (await window.__lfWidgetApi()).shownWindow();
       return {top: shown.top, bottom: shown.bottom};
     }"""
     foot = page.locator(".lf-fp-row").bounding_box()["y"]
@@ -469,7 +469,7 @@ def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
     # A page's own control arrives at it, as a widget's script would.
     page.evaluate(
         """async () => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const api = await window.__lfWidgetApi();
           const go = document.createElement('button');
           go.id = 'to-approval';
           go.textContent = 'To the approval';
@@ -502,7 +502,7 @@ def test_the_approval_is_arrived_at_in_sight_below_many_asks(browser, serve):
     page = floating(browser, url)
     page.evaluate(
         """async () => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const api = await window.__lfWidgetApi();
           const go = document.createElement('button');
           go.id = 'to-approval';
           go.textContent = 'To the approval';

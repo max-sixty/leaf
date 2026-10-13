@@ -147,7 +147,7 @@ def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls
     def in_view():
         return field.evaluate(
             """async (node, tall) => {
-          const {seenRect, shownBox} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const {seenRect, shownBox} = await window.__lfCheckApi();
           const seen = seenRect(node, new Map()), rect = shownBox(node);
           return Boolean(seen && (tall
             ? seen.bottom - seen.top > 10
@@ -223,7 +223,7 @@ def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
     resized(page, 1280, 800)
     rendered(page)
     reading = """async (id) => {
-      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const {landingBand} = await window.__lfCheckApi();
       let node = document.getElementById(id) ?? document.activeElement;
       while (!id && node.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
       return {band: landingBand(document.scrollingElement).top,
@@ -295,7 +295,7 @@ def test_a_heading_above_a_flowing_pane_keeps_its_place_as_the_window_changes_wi
     resized(page, 1280, 800)
     rendered(page)
     below = """async () => {
-      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const {landingBand} = await window.__lfCheckApi();
       const pane = document.querySelector('#reading').getBoundingClientRect();
       return {heading: document.getElementById('section').getBoundingClientRect().top
                 - landingBand(document.scrollingElement).top,
@@ -502,7 +502,7 @@ def test_a_bounded_box_holds_its_place_while_its_layout_settles(browser, serve):
     resized(page, 1200, 800)
     rendered(page)
     page.evaluate("""async () => {
-      const {registerReadingRegion} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {registerReadingRegion} = await window.__lfWidgetApi();
       const body = document.getElementById('log');
       registerReadingRegion({id: body.id, host: body, body});
     }""")
@@ -2631,7 +2631,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     # offer stands unseen until some view of this thread is next built and reads it.
     offered = page.evaluate(
         """async (ctx) => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const api = await window.__lfWidgetApi();
           return api.loadDraft(ctx);
         }""",
         f"reply:{root['id']}",
@@ -5060,8 +5060,8 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
     ]
     aligned, by_sentence, inline = page.evaluate(
         """async (pairs) => {
-          const {alignInlineText, alignText, sentenceUnits} =
-            await window.__lfRuntimeImport('/runtime/text-alignment.js');
+          const {alignInlineText, sentenceUnits} = await window.__lfCheckApi();
+          const {alignText} = await window.__lfWidgetApi();
           return [
             pairs.map(([before, after]) => alignText(before, after)),
             pairs.map(([before, after]) => alignText(before, after, sentenceUnits)),
@@ -5092,7 +5092,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
 
     local = page.evaluate(
         """async () => {
-          const {alignInlineText} = await window.__lfRuntimeImport('/runtime/text-alignment.js');
+          const {alignInlineText} = await window.__lfCheckApi();
           return alignInlineText(
             'Each section names a feature and provides a live example.',
             'Each section names a feature and provides a live example, including focused replays of its motion.'
@@ -5126,7 +5126,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
 
     sequence = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfWidgetApi();
           const widget = document.getElementById('draft-ops');
           const controller = widgetController(widget);
           const first = controller.read().actions.edit.history;
@@ -5165,7 +5165,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "First recorded body."
     )
     old_sequence = old.evaluate(
-        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+        """async () => (await window.__lfWidgetApi())
           .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
           .map(event => event.revision)"""
     )
@@ -5176,7 +5176,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "Second recorded body."
     )
     latest_sequence = latest.evaluate(
-        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+        """async () => (await window.__lfWidgetApi())
           .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
           .map(event => event.revision)"""
     )
@@ -6088,15 +6088,13 @@ def test_executable_revision_preserves_non_editor_thread_standing(browser, serve
     page = editing_reply_page(browser, serve)
     page.keyboard.press("Escape")
     captured = page.evaluate(
-        "async()=> (await window.__lfRuntimeImport('/runtime/drafts.js')).captureDraftEditing()"
+        "async()=> (await window.__lfCheckApi()).captureDraftEditing()"
     )
     assert captured is None
     replace_editing_document(page, serve)
     expect(page.locator(".lf-composer leaf-text")).not_to_be_visible()
     assert (
-        page.evaluate(
-            "async()=> (await window.__lfRuntimeImport('/runtime/drafts.js')).captureDraftEditing()"
-        )
+        page.evaluate("async()=> (await window.__lfCheckApi()).captureDraftEditing()")
         is None
     )
 
@@ -6125,7 +6123,7 @@ def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, ser
     expect(editor).to_be_focused()
     before = editing_read(editor)
     context = page.evaluate(
-        "async()=> (await window.__lfRuntimeImport('/runtime/drafts.js')).captureDraftEditing().context"
+        "async()=> (await window.__lfCheckApi()).captureDraftEditing().context"
     )
     replace_editing_document(page, serve)
     expect(editor).to_be_focused()
@@ -6237,13 +6235,13 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
     expect(editor).to_have_js_property("value", before["value"])
     expect(page.locator("body")).to_have_attribute("data-lf-reading", first_reading)
     page.wait_for_function(
-        "async()=> (await window.__lfRuntimeImport('/runtime/semantic-state.js')).applicationPresented()"
+        "async()=> (await window.__lfCheckApi()).applicationPresented()"
     )
     errors = consume_browser_errors(page, "mechanical caret fixture failed")
     assert len(errors) == 1, errors
     assert "Revision continuity failed" in errors[0].values["text"], errors
     page.wait_for_function(
-        "async()=> (await window.__lfRuntimeImport('/runtime/semantic-state.js')).readApplication().document.revision===2"
+        "async()=> (await window.__lfCheckApi()).readApplication().document.revision===2"
     )
     reported = [
         event
@@ -6490,7 +6488,7 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
             one_frame(page)
             expect(page.locator("#writing-view")).to_be_visible()
             first_view = page.locator("#editable").evaluate("""async draft => {
-              const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+              const {landingBand} = await window.__lfCheckApi();
               const rect = draft.getBoundingClientRect();
               const band = landingBand(document.scrollingElement);
               return {top: rect.top, bottom: rect.bottom, low: band.top, high: band.bottom};
@@ -6752,7 +6750,7 @@ def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):
     expect(page.locator("#local leaf-text")).to_be_focused()
     rendered(page)
     page.evaluate("""async()=>{
-      const {observeQueuedWork}=await window.__lfRuntimeImport('/runtime/queued-work.js');
+      const {observeQueuedWork}=await window.__lfCheckApi();
       window.closeJobs=new Set();window.captureClose=true;
       window.stopCloseObserver=observeQueuedWork((phase,job)=>{
         if(phase==='enqueue'&&captureClose)closeJobs.add(job);

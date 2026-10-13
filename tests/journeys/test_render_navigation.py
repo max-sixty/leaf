@@ -79,8 +79,7 @@ def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
     closed surface."""
     tops = """() => ['left-reading', 'right-reading'].map((id) =>
       document.querySelector(`#${id} > :not(header, footer)`).scrollTop)"""
-    reading = """async () => (await window.__lfRuntimeImport(
-      '/runtime/reading-regions.js')).userReadingRegion()?.host.id ?? null"""
+    reading = """async () => (await window.__lfCheckApi()).userReadingRegion()?.host.id ?? null"""
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     resized(page, 1440, 900)
     pane_posture(page, page.locator("#left-reading"), "bounded")
@@ -923,7 +922,7 @@ def test_the_thread_walk_stays_inline_until_threads_is_opened(browser, serve):
     expect(position).to_be_hidden()
 
     page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/notifications.js'))"
+        "async () => (await window.__lfWidgetApi())"
         ".notice('Agent replied — open Threads', {background: true})"
     )
     expect(page.locator(".lf-notice")).to_be_visible()
@@ -1320,7 +1319,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             childList: true,
             subtree: true,
           });
-          (await window.__lfRuntimeImport('/runtime/notifications.js'))
+          (await window.__lfWidgetApi())
             .notice('Agent replied — open Threads', {background: true});
         }"""
     )
@@ -1460,8 +1459,8 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     live_commands = set(
         page.evaluate(
             """async () => {
-              const {pageScopes} = await window.__lfRuntimeImport('runtime/keyboard/register.js');
-              const {live, commandPresentations} = await window.__lfRuntimeImport('runtime/keyboard/bindings.js');
+              const {pageScopes} = await window.__lfCheckApi();
+              const {live, commandPresentations} = await window.__lfCheckApi();
               const scope = pageScopes().find(scope => scope.rows?.some(
                 row => row.id === 'navigation.target'));
               return scope.rows.filter(live).flatMap(row =>
@@ -2032,7 +2031,7 @@ def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serv
     page.evaluate(
         """async () => {
         document.getElementById('holder').style.width = '400px';
-        const { layoutChanged } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+        const { layoutChanged } = await window.__lfWidgetApi();
         const box = document.getElementById('by-script');
         new ResizeObserver((entries, observer) => {
             observer.disconnect();

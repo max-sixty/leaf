@@ -82,7 +82,7 @@ export class ReactionStripView {
       model.thread,
       model.message,
       name,
-      !model.choices.find((choice) => choice.name === name).standing,
+      !model.choices.find((choice) => choice.name === name).inForce,
     );
     this.#registration.close();
     this.#commands.pressed();

@@ -55,7 +55,7 @@
     background: var(--card); }
 :scope:is(lf-shot) .lf-shotrail { display: grid; grid-area: 1 / 1; align-items: center;
     grid-template: var(--lf-shot-rail-size) / auto auto minmax(0, 1fr) auto auto;
-    height: var(--lf-shot-rail-size); padding: 0 11px;
+    height: var(--lf-shot-rail-size); padding: 0;
     border: 1px solid var(--rule); border-bottom: 0;
     border-radius: var(--r) var(--r) 0 0; color: var(--muted);
     background: var(--card); }
@@ -76,15 +76,14 @@
 :scope:is(lf-shot) .lf-shotcap { display: flex; align-items: center; align-self: stretch;
     font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
     letter-spacing: .04em; padding: 0 5px; color: var(--muted); }
-/* BEFORE ⤢ · delta · ⤢ AFTER: each expand link sits on its label's inner side, so a
- * label reaches into the rail's padding only on its outer side and the two targets
- * meet without overlapping. */
+/* BEFORE ⤢ · delta · ⤢ AFTER: each endpoint fills its outer edge, with the same
+ * small text inset on both sides. Its expand link meets the target on the inner side. */
 :scope:is(lf-shot) .lf-shotcap[data-lf-state="before"] { grid-column: 1;
-    margin-inline-start: -5px; }
+    border-start-start-radius: calc(var(--r) - 1px); }
 :scope:is(lf-shot) .lf-shot-open[data-lf-shot-open="before"] { grid-column: 2; }
 :scope:is(lf-shot) .lf-shot-open[data-lf-shot-open="after"] { grid-column: 4; }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state="after"] { grid-column: 5;
-    margin-inline-end: -5px; }
+    border-start-end-radius: calc(var(--r) - 1px); }
 :scope:is(lf-shot) .lf-shot-open { display: grid; place-items: center; align-self: stretch;
     width: max(28px, var(--aim-floor)); color: var(--muted); }
 :scope:is(lf-shot) .lf-shot-open:hover { color: var(--ink); background: var(--chip); }

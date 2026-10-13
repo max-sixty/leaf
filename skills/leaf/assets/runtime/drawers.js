@@ -63,7 +63,7 @@ function drawerFurniture(panel, name, list, closes) {
 }
 
 // What waits on the user and on the agent, and what is done (queue-panel.js; EXPERIMENTAL).
-// The On me door beside Threads opens the panel listing them, and the agent's Tasks
+// The On me door beside Threads opens the panel listing them, and the agent's On
 // count beside the status opens it too.
 export const queueBtn = el("button", "lf-btn lf-queue", "On me");
 // The machine's live leaves and what each is doing: a left panel of rows, each a

@@ -7222,12 +7222,12 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 
 
-def test_the_questions_panel_names_an_ask_a_message_carries(browser, serve):
-    """A decision carried by a reply is a decision, and the Questions panel has to name it in its words.
+def test_the_on_panel_names_an_ask_a_message_carries(browser, serve):
+    """A decision carried by a reply is a decision, and the On panel has to name it in its words.
 
     The page holds none of its own, so the one row here is the question Claude put in
     the thread — the AskUserQuestion shape, which reaches a user through the
-    panel and through the Questions panel and nowhere else. It is read here exactly as a group
+    panel and through the On panel and nowhere else. It is read here exactly as a group
     on the page is read: the decision's own words, its label first, run together and cut at
     the row's cap. `startswith` for that reason — the cut is the panel's business and
     this is about which words reach it, which is the whole of what the row asserts for
@@ -7656,14 +7656,14 @@ def test_a_thread_on_a_widget_an_agent_sent_names_it_and_stands_apart(browser, s
 
 
 def test_a_change_says_which_of_the_three_it_is(browser, serve):
-    """A Questions row names its Ask by kind and then by the decision's own opening words,
+    """An On panel row names its Ask by kind and then by the decision's own opening words,
     and for a change those opening words are whichever half comes first — the current
     text, where there is one. So a deletion arrived in the list under the words it was
     proposing to remove, with nothing to tell it from the insertion above it, which was
     proposing to add its own. Three shapes, one tag, one word for all of them.
 
     The tag is the right word wherever one tag is one kind of thing, which is every
-    other widget here, so the fix is not to teach the Questions panel about suggestions: the
+    other widget here, so the fix is not to teach the On panel about suggestions: the
     entry declares that this tag's word comes from its module (x-word), and the module
     reads it off the slots it holds. The group below is in this page to hold the other
     half of that — a widget declaring nothing still gets its tag, and would go on
@@ -7689,8 +7689,8 @@ def test_a_change_says_which_of_the_three_it_is(browser, serve):
     assert said["widget:sug-insert"].startswith("Parked jobs"), said
 
 
-def test_the_questions_control_opens_open_and_answered_asks(browser, serve):
-    """The banner's Questions control lists every open Ask under Questions, in document
+def test_the_on_me_control_opens_open_and_answered_asks(browser, serve):
+    """The banner's On me control lists every open Ask under On me, in document
     order, and every answered one under Done with its current answer, so the user can
     review and revise. A twelfth widget joins by declaring x-awaits.
 
@@ -7925,7 +7925,7 @@ def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
 def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     held_events, serve
 ):
-    """Receipt settlement cannot retire optimism before the Questions row has painted it."""
+    """Receipt settlement cannot retire optimism before the On panel row has painted it."""
     browser, held = held_events
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     banner_control(page, ".lf-queue").click()
@@ -8149,7 +8149,7 @@ def test_a_completed_ask_persists_and_its_done_row_can_revise_by_keyboard(
     browser, serve
 ):
     """Completion keeps the same concise route back through the existing action model:
-    the Questions panel's Done row, reached and opened from the keyboard, arrives at the Ask."""
+    the On panel's Done row, reached and opened from the keyboard, arrives at the Ask."""
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
     resized(page, 1200, 900)
     expect_asks_answered(page, "0/1")
@@ -8193,7 +8193,7 @@ def test_a_completed_ask_persists_and_its_done_row_can_revise_by_keyboard(
 def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     browser, serve
 ):
-    """A Questions row's arrival preserves Ask semantics when its source has no box to focus."""
+    """An On panel row's arrival preserves Ask semantics when its source has no box to focus."""
     page = open_page(browser, serve(CHANGE_SHAPES_PAGE))
     resized(page, 560, 620)
     expect_asks_answered(page, "0/4")
@@ -8359,10 +8359,10 @@ def test_a_row_stands_the_user_on_the_ask_it_names(browser, serve):
     assert sorted(set(marked)) == ["t-bath-decision"], marked
 
 
-def test_the_questions_panel_covers_the_page_only_where_it_leaves_no_usable_page(
+def test_the_on_panel_covers_the_page_only_where_it_leaves_no_usable_page(
     browser, serve
 ):
-    """A Questions row is a way around this page, so pressing one sends the user into the
+    """An On panel row is a way around this page, so pressing one sends the user into the
     document, and the page beside the drawer stays live for it. Where the drawer would leave
     less than a usable page beside it, it covers instead — the rule the panel follows,
     asked of the room the drawer leaves rather than of the window, so a narrow window and a
@@ -8413,7 +8413,7 @@ def test_the_questions_panel_covers_the_page_only_where_it_leaves_no_usable_page
 
 
 def test_one_drawer_stands_at_a_time(browser, serve, other_leaf):
-    """Questions on the right and Leaves on the left are both auxiliary surfaces, so
+    """The On panel on the right and Leaves on the left are both auxiliary surfaces, so
     opening either closes the other. Which one is up
     is one fact in one place: a boolean per drawer would be one guarantee written twice,
     and the two would first disagree the day a third surface opened one without closing

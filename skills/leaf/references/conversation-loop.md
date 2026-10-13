@@ -208,7 +208,7 @@ Everything you need from the user belongs in their **On me** list, whether an an
 decision, permission, review, or action elsewhere. Ask a direct question and register
 it by one of the routes below. Prose in the page, a status line, and a question in
 chat alone do not register it. Keep every independently answerable proposal you
-present for the user's judgment in Questions until decided or withdrawn.
+present for the user's judgment in their On me list until decided or withdrawn.
 Recommending one to do next leaves the others open. A request for review needs an
 ask even when preparation is already your work or other work can continue. An
 optional invitation to comment on information creates no obligation.
@@ -245,7 +245,7 @@ leaf page state <page> | jq '{source, asks, todos, queues}'
 ```
 
 Page state contains separate canonical `asks` and `todos`; its
-`queues.questions` and `queues.tasks` select those records with response obligations
+`queues.on_user` and `queues.on_agent` select those records with response obligations
 and delivery retries for the panel. `jq` only selects these fields; do not reconstruct
 membership from events or widget state. Each queue item names its `id`, `kind`,
 `subject`, and `thread`. An ask contains its prompt, typed answer and lifecycle;

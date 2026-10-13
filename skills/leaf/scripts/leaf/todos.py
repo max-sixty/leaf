@@ -24,7 +24,7 @@ resolution, another version, or the end of the session that opened it leaves it
 open: that is what a to-do adds over an update, which its answer settles. Work that
 outlasts the turn that took it on, such as a worker's build, a CI wait, or a change
 promised for the next version, so stays on the agent's side: an open to-do holds its
-thread `waiting` (`served_state.browser`), counts under `queues.tasks` in `page
+thread `waiting` (`served_state.browser`), counts under `queues.on_agent` in `page
 state`, and is named in the banner. Work no update asked for, such as writing or
 revising the page on the agent's own initiative, is a to-do the agent opens on the
 page or the widget or section it concerns; housekeeping, such as re-vendoring or

@@ -1383,7 +1383,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
 def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     """Mnemonics reach global surfaces; generated hints reach the visible scene.
 
-    The Threads panel, Questions panel, Page Map dialog, and page edges keep stable named
+    The Threads panel, On panel, Page Map dialog, and page edges keep stable named
     routes. Margin entries,
     tabs, links, folds, and the presses a widget built instead share one viewport-local
     letter namespace."""
@@ -1501,7 +1501,6 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         (
             "navigation.page-map",
             ["g", "P"],
-
             ["pressed", "neutral"],
             "Page Map dialog",
         ),
@@ -1665,7 +1664,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
     assert page.evaluate("() => document.activeElement === document.body")
 
-    # The Questions sequence follows the same contract: show the panel and land on its first
+    # The On panel sequence follows the same contract: show the panel and land on its first
     # row.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
@@ -1673,7 +1672,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(page.locator(".lf-queue-row").first).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
 
-    # Replacing one auxiliary surface with another is lateral: Threads replaces Questions
+    # Replacing one auxiliary surface with another is lateral: Threads replaces the On panel
     # while it stands, and the Escape out of Threads lands on the page rather than putting
     # the drawer back. The user reaches the drawer the way they reached it the first time.
     page.keyboard.press("g")
@@ -2094,7 +2093,7 @@ def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
     live_leaf("second", "A second leaf")
     page = open_page(browser, serve(ASKS_PAGE, comments=1))
 
-    # A surface beside the page and one covering it; the Questions panel stands beside
+    # A surface beside the page and one covering it; the On panel stands beside
     # it as Threads does.
     for key, command, name, surface, control, covering in (
         (

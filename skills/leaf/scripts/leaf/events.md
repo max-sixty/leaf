@@ -327,7 +327,7 @@ neither outcome is a user answer.
 `work_reading.WorkReading.all_asks` combines page widgets, frozen widgets and
 prose into one canonical inventory. Every record carries stable `id`, `source`,
 `thread`, `message`, `prompt`, `answer`, `status`, `end` and `next_actor`;
-`questions` owns the statuses, and `end` holds the agent `todo_end` that retired a
+`asks` owns the statuses, and `end` holds the agent `todo_end` that retired a
 prose ask, its detail and event reference, or `null`. A frozen widget's
 `message` names the exact message whose markup owns it, independently of the thread's
 root; a prose ask names its source message. Page widgets and approval have no

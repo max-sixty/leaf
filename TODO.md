@@ -341,7 +341,7 @@ height and where a switch lands wait on the workspace decision under Layout.
   bring a tab in clear of a label whose width changes once it sticks.
 - **Close the tally's small gaps.** On a phone the workspace header, tally
   included, scrolls away after Next; Undo's announcement doesn't name what it
-  undid; the `q` help text is ambiguous; and a row's ○ mark has no legend.
+  undid; the `m` help text is ambiguous; and a row's ○ mark has no legend.
 
 ### Recorded interaction review
 

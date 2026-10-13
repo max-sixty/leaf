@@ -2,13 +2,14 @@
 they select from.
 
 The reading uses one transaction and prints the two lists the active view serves
-(`served_state.queues`): On me (`questions`) holds open asks, to-dos on the user and
-resends; On <agent> (`tasks`) holds the answers the agent owes, its work in hand and
-its to-dos. The ask inventory also retains finished records, whatever their `status` (`questions`). `source` states whether a
-document is live and whether an invalid source save leaves the last valid version
-active. A page this Leaf cannot serve as vendored (`layer.incompatible_layer`) is
-still read, its `source.error` the refusal naming the re-vendor: the reading gives the
-agent the page's context, and the error says not to act on it before `page init`.
+(`served_state.queues`): On me (`on_user`) holds open asks, to-dos on the user and
+resends; On <agent> (`on_agent`) holds the answers the agent owes, its work in hand
+and its to-dos. The ask inventory (`asks`) also retains finished records, whatever
+their `status`. `source` states whether a document is live and whether an invalid
+source save leaves the last valid version active. A page this Leaf cannot serve as
+vendored (`layer.incompatible_layer`) is still read, its `source.error` the refusal
+naming the re-vendor: the reading gives the agent the page's context, and the error
+says not to act on it before `page init`.
 """
 
 import json
@@ -125,7 +126,7 @@ def _base_state(
         # What is on the user (On me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
         # side; and the complete canonical ask inventory those lists select from.
-        "queues": {"questions": [], "tasks": []},
+        "queues": {"on_user": [], "on_agent": []},
         "todos": [],
         "asks": [],
         # Current semantic facts only. A thread's history belongs to
@@ -384,7 +385,9 @@ def _write_page_state(
         state["asks"] = view["document"]["asks"]["all"] + view["thread"]["asks"]["all"]
         state["todos"] = browser["todos"]
         served_queues = view["queues"]
-        state["queues"] = {side: served_queues[side] for side in ("questions", "tasks")}
+        state["queues"] = {
+            side: served_queues[side] for side in ("on_user", "on_agent")
+        }
     subject = None
     if target is not None:
         subject = page_subject(page_dir, events, target)

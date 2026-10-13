@@ -1,4 +1,4 @@
-"""The two lists, On me (`questions`) and On <agent> (`tasks`): what is on the user,
+"""The two lists, On me (`on_user`) and On <agent> (`on_agent`): what is on the user,
 what is on the agent, and what is done.
 
 Asks, to-dos and response workflows are separate readings; this is the one selection
@@ -76,9 +76,9 @@ def queues(
     to-dos and resends keep their own completion routes. An update handed back in a
     thread is that thread's resend, and one handed back outside any thread is its
     own."""
-    questions = [_ask_item(ask) for ask in asks["user"]]
-    questions += [_todo_item(todo) for todo in todos if todo["owner"] == "user"]
-    questions += [
+    on_user = [_ask_item(ask) for ask in asks["user"]]
+    on_user += [_todo_item(todo) for todo in todos if todo["owner"] == "user"]
+    on_user += [
         {
             "kind": "resend",
             "id": thread["id"],
@@ -91,7 +91,7 @@ def queues(
         and thread["attention"]["kind"] == "needs_user"
         and thread["attention"]["reason"] == "resend"
     ]
-    tasks = []
+    on_agent = []
     for workflow in workflows:
         item = {
             "id": workflow["id"],
@@ -101,9 +101,9 @@ def queues(
         }
         if workflow["next_actor"] == "user":
             if workflow["thread"] is None:
-                questions.append({"kind": "resend", **item})
+                on_user.append({"kind": "resend", **item})
         elif workflow["answer"] is not None:
-            tasks.append(
+            on_agent.append(
                 {
                     "kind": "answer",
                     **item,
@@ -112,8 +112,8 @@ def queues(
                 }
             )
         elif workflow["at_work"]:
-            tasks.append({"kind": "work", **item, "detail": workflow["detail"]})
-    tasks += [_todo_item(todo) for todo in todos if todo["owner"] == "agent"]
+            on_agent.append({"kind": "work", **item, "detail": workflow["detail"]})
+    on_agent += [_todo_item(todo) for todo in todos if todo["owner"] == "agent"]
     done = [
         {
             **_ask_item(ask),
@@ -133,4 +133,4 @@ def queues(
         }
         for todo in ended_todos
     ]
-    return {"questions": questions, "tasks": tasks, "done": done}
+    return {"on_user": on_user, "on_agent": on_agent, "done": done}

@@ -1549,7 +1549,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     A preview can name a gallery section directly: arriving at a fragment held in a
     closed tab is one runtime path whichever section it names, so one arrival proves
     it, and the same page answers which tab holds every other destination. Each core
-    surface then opens and shows the gallery's own content: its Ask in Questions, its
+    surface then opens and shows the gallery's own content: its Ask in the On panel, its
     open, resolved, and media threads in Threads, its earlier version, the other open
     page, and at phone width its Page Map. Live external data, the Threads tab's
     presets operating a sample's panel, sign-off gating, design comments and transport
@@ -3336,11 +3336,11 @@ QUEUE_PAGE = leaf_page(
 )
 
 
-def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, serve):
+def test_m_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, serve):
     """`m` stops, in page order, at a thread whose question waits on the user as well
     as at an open Ask, and passes a thread waiting on the agent; `t` still walks both
-    threads. The banner counts what waits on each side, the user's Questions on their
-    door beside Threads and the agent's Tasks beside the status. A reply the user sends
+    threads. The banner counts what waits on each side, the user's On me on their
+    door beside Threads and the agent's On count beside the status. A reply the user sends
     joins the agent's count as it is sent, and its thread leaves the user's count and
     the walk once the server has read the reply."""
     url = serve(QUEUE_PAGE)
@@ -3380,13 +3380,11 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     )
     page = open_page(browser, url)
     status = page.locator(".lf-status-queues")
-    questions = page.locator(".lf-queue")
+    on_me = page.locator(".lf-queue")
 
     def counts(you, agent):
-        expect(questions).to_have_text(f"On me: {you}")
-        expect(questions).to_have_attribute(
-            "aria-label", f"On me: {you}"
-        )
+        expect(on_me).to_have_text(f"On me: {you}")
+        expect(on_me).to_have_attribute("aria-label", f"On me: {you}")
         expect(status).to_have_text(f"On Agent: {agent}")
 
     counts(2, 1)
@@ -3456,8 +3454,8 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     counts(1, 2)
 
 
-def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
-    """The Questions panel lists the queues the `m` walk and the banner's counts read,
+def test_the_on_panel_lists_both_queues_and_what_is_done(browser, serve):
+    """The On panel lists the queues the `m` walk and the banner's counts read,
     the user's first and then the agent's, and folds what is done at the foot: here a
     task the agent ended. The prose question is an agent opening comment, which
     asks implicitly. A row arrives where `m` would. A reply the user sends joins the
@@ -3507,8 +3505,8 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
     resized(page, 1280, 900)
     panel = page.locator(".lf-queue-panel")
 
-    # The user's Questions stand on their door beside Threads, and the agent's Tasks
-    # beside the status are a door too: a press opens what they count and another takes
+    # The user's On me stands on its door beside Threads, and the agent's On count
+    # beside the status is a door too: a press opens what they count and another takes
     # it down, and closing it from inside hands focus back to them.
     expect(page.locator(".lf-queue")).to_have_text("On me: 2")
     counts = page.locator(".lf-status-queues")
@@ -3609,8 +3607,8 @@ TWO_DECISIONS_PAGE = leaf_page(
 )
 
 
-def test_the_questions_panels_next_question_walks_as_q_does(browser, serve):
-    """The panel's head offers Next question while a question waits on the user, and a
+def test_the_on_panels_next_on_me_walks_as_m_does(browser, serve):
+    """The panel's head offers Next on me while something waits on the user, and a
     press on it is `m`: the next item in page order, announced as the walk announces it.
     Once nothing waits, the button goes, while the panel stays for what is done."""
     page = open_page(browser, serve(TWO_DECISIONS_PAGE))
@@ -3626,9 +3624,7 @@ def test_the_questions_panels_next_question_walks_as_q_does(browser, serve):
         button.evaluate("el => el.nextElementSibling?.getAttribute('aria-label')")
         == "Close the On panel"
     )
-    expect(button).to_have_attribute(
-        "title", "Next on me (m)"
-    )
+    expect(button).to_have_attribute("title", "Next on me (m)")
 
     button.click()
     expect(page.locator("#first-decision")).to_be_focused()
@@ -3730,7 +3726,7 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
 
 def test_the_arrows_walk_the_thread_titles_in_the_threads_panel(browser, serve):
     """From a thread's title in the Threads panel the arrows step between the visible
-    titles, and Home and End go to the ends, as they walk the Questions panel's rows.
+    titles, and Home and End go to the ends, as they walk the On panel's rows.
     Inside an open thread they are not the list's: from a message the arrows leave the
     titles alone."""
     page = open_page(browser, serve(LONG_PAGE, comments=3))
@@ -3769,9 +3765,9 @@ def test_the_arrows_walk_the_thread_titles_in_the_threads_panel(browser, serve):
     expect(message).to_be_focused()
 
 
-def test_a_todo_on_you_ends_at_its_done_where_q_lands_and_in_the_panel(browser, serve):
+def test_a_todo_on_you_ends_at_its_done_where_m_lands_and_in_the_panel(browser, serve):
     """A task the agent put on the user ends at their Done. Where `m` lands on it, `x`
-    is Done; its Questions panel row carries a Done button. Either leaves the user's queue
+    is Done; its On panel row carries a Done button. Either leaves the user's queue
     in the turn it is pressed, and writes the user's `todo_end`; the Ask beside them
     has no Done, since its widget answers it."""
     url = serve(QUEUE_PAGE)
@@ -3862,7 +3858,7 @@ def test_a_todo_on_you_ends_at_its_done_where_q_lands_and_in_the_panel(browser, 
 
 def test_a_finger_ends_a_todo_on_you_from_the_banner_row(browser, serve):
     """Under a finger, `x` is a step on the banner's row while the user stands on a
-    task Done ends, as a Questions panel row's tap leaves them."""
+    task Done ends, as an On panel row's tap leaves them."""
     url = serve(QUEUE_PAGE)
     task = append_carried_log_record(
         serve.page_dir,
@@ -3994,7 +3990,7 @@ def test_x_ends_the_innermost_todo_the_user_stands_on(browser, serve):
     assert "x\ndone" in shortcut_bar_text(page)
 
 
-def test_a_q_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, serve):
+def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, serve):
     """`m` arriving at a thread with the panel shut opens it on the page, and the
     opening can wait on the page. Focus the user moves meanwhile cancels the arrival:
     focus stays where they put it and the walk says nothing about the thread."""
@@ -6609,7 +6605,7 @@ def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
 def test_a_drawer_reached_from_another_drawer_leaves_both_of_them_shut(browser, serve):
     """The surface a user was already in does not come back when the next one goes.
 
-    `g T` from the Questions panel puts Threads up in its place, and the one Escape that takes
+    `g T` from the On panel puts Threads up in its place, and the one Escape that takes
     Threads off lands on the page rather than reopening the drawer the user came from.
     Nothing records that they were in it, and the descent Escape matches is the one that
     the state in front of them describes: Threads over the page.
@@ -6694,8 +6690,8 @@ def test_a_banner_disclosure_does_not_retake_focus_from_a_list(
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_a_completed_ask_stays_reachable_through_questions(browser, serve, width):
-    """An answered Ask stays in the Questions panel under Done, which closes and reopens through
+def test_a_completed_ask_stays_reachable_through_the_on_panel(browser, serve, width):
+    """An answered Ask stays in the On panel under Done, which closes and reopens through
     its routes."""
     page = open_page(
         browser,
@@ -6805,8 +6801,8 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
         )
 
 
-def test_a_completed_ask_keeps_its_answer_in_questions(browser, serve):
-    """Finishing a page preserves the Questions panel's route back through the answer."""
+def test_a_completed_ask_keeps_its_answer_in_the_on_panel(browser, serve):
+    """Finishing a page preserves the On panel's route back through the answer."""
     page = open_page(
         browser,
         serve(
@@ -6976,8 +6972,8 @@ def test_asks_sharing_context_keep_their_source_identity(browser, serve):
         expect(page.locator(f"#{source}")).to_be_focused()
 
 
-def test_questions_says_when_a_revision_removes_its_last_ask(browser, serve):
-    """An empty list of questions says the panel rendered, rather than looking broken."""
+def test_on_me_says_when_a_revision_removes_its_last_ask(browser, serve):
+    """An empty On me list says the panel rendered, rather than looking broken."""
     source = leaf_page(
         "One decision",
         '<h1>One decision</h1><lf-ask id="only-decision"><h2>Pick one</h2>'
@@ -7625,7 +7621,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
 
-# Threads stands for the two banner toggles, whose branch the Questions panel shares.
+# Threads stands for the two banner toggles, whose branch the On panel shares.
 @pytest.mark.parametrize(
     ("command", "suffix", "surface"),
     [
@@ -13757,7 +13753,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # The completion count includes every active Ask: the authored pick is complete;
     # the seated Ask and suggestion are not.
     expect_asks_answered(page, "1/3")
-    # In the Questions panel the seated Ask is the agent's: the comment in its seat is owed a
+    # In the On panel the seated Ask is the agent's: the comment in its seat is owed a
     # reply, which stands for it, so it is neither the user's item nor done.
     banner_control(page, ".lf-queue").click()
     expect(page.locator('.lf-queue-row[data-lf-at="widget:shape"]')).to_have_count(0)
@@ -14400,7 +14396,7 @@ ASK_THREAD_PAGE = leaf_page(
 def test_walking_to_an_ask_shows_its_discussion_clear_of_its_choices(
     browser, serve, width
 ):
-    """`q` lands on a tall Ask and its thread comes up in the card, which stands clear
+    """`m` lands on a tall Ask and its thread comes up in the card, which stands clear
     of the Ask's choices at either width, so a digit still answers and `c` continues
     the thread rather than starting another."""
     source = ASK_THREAD_PAGE.replace(
@@ -14437,7 +14433,7 @@ def test_walking_to_an_ask_shows_its_discussion_clear_of_its_choices(
 
 @pytest.mark.parametrize("family", ["decision", "suggestion"])
 def test_walking_to_an_ask_opens_its_discussion(browser, serve, family):
-    """`q` selects an Ask and its thread comes up beside it, as at any target the user
+    """`m` selects an Ask and its thread comes up beside it, as at any target the user
     stands at, taking over from the passage's card. Working the Ask's controls keeps it
     there, and `c` continues it."""
     if family == "decision":

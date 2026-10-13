@@ -83,14 +83,14 @@ Reference images are in `~/.tmp/leaf/floating-controls-reference/`:
 
 - `prototype/`: stills of the approved Leaf arrangement, Minimal and Moderate:
   at rest, menu open, Threads, Threads filtered to Unread, a thread with its
-  reply field, Questions and writing, at 1440×900, plus rest and writing at
+  reply field, the On view and writing, at 1440×900, plus rest and writing at
   390×844 touch. `scripts/stills.py` beside it regenerates them.
 - `codex-floating-panel.png`: the Codex app's panel, the user's inspiration.
 - `codex-app-study.md`: how Codex builds that panel. It covers the states, the
   motion, the geometry and dragging, read from the app's own source. Study it
   for the mechanics behind its polish. Don't copy its code.
-- `questions-panel-liked.png`: the Questions panel as it was. The user liked
-  it, because questions are answered right there in the panel.
+- `questions-panel-liked.png`: the On panel as it was, then called Questions.
+  The user liked it, because questions are answered right there in the panel.
 - `rejected-production-composer.png`: what the previous attempt shipped. It is
   the failure to avoid (see "What went wrong last time").
 
@@ -101,7 +101,7 @@ prototype. Each stays a requirement unless the user changes it.
 
 **One panel replacing both bars.** "Turning this into something like the codex
 floating panel … as part of removing the top and bottom bars." It needs a way to
-reach everything the banner and bottom bar offer today: threads, Questions,
+reach everything the banner and bottom bar offer today: threads, the On panel,
 Versions, the agent's status, approval, page comments, modes, the page's other
 controls, and keyboard shortcuts. These "pop out a panel above"; letting the
 user move the panel, and pop it out downward, is welcome but optional.
@@ -111,7 +111,7 @@ to start a new page thread, and also in the box is the current status." Later:
 "Have the most minimalist just be the comment box, maybe with only a questions
 button + annotation." And after the last attempt dropped it: "what happened to
 our resting comment box?" At rest the panel is one compact row. It holds the
-leaf mark, a one-line comment field, the Questions count, the count of new
+leaf mark, a one-line comment field, the On me count, the count of new
 replies, and, on a desk, a door to annotating. "If it's not possible to glance
 and see how many unread there are, then we need to resolve that." The empty
 field shows the agent's status where a placeholder would say "Comment…": the
@@ -139,7 +139,7 @@ basic, and then extensible."
   row offers Minimal, Moderate and Classic, and the choice persists (see "The
   preference").
 
-**Threads and Questions inside the panel.** The user asked to "think about the
+**Threads and the On lists inside the panel.** The user asked to "think about the
 full lifecycle of threads: creating them, resolving them; being able to find
 them."
 
@@ -147,7 +147,7 @@ them."
   can be on a single line." The inventory has search and All / Unread / Drafts /
   Resolved filters. A thread opens inside the panel, where it can be answered,
   resolved and reopened.
-- Questions are answered inline, as in the liked image: "there are things there
+- Asks on On me are answered inline, as in the liked image: "there are things there
   we can actually answer inline (whereas threads need to be clicked into)."
 - Threads anchored to a passage keep their markers and thread cards beside the
   text, as today. The panel's inventory lists every thread, anchored or not.
@@ -192,7 +192,7 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
 - **The resting row holds the comment field.** The Leaf arrangement rests as the
   mark with counts and opens the field on the first click. The user asked for
   the field at rest (see "A resting box"). The prototype's **Line** arrangement
-  shows a resting field, with Questions and annotating beside it; use it as the
+  shows a resting field, with On me and annotating beside it; use it as the
   reference for this row. The user chose Leaf over Line on 10 October and asked
   for the box back on 11 October. So everything except the resting row follows
   the Leaf arrangement: the mark, its menu, and how everything opens above the
@@ -213,11 +213,11 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
 - **A short thread reserves its "New reply · Show" slot,** so arriving news moves
   nothing.
 - **Answers are the widget's own choices** (a multiple-choice ask shows its options and
-  Done), recorded exactly as on the page; Questions has On you / On {agent} / Done.
+  Done), recorded exactly as on the page; the On view has On me / On {agent} / Done.
 - **Messages draw with Leaf's own reader** (the panel is a registered thread
   presentation), so asks, reactions and HTML replies work in the panel.
 - **The menu carries the banner's inventory,** drawn from each contributor's declared
-  row, less what the row and its views already hold (Threads, Questions, the page
+  row, less what the row and its views already hold (Threads, On me, the page
   comment, approval); Navigate, Annotations and About open as views of their rows.
 - **On a phone, a count at rest is its number beside an icon,** so the agent's status
   keeps the field ("numbers next to icons rather than saying whole words").
@@ -253,7 +253,7 @@ the defects.
 ## How to build it
 
 **Same state and commands, new presentation.** The floating panel is another
-presentation of what Leaf already owns. Threads, Questions, Tasks, status and
+presentation of what Leaf already owns. Threads, the On lists, status and
 versions come from the application publication. The panel's controls come from
 the banner toolbar's contributor inventory (`banner-toolbar.js`) and the command
 registry behind the shortcut bar. A control that a package contributes appears
@@ -298,7 +298,7 @@ comments as they arrive. Give them a new checkpoint at each milestone:
 
 - the resting panel, the leaf mark's status, and the menu;
 - Threads, opening, answering and resolving a thread, and writing in the one box;
-- Questions answered inline, Versions, approval, modes, and the Moderate display;
+- asks answered inline in the On view, Versions, approval, modes, and the Moderate display;
 - motion and polish, measured against the Codex reference.
 
 Budget about eight hours of work. If the user hasn't answered a checkpoint

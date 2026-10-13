@@ -3219,7 +3219,7 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         else:
             assert at["note"]["float"] == "none", (width, at)
 
-    # The Questions panel stands over the page and grants or withdraws no margin.
+    # The On panel stands over the page and grants or withdraws no margin.
     toggle_queue(page)
     panelled = page.evaluate(reading)
     assert panelled["sidebars"] == at["sidebars"]

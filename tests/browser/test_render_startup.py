@@ -1160,7 +1160,7 @@ RESTORED_PROSE = "".join(
 @pytest.mark.parametrize(
     ("saved", "wide", "window", "contained"),
     [
-        # Questions stands on the Threads panel's edge, at the width the user drew it.
+        # The On panel stands on the Threads panel's edge, at the width the user drew it.
         (
             {"lf-auxiliary-surface": "queue", "lf-thread-panel-width": "380"},
             False,
@@ -1175,7 +1175,7 @@ RESTORED_PROSE = "".join(
         ),
         # Where it would leave less than a usable page it covers the page instead.
         ({"lf-auxiliary-surface": "threads"}, True, 700, False),
-        # The Questions panel by the same rule: 420 of a 600px window leaves 180.
+        # The On panel by the same rule: 420 of a 600px window leaves 180.
         ({"lf-auxiliary-surface": "queue"}, False, 600, False),
         # A sample's child page starts without its host's saved chrome. Isolation is
         # one rule whatever the surface and window, so one case asks it.
@@ -2062,9 +2062,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     expect(page.locator(".lf-answer-all:visible")).to_have_count(0)
     # Opened by hand, the panel counts nothing yet either.
     page.locator(".lf-queue").click()
-    expect(page.locator(".lf-queue-panel")).to_contain_text(
-        "Loading…"
-    )
+    expect(page.locator(".lf-queue-panel")).to_contain_text("Loading…")
     expect(page.locator(".lf-queue-panel")).not_to_contain_text("On me · 0")
 
     comments = page.locator(".lf-threads-toggle")
@@ -4012,7 +4010,6 @@ def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
         )
         expect(page.locator(".lf-status-queues")).to_have_text("On Claude: 1")
         expect(page.locator(".lf-status-detail")).to_have_text(
-
             "Claude awaits — pick a storage engine. Waiting on Claude: 1 reply."
         )
         expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
@@ -6405,8 +6402,8 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
 
-def test_page_annotation_view_seats_questions_and_contributed_controls(browser, serve):
-    """A page that owns its annotations shows Questions and contributed actions in its
+def test_page_annotation_view_seats_asks_and_contributed_controls(browser, serve):
+    """A page that owns its annotations shows its asks and contributed actions in its
     own box: Leaf hands the consumer each entry's items and native controls, and the
     page only arranges them. Activating an item reaches its ask, and a seated
     control still runs its contribution's action. The view follows the log: an answered

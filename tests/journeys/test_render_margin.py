@@ -1053,8 +1053,8 @@ def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
 
 
 def test_the_thread_card_survives_drawers_and_authored_sidebars(browser, serve):
-    """The Questions panel or an authored sidebar does not turn the contextual card into
-    the Threads panel. The Questions panel stands on the right edge, over the rail at a
+    """The On panel or an authored sidebar does not turn the contextual card into
+    the Threads panel. The On panel stands on the right edge, over the rail at a
     desk's width, so the window is wide enough to leave the marker clear of it."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
     resized(page, 2100, 900)

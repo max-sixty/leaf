@@ -42,8 +42,8 @@ from render_cases_layout import (
     EDGES,
     FOCUS_IN_PAGE,
     LEGEND_TRUE,
+    ON_PANEL,
     PAGE_MARKUP,
-    QUESTIONS,
     banner_control,
     draw_edge,
     edge_settled,
@@ -304,10 +304,8 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
 
 
 @pytest.mark.parametrize("width", [900, 1200])
-def test_an_aimed_comment_keeps_its_place_with_the_questions_panel_open(
-    browser, serve, width
-):
-    """The Questions panel stands over the page without moving its coordinate plane.
+def test_an_aimed_comment_keeps_its_place_with_the_on_panel_open(browser, serve, width):
+    """The On panel stands over the page without moving its coordinate plane.
 
     A broad authored rule may position ordinary divs, and the drawer may arrive over a
     target without another pointer event. Neither may move the chrome's document origin or
@@ -331,7 +329,7 @@ def test_an_aimed_comment_keeps_its_place_with_the_questions_panel_open(
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "lq-keep")
     # Open by script so the pointer remains parked on the target while the drawer arrives.
     page.locator(".lf-queue").evaluate("node => node.click()")
-    edge_settled(page, QUESTIONS)
+    edge_settled(page, ON_PANEL)
     aligned = page.evaluate(
         """() => {
           const target = document.getElementById('lq-keep').getBoundingClientRect();
@@ -1656,7 +1654,7 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     # Wide enough that the panel first stands beside the page, where Design mode starts.
     resized(page, 900, 900)
     banner_control(page, ".lf-queue").click()
-    edge_settled(page, QUESTIONS)
+    edge_settled(page, ON_PANEL)
     page.keyboard.press("l")
     expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
     resized(page, 560, 900)

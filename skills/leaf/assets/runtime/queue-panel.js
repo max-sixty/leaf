@@ -1,5 +1,5 @@
-/* The On panel: everything waiting on the user, On me (`queues.questions`), then
-   everything waiting on the agent, On <agent> (`queues.tasks`), and what is done, on
+/* The On panel: everything waiting on the user, On me (`queues.on_user`), then
+   everything waiting on the agent, On <agent> (`queues.on_agent`), and what is done, on
    the right edge, where the Threads panel stands. Only one of the two is open at a
    time, so they are two views of one side panel, and their banner doors stand side by
    side (banner.js).
@@ -13,11 +13,11 @@
    is used, and change them freely.
 
    The panel decides no membership. Its two lists are the application's one reading,
-   `queues.questions` and `queues.tasks` (the server's `served_state.queues`, with this
+   `queues.on_user` and `queues.on_agent` (the server's `served_state.queues`, with this
    tab's sends placed against it), the same lists the `m` walk steps through and the
    banner counts; what is done is `done`, served beside them from ended to-dos and
-   answered or withdrawn asks. So a reply the user sends joins Tasks in the turn it
-   is sent, and leaves Questions when the server's reading of it arrives, as the
+   answered or withdrawn asks. So a reply the user sends joins On <agent> in the
+   turn it is sent, and leaves On me when the server's reading of it arrives, as the
    banner's counts do.
 
    Each row says what kind of item it is, the item's title or opening words, and where it
@@ -30,7 +30,7 @@
    (`queue-api.js`, `done`).
 
    Its door in the banner says how many items wait on the user, and the agent's
-   count beside the status sentence opens it too; `g Shift+Q` is the key.
+   count beside the status sentence opens it too; `g Shift+M` is the key.
 
    Rows join, leave and change only while the panel is open, and the list holds its
    focus across them (focus.js, keyed `holdFocus`); a closed panel holds no rows. Its door
@@ -129,10 +129,10 @@ export function createQueuePanel({ actions, next, announce }) {
       : (readThreads().threads.find((thread) => thread.id === id) ?? null);
   const agent = agentName;
   // The panel's door beside Threads, in the Threads door's face: its name and how many
-  // Questions wait on the user, as that one says how many threads are open (banner.js).
+  // items wait on the user, as that one says how many threads are open (banner.js).
   // Until the log has answered, the door claims no count, as the Threads door claims none.
   function nameDoor() {
-    const count = reading().phase === "ready" ? reading().questions.length : null;
+    const count = reading().phase === "ready" ? reading().on_user.length : null;
     keepsText(queueBtn, count === null ? "On me" : `On me: ${count}`);
     keeps(queueBtn, "aria-label", count === null ? "On me" : `On me: ${count}`);
     keeps(queueBtn, "data-lf-key-title", `Show or hide what's on me and on ${agent()}`);
@@ -236,12 +236,12 @@ export function createQueuePanel({ actions, next, announce }) {
         done: Object.freeze({ label: "", rows: Object.freeze([]) }),
       });
     }
-    const { questions, tasks, done } = reading();
+    const { on_user: onUser, on_agent: onAgent, done } = reading();
     // Before the log's first answer the panel, like its door, counts nothing, and says
     // so as the Threads panel does.
     const known = Boolean(reading().phase === "ready");
-    const you = questions.map((item) => row(item, "you"));
-    const them = tasks.map((item) => row(item, "agent"));
+    const you = onUser.map((item) => row(item, "you"));
+    const them = onAgent.map((item) => row(item, "agent"));
     const finished = done.map((item) => row(item, "done"));
     rows = new Map([...you, ...them, ...finished].map((entry) => [entry.key, entry]));
     return Object.freeze({
@@ -273,10 +273,10 @@ export function createQueuePanel({ actions, next, announce }) {
 
   async function paintQueue(current) {
     nameDoor();
-    const waiting = reading().questions.length > 0;
+    const waiting = reading().on_user.length > 0;
     keepsHidden(queueNextBtn, !waiting);
-    // On a phone the door waits in More, which says a question is there as it says an
-    // approval is open.
+    // On a phone the door waits in More, which says something is on the user as it says
+    // an approval is open.
     markBannerControl(queueBtn, waiting ? "items on me" : null);
     repaint();
     const next = model();

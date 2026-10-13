@@ -915,7 +915,7 @@ export const declareOccluder = (surface) => {
   };
 };
 // Where the surface standing at the window's right edge begins, or Infinity where none
-// stands: the side panel, Threads or Questions, whichever is open (drawers.js). What is
+// stands: the side panel, Threads or On, whichever is open (drawers.js). What is
 // laid out beside the page, as the comment box is, keeps left of it, and a margin row it
 // reaches is one the user has lost (chrome-layout.js).
 export function rightCover() {

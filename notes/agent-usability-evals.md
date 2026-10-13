@@ -182,7 +182,7 @@ conditions repaired about equally often.
   pairwise judge runs the authors' model, Opus 5.5, and Leaf's viewer chrome in the
   screenshots shows it which page is Leaf's.
   - Documents: on the two documents Leaf won, it won on decisions in both orders,
-    since it put both decisions on the page as Questions where HTML offered a reply
+    since it put both decisions on the page as asks where HTML offered a reply
     to copy. HTML's sticky contents ran out of the short 900px window on all three;
     both conditions' comparison tables lost a column at 390px.
   - Configurations: every Leaf author used `lf-playground`, whose control panel sits

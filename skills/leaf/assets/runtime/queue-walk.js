@@ -2,7 +2,7 @@
    in page order: the On me list the panel shows first (queue-panel.js). The panel opens with
    `g M`, as the Threads panel opens with `g T` and `t` walks the threads.
 
-   What waits on the user is the application's one reading, `queues.questions`
+   What waits on the user is the application's one reading, `queues.on_user`
    (the server's `served_state.queues`, with this tab's sends placed against it): each open
    ask or to-do on the user, each thread holding a resend, and each page widget action
    handed back to them. The walk does not decide membership; it stops once at each place
@@ -31,7 +31,8 @@
    walk's origin. The user stands on an item when they stand in its ask, in its thread
    (`threadHere`), or in its widget or element, and the press steps off it. Standing on
    a to-do Done ends, `x` is that Done, a step on the banner's row under a finger
-   (`queue-api.js`, `done`): the user's `todo_end`, which leaves Questions in the turn it is pressed.
+   (`queue-api.js`, `done`): the user's `todo_end`, which leaves On me in the turn it is
+   pressed.
 
    Page order is each item's place in the page as rendered: an ask's own element, or its
    thread's passage for an ask seated in a thread; a thread's passage; the widget an action
@@ -139,7 +140,7 @@ export function createQueueWalk({
   function stops() {
     const list = [];
     const listed = new Set();
-    for (const item of readQueues().questions) {
+    for (const item of readQueues().on_user) {
       const stop = stopOf(item);
       // Two items arrived at in one place, such as two to-dos on one thread, are one
       // stop.
@@ -286,7 +287,7 @@ export function createQueueWalk({
   // The to-do Done ends where the user stands on `stop`.
   const doneAt = (stop) =>
     stop
-      ? (readQueues().questions.find(
+      ? (readQueues().on_user.find(
           (item) => item.offers.done && sameStop(stopOf(item), stop),
         ) ?? null)
       : null;
@@ -310,22 +311,22 @@ export function createQueueWalk({
       return shownFor;
     }
     shownFor =
-      readQueues().questions.find(
+      readQueues().on_user.find(
         (item) => item.id === shownFor?.id && item.offers.done,
       ) ?? null;
     return shownFor;
   }
 
   // The user's Done on a to-do on them: their `todo_end`, through the one append door.
-  // The to-do leaves their Questions in the turn they press it (`application.ts`).
+  // The to-do leaves On me in the turn they press it (`application.ts`).
   function endTodo(id) {
     return actions.done(queueItemKey({ kind: "todo", id }));
   }
 
-  const offered = () => readQueues().questions.length > 0;
+  const offered = () => readQueues().on_user.length > 0;
   const doneable = () =>
     readQueues()
-      .questions.filter((item) => item.offers.done)
+      .on_user.filter((item) => item.offers.done)
       .map((item) => item.id)
       .join(" ");
   let wasOffered = false;
@@ -394,7 +395,7 @@ export function createQueueWalk({
     ],
   });
 
-  // A On panel row arrives where the walk would (queue-panel.js), whichever list
+  // An On panel row arrives where the walk would (queue-panel.js), whichever list
   // its item is on.
   const arriveAtItem = (item) => arriveAt(stopOf(item));
 

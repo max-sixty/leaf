@@ -1341,7 +1341,7 @@ Each record contains:
 - An approval ask has `source.kind === "approval"`, `source.version` naming the stamped
   version, and id `approval:v<version>`. Its answer is `null` until that version's approval
   settles it with typed `answer.value === true`; Undo reopens it. Its arrival reaches the
-  Approve control in the Questions view of Leaf's panel.
+  Approve control in the On view of Leaf's floating panel.
 
 `thread` and `message` name a frozen widget ask's Thread and exact message, and a prose
 ask's Thread and source message; both are null for page-widget and approval asks.
@@ -1378,7 +1378,7 @@ region's edge. It resolves to whether it arrived. A control that calls it keeps 
 declared command; asks expose no separate answer API.
 
 `readQueues()` and `watchQueues(owner, callback)` supply the immutable
-`{phase, questions, tasks, done}` that the On panel and `m` navigation use. Ask rows
+`{phase, on_user, on_agent, done}` that the On panel and `m` navigation use. Ask rows
 have `kind === "ask"` and their canonical `ask` record, whose `source.kind` is `widget`,
 `reply` or `approval`. To-do rows have `kind === "todo"`; response obligations and delivery
 retries keep their own kinds. An ask is not also a to-do. Live rows carry their workflow or
@@ -1389,7 +1389,7 @@ panel uses.
 
 `queueActions.open(key)`, with a row's `queueItemKey`, resolves the current row and follows
 Leaf's arrival, and resolves to `false` for an unavailable row. `queueActions.done(key)`
-returns an admission promise only for a current to-do on `questions`, one the agent opened
+returns an admission promise only for a current to-do on `on_user`, one the agent opened
 on the user, and `null` otherwise. A widget ask ends through its widget, a prose ask through
 a reply, a settling reaction or the agent's `leaf task end`, and an approval ask through its version's approval.
 Done removes its to-do optimistically, a duplicate cannot send again, and a refusal restores

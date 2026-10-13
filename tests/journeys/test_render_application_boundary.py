@@ -1284,7 +1284,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
             "Control+Enter"
         )
     expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
-    # One reply answers both prose Questions. Counts include them, while the
+    # One reply answers both prose asks. Counts include them, while the
     # compact answer summary names only widget choices instead of repeating prose.
     expect(workspace.locator(".counts")).to_have_text(
         "0 asks on me · 3 answered · Email"

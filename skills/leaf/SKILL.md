@@ -16,8 +16,8 @@ and idle the page when it is finished.
 Anything you need from the user must appear in the user's **On me** list. An
 empty On me list means you need nothing from them now. Your own list, which the
 user sees as **On <your name>**, holds what waits on you. Before handing over or
-waiting, read `leaf page state <page>` and reconcile `queues.questions` (On me)
-and `queues.tasks` (yours) with the work and decisions still open.
+waiting, read `leaf page state <page>` and reconcile `queues.on_user` (On me)
+and `queues.on_agent` (yours) with the work and decisions still open.
 `references/conversation-loop.md`, "The On lists", owns what appears there
 and how to register each request.
 

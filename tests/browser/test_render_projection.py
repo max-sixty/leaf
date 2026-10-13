@@ -2916,7 +2916,7 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve, depart
 
 
 @pytest.mark.parametrize("subject", ["diff", "selection"])
-def test_a_live_revision_updates_the_closed_questions_door(browser, serve, subject):
+def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     """Unrelated questions arrive while an anchored comment keeps its native editor."""
     reading = (
         '<p id="reading">Work under discussion.</p>'

@@ -904,7 +904,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      and the passage it is about. A quote is the page's own words and a message is
      somebody's, so a user copying either is copying what was said rather than the
      layer talking about itself — which is what a head, a count and a control's label
-     are, and why a run of them ("All leaves (6) · Queue · v1") is not in this list.
+     are, and why a run of them ("All leaves (6) · On me · v1") is not in this list.
 
      Fields are not in it, and that is a measurement rather than a decision: a drag
      inside an input under the root's none still selects its value in Chromium, Gecko

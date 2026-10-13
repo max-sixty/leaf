@@ -58,11 +58,11 @@ variants:
   # trial withdrew even the existing ask because preparation was agent-owned work.
   # Two other initial trials missed the skill or read another checkout: unscored.
   # Native skill-input pairs with the final rubric: original 0/2, revised 2/2.
-  # Readiness does not decide which scopes need Questions: the rubric accepts
+  # Readiness does not decide which scopes need asks: the rubric accepts
   # independently answerable boundary choices without resuming blocked work.
   remaining-review:
     metadata:
-      purpose: 'Questions: a branch review exposes every independent proposal even while preparation
+      purpose: 'On me: a branch review exposes every independent proposal even while preparation
         remains agent work.'
     vars:
       prompt: |
@@ -76,7 +76,7 @@ variants:
         you to record the underlying reading problem in TODO rather than pursue that solution.
         Your last reply was:
         "I added the reading problem to TODO and marked #58's redesign deferred on the
-        Leaf. Page checks pass; no Questions remain."
+        Leaf. Page checks pass; nothing remains on your On me list."
 
         My latest message is: "ok, so what's left?"
 
@@ -292,9 +292,9 @@ variants:
         </main>
 
         You have opened one agent thread on remaining-next asking whether to prepare
-        #59 next. The live source is valid and queues.questions contains only that ask,
-        reply:next-touch. queues.tasks is empty. Your drafted final reply ends:
-        "One Question awaits you: whether to prepare #59 next as a separate reviewed
+        #59 next. The live source is valid and queues.on_user contains only that ask,
+        reply:next-touch. queues.on_agent is empty. Your drafted final reply ends:
+        "One ask is on your On me list: whether to prepare #59 next as a separate reviewed
         change. Nothing else currently needs your input."
 
         Finish the page and handoff. Files and services are unreachable here, so provide
@@ -305,7 +305,7 @@ variants:
       value: |
         Read this as the user's review handoff. Pass only if the independent
         proposed changes #51, #52, #53, #54, #55, #57 and #59 can each be answered as
-        registered Questions about whether to pursue or include each proposed scope.
+        registered asks about whether to pursue or include each proposed scope.
         Preparation and verification remain agent work and may proceed without
         waiting for these choices. Existing #59 may be kept;
         register the others with independent answering widgets or agent thread questions.
@@ -319,7 +319,7 @@ variants:
         does not itself block a scope decision. The draft's overview assigns #56
         to assessment, while its detailed table already presents a proposal;
         either keeping assessment on the agent or asking about that proposed
-        boundary is valid. Do not require exactly seven Questions.
+        boundary is valid. Do not require exactly seven asks.
         This is a read-only plan: execution is not required. Agent `leaf thread open
         --text` registers a prose ask automatically; --ask is needed only on a reply.
         Do not require exact wording, IDs, order, or a particular choice widget.
@@ -351,7 +351,7 @@ variants:
 
         Your latest commands checked the page, ended your audit to-do, and read:
         {"source":{"live":true,"error":null},
-         "queues":{"questions":[],"tasks":[]}}
+         "queues":{"on_user":[],"on_agent":[]}}
         Your drafted final reply is:
         > I fixed the introduction. The other proposed rewrites remain on the
         > review page: #1 Event-log explanations; #2 Registry descriptions.
@@ -402,10 +402,10 @@ variants:
 
         The latest page state is:
         {"source":{"live":true,"error":null},
-         "queues":{"questions":[
+         "queues":{"on_user":[
            {"id":"reply:event-log-q","kind":"ask","thread":"event-log-q"},
            {"id":"reply:registry-q","kind":"ask","thread":"registry-q"}],
-           "tasks":[{"id":"ci-work","kind":"todo"}]}}
+           "on_agent":[{"id":"ci-work","kind":"todo"}]}}
         No work depends on further feedback; comments remain welcome.
 
         Finish this turn while the background CI wait continues. Files and

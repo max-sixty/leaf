@@ -848,7 +848,7 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
         for text in ("Reading the banner's styles.", "Trying a lighter weight.")
     ]
     page = open_page(browser, url)
-    # The comment's Tasks row says the line the agent last gave, as the thread will.
+    # The comment's row on the agent's list says the line the agent last gave, as the thread will.
     page.locator(".lf-queue").click()
     row = page.locator("[data-lf-queue='agent'] .lf-queue-row")
     expect(row.locator(".lf-queue-where")).to_contain_text(
@@ -5600,7 +5600,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     page.keyboard.press("n")
     expect(theirs_title).to_be_focused()
     # The card the narrowing hides keeps its node. A widget an agent sent in a reply is
-    # instantiated once, in that card, and the Ask reading and the Questions panel find it by
+    # instantiated once, in that card, and the Ask reading and the On panel find it by
     # id in the document — hidden is the list's business, gone would be a claim about the
     # log (test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page).
     expect(
@@ -8466,7 +8466,7 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
 def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser, serve):
     """Thread narrowing changes presentation, not the admitted ask inventory.
 
-    After both Questions are answered, hiding a thread with the On you filter keeps
+    After both asks are answered, hiding a thread with the On you filter keeps
     both canonical records in Done and preserves the page-wide completion count.
     """
     page = open_page(

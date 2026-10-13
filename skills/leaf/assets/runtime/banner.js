@@ -52,7 +52,7 @@ banner.id = "lf-banner";
 declareBanner(banner);
 const bannerStatus = createBannerStatusView(repaint, INITIAL);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
-// The agent's Tasks count, which opens the On panel listing them (drawers.js).
+// The agent's On count, which opens the On panel listing what it holds (drawers.js).
 export const queueCounts = bannerStatus.queues;
 
 // Threads reads "Threads: 3" on a desk and, on a phone's one row, a thread icon with its
@@ -92,7 +92,7 @@ export function setThreadCounts(open, unread) {
 const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.id = "lf-approve";
 // Another chrome that presents the approval in this control's place, as the floating
-// panel's Questions view does, names the control it shows and brings the user to it.
+// panel's On view does, names the control it shows and brings the user to it.
 let approvalPresentation = null;
 export function registerApprovalPresentation(presentation) {
   approvalPresentation = presentation;
@@ -152,7 +152,7 @@ registerBannerControl({
   seat: { desk: "row", phone: "menu" },
   row: {
     label: "On me",
-    value: () => String(readQueues().questions.length),
+    value: () => String(readQueues().on_user.length),
     group: "page",
   },
 });
@@ -320,9 +320,9 @@ let saidActionableWork;
 // The page's two queues (`served_state.queues`) are told apart in the banner by where
 // they stand. What waits on the user, which `m` walks, is the On me door beside
 // Threads (queue-panel.js paints its count), and on a phone's one row it waits in More.
-// What waits on the agent, its Tasks, stands beside the status, apart from the sentence,
+// What waits on the agent, On <agent>, stands beside the status, apart from the sentence,
 // as the banner's whole account of the agent's side, with the disclosure naming both
-// sides' kinds and each open to-do's title. The Tasks count is a page fact, like the
+// sides' kinds and each open to-do's title. The agent's count is a page fact, like the
 // Threads count, and stands apart from the sentence so the agent's words changing never
 // carries it. On one row it ends the status's room, which gives up its words to the
 // ellipsis first; where the banner takes two rows, the sentence has the first to itself
@@ -356,7 +356,7 @@ function queueKinds(items) {
   });
 }
 function queueWords() {
-  const { questions, tasks } = readQueues();
+  const { on_user: onUser, on_agent: onAgent } = readQueues();
   const agent = agentName();
   // The count stands in the banner's row, whose room theme.css states before the name is
   // known, so a long name is cut there; the explanation keeps it whole.
@@ -364,10 +364,8 @@ function queueWords() {
   const named = (items, whom) =>
     items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
   return {
-    summary: tasks.length ? `On ${short}: ${tasks.length}` : "",
-    explanation: [named(questions, "me"), named(tasks, agent)]
-      .filter(Boolean)
-      .join(" "),
+    summary: onAgent.length ? `On ${short}: ${onAgent.length}` : "",
+    explanation: [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" "),
     // The widest the count usually reaches, under ten, which its box keeps; more
     // widens it once (banner-status-view.js).
     widest: `On ${short}: 9`,
@@ -938,7 +936,7 @@ export function mountBanner({ approveVersion, paintApproval }) {
   watchSemantic(() => lastStatus && presentStatus(lastStatus));
   showNews(othersBtn, false);
   banner.append(bannerStatus, bannerStatus.queues, bannerActions);
-  // On two rows the Tasks count stands on the second line only where the run leaves it
+  // On two rows the agent's count stands on the second line only where the run leaves it
   // room whole, else on a third the banner does not draw, and a phone's one row leaves
   // it out (chrome.css). A press there is a stop nobody can see, so an undrawn count is
   // inert; the On me door and the status's disclosure still reach what it says.

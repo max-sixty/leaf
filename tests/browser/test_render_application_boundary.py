@@ -1960,17 +1960,17 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
         "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
     )
     key = page.evaluate(
-        "api.queueItemKey(api.readQueues().questions.find(item => item.id === 'proofread'))"
+        "api.queueItemKey(api.readQueues().on_user.find(item => item.id === 'proofread'))"
     )
     assert page.evaluate(
-        "api.queueActions.done(api.queueItemKey(api.readQueues().questions.find(item => item.ask?.source.kind === 'widget'))) === null"
+        "api.queueActions.done(api.queueItemKey(api.readQueues().on_user.find(item => item.ask?.source.kind === 'widget'))) === null"
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.evaluate("key => { window.doneDelivery = api.queueActions.done(key); }", key)
     holding(page, held, 1, "a package Done awaiting admission")
     assert page.evaluate(
-        "!api.readQueues().questions.some(item => item.id === 'proofread')"
+        "!api.readQueues().on_user.some(item => item.id === 'proofread')"
     )
     assert page.evaluate("api.readQueues().done.some(item => item.id === 'proofread')")
     assert page.evaluate("key => api.queueActions.done(key) === null", key)
@@ -1990,7 +1990,7 @@ def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, 
     assert page.evaluate("doneDelivery") is None
     round_trip(page)
     assert page.evaluate(
-        "api.readQueues().questions.some(item => item.id === 'proofread')"
+        "api.readQueues().on_user.some(item => item.id === 'proofread')"
     )
     with sending(page, "a current package Done"):
         page.locator("#workspace").get_by_role(
@@ -2099,7 +2099,7 @@ def test_queue_ask_arrival_selects_the_primary_reader(browser, serve):
         "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
     )
     assert page.evaluate(
-        "async () => { const item = api.readQueues().questions.find(item => item.ask?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
+        "async () => { const item = api.readQueues().on_user.find(item => item.ask?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(

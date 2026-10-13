@@ -224,7 +224,7 @@ export function createAskView({
     return presenter.present();
   }
 
-  // An answered ask normally keeps semantic focus on its own element after a Questions
+  // An answered ask normally keeps semantic focus on its own element after an On
   // panel row's arrival. A boxless answered widget cannot: its visible revision control
   // is the only focus target. Remember that exact target for this arrival, and only while
   // it still owns focus, so returning to the same control ordinarily does not promote it
@@ -259,8 +259,8 @@ export function createAskView({
     if (!record) return null;
     if (readAsks().unanswered.some((ask) => ask.id === record.id)) return record;
     // An answered ask is standing only on an explicit review route: the ask element,
-    // or chrome whose owner declares it stands at that element (`sideOf`), as a Queue
-    // row does. A widget host can be the document's retargeted focus without being the
+    // or chrome whose owner declares it stands at that element (`sideOf`), as an On
+    // panel row does. A widget host can be the document's retargeted focus without being the
     // ask itself; treating that as an arrival would make an ordinary click on a chosen
     // option steal the option's own semantics.
     const answered = record;
@@ -287,7 +287,7 @@ export function createAskView({
     return source ? actionsFor(source) : [];
   };
   // The answers an ask offers, for a surface that answers it away from where it stands,
-  // as the floating panel's Questions view does: each Decision control's own words and
+  // as the floating panel's On view does: each Decision control's own words and
   // its own press, so the answer is the widget's, recorded as a press there would be.
   // Null while the ask's source has no node, as in a thread turn not yet drawn; the
   // caller then offers the arrival instead.
@@ -389,7 +389,7 @@ export function createAskView({
 
   // The user's standing on an ask, said in terms a replaced document can still answer.
   // Focus by shape does not cross a document replacement — version.js says why — but an
-  // ask is not a shape. Its id is a declared identity that the inventory, the Questions
+  // ask is not a shape. Its id is a declared identity that the inventory, the On
   // panel's rows, and the walk already resolve against whichever document is current,
   // so a user working an ask when a revision lands is put back on the same ask rather
   // than dropped to `body`.

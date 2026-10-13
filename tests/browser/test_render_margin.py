@@ -548,7 +548,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     drawn, but at 1100 it stands over the rail, so the banner offers the Page Map in the
     markers' place; at 1920 the rail stands clear of it and the margin stays the way in.
     The Map is read as offered rather than as visible, since the toolbar may fold it behind
-    the More door at a width the banner is crowded at. The Questions panel stands on the
+    the More door at a width the banner is crowded at. The On panel stands on the
     Threads panel's edge, so it is read the same way: drawn over, the rail is still drawn,
     and the banner offers the map in its place."""
     comment = {
@@ -598,7 +598,7 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     margins_laid_out(page)
     expect(marker).to_be_visible()
     assert page.evaluate(offered), (
-        "the Questions panel stands over the rail and the page offered the user nothing "
+        "the On panel stands over the rail and the page offered the user nothing "
         "in its place"
     )
 
@@ -1730,9 +1730,7 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     status = child.locator('.lf-margin-entry[data-lf-kinds="sent"]')
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
-    expect(
-        child.get_by_role("button", name="On me: 0")
-    ).to_be_visible()
+    expect(child.get_by_role("button", name="On me: 0")).to_be_visible()
     expect(child.get_by_role("button", name="Open threads: 0")).to_be_visible()
     for width in (720, 390):
         resized(page, width, 900)
@@ -2519,7 +2517,7 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
 
 def test_the_chrome_names_an_ask_by_its_question(browser, serve):
     """An Ask is named by its heading, not its heading run into its options and their
-    chips: the Questions panel row, and the Page Map group for it, whose one row says why the
+    chips: the On panel row, and the Page Map group for it, whose one row says why the
     Ask is there rather than naming it a second time."""
     page = open_page(browser, serve(ASK_PAGE))
     page.keyboard.press("g")
@@ -7016,8 +7014,8 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
 def test_going_to_a_side_surface_folds_the_cluster_the_user_left(browser, serve):
     """Unfolded options stay open while a layer over the page holds the user, since
     that layer hands them back to the cluster as it closes. A side surface standing
-    beside the page is somewhere else they went, so going to Questions folds the
-    options, though Questions stands in the same native dialog as the chrome's layers."""
+    beside the page is somewhere else they went, so going to the On panel folds
+    the options, though that panel stands in the same native dialog as the chrome's layers."""
     page = open_page(browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
     resized(page, 1440, 900)
     item = page.locator('[data-lf-margin-for="sug-refill"]')
@@ -9423,7 +9421,7 @@ PANE_PIN_PAGE = leaf_page(
 
 
 def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve):
-    """`q` to an Ask below a pane's fold scrolls it into view while its row is still
+    """`m` to an Ask below a pane's fold scrolls it into view while its row is still
     withheld, so there is nothing yet to hang its card from. The card of the thread the
     user leaves goes at once, and the Ask's comes once the margin shows its row, as it
     would for an arrival whose row was already there."""
@@ -9444,7 +9442,7 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     page.keyboard.press("t")
     leaving = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{left}"]')
     expect(leaving).to_be_focused()
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#work")).to_be_focused()
     expect(leaving).to_have_count(0)
     expect(row).to_be_visible()

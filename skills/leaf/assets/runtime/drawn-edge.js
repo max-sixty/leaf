@@ -1,5 +1,5 @@
 /* This module owns the page's two drawn edges: the side panel's on the right, which
- * Threads and Questions share, and the drawer panel's on the left. Each is a resizable
+ * Threads and the On panel share, and the drawer panel's on the left. Each is a resizable
  * boundary with a width, keys and a handle, and the user's remembered answer. How the
  * shell takes a new width is the layout writer's (`landEdgesWith`, chrome-layout.js),
  * bound once it exists, so this module stays outside the owner cycle and an edge can be

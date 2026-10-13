@@ -163,6 +163,16 @@ export function registeredVisualParts(source) {
   });
 }
 
+// An invalid package inventory is reported by visualPartProblems at page check.
+// The live page can still upgrade and expose its other controls for that reading.
+export function usableVisualParts(source) {
+  try {
+    return registeredVisualParts(source);
+  } catch {
+    return [];
+  }
+}
+
 export const registeredVisualPart = (source, id) =>
   registeredVisualParts(source).find((part) => part.id === id) ?? null;
 
@@ -173,9 +183,9 @@ export const registeredVisualPartLabel = (source, id) => {
   return words(label) || null;
 };
 
-export function registeredVisualPartAt(source, target, admits = () => true) {
+export function usableVisualPartAt(source, target, admits = () => true) {
   const byElement = new Map(
-    registeredVisualParts(source)
+    usableVisualParts(source)
       .filter(admits)
       .map((part) => [part.element, part]),
   );

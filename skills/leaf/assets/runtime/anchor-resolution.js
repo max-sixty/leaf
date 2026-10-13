@@ -20,11 +20,11 @@ import { clippedContents } from "./geometry.js";
 import { inUi, shadowHost, under, upFrom } from "./shadow.js";
 import {
   registeredVisualPart,
-  registeredVisualPartAt,
   registeredVisualPartLabel,
-  registeredVisualParts,
   revealRegisteredVisualPart,
   revealsVisualParts,
+  usableVisualPartAt,
+  usableVisualParts,
   visualPartAdmission,
 } from "./visual-parts.js";
 import {
@@ -204,7 +204,7 @@ const wholeVisualSurface = (element) =>
 export function visualParts(visual) {
   const rank = visualPartRank(visual);
   if (!rank) return [];
-  return registeredVisualParts(visual)
+  return usableVisualParts(visual)
     .filter((part) => rank(part.id) >= 0)
     .sort((a, b) => rank(a.id) - rank(b.id));
 }
@@ -223,9 +223,7 @@ function revealVisualPart(visual, part) {
 
 function visualPartAt(visual, target) {
   const rank = visualPartRank(visual);
-  return rank
-    ? registeredVisualPartAt(visual, target, (part) => rank(part.id) >= 0)
-    : null;
+  return rank ? usableVisualPartAt(visual, target, (part) => rank(part.id) >= 0) : null;
 }
 
 export const visualPartLabel = (visual, part) =>

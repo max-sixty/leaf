@@ -173,11 +173,12 @@ export function createQueuePanel({ actions, next, announce }) {
   function when(item, thread) {
     if (itemNoun(item) === "ask")
       return thread && shortAgo(threadSummary(thread).latest);
-    if (item.kind === "answer") return workflowLabel(item.workflow);
+    // An update in hand says the line the agent last gave for it, as its thread's
+    // working message does.
+    const state = [workflowLabel(item.workflow), item.workflow?.detail];
+    if (item.kind === "answer") return state.filter(Boolean).join(" · ");
     if (item.kind === "work")
-      return [workflowLabel(item.workflow), shortAgo(item.workflow?.ts)]
-        .filter(Boolean)
-        .join(" · ");
+      return [...state, shortAgo(item.workflow?.ts)].filter(Boolean).join(" · ");
     // A to-do the agent has in hand says the line its start gave, as an update in hand does.
     if (item.kind === "todo" && item.running)
       return [item.running.text, shortAgo(item.running.ts)].filter(Boolean).join(" · ");

@@ -200,11 +200,9 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # Working the Ask keeps its decisions clear. Opening its existing discussion
-    # explicitly makes c enter the reply instead of adding an answer or opening
-    # another comment box.
+    # Standing on the Ask shows its discussion beside it, so c enters the reply
+    # instead of adding an answer or opening another comment box.
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
-    page.get_by_role("button", name=re.compile(r"Thread, My turn to answer")).click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("c")
     expect(reply).to_be_focused()

@@ -16,7 +16,10 @@
 
    thread-preview.js owns the contextual card and its selected conversation's
    lifetime. The margin supplies its anchor control and manages cluster disclosure.
-   A card accompanies the page target the user stands at; followStanding and the
+   A card accompanies the page target the user stands at, an ask included: `q` lands
+   on an ask and its discussion opens beside it, clear of its options. Keeping the card
+   shut while the user works an ask was tried and rejected, since the user walks to an
+   ask to read its discussion with it. followStanding and the
    shared keyboard ladder decide when that relationship ends. It is margin chrome:
    target, cluster and card are one place. Standing elsewhere, releasing the target,
    or pressing outside that place dismisses it. Escape inside lands on the target;
@@ -117,8 +120,7 @@ import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "../repaint.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { versionBtn } from "../version-picker.js";
-import { askHolding, declareSide, placeOf } from "../standing-target.js";
-import { readAsks } from "../asks/model.js";
+import { declareSide, placeOf } from "../standing-target.js";
 import { closestAcross, inChrome } from "../passages.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
@@ -759,12 +761,15 @@ export function createMarginProjection({
         setOptionsOpen(current, false);
     }
   });
+  // The keyboard arrival waiting for its margin row to show (`accompany`).
+  let awaitingRow = null;
   watchAnnotations((hidden) => {
     if (hidden) {
       const holding = closestAcross(focused(), ".lf-margin-cluster");
       if (holding?.dataset.lfPlace === "pin" && holding.lfTarget?.isConnected)
         focusDestination(holding.lfTarget, "return");
       if (previewOpen()) closePreview();
+      awaitingRow = null;
       expandedOptionsKey = null;
       expandedOptionsOwner = null;
     }
@@ -1447,7 +1452,9 @@ export function createMarginProjection({
 
   // `unfold: false` is a card that accompanies where the user stands rather than one
   // they asked for: it hangs from the cluster's visible marker instead of unfolding the
-  // cluster to reach the thread's own entry, so arriving somewhere changes no margin.
+  // cluster to reach the thread's own entry. Where the cluster shows but holds neither
+  // on its face, as a suggestion's shows its Accept, the card unfolds it and folds it
+  // again on closing; a cluster the page withholds shows no card.
   function openInlineThread(id, { transition = null, unfold = true } = {}) {
     const itemId = marginThreadItem(threadNames(allThreads()).get(id));
     const entry = pageInventory.find((candidate) =>
@@ -1457,10 +1464,11 @@ export function createMarginProjection({
     const choice = threadReading(entry);
     if (!choice) return null;
     const shown = (control) => (control?.checkVisibility() ? control : null);
+    const host = hosts.get(entry.key);
     const marker = unfold
       ? null
-      : (shown(threadMarginEntry(entry)) ?? shown(hosts.get(entry.key)?.marker));
-    if (!unfold && !marker) return null;
+      : (shown(threadMarginEntry(entry)) ?? shown(host?.marker));
+    if (!unfold && !marker && !shown(host)) return null;
     const button = marker ?? threadMarginEntry(entry);
     const positioned = showPreview(entry, button, itemId, {
       origin: transition,
@@ -1587,7 +1595,32 @@ export function createMarginProjection({
     setOptionsOpen(entry, true, { preservePreview: true });
     standingUnfolded = entry.key;
   }
+  // A keyboard arrival whose row the page still withholds, as one in a pane the arrival
+  // is scrolling to, has nothing to hang its card from yet, so the card it replaces
+  // goes now and its own waits for the margin's next layout to show the row. Standing
+  // anywhere else, hiding the annotations, or a pointer mode ends the wait.
+  function accompany(node, entry) {
+    awaitingRow = null;
+    if (openInlineThread(threadIdOf(entry), { unfold: false })) return;
+    if (previewOpen() && card.selection()?.entry?.key !== entry.key) closePreview();
+    awaitingRow = node;
+  }
+  function accompanyShownRow() {
+    const node = awaitingRow;
+    awaitingRow = null;
+    if (
+      !node ||
+      focused() !== node ||
+      previewOpen() ||
+      annotationsHidden() ||
+      designModeActive()
+    )
+      return;
+    const entry = threadEntryAt(node);
+    if (entry) accompany(node, entry);
+  }
   function followStanding() {
+    awaitingRow = null;
     refreshHighlight();
     const active = focused();
     unfoldStanding(active);
@@ -1600,16 +1633,6 @@ export function createMarginProjection({
     )
       return;
     const host = closestAcross(active, "[data-lf-margin-for]");
-    // Working an ask keeps its decisions clear; explicit discussion remains open.
-    if (askHolding(readAsks().all, placeOf(active))) {
-      const entry = threadEntryAt(active);
-      if (
-        previewOpen() &&
-        (card.selection()?.accompanies || card.selection()?.entry?.key !== entry?.key)
-      )
-        closePreview();
-      return;
-    }
     // With Threads open the panel is where a target's threads show, and its one expanded
     // thread is the card: arriving at a target by the keyboard expands its thread there.
     // Nothing closes, since the list stays whole wherever the user stands.
@@ -1630,7 +1653,7 @@ export function createMarginProjection({
       return;
     }
     if (previewOpen() && card.selection()?.entry?.key === entry.key) return;
-    if (byKeyboard()) openInlineThread(threadIdOf(entry), { unfold: false });
+    if (byKeyboard()) accompany(active, entry);
     else if (previewOpen()) closePreview();
   }
   // Letting go of where the user stands leaves them standing nowhere, which takes the
@@ -1745,6 +1768,7 @@ export function createMarginProjection({
     mountMarginLayer(toolbar);
     card.mount(() => closePreview(landOnEntry));
     document.addEventListener("lf-margin-layout", ({ detail: { column, height } }) => {
+      accompanyShownRow();
       card.place();
       scheduleMarginEntryLabels();
       // A new width or height moves where targets stand down the page, and so what their

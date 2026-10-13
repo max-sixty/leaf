@@ -286,7 +286,7 @@ summary {
 .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) {
   margin-top: 0;
 }
-.lf-msg-head {
+:is(.lf-msg-head, .lf-thread-working-head) {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -298,7 +298,7 @@ summary {
   font-size: var(--t-6);
   --lf-msg-name-size: 13px;
 }
-.lf-msg-head .lf-msg-meta {
+:is(.lf-msg-head, .lf-thread-working-head) .lf-msg-meta {
   flex: 0 1 auto;
   overflow: hidden;
 }
@@ -327,7 +327,7 @@ summary {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.lf-msg-head b {
+:is(.lf-msg-head, .lf-thread-working-head) b {
   flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -419,6 +419,55 @@ summary {
 }
 .lf-summary-originals > .lf-msg {
   margin-block: 8px;
+}
+.lf-thread-working {
+  margin-top: 16px;
+  --lf-working-dim: color-mix(in oklab, var(--muted) 80%, var(--paper));
+}
+.lf-thread-working-words {
+  margin-top: var(--lf-msg-body-gap);
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
+  color: var(--lf-working-dim);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.lf-thread-working[data-lf-live] .lf-thread-working-words {
+  color: transparent;
+  background:
+    linear-gradient(
+      110deg,
+      var(--lf-working-dim) 42%,
+      var(--ink) 50%,
+      var(--lf-working-dim) 58%);
+  background-size: 200% 100%;
+  background-clip: text;
+  animation: lf-working-sheen 2s ease-in-out infinite alternate;
+}
+@keyframes lf-working-sheen {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lf-thread-working[data-lf-live] .lf-thread-working-words {
+    animation: none;
+    background: none;
+    color: var(--lf-working-dim);
+  }
+}
+@media (forced-colors: active) {
+  .lf-thread-working-words,
+  .lf-thread-working[data-lf-live] .lf-thread-working-words {
+    animation: none;
+    background: none;
+    color: GrayText;
+  }
 }
 .lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring);
@@ -540,6 +589,10 @@ button.lf-thread-notice[data-lf-focus] {
 }
 .lf-msg-head .lf-msg-failure {
   color: var(--warn-ink);
+  font-weight: 600;
+}
+.lf-msg-head .lf-msg-leaves {
+  color: var(--ink-2);
   font-weight: 600;
 }
 

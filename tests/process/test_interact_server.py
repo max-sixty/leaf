@@ -4665,6 +4665,37 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
     assert server_model.running_server(page_dir) is None
 
 
+def test_a_private_lease_is_not_reported_as_a_serving_server(page_dir, monkeypatch):
+    """A listener awaiting acceptance holds a lease but has no service record."""
+    lease = leases_model.take_lease(page_dir / "server.lock")
+    assert lease is not None
+    entered = threading.Event()
+    proceed = threading.Event()
+    take_lease = hosting_model.take_lease
+
+    def observe_stop(path):
+        entered.set()
+        assert proceed.wait(STATED_TIMEOUT)
+        return take_lease(path)
+
+    monkeypatch.setattr(hosting_model, "take_lease", observe_stop)
+    stopped = []
+    stopping = threading.Thread(
+        target=lambda: stopped.append(hosting_model.cmd_stop(page_dir)),
+        daemon=True,
+    )
+    try:
+        stopping.start()
+        assert entered.wait(STATED_TIMEOUT), "stop never checked the held lease"
+        assert files_model.read_json(page_dir / "service.json") is None
+    finally:
+        leases_model.release_lease(lease)
+        proceed.set()
+    stopping.join(timeout=STATED_TIMEOUT)
+    assert not stopping.is_alive(), "server stop never returned"
+    assert stopped == [False]
+
+
 def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
     caller, end = socket.socketpair()
     child = spawn(

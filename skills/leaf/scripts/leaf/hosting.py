@@ -778,11 +778,16 @@ def cmd_stop(
             service = read_service(page_dir)
             # Whether a server runs is the lease's to say: one an older Leaf started
             # over a record this version cannot read holds it without a readable
-            # record to show it by.
+            # record to show it by. A private preparation holds the lease too, but
+            # has no service record and has not become a running service.
             stopped = (
                 stopped
                 or running_server(page_dir) is not None
-                or (service is None and lock_is_held(page_dir / SERVER_LOCK))
+                or (
+                    service is None
+                    and (page_dir / SERVICE_FILE).exists()
+                    and lock_is_held(page_dir / SERVER_LOCK)
+                )
             )
             if service is None:
                 # A record this version cannot read names no service it could

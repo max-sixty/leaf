@@ -4785,17 +4785,17 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     # Reenter the first Ask from there, then move to the next one.
     page.keyboard.press("q")
     expect(page.locator("#live-question-decision")).to_be_focused()
+    # The suggestion's thread comes up beside it, hung from its own entry, which the
+    # cluster unfolds to show for as long as the card stands there.
     page.keyboard.press("q")
     expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
     walked_item = page.locator('[data-lf-margin-for="sug-refill"]')
-    expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
-    expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
+    expect(page.locator(".lf-margin-preview")).to_contain_text("Check this wording")
+    expect(walked_item.locator(":scope > .lf-margin-options")).to_be_visible()
 
     # A walk out of an unfolded cluster folds the old destination while suppressing
     # only the new destination's Tab-style arrival. The two halves share one native
     # focus transition, whose focusout and focusin both fire inside focus().
-    walked_item.locator(":scope > .lf-margin-more").click()
-    expect(walked_item.locator(":scope > .lf-margin-options")).to_be_visible()
     page.keyboard.press("q")
     expect(page.locator("#t-baffles-decision[data-lf-ask]")).to_have_count(1)
     expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()

@@ -9,6 +9,13 @@
  * Print stacks both frames. */
 :scope:is(lf-shot) { display: block; margin: 16px 0; container: lf-shot / inline-size;
     --lf-shot-rail-size: max(34px, var(--aim-floor)); }
+/* A pair stands no wider than its images' pixels, as an img does: a capture stretched
+ * past them blurs and outgrows the prose that explains it. Delivery paints the width
+ * (`data-lf-media-width`); without it the pair fills its holder. The rail keeps the
+ * 300px its endpoint and inspection targets need on one row (the container query
+ * below), so a smaller capture stretches to that. Inspection sets its own width. */
+:scope:is(lf-shot) { max-width: max(300px, calc(attr(data-lf-media-width type(<number>)) * 1px
+    + 2 * var(--lf-shot-frame-border))); }
 :scope:is(lf-shot):has(.lf-shotframe) { display: grid; }
 /* Where the runtime runs, the rail and the frame stand empty from the first paint, the
  * frame in the pair's shape, which delivery reads from the images

@@ -383,6 +383,7 @@ main {
   --lf-block-frame: trim;
   container-name: lf-content-frame;
   padding-block: 72px 96px;
+  padding-inline: var(--col-pad);
   --lf-free-l: 0px;
   --lf-free-r: 0px;
 }

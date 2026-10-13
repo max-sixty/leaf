@@ -64,6 +64,18 @@ def test_release_publication_requires_the_marker_in_board_markup():
     assert end.names(active, marker)
 
 
+def test_release_publication_ignores_rebased_resource_urls_in_board():
+    from leaf.revision_delivery import rebase_document
+
+    marker = "71b197da"
+    authored = '<main><img src="/page/chart.svg" alt="Current chart"></main>'
+    served = rebase_document(
+        authored, lambda path: f"/_leaf-release/{marker}{path}"
+    )
+    assert marker in served
+    assert not journey.board_names_release(served, marker)
+
+
 @pytest.mark.parametrize("end", ["http", "browser"])
 def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
     """Each step keeps the comments it sent, timed from the page's log on the

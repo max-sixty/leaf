@@ -473,9 +473,15 @@ def release_ask(marker: str) -> str:
 
 
 def board_names_release(html: str, marker: str) -> bool:
-    """Require authored board markup, not the release in runtime asset URLs."""
+    """Read board text and widget labels, excluding release-scoped resource URLs."""
     main = SourceDocument(html).tree.select_one("main")
-    return main is not None and marker in main.inner_html
+    return main is not None and (
+        marker in main.text
+        or any(
+            marker in (element.attrs.get("label") or "")
+            for element in main.find_all(True)
+        )
+    )
 
 
 def ask_to_record(

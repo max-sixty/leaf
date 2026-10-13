@@ -159,23 +159,30 @@ def serving(arm: Path, state: Path, page: Path):
         server.wait()
 
 
-def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
+def build_source(
+    arm: Path, state: Path, source: Path, page: Path, *, compiled: bool = True
+) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
     launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
-    its working tree."""
+    its working tree. Developer pages use the same compiled kernel as the website;
+    `compiled=False` supplies an explicit source baseline for startup comparisons.
+    """
+    from leaf_dev.distribution import cached_installation
+
+    payload = cached_installation(arm) if compiled else arm
     prepare_page(
         page,
         read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
-        partial(run_leaf, arm, state, check=True),
+        partial(run_leaf, payload, state, check=True),
     )
 
 
 @contextmanager
-def serving_source(arm: Path, source: Path, scratch: Path):
+def serving_source(arm: Path, source: Path, scratch: Path, *, compiled: bool = True):
     """Build `source` into a page under `scratch` (`build_source`), serve it
     (`serving`), and yield the address."""
     state, page = scratch / "state", scratch / "page"
-    build_source(arm, state, source, page)
+    build_source(arm, state, source, page, compiled=compiled)
     with serving(arm, state, page) as address:
         yield address
 

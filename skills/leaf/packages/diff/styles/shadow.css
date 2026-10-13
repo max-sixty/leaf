@@ -18,8 +18,9 @@
 :where(:scope:host(.lf-rendered)) .lf-diff-metadata { margin: 0; padding: 0; overflow: clip;
                               background: var(--pre-bg); border: 1px solid var(--code-border);
                               border-radius: var(--r); }
+:scope:host(.lf-rendered) { --lf-diff-head-inset: 10px; }
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
-:scope:host(.lf-rendered) .lf-diff-metadata { padding: 7px 10px; font-size: var(--t-5);
+:scope:host(.lf-rendered) .lf-diff-metadata { padding: 7px var(--lf-diff-head-inset); font-size: var(--t-5);
                                      font-family: var(--sans); color: var(--code-ink);
                                      background: var(--code-chrome); }
 :scope:host(.lf-rendered) .lf-diff-fold > .lf-error { padding: 10px; }
@@ -29,14 +30,17 @@
    line gives way from its folders first, which end in an ellipsis, and the file's own
    name is cut only where it alone is too long; the path's title then holds it whole.
    A flex row draws no disclosure marker, so the triangle is the row's own first mark. */
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
+:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary {
                                      display: flex; align-items: center; gap: 6px;
                                      box-sizing: border-box;
                                      block-size: var(--lf-diff-head-h);
                                      white-space: nowrap; overflow: hidden; }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary::before {
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary::before,
+:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary::before {
                                      content: "▶" / ""; flex: none; font-size: .7em; }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before {
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before,
+:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads[open] > .lf-resolved-summary::before {
                                      content: "▼" / ""; }
 /* Source paths may change with new evidence; their region gives way while the
    statistics and adjacent actions keep their trailing columns. */
@@ -339,13 +343,16 @@
                           box-sizing: border-box; position: sticky;
                           inset-inline-start: var(--lf-diff-gutter-width);
                           max-inline-size: var(--lf-diff-thread-width); }
-.lf-diff-file-thread-outlet { margin-top: 8px; border: 1px solid var(--rule);
+.lf-diff-file-thread-outlet { padding-inline: var(--lf-diff-head-inset); margin-top: 8px; border: 1px solid var(--rule);
                               border-radius: var(--r); }
+/* File and resolved disclosures share their marker, inset and header height.
+   Message layout remains with the shared thread renderer. */
+:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary { padding-inline: 0; }
 /* The outlet owns the review row's boundary. Shared conversation separators and
    focus treatment distinguish its threads without another card around each one. */
-.lf-diff-thread-outlet > .lf-page-thread {
-                          max-width: 760px; padding: var(--sp-2) 0; }
-.lf-diff-thread-outlet > details.lf-page-thread:not([open]) { padding: 0; }
+.lf-diff-thread-outlet > :is(.lf-page-thread, .lf-resolved-threads) {
+                          max-width: 760px; }
+.lf-diff-thread-outlet .lf-page-thread { padding: var(--sp-2) 0; }
 /* Paper has no sideways scroll; wrap evidence within the printed sheet. */
 @media print {
   .lf-diff-tools, .lf-diff-file-actions, .lf-diff-comment { display: none !important; }

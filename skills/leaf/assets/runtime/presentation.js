@@ -71,7 +71,7 @@ export function markPagePresented() {
 const arriving = new Set();
 
 /** Declare work this page finishes after presenting, and hand back its promise. */
-export function deferredArrival(work) {
+function deferredArrival(work) {
   arriving.add(work);
   const landed = () => arriving.delete(work);
   work.then(landed, landed);

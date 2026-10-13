@@ -13,6 +13,8 @@ from render_harness import (
     leaf_page,
     open_page,
     reported_browser_errors,
+    resized,
+    sending,
 )
 
 
@@ -388,3 +390,67 @@ new mode 100755
     ), "checking closed evidence must not load the textual renderer"
     good.locator("summary").click()
     expect(good.locator("[data-line]").last).to_contain_text("new = True")
+
+
+def test_resolved_file_threads_share_the_file_disclosure_edge(browser, serve):
+    """A resolved file conversation keeps its disclosure on the file's edge.
+
+    The two disclosures use the same marker and inline inset at any width;
+    expanded history puts Reopen beside the first message, like Resolve.
+    """
+    patch = "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\n"
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Resolved file conversations",
+                f'<h1>Review app.py</h1><lf-diff id="patch" collapsed><pre>{escape(patch)}</pre></lf-diff>',
+            )
+        ),
+    )
+    diff = page.locator("#patch")
+    diff.locator(".lf-diff-file-comment").click()
+    field = diff.locator("leaf-text")
+    field.press("A")
+    with sending(page, "the file comment"):
+        field.press("ControlOrMeta+Enter")
+    thread = diff.locator(".lf-page-thread")
+    thread.get_by_role("button", name="Resolve thread", exact=True).focus()
+    with sending(page, "the resolution"):
+        page.keyboard.press("Enter")
+    summary = diff.locator(".lf-resolved-summary")
+    expect(summary).to_have_text("Resolved · 1")
+    for width in (1440, 390):
+        resized(page, width, 900)
+        rendered(page)
+        geometry = summary.evaluate("""summary => {
+          const file = summary.closest('.lf-diff-file').querySelector(':scope > details > summary');
+          const marker = node => {
+            const box = node.getBoundingClientRect(), style = getComputedStyle(node);
+            const arrow = getComputedStyle(node, '::before');
+            return {left: box.left + parseFloat(style.paddingLeft),
+              size: arrow.fontSize, content: arrow.content};
+          };
+          return {file: marker(file), resolved: marker(summary)};
+        }""")
+        assert geometry["file"]["left"] == pytest.approx(
+            geometry["resolved"]["left"], abs=0.5
+        ), geometry
+        assert geometry["file"]["size"] == geometry["resolved"]["size"], geometry
+        assert geometry["file"]["content"] == geometry["resolved"]["content"], geometry
+    summary.click()
+    expect(thread).to_be_visible()
+    reopen = thread.get_by_role("button", name="Reopen", exact=True)
+    expect(reopen).to_be_visible()
+    centers = reopen.evaluate("""button => {
+      const head = button.closest('.lf-page-thread').querySelector('.lf-msg-head').getBoundingClientRect();
+      const action = button.getBoundingClientRect();
+      return [head.top + head.height / 2, action.top + action.height / 2];
+    }""")
+    assert centers[0] == pytest.approx(centers[1], abs=0.5), centers
+    with sending(page, "the reopening"):
+        reopen.click()
+    expect(summary).to_have_count(0)
+    expect(
+        thread.get_by_role("button", name="Resolve thread", exact=True)
+    ).to_be_visible()

@@ -24,7 +24,7 @@
     --lf-fp-radius: 12px;
     --lf-fp-folded: 42px;
     --lf-fp-width: min( 540px, calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right)) );
-    --lf-fp-view-height: min(440px, calc(100dvh - var(--lf-bottom-bar-h) - 96px));
+    --lf-fp-view-height: calc(100dvh - var(--lf-bottom-bar-h) - 160px);
   }
   .lf-fp-ground {
     position: fixed;
@@ -275,8 +275,7 @@
     .lf-fp-field,
     .lf-fp-quick,
     .lf-fp-context,
-    .lf-fp-head,
-    .lf-fp-stage {
+    .lf-fp-opened {
       display: none;
     }
     .lf-fp-row {
@@ -338,6 +337,14 @@
   }
   .lf-floating-panel[data-rest=mark] :is(.lf-fp-badge, .lf-fp-news-dot)[data-shown] {
     display: block;
+  }
+  .lf-fp-opened {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .lf-floating-panel:not([data-open]) .lf-fp-opened {
+    display: none;
   }
   .lf-fp-head {
     display: flex;
@@ -927,7 +934,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-region-capture {
     position: fixed;
     inset: 0;
-    z-index: var(--lf-z-page-hints);
+    z-index: var(--lf-z-region-capture);
     pointer-events: none;
     overflow: hidden;
     color: var(--ink);

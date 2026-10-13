@@ -15,9 +15,12 @@
   border: 1px solid var(--code-border);
   border-radius: var(--r);
 }
+:scope:host(.lf-rendered) {
+  --lf-diff-head-inset: 10px;
+}
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
 :scope:host(.lf-rendered) .lf-diff-metadata {
-  padding: 7px 10px;
+  padding: 7px var(--lf-diff-head-inset);
   font-size: var(--t-5);
   font-family: var(--sans);
   color: var(--code-ink);
@@ -26,7 +29,8 @@
 :scope:host(.lf-rendered) .lf-diff-fold > .lf-error {
   padding: 10px;
 }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
+:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -35,12 +39,14 @@
   white-space: nowrap;
   overflow: hidden;
 }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary::before {
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary::before,
+:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary::before {
   content: "▶" / "";
   flex: none;
   font-size: .7em;
 }
-:scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before {
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details[open] > summary::before,
+:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads[open] > .lf-resolved-summary::before {
   content: "▼" / "";
 }
 .lf-diff-head > .lf-diff-path {
@@ -375,16 +381,19 @@
   max-inline-size: var(--lf-diff-thread-width);
 }
 .lf-diff-file-thread-outlet {
+  padding-inline: var(--lf-diff-head-inset);
   margin-top: 8px;
   border: 1px solid var(--rule);
   border-radius: var(--r);
 }
-.lf-diff-thread-outlet > .lf-page-thread {
-  max-width: 760px;
-  padding: var(--sp-2) 0;
+:scope:host(.lf-rendered) .lf-diff-file-thread-outlet > .lf-resolved-threads > .lf-resolved-summary {
+  padding-inline: 0;
 }
-.lf-diff-thread-outlet > details.lf-page-thread:not([open]) {
-  padding: 0;
+.lf-diff-thread-outlet > :is(.lf-page-thread, .lf-resolved-threads) {
+  max-width: 760px;
+}
+.lf-diff-thread-outlet .lf-page-thread {
+  padding: var(--sp-2) 0;
 }
 @media print {
   .lf-diff-tools,

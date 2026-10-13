@@ -195,9 +195,10 @@
      A number local to a component's own stacking context stays where it is written. */
   --lf-z-page-paint: 8890;        /* paint on a page element */
   --lf-z-margin-raised: 8895;     /* the margin item under pointer or focus */
+  --lf-z-page-hints: 8898;        /* page-target key chips, under surfaces covering the page */
   --lf-z-surface: 8900;           /* an open drawer or thread panel */
   --lf-z-margin-preview: 8920;    /* the thread card, under the bars it scrolls beneath */
-  --lf-z-page-hints: 8930;        /* a key chip naming a page target, under the bars */
+  --lf-z-region-capture: 8930;    /* viewport crop selection, over the thread card */
   --lf-z-shortcut-bar: 8940;
   --lf-z-menu: 8950;              /* a door's menu */
   --lf-z-banner: 9000;
@@ -305,6 +306,10 @@
      A second copy of 720 would be a release behind the first. */
   --col: 720px;
   --col-pad: 24px;
+  /* The room a page Layout leaves above its first block and below its last. A phone's
+     and a block sample's are smaller (below). */
+  --page-pad-start: 72px;
+  --page-pad-end: 96px;
   /* A pane's insets: its header and footer's, and its body's on every side. Tokens
      rather than numbers in the pane rules, so a density restates them and the rules
      keep the zero specificity a package restyling a pane relies on. */
@@ -669,7 +674,7 @@ html[data-lf-live][data-lf-floating-chrome] {
  * was the one with no width to spare at all, and a twelve-character value ran 287px out
  * of a 138px card and across whatever the grid had put beside it. */
 body { position: static !important; box-sizing: border-box !important;
-       margin: 0; background: var(--paper); color: var(--ink);
+       background: var(--paper); color: var(--ink);
        font: var(--t-4)/1.6 var(--serif); overflow-wrap: break-word;
        container: lf-shell / inline-size; }
 /* A container is contained, and containment keeps the body's background off the canvas,
@@ -679,8 +684,8 @@ html { background: var(--paper); }
 /* The live shell's fixed chrome arrives after the authored document, but its room is
  * part of the document's final layout. The render-blocking theme reserves that room so
  * the useful initial HTML paints where it will remain. The root stays the document
- * scrollport. Its definite height lets the body's percentage minimum fill a short
- * viewport while a longer body still overflows it. A permanent scrollbar prevents a
+ * scrollport. Its definite height lets a page Layout's body minimum (layouts.css) fill a
+ * short viewport while a longer body still overflows it. A permanent scrollbar prevents a
  * later height change from recentering the page. A served page's bootstrap marks it
  * live before its graph has loaded (runtime/bootstrap.js); an export draws no chrome,
  * and paper has no fixed chrome. */
@@ -695,7 +700,7 @@ html { background: var(--paper); }
     scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     /* The bottom bar's room is the body's own end, where content growing above it only
      * lengthens the body: a box standing after the content would move with each growth. */
-    body { min-height: 100%; padding-bottom: var(--lf-bottom-bar-h); }
+    body { padding-bottom: var(--lf-bottom-bar-h); }
     body::before { content: ""; display: block; height: var(--lf-banner-h); }
   }
   /* A block sample stands in its containing page, and its frame takes the body's
@@ -712,8 +717,8 @@ html { background: var(--paper); }
     --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
     --lf-bottom-status-translate: none;
     overflow-y: hidden;
-    body { min-height: 0; }
-    main { padding-block: 24px; }
+    --page-pad-start: 24px;
+    --page-pad-end: 24px;
   }
 }
 /* The auxiliary surfaces — the thread panel and the Questions panel on the right, the
@@ -863,15 +868,13 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { disp
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input))[data-lf-focus] { outline: var(--focus-ring);
   --lf-focus-ring: text-box; outline-offset: 0; border-color: transparent; }
 /* `main` has no layout until the page gives it one: a Layout class (layouts.css) or the
- * page's own CSS. What stays here is what Leaf's chrome coordinates with: the frame its
- * first and last blocks trim against, the name a margin resident asks the page's readings
- * by, the room above and below its blocks, and, with no Layout, no room to grow into on
- * either side. */
+ * page's own CSS. Leaf sets none of its geometry, nor the body's, so a page with no
+ * Layout lays out as the browser lays out any page. What stays here is what Leaf's chrome
+ * coordinates with and draws nothing: the name a margin resident asks the page's
+ * readings by, and, with no Layout, no room to grow into on either side. */
 main {
   position: relative;
-  --lf-block-frame: trim;
   container-name: lf-content-frame;
-  padding-block: 72px 96px;
   --lf-free-l: 0px;
   --lf-free-r: 0px;
 }
@@ -931,20 +934,22 @@ main {
 @property --map { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --note { syntax: "<length>"; inherits: true; initial-value: 0px; }
-/* The column: the reading measure, and the one rule that sets it. Text keeps it wherever
- * it stands: a paragraph, a list item or a heading is never set wider than the column,
- * however wide the box around it. So does a block allocated the column
+/* The column: the reading measure, and the one rule that applies it. A page Layout
+ * states its measure (`--lf-measure`, layouts.css); a page with no Layout states none,
+ * and its lines run as the browser runs them. Where a measure is stated, text keeps it
+ * wherever it stands: a paragraph, a list item or a heading is never set wider than the
+ * column, however wide the box around it. So does a block allocated the column
  * (`data-lf-space="column"`): a widget whose content is read as lines of text, or a box
  * that frames prose (an Ask, a callout, which declares it as an idiom), declares it
  * (`x-space: column`). It starts at its holder's start edge, so in a flow wider than the
- * column (a pane, a sidebar page's body) the widget's box and the prose around it share one left edge
- * and one width. It caps the width and sets no margin, so a widget's own arrangement
- * still places the box. Package captions may span their
- * own frame, so this rule shares their base layer at zero specificity. */
+ * column (a pane, a sidebar page's body) the widget's box and the prose around it share
+ * one left edge and one width. It caps the width and sets no margin, so a widget's own
+ * arrangement still places the box. Package captions may span their own frame, so
+ * these rules share their base layer at zero specificity. */
 @media screen {
   :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6,
     [data-lf-space="column"]) {
-    max-inline-size: var(--col);
+    max-inline-size: var(--lf-measure);
   }
   /* The measure is a text's line length, and an allocated box's outer width: the box
    * the column would give it, its border and padding inside. The box states the column
@@ -953,7 +958,7 @@ main {
    * to the column and scrolls inside it. */
   :where([data-lf-space="column"]) {
     box-sizing: border-box;
-    --lf-reach: min(var(--col), var(--lf-room, 0px));
+    --lf-reach: min(var(--lf-measure), var(--lf-room, 0px));
   }
   /* A box allocated the column widens to the widest allocation among its own blocks, so
    * an Ask or a callout around a chart or table that declares `wide` or `available`
@@ -963,7 +968,7 @@ main {
    * a table in an option or a folded disclosure, is held to that child's width, so an
    * option list keeps the measure whatever one option holds. */
   :where([data-lf-space="column"]:has(> [data-lf-space="wide"])) {
-    max-inline-size: var(--wide);
+    max-inline-size: max(var(--lf-measure), var(--wide));
   }
   :where([data-lf-space="column"]:has(> [data-lf-space="available"])) {
     max-inline-size: none;
@@ -979,7 +984,7 @@ main {
 }
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */
 @media screen and (max-width: 640px) {
-  main { padding-top: 28px; padding-bottom: 72px; }
+  :root { --page-pad-start: 28px; --page-pad-end: 72px; }
 }
 /* The headings are the body serif at weight, size and spacing — one voice, four
  * volumes — rather than a display face over a text face. A page whose subject is
@@ -1035,6 +1040,9 @@ p { margin: 13px 0; }
 :where(.density-working) :is(th, td) { padding: 4px 10px; }
 figure { margin: 22px 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
+/* Media fits its container on every page, with a Layout or without, and in a thread: the
+ * live root clips what overflows sideways (html[data-lf-live], above), so an image wider
+ * than its container would otherwise lose its far side with no way to scroll to it. */
 img, svg, video { max-width: 100%; height: auto; }
 /* An image's width and height attributes already hold its box open before it loads,
  * but Chrome flags a lazy image as unsized unless a stylesheet gives its height or
@@ -1045,6 +1053,15 @@ img, svg, video { max-width: 100%; height: auto; }
  * theirs. A browser without typed attr() drops the line and keeps the attribute
  * ratio it maps, which yields to the loaded image. */
 img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
+/* A page's images are mostly captures of interfaces, often of this same paper and
+ * type, so nothing but a drawn edge says where a capture ends and the page resumes.
+ * A hairline and a resting shadow lay it on the page as an object, as documentation
+ * sites frame screenshots and the site's catalog frames its stills. Both are a
+ * box-shadow outside the image, so no width or ratio changes and no corner of the
+ * capture is cut, and a container that clips to its own frame, such as lf-shot's,
+ * hides them. A page drops them for art with no edge of its own, such as a
+ * transparent logo, with `box-shadow: none`. */
+img { box-shadow: 0 0 0 1px var(--border-2), 0 2px 8px var(--shade); }
 /* Supporting detail stays unfilled whether closed or open. Its chevron and hairline
    offer inspection; the stronger fill belongs to the callout's emphasis. */
 details { border: var(--details-border) solid var(--rule);

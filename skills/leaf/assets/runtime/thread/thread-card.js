@@ -238,12 +238,13 @@ export function threadReading(thread, surface, commands, options) {
       attention?.kind === "waiting" &&
       attention.workflow !== null &&
       messages.some((message) => message.workflow?.id === attention.workflow.id),
+    // Where a resolved thread stands already says it is resolved: under a panel card's
+    // Resolved status, or in a seat's Resolved disclosure (inline.js). Who resolved it is
+    // said only where it was the agent.
     resolvedBy:
       thread.resolved?.author === "agent"
         ? `✓ Resolved by ${thread.resolved.agent}`
-        : panel
-          ? ""
-          : "✓ Resolved",
+        : "",
     settlement: Object.freeze({
       kind,
       word,
@@ -411,8 +412,8 @@ export class ThreadView {
   #reply = null;
   #replyShown = false;
   #draftFrame = 0;
-  #outletReplyShown = null;
   #settlements = new Map();
+  #settlesAt = null;
   #actions = document.createElement("span");
   #transcript = document.createElement("div");
   #working = document.createElement("div");
@@ -491,9 +492,7 @@ export class ThreadView {
       reaction: { ...commands.reaction, pressed: () => this.#showNews() },
       edit: this.#rewrites.edit,
     };
-    this.node = document.createElement(
-      surface === "outlet" || surface === "panel" ? "details" : "div",
-    );
+    this.node = document.createElement(surface === "panel" ? "details" : "div");
     this.#continuity = new ReplyContinuity(this.node);
     // A card draws what its hold releases at once, so an arrival lands on the thread
     // as it now stands (held-news.js).
@@ -525,7 +524,7 @@ export class ThreadView {
     // after paint. Release held news here so the first opened body is current,
     // whether a summary, the panel list's choice (a walk to the card) or a
     // programmatic native open revealed it.
-    if (surface === "outlet" || surface === "panel")
+    if (surface === "panel")
       new MutationObserver(() => {
         if (this.node.open) this.#model?.news?.open();
         else this.#reply?.cancelDictation();
@@ -571,37 +570,49 @@ export class ThreadView {
     this.present(this.#received, options);
   }
 
-  // The last of the thread a reader can see, after which its news grows: a folded
-  // outlet's summary, which a reopening unfolds, and otherwise its last message. A
-  // closed panel card has none, since news draws nothing its title row shows.
+  // What holds the card folded away: its own closed disclosure, a panel card's, or the
+  // closed Resolved disclosure its seat gathers it in (inline.js).
+  get #fold() {
+    if (this.node.localName === "details" && !this.node.open) return this.node;
+    const group = this.node.parentElement;
+    return group?.matches(".lf-resolved-threads:not([open])") ? group : null;
+  }
+
+  // Where the seat's flow would grow if the card's settlement changed (inline.js), read
+  // as the news comes: before the seat's next open thread, or before its Resolved
+  // disclosure, for a resolved card that reopens; the disclosure, while it stands open,
+  // for an open card that resolves into it. Null where nothing the seat draws grows.
+  setSettlesAt(place) {
+    this.#settlesAt = place;
+  }
+
+  // The last of the thread a reader can see, after which its news grows: its last
+  // message, and none while the thread is folded. A closed panel card draws news in a
+  // title row of one size, and a card folded in its seat's Resolved disclosure draws
+  // nothing at all.
   get #foot() {
-    if (this.node.localName === "details" && !this.node.open)
-      return this.node.querySelector(":scope > .lf-page-thread-summary:not([hidden])");
-    return this.#lastMessage;
+    return this.#fold ? null : this.#lastMessage;
   }
 
   // What the thread draws after its messages that its settlement swaps: the reply box
-  // while it stands open, a page thread's row holding Reopen once resolved; none while
-  // the thread is folded, where neither shows. A resolved panel card's Reopen stands in
-  // its title, which keeps its size.
+  // while it stands open; none while the thread is folded, where it does not show. A
+  // resolved card's Reopen stands where Resolve did, so settling grows nothing else.
   get #settlementRow() {
-    if (this.node.localName === "details" && !this.node.open) return null;
-    return this.node.querySelector(
-      ":scope > .lf-thread-reply, :scope > .lf-page-thread-resolved",
-    );
+    if (this.#fold) return null;
+    return this.node.querySelector(":scope > .lf-thread-reply");
   }
 
   // The node a message the thread draws stands in, after which a change to it grows;
   // none while the thread is folded, where no message shows.
   #messageNode(key) {
-    if (this.node.localName === "details" && !this.node.open) return null;
+    if (this.#fold) return null;
     return this.#messages.get(key)?.node ?? null;
   }
 
   // The checkpoint a summary the thread draws stands in; none while the thread is
   // folded.
   #summaryNode(id) {
-    if (this.node.localName === "details" && !this.node.open) return null;
+    if (this.#fold) return null;
     return this.#checkpoints.get(id)?.node ?? null;
   }
 
@@ -654,6 +665,14 @@ export class ThreadView {
   // retain the hold. A pinned reply can absorb growth at the thread's end, but cannot
   // absorb changes above it or settlement replacing the reply itself.
   newsMoves({ news, changed, folds, appendedAtEnd, footFold }) {
+    // Settling moves the card between the seat's open threads and its Resolved
+    // disclosure, so it grows the seat where the card lands as well as where it stood.
+    const lands = news.settled ? this.#settlesAt?.() : null;
+    if (lands && growthIsSeen(lands)) return true;
+    // Folded in its seat's closed Resolved disclosure, the card moves nothing as it
+    // changes otherwise.
+    const fold = this.#fold;
+    if (fold && fold !== this.node) return false;
     const pinned = replyPinned(this.#reply?.node);
     // An answer's own fold of the progress run at the thread's end changes only the
     // thread's foot, as the answer's arrival does, unless the user stands on a message
@@ -779,15 +798,13 @@ export class ThreadView {
     //   the thread holds news, the notice in Reopen's place, since the card has no other
     //   row to draw it in without growing.
     // - "margin": a margin card's own controls row.
-    // - "row": a resolved page or outlet thread's own row, with room for the word.
     // - "head": the first message's header reserves the action's text width,
     //   independently of the shared header height, beside its message controls.
+    //   Resolve and Reopen occupy the same corner on every inline thread.
     const settlementPlace = marginControls
       ? "margin"
-      : model.resolved && !replySlot && !model.folding
-        ? panel
-          ? "title"
-          : "row"
+      : panel && model.resolved && !replySlot && !model.folding
+        ? "title"
         : "head";
     const headerSettlement = settlementPlace === "title";
     const notice = headerSettlement ? this.#titleNews : this.#news;
@@ -811,18 +828,8 @@ export class ThreadView {
     // it carries the thread's name; a panel card is named by its summary, which takes
     // the focus there.
     if (!panel) {
-      keeps(this.node, "role", this.node.localName === "details" ? null : "group");
+      keeps(this.node, "role", "group");
       keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
-    }
-    if (model.surface === "outlet" && this.#outletReplyShown !== reply) {
-      this.node.toggleAttribute("open", reply);
-      // Chrome drops scroll anchoring for a layout that both opens or shuts a `details`
-      // and changes what it holds, so an outlet folding above the screen as the agent
-      // resolves it would carry what the user reads by the fold's height. Laying out
-      // the disclosure before the render below changes the thread lets anchoring take
-      // each change.
-      this.node.getBoundingClientRect();
-      this.#outletReplyShown = reply;
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
@@ -1051,50 +1058,12 @@ export class ThreadView {
         )}
         ${titleControl ?? nothing}
         ${
-          model.surface === "outlet"
-            ? html`<summary
-                class="lf-page-thread-summary lf-ui"
-                data-lf-gen="1"
-                data-lf-offer=""
-                ?hidden=${!model.resolved}
-              >
-                ${
-                  model.news?.reopened
-                    ? html`<span class="lf-thread-notice lf-thread-notice-news"
-                        >${model.news.label}</span
-                      >`
-                    : html`Resolved · ${model.messages.length}
-                      message${model.messages.length === 1 ? "" : "s"}${
-                        model.news
-                          ? html` ·
-                              <span class="lf-thread-notice lf-thread-notice-news"
-                                >${model.news.label}</span
-                              >`
-                          : nothing
-                      }`
-                }
-              </summary>`
-            : nothing
-        }
-        ${
           model.surface === "margin"
             ? body
             : html`<div class="lf-thread-content">${body}</div>`
         }
         ${replySlot ? (this.#continuity?.gap ?? nothing) : nothing}
         ${reply ? this.#reply.node : (this.#replyReservation ?? nothing)}
-        ${
-          settlementPlace === "row"
-            ? html`<div class="lf-page-thread-resolved lf-ui">
-                <span
-                  >${
-                    model.resolvedBy ? html`<span>${model.resolvedBy}</span>` : nothing
-                  }</span
-                >
-                ${news}${settlement}
-              </div>`
-            : nothing
-        }
       `,
       this.node,
     );
@@ -1390,7 +1359,11 @@ export class ThreadView {
       keeps(button, "aria-label", `${model.resolvedBy || "Resolved"} · Reopen thread`);
       keeps(button, "title", `${model.resolvedBy || "Resolved"} · Reopen thread`);
     } else if (compact) {
-      const label = model.folding ? "Resolved" : state.label;
+      const label = model.folding
+        ? "Resolved"
+        : reopen && model.resolvedBy
+          ? `${model.resolvedBy} · ${state.label}`
+          : state.label;
       keeps(button, "aria-label", label);
       keeps(button, "title", label);
     }
@@ -1439,17 +1412,19 @@ export class ThreadView {
     }).catch(() => {});
   };
 
-  // A thread on the page changes shape as it settles: a resolved outlet folds to its
-  // summary, and a reopened one unfolds under it. Where the user still stands in it, land
-  // it around their focus, which a thread too tall to show leaves where it is.
+  // A thread on the page moves as it settles: a resolved one into its seat's Resolved
+  // disclosure, and a reopened one out of it, ahead of it (inline.js). Land where the
+  // user went with it, the thread or the summary of the disclosure folding it, around
+  // their focus, which a thread too tall to show leaves where it is.
   #prepareInlineLanding = () => {
     const mayLand = retainUserIntent({
       source: this.node,
       available: () => this.node.isConnected,
     });
     const land = (may = mayLand) => {
-      if (!may() || !standingIn(this.node)) return false;
-      scrollThreadIntoView(this.node, focused());
+      const place = this.#fold?.querySelector(":scope > summary") ?? this.node;
+      if (!may() || !standingIn(place)) return false;
+      scrollThreadIntoView(place, focused());
       return true;
     };
     return { optimistic: () => land(), reverse: land };

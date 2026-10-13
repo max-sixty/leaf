@@ -86,12 +86,12 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     wait_until_ready(page)
     result = page.evaluate(
         """async () => {
-        const {pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
-        const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passage-facts.js');
+        const {pageRange} = await window.__lfCheckApi();
+        const {TEXT_BLOCK} = await window.__lfCheckApi();
         const {anchorForRange, resolveAnchor} =
-            await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
-        const {nextRender, renderingState} =
-            await window.__lfRuntimeImport('/runtime/rendering.js');
+            await window.__lfCheckApi();
+        const {nextRender} = await window.__lfWidgetApi();
+        const {renderingState} = await window.__lfCheckApi();
         const tick = () => new Promise(r => setTimeout(r, 0));
         const rendered = async () => {
             let timer;
@@ -967,18 +967,15 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "<pre></pre></lf-diff>",
     )
     url = serve(authored)
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "review-patch",
-        """diff --git a/app.py b/app.py
+    patch = """diff --git a/app.py b/app.py
 --- a/app.py
 +++ b/app.py
 @@ -1,2 +1,2 @@
  def route(request):
 -    return f"legacy:{request.token.id}"
 +    return f"tok:{request.token.id}"
-""",
-    )
+"""
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
@@ -1010,12 +1007,8 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     details.evaluate(
         "element => { element.open = false; window.__lfDiffDetails = element; }"
     )
-    page.evaluate(
-        """async () => {
-          const {notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
-          await notifyDataSubscribers();
-        }"""
-    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    told(page)
     assert details.evaluate("element => element === window.__lfDiffDetails")
     expect(details).not_to_have_attribute("open", "")
     details.evaluate("element => { element.open = true; }")
@@ -1069,7 +1062,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     input_.evaluate("input => input.setSelectionRange(7, 16)")
     page.evaluate(
         """async () => {
-          const {threadSurface} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {threadSurface} = await window.__lfWidgetApi();
           threadSurface(document.querySelector('#patch')).update();
         }"""
     )
@@ -1287,7 +1280,6 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
     panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
     expect(thread).to_have_count(1)
-    expect(thread).to_have_attribute("open", "")
     expect(thread.locator("leaf-text")).to_be_visible()
 
     # News updates the root's workflow line in both views, in place.
@@ -1420,14 +1412,14 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     resolve.focus()
     with sending(page, "the inline keyboard resolution"):
         page.keyboard.press("Enter")
-    expect(thread).not_to_have_attribute("open", "")
-    summary = thread.locator(".lf-page-thread-summary")
-    expect(summary).to_have_text("Resolved · 4 messages")
+    resolved = page.locator("lf-diff .lf-resolved-threads")
+    summary = resolved.locator(":scope > summary")
+    expect(summary).to_have_text("Resolved · 1")
+    expect(summary).to_be_focused()
     expect(thread.locator(".lf-msg").first).to_be_hidden()
     summary.click()
     expect(thread.locator(".lf-msg").first).to_be_visible()
     with sending(page, "the inline reopening"):
         thread.get_by_role("button", name="Reopen", exact=True).click()
-    expect(thread).to_have_attribute("open", "")
-    expect(summary).to_be_hidden()
+    expect(resolved).to_have_count(0)
     expect(thread.locator("leaf-text")).to_be_visible()

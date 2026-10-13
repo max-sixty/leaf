@@ -175,6 +175,29 @@ what fails and what still works.
   failed reload separately from authored departure. The author-facing contract is
   [Live samples](../skills/leaf/references/page-authoring.md#live-samples).
 
+- **Observed, 2026-10-13:** Playwright Chromium 153.0.8010.12 rejects an
+  opaque sample's pending icon, registry, and state fetches during a second native
+  reload before `pagehide`. Its `pageswap` runs before those rejected promises;
+  reporting them as startup faults retired the replacement frame. Holding the
+  replacement document before commit keeps the old realm alive and its icon fetch
+  pending; continuing the document triggers the swap and cancellation. The native
+  loader/form/popup/nested-sample/reload journey and this held-destination control
+  exercise the compiled kernel.
+- **Disposition:** prepaint owns one document fault lifetime. `pageswap` or
+  `pagehide` retires it, and `pageshow` restores it for a cached realm. Startup
+  fault intake, the sample error port, and runtime error reporting consume that
+  lifetime. A canceled `beforeunload` does not retire it. No error-text matching
+  or delayed fault reporting participates.
+- **Compatibility limit:** [MDN's compatibility data](https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/Window.json)
+  lists `pageswap` from Chrome 124, no Firefox support, and partial Safari 18.2
+  support because cross-origin navigation omits it
+  ([WebKit issue](https://webkit.org/b/306447)). Installed Playwright Chromium 153
+  and WebKit 26.6 expose the event; Firefox 155 does not. The Firefox double-reload
+  probe failed with native `NS_BINDING_ABORTED` and dynamic-module cancellation;
+  it does not establish whether this differs from the source runtime. `pagehide`
+  still retires departed documents there, but does not promise Chromium's earlier
+  cancellation boundary. Safari's opaque-frame ordering has not been established.
+
 ### Back during smooth arrival
 
 - **Owner:** `runtime/history.js`. A working-place checkpoint contains the viewport

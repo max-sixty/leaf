@@ -4863,11 +4863,9 @@ def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser,
         "anchor": {"section": "hline"},
     }
     page = open_page(browser, serve(source, events=[comment]))
-    page.set_default_timeout(10_000)
     page.wait_for_function(
         "() => window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js')"
-        ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",
-        timeout=10_000,
+        ".then(({layoutMarginRows}) => (layoutMarginRows(), true))"
     )
 
     line = page.locator("#hline")
@@ -4876,22 +4874,22 @@ def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser,
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
-    expect(dialog).to_be_visible(timeout=10_000)
+    expect(dialog).to_be_visible()
     dialog.get_by_role(
         "button", name="Open thread: Check this line.", exact=True
-    ).click(timeout=10_000)
+    ).click()
     rendered(page)
 
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible(timeout=10_000)
+    expect(preview).to_be_visible()
     thread_id = next(
         event["id"]
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == comment["text"]
     )
     thread = preview.locator(f'.lf-page-thread[data-thread="{thread_id}"]')
-    expect(thread).to_be_focused(timeout=10_000)
-    expect(thread).to_contain_text("Check this line.", timeout=10_000)
+    expect(thread).to_be_focused()
+    expect(thread).to_contain_text("Check this line.")
 
 
 # The right edge of the column's words, inside `main`'s padding. A thread card beside
@@ -9221,12 +9219,11 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
         layout="sidebar",
     )
     page = open_page(browser, serve(source, events=[_comment_on("pair")]))
-    page.set_default_timeout(10_000)
     resized(page, 1440, 900)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="pair"]')
-    expect(row).to_have_attribute("data-lf-place", "pin", timeout=10_000)
-    expect(row).to_be_visible(timeout=10_000)
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    expect(row).to_be_visible()
     row_box = row.bounding_box()
     second = page.locator("#pair > p").nth(1).bounding_box()
     assert second["x"] < row_box["x"], (row_box, second)
@@ -9237,9 +9234,9 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     marker = row.get_by_role("button", name=re.compile(r"^Thread,"))
     marker.click()
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible(timeout=10_000)
+    expect(preview).to_be_visible()
     thread = preview.locator(".lf-margin-thread .lf-page-thread")
-    expect(thread).to_be_focused(timeout=10_000)
+    expect(thread).to_be_focused()
 
 
 def test_a_contents_target_reply_observes_visibility_without_layout(browser, serve):
@@ -9252,27 +9249,26 @@ def test_a_contents_target_reply_observes_visibility_without_layout(browser, ser
         layout="sidebar",
     )
     page = open_page(browser, serve(source, events=[_comment_on("pair")]))
-    page.set_default_timeout(10_000)
     resized(page, 1440, 900)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="pair"]')
     marker = row.get_by_role("button", name=re.compile(r"^Thread,"))
     marker.click()
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible(timeout=10_000)
+    expect(preview).to_be_visible()
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
     reply.click()
-    expect(reply).to_be_focused(timeout=10_000)
+    expect(reply).to_be_focused()
     words = "A reply stays while its display contents subject returns."
     write(reply, words)
-    expect(reply).to_have_js_property("value", words, timeout=10_000)
+    expect(reply).to_have_js_property("value", words)
 
     page.locator("#pair").evaluate("el => el.style.visibility='hidden'")
-    expect(preview).to_be_hidden(timeout=10_000)
+    expect(preview).to_be_hidden()
     page.locator("#pair").evaluate("el => el.style.visibility='visible'")
-    expect(preview).to_be_visible(timeout=10_000)
-    expect(reply).to_be_focused(timeout=10_000)
-    expect(reply).to_have_js_property("value", words, timeout=10_000)
+    expect(preview).to_be_visible()
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", words)
 
 
 def test_a_workspace_page_keeps_no_rail(browser, serve):

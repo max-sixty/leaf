@@ -767,9 +767,7 @@ def test_a_wheel_in_a_box_is_no_choice_of_the_page_around_it(
     )
     before = page.evaluate("document.scrollingElement.scrollTop")
     page.evaluate("document.getElementById('room').style.height = '0px'")
-    page.wait_for_function(
-        f"document.scrollingElement.scrollTop < {before}", timeout=5000
-    )
+    page.wait_for_function(f"document.scrollingElement.scrollTop < {before}")
     scroll_settled(page)
     rendered(page)
     resized(page, 390, 800)

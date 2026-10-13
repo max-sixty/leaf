@@ -3552,7 +3552,7 @@ def test_select_all_on_a_page_with_a_diff_leaves_the_page_responsive(browser, se
     forever from a position that reading lacked, pinning the tab. The press is bounded so
     that regression fails here rather than hanging the run."""
     page = open_page(browser, serve(TWICE_PAGE))
-    page.locator("body").press("ControlOrMeta+a", timeout=5000)
+    page.locator("body").press("ControlOrMeta+a")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_contain_text(
         re.compile("Something else entirely.*request.headers", re.DOTALL)

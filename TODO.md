@@ -75,9 +75,15 @@ has tried; settle that before building it.
 - **#28 — Finish the floating panel.** The opt-in floating panel
   (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
   user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Work
-  through its remaining list (status in the field, opened sizes, one home per thread,
-  the menu's rows, waiting marks, phone, motion) before making it the default or
-  removing the banner, bottom bar, and preference.
+  through its remaining list (status in the field, opened sizes, the menu's rows, the
+  Questions count, motion) before making it the default or removing the banner,
+  bottom bar, and preference. The phone waits until the desktop design is firm, and
+  where a passage thread opens from Threads waits until later.
+- **Consider renaming Questions to On me.** Questions is the one category of
+  everything on the user: asks, to-dos on the user, version approval, and sends to
+  retry. Keep the name Questions until the rename is decided, and keep it one
+  category through any rename. Done may later sit under each of On me and On Agent
+  rather than beside them.
 
 ### Agent and author experience
 

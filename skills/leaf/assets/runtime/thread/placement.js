@@ -124,28 +124,28 @@ function headingFor(place, outline) {
 // not why it is unplaced: it may be removed or ambiguous. Search also reads the page
 // part it stands in. A general comment never claims a location; a thread in the
 // runtime's own chrome stands in no authored part.
-// A thread's section is kept while its record, its place and the outline stand.
-const sections = new WeakMap();
+// Which heading a thread stands under is kept while its place and the outline stand;
+// the heading's name is read each time, since an attribute can rename it without moving
+// the page reading.
+const headings = new WeakMap();
 export function threadSection(t, outline, placedAt) {
   const place = threadPlace(t, placedAt);
   // The authored owner may still order an unresolved passage; only the canonical
   // resolver establishes that passage's location.
   const unplaced = Boolean((t.detached_from || t.anchor) && !placedAt(t.id));
-  const kept = sections.get(t);
-  if (
-    kept &&
-    kept.place === place &&
-    kept.outline === outline &&
-    kept.unplaced === unplaced
-  )
-    return kept.section;
-  const heading = place && !inChrome(place) ? headingFor(place, outline) : null;
-  const section = Object.freeze({
+  let kept = headings.get(t);
+  if (!kept || kept.place !== place || kept.outline !== outline) {
+    kept = {
+      place,
+      outline,
+      heading: place && !inChrome(place) ? headingFor(place, outline) : null,
+    };
+    headings.set(t, kept);
+  }
+  return Object.freeze({
     unplaced,
-    section: heading ? subjectLabel(heading) : "",
+    section: kept.heading ? subjectLabel(kept.heading) : "",
   });
-  sections.set(t, { place, outline, unplaced, section });
-  return section;
 }
 
 // ---------- the panel's Recent order ----------

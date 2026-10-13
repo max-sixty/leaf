@@ -16,7 +16,6 @@ import {
   showNews,
 } from "./banner-toolbar.js";
 import { iconElement } from "./icons.js";
-import { commandShortcut } from "./keyboard/control-keys.js";
 import { latestChip, versionBtn, versionPicker } from "./version-picker.js";
 import { othersBtn, queueBtn } from "./drawers.js";
 import { pagePresented } from "./page-paint.js";
@@ -164,7 +163,6 @@ registerBannerControl({
   row: {
     label: "Versions",
     value: () => versionPicker.model.picker.token.replace(/^Showing /, ""),
-    shortcut: () => commandShortcut("version.open"),
     group: "page",
   },
 });

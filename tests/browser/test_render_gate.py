@@ -464,7 +464,7 @@ def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
         page, serve(source, packages=())
     )
 
-    assert findings == ["authored main has no measurable pre-upgrade layout"]
+    assert [finding.code for finding in findings] == ["main-unlaid"]
 
 
 def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, serve):
@@ -500,9 +500,9 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
 
     assert holding, "the page asked for no runtime module, so nothing was held"
     path = urlsplit(holding[0].request.url).path
-    assert str(stopped.value) == (
-        f"the document never reached load; still requesting {path}"
-    )
+    assert stopped.value.finding.code == "never-reached"
+    assert stopped.value.finding.values["arrival"] == "load"
+    assert stopped.value.finding.values["requesting"] == [path]
 
 
 def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
@@ -531,10 +531,8 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
 
     assert holding, "the page asked for no theme stylesheet, so nothing was held"
     path = urlsplit(holding[0].request.url).path
-    message = str(stopped.value)
-    assert message.startswith("the document never reached ")
-    assert message.endswith(f"; still requesting {path}")
-    assert "leaf.js" not in message
+    assert stopped.value.finding.code == "never-reached"
+    assert stopped.value.finding.values["requesting"] == [path]
 
 
 @pytest.fixture
@@ -593,9 +591,9 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     ).path
 
     assert asked.is_set(), "the browser never asked for the entry, so nothing dropped"
-    assert str(stopped.value) == (
-        f"the document never reached load; still requesting {entry_path}"
-    )
+    assert stopped.value.finding.code == "never-reached"
+    assert stopped.value.finding.values["arrival"] == "load"
+    assert stopped.value.finding.values["requesting"] == [entry_path]
 
 
 def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(

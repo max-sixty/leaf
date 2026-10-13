@@ -131,7 +131,7 @@ representative desktop viewport.
   card news would take out of the panel's view; `reading-continuity.js` for a hidden
   tab.
 - **A turn of the user's own takes them with it.** A turn that takes its card out of
-  the Threads panel's view, as a reply under "Waiting on you" or a rewrite or Reopen
+  the Threads panel's view, as a reply under "Waiting on me" or a rewrite or Reopen
   under Resolved does, widens the view to one that holds the thread and takes the user
   with it; a refusal puts the view back only while they have not acted since. Owners:
   `thread/thread-card.js` (`#speak`), `thread/folding.js`.
@@ -231,7 +231,7 @@ page only, before any resource the page loads. It marks the page live
 (`data-lf-live`), so the theme reserves the chrome's room; it shows a startup failure
 and waits for a server that can start the page, even if the module graph never loads,
 or says the page has a problem where the fault is the page's own, as words a module
-staged where the page cannot read them; and it holds page keys pressed before presentation. Content modules import only
+staged where the page cannot read them; and it holds page keys until their declared inputs are available. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities
 and cross-owner reads happen in their mounts. Pure projection, thread, and
@@ -457,21 +457,27 @@ not generated.
 8. Run the dressing passes and wait for the coordinator publication.
 9. Join the page-interface owners' reconciliation (`PAGE_INTERFACE`), separate from
    this document's semantic proof.
-10. Land a fresh URL's fragment, then stamp `data-lf-upgraded="1"`.
-11. Start the state feed; its first answer presents the page, or after a bounded
-    wait the page presents offline and applies the answer when it lands.
+10. Land a fresh URL's fragment, prepare anchor-dependent chrome, then stamp
+    `data-lf-upgraded="1"` and open comment capture against the shown document.
+11. Start the state feed; its first answer presents the page. A failed or expired
+    read presents offline; an unanswered request keeps its loading status.
 
 Authored HTML paints immediately, and the render-blocking theme reserves the
 banner and bottom bar so mounting the runtime moves nothing. Prose, links, and
-scrolling work while widgets upgrade. Page keys wait, because a command reads
-state the first answer brings: the bootstrap holds printed keys pressed before
-presentation and the keyboard controller replays them in order once the page
-presents, while any other key or a pointer press drops the held run. Durable
-controls wait for `data-lf-presented` (`../references/module-authoring.md`, "Startup and presentation"). An async
+scrolling work while widgets upgrade. New comments, anchors, drawing and their
+keys work at upgrade, while private thread history still says it is loading.
+The bootstrap holds printed keys before upgrade; the controller replays them
+in order as each command's declared input becomes ready. A history-dependent
+key keeps its ordered run until presentation, while any other key or a pointer
+press drops the held run. Ordinary UI commands use the shown document immediately;
+commands that need saved readings declare that dependency. Offline presentation
+discards pending keys and ends startup capture. Decision commands await the canonical
+saved reading
+(`../references/module-authoring.md`, "Startup and presentation"). An async
 producer joins settlement before `data-lf-upgraded`, or stays off the
 presentation path through `afterPresentation`, which declares the deferred
-arrival so `pageReadiness` still answers for it. `presentPage` owns the one
-transition to stateful interaction; its synchronous `PRESENTATION` signal lets
+arrival so `pageReadiness` still answers for it. `presentPage` owns initial
+authoritative presentation; its synchronous `PRESENTATION` signal lets
 box-derived apparatus replace provisional geometry before the presented state
 paints. A reader outside the page waits on `pageReadiness`, through
 `wait_until_ready` in Python, rather than combining these stamps.

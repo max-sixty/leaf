@@ -190,9 +190,9 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
     assert result.exit_code == 0, result.output
     registry["lf-trial"]["x-withdrawn-as"] = "missing"
     (trial_page / "registry.json").write_text(json.dumps(registry))
-    invalid = check(trial_page)
-    assert invalid.exit_code != 0
-    assert "not a deciding outcome" in invalid.output
+    status, findings = check_findings(trial_page)
+    assert status != 0
+    assert found(findings, "withdrawn-as", "<lf-trial>", outcome="missing")
 
 
 @pytest.mark.parametrize(

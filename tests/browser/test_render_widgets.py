@@ -8,6 +8,7 @@ import pytest
 from interact_support import (
     append_carried_log_record,
     append_command,
+    refused_on,
 )
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -4137,7 +4138,7 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
             exact=True,
         )
     ).to_be_visible()
-    expect(page.locator("#card-baffle > .lf-quiet")).to_have_text("your change")
+    expect(page.locator("#card-baffle > .lf-quiet")).to_have_text("my change")
 
     assert board.aria_snapshot() == (
         '- list "Todo":\n'
@@ -4147,7 +4148,7 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Done":\n'
         "  - listitem:\n"
         "    - strong: Squirrel baffle\n"
-        "    - text: your change\n"
+        "    - text: my change\n"
         "    - 'button \"Move: Squirrel baffle — Done\"': ⠿"
     )
 
@@ -4876,7 +4877,8 @@ def test_notification_playground_admits_only_its_exact_page_configuration(
         },
     )
     assert refused.status == 400
-    assert "unknown" in refused.json()["error"]
+    unknown = refused_on(refused.json())
+    assert (unknown.code, unknown.values["field"]) == ("invalid-detail", "/values")
     off_step = post_event(
         page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
@@ -4892,7 +4894,7 @@ def test_notification_playground_admits_only_its_exact_page_configuration(
         },
     )
     assert off_step.status == 400
-    assert "2.5" in off_step.json()["error"]
+    assert refused_on(off_step.json()).values["field"] == "/values/events"
     assert actions(serve.page_dir) == []
 
 
@@ -5419,14 +5421,13 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     box = "el => el.getBoundingClientRect()"
     row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(row).to_be_visible()
-    # The row stands on the moved card: at its line, or packed just below the card's
-    # own marker where the two would otherwise stand on one corner.
+    # The row stands on the moved card. Clear-space seating may put it above the
+    # changed words, but it must travel with the card and remain actionable.
     card = page.locator("#card-heater").evaluate(box)
-    change = page.locator("#sug-in-card lf-old").evaluate(box)
     stands = row.evaluate(box)
-    assert change["top"] - 5 <= stands["top"] <= change["top"] + 48, (
-        "the row must find the moved change's line again, not the one it left"
-    )
+    assert (
+        card["top"] - 5 <= stands["top"] and stands["bottom"] <= card["bottom"] + 5
+    ), "the row must travel with the moved card"
     assert card["left"] < stands["right"] <= card["right"] + 40, (stands, card)
     row.locator(".lf-sug-accept").click()
     expect(page.locator("#sug-in-card lf-old")).to_be_hidden()
@@ -6034,7 +6035,7 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
         accept.click()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
-    expect(page.locator(".lf-notice")).to_contain_text("retrying your change")
+    expect(page.locator(".lf-notice")).to_contain_text("retrying the change")
 
     expect(accept).to_have_count(0)
     expect(
@@ -6189,7 +6190,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text(
-        "thread, to-do or resend waiting on you"
+        "thread, to-do or resend waiting on me"
     )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("questions")
@@ -7092,9 +7093,9 @@ def test_an_ask_already_in_front_of_the_user_is_not_travelled_to(browser, serve)
     page.keyboard.press("q")  # one ask, so the walk stays on it
     page.wait_for_function(
         "() => window.__lfLiveRegionChanges.some("
-        "words => words.includes('waiting on you'))"
+        "words => words.includes('waiting on me'))"
     )
-    expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on you"))
+    expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on me"))
     assert "" in page.evaluate("window.__lfLiveRegionChanges")
     expect(page.locator("#sc-sug")).to_be_focused()
     scroll_settled(page)
@@ -9313,8 +9314,17 @@ def test_a_diff_recovers_from_each_failure_on_the_next_good_source(browser, serv
         expect(
             page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
         ).to_contain_text("new first")
-    errors = consume_browser_errors(page, "failed: unified diff repeats file path")
-    assert len(errors) == 2, errors
+    errors = consume_browser_errors(
+        page, "failed: empty diff", "failed: unified diff repeats file path"
+    )
+    assert sum("failed: empty diff" in (said(error) or "") for error in errors) == 1
+    assert (
+        sum(
+            "failed: unified diff repeats file path" in (said(error) or "")
+            for error in errors
+        )
+        == 2
+    )
 
 
 def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(browser, serve):

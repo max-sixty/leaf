@@ -29,6 +29,7 @@ from interact_support import (
     page_state,
     publish,
     published,
+    refused_on,
     response_reference,
     served_thread,
     state_json,
@@ -1216,6 +1217,7 @@ def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
                 "</lf-options></lf-ask>"
             ),
             "--ask",
+            "--json",
         ],
     )
     aggregate = CliRunner().invoke(
@@ -1238,7 +1240,7 @@ def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
     assert answered.exit_code == 0, answered.output
     assert asking.exit_code == 0, asking.output
     assert duplicate.exit_code == 1
-    assert "reply markup already declares" in duplicate.output
+    assert refused_on(duplicate.stdout).values["tags"] == ["lf-options"]
     assert aggregate.exit_code == 0, aggregate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
     assert "ask" not in replies[0]
@@ -1526,15 +1528,16 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     )
     before = events_model.read_events(page_dir)
     for target, refusal in [
-        (answer["id"], "is not user-authored"),
-        (reaction["id"], "has no words to revise"),
-        ("no-such-message", "unknown message"),
+        (answer["id"], "foreign-message"),
+        (reaction["id"], "wordless-message"),
+        ("no-such-message", "unknown-message"),
     ]:
-        with pytest.raises(EventRefused, match=refusal):
+        with pytest.raises(EventRefused) as refused:
             append_command(
                 page_dir,
                 {"kind": "edit", "author": "user", "message": target, "text": "x"},
             )
+        assert refused_on(refused.value).code == refusal
     assert events_model.read_events(page_dir) == before
 
 

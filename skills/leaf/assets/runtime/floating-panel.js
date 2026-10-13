@@ -126,7 +126,7 @@ const coarse = () => matchMedia("(pointer: coarse)").matches;
 // What the leaf's colour says, in a word, at the head of its menu.
 const TONE_WORDS = Object.freeze({
   working: "Working",
-  listening: "Waiting on you",
+  listening: "Waiting on me",
   away: "Away",
   offline: "Not connected",
 });
@@ -818,7 +818,7 @@ export function createFloatingPanel({
   // answer that shortens it moves nothing below.
   const seatHeights = new Map();
   const QUEUE_TABS = Object.freeze({
-    you: "On you",
+    you: "On me",
     agent: "On the agent",
     done: "Done",
   });
@@ -982,7 +982,7 @@ export function createFloatingPanel({
       : html`<p class="lf-fp-empty">
           ${
             {
-              you: "Nothing waits on you.",
+              you: "Nothing waits on me.",
               agent: `${agentName()} owes nothing here.`,
               done: "Nothing is done yet.",
             }[queueTab]
@@ -1322,7 +1322,7 @@ export function createFloatingPanel({
           class="lf-fp-chip lf-fp-questions"
           aria-pressed=${String(top?.view === "questions")}
           ?data-due=${questions > 0}
-          aria-label=${`Questions${questions ? `, ${questions} on you` : ""}`}
+          aria-label=${`Questions${questions ? `, ${questions} on me` : ""}`}
           @click=${() => open({ view: "questions" })}
         >
           ${iconTemplate("question", "lf-action-icon")}<span class="lf-fp-num"

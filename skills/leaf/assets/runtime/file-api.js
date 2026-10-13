@@ -20,7 +20,7 @@ export function boundFile(binding) {
       );
     } catch (error) {
       if (error instanceof LayerRefused)
-        throw new Error("Leaf changed while accessing the file. Your draft is kept.");
+        throw new Error("Leaf changed while accessing the file. The draft is kept.");
       throw error;
     }
   }

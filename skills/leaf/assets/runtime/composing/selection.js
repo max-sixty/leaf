@@ -4,7 +4,9 @@
    moves focus into the field. Automatic passage selection leaves the native
    selection in place. Its `.lf-composer` wrapper contributes state and draft machinery
    through `display: contents`; only `.lf-fab-input` draws. `showComposer` states the
-   whole visible outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`;
+   whole visible outcome from `composerOpen`, `pendingAnchor`, and `fabAnchor`.
+   Reopening the same passage resumes its words, seed, and modes; omitted modes
+   initialize only a new passage, while explicit options restore a stored record.
    `openComposer`'s `focus` option decides focus independently. Outside clicks and
    Escape hide without discarding words. A successful send settles only the submitted draft generation.
 
@@ -39,7 +41,7 @@ import { anchorForRange } from "../anchor-resolution.js";
 import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { PRESS, rowArrows } from "../keyboard/bindings.js";
+import { PRESS, rowArrows, savedReadingSettled } from "../keyboard/bindings.js";
 import {
   onStanding,
   takesLetters,
@@ -49,6 +51,7 @@ import {
 } from "../focus.js";
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
+import { applicationState } from "../semantic-state.js";
 import { bindQueuedWork } from "../queued-work.js";
 
 import { closestAcross, elementById, inChrome } from "../passages.js";
@@ -149,6 +152,7 @@ export function createSelectionComposer({
   panelIsOpen,
   setReact,
   reactionTokens,
+  reactionAvailable,
   designModeActive,
   openPageThread,
   threadTransitionOrigin,
@@ -178,18 +182,20 @@ export function createSelectionComposer({
   // The composer's draft is keyed by the passage it is on. Under one key — which is what it
   // was while a draft lived and died in one tab — two tabs composing on different passages
   // would each overwrite the other's words, so the key says which passage and the record
-  // says the rest: the anchor itself (a version that drops the passage still has to say
-  // what the draft was about), the mode it was written in, and when it was last touched,
+  // says the rest: the anchor and its capture revision (a later document still has to
+  // say what the draft was about), the mode it was written in, and when it was last touched,
   // which is what picks the one to reopen at load. The key is the anchor's identity, so a
   // draft follows an identified subject across a data replacement as `sameAnchor` does;
   // reopened on the re-minted anchor, it posts that anchor, the rendering last aimed at.
   const COMPOSER_KEY = "composer:";
   const composerCtx = (anchor) => COMPOSER_KEY + anchorKey(anchor);
   let syncComposer;
+  let pendingRevision = null;
   const composerDraftValue = (text = syncComposer.value()) =>
     JSON.stringify({
       text,
       anchor: pendingAnchor,
+      revision: pendingRevision,
       suggest: suggestCheck.checked,
       about: pendingAbout,
       drawing: pendingDrawing,
@@ -210,6 +216,7 @@ export function createSelectionComposer({
     let record = null;
     try {
       record = JSON.parse(stored);
+      if (!Number.isInteger(record?.revision)) record = null;
     } catch {
       record = null;
     }
@@ -436,34 +443,52 @@ export function createSelectionComposer({
   // machine seed from user text: the seed belongs to its old anchor and is dropped;
   // user text stays with its passage unless an explicit Comment gesture carries it.
   let seededQuote = "";
-  // `about` defaults to the mode standing at the open — a composer opened in design mode
-  // is about design — and a restored draft passes the word it was saved with. A pointing
+  // Every view adopts the complete draft here. A fresh capture supplies its own
+  // anchor/revision while taking existing words and modes; Resume supplies the saved
+  // pair. Mirroring another tab takes that same pair rather than only its new text.
+  function adoptComposerDraft({ anchor, revision, text, suggest, about, drawing }) {
+    const retargeted = JSON.stringify(pendingAnchor) !== JSON.stringify(anchor);
+    if (syncComposer.value() !== text) {
+      syncComposer.load(text);
+      seededQuote = "";
+    }
+    pendingAnchor = anchor;
+    pendingRevision = revision;
+    pendingAbout = about ?? null;
+    pendingDrawing = validDrawing(drawing) ? drawing : null;
+    suggestCheck.checked = Boolean(suggest);
+    return retargeted;
+  }
+  // A new passage defaults to the mode standing at the open — a composer opened in
+  // design mode is about design — and a restored draft passes its saved modes. A pointing
   // gesture passes the row inside the target it landed on (`point`, pointed-place.js),
   // or null; a route that names no point leaves the bar where it stands on this anchor.
   function openComposer(
     anchor,
     text,
     {
-      suggest = false,
-      about = designModeActive() ? "design" : null,
+      suggest = undefined,
+      about = undefined,
       drawing = undefined,
       carry = false,
       focus = true,
       point = undefined,
+      revision = applicationState.read().document.revision,
     } = {},
   ) {
     closeReactions();
-    // A box holding nothing but the machine's seed is a box holding nothing. Asked of the
-    // seed rather than of the box, because an empty seed matches an empty field, and a
-    // draft that is one attached image and no words has exactly that field.
-    if (seededQuote && composerInput.value === seededQuote) syncComposer.load("");
-    seededQuote = "";
     const ctx = composerCtx(anchor || null);
     const previousCtx = composerCtx(pendingAnchor);
     const drawingSupplied = drawing !== undefined;
     let carriedDraft = false;
     let standing = null;
     if (previousCtx !== ctx) {
+      suggest = suggest === undefined ? false : suggest;
+      about = about === undefined ? (designModeActive() ? "design" : null) : about;
+      // The machine's untouched seed belongs to its passage. Resuming that passage
+      // retains it; moving to another neither carries it nor mistakes it for user words.
+      if (seededQuote && composerInput.value === seededQuote) syncComposer.load("");
+      seededQuote = "";
       composerEpoch += 1;
       const previousText = syncComposer.value();
       const previousDrawing = pendingDrawing;
@@ -488,21 +513,24 @@ export function createSelectionComposer({
         ({ text, suggest, about } = record);
       }
     }
-    pendingAnchor = anchor || null;
-    pendingAbout = about;
-    if (previousCtx !== ctx) pendingDrawing = validDrawing(standing) ? standing : null;
+    adoptComposerDraft({
+      anchor: anchor || null,
+      revision,
+      text: text || syncComposer.value(),
+      suggest: suggest === undefined ? suggestCheck.checked : suggest,
+      about: about === undefined ? pendingAbout : about,
+      drawing: previousCtx !== ctx ? standing : pendingDrawing,
+    });
     const target = pendingAnchor?.section ? elementById(pendingAnchor.section) : null;
     keeps(
       fabBar,
       "data-lf-paint-plane",
       target && inChrome(target) ? "chrome" : "page",
     );
-    if (text) syncComposer.load(text);
     // The box takes up the passage's draft as it stands, and its history starts there; a
     // drawing the gesture brings is a change to that draft, which the history holds.
     if (previousCtx !== ctx) syncComposer.arrive();
     if (drawingSupplied) pendingDrawing = validDrawing(drawing) ? drawing : null;
-    suggestCheck.checked = Boolean(suggest);
     // Chromium may collapse the native page Selection before dispatching the field's
     // focus event. Mark the handoff before showing the surface so that an intermediate
     // selectionchange cannot dismiss the durable passage this composer is opening on.
@@ -510,7 +538,7 @@ export function createSelectionComposer({
     if (focus) handoff = beginFabFocus();
     else endFabFocus();
     showComposer(true);
-    showFab(anchor, { point });
+    showFab(anchor, { point, reveal: true });
     // The suggest mode renders against the bar once it stands on this anchor with the box
     // open: rendered before, its response choices would follow the bar's previous
     // anchor and flip as the bar arrived.
@@ -556,24 +584,15 @@ export function createSelectionComposer({
         // standing, because a refusal has to give the words back; discarding here would
         // tombstone them first and there would be nothing left to give.
         if (value === null) return settleComposer();
-        const { text, suggest, about, drawing = null } = JSON.parse(value);
-        const incoming = validDrawing(drawing) ? drawing : null;
+        const record = composerRecord(composerCtx(pendingAnchor));
+        if (!record) return settleComposer();
         const outside =
-          syncComposer.value() !== text ||
-          JSON.stringify(incoming) !== JSON.stringify(pendingDrawing);
-        if (syncComposer.value() !== text) {
-          syncComposer.load(text);
-          // Whatever stood here is another tab's words now, not this box's machine seed.
-          seededQuote = "";
-        }
-        // The whole record, not the words alone: the mode a draft was written in rides with
-        // it (pendingAbout, above), so a box taking up those words sends them under the word
-        // they were written with. Design mode is this tab's and the draft's about is not.
-        pendingAbout = about;
-        pendingDrawing = incoming;
+          syncComposer.value() !== record.text ||
+          JSON.stringify(record.drawing ?? null) !== JSON.stringify(pendingDrawing);
+        const retargeted = adoptComposerDraft(record);
+        if (retargeted && composerOpen) showFab(pendingAnchor);
         // Another tab's change is the draft this box takes up, not a step it can take back.
         if (outside) syncComposer.arrive();
-        suggestCheck.checked = Boolean(suggest);
         syncSuggestMode();
         refreshThread();
       },
@@ -591,6 +610,7 @@ export function createSelectionComposer({
     seededQuote = "";
     suggestCheck.checked = false;
     pendingAnchor = null;
+    pendingRevision = null;
     pendingAbout = null;
     pendingDrawing = null;
     syncComposer.arrive();
@@ -643,12 +663,7 @@ export function createSelectionComposer({
   // in the shared unanchored window posture; losing the passage never loses its words.
   function openDraft(record = pendingComposer(), { focus = true } = {}) {
     if (!record) return false;
-    openComposer(record.anchor, record.text, {
-      suggest: Boolean(record.suggest),
-      about: record.about ?? null,
-      drawing: record.drawing ?? null,
-      focus,
-    });
+    openComposer(record.anchor, record.text, { ...record, focus });
     return true;
   }
 
@@ -696,6 +711,7 @@ export function createSelectionComposer({
       },
       send: async (_text, raw, owns, visible) => {
         const anchor = structuredClone(pendingAnchor);
+        const revision = pendingRevision;
         const ctx = composerCtx(anchor);
         const suggestion = suggestCheck.checked;
         const about = pendingAbout;
@@ -716,7 +732,7 @@ export function createSelectionComposer({
             // Kept under the attempt, which names the thread before and after the log
             // answers (`threadKey`), with the words that find the row again.
             if (point) commitPoint(attempt, point, wordsOf(point));
-            const event = { anchor, attempt };
+            const event = { anchor, revision, attempt };
             if (raw) event.text = raw;
             if (suggestion) event.suggestion = true;
             if (about) event.about = about;
@@ -791,6 +807,7 @@ export function createSelectionComposer({
   const RESPONSE_OPTIONS_TITLE = "With other responses open";
   const RESPONSE_REACTION = {
     id: "response.reaction.choose",
+    ready: savedReadingSettled,
     keys: () =>
       reactionTokens()
         .slice(0, 9)
@@ -805,7 +822,10 @@ export function createSelectionComposer({
         .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
         .join(", ")}`,
     title: "react",
-    when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
+    when: () =>
+      reactionAvailable() &&
+      !takesLetters(focused()) &&
+      responseReactionButtons().length > 0,
     run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
   };
   const RESPONSE_MOVE = {
@@ -822,7 +842,9 @@ export function createSelectionComposer({
     keys: PRESS,
     description: "Use the focused response",
     title: "choose",
-    when: () => focusedResponseOption(),
+    when: () =>
+      focusedResponseOption() &&
+      (!focused().classList.contains("lf-react") || reactionAvailable()),
     run: () => focused()?.click(),
   };
   const RESPONSE_CLOSE = {

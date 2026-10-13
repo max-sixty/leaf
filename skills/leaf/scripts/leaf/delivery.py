@@ -723,7 +723,7 @@ def receive_batch(
         if not may_receive(page.claim, session_id):
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
         if refusal := write_refusal(page.page_dir):
-            raise ReceiptRefused(refusal)
+            raise ReceiptRefused(str(refusal))
         expected = {event["seq"]: event["id"] for event in batch["events"]}
         delivered = {event["seq"]: event for event in page.events}
         if not expected or any(

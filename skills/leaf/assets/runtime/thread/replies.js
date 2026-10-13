@@ -262,7 +262,7 @@ function wireReply(key, row, input, send, wireInput) {
       {
         id: "message.edit.last",
         keys: ["ArrowUp"],
-        description: "Edit your last message in the thread",
+        description: "Edit my last message in the thread",
         title: "edit last message",
         when: () =>
           !sync.value() && Boolean(composition.binding?.editLast?.available()),

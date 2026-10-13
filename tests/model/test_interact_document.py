@@ -38,6 +38,7 @@ from interact_support import (
     before_choice,
     check,
     check_findings,
+    command_refusal,
     comment,
     declare_data_input,
     found,
@@ -46,6 +47,7 @@ from interact_support import (
     model_layer,
     publish,
     read_page_data,
+    refused_on,
     response_reference,
     stamp,
     state_json,
@@ -532,9 +534,10 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
     assert event["revision"] == revision
     assert "anchor" not in event
 
-    anchored = comment(page_dir, "--quote", "Plan", "--text", "Change this")
-    assert anchored.exit_code != 0
-    assert "cannot use invalid index.html" in anchored.output
+    anchored = command_refusal(
+        "thread", "open", page_dir, "--quote", "Plan", "--text", "Change this"
+    )
+    assert (anchored.code, anchored.values["operation"]) == ("invalid-source", "anchor")
 
 
 def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries():
@@ -934,10 +937,10 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
     publish(page_dir)
     _write_board(page_dir, "nabc", "x")
     publish(page_dir)
-    with pytest.raises(
-        events_model.EventRefused, match="authors 'c-todo' differently"
-    ) as refused:
+    with pytest.raises(events_model.EventRefused) as refused:
         _move(page_dir, "x", "c-todo", "1i")
+    stale = refused_on(refused.value)
+    assert (stale.code, stale.values["container"]) == ("stale-move", "c-todo")
     assert refused.value.user == "The page changed while you moved this; move it again."
     _move(page_dir, "x", "c-todo", "2i", revision=2)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
@@ -1582,11 +1585,12 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
             response_reference(page_dir, "c1"),
             "--text",
             "Updated.",
+            "--json",
         ],
     )
 
     assert result.exit_code != 0
-    assert "cannot reply while index.html is invalid" in result.output
+    assert refused_on(result.stdout).values["operation"] == "reply"
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )
@@ -1673,13 +1677,10 @@ def test_response_never_settles_a_newer_undelivered_correction(page_dir):
         },
     )
 
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "Made it blue."],
+    refused = command_refusal(
+        "response", "reply", "--done", reference, "--text", "Made it blue."
     )
-
-    assert result.exit_code != 0
-    assert "no longer requires a reply" in result.output
+    assert refused.code == "superseded-reply"
     assert not any(
         event["kind"] == "reply" and event["author"] == "agent"
         for event in events_model.read_events(page_dir)
@@ -1769,11 +1770,16 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     )
     with pytest.raises(Refused) as refused:
         thread_model.post_reply(page_dir, {"to": "c1"}, "Answered.", attempt="r1")
-    assert "'r1' does not match" in str(refused.value)
+    invalid = refused_on(refused.value)
+    assert (invalid.code, invalid.values["field"]) == ("invalid-event", "/attempt")
 
     with pytest.raises(Refused) as unknown_widget:
         thread_model.cmd_report(page_dir, "no-such-widget", "status", ())
-    assert "unknown report widget 'no-such-widget'" in str(unknown_widget.value)
+    assert refused_on(unknown_widget.value).values == {
+        "kind": "report",
+        "widget": "no-such-widget",
+        "revision": 1,
+    }
 
     assert [event["kind"] for event in events_model.read_events(page_dir)] == [
         "note",
@@ -1836,11 +1842,12 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
             "distinct-retry-attempt",
             "--text",
             "Again.",
+            "--json",
         ],
     )
 
     assert result.exit_code != 0
-    assert "no longer requires a reply" in result.output
+    assert refused_on(result.stdout).code == "superseded-reply"
 
 
 @pytest.mark.parametrize(
@@ -2072,9 +2079,9 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         {"kind": "thread", "id": opened["id"]},
     )
 
-    not_a_thread = run("thread", "resolve", "g1")
+    not_a_thread = run("thread", "resolve", "g1", "--json")
     assert not_a_thread.exit_code != 0
-    assert "g1 is a widget on the page, not a thread" in not_a_thread.output
+    assert refused_on(not_a_thread.stdout).code == "widget-not-thread"
     [closed] = [
         json.loads(line)
         for line in run("thread", "resolve", "t-ask").output.splitlines()

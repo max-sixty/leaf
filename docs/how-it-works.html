@@ -1031,7 +1031,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 <strong>Picked up</strong> Leaf's hook puts the comment in the agent's
                 turn and confirms receipt. The comment reads Picked up, and until the
                 agent writes its own words the panel's status reads
-                <em>Claude working — picked up your comment</em>.
+                <em>Claude working — picked up my comment</em>.
               </li>
               <li id="progress-reply">
                 <time>5s</time> <small>intervention</small>
@@ -1299,7 +1299,7 @@ flowchart LR
                 for the user, which stays open until they reply or settle it with a
                 reaction, or the agent ends it with <code>leaf task end</code>: as
                 answered elsewhere when the user answered in chat, or as withdrawn. The
-                thread reads <em>On you to answer</em>, and the ask joins the user's
+                thread reads <em>My turn to answer</em>, and the ask joins the user's
                 Questions, in the Questions panel.
               </li>
               <li id="updates-written-on-you">
@@ -1443,14 +1443,14 @@ flowchart TD
               </thead>
               <tbody>
                 <tr id="updates-reading-held">
-                  <td>Claude working — picked up your comment</td>
+                  <td>Claude working — picked up my comment</td>
                   <td>
                     The agent's running turn picked up the user's comment, or their
                     answer to an ask, and the agent has not yet said what it is doing.
                   </td>
                 </tr>
                 <tr id="updates-reading-steps">
-                  <td>Codex thinking, Codex using a tool, Claude waiting for you</td>
+                  <td>Codex thinking, Codex using a tool, Claude waiting for me</td>
                   <td>
                     The harness reports the session's current activity. Waiting for the
                     user, for input, or for approval refers to a dialog in the harness's
@@ -1538,7 +1538,7 @@ flowchart TD
                   </td>
                 </tr>
                 <tr id="updates-notice-input">
-                  <td>Input needed, 2 items need your input</td>
+                  <td>Input needed, 2 items waiting on me</td>
                   <td>
                     A new ask requests a decision on the page or in a thread, or an
                     agent reply asks the user a question.
@@ -3943,38 +3943,24 @@ flowchart LR
           </section>
 
           <section id="browser-startup">
-            <h2>Startup phases</h2>
+            <h2>Loading the runtime</h2>
             <p id="browser-startup-lede">
-              A page arrives in three phases, and each makes more of it usable.
+              The <a href="#loading">Loading tab</a> describes when reading, commenting,
+              and saved-state controls become available.
             </p>
-            <ol class="steps" id="browser-startup-phases">
-              <li id="browser-startup-receipt">
-                <strong>Document receipt.</strong> The browser paints the authored HTML
-                as it arrives. Two small scripts run before the first paint. One tells
-                the theme to give each component the box its module will draw it in. The
-                other reserves room for Leaf's panel, holds keys the user presses early,
-                and shows a startup failure if the runtime cannot load. Loading the
-                runtime later therefore moves nothing. Prose, links and scrolling work
-                from here.
-              </li>
-              <li id="browser-startup-upgrade">
-                <strong>Component upgrade.</strong> The runtime sends its first state
-                read, restores the user's arrangement of Leaf's controls, loads the
-                registry, and records each component's authored state from the HTML
-                before any module changes it. It then imports the modules for the
-                component tags the page uses, and no others.
-              </li>
-              <li id="browser-startup-presentation">
-                <strong>Authoritative presentation.</strong> The runtime applies the
-                first state answer, so recorded choices, threads, asks and agent
-                activity appear, and marks the page presented. Only then do components
-                accept updates, and the held keys run in order, since a key such as
-                <kbd>t</kbd>, which walks the threads, needs the threads that answer
-                brings. If no answer arrives within ten seconds, the page presents its
-                authored state with Leaf's offline status and applies the answer when it
-                lands.
-              </li>
-            </ol>
+            <p id="browser-startup-receipt">
+              Two small scripts run before the first paint. One tells the theme to give
+              each component the box its module will draw it in. The other reserves room
+              for Leaf's panel, holds keys the user presses early, and shows a startup
+              failure if the runtime cannot load. Loading the runtime later therefore
+              moves nothing.
+            </p>
+            <p id="browser-startup-upgrade">
+              The runtime sends its first state read, restores the user's arrangement of
+              Leaf's controls, loads the registry, and records each component's authored
+              state from the HTML before any module changes it. It then imports the
+              modules for the component tags the page uses, and no others.
+            </p>
           </section>
         </lf-tab>
 
@@ -4052,6 +4038,64 @@ flowchart LR
                 Phone behavior is tested in browser emulation, not on a real device.
               </li>
             </ul>
+          </section>
+        </lf-tab>
+        <lf-tab id="loading" label="Loading">
+          <section id="loading-stages">
+            <h2>Page loading</h2>
+            <p id="loading-lede">
+              The document, browser interface, saved state, and agent become available
+              separately. The browser loads the JavaScript and requests saved state in
+              parallel. Reading and new comments can begin before that state arrives.
+            </p>
+            <table id="loading-stage-table">
+              <thead>
+                <tr>
+                  <th>Stage</th>
+                  <th>Available on the page</th>
+                  <th>The panel's status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="loading-document">
+                  <td>HTML and styles arrive</td>
+                  <td>Text, links, and scrolling.</td>
+                  <td>The panel appears when the JavaScript starts.</td>
+                </tr>
+                <tr id="loading-javascript">
+                  <td>JavaScript initializes the interface</td>
+                  <td>Leaf components and comment controls are being prepared.</td>
+                  <td>Loading…</td>
+                </tr>
+                <tr id="loading-comments">
+                  <td>Comment controls are ready; saved state is still loading</td>
+                  <td>
+                    New comments and drawings appear immediately. They remain Sending
+                    until the server accepts them. Choices that change saved state wait
+                    for the server's current reading.
+                  </td>
+                  <td>Loading saved state…</td>
+                </tr>
+                <tr id="loading-state">
+                  <td>Saved state arrives</td>
+                  <td>
+                    Saved threads and choices join the page, preserving new comments and
+                    comment drafts. Saved choices become available for changes.
+                  </td>
+                  <td>
+                    The page’s normal status; each comment shows its delivery status.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="loading-order">
+              Commands that need saved history wait for that history; document controls
+              and new comments work as soon as the interface is ready. The panel's
+              status reads Loading saved state while the request is unanswered. Only a
+              failed read shows Offline; Decisions wait for a complete reading. A later
+              answer joins the page normally. The interface and saved state can be ready
+              before the agent starts.
+            </p>
           </section>
         </lf-tab>
       </lf-tabs>

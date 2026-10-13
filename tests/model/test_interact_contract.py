@@ -56,6 +56,8 @@ from interact_support import (
     published,
     queue_board_registry,
     read_page_data,
+    refused_on,
+    registry_refusal,
     styled,
     wait_for,
     yaml_block,
@@ -83,6 +85,7 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+from leaf.findings import Finding
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import page as registry_page
@@ -294,7 +297,11 @@ def test_a_pick_names_only_options_its_group_holds():
 
     with pytest.raises(events_model.EventRefused) as refused:
         admit(STATED_LOG, pick)
-    assert "live-mine name no member of 'live-pick'" in str(refused.value)
+    strangers = refused_on(refused.value)
+    assert (strangers.code, strangers.values["strangers"]) == (
+        "unknown-members",
+        ["live-mine"],
+    )
 
     add = admit(
         STATED_LOG,
@@ -436,7 +443,8 @@ def test_the_move_that_empties_the_queue_answers_its_ask():
                 "detail": {"unit": "not-a-card", "value": "keep", "rank": "0r"},
             },
         )
-    assert "unknown unit 'not-a-card'" in str(refused.value)
+    unknown = refused_on(refused.value)
+    assert (unknown.code, unknown.values["unit"]) == ("unknown-unit", "not-a-card")
 
 
 def test_admission_decides_from_the_markup_and_the_standing_log_alone():
@@ -460,7 +468,7 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
     def refusal(event):
         with pytest.raises(events_model.EventRefused) as refused:
             admit(event)
-        return str(refused.value)
+        return refused_on(refused.value)
 
     choose_live = {
         **STATED_PICK,
@@ -468,19 +476,21 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
         "detail": {"value": ["live-gps"]},
     }
     assert admit(choose_live)["meaning"]["unit"] == "live-pick"
-    assert (
-        refusal({**choose_live, "revision": 2}) == "action revision must be one of [1]"
-    )
-    assert "stands inside an exhibit" in refusal(
-        {**STATED_PICK, "widget": "quoted-pick", "detail": {"value": ["quoted-gps"]}}
-    )
+    assert refusal({**choose_live, "revision": 2}).values["revisions"] == [1]
+    quoted = {
+        **STATED_PICK,
+        "widget": "quoted-pick",
+        "detail": {"value": ["quoted-gps"]},
+    }
+    assert refusal(quoted).code == "quoted-widget"
     answer = {"kind": "reply", "author": "agent", "revision": 1, "text": "The GPS."}
-    assert refusal({**answer, "parent": "c9"}) == "unknown parent 'c9'"
+    assert refusal({**answer, "parent": "c9"}) == Finding(
+        "unknown-parent", values={"kind": "reply", "parent": "c9"}
+    )
     assert admit({**answer, "parent": "c1"})["parent"] == "c1"
     for version in ([1], {"version": 1}, True):
-        assert "done event is invalid" in refusal(
-            {"kind": "done", "author": "user", "version": version}
-        )
+        invalid = refusal({"kind": "done", "author": "user", "version": version})
+        assert (invalid.code, invalid.values["field"]) == ("invalid-event", "/version")
 
 
 def test_a_created_child_is_its_actions_unit_and_its_words_stay_payload():
@@ -701,14 +711,18 @@ def test_server_takes_back_only_a_standing_gesture_of_the_users_own(server, page
     # user's history rather than toggling the last gesture on and off.
     status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
     refusal = json.loads(body)
-    assert status == 400 and "already been taken back" in refusal["error"]
+    assert status == 400 and refused_on(refusal).code == "withdrawn-gesture"
     assert took_back in refusal["state"]["events"]
     assert refusal["state"]["browser"]["basis"]["through_seq"] >= took_back["seq"]
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": took_back["id"]}).encode(),
     )
-    assert status == 400 and "undo events cannot be taken" in json.loads(body)["error"]
+    unundoable = refused_on(body)
+    assert status == 400 and (unundoable.code, unundoable.values["target"]) == (
+        "unundoable",
+        "undo",
+    )
 
 
 def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
@@ -796,7 +810,8 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     assert validation_calls == 2
     assert {status for status, _ in results} == {200, 400}
     refusal = next(json.loads(body) for status, body in results if status == 400)
-    assert refusal["final"] is True and "already been taken back" in refusal["error"]
+    assert refusal["final"] is True
+    assert refused_on(refusal).code == "withdrawn-gesture"
     undos = [
         event
         for event in events_model.read_events(page_dir)
@@ -2009,20 +2024,22 @@ def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
     `records: null` a same-protocol Leaf vendored still reads as absent."""
     kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
 
-    def facts_error(**changes):
+    def facts(**changes):
         registry = deepcopy(kernel)
         for fact, value in changes.items():
             registry[f"${fact}"] = {**registry[f"${fact}"], **value}
-        return registry_layer.layer_facts_error(registry)
+        registry_layer.check_layer_facts(registry, "kernel")
 
-    assert facts_error() is None
+    facts()
     absent = {"description": "Build facts.", "schema": {}, "records": None}
-    assert facts_error(data={"contracts": {"builds": absent}}) is None
+    facts(data={"contracts": {"builds": absent}})
     named = {"description": "Build facts.", "schema": {}}
-    assert "does not match" in facts_error(data={"contracts": {"builds\n": named}})
-    assert "does not match" in facts_error(
-        reactions={"tokens": {"keep\n": {"glyph": "+"}}}
+    refused = registry_refusal(lambda: facts(data={"contracts": {"builds\n": named}}))
+    assert refused.values["keyword"] == "pattern"
+    refused = registry_refusal(
+        lambda: facts(reactions={"tokens": {"keep\n": {"glyph": "+"}}})
     )
+    assert refused.values["keyword"] == "pattern"
 
 
 def test_a_custom_units_identity_rule_keeps_the_details_reference_base():
@@ -3055,8 +3072,9 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
         for required in ("widget", "action", "detail", "revision"):
             malformed = {**command, "detail": valid}
             del malformed[required]
-            with pytest.raises(events_model.EventRefused, match="required property"):
+            with pytest.raises(events_model.EventRefused) as refused:
                 event_contracts_model.admitted_event(page, [], malformed)
+            assert refused_on(refused.value).values["rule"] == "required"
         assert admitted["detail"] == valid
         assert admitted["meaning"]["unit"] == (
             valid["unit"] if widget == "board" else widget
@@ -5204,7 +5222,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": root["id"]}).encode(),
     )
-    assert status == 400 and "is not a reaction" in json.loads(body)["error"]
+    assert status == 400 and refused_on(body).code == "said-message"
     # The mark on the thread comes off with one press.
     status, body = fetch(
         f"{server}/api/event",
@@ -5223,7 +5241,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     assert status == 400, body
     answer = json.loads(body)
     assert answer["final"] is True, body
-    assert "already been taken back" in answer["error"], body
+    assert refused_on(answer).code == "withdrawn-gesture", body
     # Every thread fold drops a withdrawn message, so nothing may name it as a parent:
     # a reply to it would open a thread with no root.
     status, body = fetch(
@@ -5232,7 +5250,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
             {"kind": "reply", "revision": 1, "parent": nod["id"], "token": "keep"}
         ).encode(),
     )
-    assert status == 400 and "has been taken back" in json.loads(body)["error"]
+    assert status == 400 and refused_on(body).code == "withdrawn-parent"
     # Nor may a message another stands on be withdrawn, a reaction to it included.
     mark = json.loads(
         fetch(
@@ -5252,7 +5270,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
     )
-    assert status == 400 and "has been answered" in json.loads(body)["error"]
+    assert status == 400 and refused_on(body).code == "answered-reaction"
     # Answered, the page reaction is a thread, and the withdrawal would orphan
     # the answer; the user's move is in the thread it opened.
     thread_model.post_reply(page_dir, {"to": reaction["id"]}, "Which part is long?")
@@ -5260,7 +5278,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
     )
-    assert status == 400 and "has been answered" in json.loads(body)["error"]
+    assert status == 400 and refused_on(body).code == "answered-reaction"
     # A Leaf older than the parent rule could have admitted that reply to the
     # withdrawn mark; the log it left still reads, the reply standing on nothing.
     logged = events_model.read_events(page_dir)

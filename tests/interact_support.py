@@ -64,6 +64,7 @@ from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
 from leaf.findings import Finding
 from leaf.refusals import Refused
+from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry
 from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
@@ -590,6 +591,18 @@ def check(d):
     return CliRunner().invoke(cli_model.cli, ["page", "check", str(d)])
 
 
+def refused_on(answer) -> Finding:
+    """The one finding a refusal rests on: an exception's (`Refused.findings`), or the
+    one an event door's answer carries, as a dict or its raw JSON body."""
+    if isinstance(answer, Exception):
+        (finding,) = answer.findings
+        return finding
+    if isinstance(answer, (str, bytes)):
+        answer = json.loads(answer)
+    (finding,) = answer["findings"]
+    return Finding.loads(finding)
+
+
 def check_findings(d) -> tuple[int, list[Finding]]:
     """`page check --json`, in-process: its exit status and what it found, as records."""
     report = json.loads(
@@ -608,6 +621,22 @@ def found(findings, code: str, at: str | None = None, **values) -> list[Finding]
         and at in (None, finding.at)
         and all(finding.values.get(key) == value for key, value in values.items())
     ]
+
+
+def registry_refusal(read: Callable) -> Finding:
+    """The one finding the registry refusal raised by calling `read` carries."""
+    with pytest.raises(RegistryError) as refused:
+        read()
+    [finding] = refused.value.findings
+    return finding
+
+
+def command_refusal(*args) -> Finding:
+    """The one finding the refusal of the leaf command `args`, run in process,
+    carries."""
+    result = CliRunner().invoke(cli_model.cli, [*map(str, args)], standalone_mode=False)
+    [finding] = result.exception.__cause__.findings
+    return finding
 
 
 def read_page_data(page_dir) -> dict:

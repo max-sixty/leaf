@@ -63,7 +63,7 @@ are watched as the task's current step. Leaf retains thinking, tool use, replyin
 approval waits, and input waits as distinct observations. They describe overall page
 activity; an observed step alone does not start a particular message. The line of
 an item you started with `leaf task start` stays the page's sentence, and the step
-stands beside it in the banner's disclosure; with no item in hand, the step is the
+stands beside it in the status's explanation; with no item in hand, the step is the
 sentence.
 
 ## Hand a page over from a terminal

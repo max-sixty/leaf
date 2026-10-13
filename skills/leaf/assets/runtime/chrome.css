@@ -260,6 +260,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .lf-fp-dest[data-notice] {
+    color: var(--ink);
+  }
   .lf-fp-keys {
     flex: none;
   }
@@ -667,6 +670,11 @@
     color: var(--ink);
     font-size: 13px;
     font-weight: 600;
+  }
+  .lf-fp-explain {
+    margin-top: 3px;
+    white-space: normal;
+    text-wrap: pretty;
   }
   .lf-fp-state[data-tone=working] b {
     color: var(--accent);

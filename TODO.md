@@ -72,11 +72,13 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Questions,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **#28 — Overhaul the floating panel's appearance.** The opt-in floating panel
-  (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
-  user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Once
-  the user accepts it, the panel becomes the only chrome: the banner, the bottom bar
-  and the preference go.
+- **#28 — Make the floating panel the only chrome.** The floating panel was rebuilt
+  on 12 October to the sketch the user configured ([its goal](notes/floating-panel/GOAL.md),
+  "The overhaul") and is the default since; `?lf-chrome=classic` still brings back the
+  banner and the bottom bar. Work through the panel's remaining list (status in the
+  field, opened sizes, one home per thread, the menu's rows, waiting marks, phone,
+  motion), then delete the banner, the bottom bar, the preference, and the suite's
+  default to them (`tests/render_harness.py`, `watched`).
 
 ### Agent and author experience
 

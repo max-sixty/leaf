@@ -120,9 +120,10 @@ stylesheet decides whether their bodies scroll.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
-| **Banner** | The persistent chrome row at the window's top: page status ending with the agent's Tasks count, the primary Approval, Comment on the page, Questions and Threads controls, and an overflow disclosure of secondary controls (`banner-toolbar.js` says where each control sits) |
+| **Leaf panel** | The default chrome (`floating-panel.js`): one box floating over the window's foot whose resting row holds the leaf, coloured by the agent's state and opening the leaf's menu of the page's other controls; the comment field, which shows the agent's status and passing notices while empty; and the Questions and Threads marks. Threads, Questions, Versions and the menu's groups open as views above that row, and folding leaves the leaf alone in the window's corner. It stands for the banner and the bottom bar, drawing their controls from the toolbar's rows (`banner-toolbar.js`) |
+| **Banner** | Classic chrome, which `?lf-chrome=classic` chooses in place of the Leaf panel (`prepaint.js`): the persistent row at the window's top: page status ending with the agent's Tasks count, the primary Approval, Comment on the page, Questions and Threads controls, and an overflow disclosure of secondary controls (`banner-toolbar.js` says where each control sits) |
 | **Page comment card** | The card hung from the banner's Comment on the page control, holding the page's general comment box, the one place a page thread starts (`thread/page-comment.js`) |
-| **Bottom bar** | The row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
+| **Bottom bar** | Classic chrome's row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
 | **Side panel** | The right-edge slot, with one width and one drawn edge, that the thread panel and the Questions panel take turns in; Questions and Threads are its two banner doors |
 | **Thread panel** | The auxiliary surface listing threads, one of the two that take turns in the side panel |

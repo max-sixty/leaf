@@ -66,18 +66,19 @@ import { sampleVisibility } from "./sample-visibility.js";
 // overhang. The auxiliary surfaces stand over the page and take none of it.
 export const shellRight = () => document.body.getBoundingClientRect().right;
 
-// How much of the window the page shows: the visible viewport, less the banner over its
-// head and the bottom bar at its foot. Both bars are chrome fixed to the window that
-// stand over the page without clipping it, so no clip walk finds them; the owner of each
-// declares it here (`declareBanner`, banner.js; `declareBottomBar`,
-// keyboard/shortcut-bar.js), and every reading of the room the page has starts from
-// `bannerFoot` or `shownWindow` rather than measuring the chrome itself.
+// How much of the window the page shows: the visible viewport, less the chrome fixed to
+// its edges: the banner over its head, and the boxes the bottom bar's owner and the
+// floating panel stand. Each stands over the page without clipping it, so no clip walk
+// finds it; its owner declares it here (`declareBanner`, banner.js; `declareWindowChrome`,
+// keyboard/shortcut-bar.js and floating-panel.js), and every reading of the room the page
+// has starts from `bannerFoot` or `shownWindow` rather than measuring the chrome itself.
 //
 // The banner's foot is its painted edge, since its declared height (`--lf-banner-h`) is a
-// safe-area `calc()` whose serialized value is not a number. The bottom bar is read as
-// the boxes standing in it rather than as its
-// stated height (`--lf-bottom-bar-h`), because the status rises above a covering panel's
-// foot; it bounds only the room its boxes stand across.
+// safe-area `calc()` whose serialized value is not a number. The other chrome is read as
+// the boxes standing in it rather than as a stated height (`--lf-bottom-bar-h`), because
+// the status rises above a covering panel's foot, and stands at the window's head over
+// the floating panel; each box bounds only the room it stands across, from the edge it
+// stands nearer.
 //
 // The visible viewport is the part of the window the user sees: pinch zoom and a phone's
 // software keyboard shrink it without resizing the layout viewport the page and its fixed
@@ -94,17 +95,20 @@ export const shellRight = () => document.body.getBoundingClientRect().right;
 // change, and a panel opens, shuts or is dragged wider, each with no scroll or resize
 // for a reader to hear.
 let banner = null;
-let bottomBar = () => [];
+const windowChrome = new Set();
 const chromeSizes = sizeObserver(() => announceRoom(document));
 const watchChrome = (element) => chromeSizes.observe(element, { box: "border-box" });
 export const declareBanner = (element) => {
   banner = element;
   watchChrome(element);
 };
-export const declareBottomBar = (boxes, elements) => {
-  bottomBar = boxes;
+export const declareWindowChrome = (boxes, elements) => {
+  windowChrome.add(boxes);
   elements.forEach(watchChrome);
 };
+// Every box the declared window chrome stands now, for a reading that keeps clear of
+// them all, as Go-to's chips and a search's marks do.
+export const windowChromeBoxes = () => [...windowChrome].flatMap((boxes) => boxes());
 export const bannerFoot = () => banner?.getBoundingClientRect().bottom ?? 0;
 // The layout viewport's box, less the scrollbars the root draws at its edges, where
 // nothing the page shows stands: `innerWidth` and `innerHeight` count a classic
@@ -124,12 +128,16 @@ export function shownWindow({ within = null, gap = 0, viewport = "visual" } = {}
       : { offsetLeft: 0, offsetTop: 0, width: layout.right, height: layout.bottom };
   const left = Math.max(offsetLeft, within?.left ?? -Infinity) + gap;
   const right = Math.min(offsetLeft + width, within?.right ?? Infinity) - gap;
-  const top = Math.max(offsetTop, bannerFoot(), within?.top ?? -Infinity) + gap;
-  const foot = bottomBar()
-    .filter((box) => overlapsAcross(box, { left, right }))
-    .map((box) => box.top);
-  const bottom =
-    Math.min(offsetTop + height, within?.bottom ?? Infinity, ...foot) - gap;
+  let top = Math.max(offsetTop, bannerFoot(), within?.top ?? -Infinity);
+  let bottom = Math.min(offsetTop + height, within?.bottom ?? Infinity);
+  const middle = offsetTop + height / 2;
+  for (const box of windowChromeBoxes()) {
+    if (!overlapsAcross(box, { left, right })) continue;
+    if (box.top + box.bottom < 2 * middle) top = Math.max(top, box.bottom);
+    else bottom = Math.min(bottom, box.top);
+  }
+  top += gap;
+  bottom -= gap;
   return new DOMRect(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
 }
 

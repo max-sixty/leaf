@@ -90,7 +90,7 @@ import {
 } from "../notifications.js";
 import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
-import { declareBottomBar } from "../geometry.js";
+import { declareWindowChrome } from "../geometry.js";
 import { pagePresented } from "../page-paint.js";
 import { closeLayer, focusDestination } from "../focus.js";
 import {
@@ -214,11 +214,8 @@ export const standingStatusBoxes = () => {
   if (!noticeVisible()) [standingStatusBox = null] = boxesOf([bottomStatusEl]);
   return standingStatusBox ? [standingStatusBox] : [];
 };
-export const bottomChromeBoxes = () => [
-  ...boxesOf([shortcutBarEl]),
-  ...standingStatusBoxes(),
-];
-declareBottomBar(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
+const bottomChromeBoxes = () => [...boxesOf([shortcutBarEl]), ...standingStatusBoxes()];
+declareWindowChrome(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
 
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
@@ -350,8 +347,15 @@ registerBannerControl({
   seat: "menu",
   row: { label: "Keyboard shortcuts", shortcut: "?", group: "page" },
 });
+// The first `?` expands the bar where the bar is drawn; where it is not, under the
+// floating panel or a finger, there is nothing to expand, and `?` opens the reference.
 function advanceShortcutHelp() {
-  if (!shortcutHelpAvailable() || shortcutBarIsExpanded) return openCompleteReference();
+  if (
+    !shortcutHelpAvailable() ||
+    shortcutBarIsExpanded ||
+    !shortcutBarEl.checkVisibility()
+  )
+    return openCompleteReference();
   const scopes = stack();
   const { candidates, short } = arrange(lineRows(scopes));
   const shown = completeLine(scopes, candidates)?.rows ?? short;

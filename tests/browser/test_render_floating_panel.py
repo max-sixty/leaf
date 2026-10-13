@@ -1,7 +1,8 @@
-"""The floating panel: Leaf's chrome as one box over the page's foot, where the user
-chose it (`lf-chrome`, prepaint.js), in place of the banner and the bottom bar.
+"""The floating panel: Leaf's chrome as one box over the page's foot, in place of the
+banner and the bottom bar unless the reader asked for them (`lf-chrome`, prepaint.js).
 
-Each test is one journey a user takes through the panel, with the preference on:
+Each test is one journey a user takes through the panel, which the suite's pages
+choose here, since they otherwise read with the bars (`watched`):
 writing a page comment and replying in the same field, settling the thread, finding
 threads and taking in news, answering questions, travelling between versions, and
 folding the panel to the leaf in the window's corner and back."""
@@ -180,6 +181,94 @@ def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(2)
     held.click()
     expect(reader.locator(".lf-msg")).to_have_count(3)
+
+
+def test_a_reader_who_chose_nothing_reads_with_the_panel(browser, serve):
+    """The panel is Leaf's chrome for a reader who has not asked for the banner and the
+    bottom bar. A value the preference does not know stands for no choice, which the
+    suite's own default (`watched`) leaves alone."""
+    page = open_page(
+        browser,
+        serve(LONG_PAGE),
+        init_script="try { localStorage.setItem('lf-chrome', '') } catch {}",
+    )
+    expect(page.locator(".lf-floating-panel")).to_be_visible()
+    expect(page.locator(".lf-banner")).to_be_hidden()
+    expect(page.locator(".lf-shortcut-bar")).to_be_hidden()
+
+
+def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, serve):
+    """A package that draws the page's conversations itself keeps that place under the
+    panel (application.js, `registerThreadPresentation`, `yields`): the page starts
+    without a fault, and a thread opened from the panel's Threads opens in the
+    package's reader rather than above the row."""
+    from browser.test_render_application_boundary import package_workspace
+
+    page = floating(browser, package_workspace(serve))
+    workspace = page.locator("#workspace")
+    page.locator(".lf-fp-threads").click()
+    inventory = page.locator(".lf-fp-view[data-view=threads]")
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    inventory.locator(".lf-fp-thread", has_text="Keep it concise.").click()
+    expect(workspace.get_by_text("One paragraph.")).to_be_visible()
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_have_count(0)
+    expect(inventory).to_have_count(0)
+
+
+def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):
+    """A passing notice is said in the empty field's place, and once the field holds
+    words, which hide that, on the line above it, so a refused send's reason is seen
+    beside the words it returned; on a folded panel, the leaf's peek says it."""
+    page = floating(browser, serve(LONG_PAGE))
+    say = """async (text) => (await window.__lfRuntimeImport('/runtime/notifications.js'))
+      .notice(text)"""
+    page.evaluate(say, "Saved for later")
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile(r"^Saved for later")
+    )
+    write(field(page), "Could the rollback cover the weekend?")
+    page.evaluate(say, "Not sent: the page is offline")
+    expect(page.locator(".lf-fp-dest")).to_have_text("Not sent: the page is offline")
+
+    # Folded to the leaf, the panel has no field, and the leaf's peek says it.
+    page.locator("body").focus()
+    page.keyboard.press(".")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-rest", "mark")
+    page.evaluate(say, "Reconnected")
+    expect(page.locator(".lf-fp-peek")).to_be_visible()
+    expect(page.locator(".lf-fp-peek")).to_have_text("Reconnected")
+
+
+def test_question_mark_opens_the_command_reference_at_once(browser, serve):
+    """Under the panel no shortcut bar is drawn to expand, so the first `?` opens the
+    command reference."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.locator("body").focus()
+    page.keyboard.press("?")
+    expect(page.locator(".lf-command-reference")).to_be_visible()
+
+
+def test_the_room_the_page_shows_stands_between_the_walk_and_the_panel(browser, serve):
+    """What the page reveals, places and reports as shown keeps to the room the window's
+    chrome leaves (geometry.js, `shownWindow`): under the walk's position, which stands at
+    the window's head, and over the panel at its foot, as it kept under the banner and over
+    the bottom bar."""
+    page = floating(browser, serve(ASK_PAGE))
+    room = """async () => {
+      const shown = (await window.__lfRuntimeImport('/runtime/geometry.js')).shownWindow();
+      return {top: shown.top, bottom: shown.bottom};
+    }"""
+    foot = page.locator(".lf-fp-row").bounding_box()["y"]
+    assert page.evaluate(room)["bottom"] == pytest.approx(foot, abs=1)
+
+    page.locator("body").focus()
+    page.keyboard.press("q")
+    position = page.locator(".lf-walk-position")
+    expect(position).to_contain_text("1 of 2")
+    head = page.locator(".lf-bottom-status").bounding_box()
+    shown = page.evaluate(room)
+    assert shown["top"] == pytest.approx(head["y"] + head["height"], abs=1), shown
+    assert shown["bottom"] == pytest.approx(foot, abs=1), shown
 
 
 def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):

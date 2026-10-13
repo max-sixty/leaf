@@ -191,7 +191,7 @@ leaf response reply <answer.ref> --ephemeral --text "Checking the keyboard route
 
 This posts progress without answering the update. Progress on an update you owe also
 takes that update in hand, as `leaf task start` does, with the progress text as its
-**Working** line beside the thread and in the banner, so it is one line.
+**Working** line beside the thread and in the panel's status, so it is one line.
 [Conversation loop](conversation-loop.md#when-to-write), "When to write", makes
 the first one your first command after a delivery. A proactive progress message
 names a thread with no response due. When your next ordinary reply in the thread

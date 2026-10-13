@@ -145,7 +145,7 @@ Whenever the user returns to it, it is the page you would write today from what
 you now know. Its title, lede, and headings state what is true now, and open work
 and open questions stand in the column while finished work sits collapsed after
 them. A user finds each outcome in the relevant page section without
-reconstructing a thread or chat. The banner says what you are doing now; threads
+reconstructing a thread or chat. Leaf's panel says what you are doing now; threads
 carry discussion and rationale.
 
 When work lands, a decision is made, or your understanding changes, reread the

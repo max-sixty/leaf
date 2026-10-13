@@ -129,8 +129,8 @@
       }),
     );
   }
-  // A served page draws the live chrome, the banner and the bottom bar, so the theme
-  // reserves their room from the first paint (`html[data-lf-live]`). An export runs the
+  // A served page draws the live chrome, the floating panel or the banner and the bottom
+  // bar, so the theme reserves its room from the first paint (`html[data-lf-live]`). An export runs the
   // runtime without them (prepaint.js).
   root.toggleAttribute("data-lf-live", true);
   const incarnation = script.dataset.lfServer;

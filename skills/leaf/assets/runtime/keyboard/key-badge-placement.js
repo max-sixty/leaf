@@ -21,10 +21,10 @@
    because what it measures is drawn where it stands rather than moved somewhere legible. */
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
 import { PRESSES } from "../control-selectors.js";
-import { bottomChromeBoxes } from "./shortcut-bar.js";
 import {
   bannerFoot,
   layoutWindow,
+  windowChromeBoxes,
   shownParts,
   shownRect,
   startsAt,
@@ -53,7 +53,7 @@ export function keyBadgePlacement() {
   const clips = new Map();
   const covered = bannerFoot();
   const room = { ...layoutWindow(), top: covered };
-  const chrome = bottomChromeBoxes();
+  const chrome = windowChromeBoxes();
   const kept = [...chrome];
 
   // What the user can see of a box: the window, less the banner standing over its top.

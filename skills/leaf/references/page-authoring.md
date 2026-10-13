@@ -135,14 +135,14 @@ tiles, and its comments and anchors stay put.
 
 Compose worker readings with a page-owned adapter when multiple workers report
 to one orchestrator. Declare their report verbs and use the public work projection
-for task and worker state. On a one-agent page, the banner carries that activity. A revisited
+for task and worker state. On a one-agent page, the status in Leaf's panel carries that activity. A revisited
 page with several contributors, such as a working board, command hub, or long
 review, can use `lf-activity` to show recent changes; a read-once page needs no
 activity feed.
 
-The banner and bottom bar reserve fixed space in the window. Leaf's annotation
-rail occupies the margin beside the column without moving its content ("The rail
-and the margin", below).
+Leaf's panel floats over the foot of the window, and the page keeps room at its end
+so its last lines scroll clear of it. Leaf's annotation rail occupies the margin
+beside the column without moving its content ("The rail and the margin", below).
 
 ### Contents navigation
 
@@ -248,7 +248,7 @@ than a new split per row whose edges land somewhere new each time.
 
 To keep the track in view while the body scrolls beside it, put everything the track
 holds in one block, as the `div` in the example above does. While the track stands
-beside the body, the Layout sticks that block just below Leaf's banner and any page tab
+beside the body, the Layout sticks that block at the window's top, below any page tab
 strip, and a block taller than the window scrolls on its own, so its end stays
 reachable. Where the two stack, the block scrolls with the page, and a track of several
 blocks always does. Write no `position`, `top`, height or overflow for the track or the
@@ -261,8 +261,8 @@ glance.
 
 ### A workspace
 
-`<main class="layout-workspace">` is a screen: it fills the window's height below the
-banner, and the reader moves through it, choosing what its regions show, rather than
+`<main class="layout-workspace">` is a screen: it fills the window's height above Leaf's
+panel, and the reader moves through it, choosing what its regions show, rather than
 scrolling it. Its `header` and `footer` take what they hold, and its one body between
 them takes the rest. The header is one row, the title with the page's state beside it,
 so the regions keep the window: `.tag` chips for what you state, such as how the items
@@ -403,7 +403,7 @@ drawing capture still use the shared Leaf mechanisms. Changing the selection
 replaces the document through the ordinary revision lifetime.
 
 With nothing more, comments open in Threads, which remains the complete
-conversation index, and selection offers the banner's Comment on selection control.
+conversation index, and selecting words offers Comment on selection in Leaf's panel.
 A page or package that shows conversations and actions in its own layout registers
 a presentation through "Page annotation presentation" in `module-authoring.md`; do
 not reconstruct the event log or annotation inventory in page code.
@@ -460,7 +460,7 @@ For a page-specific inset, use the frame declaration in `references/packages.md`
 "A theme change".
 
 The page's own CSS reaches the page's content and leaves Leaf's apparatus alone: the
-banner, the thread panel, and the controls a widget builds. A rule for `button` or
+Leaf panel, the thread cards, and the controls a widget builds. A rule for `button` or
 `input` dresses the page's own buttons and fields, and a face set on `body` stops at
 those controls. To change them on purpose, name the widget they stand in or Leaf's
 class for them: `lf-options button`, `lf-board .lf-btn`, or, for controls a page
@@ -489,10 +489,10 @@ fields onto a line. The runtime colors the declared language and preserves autho
 whitespace. Verbatim source quotations keep their exact text; logs and transcripts
 stay literal and uncolored when they are not source code.
 
-The runtime injects the status banner, thread panel, Versions menu, keyboard
-shortcuts, live-leaves drawer, and Questions panel. `conversation-loop.md`,
+The runtime injects Leaf's panel, with the agent's status and its Threads, Questions
+and Versions views, keyboard shortcuts, and the live-leaves drawer. `conversation-loop.md`,
 "Questions and Tasks", owns what belongs in those lists and how to inspect them.
-Readers can turn off **Quick keyboard shortcuts** under **More → Keyboard shortcuts**.
+Readers can turn off **Quick keyboard shortcuts** under **Keyboard shortcuts** in the menu of the panel's leaf.
 This preference persists across pages on the same origin and removes Leaf's character
 shortcuts and their hints; commands and ordinary control navigation remain available.
 A package can arrange conversations and obligations with the canonical APIs in
@@ -610,7 +610,7 @@ instructions that belong to the demonstrated page remain inside it.
 The child uses the parent's selected layer and starts with its own event log. It
 stands in the surrounding page as a block as tall as its content, with only the
 Threads row of its chrome. When the window itself is what the sample shows, such as
-Leaf's banner, bottom bar, or drawers, the boolean `window` attribute makes the child
+Leaf's panel or drawers, the boolean `window` attribute makes the child
 a whole Leaf window instead, chrome included, at a fixed height that scrolls inside.
 A click or Tab reaches the child directly; its normal widget controls, keyboard
 routes, comments, and replies work there. Escape closes the child's open controls

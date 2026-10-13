@@ -453,7 +453,7 @@ export function createTargetPicker({
     announce(
       `Selected match: ${quote}. ${
         coarsePointer.matches || !bindingEnabled("c")
-          ? "Comment on selection on the banner comments on it."
+          ? "Comment on selection comments on it."
           : "Press n for next, Shift+n for previous, or c to comment."
       }`,
     );

@@ -1358,7 +1358,7 @@ def _frame_owners_drawn(frame):
     return True
 
 
-def watched(page, *, java_script_enabled=True):
+def watched(page, *, java_script_enabled=True, chrome="classic"):
     """Collect browser problems into one retained list per page, each a record
     (`leaf/findings.py`) a test reads by its fields.
 
@@ -1408,6 +1408,15 @@ def watched(page, *, java_script_enabled=True):
         "__leafWatchFinding", lambda _source, found: errors.append(Finding.read(found))
     )
     page.add_init_script(path=WRITE_WATCH_SOURCE)
+    # Most of the suite's journeys drive the banner and the bottom bar, so a page reads
+    # with them unless its browser asks for another chrome (`WatchedBrowser.in_chrome`),
+    # such as the floating panel, the reader's default (prepaint.js, `lfChrome`), or its
+    # test chose one by its own init script or `?lf-chrome`. Only an unset preference
+    # is filled, so either script may run first.
+    page.add_init_script(
+        script="try { localStorage.getItem('lf-chrome') ?? "
+        f"localStorage.setItem('lf-chrome', '{chrome}') }} catch {{}}"
+    )
     # One init script keeps cause tracking installed before its words subscriber;
     # Playwright does not promise an order between separately registered scripts.
     page.add_init_script(
@@ -1929,7 +1938,7 @@ arm_interception = render_gate_model.arm_interception
 expect.set_options(timeout=render_checks_model.SERVED_TIMEOUT_MS)
 
 
-def readable(page, *, java_script_enabled=True):
+def readable(page, *, java_script_enabled=True, chrome="classic"):
     """Install what the suite reads off a page, before the page navigates.
 
     The three readings are the same for every scripted page: the delivery ledger the traffic
@@ -1952,7 +1961,7 @@ def readable(page, *, java_script_enabled=True):
     arm_interception(page)
     if java_script_enabled:
         page.lf_traffic = Traffic(page)
-    watched(page, java_script_enabled=java_script_enabled)
+    watched(page, java_script_enabled=java_script_enabled, chrome=chrome)
     return page
 
 
@@ -1968,14 +1977,16 @@ class WatchedContext:
     opened.
     """
 
-    def __init__(self, context, *, java_script_enabled=True):
+    def __init__(self, context, *, java_script_enabled=True, chrome="classic"):
         self._context = context
         self._java_script_enabled = java_script_enabled
+        self._chrome = chrome
 
     def new_page(self, **kwargs):
         return readable(
             self._context.new_page(**kwargs),
             java_script_enabled=self._java_script_enabled,
+            chrome=self._chrome,
         )
 
     def __getattr__(self, name):
@@ -1998,20 +2009,27 @@ class WatchedBrowser:
     journeys use the wrapped browser. Fixture policy lives in `tests/AGENTS.md`,
     "Browser errors"."""
 
-    def __init__(self, browser):
+    def __init__(self, browser, *, chrome="classic"):
         self._browser = browser
+        self._chrome = chrome
         self.unwatched = browser
+
+    def in_chrome(self, chrome):
+        """The same browser, its pages reading with `chrome` where no test chose one."""
+        return WatchedBrowser(self._browser, chrome=chrome)
 
     def new_context(self, **kwargs):
         return WatchedContext(
             self._browser.new_context(**kwargs),
             java_script_enabled=kwargs.get("java_script_enabled", True),
+            chrome=self._chrome,
         )
 
     def new_page(self, **kwargs):
         return readable(
             self._browser.new_page(**kwargs),
             java_script_enabled=kwargs.get("java_script_enabled", True),
+            chrome=self._chrome,
         )
 
     def __getattr__(self, name):

@@ -1,9 +1,13 @@
 # Goal: the floating Leaf panel
 
-> **Status (2026-10-12): being overhauled (TODO #28).** Checkpoints 1–3 landed
+> **Status (2026-10-12): the default chrome (TODO #28).** Checkpoints 1–3 landed
 > on `main` behind the preference, off by default. The user disliked their look, so
 > a second round redesigned it from a sketch they tried and configured (below, "The
-> overhaul"), which now supersedes the prototype wherever the two differ.
+> overhaul"), which now supersedes the prototype wherever the two differ. The
+> rebuild landed in #2696, and the panel then became the default, with
+> `?lf-chrome=classic` bringing back the bars until they are deleted. Where the
+> sections below say classic chrome stays the default, that held for the build
+> before this one.
 
 ## The overhaul
 

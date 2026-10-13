@@ -135,7 +135,7 @@ import {
   createGoToSequence,
   goToHintLayer,
 } from "./runtime/keyboard/go-to-sequence.js";
-import { bannerFoot } from "./runtime/geometry.js";
+import { bannerFoot, windowChromeBoxes } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
 import { declareStanding } from "./runtime/keyboard/page.js";
@@ -148,7 +148,6 @@ import {
   mountShortcutBar,
   renderShortcutBar,
   shortcutBarEl,
-  standingStatusBoxes,
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
 import {
@@ -291,11 +290,12 @@ const navigation = createNavigation({
   },
 });
 
-// The standing furniture every generated-hint map is spread around. Both maps read the
-// same three boxes, and they are passed rather than imported so the hint machine keeps
-// no ownership edge back to the shortcut bar it is placed against.
+// The standing furniture every generated-hint map is spread around: the window's
+// declared chrome (geometry.js), the key line and the banner's foot. Both maps read the
+// same boxes, and they are passed rather than imported so the hint machine keeps no
+// ownership edge back to the shortcut bar it is placed against.
 const hintChrome = {
-  barriers: standingStatusBoxes,
+  barriers: windowChromeBoxes,
   lineBox: () => shortcutBarEl.getBoundingClientRect(),
   viewportTop: bannerFoot,
 };
@@ -592,14 +592,14 @@ pageComment = createPageComment({
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
-// The floating panel stands in for the banner and bottom bar where the user chose it
-// (prepaint.js, `lfChrome`); a choice made later reloads the page.
+// The floating panel stands in for the banner and bottom bar unless the reader asked for
+// them (prepaint.js, `lfChrome`); a choice made later reloads the page.
 const floatingPanel =
   document.documentElement.lfChrome?.mode === "floating"
     ? createFloatingPanel({
         wireInput: inputs.wireInput,
         threadActions: app.threadActions,
-        registerThreadPresentation: app.registerThreadPresentation,
+        registerChromeThreadPresentation: app.registerChromeThreadPresentation,
         asks: {
           choicesOf: asks.choicesOf,
           open: (id) => app.openAsk(id),

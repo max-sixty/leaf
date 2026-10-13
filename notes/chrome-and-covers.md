@@ -31,13 +31,11 @@ weight on scrolling, so none of it shipped except the instructions above.
 
 ## Still open
 
-- **The desktop bottom bar,** undecided. Removing it deletes `--lf-bottom-bar-h` and
-  its readers (`theme.css`, whose `--lf-view-height` the contents map reads,
-  `chrome.css`, `shortcut-bar.js`), `declareBottomBar`, and the bottom edge in
-  `shownWindow`; its key hints would move to `?` and its status (notices, the Go-to
-  sequence, the walk position) to the banner. The bar is how a desktop user learns the
-  keys without asking. A middle path keeps the hints at the foot and moves the status
-  into the banner.
+- **The desktop bottom bar** leaves with the classic chrome (TODO #28): the floating
+  panel, the default, hides it. Its status already stands elsewhere (notices in the
+  panel's field, the walk position at the window's head), but its key hints for the
+  current context have no home in the panel; a desktop user meets keys only on the
+  leaf's menu rows and in `?`. Decide whether the panel shows them.
 
 ## Evidence
 

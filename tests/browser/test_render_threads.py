@@ -849,6 +849,12 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
         for text in ("Reading the banner's styles.", "Trying a lighter weight.")
     ]
     page = open_page(browser, url)
+    # The comment's Tasks row says the line the agent last gave, as the thread will.
+    page.locator(".lf-queue").click()
+    row = page.locator("[data-lf-queue='agent'] .lf-queue-row")
+    expect(row.locator(".lf-queue-where")).to_contain_text(
+        "Working · Trying a lighter weight."
+    )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')

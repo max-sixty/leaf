@@ -148,8 +148,8 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
         else:
             expect(page.locator("#goal > .lf-quiet")).to_have_count(0)
         captured = line.evaluate("""async el => {
-          const {says} = await window.__lfRuntimeImport('/runtime/passages.js');
-          const {anchorForRange, resolveAnchor} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
+          const {says} = await window.__lfWidgetApi();
+          const {anchorForRange, resolveAnchor} = await window.__lfCheckApi();
           const range = document.createRange(); range.selectNodeContents(el);
           const anchor = anchorForRange(range);
           const resolved = resolveAnchor(anchor);
@@ -187,7 +187,7 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
         # Resolve the admitted historical coordinates, not a newly recaptured range.
         resolved = page.evaluate(
             """async anchors => {
-          const {resolveAnchor} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
+          const {resolveAnchor} = await window.__lfCheckApi();
           return anchors.map(anchor => {
             const found = resolveAnchor(anchor);
             return {quote: anchor.quote, exact: found?.exact ?? false};

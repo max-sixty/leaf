@@ -1,6 +1,7 @@
 """Board, suggestion, ask, and widget composition tests."""
 
 import re
+from datetime import datetime, timedelta
 from itertools import pairwise
 from pathlib import Path
 
@@ -108,15 +109,11 @@ from render_harness import (
     stamp_page,
     suggestion_control,
     take_browser_errors,
+    ticked,
     told,
     undo,
     wait_for_revision,
     write,
-)
-
-DRAG_HELD = (
-    "async () => (await window.__lfRuntimeImport("
-    "'/runtime/widget-elements.js')).dragHeld()"
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -566,11 +563,11 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     assert page.url.endswith("#plan-rollback")
 
     # A reveal (a comment anchor, find-in-page) opens another view, and the entry the
-    # user stands on then names it, so pressing away and coming Back returns there.
+    # user stands on names it, so pressing away and coming Back returns there.
     page.evaluate(
         """async () => {
-          const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
-          const {retainUserIntent} = await window.__lfRuntimeImport('/runtime/user-intent.js');
+          const {reveal} = await window.__lfCheckApi();
+          const {retainUserIntent} = await window.__lfWidgetApi();
           reveal(document.querySelector('#evidence-tab'), retainUserIntent());
         }"""
     )
@@ -647,7 +644,7 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     page = open_page(browser, serve(ROOT_TABS_PAGE) + "#plan-tab")
     resized(page, 1280, 720)
     READ = """async () => {
-      const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const geometry = await window.__lfCheckApi();
       const strip = document
         .querySelector('#root-tabs > .lf-tabstrip').getBoundingClientRect();
       const behind = document.querySelector('#plan-stages h2');
@@ -751,7 +748,7 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
     page = _stacked_headers(browser, serve)
     read = page.evaluate(
         """async () => {
-        const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
+        const geometry = await window.__lfCheckApi();
         const box = (el) => el.getBoundingClientRect();
         const strip = document.querySelector('#root-tabs > .lf-tabstrip');
         const diff = document.querySelector('lf-diff');
@@ -992,7 +989,7 @@ def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
     resized(page, 1280, 720)
     read = page.evaluate(
         """async () => {
-        const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
+        const geometry = await window.__lfCheckApi();
         const body = document.querySelector('#p1 > div');
         const cell = document.querySelector('#c1');
         const band = geometry.shownBand(body);
@@ -1770,9 +1767,9 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     pane_posture(page, pane, "flow")
     assert pane.evaluate(
         """async node => {
-          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const leaf = await window.__lfWidgetApi();
           return leaf.readingPosture(node) === 'flow'
-            && leaf.effectiveScroller(node) === document.getElementById('cells');
+            && leaf.scrollerFor(node) === document.getElementById('cells');
         }"""
     )
     fills_the_window(page, page.locator("main"), True)
@@ -1781,7 +1778,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     # the box the user sees move.
     carrier = page.evaluate(
         """async () => {
-          const {scrollerFor} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const {scrollerFor} = await window.__lfWidgetApi();
           return scrollerFor(document.getElementById('pane-end'))?.id ?? null;
         }"""
     )
@@ -1999,12 +1996,12 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
         pane_posture(page, page.locator(inner), "flow")
     readings = page.evaluate(
         """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const leaf = await window.__lfWidgetApi();
           const host = document.querySelector('#host-body');
           return Object.fromEntries(['inner-pane', 'loose-pane'].map(id => {
             const body = document.querySelector(`#${id} > div`);
             return [id, {posture: leaf.readingPosture(id),
-                         scroller: leaf.effectiveScroller(id) === host,
+                         scroller: leaf.scrollerFor(document.getElementById(id)) === host,
                          fits: body.scrollHeight <= body.clientHeight}];
           }).concat([['host', host.scrollHeight > host.clientHeight]]));
         }"""
@@ -2189,7 +2186,7 @@ def test_closed_details_region_is_not_sampled_until_open(browser, serve):
     page = open_page(browser, live_url(url))
     region_ids = """async () => {
       const { readingRegions, unconcealedReadingRegions } =
-        await import('/runtime/reading-regions.js');
+        await window.__lfCheckApi();
       return {
         registered: readingRegions().map(({ id }) => id),
         sampled: unconcealedReadingRegions().map(({ id }) => id),
@@ -2652,7 +2649,7 @@ def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
         page.evaluate(
             """async () => {
               window.__lfSortablePrototype =
-                (await import('/vendor/sortable.esm.js')).default.prototype;
+                (await window.__lfVendorImport("sortable.esm.js")).default.prototype;
             }"""
         )
 
@@ -2839,7 +2836,7 @@ def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
     # The title is a visible page label, while each repeated heading is the label of a
     # browser-owned link under .lf-ui. The authored heading remains the one passage.
     spoken = page.locator("main").evaluate(
-        "async main => (await window.__lfRuntimeImport('/runtime/widget-api.js')).says(main)"
+        "async main => (await window.__lfWidgetApi()).says(main)"
     )
     assert spoken.count("Prepare gradually") == 1
     assert spoken.count("Move the readers") == 1
@@ -3252,8 +3249,7 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
     page.locator("h3").click(click_count=3)
     anchor = page.evaluate(
         """async () => {
-          const { selectionAnchor } = await window.__lfRuntimeImport(
-            '/runtime/composing/capture.js');
+          const { selectionAnchor } = await window.__lfCheckApi();
           return selectionAnchor(getSelection());
         }"""
     )
@@ -4633,13 +4629,13 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     presets = playground.get_by_role("group", name="Starting points")
     actions = playground.locator(".lf-playground-actions")
     reading = """async () => {
-      const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
-      const regions = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+      const leaf = await window.__lfWidgetApi();
+      const {readingRegionFor} = await window.__lfCheckApi();
       const playground = document.querySelector('#notification-playground');
       const controls = playground.querySelector('.lf-playground-controls');
       const preview = playground.querySelector('.lf-playground-preview-body');
       const instruction = playground.querySelector('lf-playground-output');
-      const region = (body) => regions.readingRegionFor(body);
+      const region = (body) => readingRegionFor(body);
       const controlsBox = region(controls).host.getBoundingClientRect();
       const previewBox = region(preview).host.getBoundingClientRect();
       const instructionBox = region(instruction).host.getBoundingClientRect();
@@ -4650,8 +4646,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         postures: [controls, preview, instruction].map((body) =>
           leaf.readingPosture(region(body))),
         scrollers: [controls, preview, instruction].map((body) =>
-          regions.effectiveScroller(body) === body ? 'own' :
-          regions.effectiveScroller(body) === document.scrollingElement ? 'page' : 'other'),
+          leaf.scrollerFor(body) === body ? 'own' :
+          leaf.scrollerFor(body) === document.scrollingElement ? 'page' : 'other'),
         sideBySide: Math.abs(previewBox.top - controlsBox.top) < 1
           && controlsBox.left >= previewBox.right
           && Math.abs(instructionBox.left - controlsBox.left) < 1
@@ -5146,7 +5142,7 @@ def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     assert playground.evaluate("root => root.values")["compact"] is False
     assert playground.evaluate(
         """async root => {
-          const {readingRegionFor} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const {readingRegionFor} = await window.__lfCheckApi();
           return readingRegionFor(root.querySelector('lf-playground-preview')) === undefined
             && !root.querySelector('[data-lf-reading-role]');
         }"""
@@ -6467,7 +6463,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
 
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {commands} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const source = document.createElement('span');
           const inspect = document.createElement('button');
@@ -6538,7 +6534,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     # collapsing the command's equivalent bindings into whichever one came first.
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {commands} = await window.__lfWidgetApi();
           const inspect = document.getElementById('inspect-action');
           commands(inspect, 'Inspect control', [{
             id: 'test.dead-local-x', keys: ['x'],
@@ -6576,7 +6572,7 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate(
         """async () => {
-          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {commands} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
@@ -6613,42 +6609,6 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
     expect(inspect).to_have_attribute("data-local-three", "1")
     expect(inspect).not_to_have_attribute("data-activated", "1")
 
-    # Computed row and route names fail with the command-scoped contract error.
-    messages = page.evaluate(
-        """async () => {
-          const {decisionControls} = await window.__lfRuntimeImport('/runtime/keyboard/bindings.js');
-          const source = document.getElementById('sug');
-          const control = document.createElement('button');
-          source.append(control);
-          const read = (row) => {
-            try {
-              decisionControls([{source, row}], 'the test Ask');
-            } catch (error) {
-              return error.message;
-            }
-            return null;
-          };
-          return {
-            row: read({
-              id: 'test.invalid-row-name', keys: [], control,
-              decision: true, title: () => true,
-            }),
-            route: read({
-              id: 'test.route-family', keys: ['ArrowLeft'], title: 'Inspect', control,
-              routes: [{
-                id: 'test.invalid-route-name', binding: 'ArrowLeft',
-                decision: true, title: () => true,
-              }],
-            }),
-          };
-        }"""
-    )
-
-    assert "test.invalid-row-name" in messages["row"]
-    assert "test.invalid-route-name" in messages["route"]
-    assert "title" in messages["row"]
-    assert "title" in messages["route"]
-
 
 def test_an_ask_alias_runs_the_original_command_in_its_own_scope(browser, serve):
     """A projected digit enters through the widget command's own declaration, and the
@@ -6662,7 +6622,7 @@ def test_an_ask_alias_runs_the_original_command_in_its_own_scope(browser, serve)
 
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const { commands } = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const control = document.createElement('button');
           control.textContent = 'Configure';
@@ -6777,7 +6737,7 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
 
     page.evaluate(
         """async () => {
-           const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+           const {commands} = await window.__lfWidgetApi();
            const source = document.getElementById('sug');
            const face = (id, top) => {
              const bindingBadge = document.createElement('span');
@@ -7859,8 +7819,7 @@ def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
 
     page.evaluate(
         """async () => {
-          const {readApplicationPresentation} = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js');
+          const {readApplicationPresentation} = await window.__lfCheckApi();
           window.__lfReadAskPresentation = readApplicationPresentation;
           const rows = [...document.querySelectorAll('button.lf-queue-row')];
           window.__lfAskRows = new Map(rows.map(row => [row.dataset.lfAt, row]));
@@ -7936,7 +7895,7 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     page.evaluate(
         """async () => {
           const {readApplication, readApplicationPresentation} =
-            await window.__lfRuntimeImport('/runtime/semantic-state.js');
+            await window.__lfCheckApi();
           window.__lfReadAskApplication = readApplication;
           window.__lfReadAskPresentation = readApplicationPresentation;
           const list = document.querySelector('lf-queue-list');
@@ -8010,8 +7969,7 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
     expect(row.locator(".lf-queue-where")).to_contain_text("now")
     before = page.evaluate(
         """async () => {
-          window.queuePresence = await window.__lfRuntimeImport('/runtime/presence.js');
-          window.queuePresentation = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          window.queuePresentation = await window.__lfCheckApi();
           const list = document.querySelector('lf-queue-list');
           window.queueClockRow = list.querySelector('.lf-queue-row');
           const schedule = list.scheduleUpdate.bind(list);
@@ -8027,13 +7985,18 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
             return schedule();
           };
           window.releaseQueueClock = release;
+          window.queueClockHeld = false;
           return queuePresentation.readApplicationPresentation();
         }"""
     )
+    # Move the browser's clock and let the real feed invalidate the mounted list.
+    # Refused reads keep a later answer from recalibrating that clock to server time.
+    page.route("**/api/state*", refuse)
+    now = datetime.now().astimezone()
+    page.clock.set_fixed_time(now + timedelta(minutes=1))
+    page.wait_for_function("window.queueClockHeld")
     held = page.evaluate(
         """() => {
-          queuePresence.observeServerNow(new Date(Date.now() + 60_000).toISOString());
-          window.queueClockTick = queuePresence.tickClock(() => {});
           window.queueClockReady = false;
           queuePresentation.whenApplicationPresented().then(() => {
             window.queueClockReady = true;
@@ -8044,7 +8007,7 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
     assert "queue" in held["pending"]
     assert held["semanticEpoch"] == before["semanticEpoch"]
     assert held["presentedEpoch"] == before["presentedEpoch"]
-    page.wait_for_function("queueClockHeld")
+    page.wait_for_function("window.queueClockHeld")
     assert page.evaluate("queueClockReady") is False
     expect(row.locator(".lf-queue-where")).to_contain_text("now")
     # The next claim supersedes the held reading. Failing its paint must travel
@@ -8057,24 +8020,19 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
             list.render = render;
             throw new Error('deliberate Queue clock failure');
           };
-          queuePresence.observeServerNow(new Date(Date.now() + 120_000).toISOString());
-          window.queueClockTickAgain = queuePresence.tickClock(() => {});
-          releaseQueueClock();
         }"""
     )
+    page.clock.set_fixed_time(now + timedelta(minutes=2))
+    ticked(page)
+    page.evaluate("releaseQueueClock()")
     page.wait_for_function("queueClockReady")
-    page.evaluate("Promise.all([queueClockTick, queueClockTickAgain])")
     expect(row.locator(".lf-queue-where")).to_contain_text("now")
     assert row.evaluate("node => node === window.queueClockRow")
     assert [said(error) for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: deliberate Queue clock failure"
     ]
-    page.evaluate(
-        """async () => {
-          queuePresence.observeServerNow(new Date(Date.now() + 180_000).toISOString());
-          await queuePresence.tickClock(() => {});
-        }"""
-    )
+    page.clock.set_fixed_time(now + timedelta(minutes=3))
+    ticked(page)
     expect(row.locator(".lf-queue-where")).to_contain_text("3m")
     expect(row).to_be_visible()
     assert row.evaluate("node => node === window.queueClockRow")
@@ -8100,7 +8058,7 @@ def test_failed_ask_paints_report_once_and_retain_their_prior_faces(browser, ser
     page.evaluate(
         """async () => {
           const {readApplicationPresentation, whenApplicationPresented} =
-            await window.__lfRuntimeImport('/runtime/semantic-state.js');
+            await window.__lfCheckApi();
           window.__lfReadAskPresentation = readApplicationPresentation;
           const list = document.querySelector('lf-queue-list');
           window.__lfAskRows = [...list.querySelectorAll('button.lf-queue-row')];
@@ -9849,13 +9807,7 @@ def test_an_exported_markdown_document_keeps_its_preview_and_source_switch(
     expect(document.get_by_role("heading", name="Captured heading")).to_be_visible()
     page.keyboard.press("g")
     rendered(page)
-    assert (
-        page.evaluate("""async () => {
-      const {PAGE_PAINT_ATTRIBUTE} = await window.__lfRuntimeImport('/runtime/page-paint.js');
-      return document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.goto);
-    }""")
-        is False
-    )
+    assert page.locator("body").get_attribute("data-lf-go-to-active") is None
     page.keyboard.press("?")
     rendered(page)
     expect(page.get_by_role("dialog")).to_have_count(0)
@@ -9931,8 +9883,8 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
     revision = snapshot["revision"]
     page.wait_for_function(
         """async run => {
-          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-          return runtime.data.sources['html-text'].run === run;
+          const {readApplication} = await window.__lfCheckApi();
+          return readApplication().data.sources['html-text'].run === run;
         }""",
         arg=snapshot["run"],
     )
@@ -9963,10 +9915,10 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
     select(page, *ends)
     assert "Updated document" in page.evaluate("getSelection().toString()")
     captured = page.evaluate("""async () => {
-      const {selectionAnchor} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
-      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+      const {selectionAnchor} = await window.__lfCheckApi();
+      const {readApplication} = await window.__lfCheckApi();
       return {anchor: selectionAnchor(getSelection()),
-              revision: runtime.data.sources['html-text'].revision};
+              revision: readApplication().data.sources['html-text'].revision};
     }""")
     assert captured["anchor"]["source_revision"] == captured["revision"] == revision
     assert captured["anchor"]["source"] == "html-text"
@@ -10284,7 +10236,7 @@ def test_webawesome_typography_is_independent_of_surrounding_prose(browser, serv
     """
     page = _bound_diff(browser, serve)
     readings = page.evaluate("""async () => {
-      const {offer} = await import('/runtime/widget-api.js');
+      const {offer} = await window.__lfWidgetApi();
       const properties = ['fontFamily', 'fontStyle', 'fontVariant', 'fontStretch',
         'fontFeatureSettings', 'fontVariationSettings', 'letterSpacing',
         'wordSpacing', 'textTransform'];
@@ -10356,7 +10308,7 @@ def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, 
     for tag in ("wa-select", "wa-tooltip"):
         page.evaluate(
             """async tag => {
-          const {offer} = await import('/runtime/widget-api.js');
+          const {offer} = await window.__lfWidgetApi();
           const holder = offer('div', 'transition-test');
           const control = offer(tag, 'transition-control');
           control.id = 'transition-control';
@@ -10418,7 +10370,7 @@ def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, 
     # Copy feedback consumes tooltip completion. Reopening its timed hide must
     # release the copy lock even though the obsolete after-hide never fires.
     page.evaluate("""async () => {
-      const {offer} = await import('/runtime/widget-api.js');
+      const {offer} = await window.__lfWidgetApi();
       const copy = offer('wa-copy-button', 'copy-feedback');
       copy.id = 'copy-feedback'; copy.value = 'copied value';
       copy.tooltip = 'copy'; copy.feedbackDuration = 80;

@@ -227,9 +227,12 @@ Where the product already answers a reading's question, such as `shownBand` for 
 band a box shows, consume that answer instead of copying it: `root_overflow` for
 whether the page scrolls sideways, `draft_key` for where a draft is stored,
 `stored_draft` for the record stored there, and `event_log.read_events` for what
-the log holds. Page-side code reaches a runtime
-module through `window.__lfRuntimeImport`; a bare `/runtime/…` import loads a second
-instance that shares none of the page's state.
+the log holds. Page-side observations use the captured document's public entries:
+`window.__lfWidgetApi()`, `window.__lfCheckApi()`, and `window.__lfClientApi()`.
+Native overlay geometry uses `window.__lfOverlayApi()`, which leaves core-only checks
+independent of the optional physical renderer. These entries share one compiled
+kernel; tests cannot import private source paths. Pure internal rules belong in
+`tests/runtime/`, where their source owner is the lowest boundary preserving them.
 
 A corpus source gets its own case only when its content is the cause under test. Put a
 probe's independent faults on one composed page beside clean controls and call the

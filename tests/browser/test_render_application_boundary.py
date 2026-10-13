@@ -552,7 +552,7 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
     waiting = page.evaluate(
         """async () => {
-              const runtime = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+              const runtime = await window.__lfCheckApi();
               window.readStartupApplication = runtime.readApplication;
               window.readStartupPresentation = runtime.readApplicationPresentation;
               const application = runtime.readApplication();
@@ -864,7 +864,7 @@ def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
     leave_and_return = """async () => {
       const settle = () => new Promise((resolve) => setTimeout(resolve));
       const {readApplicationPresentation} =
-        await window.__lfRuntimeImport('/runtime/semantic-state.js');
+        await window.__lfCheckApi();
       const owner = document.querySelector('#page-local');
       const parent = owner.parentNode;
       const readings = Number(owner.dataset.readings);
@@ -984,9 +984,7 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     page.locator("#page-local").evaluate("node => { window.pageLocal = node; }")
     page.evaluate(
         """async () => {
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          const presentation = await window.__lfCheckApi();
           window.whenLeafPresented = presentation.whenApplicationPresented;
           window.whenLeafRegionsPresented =
             presentation.whenApplicationRegionsPresented;
@@ -1035,8 +1033,7 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     before = int(page.locator("#page-local").get_attribute("data-readings"))
     page.evaluate(
         """async () => {
-          const {dragging} = await window.__lfRuntimeImport(
-            '/runtime/widget-elements.js');
+          const {dragging} = await window.__lfWidgetApi();
           dragging(document.body, true);
           window.resumeLocal = pageLocal.controller.defer();
         }"""
@@ -1050,8 +1047,7 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     ]
     page.evaluate(
         """async () => {
-          const {dragging} = await window.__lfRuntimeImport(
-            '/runtime/widget-elements.js');
+          const {dragging} = await window.__lfWidgetApi();
           projectionReady = false;
           whenLeafRegionsPresented(['projection:chrome'], () => true)
             .then(() => { projectionReady = true; });
@@ -1323,9 +1319,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     )
     page.evaluate(
         """async () => {
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          const presentation = await window.__lfCheckApi();
           const held = () => {
             let release, reject;
             const promise = new Promise((resolve, fail) => {
@@ -1642,7 +1636,7 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     page.route("**/api/event", lambda route: held_events.append(route))
     page.evaluate(
         """async () => {
-          const application = await window.__lfRuntimeImport('/runtime/application.js');
+          const application = await window.__lfWidgetApi();
           const list = document.querySelector('leaf-thread-list');
           const schedule = list.scheduleUpdate.bind(list);
           const perform = list.performUpdate.bind(list);
@@ -1849,7 +1843,7 @@ def test_frozen_ask_reveals_its_exact_message_in_a_selective_primary(
     if owner == "middle":
         expect(reader.locator("#channel")).to_have_count(0)
     assert page.evaluate("""async () => {
-      const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const api = await window.__lfWidgetApi();
       return await api.askActions.open('widget:channel');
     }""")
     assert reader.evaluate("node => node.message") == f"key-{owner}"
@@ -1956,9 +1950,7 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
 
 def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, serve):
     page = open_page(browser, package_workspace(serve))
-    page.evaluate(
-        "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
-    )
+    page.evaluate("async () => { window.api = await window.__lfWidgetApi(); }")
     key = page.evaluate(
         "api.queueItemKey(api.readQueues().questions.find(item => item.id === 'proofread'))"
     )
@@ -2095,9 +2087,7 @@ def test_queue_ask_arrival_selects_the_primary_reader(browser, serve):
     page = open_page(browser, package_workspace(serve))
     workspace = page.locator("#workspace")
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
-    page.evaluate(
-        "async () => { window.api = await window.__lfRuntimeImport('/runtime/widget-api.js'); }"
-    )
+    page.evaluate("async () => { window.api = await window.__lfWidgetApi(); }")
     assert page.evaluate(
         "async () => { const item = api.readQueues().questions.find(item => item.ask?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
     )
@@ -2114,30 +2104,9 @@ def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
     """A newer Tab keeps its focus and history while a primary layout completes, and
     superseding a navigation completes its promise even when a renderer is blocked."""
     page = open_page(browser, package_workspace(serve))
-    assert page.evaluate("""async () => {
-      const {createThreadDestinations} = await window.__lfRuntimeImport('/runtime/thread/destination.js');
-      const workspace = document.querySelector('#workspace');
-      const reached = Promise.withResolvers();
-      const blocked = Promise.withResolvers();
-      const router = createThreadDestinations({
-        panelIsOpen: () => true, showThread: () => null,
-      });
-      let calls = 0;
-      const unregister = router.register(workspace, () => {}, {
-        update: () => ++calls === 1 ? (reached.resolve(), blocked.promise) : Promise.resolve(),
-        destination: () => null,
-      });
-      window.firstNavigation = router.openPageThread('opening', {focus:false});
-      await reached.promise;
-      await router.openPageThread('opening', {focus:false});
-      const result = await firstNavigation;
-      blocked.resolve();
-      unregister();
-      return result === null;
-    }""")
     entries = page.evaluate("history.length")
     page.evaluate("""async () => {
-      const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const api = await window.__lfWidgetApi();
       const workspace = document.querySelector('#workspace');
       const present = workspace.present.bind(workspace);
       const reached = Promise.withResolvers();
@@ -2167,48 +2136,6 @@ def test_cancelled_primary_travel_adds_no_return_checkpoint(browser, serve):
       while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
       return active === newerTabTarget;
     }""")
-
-
-@pytest.mark.parametrize("earlier_release", [False, True])
-def test_prepared_thread_reading_consumes_only_its_own_release(
-    browser, serve, earlier_release
-):
-    """A paint awaiting widget proof cannot consume a later request to show news."""
-    page = open_page(browser, package_workspace(serve))
-    assert page.evaluate(
-        """async earlier => {
-      const {HeldNews} = await window.__lfRuntimeImport('/runtime/thread/held-news.js');
-      const {readThreads} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-      const base = readThreads().threads.find(thread => thread.id === 'opening');
-      const reading = text => {
-        const source = {...base, msgs: base.msgs.map(message =>
-          ({...message, text, body:{...message.body, text}}))};
-        source.root = source.msgs[0];
-        const descriptor = source => ({
-          id: source.id, key: source.key, source, messages: source.msgs,
-          resolved: source.resolved, summaries: source.summaries, reread: descriptor,
-        });
-        return {threads: [descriptor(source)]};
-      };
-      const owner = document.querySelector('#workspace');
-      const held = new HeldNews(owner, () => ({node:owner, newsMoves:()=>true}), () => {});
-      const options = {row:false};
-      held.hold(reading('old'), options);
-      if (earlier) held.release();
-      const pending = held.prepare(reading('new'), options);
-      held.release();
-      pending.commit();
-      const replacement = held.prepare(reading('new'), options);
-      const opened = replacement.reading.threads[0].source.msgs[0].text === 'new';
-      replacement.commit();
-      const next = held.prepare(reading('later'), options);
-      const holdingAgain = next.reading.threads[0].source.msgs[0].text === 'new' &&
-        Boolean(next.reading.threads[0].news);
-      held.dispose();
-      return opened && holdingAgain;
-    }""",
-        earlier_release,
-    )
 
 
 @pytest.mark.parametrize("edit_again", [False, True])

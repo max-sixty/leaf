@@ -6,20 +6,24 @@ Compiler shims fail every attempted Node/package-manager invocation after prepar
 
 import json
 import os
+import shutil
 import subprocess
 
 from interact_support import PAGE
 from leaf_dev import ROOT
 from leaf_dev.arms import environment
-from leaf_dev.distribution import prepare
 from playwright.sync_api import expect
 
 
 def test_prepared_install_authors_custom_packages_and_exports_without_builds(
-    tmp_path, spawn, request
+    tmp_path, spawn, request, compiled_installation
 ):
     install = tmp_path / "install"
-    prepare(install)
+    shutil.copytree(
+        compiled_installation,
+        install,
+        ignore=shutil.ignore_patterns(".venv", "__pycache__"),
+    )
     assert (install / "LICENSE").read_bytes() == (ROOT / "LICENSE").read_bytes()
     manifest = json.loads((install / "package.json").read_text())
     assert "devDependencies" not in manifest
@@ -50,13 +54,14 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
 
     leaf("package", "init", "custom", "--widget", "lf-risk-note")
     custom = tmp_path / "custom"
-    (custom / "runtime/custom-helper.js").write_text(
+    (custom / "runtime/helpers").mkdir()
+    (custom / "runtime/helpers/État+v1.mjs").write_text(
         'export { once } from "/runtime/widget-api.js";\n'
     )
     widget = custom / "widgets/lf-risk-note.js"
     widget.write_text(
         widget.read_text().replace(
-            "/runtime/widget-api.js", "/runtime/custom-helper.js"
+            "/runtime/widget-api.js", "/runtime/helpers/État+v1.mjs"
         )
     )
     leaf("package", "check", "custom")

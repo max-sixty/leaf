@@ -150,7 +150,9 @@ def rebase_css(
 
 def rebase_module(data: bytes, base: str, address: Address) -> bytes:
     """Re-address every literal import of an authored module at `base`."""
-    return bind_imports(data, authored_imports(data, base), address)
+    return bind_imports(
+        data, authored_imports(data, base), lambda path: address(quote(path, safe="/"))
+    )
 
 
 def rebase_document(

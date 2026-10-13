@@ -349,10 +349,8 @@ export interface WidgetDescriptor {
   tag: string;
   document:
     | { kind: "page"; revision: number }
-    | { kind: "thread"; revision: number; thread?: string; message?: string };
+    | { kind: "thread"; thread?: string; message?: string };
   declaration: SemanticDocument["registry"][string];
-  /** Composition's stamped verbs from this widget's captured publication. */
-  states: Readonly<Record<string, StampedState>>;
   parent: { id: string; tag: string } | null;
   ancestors: readonly { id: string; tag: string }[];
   quoted: boolean;
@@ -376,8 +374,8 @@ interface AuthoritativeState {
           projection: WireProjection;
           asks: WireAsks;
         };
-        /** Frozen messages keep their admitted vocabularies, including the decisions,
-         * asks and attention their widgets give, beside this revision's page. */
+        /** The frozen threads as this revision reads them: its registry classifies
+         * their widgets' decisions, and so the asks and attention those give. */
         thread: {
           threads: Thread[];
           projection: WireProjection;
@@ -392,7 +390,7 @@ interface AuthoritativeState {
         approval_blocking: string[];
       }
     >;
-    /** Standing approvals across every stamp, for Threads' event timeline. */
+    /** Approvals in force across every stamp, for Threads' event timeline. */
     approval_history: Event[];
     receipts: Event[];
     /** Every thread whose history each logged event changes
@@ -410,8 +408,8 @@ type ServerView = AuthoritativeState["browser"]["views"][string];
 /** A server view with its basis, the transport identity, left off. */
 type PageView = Omit<ServerView, "basis">;
 
-// The server classifies the page under the viewed revision's vocabulary and each
-// frozen message under its admitted vocabulary; every entry has its own captured spec.
+// The server classifies a view's page and thread entries alike under that revision's
+// registry, so every entry is one the view's widgets can draw.
 function normalizedProjection(view: PageView | null | undefined) {
   const entries = [];
   const actionIds = [];
@@ -710,6 +708,9 @@ function widgetReading(
   const authored = currentDescriptor
     ? root.document.authored.get(descriptor.id)?.state
     : undefined;
+  const declaration = descriptor.declaration;
+  const actionSpecs = declaration["x-state"] ?? {};
+  const states = root.document.registry.$states[descriptor.tag] ?? {};
   const projection = root.effective.projection;
   const classified = [...projection.classified.values()]
     .filter(
@@ -733,8 +734,8 @@ function widgetReading(
   // The user acts only on the verbs they write; an agent's verb reaches this widget as
   // state and never as a control.
   const actions = Object.fromEntries(
-    Object.entries(descriptor.states)
-      .filter(([, state]) => state.writer === "user")
+    Object.entries(actionSpecs)
+      .filter(([verb]) => states[verb]?.writer === "user")
       .map(([verb]) => [
         verb,
         {
@@ -747,7 +748,7 @@ function widgetReading(
             ? null
             : "no agent or server is available",
           history: classified.filter(({ e }) => e.action === verb).map(({ e }) => e),
-          standing: desired
+          inForce: desired
             .filter(({ e }) => e.action === verb)
             .map(({ e, unit, value }) => ({ event: e, unit, value })),
           undo: root.effective.hostAvailable
@@ -858,7 +859,7 @@ export function createSemanticApplication({
     // the id the log gave it, or as a pending action by the rule above.
     const drawsAction = (e: ProjectionEntry["e"]) => {
       const descriptor = document.descriptors.get(e.widget);
-      const state = descriptor && stampedState(descriptor.states, e);
+      const state = descriptor && stampedState(document.registry, descriptor.tag, e);
       return Boolean(state && sameStateDefinition(e.meaning?.state, state.definition));
     };
     const localProjections = local.flatMap((entry): PendingProjection[] => {
@@ -1329,8 +1330,8 @@ export function createSemanticApplication({
       );
       // A capture can add message bodies without changing the shown document.
       // Retain its explicit identity and share fields the publisher already owns.
-      const capture = <T>(value: T, standing: unknown): T =>
-        value === standing ? value : structuredClone(value);
+      const capture = <T>(value: T, previous: unknown): T =>
+        value === previous ? value : structuredClone(value);
       publish({
         document: document
           ? {
@@ -1381,13 +1382,13 @@ export function createSemanticApplication({
         event.kind === "action" ? before.document.authored.get(event.widget) : null;
       // The widget's own captured declaration, as its reading (`widgetReading`) and the
       // projection's meaning check read it.
-      const descriptor =
+      const declaration =
         event.kind === "action"
-          ? before.document.descriptors.get(event.widget)
+          ? before.document.descriptors.get(event.widget)?.declaration
           : null;
       const spec =
         event.kind === "action" && widget
-          ? descriptor?.declaration["x-state"]?.[event.action]
+          ? declaration?.["x-state"]?.[event.action]
           : null;
       const unit =
         event.kind === "action" && spec
@@ -1407,11 +1408,7 @@ export function createSemanticApplication({
               coordinate: target.coordinate,
               localOrder,
             }
-          : event.kind === "action" &&
-              descriptor &&
-              widget &&
-              spec &&
-              typeof unit === "string"
+          : event.kind === "action" && widget && spec && typeof unit === "string"
             ? {
                 unit,
                 spec,
@@ -1421,7 +1418,10 @@ export function createSemanticApplication({
                   ...event,
                   id: localId,
                   meaning: {
-                    state: structuredClone(descriptor.states[event.action]!.definition),
+                    state: structuredClone(
+                      before.document.registry.$states[widget.tag]?.[event.action]
+                        ?.definition,
+                    ),
                   },
                 },
                 value: spec.record ? foldedValue(event, spec.record) : event.action,

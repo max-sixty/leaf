@@ -1873,7 +1873,7 @@ def test_multiple_done_can_be_taken_back_after_an_empty_answer(browser, serve):
     page.keyboard.press("Space")
     round_trip(page)
     expect(done).to_have_attribute("aria-pressed", "true")
-    expect(done).to_have_attribute("aria-label", "Take back Done: reopen this question")
+    expect(done).to_have_attribute("aria-label", "Take back Done: reopen this ask")
     expect_asks_answered(page, "1/3")
 
     page.keyboard.press("Enter")

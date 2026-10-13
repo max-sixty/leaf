@@ -787,7 +787,7 @@ def serve_flags(command):
     it spawns, so one spelling is what keeps the pair from drifting."""
     for option in (
         click.option(
-            "--standing",
+            "--persistent",
             is_flag=True,
             help="decline the session claim, so the server outlives this session "
             "and only `leaf server stop` ends it — for a page kept up across "
@@ -807,18 +807,18 @@ def serve_flags(command):
 @server.command(short_help="Start a page's server and print its URL.")
 @click.argument("dir", metavar="PAGE")
 @serve_flags
-def start(dir: str, host: str | None, standing: bool) -> None:
+def start(dir: str, host: str | None, persistent: bool) -> None:
     """Start a page's server and print its URL.
 
     Returns once the server and this harness's watcher are ready; the server
     itself keeps running in a session of its own. `leaf server stop` takes one
     down, and a session server goes down with the session that claimed it
     besides. A page already served reconnects delivery and prints that server's
-    URL. `--standing` claims no page and prepares no agent delivery.
+    URL. `--persistent` claims no page and prepares no agent delivery.
     """
     from leaf.hosting import claim_and_start
 
-    with claim_and_start(resolve_dir(dir), host, standing) as started:
+    with claim_and_start(resolve_dir(dir), host, persistent) as started:
         pass
     print(json.dumps({"url": started.url}))
     print(started.note, file=sys.stderr)
@@ -832,7 +832,7 @@ def start(dir: str, host: str | None, standing: bool) -> None:
     is_flag=True,
     help="serve on loopback for this command only, without claiming the page",
 )
-def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
+def run(dir: str, host: str | None, persistent: bool, temporary: bool) -> None:
     """Serve a page in the foreground, printing its URL and running until stopped.
 
     Run this in a terminal of your own to hold a page up where you can watch it.
@@ -847,13 +847,13 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
     release_on_termination()
     page_dir = resolve_dir(dir)
     if temporary:
-        if standing:
-            raise click.UsageError("choose --temporary or --standing")
+        if persistent:
+            raise click.UsageError("choose --temporary or --persistent")
         if host:
             raise click.UsageError("--temporary is loopback-only; omit --host")
         cmd_serve_temporary(page_dir)
         return
-    cmd_serve(page_dir, host, standing, harness=session_harness(), acquire=True)
+    cmd_serve(page_dir, host, persistent, harness=session_harness(), acquire=True)
 
 
 @server.command("_serve", hidden=True)
@@ -867,7 +867,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
 def _serve(
     dir: str,
     host: str | None,
-    standing: bool,
+    persistent: bool,
     revive: bool,
     acquire: bool,
     claim: str | None,
@@ -888,7 +888,7 @@ def _serve(
         cmd_serve(
             resolve_dir(dir),
             host,
-            standing,
+            persistent,
             revive,
             harness=harness_from_argument(harness),
             handshake=answer,

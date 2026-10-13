@@ -1,4 +1,4 @@
-/* The Python fold generates these cases from authored markup and standing state.
+/* The Python fold generates these cases from authored markup and current state.
    The browser must publish the same typed values, including empty answers, custom
    actions withdrawn by undo, member-unit records and complete position maps. */
 import assert from "node:assert/strict";

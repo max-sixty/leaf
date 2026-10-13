@@ -23,7 +23,7 @@ let activeResize = null;
  * they are the same furniture reflected, so this is one function rather than two
  * near-copies. What differs is what it is handed: which side the region is held to, the
  * width it stands at until the user says otherwise, how narrow they may draw it, the
- * property the cascade reads the standing width from, the key their store keeps the choice
+ * property the cascade reads the current width from, the key their store keeps the choice
  * under, and one noun, which every surface that names the region says in its own sentence.
  * Nothing below differs, which is the point: the second edge cost a call rather than a
  * copy, and a third would too.
@@ -31,7 +31,7 @@ let activeResize = null;
  * The width the user asked for and the width the region stands at are two facts rather
  * than one. A window too narrow to honour a choice does not un-make it, and widening that
  * window again is not a request to be told what the user once said — so the choice is
- * kept and the standing width is derived from it. Everything reads `width`; nothing holds
+ * kept and the current width is derived from it. Everything reads `width`; nothing holds
  * the number.
  *
  * One width, and a handle for each region on that side: the right edge holds the Threads
@@ -214,12 +214,12 @@ export function landEdgesWith(landing) {
 // separately owns the user's chosen width and publishes its current allocation.
 //
 // How narrow they may draw it in. 320 is the narrowest window the panel is held to
-// standing up in (test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote),
+// staying open in (test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_quote),
 // so it is the narrowest width anything has laid a thread's reply box and its two
 // actions out at; below it nothing says they still fit. Wanting the panel gone is what
 // closing it is for, and narrowing it to nothing is not the same wish.
 const THREAD_PANEL_MIN = 320;
-// Where the standing width is written, and where the cascade reads it.
+// Where the current width is written, and where the cascade reads it.
 const THREAD_PANEL_PROP = "--lf-thread-panel-width";
 
 // The drawer panel's width until the user moves it, and how narrow they may draw it.
@@ -231,7 +231,7 @@ const THREAD_PANEL_PROP = "--lf-thread-panel-width";
 // name on it.
 const DRAWER_SLOT_W = 300;
 const DRAWER_SLOT_MIN = 220;
-// Where the standing width is written, and where the cascade reads it. chrome.css spells
+// Where the current width is written, and where the cascade reads it. chrome.css spells
 // the same name, and the layer test holds the spellings equal, since a stylesheet cannot
 // read a constant. No stylesheet states a default: the drawer is built by script, and
 // this module writes the width when it makes or restores the handle, before the drawer

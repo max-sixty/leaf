@@ -1123,12 +1123,12 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     drawing's first node is the one a user follows the graph from."""
     page = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
     # Linux's DejaVu labels draw this graph at 1217px. Use a width where the drawing
-    # fits the room after a classic scrollbar has been taken, with the rail standing.
+    # fits the room after a classic scrollbar has been taken, with the rail shown.
     resized(page, 1920, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
 
     assert at["place"] == "rail", (
-        "the row is not in the rail, so nothing here shows a standing rail leaving the "
+        "the row is not in the rail, so nothing here shows a rail leaving the "
         "margin to the drawing"
     )
     assert at["small"]["width"] < at["col"]["right"] - at["col"]["left"], (
@@ -2115,7 +2115,7 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     page = open_page(browser, serve(LONG_PAGE))
     room = page.evaluate(CHROME_ROOM)
     assert room["banner"] > 0 and room["line"] > 0, (
-        f"neither bar is standing, so there is nothing here to reserve for: {room}"
+        f"neither bar is shown, so there is nothing here to reserve for: {room}"
     )
     assert abs(room["head"] - room["banner"]) <= 1, (
         f"the document starts {room['head']:.0f}px down, under a "
@@ -3183,20 +3183,20 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
     box, needs = at["column"]["box"], at["needs"]
     sidebar_from = round(box + needs["rail"] + needs["sidebar"])
     note_from = round(box + needs["sidebar"] + needs["note"])
-    for width, standing in (
+    for width, postures in (
         (sidebar_from - 1, "rail"),
         (sidebar_from, "rail sidebar"),
         (note_from - 1, "rail sidebar"),
         (note_from, "rail sidebar note"),
     ):
         resized(page, width, 800)
-        expect(page.locator("main")).to_have_attribute("data-lf-margin", standing)
+        expect(page.locator("main")).to_have_attribute("data-lf-margin", postures)
         at = page.evaluate(reading)
         assert at["column"]["width"] == 720, (width, at)
         assert root_overflow(page) == 0, (width, at)
         first, second = at["sidebars"]
         assert (second["float"], second["position"]) == ("none", "static"), (width, at)
-        if "sidebar" in standing:
+        if "sidebar" in postures:
             assert (first["float"], first["position"]) == ("left", "sticky"), (
                 width,
                 at,
@@ -3212,7 +3212,7 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
             )
             centre = (at["column"]["left"] + at["column"]["right"]) / 2
             assert abs(centre - at["shell"] / 2) <= 1, (width, at)
-        if "note" in standing:
+        if "note" in postures:
             assert at["note"]["float"] == "right", (width, at)
             assert at["note"]["left"] >= at["column"]["right"] + 23, (width, at)
             assert at["note"]["right"] <= at["shell"], (width, at)

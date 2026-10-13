@@ -91,8 +91,17 @@ export function setThreadCounts(open, unread) {
 }
 const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.id = "lf-approve";
-// The queue arrives at the one approval control, including its overflow seat.
-export const approvalTarget = () => (signoff ? approveBtn : null);
+// Another chrome that presents the approval in this control's place, as the floating
+// panel's Questions view does, names the control it shows and brings the user to it.
+let approvalPresentation = null;
+export function registerApprovalPresentation(presentation) {
+  approvalPresentation = presentation;
+}
+export const presentedApproval = () => approvalPresentation;
+// The queue arrives at the one approval control shown, including the banner's overflow
+// seat.
+export const approvalTarget = () =>
+  signoff ? (approvalPresentation ? approvalPresentation.target() : approveBtn) : null;
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
@@ -218,7 +227,7 @@ const phrased = (counts, kinds) =>
 //   silence by the reading's own `ts`, which the server already sets to that ending
 //   for a dropped claim.
 // - `listening` is whether input is still on its way to the agent (pending or queued),
-//   which turns a listening page's standing request into "listening".
+//   which turns a listening page's open request into "listening".
 // - `waiting` phrases the queued and pending updates, in that order, and `owed` the
 //   other counts, for a seat with room to say them beside `waiting`.
 export function activityFacts({ activity }) {
@@ -528,18 +537,19 @@ let previewDiagnostics = "";
 function renderPreview(state) {
   const preview = state.preview;
   if (!preview) return;
+  const producer = state.layer.producer ?? {};
   // A user preview claims the page, so every press on it — the agent's own
   // screenshots included — comes back to the session as user input. That is the
   // mode worth marking; an unclaimed preview delivers nothing and needs no warning.
   const kind = preview.interaction === "user" ? "User" : "Preview";
-  const stem = `${kind} · ${preview.checkout}${preview.commit ? `@${preview.commit}` : ""}`;
-  const age = payloadAge(preview);
+  const stem = `${kind} · ${preview.checkout}${producer.commit ? `@${producer.commit}` : ""}`;
+  const age = payloadAge(producer);
   // The preview names the checkout and the Leaf that vendored the page
-  // (`preview_metadata`). Where another Leaf serves it (`state.leaf`), that follows.
+  // (`state.layer.producer`). Where another Leaf serves it (`state.leaf`), that follows.
   const served = state.leaf
     ? ` · served by ${shortCommit(state.leaf)}${payloadAge(state.leaf) ? ` · ${payloadAge(state.leaf)}` : ""}`
     : "";
-  const label = `${preview.commit && preview.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${served}`;
+  const label = `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${served}`;
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
   previewDiagnostics = [
@@ -547,9 +557,9 @@ function renderPreview(state) {
     `example: ${preview.example}`,
     `checkout: ${preview.checkout}`,
     `interaction: ${preview.interaction}`,
-    ...(preview.commit ? [`commit: ${preview.commit}`] : []),
-    ...(preview.dirty !== undefined ? [`dirty: ${preview.dirty}`] : []),
-    ...payloadDateLines(preview),
+    ...(producer.commit ? [`commit: ${producer.commit}`] : []),
+    ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
+    ...payloadDateLines(producer),
     ...(state.leaf ? otherPayloadLines("served by", state.leaf) : []),
     `started: ${preview.started}`,
     `layer generation: ${state.layer.generation}`,
@@ -904,7 +914,7 @@ function renderStatusNow(state) {
 
 export const renderStatus = clocked(document.body, renderStatusNow);
 
-// Sign-off is the page's decision, not standing chrome: the approve button is offered only
+// Sign-off is the page's decision, not fixed chrome: the approve button is offered only
 // when the version declares <meta name="lf-review" content="sign-off"> — a plan or
 // proposed change seeking assent. An informational page takes comments only, and
 // nothing stands in the button's place there. A neutral "End leaf" did once, and it

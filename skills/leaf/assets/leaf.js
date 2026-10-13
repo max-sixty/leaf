@@ -1,5 +1,4 @@
 /* Leaf runtime boot and application composition root. */
-import "./vendor/scoped-registry.js";
 import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 import "./vendor/browser-runtime.js";
 import "./runtime/interaction-log.js";
@@ -138,7 +137,7 @@ import {
   createGoToSequence,
   goToHintLayer,
 } from "./runtime/keyboard/go-to-sequence.js";
-import { bannerFoot } from "./runtime/geometry.js";
+import { bannerFoot, windowChromeBoxes } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
 import { declareStanding } from "./runtime/keyboard/page.js";
@@ -151,7 +150,6 @@ import {
   mountShortcutBar,
   renderShortcutBar,
   shortcutBarEl,
-  standingStatusBoxes,
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
 import {
@@ -293,11 +291,12 @@ const navigation = createNavigation({
   },
 });
 
-// The standing furniture every generated-hint map is spread around. Both maps read the
-// same three boxes, and they are passed rather than imported so the hint machine keeps
-// no ownership edge back to the shortcut bar it is placed against.
+// The fixed furniture every generated-hint map is spread around: the window's
+// declared chrome (geometry.js), the key line and the banner's foot. Both maps read the
+// same boxes, and they are passed rather than imported so the hint machine keeps no
+// ownership edge back to the shortcut bar it is placed against.
 const hintChrome = {
-  barriers: standingStatusBoxes,
+  barriers: windowChromeBoxes,
   lineBox: () => shortcutBarEl.getBoundingClientRect(),
   viewportTop: bannerFoot,
 };
@@ -431,7 +430,7 @@ app = mountApplication({
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
   accompanyThread: (...args) => landing.accompanyThread(...args),
-  reportPageError,
+  threadAvailable: !offlineInteractive,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
   wireInput: inputs.wireInput,
@@ -516,7 +515,7 @@ declareReading(landingPlace);
 // And where it goes instead while a surface covers the page: the page is inert under one,
 // so the reading above cannot take the user and a step that let go would leave them
 // wherever the closing layer happened to drop them. The modality that covers already
-// answers both halves for whichever surface is standing — the panel, either drawer — and
+// answers both halves for whichever surface is open — the panel, either drawer — and
 // the keyboard register carries the same pair to the dispatcher.
 declareCovering({
   surface: auxiliarySurfaces.coveringSurface,
@@ -594,14 +593,14 @@ pageComment = createPageComment({
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
-// The floating panel stands in for the banner and bottom bar where the user chose it
+// The floating panel stands in for the banner and bottom bar where the reader chose it
 // (prepaint.js, `lfChrome`); a choice made later reloads the page.
 const floatingPanel =
   document.documentElement.lfChrome?.mode === "floating"
     ? createFloatingPanel({
         wireInput: inputs.wireInput,
         threadActions: app.threadActions,
-        registerThreadPresentation: app.registerThreadPresentation,
+        registerChromeThreadPresentation: app.registerChromeThreadPresentation,
         asks: {
           choicesOf: asks.choicesOf,
           open: (id) => app.openAsk(id),

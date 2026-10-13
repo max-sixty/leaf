@@ -4,11 +4,9 @@
  * import, including native vendor dependencies. Optional dynamic imports keep
  * their existing demand boundary. Import maps precede these links so preloading
  * cannot resolve a module against a different map than its ordinary execution.
- * Captured initial-drawing producers are classic scripts already inlined into
- * the composed document; they are not roots of its module graph.
  */
 
-import { access, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse } from "acorn";
@@ -20,7 +18,7 @@ import { widgetImports } from "../skills/leaf/assets/runtime/widget-imports.js";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Read initial work through the document's generated rooted import map. */
-async function initialModules(layers, imports, entries) {
+async function initialModules(layerRoot, assetRoot, imports, entries) {
   const origin = "https://leaf.invalid";
   const mappings = Object.entries(imports)
     .map(([name, target]) => [new URL(name, origin).href, new URL(target, origin).href])
@@ -34,16 +32,16 @@ async function initialModules(layers, imports, entries) {
     }
     return new URL(address);
   };
-  const pending = entries.toReversed().map((entry) => resolveImport(entry, origin));
+  const pending = entries
+    .toReversed()
+    .map((entry) => resolveImport(entry, new URL(`${assetRoot}/`, origin)));
   const modules = new Set();
   while (pending.length) {
     const url = pending.pop();
     const address = url.pathname + url.search + url.hash;
     if (modules.has(address)) continue;
-    const layer = [...layers].find(([root]) => url.pathname.startsWith(`${root}/`));
-    if (url.origin !== origin || !layer)
-      throw new Error(`initial runtime import leaves its publications: ${url.href}`);
-    const [assetRoot, layerRoot] = layer;
+    if (url.origin !== origin || !url.pathname.startsWith(`${assetRoot}/`))
+      throw new Error(`initial runtime import leaves its captured layer: ${url.href}`);
     modules.add(address);
     const source = await readFile(
       join(layerRoot, decodeURIComponent(url.pathname.slice(assetRoot.length + 1))),
@@ -57,7 +55,7 @@ async function initialModules(layers, imports, entries) {
   return [...modules];
 }
 
-/** Documents share one kernel and select their captured vocabulary; preserve shared links. */
+/** Published documents select a captured entry; never write through shared links. */
 async function preloadDocuments(pageRoot, layers, parser) {
   const documents = [];
   const graphs = new Map();
@@ -80,33 +78,31 @@ async function preloadDocuments(pageRoot, layers, parser) {
       /<script type="module" src="([^"]+)" data-lf-runtime>/,
     )?.[1];
     if (!entry) throw new Error(`document has no runtime entry: ${path}`);
+    const layerRoot = layers.get(entry);
+    if (!layerRoot) throw new Error(`document has no bundled runtime entry: ${path}`);
     const importMap = source.match(
       /<script type="importmap" data-lf-runtime>([\s\S]*?)<\/script>/,
     );
     if (!importMap) throw new Error(`document has no import map: ${path}`);
-    const markup = parser.parseFromString(source, "text/html");
-    const runtime = markup.querySelector("script[data-lf-vocabulary-root]");
-    const vocabulary = runtime?.getAttribute("data-lf-vocabulary-root");
-    if (!vocabulary) throw new Error(`document has no vocabulary address: ${path}`);
-    const vocabularyRoot = vocabulary.slice(0, -"/registry.json".length);
-    const layerRoot = layers.get(vocabularyRoot);
-    if (!layerRoot) throw new Error(`document has no captured vocabulary: ${path}`);
-    if (!registries.has(vocabulary)) {
+    if (!registries.has(layerRoot)) {
       registries.set(
-        vocabulary,
+        layerRoot,
         JSON.parse(await readFile(join(layerRoot, "registry.json"), "utf8")),
       );
     }
-    const required = widgetImports(markup.body, registries.get(vocabulary));
-    const entries = [
-      entry,
-      ...required.modules.map((tag) => `${vocabularyRoot}/widgets/${tag}.js`),
-    ];
+    const markup = parser.parseFromString(source, "text/html");
+    const required = widgetImports(markup.body, registries.get(layerRoot));
+    const entries = ["leaf.js", ...required.modules.map((tag) => `/widgets/${tag}.js`)];
     const graphKey = entry + importMap[1] + JSON.stringify(entries);
     if (!graphs.has(graphKey)) {
       graphs.set(
         graphKey,
-        await initialModules(layers, JSON.parse(importMap[1]).imports, entries),
+        await initialModules(
+          layerRoot,
+          entry.slice(0, -"/leaf.js".length),
+          JSON.parse(importMap[1]).imports,
+          entries,
+        ),
       );
     }
     const modules = graphs.get(graphKey);
@@ -115,10 +111,7 @@ async function preloadDocuments(pageRoot, layers, parser) {
       ?.getAttribute("data-lf-probe");
     if (!probe) throw new Error(`document has no registry address: ${path}`);
     const links = [
-      ...[...new Set([probe, vocabulary])].map(
-        (url) =>
-          `<link rel="preload" as="fetch" href="${url.replaceAll("&", "&amp;")}" crossorigin data-lf-runtime>`,
-      ),
+      `<link rel="preload" as="fetch" href="${probe.replaceAll("&", "&amp;")}" crossorigin data-lf-runtime>`,
       ...modules.map(
         (url) =>
           `<link rel="modulepreload" href="${url.replaceAll("&", "&amp;")}" data-lf-runtime>`,
@@ -153,7 +146,7 @@ export async function preloadSite(assets) {
       for (const revision of await readdir(revisions, { withFileTypes: true })) {
         if (!revision.isDirectory()) continue;
         const assetRoot = `${page.assets}/revisions/${revision.name}`;
-        layers.set(assetRoot, join(revisions, revision.name));
+        layers.set(`${assetRoot}/leaf.js`, join(revisions, revision.name));
       }
       await preloadDocuments(pageRoot, layers, new window.DOMParser());
     }
@@ -179,16 +172,10 @@ export async function bundleSite(assets) {
     const revisions = join(pageRoot, "revisions");
     for (const revision of await readdir(revisions, { withFileTypes: true })) {
       if (!revision.isDirectory()) continue;
-      const layer = join(revisions, revision.name);
-      // Historical publications contain only captured vocabularies. The publisher
-      // places the one shared kernel in the latest publication.
-      try {
-        await access(join(layer, "leaf.js"));
-      } catch (error) {
-        if (error.code === "ENOENT") continue;
-        throw error;
-      }
-      await bundleLayer(layer, `${page.assets}/revisions/${revision.name}`);
+      await bundleLayer(
+        join(revisions, revision.name),
+        `${page.assets}/revisions/${revision.name}`,
+      );
     }
   }
   await preloadSite(assets);

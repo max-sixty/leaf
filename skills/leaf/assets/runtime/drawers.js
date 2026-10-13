@@ -182,7 +182,7 @@ export function createDrawers({
         // surfaces' owner read it (`opener`) before this hide.
         openLayer(panel, null);
         // Slid out before hidden, and hidden only if still closed on arrival — a
-        // reopen mid-slide leaves the panel standing rather than racing the finish.
+        // reopen mid-slide leaves the panel open rather than racing the finish.
         const out = swap ? null : slide(panel, side, "out");
         const hide = () => {
           if (drawerIsOpen(key)) return; // reopened mid-slide; it stays up, list and all
@@ -259,7 +259,7 @@ export function createDrawers({
       () => queueRows().length > 0,
     );
   }
-  // A standing drawer is one layer of the page the user put on by pressing its button, so
+  // An open drawer is one layer of the page the user put on by pressing its button, so
   // Escape takes it off again. Whichever drawer stands is named by the step, so the user
   // is told what the press will take rather than "close the drawer", by the word its door
   // in the banner says. Rooted at the open drawer, so

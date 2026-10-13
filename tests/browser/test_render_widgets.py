@@ -150,7 +150,7 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
         layer_registry={"lf-source-view": source, "lf-source-stage": stage},
         layer_widgets={
             "lf-source-view.js": """
-export default class extends HTMLElement {
+customElements.define('lf-source-view', class extends HTMLElement {
   connectedCallback() {
     if (this.querySelector('button')) return;
     const button = document.createElement('button');
@@ -163,15 +163,15 @@ export default class extends HTMLElement {
     });
     this.querySelector('pre').append(button);
   }
-}
+});
 """,
             "lf-source-stage.js": """
 import {shadowStage} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-source-stage', class extends HTMLElement {
   connectedCallback() {
     if (!this.shadowRoot) shadowStage(this, [...this.childNodes]);
   }
-}
+});
 """,
         },
     )
@@ -5013,6 +5013,121 @@ def test_a_playground_rejects_range_values_that_do_not_land_on_its_step(browser,
     )
 
 
+def test_a_playground_control_written_in_the_preview_stands_beside_its_item(
+    browser, serve
+):
+    """The alert playground writes each alert's threshold and route beside that alert's
+    replay, and the page budget as the playground's own child. The budget stands in the
+    rail; each alert's controls are drawn where they are written, and a press there
+    changes the playground's one configuration and the instruction it sends."""
+    source = Path(__file__).parents[2] / "examples" / "alert-thresholds.html"
+    page = open_page(browser, serve(source))
+    playground = page.locator("#alert-playground")
+    rail = playground.locator(".lf-playground-controls")
+    expect(rail.locator("lf-playground-control")).to_have_count(2)
+    expect(rail.get_by_role("slider", name="On-call page budget")).to_be_visible()
+
+    latency = page.locator("#alert-latency-settings")
+    evidence = page.locator("#alert-latency-evidence").bounding_box()
+    settings = latency.bounding_box()
+    assert settings["x"] > evidence["x"] + evidence["width"] - 1
+    assert abs(settings["y"] - evidence["y"]) < 1
+
+    latency.get_by_role("radio", name="over 1,200 ms").click()
+    latency.get_by_role("radio", name="Ticket").click()
+    values = playground.evaluate("root => root.values")
+    assert values["latency-threshold"] == "1200ms"
+    assert values["latency-route"] == "ticket"
+    assert values["budget"] == 10
+    expect(page.locator("#alert-latency-replay tr.chosen th")).to_have_text(
+        "over 1,200 ms"
+    )
+    expect(page.locator('[data-total="oncall"] strong')).to_have_text("18")
+    expect(page.locator("#alert-instruction")).to_contain_text(
+        "payments-p99-latency over 1,200 ms, open a ticket"
+    )
+
+    # A press on a control in the preview takes focus as any control's does, so the
+    # keyboard goes on from the control last pressed rather than an earlier one.
+    rate = page.locator("#alert-rate-settings")
+    rate.get_by_role("radio", name="over 2%").click()
+    latency.get_by_role("radio", name="Page").click()
+    page.keyboard.press("ArrowRight")
+    values = playground.evaluate("root => root.values")
+    assert (values["rate-threshold"], values["latency-route"]) == ("2%", "ticket")
+
+    with sending(page, "the alert settings"):
+        playground.get_by_role("button", name="Apply these settings").click()
+    action = events_model.read_events(serve.page_dir)[-1]
+    assert action["detail"]["values"]["latency-route"] == "ticket"
+
+
+def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serve):
+    """A quotation neither supplies controls nor yields its own value slots.
+
+    Admission refuses a bare quoted control, so collection is exercised directly.
+    Complete quoted playgrounds keep their own values as the surrounding one changes.
+    """
+    page = open_page(browser, serve(PLAYGROUND_PAGE))
+    drawing = page.evaluate(
+        """source => {
+          const template = document.createElement('template');
+          template.innerHTML = source;
+          const host = template.content.querySelector('#card-playground');
+          host.id = 'quoted-controls-drawing';
+          const quote = document.createElement('lf-sample');
+          quote.setAttribute('data-lf-exhibit', '');
+          quote.innerHTML = `
+            <lf-playground-control name="tone" label="Quoted tone" kind="text"
+              value="quoted"></lf-playground-control>
+            <lf-playground-control name="quoted" label="Quoted toggle" kind="toggle"
+              value="true"></lf-playground-control>`;
+          host.querySelector('lf-playground-preview').append(quote);
+          const quotedOutput = document.createElement('lf-sample');
+          quotedOutput.setAttribute('data-lf-exhibit', '');
+          quotedOutput.innerHTML = `
+            <lf-playground id="quoted-output-drawing">
+              <lf-playground-control name="tone" label="Quoted tone" kind="text"
+                value="quoted"></lf-playground-control>
+              <lf-playground-control name="inner-tone" label="Inner tone" kind="text"
+                value="independent"></lf-playground-control>
+              <lf-playground-preview><p>Inner preview</p></lf-playground-preview>
+              <lf-playground-output><lf-playground-value for="tone"></lf-playground-value>
+                <lf-playground-value for="inner-tone"></lf-playground-value>
+              </lf-playground-output>
+            </lf-playground>`;
+          host.querySelector('lf-playground-output').append(quotedOutput);
+          document.documentElement.lfInitial.paint(
+            quotedOutput.querySelector('lf-playground'));
+          const initial = document.documentElement.lfInitial.paint(host);
+          initial.renderValues({...initial.values, tone: 'bold'});
+          return {
+            controls: initial.controls.map(control => control.getAttribute('name')),
+            values: initial.values,
+            quotedInputs: quote.querySelectorAll('input').length,
+            outerTone: initial.output.querySelector(':scope > lf-playground-value[for="tone"]')
+              .textContent,
+            quotedValues: [...quotedOutput.querySelectorAll('lf-playground-value')]
+              .map(slot => slot.textContent),
+          };
+        }""",
+        PLAYGROUND_PAGE,
+    )
+    assert drawing == {
+        "controls": ["radius", "compact", "tone", "accent", "title"],
+        "values": {
+            "radius": 12,
+            "compact": False,
+            "tone": "quiet",
+            "accent": "#4f766f",
+            "title": "Field note",
+        },
+        "quotedInputs": 0,
+        "outerTone": "bold",
+        "quotedValues": ["quoted", "independent"],
+    }
+
+
 def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     browser, serve
 ):
@@ -5140,7 +5255,7 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     expect(approve).to_be_enabled()
 
     choices.get_by_role(
-        "button", name="Take back Done: reopen this question", exact=True
+        "button", name="Take back Done: reopen this ask", exact=True
     ).tap()
     round_trip(page)
     expect_asks_answered(page, "0/1")
@@ -6109,7 +6224,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         page.keyboard.press("m")
         # The ring is painted from the focus, in the frame after the press, so waiting
         # for it on the Ask this press stepped to is both the wait and the assertion —
-        # a bare count would pass on the ring an earlier press left standing.
+        # a bare count would pass on the ring an earlier press left in place.
         expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
         # And exactly one decision wears it, the user standing in one place at a time.
         expect(page.locator(STANDING_ASK)).to_have_count(1)
@@ -7382,7 +7497,7 @@ def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, se
 def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, serve):
     """The edit is one log arrival and both views fold it onto the original message.
 
-    Neither view gains a second message. Their standing message nodes survive the
+    Neither view gains a second message. Their existing message nodes survive the
     arrival, so an edit cannot disturb a user working elsewhere in the same thread;
     only the prose inside changes, and both heads disclose that it changed.
     """
@@ -7458,7 +7573,7 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
           && window.__editedPanel === document.querySelector(
             '.lf-msg[data-mid="{message["id"]}"]')
           && window.__editedWidget === document.querySelector('#edited-message-choice')"""
-    ), "the edit replaced a standing message or its frozen widget"
+    ), "the edit replaced an existing message or its frozen widget"
     assert (
         next(
             event
@@ -7655,7 +7770,7 @@ def test_the_questions_control_opens_open_and_answered_asks(browser, serve):
 def test_an_answered_asks_words_are_its_widgets_semantic_state(browser, serve):
     """Each family names its answer from the state it was answered with.
 
-    A draft says its standing words, a playground the instruction it sent rather than
+    A draft says its current words, a playground the instruction it sent rather than
     whatever its controls show now, and an option the user added is named by the
     rendered words its `add` carried. A `multiple` group answered by Done with no pick
     of the user's names its authored choice."""
@@ -8104,7 +8219,7 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
     expect_asks_answered(page, "0/4")
 
 
-def test_a_drawer_the_user_left_standing_comes_back_standing(browser, serve):
+def test_a_drawer_the_user_left_open_comes_back_open(browser, serve):
     """Reloading is not resetting: a drawer someone stood up to watch stays stood, the
     rule the thread panel already keeps. Which makes the reload the one moment a
     drawer is put up by something other than a press, and that is where it broke — the
@@ -8334,7 +8449,7 @@ def test_one_drawer_stands_at_a_time(browser, serve, other_leaf):
     expect(leaves).to_be_hidden()
 
     # Exchanging one covering drawer for another is lateral, so one Escape closes the
-    # drawer standing and lands the user on the page; the drawer it replaced is not put
+    # drawer open and lands the user on the page; the drawer it replaced is not put
     # back, and they reach it the way they reached it the first time.
     page.keyboard.press("Escape")
     expect(decisions).to_be_hidden()
@@ -8607,7 +8722,7 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
 ):
     """The other half of the exemption above, put back as a bug: a label's own lines are
     one run of words the drawing lays out together, and two labels landing on each other
-    is the fault this pass exists to report. Arranged by standing one whole <text> on
+    is the fault this pass exists to report. Arranged by placing one whole <text> on
     another rather than by spreading a label's lines, because the hold asks which <text>
     drew a line and not how far a line was moved.
 
@@ -8617,7 +8732,7 @@ def test_the_covered_words_gate_still_reads_two_of_a_chart_s_labels_on_each_othe
     chart stops being read against every other word of that chart — and nothing else in
     the suite would say so. The corpus sweeps and the copy assert this pass returns
     nothing, which a wider hold only makes more true, and the exemption above defeats the
-    predicate wholesale, so it reports the same either way. The only standing bug-back on
+    predicate wholesale, so it reports the same either way. The only existing bug-back on
     this pass reporting is the float's, and that is an HTML page whose runs never get an
     SVG label at all."""
     page = open_page(browser, serve(CHART_PAGE))
@@ -11165,11 +11280,11 @@ POINTER_REGISTRY = {
     }
 }
 POINTER_MODULE = """import { indicate } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
+customElements.define("lf-pointer", class extends HTMLElement {
   connectedCallback() { indicate(this, "for", "3-4"); }
   disconnectedCallback() { indicate(this, "for", null); }
   point(key) { return indicate(this, "for", key); }
-};
+});
 """
 
 

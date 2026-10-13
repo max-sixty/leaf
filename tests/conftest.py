@@ -77,7 +77,7 @@ class PagePool:
     The lent page is moved to the caller's own path, not handed over where it
     lies: a test that selects a fixture package beside its page reaches it as
     `page_dir.parent / ".leaf"`, and `_no_page_outlives_its_test` sweeps
-    `tmp_path` for a server still standing. It is left there when the test ends
+    `tmp_path` for a server still running. It is left there when the test ends
     and moved again on the next loan, so the sweep runs while the page is still
     under the root it walks.
     """
@@ -314,7 +314,8 @@ def run_tier(item):
 
 def pytest_collection_modifyitems(config, items):
     """Broad discovery runs the tests whose `run_tier` is the first and the tiers its
-    flags reach; explicit selections run what they name.
+    flags reach; explicit selections run what they name. Tests marked `network`
+    require an explicit selection or the nightly run, even when their source changes.
 
     A change that moves a browser behaviour usually edits the test that holds it, so both
     landing gates add the tests of either later tier whose own source the change
@@ -344,7 +345,9 @@ def pytest_collection_modifyitems(config, items):
         changed = _base_sources(config.rootpath, since)
     kept, skipped = [], []
     for item, tiered in zip(items, tiers):
-        runs = tiered is None or tiered in reached or _touches(item, changed)
+        runs = not item.get_closest_marker("network") and (
+            tiered is None or tiered in reached or _touches(item, changed)
+        )
         (kept if runs else skipped).append(item)
     items[:] = kept
     config.hook.pytest_deselected(items=skipped)

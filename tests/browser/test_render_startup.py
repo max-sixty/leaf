@@ -1098,7 +1098,7 @@ def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
     replay cannot reproduce and which must not act ahead of the keys before it, so after
     `c h i` it drops the run rather than waiting behind it: no comment box opens and
     nothing is sent. `test_held_keys_after_one_that_opens_a_box_are_typed_into_it` is
-    the same run without the ending key; Shift alone leaves the run standing."""
+    the same run without the ending key; Shift alone leaves the run in place."""
     url = serve(HELD_KEYS_PAGE)
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
@@ -1410,7 +1410,7 @@ button.chosen { background-color: rgb(40, 50, 60); }
         )
         modules[f"{tag}.js"] = f"""
 import {{ once, shadowStage }} from '/runtime/widget-api.js';
-export default class extends HTMLElement {{
+customElements.define('{tag}', class extends HTMLElement {{
   connectedCallback() {{
     if (!once(this)) return;
     const pulse = document.createElement('span'); pulse.className = 'pulse';
@@ -1423,7 +1423,7 @@ export default class extends HTMLElement {{
     const nodes = [pulse, button];
     {stage};
   }}
-}};
+}});
 """
     url = serve(
         leaf_page(
@@ -1517,7 +1517,7 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
             layer_widgets={
                 "lf-settled-link.js": """
 import {once, widgetController} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-settled-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     widgetController(this).present(new Promise(resolve => setTimeout(() => {
@@ -1529,11 +1529,11 @@ export default class extends HTMLElement {
       resolve();
     }, 25)));
   }
-};
+});
 """,
                 "lf-shadow-link.js": """
 import {once, shadowStage} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-shadow-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const button = document.createElement('button');
@@ -1547,7 +1547,7 @@ export default class extends HTMLElement {
     };
     shadowStage(this, [button]);
   }
-};
+});
 """,
             },
         )
@@ -1830,7 +1830,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     The authored document is useful while the first state response is held: its text,
     link, structure, and generated interface in light and shadow DOM all paint after
     upgrade. A durable choice based on that not-yet-reconciled document cannot mutate or
-    post. Releasing the response applies the standing decision and opens semantic
+    post. Releasing the response applies the decision in force and opens semantic
     interaction once."""
     url = serve(
         SHORT_SUGGESTION.replace(
@@ -2023,7 +2023,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
     Opening Threads during that interval replaces the remembered drawer. Replay leaves
-    that Thread panel standing while it paints the accepted state and exposes the completed
+    that Thread panel open while it paints the accepted state and exposes the completed
     Ask as a closed route for review.
     """
     url = serve(SHORT_SUGGESTION)
@@ -2058,9 +2058,8 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     expect(page.locator(".lf-queue")).to_have_text("On me")
 
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
-    # Which blanket answers exist is the ask inventory's to say, each ask under its own
-    # widget publication, so before the first state answer none is built to offer.
-    expect(page.locator(".lf-answer-all")).to_have_count(0)
+    # The stable blanket control claims no action before the first state answer.
+    expect(page.locator(".lf-answer-all:visible")).to_have_count(0)
     # Opened by hand, the panel counts nothing yet either.
     page.locator(".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_contain_text(
@@ -2204,10 +2203,10 @@ def test_visual_comments_arrive_with_the_initialized_document(browser, serve):
 
 
 @pytest.mark.parametrize("phase", ["initial", "history", "ready", "anchored"])
-def test_failed_anchor_presentation_keeps_visual_actions_withheld(
+def test_malformed_visual_inventory_withholds_its_actions_at_each_presentation_phase(
     browser, serve, phase
 ):
-    """A malformed visual reading cannot leave comment controls on a partial page."""
+    """A malformed visual cannot offer comment controls at any startup phase."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     state_ready = phase in {"ready", "anchored"}
     held = []
@@ -2264,9 +2263,7 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(
     else:
         held.pop(0).continue_()
 
-    expect(page.locator(".lf-status-detail")).to_contain_text("reload")
-    if not state_ready:
-        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-visual-actions")).to_have_count(0)
     if phase == "initial":
         assert page.evaluate("() => window.__lfVisualActionInsertions") == []
@@ -2280,7 +2277,8 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(
         )
         expect(page.locator(".lf-visual-actions")).to_have_count(1)
         expect(page.locator(".lf-visual-action")).to_have_count(4)
-    consume_browser_errors(page, "registered part outer twice")
+    if phase == "anchored":
+        consume_browser_errors(page, "registered part outer twice")
 
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
@@ -2661,9 +2659,9 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
 
     Then the same rule read the other way: `z` takes the reject back, the accept it
     superseded is the widget's answer once more, and the thread closes under it. The
-    two ways an answer stops standing compose, and nothing is written down to say so:
+    two ways an answer stops being in force compose, and nothing is written down to say so:
     an `unresolve` posted where the thread reopened would be a second record of the
-    same fact, and taking the reject back would leave it standing against the accept."""
+    same fact, and taking the reject back would leave it in force against the accept."""
     url = serve(
         JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">'),
         events=(
@@ -2683,7 +2681,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
     # What the other tab's press leaves in the log, made against the same version:
-    # its own accept and reject controls are still standing, because it has not
+    # its own accept and reject controls are still shown, because it has not
     # heard about this one's decision yet.
     append_command(
         d,
@@ -3394,7 +3392,7 @@ def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, ser
     """Two reads, two deadlines, because they are answerable to different things.
 
     `publish-site` deployed release `5b6be522…`, ran a hosted agent turn on it, and
-    then read the reloaded page standing on the revision from before the turn. A
+    then read the reloaded page still on the revision from before the turn. A
     container that has just run a turn answers its next state read in seconds rather
     than milliseconds — measured against a live deployment at 123 ms before a turn and
     2252-3918 ms after one. A bound inside that spread does not delay such a read, it
@@ -4506,7 +4504,7 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
     }
     module = """
 import {projectData, watchData, setChildren} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-feed', class extends HTMLElement {
   connectedCallback() {
     this.stopWatching ??= watchData(this, 'rows', snapshot => {
       const datums = (snapshot?.value?.rows ?? []).map(row => {
@@ -4519,7 +4517,7 @@ export default class extends HTMLElement {
     });
   }
   disconnectedCallback() { this.stopWatching?.(); this.stopWatching = null; }
-};
+});
 """
     url = serve(
         authored,
@@ -4690,7 +4688,7 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     }
     module = """
 import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-test-surface', class extends HTMLElement {
   connectedCallback() {
     const datums = ['first', 'second'].map(key => {
       const row = document.createElement('section');
@@ -4735,7 +4733,7 @@ export default class extends HTMLElement {
     }
     else threadSurface(this).update();
   }
-};
+});
 """
     roots = [f"{index:032x}" for index in range(1, 4)]
     page = open_page(
@@ -4978,7 +4976,7 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     }
     module = """
 import {offer, projectData, setChildren} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-derived', class extends HTMLElement {
   connectedCallback() {
     window.lfDerived = this;
     this.show([{key: 'api', value: 'Ready'}, {key: 'worker', value: 'Ready'}]);
@@ -4992,7 +4990,7 @@ export default class extends HTMLElement {
     setChildren(this, datums.map(({node}) => node));
     projectData(this, datums);
   }
-};
+});
 """
     page = open_page(
         browser,
@@ -5439,9 +5437,9 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
             "x-example": f'<{tag} id="example-{contract}" source="shared"></{tag}>',
         }
 
-    def module():
+    def module(tag):
         return """import {watchData} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define(TAG, class extends HTMLElement {
   connectedCallback() {
     if (this.started) return;
     this.started = true;
@@ -5453,7 +5451,7 @@ export default class extends HTMLElement {
     });
   }
   disconnectedCallback() { this.stop?.(); }
-};"""
+});""".replace("TAG", json.dumps(tag))
 
     authored = leaf_page(
         "Different contracts",
@@ -5476,8 +5474,8 @@ export default class extends HTMLElement {
             },
         },
         layer_widgets={
-            "lf-array-feed.js": module(),
-            "lf-object-feed.js": module(),
+            "lf-array-feed.js": module("lf-array-feed"),
+            "lf-object-feed.js": module("lf-object-feed"),
         },
     )
     append_carried_log_record(
@@ -6316,7 +6314,7 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
     """A source update cannot paint until the new revision document has activated.
 
     The revision published below changes the page's own code, which is the one thing
-    the standing document cannot take on, so it is followed into a fresh document and
+    the current document cannot take on, so it is followed into a fresh document and
     there is a startup to write data during.
     """
     activation_probe = """
@@ -6569,7 +6567,7 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
     }
     module = """
 import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-test-seat', class extends HTMLElement {
   connectedCallback() {
     const datums = ['row'].map(key => {
       const row = document.createElement('section');
@@ -6588,7 +6586,7 @@ export default class extends HTMLElement {
     this.started = true;
     threadSurface(this).update();
   }
-};
+});
 """
     events = [
         {
@@ -6715,7 +6713,7 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
     }
     module = """
 import {projectData,setChildren} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-test-seat',class extends HTMLElement{
   connectedCallback(){
     this.style.cssText='display:block;height:360px;overflow:auto';
     const datums=['row'].map(key=>{
@@ -6730,7 +6728,7 @@ export default class extends HTMLElement {
   threadOutlets(targets){
     return targets.map(target=>this.side?target.placement.datumElement[this.side]:null);
   }
-};
+});
 """
     events = [
         {

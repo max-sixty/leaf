@@ -213,7 +213,7 @@ class ModelPage:
     """A page stated rather than stored, for a rule its markup decides.
 
     `event_contracts.admitted_event` reads a page through the answers below and
-    nothing else, so a refusal that follows from authored markup and the standing
+    nothing else, so a refusal that follows from authored markup and the current
     log can be put to the real door with no page directory, server or browser
     underneath it. Each revision here is its markup, in the order given.
     `packages` names the optional vocabularies the markup speaks, as `page init`
@@ -230,7 +230,6 @@ class ModelPage:
         packages: tuple[str, ...] = (),
         documents: dict | None = None,
         registry: dict | None = None,
-        registries: dict[int, dict] | None = None,
     ):
         """`documents` and `registry` are for a caller that has already parsed and
         composed them — `model_folds.reading` has, and states the same page to the
@@ -241,7 +240,6 @@ class ModelPage:
         }
         self._packages = packages
         self._registry = registry
-        self._registries = registries
 
     @property
     def revisions(self) -> list[int]:
@@ -250,17 +248,12 @@ class ModelPage:
     def document(self, revision: int):
         return self.documents[revision]
 
-    def reading(self, revision: int):
-        return passages_model.SourceReading(
-            self.documents[revision], self.registry(revision)
-        )
+    def reading(self, revision: int, registry: dict):
+        return passages_model.SourceReading(self.documents[revision], registry)
 
     def registry(self, revision: int | None) -> dict:
-        """The vocabulary captured by the named publication, or one shared layer."""
-        if self._registries is not None:
-            return self._registries[
-                revision if revision is not None else max(self._registries)
-            ]
+        """One layer for every revision: a stated page never re-vendors, so no
+        revision of it captured a vocabulary different from the rest."""
         return self._registry or model_layer(*self._packages)
 
     @property
@@ -827,7 +820,7 @@ def record_claim(page, /, harness="claude-code", **fields):
 
 
 def bind_task_lifetime_to_worker(page):
-    """Keep a synthetic task standing after its one-command harness exits.
+    """Keep a synthetic task running after its one-command harness exits.
 
     The worker stands for the real harness process that survives tool calls. This
     changes only that existing task's lifetime provenance, under its session
@@ -847,7 +840,7 @@ def release_codex_command(page, host, finished):
     """Complete a held command before its synthetic Codex harness can exit.
 
     The command must finish its claim transaction while its ancestor is alive.
-    The canonical lifetime handoff then keeps that same task standing for later
+    The canonical lifetime handoff then keeps that same task running for later
     delivery, before the fixture releases the one-command harness.
     """
     wait_for(
@@ -1034,8 +1027,8 @@ def owed(state):
     `activity.obligations` names them by id, so this is the join an agent makes to
     reach a move's stage, subject, or answer.
     """
-    standing = set(state["activity"]["obligations"])
-    return [item for item in state["workflows"] if item["id"] in standing]
+    ids = set(state["activity"]["obligations"])
+    return [item for item in state["workflows"] if item["id"] in ids]
 
 
 # A question and the accept that answers it, written as a stored log holds them:
@@ -1268,7 +1261,7 @@ def trial_family(root: Path) -> None:
         ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
     ):
         declarations[tag] |= {"x-owners": owners, "x-retired-when": outcome}
-        del declarations[tag]["x-example"]  # a slot has no standing of its own
+        del declarations[tag]["x-example"]  # a slot does not stand alone
         del declarations[tag]["required"]  # nor an id it must carry
     source.write_text(json.dumps(declarations))
     # add_test_widget frames every tag as a card. The slots draw no box of their own;
@@ -1401,7 +1394,7 @@ def fetch_hanging_up(url, data=None):
 HELD_LEASES = []
 
 
-def fixture_service(directory, port: int, lifetime: str = "standing") -> dict:
+def fixture_service(directory, port: int, lifetime: str = "persistent") -> dict:
     """Record the desired service of a `server run` on `port`, as it records its own."""
     service = {
         "host": "127.0.0.1",
@@ -1415,7 +1408,7 @@ def fixture_service(directory, port: int, lifetime: str = "standing") -> dict:
     return service
 
 
-def serving(directory, port: int, lifetime: str = "standing") -> None:
+def serving(directory, port: int, lifetime: str = "persistent") -> None:
     """Hold the serving incarnation lease of a live `server run`, taken as it takes it."""
     directory.mkdir(parents=True, exist_ok=True)
     service = fixture_service(directory, port, lifetime)
@@ -1472,7 +1465,7 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     Both roots are the run's own: `tmp_path`, and the state home as
     `isolated_session`'s value. Read from the environment here instead, at setup
     or after the yield, the root is the developer's `~/.local/state/leaf`, and
-    this sweep stopped every server standing there (tests/AGENTS.md, "Processes and
+    this sweep stopped every server running there (tests/AGENTS.md, "Processes and
     servers")."""
     yield
     retire_test_services(tmp_path, isolated_session)
@@ -1964,11 +1957,11 @@ def start_server_command(page_dir, *flags, session_id="starter"):
 
 
 @pytest.fixture
-def standing_server(spawn, sessionless):
+def persistent_server(spawn, sessionless):
     """`server run` from a bare shell — a terminal, a login item — held to the
     two lines it prints, the URL and the lifetime it recorded.
 
-    Standing is the serve nothing reaps: it declines the claim, so no watcher
+    A persistent serve is one nothing reaps: it declines the claim, so no watcher
     starts, and a run killed while one is up leaves a process only a person can
     stop (tests/AGENTS.md, "Processes and servers"). A
     child of the worker is as close as the suite gets."""
@@ -1988,7 +1981,7 @@ def standing_server(spawn, sessionless):
         assert json.loads(process.stdout.readline())["url"].startswith(
             "http://127.0.0.1:"
         )
-        assert process.stderr.readline().strip() == "server   standing"
+        assert process.stderr.readline().strip() == "server   persistent"
         return process
 
     return start
@@ -2075,7 +2068,7 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
         )
     if upgrade:
         (package / "widgets" / f"{tag}.js").write_bytes(
-            packages_model.starter_widget_module()
+            packages_model.starter_widget_module(tag)
         )
     return declaration
 

@@ -68,7 +68,7 @@ function paintStateOrigins(projection) {
 }
 
 // A holder's settlement is the registry's slot relation read against its deciding
-// verb's standing outcome, so the layer paints it for every holder whether or not its
+// verb's outcome in force, so the layer paints it for every holder whether or not its
 // module renders anything. A module with a choreography of its own (lf-suggestion's
 // fold) has already run it in the publication, before this pass writes the same mark.
 // A holder in a message's frozen markup is painted before the thread mounts it, so it
@@ -76,7 +76,7 @@ function paintStateOrigins(projection) {
 function paintSettlements(widgets) {
   for (const [widgetId, { state }] of widgets) {
     const owner = widgetElement(widgetId);
-    const decision = owner && decisionFor(owner);
+    const decision = owner && decisionFor(owner.localName);
     if (!decision) continue;
     const outcome = state[decision.verb]?.detail?.outcome ?? null;
     keeps(

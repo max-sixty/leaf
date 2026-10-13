@@ -68,7 +68,7 @@ from browser.test_render_margin import (
 )
 
 
-def test_a_settled_page_with_a_standing_reaction_stops_rendering_its_margin(
+def test_a_settled_page_with_a_reaction_in_force_stops_rendering_its_margin(
     browser, serve
 ):
     """A page standing still with a reaction in its margin renders no margin per frame.
@@ -156,7 +156,7 @@ def test_an_unchanged_compact_margin_keeps_the_user_at_the_document_end(browser,
 @pytest.mark.parametrize("width", [1440, 390])
 def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, width):
     """A draft's local Save and Cancel stay reachable while it is edited, and the save outlasts
-    a reload; a standing reaction's Remove is reachable from the Page Map by keyboard
+    a reload; the Remove control of a reaction in force is reachable from the Page Map by keyboard
     and withdraws the reaction."""
     page = open_page(browser, serve(MARGIN_ACTIONS_PAGE, events=MARGIN_ACTIONS_EVENTS))
     resized(page, width, 900)
@@ -186,7 +186,7 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
         if event.get("token") == "prioritize"
     )
     reaction_actions = dialog.locator(
-        '[data-lf-margin-entry-owner="standing-reactions"]'
+        '[data-lf-margin-entry-owner="reactions"]'
         f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]'
     )
     expect(reaction_actions).to_have_attribute(
@@ -691,7 +691,10 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
 
     partway = transcript.evaluate(place)
     assert 0 < partway[0] < partway[1] - 20, partway
-    assert dict(statuses()) == {"working": partway, "waiting": partway}
+    assert {name: offset for name, (offset, _) in statuses()} == {
+        "working": partway[0],
+        "waiting": partway[0],
+    }
 
     transcript.hover()
     page.mouse.wheel(0, partway[1])
@@ -700,7 +703,10 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
         arg=transcript.element_handle(),
     )
     end = transcript.evaluate(place)
-    assert dict(statuses()) == {"working": end, "waiting": end}
+    assert {name: offset for name, (offset, _) in statuses()} == {
+        "working": end[0],
+        "waiting": end[0],
+    }
 
 
 def test_standing_on_a_commented_element_opens_its_thread_in_threads(browser, serve):

@@ -1,6 +1,6 @@
 /* What an indication marks: the elements a driver's declared reference and key
    address, where the server would resolve that reference, as the union of every
-   driver's standing indication.
+   driver's current indication.
 
    The vocabulary is stated here: a driver declaring `x-refers` on `for`, and a target
    whose `lfElementsFor` maps a key to its own children, which is the hook's whole

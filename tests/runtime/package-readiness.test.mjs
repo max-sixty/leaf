@@ -4,9 +4,7 @@ import test from "node:test";
 import { applicationState } from "../../skills/leaf/assets/runtime/semantic-state.js";
 import { dispatchKey } from "../../skills/leaf/assets/runtime/keyboard/dispatch.js";
 import { registerCoveringAuxiliarySurface } from "../../skills/leaf/assets/runtime/keyboard/register.js";
-import Tabs from "../../skills/leaf/packages/default/widgets/lf-tabs.js";
-
-customElements.define("lf-tabs", Tabs);
+import "../../skills/leaf/packages/default/widgets/lf-tabs.js";
 
 for (const phase of ["waiting", "offline"])
   test(`package tabs remain keyboard-operable while saved state is ${phase}`, () => {

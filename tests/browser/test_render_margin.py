@@ -29,6 +29,7 @@ from render_cases_interaction import (
     PANEL_PAGE,
     REPORT_PAGE,
     SUGGESTION_PAGE,
+    answered_comment,
     live_url,
     panel_comment,
 )
@@ -1308,7 +1309,7 @@ def _unfold_suggestion_undo(page, target):
 
 # Margin action rows on a page of their own: three suggestions sharing one paragraph, so
 # a decision on one reflows the words the others stand by; a draft; and a suggestion
-# whose thread and standing reaction crowd its row.
+# whose thread and reaction in force crowd its row.
 MARGIN_ACTIONS_PAGE = leaf_page(
     "Margin actions",
     """
@@ -2882,15 +2883,15 @@ def test_a_print_preview_leaves_the_clusters_as_it_found_them(browser, serve):
     page = open_page(browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
     resized(page, 1440, 900)
     margins_laid_out(page)
-    standing = page.evaluate(CLUSTER_SHAPE)
-    assert [host for host in standing if host[1] > 1], (
-        f"no cluster here holds the margin entries a paper reading would fold away: {standing}"
+    shape = page.evaluate(CLUSTER_SHAPE)
+    assert [host for host in shape if host[1] > 1], (
+        f"no cluster here holds the margin entries a paper reading would fold away: {shape}"
     )
 
     page.emulate_media(media="print")
     append_carried_log_record(serve.page_dir, COMMENT_ON_SECOND_SUGGESTION)
     told(page)
-    assert page.evaluate(CLUSTER_SHAPE) == standing
+    assert page.evaluate(CLUSTER_SHAPE) == shape
 
     page.emulate_media(media="screen")
     thistle = page.locator('[data-lf-margin-for="sug-thistle"]')
@@ -3333,6 +3334,8 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
 
     # Labels remain transient even with abundant room; options never widen the rail.
     resized(page, 2400, 900)
+    page.mouse.move(0, 0)
+    page.evaluate("() => document.activeElement.blur()")
     expect(
         suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
     ).to_be_hidden()
@@ -3354,6 +3357,11 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
 
     page.keyboard.press("Escape")
+    expect(suggestion_item.locator(".lf-react:visible")).to_have_count(0)
+    expect(options).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(options).to_be_hidden()
+    more.click()
     expect(options).to_be_visible()
     thread_margin_entry = options.locator(
         '.lf-margin-reading-option[data-lf-kinds="comment"]'
@@ -4855,11 +4863,9 @@ def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser,
         "anchor": {"section": "hline"},
     }
     page = open_page(browser, serve(source, events=[comment]))
-    page.set_default_timeout(10_000)
     page.wait_for_function(
         "() => window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js')"
-        ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",
-        timeout=10_000,
+        ".then(({layoutMarginRows}) => (layoutMarginRows(), true))"
     )
 
     line = page.locator("#hline")
@@ -4868,22 +4874,22 @@ def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser,
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
-    expect(dialog).to_be_visible(timeout=10_000)
+    expect(dialog).to_be_visible()
     dialog.get_by_role(
         "button", name="Open thread: Check this line.", exact=True
-    ).click(timeout=10_000)
+    ).click()
     rendered(page)
 
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible(timeout=10_000)
+    expect(preview).to_be_visible()
     thread_id = next(
         event["id"]
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == comment["text"]
     )
     thread = preview.locator(f'.lf-page-thread[data-thread="{thread_id}"]')
-    expect(thread).to_be_focused(timeout=10_000)
-    expect(thread).to_contain_text("Check this line.", timeout=10_000)
+    expect(thread).to_be_focused()
+    expect(thread).to_contain_text("Check this line.")
 
 
 # The right edge of the column's words, inside `main`'s padding. A thread card beside
@@ -4897,7 +4903,7 @@ WORDS_RIGHT = """() => {
 # Two threaded passages with room above and below to scroll them: one paragraph in the
 # right cell of a two-up pair, as a before-and-after comparison sets it, so its words end
 # short of the column and leave room on their left; and a suggestion whose cluster a
-# thread and two standing reactions crowd.
+# thread and two reactions in force crowd.
 THREAD_CARD_PAGE = leaf_page(
     "Thread cards",
     """
@@ -5178,7 +5184,7 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
     page.keyboard.press("e")
-    # The choices stay with the captured selection. The standing reaction that replaces
+    # The choices stay with the captured selection. The reaction in force that replaces
     # them must keep that same visual coordinate even though the durable section
     # coordinate belongs to the surrounding id-bearing section.
     reactions = bar.locator(":scope > .lf-response-options")
@@ -6691,7 +6697,7 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     composer = page.locator(".lf-fab-input")
     expect(composer).to_be_focused()
     page.keyboard.type("Worth checking before the frost.")
-    with sending(page, "the comment on the standing option"):
+    with sending(page, "the comment on the chosen option"):
         page.keyboard.press("ControlOrMeta+Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     preview = page.locator(".lf-margin-preview")
@@ -6988,7 +6994,7 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
     card.focus()
     shown = card.get_attribute("data-thread")
 
-    # The walk carries the card to a thread whose own margin entry is already standing,
+    # The walk carries the card to a thread whose own margin entry is already shown,
     # so nothing unfolds to hang it from and nothing folds the cluster: the card holds
     # the margin's context, so the user's cluster is still open behind it.
     page.keyboard.press("t")
@@ -7041,13 +7047,13 @@ def test_going_to_a_side_surface_folds_the_cluster_the_user_left(browser, serve)
 
 
 @pytest.mark.parametrize("second", ["note", "marker"])
-def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
+def test_a_second_press_into_an_open_card_leaves_one_level_to_take_off(
     browser, serve, second
 ):
     """A press from outside replaces what the card shows rather than stacking a level.
 
     The card shows one thread, so the second note or marker changes its contents and
-    leaves one card standing. Its way out is the target it is anchored to and then the
+    leaves one card open. Its way out is the target it is anchored to and then the
     page: neither note nor marker is a place the user was standing.
     """
     page = open_page(browser, serve(ASK_PAGE))
@@ -7072,7 +7078,7 @@ def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     expect(card).not_to_have_attribute("data-thread", shown)
     expect(card).to_be_focused()
 
-    # One card is standing whichever press put this thread in it, so there is one way
+    # One card is open whichever press put this thread in it, so there is one way
     # out of it: the target it is anchored to.
     leave_card_by_its_target(page)
 
@@ -7523,9 +7529,7 @@ def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serv
         margins_laid_out(page)
 
 
-def test_a_row_arriving_takes_the_room_below_the_markers_already_standing(
-    browser, serve
-):
+def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser, serve):
     """A pick's receipt is news to the thread marker beside the options: it lands in the
     room below that marker rather than seating itself first, from the top, and pushing
     the marker out from beside the option the user may press next."""
@@ -9215,12 +9219,11 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
         layout="sidebar",
     )
     page = open_page(browser, serve(source, events=[_comment_on("pair")]))
-    page.set_default_timeout(10_000)
     resized(page, 1440, 900)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="pair"]')
-    expect(row).to_have_attribute("data-lf-place", "pin", timeout=10_000)
-    expect(row).to_be_visible(timeout=10_000)
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    expect(row).to_be_visible()
     row_box = row.bounding_box()
     second = page.locator("#pair > p").nth(1).bounding_box()
     assert second["x"] < row_box["x"], (row_box, second)
@@ -9231,9 +9234,9 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     marker = row.get_by_role("button", name=re.compile(r"^Thread,"))
     marker.click()
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible(timeout=10_000)
+    expect(preview).to_be_visible()
     thread = preview.locator(".lf-margin-thread .lf-page-thread")
-    expect(thread).to_be_focused(timeout=10_000)
+    expect(thread).to_be_focused()
 
 
 def test_a_contents_target_reply_observes_visibility_without_layout(browser, serve):
@@ -9246,27 +9249,26 @@ def test_a_contents_target_reply_observes_visibility_without_layout(browser, ser
         layout="sidebar",
     )
     page = open_page(browser, serve(source, events=[_comment_on("pair")]))
-    page.set_default_timeout(10_000)
     resized(page, 1440, 900)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="pair"]')
     marker = row.get_by_role("button", name=re.compile(r"^Thread,"))
     marker.click()
     preview = page.locator(".lf-margin-preview")
-    expect(preview).to_be_visible(timeout=10_000)
+    expect(preview).to_be_visible()
     reply = preview.get_by_role("textbox", name="Reply", exact=True)
     reply.click()
-    expect(reply).to_be_focused(timeout=10_000)
+    expect(reply).to_be_focused()
     words = "A reply stays while its display contents subject returns."
     write(reply, words)
-    expect(reply).to_have_js_property("value", words, timeout=10_000)
+    expect(reply).to_have_js_property("value", words)
 
     page.locator("#pair").evaluate("el => el.style.visibility='hidden'")
-    expect(preview).to_be_hidden(timeout=10_000)
+    expect(preview).to_be_hidden()
     page.locator("#pair").evaluate("el => el.style.visibility='visible'")
-    expect(preview).to_be_visible(timeout=10_000)
-    expect(reply).to_be_focused(timeout=10_000)
-    expect(reply).to_have_js_property("value", words, timeout=10_000)
+    expect(preview).to_be_visible()
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", words)
 
 
 def test_a_workspace_page_keeps_no_rail(browser, serve):
@@ -9418,6 +9420,38 @@ PANE_PIN_PAGE = leaf_page(
     head=regions_side_by_side("pin-split"),
     layout="workspace",
 )
+
+
+def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve):
+    """`q` to an Ask below a pane's fold scrolls it into view while its row is still
+    withheld, so there is nothing yet to hang its card from. The card of the thread the
+    user leaves goes at once, and the Ask's comes once the margin shows its row, as it
+    would for an arrival whose row was already there."""
+    ask = (
+        '<lf-ask id="work"><h2>Choose</h2><lf-options id="options" choose>'
+        '<lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option>'
+        "</lf-options></lf-ask>"
+    )
+    url = serve(PANE_PIN_PAGE.replace('<p id="pane-end">The last finding.</p>', ask))
+    left = answered_comment(serve.page_dir, "First finding", {"section": "pane-top"})
+    root = answered_comment(serve.page_dir, "Ask discussion", {"section": "work"})
+    page = open_page(browser, url)
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="work"]')
+    expect(row).to_be_hidden()
+    page.keyboard.press("t")
+    leaving = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{left}"]')
+    expect(leaving).to_be_focused()
+    page.keyboard.press("q")
+    expect(page.locator("#work")).to_be_focused()
+    expect(leaving).to_have_count(0)
+    expect(row).to_be_visible()
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    ).to_be_visible()
+    expect(page.locator("#work")).to_be_focused()
 
 
 def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, serve):
@@ -10608,6 +10642,10 @@ def test_observed_scroll_retains_the_seat_of_a_constrained_target(
         }""",
         {"position": position, "native": native_scroll},
     )
+    rendered(page)
+    # Inserting the scroller can retain the old content by scrolling the page.
+    # Put the newly registered target on screen before testing its inner scroll.
+    page.evaluate("window.scrollTo(0, 0)")
     rendered(page)
     reading = """() => {
       const {target, contribution} = window.__nonlinear;

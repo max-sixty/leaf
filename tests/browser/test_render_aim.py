@@ -134,7 +134,7 @@ AIM_PRESS_CASES = (
     (
         "ship-review",
         next(p for p in EXAMPLES if p.stem == "ship-review"),
-        frozenset({"option click", "standing mark"}),
+        frozenset({"option click", "existing mark"}),
     ),
 )
 
@@ -1647,7 +1647,7 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     """A covering auxiliary surface owns its pixels, and in Design mode stays Leaf's.
 
     Covered page content is inert, so neither the aim nor a design comment reaches it
-    through the visible remainder, and the page's standing design legend paints beneath
+    through the visible remainder, and the page's fixed design legend paints beneath
     the sheet. The sheet itself is Leaf's chrome, which the mode leaves working: nothing
     on it is a design target, and a press on its scrim puts it away as it would outside
     the mode, which is how a phone the sheet covers gets back to its page.
@@ -2064,9 +2064,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         "draw",
     ],
 )
-def test_target_picker_selects_in_the_standing_comment_mode(
-    browser, serve, mode, route
-):
+def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode, route):
     """Target selection nests inside Design; Draw retains the page for ink."""
     page = open_page(
         browser,
@@ -2498,11 +2496,11 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     expect(panel).to_be_visible()
     expect(composer).to_be_hidden()
 
-    standing = geometry(page, edge)
+    resting = geometry(page, edge)
     draw_edge(page, edge, 160)
     held = geometry(page, edge)
-    assert held["width"] > standing["width"] and held["chosen"], (
-        f"the mode took the edge rather than drawing it: {standing} then {held}"
+    assert held["width"] > resting["width"] and held["chosen"], (
+        f"the mode took the edge rather than drawing it: {resting} then {held}"
     )
     expect(composer).to_be_hidden()
 
@@ -2877,33 +2875,6 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     assert page.eval_on_selector_all(
         ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
     ) == ["path", "line"]
-    page.keyboard.up("Alt")
-
-
-def test_an_undeclared_nested_part_does_not_shadow_its_declared_parent(browser, serve):
-    """Authored tokens bound hit-testing, not only the event after it has chosen a hit.
-
-    The package may register more parts than this instance exposes. A hit inside one of
-    those parts still belongs to the nearest declared ancestor rather than widening to
-    the visual as a whole.
-    """
-    page = open_page(
-        browser,
-        serve(
-            GENERIC_VISUAL_PAGE.replace(
-                'parts="outer inner html"', 'parts="outer html"'
-            ),
-            layer_registry=GENERIC_VISUAL_LAYER,
-            layer_widgets=GENERIC_VISUAL_WIDGETS,
-        ),
-    )
-
-    page.locator("#inner path").hover()
-    page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "outer")
-    assert page.eval_on_selector_all(
-        ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
-    ) == ["rect"]
     page.keyboard.up("Alt")
 
 
@@ -3380,18 +3351,12 @@ def test_a_rounded_diagram_part_aim_has_room_to_cover_the_shape_edge(browser, se
 def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, serve):
     """The authored Mermaid id, rather than its generated SVG id, is the anchor.
 
-    An unlisted node is the control: it still takes the whole diagram. A listed node
-    outlines only its current SVG group, while the diagram holds the accessible note
-    and the panel place. Reloading makes Mermaid generate the SVG again and proves the
+    A named node outlines only its current SVG group, while the diagram holds the
+    accessible note and the panel place. Reloading makes Mermaid generate the SVG again and proves the
     stable token resolves to that new box.
     """
     page = open_page(browser, live_url(serve(PART_DIAGRAM_PAGE)))
     diagram = page.locator("#flow")
-
-    unlisted = diagram.locator('g[data-id="U"]')
-    unlisted.click(modifiers=["Alt"])
-    expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
-    page.keyboard.press("Escape")
 
     start = diagram.locator('g[data-id="S"]')
     start.click(modifiers=["Alt"])
@@ -3460,7 +3425,7 @@ def test_a_sequence_actor_is_an_addressable_visual_part(browser, serve):
         "sequence diagram parts",
         """
 <h1 id="t">Exchange</h1>
-<lf-diagram id="exchange" parts="node:A"><pre>
+<lf-diagram id="exchange" parts="all"><pre>
 sequenceDiagram
   participant A as User
   participant B as Server
@@ -3567,7 +3532,7 @@ def test_an_aim_in_a_pane_stands_anchored_to_what_it_outlines(browser, serve, su
       <div>
         <div style="height: 200px"></div>
         <p id="pane-words">The first finding, aimed at.</p>
-        <lf-diagram id="flow" parts="node:S"><pre>
+        <lf-diagram id="flow" parts="all"><pre>
 graph LR
   S[Start request] --> H[Handle request]
 </pre></lf-diagram>
@@ -4069,10 +4034,10 @@ def test_a_withheld_draft_observes_visibility_without_a_layout_change(
         words = "A reply with the same visibility owner."
         write(field, words)
     page.locator("#ordinary").evaluate("el => el.style.visibility='hidden'")
-    expect(field).not_to_be_visible(timeout=10_000)
+    expect(field).not_to_be_visible()
     page.locator("#ordinary").evaluate("el => el.style.visibility='visible'")
-    expect(field).to_be_visible(timeout=10_000)
-    expect(field).to_be_focused(timeout=10_000)
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
     assert _draft_in_view(page, words, field)
 
 
@@ -4088,24 +4053,23 @@ def test_a_display_contents_comment_editor_observes_visibility_without_layout(
         layout=None,
     )
     page = open_page(browser, serve(source))
-    page.set_default_timeout(10_000)
     rendered(page)
     page.locator("#pair span").first.click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
-    expect(field).to_be_visible(timeout=10_000)
-    expect(field).to_be_focused(timeout=10_000)
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
     words = "An unfinished comment remains with its display contents target."
     write(field, words)
-    expect(field).to_have_js_property("value", words, timeout=10_000)
+    expect(field).to_have_js_property("value", words)
 
     parts = page.locator("#pair > p")
     expect(parts).to_have_count(2)
     parts.evaluate_all("els => els.forEach(el => el.style.visibility='hidden')")
-    expect(field).not_to_be_visible(timeout=10_000)
+    expect(field).not_to_be_visible()
     parts.evaluate_all("els => els.forEach(el => el.style.visibility='visible')")
-    expect(field).to_be_visible(timeout=10_000)
-    expect(field).to_be_focused(timeout=10_000)
-    expect(field).to_have_js_property("value", words, timeout=10_000)
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", words)
 
 
 DESIGN_PANE_PAGE = leaf_page(
@@ -4263,7 +4227,14 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
         if scroller == "pane"
         else "document.scrollingElement",
     )
-    painted = [w for w in writes if PAINT.search(w["target"])]
+    # Near-window membership may add distinct boxes to a carrier as targets cross
+    # the observer's boundary. Their placement must still need no per-frame writes.
+    painted = [
+        w
+        for w in writes
+        if PAINT.search(w["target"])
+        and not (w["type"] == "childList" and "lf-paint-carrier" in w["target"])
+    ]
     assert not scroll_followers(painted, frames), painted
 
 

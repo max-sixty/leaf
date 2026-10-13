@@ -1,9 +1,9 @@
 """Materialize the immutable HTTP half of a live Leaf page.
 
-Every document selects its captured vocabulary and authored resources while
-sharing the latest publication's runtime. Revision resource trees share HTTP
-delivery's logical URLs, including widget aliases resolved through implementation
-provenance. Mutable candidate inputs never participate in publishing. Content-addressed media is written
+Every document selects its captured registry, bootstrap, layer, and authored
+resources. Revision resource trees share the same logical URLs as HTTP delivery,
+including widget aliases resolved through implementation provenance. Mutable
+candidate inputs never participate in publishing. Content-addressed media is written
 at the page root, where every document, message, and card addresses it.
 """
 
@@ -20,12 +20,7 @@ from .files import (
 )
 from .http import page_delivery
 from .revision_artifact import read_artifact
-from .revision_delivery import (
-    PublicationAddress,
-    compose_document,
-    delivered_resource,
-    publication_css,
-)
+from .revision_delivery import DeliveryAddress, compose_document, delivered_resource
 from .schema import MEDIA_DIR, SERVED_PATH
 
 
@@ -61,25 +56,20 @@ def write_live_shell(
             raise ValueError(f"live shell path already exists: {target}")
         target.write_bytes(body)
 
-    kernel = read_artifact(page_dir, active)
-    root = asset_root if asset_root is not None else page_root
-    kernel_root = (
-        root.rstrip("/") + "/revisions/" + revision_path(page_dir, active).stem
-    )
     documents = {}
     for revision in list_revisions(page_dir):
         artifact = read_artifact(page_dir, revision)
         relative_root = Path("revisions") / revision_path(page_dir, revision).stem
+        root = asset_root if asset_root is not None else page_root
         revision_root = root.rstrip("/") + "/" + relative_root.as_posix()
         version = reverse_versions.get(revision)
         delivery = page_delivery(
-            kernel.resources,
+            artifact.resources,
             server_id=server_id,
-            layer_id=kernel.registry["$layer"]["generation"],
+            layer_id=artifact.registry["$layer"]["generation"],
             release_id=release_id,
             page_root=page_root,
-            asset_root=kernel_root,
-            vocabulary_root=revision_root,
+            asset_root=revision_root,
         )
         documents[revision] = compose_document(
             artifact.html.decode("utf-8"),
@@ -91,21 +81,12 @@ def write_live_shell(
             registry=artifact.registry,
             delivery=replace(delivery, head=head),
         ).encode()
-        address = PublicationAddress(page_root, revision_root, artifact.shared_modules)
+        address = DeliveryAddress(page_root, revision_root)
         for logical in sorted(
             artifact.resources.keys() | artifact.widget_aliases.keys()
         ):
-            if revision != active and (
-                logical.startswith("/runtime/")
-                or logical in artifact.shared_modules
-                or logical == "/theme.css"
-            ):
-                continue
             resource = delivered_resource(artifact, logical, address)
-            body = resource.data
-            if logical == "/widget-theme.css":
-                body = publication_css(body.decode(), revision).encode()
-            write(relative_root / logical.lstrip("/"), body)
+            write(relative_root / logical.lstrip("/"), resource.data)
 
     write(Path("index.html"), documents[active])
     for version in published_versions(page_dir, events):

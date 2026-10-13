@@ -48,7 +48,7 @@
 # comment's `answer` is a `reply`, for `leaf response reply`, except on App Server,
 # where it is a `turn` the turn's own messages write. The `handling` follows from
 # the answer, so each agent is told only its own route.
-# The agent's standing instructions (its harness contract, and on leaf.page the
+# The agent's lasting instructions (its harness contract, and on leaf.page the
 # developer instructions) are not part of a delivery; test_website_server records
 # leaf.page's.
 #

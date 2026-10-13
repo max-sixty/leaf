@@ -58,7 +58,7 @@ import { threadNames } from "./thread/model.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
 import { closestAcross, rangeOf, selectEnds } from "./passages.js";
-import { standingPoint } from "./pointed-place.js";
+import { livePoint } from "./pointed-place.js";
 import { PRESSES } from "./control-selectors.js";
 import { typesText } from "./focus.js";
 import { openingPassage, passageBlock } from "./reading-place.js";
@@ -432,7 +432,7 @@ export function createAnchorTravel({
       });
   }
 
-  // Synchronous: the move is the caller's gesture, so its intent is the one standing now.
+  // Synchronous: the move is the caller's gesture, so its intent is the current one.
   function scrollToElement(element, behavior = scrollBehavior(), block = "center") {
     const { replacedView } = reveal(element, retainUserIntent());
     placeScroll({ at: element, behavior, block }, replacedView);
@@ -445,10 +445,10 @@ export function createAnchorTravel({
     const holder = placeHolder(where);
     if (!holder) return null;
     const destination = placeBox(where);
-    const standing = surfaces.selectedSurface();
+    const selected = surfaces.selectedSurface();
     const seen = clippedPlace(
       where,
-      standing ? clipsPast([standing]) : new Map(),
+      selected ? clipsPast([selected]) : new Map(),
       destination,
     );
     return seen && { holder, destination, seen };
@@ -497,10 +497,8 @@ export function createAnchorTravel({
       ? rangeOf([segment])
       : (targetElement(placement) ?? targetPlace(placement));
     return (
-      standingPoint(
-        targetElement(placement) ?? targetPlace(placement),
-        placement?.point,
-      ) ?? where
+      livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ??
+      where
     );
   };
 
@@ -513,12 +511,12 @@ export function createAnchorTravel({
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
     const hydrating = (anchor?.datum && status !== "outdated") || anchor?.visual;
-    const standing = threadDestination(id);
+    const destination = threadDestination(id);
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
     const landing = () => threadDestination(id);
     const departure = prepareTrip({ landing, keep, intent: mayArrive });
-    if (standing || hydrating) departure.plan(standing);
+    if (destination || hydrating) departure.plan(destination);
     if (hydrating) {
       const source = sectionOf(anchor);
       // A visual settles on its part, including cancelling a pending replacement of

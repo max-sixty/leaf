@@ -1203,7 +1203,7 @@ leaf task end PAGE TODO done "Version 4"
               Tasks, and the banner names it. An ended to-do stays on the page: the
               Questions panel lists it under Done, beside answered and withdrawn asks.
             </p>
-            <lf-diagram id="task-states" parts="node:Open node:Ended node:Unobserved">
+            <lf-diagram id="task-states" parts="all">
               <pre>
 stateDiagram-v2
   state "Open, on the agent" as Open
@@ -1444,8 +1444,8 @@ stateDiagram-v2
                 <strong>A to-do and the message it came from.</strong> Your message
                 opens an owed answer. The agent's reply settles it, and a to-do it opens
                 carries the work on; a reply with <code>--todo</code> does both in one
-                write. Nothing records which message a to-do answers, beyond both
-                standing on one thread.
+                write. Nothing records which message a to-do answers, beyond both being
+                on one thread.
               </li>
               <li>
                 <strong>A prose ask answered.</strong> Your reply answers the ask and

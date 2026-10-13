@@ -155,7 +155,6 @@ from .service import (
     delivery_reply_attempt,
     owned_pages,
     restore_page_claim,
-    same_claim,
 )
 from .state import (
     close_session_turn,
@@ -678,7 +677,7 @@ class AppServerEvents:
             return {
                 "turn": turn_id,
                 "activity": (
-                    self._standing_activity()
+                    self._running_activity()
                     if self.waiting_kind is not None or self.active_items
                     else planned
                 ),
@@ -696,13 +695,13 @@ class AppServerEvents:
                     return {
                         "turn": turn_id,
                         "item": lifecycle,
-                        "activity": self._standing_activity(),
+                        "activity": self._running_activity(),
                         "message": self._message_update(item["id"], complete=False),
                     }
                 return {
                     "turn": turn_id,
                     "item": lifecycle,
-                    "activity": self._standing_activity(),
+                    "activity": self._running_activity(),
                 }
             self._close_opening(item)
             detail = self._item_detail(item)
@@ -711,7 +710,7 @@ class AppServerEvents:
             return {
                 "turn": turn_id,
                 "item": lifecycle,
-                **({"activity": self._standing_activity()} if detail else {}),
+                **({"activity": self._running_activity()} if detail else {}),
             }
 
         if method == "item/completed":
@@ -725,13 +724,13 @@ class AppServerEvents:
                 return {
                     "turn": turn_id,
                     "item": lifecycle,
-                    "activity": self._standing_activity(),
+                    "activity": self._running_activity(),
                     "message": self._message_update(item["id"], complete=True),
                 }
             return {
                 "turn": turn_id,
                 "item": lifecycle,
-                "activity": self._standing_activity(),
+                "activity": self._running_activity(),
             }
 
         if method == STREAM_MESSAGE_METHOD:
@@ -748,7 +747,7 @@ class AppServerEvents:
             self._set_active(item_id, {"kind": "replying"})
             return {
                 "turn": turn_id,
-                "activity": self._standing_activity(),
+                "activity": self._running_activity(),
                 "message": self._message_update(item_id, complete=False),
             }
 
@@ -758,7 +757,7 @@ class AppServerEvents:
             self.text[item_id] = combined
             activity = {"kind": "thinking", "detail": _tail(combined)}
             self._set_active(item_id, activity)
-            return {"turn": turn_id, "activity": self._standing_activity()}
+            return {"turn": turn_id, "activity": self._running_activity()}
 
         if method in STREAM_HEARTBEAT_METHODS:
             item_id = params["itemId"]
@@ -768,7 +767,7 @@ class AppServerEvents:
             return (
                 {
                     "turn": turn_id,
-                    "activity": self._standing_activity(),
+                    "activity": self._running_activity(),
                 }
                 if activity and activity["kind"] == "tool"
                 else None
@@ -780,10 +779,10 @@ class AppServerEvents:
             "item/permissions/requestApproval",
         }:
             self.waiting_kind = "awaiting_approval"
-            return {"turn": turn_id, "activity": self._standing_activity()}
+            return {"turn": turn_id, "activity": self._running_activity()}
         if method == "item/tool/requestUserInput":
             self.waiting_kind = "awaiting_input"
-            return {"turn": turn_id, "activity": self._standing_activity()}
+            return {"turn": turn_id, "activity": self._running_activity()}
 
         if method == "thread/status/changed":
             flags = params.get("status", {}).get("activeFlags", [])
@@ -793,10 +792,10 @@ class AppServerEvents:
                 self.waiting_kind = "awaiting_input"
             else:
                 self.waiting_kind = None
-            return {"turn": turn_id, "activity": self._standing_activity()}
+            return {"turn": turn_id, "activity": self._running_activity()}
         return None
 
-    def _standing_activity(self) -> dict:
+    def _running_activity(self) -> dict:
         """Return the newest observation whose provider item is still running."""
         if self.waiting_kind is not None:
             return {"kind": self.waiting_kind}
@@ -1824,7 +1823,7 @@ def retire_gone_task_records() -> None:
 
 
 def delivery_records(session_id: str) -> list[tuple[Path, DeliveryRecord]]:
-    """Every standing delivery record one task holds, oldest first, removing each
+    """Every current delivery record one task holds, oldest first, removing each
     whose pages are all gone (`delivery.pages_gone`). Every caller holds the
     task's delivery lock."""
     directory = delivery_dir(session_id)
@@ -1983,8 +1982,8 @@ def append_batch(
 
     delivered = {
         (entry["page"], event["seq"], event["id"])
-        for _, standing in delivery_records(session_id)
-        for entry in standing.batches
+        for _, held in delivery_records(session_id)
+        for entry in held.batches
         for event in entry["events"]
     }
     fresh = [
@@ -2325,15 +2324,6 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                         raise ReceiptRefused(
                             "the pending delivery no longer owns its page"
                         )
-                    path, record = pending
-                    if isinstance(record, Offering):
-                        expected = (
-                            read_delivery(path.stem).get("correction", {}).get("claim")
-                        )
-                        if expected is not None and not same_claim(claim, expected):
-                            raise ReceiptRefused(
-                                "the correction's page acquisition has ended"
-                            )
                     offered = offer_delivery(*pending, transport="app-server")
                     return offered
             transition = page.take_claim(harness)

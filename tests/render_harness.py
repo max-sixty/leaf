@@ -204,7 +204,7 @@ def stamp_page(
     page_dir: Path, html: str, text: str, *, completes: tuple[str, ...] = ()
 ) -> dict:
     """Save HTML as the next revision and stamp that exact source."""
-    order = max(files_model.revision_orders(page_dir), default=0) + 1
+    order = max(files_model.list_revisions(page_dir), default=0) + 1
     source = html.replace("</body>", f"<!-- test revision {order} -->\n</body>")
     (page_dir / "index.html").write_text(source, encoding="utf-8")
     complete_args = [arg for widget in completes for arg in ("--completes", widget)]
@@ -500,7 +500,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
     things that example ships beside itself: the media it names, external data,
     and the event log, where it has one. The log for the same reason
     `test_page_fixtures_pass_check` reads one — a page is what its markup and its
-    standing log make together, and a corpus that reads only the markup is reading
+    current log make together, and a corpus that reads only the markup is reading
     half of it. A thread and any widget a message carries exist nowhere else, so
     without this every sweep is green over a page the user never gets.
 
@@ -1100,7 +1100,7 @@ def ticked(page):
 #
 # So the press waits on the fact the page states rather than on the gesture before it
 # having painted. The line and the dispatcher ask one predicate (`live`), so no surface
-# can promise a press the dispatcher refuses — which makes the offer standing on the
+# can promise a press the dispatcher refuses — which makes the offer shown on the
 # line the page saying this press will be taken. Then the trip: the press's own send is
 # not counted at the moment it is made, and a `round_trip` that reads the counters
 # before the browser has reported the request is a wait on a page that has not started
@@ -1345,29 +1345,16 @@ def _judge_frame_watches(frame):
 
 
 def _frame_owners_drawn(frame):
-    """Read native visibility and viewport clipping across frame boundaries."""
-    ancestors = []
+    """Read current ancestor visibility across origin boundaries for the sensor."""
     ancestor = frame
     while ancestor.parent_frame is not None:
-        ancestors.append(ancestor)
-        ancestor = ancestor.parent_frame
-    # A hidden outer document cannot deliver its child's intersection observation.
-    for ancestor in reversed(ancestors):
         owner = ancestor.frame_element()
         try:
-            if not owner.evaluate("""element => {
-              if (!element.checkVisibility()) return false;
-              return new Promise(resolve => {
-                const observer = new IntersectionObserver(([entry]) => {
-                  observer.disconnect();
-                  resolve(entry.isIntersecting);
-                });
-                observer.observe(element);
-              });
-            }"""):
+            if not owner.evaluate("element => element.checkVisibility()"):
                 return False
         finally:
             owner.dispose()
+        ancestor = ancestor.parent_frame
     return True
 
 
@@ -2108,7 +2095,7 @@ def live_leaf(tmp_path, monkeypatch):
         )
         # Use the durable server's maintenance loop: the row remains canonical
         # even while no browser has visited this neighboring page.
-        url = hosting_model.start_server(d, standing=True, harness=None).url
+        url = hosting_model.start_server(d, persistent=True, harness=None).url
         served.append(d)
         return url.split("?")[0].rstrip("/"), d
 

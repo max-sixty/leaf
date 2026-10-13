@@ -92,7 +92,7 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
 
     assert preview.source_packages(source) == ["diagram"]
     assert preview.media_source(source) == media
-    watched = preview.watch_paths(source, ROOT, [], {})
+    watched = preview.watch_paths(source, ROOT, [])
     assert str(examples / "layer.json") in watched.paths
     assert str(ROOT / "uv.lock") in watched.paths
 
@@ -122,7 +122,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     assert (ROOT / "docs" / "package" / "theme.css").read_text().rstrip() in (
         page / "theme.css"
     ).read_text()
-    watched = preview.watch_paths(source, ROOT, [], {})
+    watched = preview.watch_paths(source, ROOT, [])
     assert str(ROOT / "docs" / "layer.json") in watched.paths
     # A composed part's owner is an input: a caption follows its example's edit.
     if name == "examples":
@@ -214,7 +214,6 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
         source,
         ROOT,
         layer_inputs(tuple(packages)),
-        preview.fixture_seed(source),
     )
 
     assert [
@@ -248,7 +247,7 @@ class _ScriptedChanges:
 
 
 def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_path):
-    """New modules and prior versions arrive under the existing subscription.
+    """New modules and authored companions arrive under the existing subscription.
 
     Initialization owns whether an edit changes the layer; the watcher must report
     every input that could change that reading, including a newly added module.
@@ -267,12 +266,18 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     widgets.mkdir(parents=True)
 
     def watched():
-        return preview.watch_paths(source, runtime, [layer_root], {})
+        return preview.watch_paths(source, runtime, [layer_root])
 
     initial = watched()
     subscription = initial.roots
     assert str(existing_script) in watched().paths
     assert str(source) in watched().paths
+
+    # Fictional history and data are read only while building a fresh slot.
+    for companion in (source.with_suffix(".jsonl"), source.with_suffix(".data.json")):
+        companion.write_text("{}")
+        assert not initial.relevant(str(companion))
+        assert str(companion) not in watched().paths
 
     ignored = scripts / "README.md"
     ignored.write_text("ignored", encoding="utf-8")
@@ -289,9 +294,9 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     versions = source.parent / "versions"
     versions.mkdir()
     version = versions / "page.v1.html"
-    assert initial.relevant(str(version))
+    assert not initial.relevant(str(version))
     version.write_text("version", encoding="utf-8")
-    assert str(version) in watched().paths
+    assert str(version) not in watched().paths
 
     widget = widgets / "lf-new.js"
     assert initial.relevant(str(widget))
@@ -324,7 +329,7 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
     scripts.mkdir(parents=True)
     (tmp_path / "pyproject.toml").write_text("")
     (tmp_path / "uv.lock").write_text("")
-    watched = preview.watch_paths(source, tmp_path, [], {})
+    watched = preview.watch_paths(source, tmp_path, [])
     assert pin in watched.roots
     assert tmp_path not in watched.roots
     changes = preview.watch_changes(watched)
@@ -405,7 +410,7 @@ def test_a_preview_follows_a_linked_package_wherever_its_files_resolve(tmp_path)
         (dotted, module),
         (nested, outside_module),
     ):
-        watched = preview.watch_paths(source, ROOT, [root], {})
+        watched = preview.watch_paths(source, ROOT, [root])
         assert str(followed.resolve()) in watched.paths, root
         assert all(path == path.resolve() for path in watched.roots), watched.roots
         assert [
@@ -443,7 +448,7 @@ def test_a_preview_follows_a_nearer_media_directory_when_one_appears(tmp_path):
     inherited.write_bytes(b"inherited")
 
     nearer_media = source.parent / "media"
-    before = preview.watch_paths(source, checkout, [], {})
+    before = preview.watch_paths(source, checkout, [])
     assert str(inherited) in before.paths
     # The directory that does not exist yet is watched, so its arrival is a change.
     assert str(nearer_media) in before.paths
@@ -452,7 +457,7 @@ def test_a_preview_follows_a_nearer_media_directory_when_one_appears(tmp_path):
     nearer_media.mkdir()
     nearer = nearer_media / "nearer.png"
     nearer.write_bytes(b"nearer")
-    after = preview.watch_paths(source, checkout, [], {})
+    after = preview.watch_paths(source, checkout, [])
     assert str(nearer) in after.paths
     assert str(inherited) not in after.paths
     assert after.roots == before.roots

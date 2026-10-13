@@ -60,14 +60,7 @@ def _clock_until_ready(page, through="rendering"):
 
 
 def _history_outstanding(page):
-    """Local interaction finishes while history is still loading, before its deadline."""
-    assert (
-        page.evaluate("""async () => {
-      const {runtime} = await __lfRuntimeImport('/runtime/context.js');
-      return runtime.statePhase;
-    }""")
-        == "waiting"
-    )
+    """Offline presentation does not supply the held authoritative log."""
     assert (
         page.evaluate(
             "() => document.querySelector('script[data-lf-entry]').lfReadiness(null, 'log')"
@@ -315,7 +308,7 @@ COLD_ASK = leaf_page(
 def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     browser, serve, key
 ):
-    """Ask walking, Decisions, and Undo wait for their own standing history."""
+    """Ask walking, Decisions, and Undo wait for their own saved history."""
     url = serve(COLD_ASK)
     if key != "m":
         append_command(

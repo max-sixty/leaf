@@ -54,12 +54,9 @@ template in markup gives the user a live practice page in the thread
 leaf response reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
 ```
 
-Thread markup is frozen with the revision in which it was posted. Its widgets keep
-that revision's declarations, behavior and package styles wherever the discussion
-appears, including on a historical page. Markup is checked as it
-is posted but not drawn, so a data widget, such as a chart, whose body does not draw
-reaches you as an `error` event when the user opens its thread; answer with a corrected
-reply.
+Markup is checked as it is posted but not drawn, so a data widget, such as a chart,
+whose body does not draw reaches you as an `error` event when the user opens its
+thread; answer with a corrected reply.
 
 The thread panel is a narrow column over the right of the page, so a paragraph that
 reads fine in chat is a wall there. A reply says what changed or where to look: a sentence or
@@ -158,8 +155,7 @@ version** and a later reply may still move it to a replacement.
 
 An answer says what it leaves the thread with, one of three:
 
-- `--done`: it delivers what the message asked for. Its prose adds no question or
-  promise; widgets in its markup still declare their own asks.
+- `--done`: it delivers what the message asked for.
 - `--ask`: its prose asks the user something back. The reply is then an ask
   under `reply:<message-id>` in `page state`'s `asks` collection, until they
   answer in the thread or you end it
@@ -172,6 +168,10 @@ An answer says what it leaves the thread with, one of three:
 leaf response reply <answer.ref> --ask --text "Which store should own it?"
 leaf response reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
 ```
+
+The user sees the declaration on the answer itself: its head reads **Waiting on me** while
+its prose ask is theirs to answer, and **To-do open** until you end the to-do. A
+promise declared `--done` reads as finished work, so declare what each answer leaves.
 
 To add an agent-initiated turn to a thread that currently owes no reply, use
 `leaf thread reply <page> <message-id>`. This proactive command takes the same
@@ -190,12 +190,17 @@ leaf response reply <answer.ref> --ephemeral --text "Checking the keyboard route
 
 This posts progress without answering the update. Progress on an update you owe also
 takes that update in hand, as `leaf task start` does, with the progress text as its
-**Working** line beside the thread and in the banner, so it is one line.
+**Working** line in the banner and at the foot of the thread, so it is one line.
 [Conversation loop](conversation-loop.md#when-to-write), "When to write", makes
 the first one your first command after a delivery. A proactive progress message
-names a thread with no response due. When your next ordinary reply in the thread
-arrives, the progress messages before it fold behind a disclosure beside it, where
-the user can still expand them.
+names a thread with no response due.
+
+Until an answer comes, the thread draws progress as one dim working message above its
+reply box, never as a reply, and progress never counts as unread; each new progress
+message replaces its words. When your next ordinary reply in the thread arrives, it
+takes the working message's place and the progress messages before it fold behind a
+disclosure beside it, where the user can still expand them. So the user reads
+progress as status and only your replies as words addressed to them.
 
 A progress message is progress text, so it cannot carry `--ask`, `--todo`,
 markup, failure or an anchor move. Put questions and results in ordinary replies.

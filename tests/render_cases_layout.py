@@ -103,10 +103,10 @@ def arrival_findings(browser, url):
     write and cannot fix.
 
     What it reads: a fresh context holds nothing, so every other reading in the suite
-    is of a first visit — the thread panel shut, no drawer standing, design mode off —
+    is of a first visit — the thread panel shut, no drawer open, design mode off —
     and each of those is something a user turns on once and gets back on every load
     afterwards. That left the restores as the one road onto a page with nothing
-    watching it, and a drawer someone had left standing came up as a ReferenceError
+    watching it, and a drawer someone had left open came up as a ReferenceError
     instead of a page: it was put up by code running while the runtime was still
     evaluating, which could reach almost nothing. It reached the user, who reported
     it.
@@ -505,7 +505,7 @@ DRAWING_CONTROL_LAYER = {
 DRAWING_CONTROL_WIDGETS = {
     "lf-test-drawing-control.js": """
 import { once, offer } from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-test-drawing-control', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const control = offer('button', 'drawing-control', 'Inspect');
@@ -513,7 +513,7 @@ export default class extends HTMLElement {
     control.style.width = '100%';
     this.append(control);
   }
-};
+});
 """
 }
 # A scroller the page wrote and did not position, beside one it did. The commented

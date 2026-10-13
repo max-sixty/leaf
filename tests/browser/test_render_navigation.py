@@ -297,7 +297,7 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     browser, serve
 ):
     """A click on words focuses nothing, and Chrome then starts Space, PageDown and the
-    arrows from the node last pressed. A standing `tabindex` on body made the body the
+    arrows from the node last pressed. A permanent `tabindex` on body made the body the
     focusable ancestor of every word, so the click focused it and those keys scrolled the
     root, which a full-height workspace keeps still: both panes stayed at 0. Leaf's own `d` and
     `j` read only focus and did the same."""
@@ -767,9 +767,7 @@ def test_a_wheel_in_a_box_is_no_choice_of_the_page_around_it(
     )
     before = page.evaluate("document.scrollingElement.scrollTop")
     page.evaluate("document.getElementById('room').style.height = '0px'")
-    page.wait_for_function(
-        f"document.scrollingElement.scrollTop < {before}", timeout=5000
-    )
+    page.wait_for_function(f"document.scrollingElement.scrollTop < {before}")
     scroll_settled(page)
     rendered(page)
     resized(page, 390, 800)
@@ -1707,7 +1705,13 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
         if view == "progress":
             card = frame.locator(f'.lf-thread[data-id="{thread}"]')
-            checkpoint = card.locator(".lf-thread-checkpoint")
+            # The answered checks' fold; the later check still stands as the line.
+            checkpoint = card.locator(
+                '.lf-thread-checkpoint[data-summary-id^="ephemeral:"]'
+            )
+            expect(card.locator(".lf-thread-working-words")).to_have_text(
+                "Checking whether the room stays free after five"
+            )
             expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
             expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
             earlier = checkpoint.locator(".lf-summary-originals")
@@ -1729,6 +1733,13 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
             expect(
                 card.locator(".lf-thread-transcript > .lf-msg").last
             ).to_contain_text("The workshop fits, including a fifteen-minute break.")
+            later = card.get_by_text(
+                "Checking whether the room stays free after five.", exact=True
+            )
+            expect(later).to_be_hidden()
+            expect(
+                card.locator(".lf-thread-working").get_by_role("button")
+            ).to_have_count(0)
 
     page.locator('#bg-panel-presets [data-view="you"]').click()
     expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(2)
@@ -2287,14 +2298,14 @@ def test_the_thread_walk_starts_at_a_fresh_fragment_reading(browser, serve, shad
         layer_widgets = {
             "lf-shadow-reading.js": """
 import { once } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
+customElements.define("lf-shadow-reading", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const paragraph = document.createElement("p");
     paragraph.textContent = this.textContent.trim();
     this.attachShadow({mode: "open"}).append(paragraph);
   }
-};
+});
 """
         }
     url = serve(
@@ -5108,7 +5119,7 @@ def test_what_the_user_put_on_after_the_panel_comes_off_before_it(browser, serve
 
     # That narrowing is still on the list when the panel comes back, and it is a layer
     # of the panel whoever put it there: the way out is read off what stands rather than
-    # off which press left it standing, so it comes off first and the panel follows.
+    # off which press left it open, so it comes off first and the panel follows.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
@@ -6524,7 +6535,7 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
           const targetTop = () =>
             document.querySelector('#' + code).getBoundingClientRect().top;
           const before = {chip: chipTop(), target: targetTop()};
-          const standing = [];
+          const moving = [];
           // Keep this target above the viewport's top clamp throughout the sweep.
           document.scrollingElement.scrollTo({top: 180, behavior: 'smooth'});
           for (let frame = 0; frame < 8; frame++) {
@@ -6535,22 +6546,22 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
             await new Promise(painted =>
               requestAnimationFrame(() => setTimeout(painted, 0)));
             if (frame >= 3)
-              standing.push({
+              moving.push({
                 chips: document.querySelectorAll(sel).length,
                 gap: chipTop() === null ? null : targetTop() - chipTop(),
                 scroll: document.scrollingElement.scrollTop,
               });
           }
-          return {before, standing};
+          return {before, moving};
         }"""
     )
 
     assert travel["before"]["chip"] is not None, travel
-    blank = [seen for seen in travel["standing"] if not seen["chips"]]
+    blank = [seen for seen in travel["moving"] if not seen["chips"]]
     assert not blank, f"the map blanked while the page was still moving: {travel}"
     # The chip keeps the offset it had at rest, to the pixel, every frame of the way.
     resting = travel["before"]["target"] - travel["before"]["chip"]
-    assert all(abs(seen["gap"] - resting) < 2 for seen in travel["standing"]), (
+    assert all(abs(seen["gap"] - resting) < 2 for seen in travel["moving"]), (
         f"a chip came off the target it names while the page moved: {travel}"
     )
 
@@ -6768,10 +6779,10 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
     # bar is where the page's own scene is all of it.
     page.keyboard.press("?")
     rendered(page)
-    standing = page.evaluate(KEY_LINE_HINTS)
+    at_rest = page.evaluate(KEY_LINE_HINTS)
     assert {"comment.create", "thread.next thread.previous"} <= {
-        hint["commands"] for hint in standing
-    }, f"the line no longer offers both the comments and the thread walk: {standing}"
+        hint["commands"] for hint in at_rest
+    }, f"the line no longer offers both the comments and the thread walk: {at_rest}"
 
     # Neither door out takes the line: the return frame and the menu's own close both
     # decline promotion, so the shortlist is the walk beside exact numbered travel.
@@ -6783,7 +6794,7 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
         hint["commands"] for hint in versions
     }, f"the versions menu no longer offers its two unfamiliar actions: {versions}"
 
-    for scene, hints in (("the page", standing), ("the versions menu", versions)):
+    for scene, hints in (("the page", at_rest), ("the versions menu", versions)):
         said = {}
         for hint in hints:
             said.setdefault(hint["word"], []).append(hint["commands"])
@@ -8344,7 +8355,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     # The line is one of two surfaces naming this row's keys, and the other is read by
     # somebody who cannot see the first. A row whose bindings answer from its own state
     # has to repaint both when the state moves, and only the line had a watch: the
-    # attribute kept whichever way the row was standing when the scope was declared, so
+    # attribute kept whichever way the row was set when the scope was declared, so
     # it went on promising the arrow that no longer moves this section and withholding
     # the one that does.
     #
@@ -8364,7 +8375,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     # is a second document beside the version, and the arrows are the page's. A diff,
     # because what is being asked is what a widget's own row names — a widget re-wording
     # this press reads its bindings from DISCLOSE, which answers for where the element
-    # stands as well as which way it is standing, so the row cannot offer a key that
+    # stands as well as which way it is set, so the row cannot offer a key that
     # nothing there runs. The platform's pair still works it, so what differs is the
     # offer rather than the capability.
     append_carried_log_record(
@@ -8462,7 +8473,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
     rendered(page)
     version_hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
     # The phone-width line has room for the scope's first hint only; its presence is what
-    # says the covering surface left the versions scope standing.
+    # says the covering surface left the versions scope in place.
     assert "version.later version.earlier" in version_hints, (
         f"the covering auxiliary surface displaced the versions scope: {version_hints}"
     )
@@ -8629,7 +8640,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
     line = page.locator(".lf-shortcut-bar")
 
-    # Page scope: the standing verbs, thread rows only over threads, and no esc
+    # Page scope: the permanent verbs, thread rows only over threads, and no esc
     # chip — there is nothing to back out of.
     expect(line).to_contain_text("threads")
     expect(line).to_contain_text("more")
@@ -8886,7 +8897,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     wait_for_revision(page, 2)
     # Narrowing is interaction-local heap state, and nothing executable changed, so the
     # user keeps this document and the Resolved narrowing they chose stands in it.
-    # The status narrowing is a group of toggles, so the standing member wears its own
+    # The status narrowing is a group of toggles, so the active member wears its own
     # pressed state.
     expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
         "aria-pressed", "true"
@@ -9061,7 +9072,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     expect(popover).to_be_hidden()
 
     # Reopened over the same modal, so the stack order below is read on the scene that
-    # rule describes rather than on what the reference left standing.
+    # rule describes rather than on what the reference left behind.
     page.locator("#nested-modal button").click()
     expect(popover).to_be_visible()
 
@@ -9241,10 +9252,10 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             }
             const declared = button.getAttribute('aria-keyshortcuts');
             const first = await painted(button);
-            const standing = Boolean(elementScopes.get(button));
+            const registered = Boolean(elementScopes.get(button));
             const second = await painted(button);
             button.remove();
-            return {declaration, declared, first, standing, second};
+            return {declaration, declared, first, registered, second};
           };
           const atTheFrame = async (id, rows) => {
             const button = document.createElement('button');
@@ -9268,10 +9279,10 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             commands(button, id, second);
             await settled();
             const framed = button.getAttribute('aria-keyshortcuts');
-            const standing = Boolean(
+            const registered = Boolean(
               (await window.__lfRuntimeImport('/runtime/keyboard/scopes.js')).elementScopes.get(button));
             button.remove();
-            return {framed, standing};
+            return {framed, registered};
           };
           return {
             ambiguous: await firstPaint('ambiguous', [
@@ -9391,7 +9402,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             "declaration": "declared",
             "declared": None,
             "first": None,
-            "standing": False,
+            "registered": False,
             "second": None,
         }, answers
     refusals = consume_browser_errors(page, "two live meanings for")
@@ -9403,7 +9414,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
         "declaration": "declared",
         "declared": None,
         "first": "F2",
-        "standing": True,
+        "registered": True,
         "second": "F2",
     }, answers
     assert "not a stable command id" in answers["missingIdentity"], answers
@@ -9434,7 +9445,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     assert answers["atFrame"] == {"declared": None, "framed": "F7"}, answers
     # The superseded declaration is owed no reading: read at the frame, its refusal
     # would have retracted the one that replaced it.
-    assert answers["redeclared"] == {"framed": "F9", "standing": True}, answers
+    assert answers["redeclared"] == {"framed": "F9", "registered": True}, answers
 
     # Help merges instances with the same title for presentation. Repeated keys there
     # belong to separate focus locations, so they are not a conflict in either scope.
@@ -10837,7 +10848,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(visible_hints.nth(1)).to_contain_text("back to thread")
 
     # The line shows only what works from where the user is. This text box owns `?`, so
-    # More stands down with its key rather than standing bare; it returns, key and all,
+    # More stands down with its key rather than showing bare; it returns, key and all,
     # when the user steps back out to the thread it was replying in.
     more_node = page.locator(".lf-shortcut-more")
     more_node.evaluate("button => window.__lfShortcutMore = button")
@@ -11091,7 +11102,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
               };
             }"""
     )
-    # A touch screen draws no band, so the standing status overlays the page like a
+    # A touch screen draws no band, so the fixed status overlays the page like a
     # passing notice: showing it changes nothing about where the page ends, and the
     # whole chip stands inside the window, clear of its foot.
     assert active_room["height"] > 0, active_room
@@ -11205,7 +11216,7 @@ def test_the_key_line_stands_in_the_bottom_bar(browser, serve):
         f"the covering sheet moved the viewport-fixed line: {ended}, {covered}"
     )
     assert covered["reserved"] == pytest.approx(covered["footprint"], abs=1), (
-        f"the document lost the band's standing reservation: {covered}"
+        f"the document lost the band's fixed reservation: {covered}"
     )
     page.keyboard.press("Escape")
 
@@ -11538,7 +11549,7 @@ def test_an_asks_pick_stays_a_place_to_stand_after_the_answer(browser, serve):
 
 
 def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
-    """A scope claims the keys it uses and leaves the rest standing. This one used to
+    """A scope claims the keys it uses and leaves the rest in place. This one used to
     claim the lot: the typing scope stood wherever focus was in a form control, on the
     reading that a letter is a keystroke there — true of a text box, false of a radio, a
     checkbox and a slider, none of which the platform ever hands a letter. So a user
@@ -12649,11 +12660,6 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
             "files": [
                 {
                     "path": "app.py",
-                    "operation": "modify",
-                    "hunkCount": 1,
-                    "binary": False,
-                    "additions": 1,
-                    "deletions": 1,
                     "patch": patch.replace("amber", "violet"),
                 }
             ]
@@ -13207,15 +13213,15 @@ KEYBOARD_REGISTER = """async () => {
         ...[...scopeRefs].map((ref) => ref.deref())
             .filter((node) => node?.isConnected).flatMap(scopesAt),
     ];
-    const standing = stack();
-    const filtered = new Set([...standing, ...scopes.filter(
+    const open = stack();
+    const filtered = new Set([...open, ...scopes.filter(
         (scope) => has(scope) && scope.liveInCommandReference)].map(scopeIdentity));
     const runs = running(), runsAny = running({commands: true});
     const elsewhere = new Set(declared(scopes.filter(
         (scope) => has(scope) && !filtered.has(scopeIdentity(scope))
     ).flatMap((scope) => scope.rows)));
     const present = new Set(declared(scopes.filter(has).flatMap((scope) => scope.rows)));
-    const dead = declared([...standing, ...scopes].filter(
+    const dead = declared([...open, ...scopes].filter(
         (scope) => filtered.has(scopeIdentity(scope))
     ).flatMap((scope) => scope.rows).filter((row) =>
         !(row.commandReferenceWhen ? row.commandReferenceWhen() : live(row))));
@@ -14350,7 +14356,7 @@ def test_the_reference_hands_the_user_back_to_the_page_they_were_reading(
         f"{reading:.0f}px"
     )
     # And nothing of the borrow is left on the author's paragraph: `tabindex` is not in
-    # PAGE_PAINT_ATTRIBUTES, so a stop left standing would be runtime paint the replay
+    # PAGE_PAINT_ATTRIBUTES, so a stop left in place would be runtime paint the replay
     # signature has no vocabulary for.
     assert (
         page.evaluate("() => document.querySelectorAll('main [tabindex]').length") == 0
@@ -14390,14 +14396,13 @@ ASK_THREAD_PAGE = leaf_page(
 )
 
 
-# Each route once, at both widths between them.
-@pytest.mark.parametrize(
-    ("route", "width"), [("comment", 390), ("thread", 1200), ("marker", 390)]
-)
-def test_ask_work_keeps_its_discussion_closed_until_requested(
-    browser, serve, width, route
+@pytest.mark.parametrize("width", [390, 1200])
+def test_walking_to_an_ask_shows_its_discussion_clear_of_its_choices(
+    browser, serve, width
 ):
-    """An Ask arrival leaves its choices clear; explicit routes retain discussion identity."""
+    """`q` lands on a tall Ask and its thread comes up in the card, which stands clear
+    of the Ask's choices at either width, so a digit still answers and `c` continues
+    the thread rather than starting another."""
     source = ASK_THREAD_PAGE.replace(
         "<h2>Which cache should we keep?</h2>",
         "<h2>Which cache should we keep?</h2>"
@@ -14411,28 +14416,30 @@ def test_ask_work_keeps_its_discussion_closed_until_requested(
     page.set_viewport_size({"width": width, "height": 900})
     page.keyboard.press("m")
     expect(page.locator("#cache-ask")).to_be_focused()
-    rendered(page)
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    page.keyboard.press("1")
-    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
-    if route == "comment":
-        page.keyboard.press("c")
-    elif route == "thread":
-        page.keyboard.press("t")
-    else:
-        page.locator(
-            '[data-lf-margin-for="cache-ask"] .lf-margin-marker[data-lf-kinds~="comment"]'
-        ).click()
     thread = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
     expect(thread).to_be_visible()
-    if route == "comment":
-        expect(thread.locator("leaf-text")).to_be_focused()
-        expect(page.locator(".lf-fab-input")).to_be_hidden()
+    rendered(page)
+    card = page.locator(".lf-margin-preview").bounding_box()
+    for option in page.locator("#cache-ask lf-option").all():
+        box = option.bounding_box()
+        assert (
+            box["x"] >= card["x"] + card["width"]
+            or card["x"] >= box["x"] + box["width"]
+            or box["y"] >= card["y"] + card["height"]
+            or card["y"] >= box["y"] + box["height"]
+        ), (card, box)
+    page.keyboard.press("1")
+    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    page.keyboard.press("c")
+    expect(thread.locator("leaf-text")).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_be_hidden()
 
 
 @pytest.mark.parametrize("family", ["decision", "suggestion"])
-def test_ask_controls_do_not_automatically_open_discussion(browser, serve, family):
-    """Working an Ask retains its surface; passive passage arrival still accompanies."""
+def test_walking_to_an_ask_opens_its_discussion(browser, serve, family):
+    """`q` selects an Ask and its thread comes up beside it, as at any target the user
+    stands at, taking over from the passage's card. Working the Ask's controls keeps it
+    there, and `c` continues it."""
     if family == "decision":
         ask = '<lf-ask id="work"><h2>Keep the plan?</h2><lf-options id="decision" choose><lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option></lf-options></lf-ask>'
     else:
@@ -14449,15 +14456,15 @@ def test_ask_controls_do_not_automatically_open_discussion(browser, serve, famil
         serve.page_dir, "Please compare the alternatives.", {"section": "work"}
     )
     page = open_page(browser, url)
+    card = page.locator(".lf-margin-preview")
+    discussion = card.locator(f'.lf-page-thread[data-thread="{root}"]')
     page.keyboard.press("Shift")
     page.locator("#passage").focus()
-    expect(
-        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{passive}"]')
-    ).to_be_visible()
+    expect(card.locator(f'.lf-page-thread[data-thread="{passive}"]')).to_be_visible()
     page.keyboard.press("m")
     expect(page.locator("#work")).to_be_focused()
-    rendered(page)
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    expect(discussion).to_be_visible()
+    expect(card.locator(f'.lf-page-thread[data-thread="{passive}"]')).to_have_count(0)
     if family == "decision":
         page.keyboard.press("Tab")
     else:
@@ -14469,32 +14476,13 @@ def test_ask_controls_do_not_automatically_open_discussion(browser, serve, famil
         == "work"
     )
     rendered(page)
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    expect(discussion).to_be_visible()
     page.keyboard.press("c")
-    reply = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-thread="{root}"] leaf-text'
-    )
-    expect(reply).to_be_focused()
-    control = (
-        page.locator("#yes lf-option-control")
-        if family == "decision"
-        else suggestion_control(page, "work", "accept")
-    )
-    control.focus()
-    expect(control).to_be_focused()
-    assert (
-        page.evaluate(
-            'async () => (await window.__lfRuntimeImport("/runtime/standing-target.js")).heldAsk()?.id'
-        )
-        == "work"
-    )
-    # A deliberately opened discussion stays while the keyboard returns to its Ask.
-    rendered(page)
-    expect(page.locator(".lf-margin-preview")).to_be_visible()
+    expect(discussion.locator("leaf-text")).to_be_focused()
 
 
 def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
-    """An Ask and its deliberately opened thread are one place held from two sides
+    """An Ask and the thread its card shows are one place held from two sides
     (glossary, Standing target). From the Ask, `c` continues that thread and `t` steps
     on past it; from its thread, in the card or in the Threads list, the Ask keeps its
     ring and its digits. A thread about an enclosing block is that block's, so an Ask
@@ -14519,12 +14507,11 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     ask = page.locator("#cache-ask")
     ask_thread = card.locator(f'.lf-page-thread[data-thread="{about_ask}"]')
 
-    # Ask work keeps the decision clear. Comment deliberately opens its existing
-    # discussion, preserving the subject without needing an already visible card.
+    # `m` lands on the Ask and its thread comes up in the card beside it, which `c`
+    # continues rather than starting a second one.
     page.keyboard.press("m")
     expect(ask).to_be_focused()
-    rendered(page)
-    expect(card).to_be_hidden()
+    expect(ask_thread).to_be_visible()
     expect(line).to_contain_text("comment on the thread")
     page.keyboard.press("c")
     expect(ask_thread.locator("leaf-text")).to_be_focused()
@@ -14544,13 +14531,13 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     expect(ask).to_have_attribute("data-lf-ask", "1")
     expect(line).to_contain_text("Keep the disk cache")
 
-    # Working the nested Ask leaves its enclosing task's discussion closed.
+    # The nested Ask's card shows its task's thread, which is about the task, so `c`
+    # still starts the Ask a thread of its own.
     page.keyboard.press("m")
     expect(page.locator("#ship-ask")).to_be_focused()
     page.keyboard.press("m")
     expect(page.locator("#retry-ask")).to_be_focused()
-    rendered(page)
-    expect(card).to_be_hidden()
+    expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_visible()
     expect(line).to_contain_text("comment on the question")
     page.keyboard.press("Escape")
 

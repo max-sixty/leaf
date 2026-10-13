@@ -45,7 +45,6 @@ from interact_support import (
     fresh_process,
     lock_contention,
     model_layer,
-    page_state,
     publish,
     read_page_data,
     refused_on,
@@ -60,7 +59,6 @@ from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
-from leaf import event_meaning as event_meaning_model
 from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import page_memory as page_memory_model
@@ -83,7 +81,6 @@ from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
-from leaf.served_state.service import LivePage
 from leaf.validation import composition as validation_model
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
@@ -285,9 +282,12 @@ def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch)
     assert synced, "a page's own revision is made durable"
 
     synced.clear()
-    inputs = LivePage(page_dir).sample_inputs(parent.revision)
+    artifact = artifact_model.read_artifact(page_dir, parent.revision)
+    document = artifact_model.read_revision(page_dir, parent.revision).document
     samples = samples_model.Samples()
-    identity = samples.create(page_dir, inputs, "practice", None, None)
+    identity = samples.create(
+        page_dir, artifact, document, [], {"sources": {}}, "practice", None, None
+    )
     try:
         child = samples.pages[identity].directory
         assert files_model.latest_revision(child) == 1
@@ -437,224 +437,6 @@ def test_artifact_read_refuses_a_replaced_immutable_manifest(page_dir):
 
     with pytest.raises(artifact_model.ArtifactError, match="manifest digest"):
         artifact_model.read_artifact(page_dir, revision)
-
-
-@pytest.mark.parametrize("manifest", [None, "{", "shared_modules", "widgets"])
-def test_revision_inventory_ignores_incomplete_capture_records(page_dir, manifest):
-    """Stale captures are absent; current publication and numeric order still work."""
-    first = revisioning_model.activate_source(page_dir)
-    assert first.error is None and first.revision == 1
-    marker = files_model.revision_path(page_dir, 1)
-    old = marker.parent / "r9-0123456789abcdef"
-    shutil.copytree(marker.with_suffix(""), old)
-    metadata = old / "manifest.json"
-    if manifest is None:
-        metadata.unlink()
-    elif manifest == "{":
-        metadata.write_text(manifest)
-    else:
-        record = json.loads(metadata.read_bytes())
-        if manifest == "shared_modules":
-            # The previous graph omitted lazy layer libraries. It is an obsolete
-            # contract even though its manifest contains the earlier graph field.
-            record["runtime_modules"] = record.pop(manifest)
-        else:
-            del record[manifest]
-        metadata.write_text(json.dumps(record))
-    old.with_suffix(".html").write_bytes(marker.read_bytes())
-
-    assert files_model.list_revisions(page_dir) == [1]
-    with pytest.raises(Refused, match="no revision r9"):
-        files_model.revision_path(page_dir, 9)
-    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Next plan"))
-    current = revisioning_model.activate_source(page_dir)
-    assert current.error is None and current.revision == 10
-    assert artifact_model.read_artifact(page_dir, 10).shared_modules
-    assert files_model.list_revisions(page_dir) == [1, 10]
-
-
-def test_obsolete_capture_identities_are_never_rebound_to_new_publications(page_dir):
-    """A fresh stamp cannot inherit the decisions or version of an obsolete capture."""
-    first = stamp(page_dir, "Original publication")
-    assert first.exit_code == 0, first.output
-    marker = files_model.revision_path(page_dir, 1)
-    artifact = artifact_model.read_artifact(page_dir, 1)
-    metadata = marker.with_suffix("") / "manifest.json"
-    manifest = json.loads(metadata.read_bytes())
-    del manifest["shared_modules"]
-    metadata.write_text(json.dumps(manifest))
-    original = events_model.read_events(page_dir)
-    assert original[-1]["revision"] == 1 and original[-1]["publication"]
-
-    with fresh_process():
-        assert files_model.list_revisions(page_dir) == []
-        assert files_model.revision_orders(page_dir) == (1,)
-        assert files_model.unfinished_publications(page_dir, original) == []
-        with pytest.raises(artifact_model.ArtifactError, match="r1 already exists"):
-            artifact_model.stage_artifact(page_dir, 1, artifact)
-        (page_dir / "index.html").write_text(PAGE.replace("Plan", "New publication"))
-        current = stamp(page_dir, "Current publication")
-        assert current.exit_code == 0, current.output
-        assert files_model.list_revisions(page_dir) == [2]
-        assert artifact_model.read_artifact(page_dir, 2).shared_modules
-        events = events_model.read_events(page_dir)
-        assert events[: len(original)] == original
-        assert events[-1]["revision"] == 2 and events[-1]["version"] == 2
-
-
-def test_obsolete_capture_with_frozen_reply_is_absent_from_page_state(page_dir):
-    """An unavailable publication drops its frozen widget island, not its prose."""
-    assert revisioning_model.activate_source(page_dir).revision == 1
-    parent = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "text": "Choose."},
-    )
-    reply = thread_model.post_reply(
-        page_dir,
-        {"to": parent["id"], "for": parent["id"]},
-        "The captured choice is here.",
-        '<lf-options id="frozen-options" choose>'
-        '<lf-option id="frozen-option">Keep</lf-option></lf-options>',
-    )
-    marker = files_model.revision_path(page_dir, 1)
-    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Updated plan"))
-    assert revisioning_model.activate_source(page_dir).revision == 2
-    marker.unlink()
-    assert files_model.list_revisions(page_dir) == [2]
-    current_parent = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 2,
-            "text": "Keep the current capture.",
-        },
-    )
-    current = thread_model.post_reply(
-        page_dir,
-        {"to": current_parent["id"], "for": current_parent["id"]},
-        "This capture is still available.",
-        '<lf-code id="current-capture" language="python"><pre>2</pre></lf-code>',
-    )
-
-    with fresh_process():
-        state = page_state(page_dir)
-        browser = state["browser"]
-
-    threads = {
-        thread["id"]: thread
-        for thread in browser["views"][str(state["active"]["revision"])]["thread"][
-            "threads"
-        ]
-    }
-    obsolete = threads[parent["id"]]
-    assert [message["text"] for message in obsolete["msgs"]] == [
-        "Choose.",
-        "The captured choice is here.",
-    ]
-    assert "markup" not in obsolete["msgs"][1]
-    assert "markup" not in next(
-        event for event in state["events"] if event["id"] == reply["id"]
-    )
-    current_thread = threads[current_parent["id"]]
-    current_message = next(
-        message for message in current_thread["msgs"] if message["id"] == current["id"]
-    )
-    assert current_message["markup"] == current["markup"]
-    readings = data_contracts_model.page_data_document_readings(
-        page_dir, events_model.read_events(page_dir), {}
-    )
-    assert [
-        label for _elements, label, _registry in readings if label.startswith("event ")
-    ] == [f"event {current['id']!r} markup"]
-    (page_dir / "index.html").write_text(
-        PAGE.replace("</main>", '<p id="frozen-options">Reused id.</p></main>')
-    )
-    refused = check(page_dir)
-    assert refused.exit_code != 0
-    assert 'ids already taken by message markup: ["frozen-options"]' in refused.output
-
-
-def test_unavailable_capture_id_stays_reserved_in_selected_sample_threads(page_dir):
-    """A carried answer cannot settle a child widget reusing its retired owner id."""
-    (page_dir / "index.html").write_text(PAGE)
-    assert revisioning_model.activate_source(page_dir).revision == 1
-    parent = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Can we use this proposal?",
-        },
-    )
-    thread_model.post_reply(
-        page_dir,
-        {"to": parent["id"], "for": parent["id"]},
-        "Here is the proposal.",
-        '<lf-ask id="proposal-ask"><h3>Choose this proposal</h3>'
-        '<lf-options id="sug-reserved" choose multiple>'
-        '<lf-option id="proposal-copy">Keep this.</lf-option>'
-        "</lf-options></lf-ask>",
-    )
-    registry = require_registry(page_dir)
-    answer = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "sug-reserved",
-            "action": "choose",
-            "detail": {"value": ["proposal-copy"]},
-            "meaning": {
-                **event_meaning_model.state_meaning(
-                    {
-                        "widget": "sug-reserved",
-                        "action": "choose",
-                        "detail": {"value": ["proposal-copy"]},
-                    },
-                    registry["lf-options"],
-                    "thread",
-                    "lf-options",
-                ),
-                "answer": parent["id"],
-            },
-        },
-    )
-    assert answer["meaning"]["answer"] == parent["id"]
-    marker = files_model.revision_path(page_dir, 1)
-    marker.unlink()
-    assert files_model.list_revisions(page_dir) == []
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "</main>",
-            f'<template id="practice" data-sample data-sample-threads="{parent["id"]}">'
-            '<lf-ask id="child-ask"><h3>Choose</h3>'
-            '<lf-options id="sug-reserved" choose multiple>'
-            '<lf-option id="child-proposal">A new proposal.</lf-option>'
-            "</lf-options></lf-ask></template></main>",
-        )
-    )
-
-    refused = check(page_dir)
-
-    assert refused.exit_code != 0
-    assert (
-        "sample 'practice': ids already taken by message markup: [\"sug-reserved\"]"
-        in refused.output
-    )
-
-
-def test_revision_inventory_retains_duplicate_current_capture_refusal(page_dir):
-    """Ignoring old formats does not choose between two complete current markers."""
-    revisioning_model.activate_source(page_dir)
-    marker = files_model.revision_path(page_dir, 1)
-    duplicate = marker.parent / "r1-0123456789abcdef"
-    shutil.copytree(marker.with_suffix(""), duplicate)
-    duplicate.with_suffix(".html").write_bytes(marker.read_bytes())
-    with pytest.raises(Refused, match="same order"):
-        files_model.list_revisions(page_dir)
 
 
 def test_artifact_cache_holds_a_bundle_by_its_content_addressed_path(page_dir):
@@ -1032,7 +814,7 @@ def test_rank_rules_match_the_browser_cases():
 )
 def test_the_position_fold_matches_the_browser_cases(case):
     """`tests/runtime/board-order.test.mjs` folds the same authored containers and
-    standing moves through `foldWidgetStates`, so the two runtimes leave every
+    moves in force through `foldWidgetStates`, so the two runtimes leave every
     container in one order."""
     registry = model_layer()
     columns = "".join(
@@ -1070,7 +852,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
         report_settlements={},
         classified={},
         absorbed=frozenset(),
-        standing=frozenset(),
+        in_force=frozenset(),
     )
     order = projection_model.folded_positions(
         "board",
@@ -1184,7 +966,7 @@ def test_page_init_reports_malformed_current_source_after_revendoring(page_dir):
 
 
 def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
-    """`page state` names the active revision's HTML and lists every standing move
+    """`page state` names the active revision's HTML and lists every move in force
     over it with the words, choice or place it carries, so a successor reads the page
     as the user sees it without a second copy of the document."""
     markup = PAGE.replace(
@@ -1778,7 +1560,18 @@ def test_response_addresses_one_obligation_and_activates_the_current_source(page
     assert reply["responds"] == "c1"
 
 
-def test_reply_refuses_an_invalid_current_source(page_dir):
+@pytest.mark.parametrize("invalid", ["html", "dependency"])
+def test_reply_refuses_an_invalid_current_source(page_dir, invalid):
+    """Explicit source validation covers dependency edits and leaves the answer owed."""
+    source = PAGE.replace(
+        "</head>", '<script type="module" src="/page/app.js"></script></head>'
+    )
+    script = page_dir / "page" / "app.js"
+    script.parent.mkdir(exist_ok=True)
+    script.write_text("export const value = 1;")
+    (page_dir / "index.html").write_text(source)
+    initial = revisioning_model.activate_source(page_dir)
+    assert initial.error is None and initial.revision == 1
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
@@ -1792,7 +1585,13 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
             session=claim["id"],
             turn=claim["turn"],
         )
-    (page_dir / "index.html").write_text("<main>unfinished")
+    if invalid == "html":
+        (page_dir / "index.html").write_text("<main>unfinished")
+    else:
+        script.write_text('import "./missing.js";')
+    reference = response_reference(page_dir, "c1")
+    before = events_model.read_events(page_dir)
+    revisions = files_model.list_revisions(page_dir)
 
     result = CliRunner().invoke(
         cli_model.cli,
@@ -1800,7 +1599,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
             "response",
             "reply",
             "--done",
-            response_reference(page_dir, "c1"),
+            reference,
             "--text",
             "Updated.",
             "--json",
@@ -1809,9 +1608,9 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
 
     assert result.exit_code != 0
     assert refused_on(result.stdout).values["operation"] == "reply"
-    assert not any(
-        event["kind"] == "reply" for event in events_model.read_events(page_dir)
-    )
+    assert events_model.read_events(page_dir) == before
+    assert files_model.list_revisions(page_dir) == revisions
+    assert "c1" in delivery_model.current_responses(page_dir, before)
 
 
 def test_response_reference_selects_one_of_several_obligations(page_dir):
@@ -1826,7 +1625,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
                     "kind": "comment",
                     "id": event_id,
                     "author": "user",
-                    "text": f"ask {event_id}",
+                    "text": f"question {event_id}",
                 },
             )
         )
@@ -2441,8 +2240,8 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
 
 def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     """`page state` is /api/state folded for the agent: the banner's decision list,
-    the standing state replay paints, as one queryable
-    object — the position a session picking up a standing page would otherwise
+    the current state replay paints, as one queryable
+    object — the position a session picking up a persistent page would otherwise
     re-derive from the raw log."""
     opts = OPTIONS.format(
         a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
@@ -2548,7 +2347,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     )
 
     assert written.exit_code == 0, written.output
-    standing = state_json(page_dir)
+    served = state_json(page_dir)
     first = read_page_data(page_dir)
     stored = data_model.source_file(page_dir, "deployments")
     assert first["sources"]["deployments"] == {
@@ -2561,8 +2360,8 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
         "value": ["api", "worker"],
     }
     assert data_model.read_contracts(page_dir) == {"deployments": "deployment-rows"}
-    assert standing["data"] == {"file": "data.json", "dir": "data", "errors": []}
-    assert standing["data_bindings"] == {
+    assert served["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    assert served["data_bindings"] == {
         "deployments": {
             "contract": "deployment-rows",
             "consumers": [
@@ -2682,237 +2481,17 @@ diff --git a/src/second file.py b/src/second file.py
 
     assert result.exit_code == 0, result.output
     source = read_page_data(page_dir)["sources"]["review-patch"]
-    assert [
-        {key: value for key, value in file.items() if key != "patch"}
-        for file in source["value"]["files"]
-    ] == [
-        {
-            "path": "app.py",
-            "operation": "modify",
-            "hunkCount": 1,
-            "binary": False,
-            "additions": 1,
-            "deletions": 1,
-        },
-        {
-            "path": "new.py",
-            "previousPath": "old.py",
-            "operation": "rename",
-            "hunkCount": 1,
-            "binary": False,
-            "additions": 1,
-            "deletions": 1,
-        },
-        {
-            "path": "docs/new.md",
-            "previousPath": "docs/old.md",
-            "operation": "rename",
-            "hunkCount": 0,
-            "binary": False,
-            "additions": 0,
-            "deletions": 0,
-        },
-        {
-            "path": "café2026 notes.py",
-            "operation": "modify",
-            "hunkCount": 1,
-            "binary": False,
-            "additions": 1,
-            "deletions": 1,
-        },
-        {
-            "path": "src/second file.py",
-            "operation": "modify",
-            "hunkCount": 1,
-            "binary": False,
-            "additions": 1,
-            "deletions": 1,
-        },
+    assert [file["path"] for file in source["value"]["files"]] == [
+        "app.py",
+        "new.py",
+        "docs/new.md",
+        "café2026 notes.py",
+        "src/second file.py",
     ]
+    assert all(set(file) == {"path", "patch"} for file in source["value"]["files"])
     assert all(
         file["patch"].startswith("diff --git ") for file in source["value"]["files"]
     )
-
-
-def test_native_git_file_operations_survive_capture_without_invented_hunks(
-    page_dir, tmp_path
-):
-    """Git owns operation evidence, including copies it can detect from unchanged files."""
-    repository = tmp_path / "native"
-    repository.mkdir()
-
-    def git(*arguments):
-        return subprocess.run(
-            ["git", "-C", str(repository), *arguments],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-
-    git("init", "-q")
-    original = {
-        "mode.sh": b"echo ready\n",
-        "binary.dat": b"old\0blob\n",
-        "deleted-empty": b"",
-        "copy-source.txt": "".join(f"line {index}\n" for index in range(30)).encode(),
-        "old name.txt": b"same text\n",
-        "old-mode.txt": b"same mode\n",
-        "changed-type": b"before\n",
-        "same-type-content": b"target",
-        "binary-type": b"old\0binary\n",
-    }
-    for name, content in original.items():
-        (repository / name).write_bytes(content)
-    (repository / "removed-link").symlink_to("old-target")
-    git("add", ".")
-    git(
-        "-c",
-        "user.name=Leaf test",
-        "-c",
-        "user.email=leaf@example.invalid",
-        "commit",
-        "-qm",
-        "Original",
-    )
-    for name, target in [
-        ("changed-type", "new-target"),
-        ("same-type-content", "target"),
-        ("binary-type", "binary-target"),
-    ]:
-        (repository / name).unlink()
-        (repository / name).symlink_to(target)
-    (repository / "removed-link").unlink()
-    (repository / "removed-link").write_text("after\n")
-    (repository / "mode.sh").chmod(0o755)
-    (repository / "binary.dat").write_bytes(b"new\0blob\n")
-    (repository / "deleted-empty").unlink()
-    (repository / "added-empty").write_text("")
-    (repository / "copy-pure.txt").write_bytes(original["copy-source.txt"])
-    (repository / "copy-edited.txt").write_bytes(
-        original["copy-source.txt"] + b"extra line\n"
-    )
-    (repository / "old name.txt").rename(repository / "new name.txt")
-    (repository / "old-mode.txt").rename(repository / "new-mode.txt")
-    (repository / "new-mode.txt").chmod(0o755)
-    git("add", ".")
-    patch = git("diff", "--cached", "-M", "-C", "--find-copies-harder")
-    manifest = patch_manifest(patch)
-    files = {file["path"]: file for file in manifest["files"]}
-    assert files["copy-pure.txt"]["operation"] == "copy"
-    assert files["copy-edited.txt"]["operation"] == "copy"
-    assert files["copy-edited.txt"]["previousPath"] == "copy-source.txt"
-    assert files["copy-edited.txt"]["hunkCount"] == 1
-    assert files["copy-edited.txt"]["additions"] == 1
-    assert files["new name.txt"]["operation"] == "rename"
-    for path in ("mode.sh", "new-mode.txt"):
-        assert files[path]["oldMode"] == "100644"
-        assert files[path]["newMode"] == "100755"
-    assert files["binary.dat"]["binary"] is True
-    for path in ("changed-type", "same-type-content", "binary-type", "removed-link"):
-        assert files[path]["operation"] == "modify"
-        assert files[path]["hunkCount"] == 1
-        assert files[path]["oldMode"] != files[path]["newMode"]
-        assert files[path]["patch"].count("diff --git ") == 2
-    assert (
-        files["same-type-content"]["additions"]
-        == files["same-type-content"]["deletions"]
-        == 1
-    )
-    assert files["binary-type"]["binary"] is True
-    opaque = patch_manifest(git("diff", "--cached", "--binary", "--", "binary-type"))[
-        "files"
-    ][0]
-    assert opaque["binary"] and "literal " not in opaque["patch"]
-    assert opaque["patch"].startswith("diff --git ")
-    assert all(file["patch"].startswith("diff --git ") for file in files.values())
-    binary = patch_manifest(git("diff", "--cached", "--binary", "--", "binary.dat"))
-    assert [
-        {key: value for key, value in file.items() if key != "patch"}
-        for file in binary["files"]
-    ] == [{key: value for key, value in files["binary.dat"].items() if key != "patch"}]
-    assert "literal " not in binary["files"][0]["patch"]
-    empty = patch_manifest(
-        git("diff", "--cached", "--no-renames", "--", "added-empty", "deleted-empty")
-    )
-    assert [
-        (file["operation"], file["hunkCount"], file["binary"])
-        for file in empty["files"]
-    ] == [
-        ("add", 0, False),
-        ("delete", 0, False),
-    ]
-    declare_data_input(
-        page_dir, "native-patch", {"type": "object"}, contract="unified-diff"
-    )
-    for value in (manifest, empty, binary):
-        data_model.cmd_data_set(page_dir, "native-patch", value)
-        assert read_page_data(page_dir)["sources"]["native-patch"]["value"] == value
-
-
-@pytest.mark.parametrize(
-    "patch_text",
-    [
-        """diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--old
-+GIT binary patch
-""",
-        """diff --git a/old.py b/new.py
-similarity index 100%
-rename from old.py
-rename to new.py
---- a/old.py
-+++ b/new.py
--before
-+after
-""",
-        """diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--before
-+after
-+lost
-""",
-        """diff --git a/app.py b/app.py
-@@ -1 +1 @@
---- bogus-old
-+++ bogus-new
-""",
-        """diff --git a/app.py b/app.py
---- a/other.py
-+++ b/other.py
-@@ -1 +1 @@
--before
-+after
-""",
-        """diff --git a/new.py b/new.py
-new file mode 100644
---- /dev/null
-+++ b/new.py
-@@ -0,0 +3 @@
-+partial
-""",
-        """diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--before
-+after
-diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--before
-+after
-""",
-    ],
-)
-def test_the_diff_script_preserves_evidence_for_the_widget_to_judge(patch_text):
-    manifest = patch_manifest(patch_text)
-    assert "".join(file["patch"] for file in manifest["files"]) == patch_text
 
 
 DIFF_PATCH_CASES = json.loads(
@@ -2996,7 +2575,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
         page_dir,
         {
             "kind": "comment",
-            "id": "data-ask",
+            "id": "data-question",
             "author": "user",
             "revision": 1,
             "text": "Show the feed here.",
@@ -3004,18 +2583,18 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
     )
     reply = thread_model.post_reply(
         page_dir,
-        {"to": "data-ask", "for": "data-ask"},
+        {"to": "data-question", "for": "data-question"},
         "Here it is.",
         '<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
     )
     assert reply["revision"] == 1
 
     data_model.cmd_data_set(page_dir, "reply-feed", [])
-    standing = state_json(page_dir)
-    assert standing["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    served = state_json(page_dir)
+    assert served["data"] == {"file": "data.json", "dir": "data", "errors": []}
     reading = read_page_data(page_dir)["sources"]["reply-feed"]
     assert (reading["contract"], reading["value"]) == ("rows", [])
-    assert standing["data_bindings"]["reply-feed"]["consumers"] == [
+    assert served["data_bindings"]["reply-feed"]["consumers"] == [
         {
             "widget": "reply-data",
             "input": "data",
@@ -3048,7 +2627,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
         page_dir,
         {
             "kind": "comment",
-            "id": "data-ask",
+            "id": "data-question",
             "author": "user",
             "revision": 1,
             "text": "Show another feed here.",
@@ -3057,7 +2636,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
 
     reply = thread_model.post_reply(
         page_dir,
-        {"to": "data-ask", "for": "data-ask"},
+        {"to": "data-question", "for": "data-question"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
     )
@@ -3130,7 +2709,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source
         page_dir,
         {
             "kind": "comment",
-            "id": "draft-data-ask",
+            "id": "draft-data-question",
             "author": "user",
             "revision": 1,
             "text": "Show another feed here.",
@@ -3139,7 +2718,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source
 
     thread_model.post_reply(
         page_dir,
-        {"to": "draft-data-ask", "for": "draft-data-ask"},
+        {"to": "draft-data-question", "for": "draft-data-question"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
     )
@@ -3405,8 +2984,8 @@ def test_events_follow_prints_each_admitted_event_as_it_lands(page_dir, spawn):
     _tasks_version(page_dir, "active")
     publish(page_dir)
     follower = Follower(spawn, page_dir)
-    standing = events_model.read_events(page_dir)
-    assert [follower.next() for _ in standing] == standing
+    before = events_model.read_events(page_dir)
+    assert [follower.next() for _ in before] == before
 
     reported = _report(page_dir, "t-parser", "status", "value=review")
     assert reported.exit_code == 0, reported.output
@@ -3414,7 +2993,7 @@ def test_events_follow_prints_each_admitted_event_as_it_lands(page_dir, spawn):
     assert opened.exit_code == 0, opened.output
 
     followed = [follower.next(), follower.next()]
-    assert followed == events_model.read_events(page_dir)[len(standing) :]
+    assert followed == events_model.read_events(page_dir)[len(before) :]
     assert followed[0]["id"] == json.loads(reported.output)["id"]
     assert followed[0]["meaning"]["unit"] == "t-parser"
     assert followed[1]["id"] == json.loads(opened.output)["id"]
@@ -3982,11 +3561,6 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
     file = {
         "path": "a.py",
-        "operation": "modify",
-        "hunkCount": 1,
-        "binary": False,
-        "additions": 1,
-        "deletions": 1,
         "patch": patch,
     }
     manifest = {"files": [file]}
@@ -4014,12 +3588,7 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     [
         ([], "does not satisfy minItems: 1"),
         (
-            [{"path": "b.py", "operation": "rename", "additions": 0, "deletions": 0}],
-            "'previousPath' is a required property",
-        ),
-        (
-            [{"path": "a.py", "operation": "modify", "additions": 1, "deletions": 1}]
-            * 2,
+            [{"path": "a.py"}] * 2,
             "record keys must be unique",
         ),
     ],
@@ -4027,8 +3596,7 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
 def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
     page_dir, files, refusal
 ):
-    """A diff manifest lists each file once, by its path, and a rename names the path
-    it came from, so the widget renders what `data set` accepted."""
+    """A manifest needs a nonempty list of unique file keys."""
     (page_dir / "index.html").write_text(
         before_choice(
             PAGE,
@@ -4039,14 +3607,7 @@ def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
     written = CliRunner().invoke(
         cli_model.cli,
         ["data", "set", str(page_dir), "reading-patch"],
-        input=json.dumps(
-            {
-                "files": [
-                    {**file, "hunkCount": 1, "binary": False, "patch": patch}
-                    for file in files
-                ]
-            }
-        ),
+        input=json.dumps({"files": [{**file, "patch": patch} for file in files]}),
     )
     assert written.exit_code == 1
     assert refusal in written.output
@@ -4190,15 +3751,7 @@ def test_ask_history_survives_parse_eviction_and_new_revisions(page_dir, monkeyp
                 page_dir, revision
             ),
         )
-        return WorkReading(
-            events,
-            reading.registry,
-            page,
-            registry_for_revision=lambda revision: (
-                artifact_model.read_revision(page_dir, revision).registry
-            ),
-            available_revisions=revisions,
-        ).document.asks
+        return WorkReading(events, reading.registry, page).document.asks
 
     with fresh_process():
         initial = read()
@@ -4445,21 +3998,14 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "seq": 2,
         },
         action("page-draft", "Page future.", 3),
-        action("frozen-draft", "Frozen standing.", 4),
+        action("frozen-draft", "Frozen current.", 4),
     ]
 
-    expected = render_gate_readings._expected_verbatim(
-        page,
-        events,
-        registry,
-        here=1,
-        registry_for_revision=lambda revision: registry,
-        available_revisions={1},
-    )
+    expected = render_gate_readings._expected_verbatim(page, events, registry, here=1)
 
     assert expected == {
         ("page", None, 0): [{"text": "Page authored."}],
-        ("event", "r-scope", 0): [{"text": "Frozen standing."}],
+        ("event", "r-scope", 0): [{"text": "Frozen current."}],
     }
 
 
@@ -4502,12 +4048,7 @@ def test_projected_verbatim_includes_generated_children():
         "lf-list", registry["lf-list"], registry["lf-list"]["x-state"]["add"]
     )
     expected = render_gate_readings._expected_verbatim(
-        markup,
-        [event],
-        registry,
-        here=1,
-        registry_for_revision=lambda revision: registry,
-        available_revisions={1},
+        markup, [event], registry, here=1
     )
 
     assert expected == {("page", None, 0): [{"text": "Authored item. Generated item."}]}
@@ -4611,10 +4152,10 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     ).replace('id="o-stage"', 'id="o-stage" chosen')
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + edited))
     assert stamp(page_dir, "revise recommendation").exit_code == 0
-    [standing] = [
+    [current] = [
         item for item in state_json(page_dir)["state"] if item["action"] == "choose"
     ]
-    assert standing["detail"] == {"value": ["o-shim"]}
+    assert current["detail"] == {"value": ["o-shim"]}
     source.write_text(PAGE)
     assert stamp(page_dir, "retire answered ask").exit_code == 0
     assert picked in events_model.read_events(page_dir)
@@ -4624,7 +4165,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
 
 
 def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
-    """An action admitted by an earlier Leaf keeps standing, and keeps its ask
+    """An action admitted by an earlier Leaf stays in force, and keeps its ask
     answered, under a Leaf that records the same operation's definition with other
     fields. Before #2329 the definition carried `update`, the verb flag now
     named `text`; matching every recorded field dropped each decision on a page
@@ -4660,8 +4201,8 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     log.write_text("\n".join(earlier) + "\n")
 
     reading = state_json(page_dir)
-    [standing] = [item for item in reading["state"] if item["action"] == "choose"]
-    assert standing["detail"] == {"value": ["o-shim"]}
+    [current] = [item for item in reading["state"] if item["action"] == "choose"]
+    assert current["detail"] == {"value": ["o-shim"]}
     [ask] = reading["asks"]
     assert ask["status"] == "answered"
     assert ask["answer"]["event"]["id"] == picked["id"]
@@ -4738,7 +4279,7 @@ def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_di
     source = page_dir / "index.html"
     source.write_text(
         FLOW_PAGE.replace(
-            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="node:A node:B">'
+            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
         )
     )
     publish(page_dir)
@@ -4752,9 +4293,7 @@ def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_di
             "text": "Explain this node.",
         },
     )
-    source.write_text(
-        source.read_text().replace('parts="node:A node:B"', 'parts="node:B"')
-    )
+    source.write_text(source.read_text().replace(' parts="all"', ""))
     assert stamp(page_dir, "revise drawing").exit_code == 0
     [thread] = state_json(page_dir)["threads"]
     assert thread["anchor"] == {"section": "flow"}
@@ -4763,3 +4302,171 @@ def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_di
     [thread] = state_json(page_dir)["threads"]
     assert thread["anchor"] is None
     assert root in events_model.read_events(page_dir)
+
+
+@pytest.mark.parametrize(
+    "patch_text",
+    [
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-old
++GIT binary patch
+""",
+        """diff --git a/old.py b/new.py
+similarity index 100%
+rename from old.py
+rename to new.py
+--- a/old.py
++++ b/new.py
+-before
++after
+""",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
++lost
+""",
+        """diff --git a/app.py b/app.py
+@@ -1 +1 @@
+--- bogus-old
++++ bogus-new
+""",
+        """diff --git a/app.py b/app.py
+--- a/other.py
++++ b/other.py
+@@ -1 +1 @@
+-before
++after
+""",
+        """diff --git a/new.py b/new.py
+new file mode 100644
+--- /dev/null
++++ b/new.py
+@@ -0,0 +3 @@
++partial
+""",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
+diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
+""",
+    ],
+)
+def test_the_diff_script_preserves_evidence_for_the_widget_to_judge(patch_text):
+    manifest = patch_manifest(patch_text)
+    assert "".join(file["patch"] for file in manifest["files"]) == patch_text
+
+
+def test_native_git_file_operations_survive_capture_without_invented_hunks(
+    page_dir, tmp_path
+):
+    """Git owns operation evidence, including copies it can detect from unchanged files."""
+    repository = tmp_path / "native"
+    repository.mkdir()
+
+    def git(*arguments):
+        return subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    git("init", "-q")
+    original = {
+        "mode.sh": b"echo ready\n",
+        "binary.dat": b"old\0blob\n",
+        "deleted-empty": b"",
+        "copy-source.txt": "".join(f"line {index}\n" for index in range(30)).encode(),
+        "old name.txt": b"same text\n",
+        "old-mode.txt": b"same mode\n",
+        "changed-type": b"before\n",
+        "same-type-content": b"target",
+        "binary-type": b"old\0binary\n",
+    }
+    for name, content in original.items():
+        (repository / name).write_bytes(content)
+    (repository / "removed-link").symlink_to("old-target")
+    git("add", ".")
+    git(
+        "-c",
+        "user.name=Leaf test",
+        "-c",
+        "user.email=leaf@example.invalid",
+        "commit",
+        "-qm",
+        "Original",
+    )
+    for name, target in [
+        ("changed-type", "new-target"),
+        ("same-type-content", "target"),
+        ("binary-type", "binary-target"),
+    ]:
+        (repository / name).unlink()
+        (repository / name).symlink_to(target)
+    (repository / "removed-link").unlink()
+    (repository / "removed-link").write_text("after\n")
+    (repository / "mode.sh").chmod(0o755)
+    (repository / "binary.dat").write_bytes(b"new\0blob\n")
+    (repository / "deleted-empty").unlink()
+    (repository / "added-empty").write_text("")
+    (repository / "copy-pure.txt").write_bytes(original["copy-source.txt"])
+    (repository / "copy-edited.txt").write_bytes(
+        original["copy-source.txt"] + b"extra line\n"
+    )
+    (repository / "old name.txt").rename(repository / "new name.txt")
+    (repository / "old-mode.txt").rename(repository / "new-mode.txt")
+    (repository / "new-mode.txt").chmod(0o755)
+    git("add", ".")
+    patch = git("diff", "--cached", "-M", "-C", "--find-copies-harder")
+    manifest = patch_manifest(patch)
+    files = {file["path"]: file for file in manifest["files"]}
+    assert set(files) == {
+        "mode.sh",
+        "binary.dat",
+        "copy-pure.txt",
+        "copy-edited.txt",
+        "new name.txt",
+        "new-mode.txt",
+        "changed-type",
+        "same-type-content",
+        "binary-type",
+        "removed-link",
+        "added-empty",
+    }
+    assert all(set(file) == {"path", "patch"} for file in files.values())
+    assert "".join(file["patch"] for file in files.values()) == patch
+    for path in ("changed-type", "same-type-content", "binary-type", "removed-link"):
+        assert files[path]["patch"].count("diff --git ") == 2
+    opaque = patch_manifest(git("diff", "--cached", "--binary", "--", "binary-type"))[
+        "files"
+    ][0]
+    assert "GIT binary patch" in opaque["patch"] and "literal " not in opaque["patch"]
+    assert opaque["patch"].count("diff --git ") == 2
+    binary = patch_manifest(git("diff", "--cached", "--binary", "--", "binary.dat"))
+    assert binary["files"][0]["path"] == "binary.dat"
+    assert "literal " not in binary["files"][0]["patch"]
+    assert "GIT binary patch" in binary["files"][0]["patch"]
+    empty = patch_manifest(
+        git("diff", "--cached", "--no-renames", "--", "added-empty", "deleted-empty")
+    )
+    assert [file["path"] for file in empty["files"]] == ["added-empty", "deleted-empty"]
+    declare_data_input(
+        page_dir, "native-patch", {"type": "object"}, contract="unified-diff"
+    )
+    for value in (manifest, empty, binary):
+        data_model.cmd_data_set(page_dir, "native-patch", value)
+        assert read_page_data(page_dir)["sources"]["native-patch"]["value"] == value

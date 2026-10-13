@@ -1097,7 +1097,7 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
       const agent = thread.msgs.find(message => message.author === 'agent');
       const choice = agent.reactions.choices.find(choice => choice.name === 'keep');
       return thread.offers.reply && thread.offers.resolve && !thread.offers.reopen &&
-        choice.standing && choice.glyph && choice.label && Object.isFrozen(choice);
+        choice.inForce && choice.glyph && choice.label && Object.isFrozen(choice);
     }""")
     assert page.evaluate("""async () => {
       const {threadActions,readThreads} = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -1327,12 +1327,9 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         "x-upgrade": True,
     }
     module = (companion / "widgets/lf-conversation-workspace.js").read_text()
-    module = "import NestedReader from './lf-nested-reader.js';\n" + module.replace(
-        "  shadowStage,", "  shadowStage,\n  createWidgetElement,"
-    )
     module = module.replace(
         "body.append(index, this.reader);",
-        """const nested = createWidgetElement(this, 'lf-nested-reader', NestedReader);
+        """const nested = offer('lf-nested-reader');
         nested.style.display = 'block';
         nested.style.minWidth = '0';
         nested.style.minHeight = '0';
@@ -1350,7 +1347,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         layer_registry=registry,
         layer_widgets={
             "lf-conversation-workspace.js": module,
-            "lf-nested-reader.js": """export default class extends HTMLElement {};""",
+            "lf-nested-reader.js": "customElements.define('lf-nested-reader', class extends HTMLElement {});",
         },
     )
     append_carried_log_record(

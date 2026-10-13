@@ -11,7 +11,6 @@ from playwright.sync_api import expect
 from render_harness import (
     INPUT_WORK_WATCH_SOURCE,
     WATCH_PLATFORM_SOURCE,
-    _frame_owners_drawn,
     consume_browser_errors,
     holding,
     is_problem,
@@ -214,46 +213,6 @@ def test_hidden_opaque_frames_drain_without_waiting_for_suppressed_paint(
     expect(frame.locator("#reading")).to_be_visible()
     frame.locator("#reading").evaluate(PAINTED)
     judge_watches()
-
-    if nested:
-        # Both frame owners have visible boxes in their own documents, but the
-        # top viewport clips the child completely through the outer frame.
-        outer = page.locator("iframe")
-        inner = page.frame_locator("iframe").locator("iframe")
-
-        def place(owner, top):
-            control = owner.evaluate_handle(
-                """(element, top) => {
-              const button = document.createElement('button');
-              button.textContent = 'Place frame';
-              button.style.cssText = 'position:fixed;top:0;left:0;z-index:1';
-              button.addEventListener('click', () => {
-                element.style.position = top ? 'fixed' : '';
-                element.style.top = top;
-              });
-              document.body.append(button);
-              return button;
-            }""",
-                top,
-            )
-            try:
-                control.as_element().click()
-            finally:
-                control.evaluate("button => button.remove()")
-                control.dispose()
-
-        place(inner, "60px")
-        place(outer, "calc(100vh - 40px)")
-        assert inner.evaluate("element => element.checkVisibility()")
-        reading = frame.locator("#reading").element_handle()
-        child_frame = reading.owner_frame()
-        reading.dispose()
-        assert _frame_owners_drawn(child_frame) is False
-        judge_watches()
-        place(outer, "")
-        place(inner, "")
-        frame.locator("#reading").evaluate(PAINTED)
-        judge_watches()
 
     # Hide an ancestor after the driver starts a drain whose native paint is held.
     # Completion must use refreshed visibility rather than the initial true value.

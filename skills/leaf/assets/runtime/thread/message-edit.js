@@ -244,14 +244,14 @@ export class MessageEditor {
   constructor(
     id,
     view,
-    { wireInput, said, base: standing, send, land, paint, previous, reveal },
+    { wireInput, said, base: currentBase, send, land, paint, previous, reveal },
   ) {
     const ctx = editContext(id);
     // The revision these words are written over, which the log holds the rewrite to: the
     // message as it stands now. Words kept from an earlier opening carry the revision
     // they were written over; where the message has changed since, the user is told what
     // it says now before the kept words go over it.
-    let base = standing();
+    let base = currentBase();
     const keptOver = loadDraftPayload(ctx)?.over;
     // Words kept over the user's own edit still sending name it by its pending id, which
     // is no change of anyone else's.
@@ -282,9 +282,9 @@ export class MessageEditor {
     // the log refuses.
     let opened = this.input.value;
     this.#follow = () => {
-      if (base === standing() || draftHasContent(ctx) || this.input.value !== opened)
+      if (base === currentBase() || draftHasContent(ctx) || this.input.value !== opened)
         return;
-      base = standing();
+      base = currentBase();
       this.input.value = opened = said();
     };
     // Words the message already says, exactly, and no words, are no change. Leading and

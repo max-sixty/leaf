@@ -29,9 +29,10 @@ import {
   ref,
 } from "../vendor/browser-runtime.js";
 import { el, reserve } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { keeps, keepsHidden } from "./keeps.js";
 import { focusDestination, focused } from "./focus.js";
 import { agentName } from "./semantic-state.js";
+import { afterScript } from "./rendering.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
@@ -46,6 +47,33 @@ class BannerStatusView extends HTMLElement {
   #queues = el("button", "lf-status-queues");
   #queuesWidest = "";
   #queuesReserved = "";
+  #presentQueues = () => {
+    const model = this.#model;
+    render(model.queues, this.#queues);
+    keeps(
+      this.#queues,
+      "title",
+      `Show or hide what's on me and on ${agentName()}`,
+    );
+    keepsHidden(this.#queues, !model.queues);
+    // The reservation only grows: its digits are tabular, so the longest counts yet
+    // shown are the widest, and a box that shrank back would move them on the next.
+    if (model.queues) {
+      const kept =
+        model.queuesWidest === this.#queuesWidest
+          ? this.#queuesReserved
+          : model.queuesWidest;
+      const reserved = model.queues.length > kept.length ? model.queues : kept;
+      if (
+        model.queuesWidest !== this.#queuesWidest ||
+        reserved !== this.#queuesReserved
+      ) {
+        this.#queuesWidest = model.queuesWidest;
+        this.#queuesReserved = reserved;
+        reserve(this.#queues, [reserved]);
+      }
+    }
+  };
 
   constructor() {
     super();
@@ -83,26 +111,9 @@ class BannerStatusView extends HTMLElement {
   present(model) {
     this.#model = model;
     this.#paint();
-    render(model.queues, this.#queues);
-    keeps(this.#queues, "title", `Show or hide what's on me and on ${agentName()}`);
-    this.#queues.toggleAttribute("hidden", !model.queues);
-    // The reservation only grows: its digits are tabular, so the longest counts yet
-    // shown are the widest, and a box that shrank back would move them on the next.
-    if (model.queues) {
-      const kept =
-        model.queuesWidest === this.#queuesWidest
-          ? this.#queuesReserved
-          : model.queuesWidest;
-      const reserved = model.queues.length > kept.length ? model.queues : kept;
-      if (
-        model.queuesWidest !== this.#queuesWidest ||
-        reserved !== this.#queuesReserved
-      ) {
-        this.#queuesWidest = model.queuesWidest;
-        this.#queuesReserved = reserved;
-        reserve(this.#queues, [reserved]);
-      }
-    }
+    // Several readings can arrive before this script ends. Paint only its final count;
+    // an intermediate count would be withdrawn before a frame could show it.
+    afterScript(this.#presentQueues);
   }
 
   #paint() {

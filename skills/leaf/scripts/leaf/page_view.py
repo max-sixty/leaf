@@ -1,6 +1,6 @@
 """What the append door is allowed to read about a page.
 
-Admission folds three things: the page, the standing log, and the event being
+Admission folds three things: the page, the current log, and the event being
 appended. The log and the event are already arguments the door is handed. This
 is the third, so that no gate reaches past it to a file of its own.
 
@@ -47,9 +47,10 @@ class PageView:
         """The authored markup one immutable revision froze."""
         return read_revision(self._page_dir, revision).document
 
-    def reading(self, revision: int) -> SourceReading:
-        """One immutable publication's authored document and vocabulary, held together."""
-        return read_revision(self._page_dir, revision)
+    def reading(self, revision: int, registry: dict) -> SourceReading:
+        """That markup read under `registry`, held across appends where it is the
+        vocabulary the revision captured (`RevisionReading.under`)."""
+        return read_revision(self._page_dir, revision).under(registry)
 
     def registry(self, revision: int | None) -> dict | None:
         """The vocabulary a revision captured, or the candidate's where the page has
@@ -98,10 +99,10 @@ class CandidatePageView(PageView):
             else super().document(revision)
         )
 
-    def reading(self, revision: int) -> SourceReading:
+    def reading(self, revision: int, registry: dict) -> SourceReading:
         if revision == self._revision:
-            return self._reading
-        return super().reading(revision)
+            return SourceReading(self._reading.document, registry)
+        return super().reading(revision, registry)
 
     def registry(self, revision: int | None) -> dict | None:
         return (
@@ -135,8 +136,8 @@ class InitialPageView:
     def document(self, revision: int) -> SourceDocument:
         return self._document
 
-    def reading(self, revision: int) -> SourceReading:
-        return SourceReading(self._document, self._registry)
+    def reading(self, revision: int, registry: dict) -> SourceReading:
+        return SourceReading(self._document, registry)
 
     def registry(self, revision: int | None) -> dict:
         return self._registry

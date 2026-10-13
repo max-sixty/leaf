@@ -1,5 +1,5 @@
 /* The floating panel (runtime/floating-panel.js): one box over the foot of the page in
-   place of the banner and the bottom bar, where the user chose it
+   place of the banner and the bottom bar, unless the reader asked for them
    (`html[data-lf-floating-chrome]`, prepaint.js). The theme keeps its row's room at the
    page's foot (theme.css).
 
@@ -111,14 +111,15 @@
   :where(.lf-floating-panel) button:hover {
     background: var(--lf-fp-hover);
   }
-  :where(.lf-floating-panel) button:disabled {
+  :where(.lf-floating-panel) button:is(:disabled, [aria-disabled="true"]) {
     color: var(--lf-fp-muted);
     cursor: default;
     background: none;
   }
   :where(.lf-floating-panel) :is(button, input):focus-visible {
-    outline: var(--focus-ring-w) solid var(--focus-ring);
+    outline: var(--focus-ring);
     outline-offset: -2px;
+    --lf-focus-ring: floating-panel;
   }
   .lf-floating-panel .lf-action-icon {
     width: 16px;
@@ -298,6 +299,9 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .lf-fp-dest[data-notice] {
+    color: var(--ink);
   }
   .lf-fp-keys {
     flex: none;
@@ -657,12 +661,15 @@
     -webkit-line-clamp: 4;
     overflow: hidden;
   }
+  /* A line of answers is a button's height even where it holds only words, so the Undo
+     a reading brings an answer later moves nothing beside it. */
   .lf-fp-answers {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     margin-top: 9px;
+    min-height: 28px;
   }
   .lf-fp-answer {
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
@@ -734,6 +741,11 @@
     color: var(--ink);
     font-size: 13px;
     font-weight: 600;
+  }
+  .lf-fp-explain {
+    margin-top: 3px;
+    white-space: normal;
+    text-wrap: pretty;
   }
   .lf-fp-state[data-tone="working"] b {
     color: var(--accent);

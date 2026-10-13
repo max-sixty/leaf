@@ -63,7 +63,7 @@
    stroked SVG vocabulary as target margin entries; only authored reaction tokens supply text
    glyphs. */
 /* Page-attached chrome is absolute against the initial containing block, not against
-   body. Body is the page shell and may move or narrow for standing auxiliary surfaces; the
+   body. Body is the page shell and may move or narrow for open auxiliary surfaces; the
    document coordinate system does neither, and root scrolling still carries absolute
    chrome with the passage it stands beside. */
 /* Rules at this level are the shared vocabulary: classes whose whole job is
@@ -190,7 +190,7 @@ html[data-lf-draw-mode] main,
 html[data-lf-draw-mode] main * { cursor: crosshair !important; }
 html[data-lf-draw-mode] main [data-lf-runtime],
 html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
-/* The glyphs of the reactions standing on a target — a margin entry per reaction,
+/* The glyphs of the reactions in force on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
 .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
@@ -533,12 +533,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   :is(.lf-banner-menu, .lf-version-menu, .lf-status-detail) {
     top: calc(var(--lf-banner-h) + var(--lf-banner-panel-gap, 6px)); }
   /* The row's own .lf-btn rule states a display, and an author's display outranks the
-     UA's for [hidden], so a door with nothing behind it goes on standing there. Said
+     UA's for [hidden], so a door with nothing behind it stays there. Said
      here for the same reason the Page Map says it: hidden is a display of its own. */
   .lf-banner-more[hidden] { display: none; }
   /* The open auxiliary surface wears the same accent face, from the state it already
      publishes: setOpenDrawer and the Threads toggle keep aria-expanded true on exactly
-     the one surface standing, so the tint is that fact painted rather than a
+     the one surface open, so the tint is that fact painted rather than a
      second class to keep in step. Scoped, because lf-auxiliary-toggle is worn only by the
      banner's own controls — All leaves, On me, Threads — and a rule for it at
      document level would widen the shared vocabulary by a name no widget wears. */
@@ -1556,7 +1556,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      overlay and leaves the bar's reservation where it was. Hints are the eye's copy of
      facts spoken elsewhere and stay aria-hidden; More is a real control. Useful
      transient state — a semantic walk's live ordinal, or a brief command or arrival
-     notice in its place — stands at the bar's other end, and a standing one pads the
+     notice in its place — stands at the bar's other end, and a fixed one pads the
      line's end (--lf-status-room) so the row stops short of it. syncLayout keeps the bar
      out of the thread panel, which stands over the page's right edge. A covering
      thread panel makes it inert background; a covering drawer stands under it, as a

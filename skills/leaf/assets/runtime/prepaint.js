@@ -523,13 +523,13 @@
       currentInputs.every((input, at) => input === priorFailure[at]);
     const allocate = (room, movable) => {
       const taken = { left: 0, right: 0 };
-      const standing = [];
+      const granted = [];
       if (
         (document.body.dataset.annotations ?? "overlay") === "overlay" &&
         document.body.getAttribute("data-rail") !== "none" &&
         room.right >= need("--rail")
       ) {
-        standing.push("rail");
+        granted.push("rail");
         taken.right = need("--rail");
       }
       for (const postures of preferences)
@@ -539,7 +539,7 @@
           if (wants.left + wants.right > room.left + room.right + 0.5) continue;
           if (!movable && (wants.left > room.left || wants.right > room.right))
             continue;
-          standing.push(posture);
+          granted.push(posture);
           Object.assign(taken, wants);
           break;
         }
@@ -553,7 +553,7 @@
       // Auto margins can centre the column only while its track still holds it.
       const reach = Math.max(0, (shell.width - column.width) / 2);
       const shift = movable ? Math.max(-reach, Math.min(reach, requested)) : 0;
-      return { taken, standing, shift };
+      return { taken, granted, shift };
     };
     let allocation = allocate(
       sameFailure
@@ -588,8 +588,8 @@
     } else if (!sameFailure) {
       failedPlacements.delete(main);
     }
-    const { shift, standing } = allocation;
-    const tokens = standing.join(" ");
+    const { shift, granted } = allocation;
+    const tokens = granted.join(" ");
     const seated = (main.getAttribute("data-lf-margin") ?? "") !== tokens;
     if (!seated && shift === shellWritten) return shellChanged;
     // Source copies keep the authored shell before initial geometry writes to it;
@@ -853,20 +853,16 @@
     indents,
     skipped,
     register(tag, render) {
-      const revision = document.currentScript.dataset.lfVocabulary;
-      const key = `${revision}:${tag}`;
-      if (producers.has(key))
-        throw new Error(
-          `initial renderer for <${tag}> in r${revision} is already registered`,
-        );
-      producers.set(key, render);
+      // The widget loader imports unregistered producers for later revisions and
+      // thread markup that were absent from the initially delivered document.
+      if (!producers.has(tag)) producers.set(tag, render);
     },
-    has(tag, revision) {
-      return producers.has(`${revision}:${tag}`);
+    has(tag) {
+      return producers.has(tag);
     },
-    paint(host, revision = host.closest("[data-lf-vocabulary]").dataset.lfVocabulary) {
+    paint(host) {
       if (drawings.has(host)) return drawings.get(host);
-      const render = producers.get(`${revision}:${host.localName}`);
+      const render = producers.get(host.localName);
       if (!render) throw new Error(`no initial renderer for <${host.localName}>`);
       for (const node of [host, ...host.querySelectorAll("*")])
         if (!parents.has(node)) parents.set(node, node.parentElement);
@@ -892,13 +888,7 @@
       // no frame can show an unfinished or uninitialized instance.
       template.replaceWith(host);
       for (const node of [host, ...host.querySelectorAll("*")].reverse())
-        if (
-          this.has(
-            node.localName,
-            node.closest("[data-lf-vocabulary]").dataset.lfVocabulary,
-          )
-        )
-          this.paint(node);
+        if (producers.has(node.localName)) this.paint(node);
     },
     restoreSource(root) {
       for (const template of root.querySelectorAll("template[data-lf-initial-source]"))

@@ -1,9 +1,8 @@
 /* Revision-bound widget identity captured before a content module upgrades the DOM.
 
    A controller receives no caller-supplied declaration or scope. Leaf records the
-   authored owner, its declaration and stamped verbs, its declared ancestors, and
-   exhibit fence while the revision's markup is still intact. Later physical reparenting
-   is layout;
+   authored owner, its declared ancestors, and exhibit fence while the revision's
+   markup is still intact. Later physical reparenting is layout;
    semantic commands keep using this captured document coordinate. A data renderer may
    replace a widget node while preserving its authored id; that replacement reuses the
    same revision-bound descriptor.
@@ -11,9 +10,9 @@
    The binding also answers the other way, id to element, for the layer's own paint:
    a message's frozen markup is bound when it is prepared, before the thread mounts
    it, so what the projection paints on it arrives with the node. */
-import { elementDeclarations, registryFor } from "./registry.js";
-import { isElementName } from "./registry-contract.js";
 import { runtime } from "./context.js";
+import { elementDeclarations } from "./registry.js";
+import { isElementName } from "./registry-contract.js";
 import { authoredParents } from "./projection/authored.js";
 import { elementById } from "./passages.js";
 import { initialOrigin, initialParent, initialSource } from "./initial-render.js";
@@ -22,11 +21,10 @@ const byElement = new WeakMap();
 const byId = new Map();
 const elements = new Map();
 
-const declaredTags = (root) =>
-  elementDeclarations(registryFor(root)).map(([tag]) => tag);
+const declaredTags = () => elementDeclarations().map(([tag]) => tag);
 
 const candidates = (root) => {
-  const tags = declaredTags(root);
+  const tags = declaredTags();
   if (!tags.length) return [];
   const selector = tags.join(",");
   const found = [...root.querySelectorAll(selector)];
@@ -51,7 +49,7 @@ const declaredAncestors = (element) => {
     if (
       parent.id &&
       isElementName(parent.localName) &&
-      registryFor(parent)[parent.localName]
+      runtime.registry[parent.localName]
     )
       ancestors.push({ id: parent.id, tag: parent.localName });
   return ancestors;
@@ -65,7 +63,7 @@ const declaredAncestors = (element) => {
 // written.
 const quotedBy = (element) => {
   for (let node = parentOf(element); node; node = parentOf(node))
-    if (registryFor(node)[node.localName]?.["x-exhibit"]) return true;
+    if (runtime.registry[node.localName]?.["x-exhibit"]) return true;
   return false;
 };
 
@@ -78,25 +76,23 @@ export function stageWidgetDescriptors(
   for (const element of candidates(initialSource(root))) {
     if (!element.id) continue;
     const live = initialOrigin(element);
-    const standing = byElement.get(live);
+    const existing = byElement.get(live);
     if (
-      standing &&
-      standing.document.kind === documentContext.kind &&
+      existing &&
+      existing.document.kind === documentContext.kind &&
       (documentContext.kind === "thread" ||
-        standing.document.revision === documentContext.revision)
+        existing.document.revision === documentContext.revision)
     ) {
-      captured.set(element.id, standing);
+      captured.set(element.id, existing);
       continue;
     }
-    const vocabulary = registryFor(element);
-    const declaration = structuredClone(vocabulary[element.localName]);
+    const declaration = structuredClone(runtime.registry[element.localName]);
     const ancestors = declaredAncestors(element);
     const descriptor = {
       id: element.id,
       tag: element.localName,
       document: structuredClone(documentContext),
       declaration,
-      states: structuredClone(vocabulary.$states[element.localName] ?? {}),
       parent: ancestors[0] ?? null,
       ancestors,
       quoted: quotedBy(element),

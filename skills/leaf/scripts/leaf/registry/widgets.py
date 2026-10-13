@@ -15,7 +15,6 @@ from .contract import (
     reference_relation_problem,
     registry_error,
     state_specs,
-    visual_part_attribute,
 )
 from .schema import check_schema, json_validator, schema_reading
 from .state import (
@@ -110,6 +109,7 @@ def _validate_widget_structure(
     for key, named in (
         ("x-owners", entry.get("x-owners", [])),
         ("x-unique", entry.get("x-unique", {}).values()),
+        ("x-within", entry.get("x-within", [])),
     ):
         if unknown := sorted(set(named) - set(declarations)):
             raise registry_error(
@@ -210,14 +210,15 @@ def _validate_widget_structure(
             and properties["id"].get("type") == "string"
         ):
             raise registry_error("visual-id", path, tag)
-        part_attribute = visual_part_attribute(entry)
-        part_schema = properties.get(part_attribute)
-        if part_attribute and not (
-            isinstance(part_schema, dict)
-            and part_schema.get("type") == "string"
-            and part_schema.get("minLength", 0) >= 1
-        ):
-            raise registry_error("visual-parts-attr", path, tag, attr=part_attribute)
+        part_attribute = entry["x-visual"].get("parts")
+        if part_attribute and part_attribute not in properties:
+            raise registry_error(
+                "undeclared-attributes",
+                path,
+                tag,
+                key="x-visual.parts",
+                names=[part_attribute],
+            )
         if not entry["x-upgrade"]:
             raise registry_error("visual-upgrade", path, tag)
     return properties, said
@@ -365,7 +366,7 @@ def _validate_widget_interactions(
     ]
     if needs_upgrade:
         raise registry_error("needs-upgrade", path, tag, keys=needs_upgrade)
-    # A version overrules a standing report with `overruled` on the element,
+    # A version overrules a report in force with `overruled` on the element,
     # so a widget with an agent-written verb that doesn't declare the attribute
     # is one whose every report contradiction is unpublishable.
     agent_verbs = [verb for verb, _spec in state_specs(entry, writer="agent")]

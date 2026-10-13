@@ -83,14 +83,8 @@ def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
 
 def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     preview = {
-        "kind": "example",
         "example": "triage-board",
         "checkout": "fb77",
-        "commit": "26499ea1abcd",
-        "dirty": True,
-        "committed": (datetime.now().astimezone() - timedelta(days=3)).isoformat(
-            timespec="seconds"
-        ),
         "interaction": "user",
         "started": "2026-08-31T12:00:00+00:00",
     }
@@ -98,6 +92,21 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         viewport={"width": 1200, "height": 900},
         permissions=["clipboard-read", "clipboard-write"],
     )
+    producer = {
+        "commit": "26499ea1abcd",
+        "dirty": True,
+        "committed": (datetime.now().astimezone() - timedelta(days=3)).isoformat(
+            timespec="seconds"
+        ),
+    }
+
+    def provenance(route):
+        response = route.fetch()
+        reading = response.json()
+        reading["layer"]["producer"] = producer
+        route.fulfill(response=response, json=reading)
+
+    context.route("**/api/state*", provenance)
     page = open_page(
         browser,
         serve(leaf_page("Preview", "<h1>Preview</h1>"), preview=preview),
@@ -119,7 +128,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     assert "interaction: user" in diagnostics
     assert "commit: 26499ea1abcd" in diagnostics
     assert "dirty: true" in diagnostics
-    assert f"committed: {preview['committed']}" in diagnostics
+    assert f"committed: {producer['committed']}" in diagnostics
     assert "layer generation:" in diagnostics
     assert "layer fingerprint: sha256:" in diagnostics
     assert "revision: 1" in diagnostics
@@ -127,6 +136,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     assert "?t=" not in diagnostics
     page.close()
 
+    context.unroute("**/api/state*", provenance)
     ordinary = open_page(
         browser,
         serve(leaf_page("Ordinary", "<h1>Ordinary</h1>")),
@@ -266,7 +276,7 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     # Cross the former ten-second presentation deadline with a read still in flight.
     # This is the interval that used to invent an offline answer and release choices.
-    page.wait_for_function("performance.now() > 11_000", timeout=15_000)
+    page.wait_for_function("performance.now() > 11_000")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
     assert len(held) == 1
@@ -306,13 +316,13 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
         expect(page.locator("#no")).not_to_have_attribute("chosen", "")
         assert posts == []
         page.unroute("**/api/state*")
-        wait_until_ready(page, timeout_ms=15_000)
+        wait_until_ready(page)
         first.focus()
         page.keyboard.press("1")
     else:
         for route in held:
             route.continue_()
-        wait_until_ready(page, timeout_ms=15_000)
+        wait_until_ready(page)
     expect(page.locator("#yes")).to_have_attribute("chosen", "")
     round_trip(page)
     assert len(posts) == 1, "the held or fresh digit should send exactly once"
@@ -328,8 +338,8 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     ]
 
 
-def test_offline_reaction_waits_for_its_saved_standing(browser, serve):
-    """Unknown standing cannot invent an add; recovery toggles the actual saved event."""
+def test_offline_reaction_waits_for_its_saved_state(browser, serve):
+    """An unknown saved state cannot invent an add; recovery toggles the actual saved event."""
     source = leaf_page(
         "Saved reaction", '<h1>Saved reaction</h1><button id="target">A target</button>'
     )
@@ -371,7 +381,7 @@ def test_offline_reaction_waits_for_its_saved_standing(browser, serve):
     assert posts == []
     page.keyboard.press("Escape")
     page.unroute("**/api/state*")
-    wait_until_ready(page, timeout_ms=15_000)
+    wait_until_ready(page)
     page.locator("#target").click()
     page.keyboard.press("e")
     page.keyboard.press("1")
@@ -422,7 +432,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     otherwise the user's only way to tell them apart is to ask.
 
     And a page nothing is behind must read differently from either, without reading as
-    a fault: a standing page spends the night that way, so the words are the plain
+    a fault: a persistent page spends the night that way, so the words are the plain
     computed fact and the dot is not the amber it wears for a session falling behind."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     d = serve.page_dir
@@ -1048,9 +1058,8 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
         "x-example": '<lf-probe id="probe"></lf-probe>',
     }
     widget = """import {once, shadowStage} from '/runtime/widget-api.js';
-export default class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}};"""
+customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}});"""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.set_default_timeout(10_000)
     held = []
     page.route("**/api/state*", lambda r: held.append(r))
     page.goto(
@@ -1063,9 +1072,7 @@ export default class extends HTMLElement {connectedCallback(){if(!once(this))ret
         ),
         wait_until="load",
     )
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-upgraded", "1", timeout=5_000
-    )
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     page.evaluate(
         """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await __lfRuntimeImport('/runtime/passages.js');[...textNodesUnder(document.body)];}"""
     )
@@ -1098,7 +1105,6 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
         "</template></lf-sample>",
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.set_default_timeout(8_000)
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
     page.goto(serve(source), wait_until="load")
@@ -1107,7 +1113,7 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("c")
     field = page.locator(".lf-fab-input")
-    expect(field).to_be_focused(timeout=3_000)
+    expect(field).to_be_focused()
     write(field, "Keep these words.")
     field.evaluate("field => field.setSelectionRange(7, 7)")
     if focus == "sample":
@@ -1116,7 +1122,7 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
     else:
         page.locator(".lf-status-button").focus()
         page.evaluate("getSelection().removeAllRanges()")
-    expect(field).to_be_visible(timeout=3_000)
+    expect(field).to_be_visible()
     page.unroute("**/api/state*")
     for route in held:
         if answer == "ready":
@@ -1124,7 +1130,7 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
         else:
             route.abort("internetdisconnected")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(field).to_be_visible(timeout=3_000)
+    expect(field).to_be_visible()
     expect(field).to_have_js_property("value", "Keep these words.")
     assert field.evaluate("field => [field.selectionStart, field.selectionEnd]") == [
         7,

@@ -53,6 +53,14 @@ which `leaf status` writes ahead of the declaration whenever a start stands
 every other reader does. A start on a page declared `idle` reopens the page with a
 bare `waiting` after it, which writes no `put_down`.
 
+For an agent to-do, the latest start's posting session has completion authority,
+both for `todo_end` and a stamp's `--completes`. A later start transfers that
+authority. Putting work down affects activity, not authority: neither a turn
+ending nor a page claim changing restores an earlier session's right to end it.
+A delayed result from the same session remains valid across turns. Before any
+start, any agent session can end the to-do. Commands outside a harness share
+the absent session identity; Leaf cannot distinguish their executions.
+
 The door admits the agent's `todo` event on a live page widget that declares
 `x-work` or holds an unsettled action (`work.widget_seat_error`), on any element of
 the page, or on the page, and a to-do on the user on any of those, a widget needing
@@ -61,8 +69,6 @@ end of an open to-do, the user's only of one the agent opened on them
 (`todo_error`). `TodoReading` holds the log's to-dos, starts and endings for one
 event basis, and `WorkReading.page_todos` attaches thread and activity readings to
 to-dos.
-
-Not yet: a to-do whose session has ended reads open until another session ends it.
 
 Experimental: to-dos and the two lists are new, and their shape is expected to
 change a lot (notes/what-needs-you/). Change them freely; nothing outside this
@@ -114,7 +120,7 @@ def start_reading(event: dict) -> dict | None:
 
 
 def item_starts(events: list) -> dict[str, dict]:
-    """The start standing on each item, by the item's id: the newest naming it, unless
+    """The start in force on each item, by the item's id: the newest naming it, unless
     a `put_down` came after it."""
     starts: dict[str, dict] = {}
     for event in events:
@@ -192,8 +198,36 @@ class TodoReading:
             if todo["state"] == "open" and todo["owner"] == "agent"
         ]
 
+    def completion_error(self, event: dict, todo: dict) -> Finding | None:
+        """Whether the writer can end this agent to-do under its latest start.
 
-def _todos(events: list, withdrawn: set, standing: dict) -> list[dict]:
+        Read the log rather than `starts`, whose in-hand reading a `put_down`
+        clears. Admission alone checks authority; projections consume admitted
+        endings without reclassifying them against later activity or claims.
+        """
+        if todo["owner"] != "agent":
+            return None
+        latest = next(
+            (
+                start
+                for logged in reversed(self.events)
+                if (start := start_reading(logged)) and start["item"] == todo["id"]
+            ),
+            None,
+        )
+        if latest is not None and latest.get("session") != event.get("session"):
+            return Finding(
+                "todo-execution",
+                values={
+                    "todo": todo["id"],
+                    "start": latest["id"],
+                    "session": latest.get("session"),
+                },
+            )
+        return None
+
+
+def _todos(events: list, withdrawn: set, starts: dict) -> list[dict]:
     todos: dict[str, dict] = {}
 
     def end(todo: dict, state: str, event: dict, detail: str | None) -> None:
@@ -230,8 +264,8 @@ def _todos(events: list, withdrawn: set, standing: dict) -> list[dict]:
                 if todo is not None and todo["state"] == "open":
                     end(todo, "done", event, f"v{event['version']}")
     for todo in todos.values():
-        if todo["state"] == "open" and todo["id"] in standing:
-            todo["running"] = running(standing[todo["id"]])
+        if todo["state"] == "open" and todo["id"] in starts:
+            todo["running"] = running(starts[todo["id"]])
     return list(todos.values())
 
 
@@ -262,12 +296,13 @@ def todo_error(
     todos,
     asks,
 ) -> Finding | None:
-    """Why the append door refuses a to-do, start or end event, or None.
+    """Why the append door refuses a to-do, start or completion, or None.
 
     A to-do stands on an admitted widget, page element or page; a to-do on a
     thread is opened by the reply that promises it (`todo_reading`), which the
     schema keeps off a `todo` event. A start names an open agent to-do or an owed
-    update. Either side can end a to-do within its ownership rules. An agent end may
+    update. Both completion carriers share `TodoReading.completion_error`.
+    Either side can end a to-do within its ownership rules. An agent end may
     also withdraw an open prose ask by canonical id or source message id, while
     widget asks remain owned by their declared state.
     """
@@ -288,6 +323,12 @@ def todo_error(
         if item in owed or any(todo["id"] == item for todo in log.owed):
             return None
         return Finding("unowed-start", values={"item": item})
+    if kind == "note":
+        completed = note_settlements(event, "todo")
+        for todo in log.owed:
+            if todo["id"] in completed and (error := log.completion_error(event, todo)):
+                return error
+        return None
     if kind != "todo_end":
         return None
     identity = event["todo"]
@@ -320,7 +361,7 @@ def todo_error(
         return Finding("ended-todo", values={**named, "state": todo["state"]})
     if event["author"] == "user" and todo["owner"] != "user":
         return Finding("agents-todo", values=named)
-    return None
+    return log.completion_error(event, todo)
 
 
 def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
@@ -422,7 +463,7 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
 
 
 def put_down(page) -> dict | None:
-    """Put down every start standing on the page `page`, an open
+    """Put down every start in force on the page `page`, an open
     `service.PageTransaction`, as `leaf status waiting` and `idle` do; the record, or
     None when no start stands and the log has nothing to add."""
     from .event_contracts import append_admitted

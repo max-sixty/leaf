@@ -93,10 +93,11 @@ request, and `assert` judges what the agent wrote, its markup, code and prose, w
 or `not-regex` matches only a literal the reply must or must not contain, such as a
 command name or a URL: replies spell markup and commands in too many ways (attribute
 order, quoting, launcher paths, continued lines) for a pattern to grade them. The
-runner prepends a line telling the agent to use the Leaf skill for shipped-skill
-cases. A source or reading probe may only
-read (Claude Code's Skill and Read tools; Codex's read-only sandbox), so a prompt
-that needs a page asks for its HTML in the reply, and one that grades what the
+runner invokes the installed arm's Leaf skill through Codex's native skill input
+for source and reading probes; Claude Code receives a request to use the plugin's
+skill. These probes may only read (Claude Code's Skill and Read tools; Codex's
+read-only sandbox), so a prompt that needs a page asks for its HTML in the reply,
+and one that grades what the
 agent would do asks for the commands it would run. Opus 5.5's safeguards refuse a
 prompt asking for its tool calls with their JSON input. The leading comment records
 where the case came from and what it measured, `metadata.purpose` the behavior it

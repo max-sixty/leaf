@@ -1,4 +1,4 @@
-"""Assemble browser state from requested documents and the standing log."""
+"""Assemble browser state from requested documents and the current log."""
 
 from typing import NamedTuple
 
@@ -84,9 +84,10 @@ def _apply_thread_attention(
     durable: WorkReading, workflows: list[dict], threads: list[dict], todos: list[dict]
 ):
     """Attach each served thread's `attention`, the browser's one reading of whose turn
-    it is. `durable` combines the viewed page's vocabulary with each message's captured
-    vocabulary, so pinning another page revision does not reclassify frozen asks.
-    `workflows` are the page's, enriched with delivery liveness."""
+    it is, and its `todos`, the agent's to-dos still open on it. `durable` is the
+    reading of the view these threads are served in, so a pinned revision's threads
+    take the attention its own vocabulary reads; `workflows` are the page's,
+    enriched with delivery liveness."""
     owed = {ask["thread"] for ask in durable.asks["user"]}
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
@@ -96,6 +97,19 @@ def _apply_thread_attention(
         thread["attention"] = _thread_attention(
             thread, thread["id"] in owed, by_thread.get(thread["id"], []), todos
         )
+        # The agent's open to-dos on the thread, each with the line of the start
+        # running on it: a reply that promised one says it is still open (a to-do a
+        # reply opens takes the reply's id, `todos.py`), and a running one is work
+        # the thread's working message reads whoever's turn the thread is.
+        thread["todos"] = [
+            {
+                "id": todo["id"],
+                "title": todo["title"],
+                "line": todo["running"]["text"] if todo["running"] else None,
+            }
+            for todo in todos
+            if todo["thread"] == thread["id"]
+        ]
 
 
 def browser_state(
@@ -162,8 +176,8 @@ def browser_state(
                 revision_reader=revisions or readings.__getitem__,
             )
         )
-        # Read the page under its vocabulary and each frozen message under the
-        # vocabulary captured when that message was admitted.
+        # The view's own reading of the log: its document, and the frozen thread
+        # widgets with the asks and attention they give, under its registry.
         viewed = durable.viewing(page)
         reading = viewed.document
         thread, thread_reading = browser_thread(viewed, work.live_reply)
@@ -228,14 +242,7 @@ def browser_state(
         if key not in {"workflows", "todos"}
     }
     if wants_history(readings[revision] for revision in view_revisions):
-        words = GestureWords(
-            events,
-            active_registry,
-            revisions or readings.__getitem__,
-            available_revisions=(
-                revision_ids if revision_ids is not None else readings.keys()
-            ),
-        )
+        words = GestureWords(events, active_registry, revisions or readings.__getitem__)
         page_history = {
             "history": history(
                 events,
@@ -251,7 +258,7 @@ def browser_state(
         "basis": {"through_seq": through_seq},
         **page_history,
         "views": views,
-        # Standing approvals across every stamp, for Threads' event timeline.
+        # Approvals in force across every stamp, for Threads' event timeline.
         # Current-version approval state lives only in its ask.
         "approval_history": durable.approvals,
         "activity": activity,

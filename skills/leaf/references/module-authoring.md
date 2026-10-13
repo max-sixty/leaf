@@ -13,13 +13,6 @@ owns element declarations; its ["User state"](packages.md#user-state) and
 state and source contracts. Add or change those declarations when the module needs
 a new capability.
 
-Registry-declared widgets default-export their constructor. Leaf registers it in
-the publication’s vocabulary. Create child widgets with
-`createWidgetElement(owner, tag, Constructor)` from the public API, importing the
-child’s constructor. Each publication retains these constructors and its private
-module dependencies. The installed layer’s runtime and vendor libraries have one
-instance per running document; changing their bytes requires a fresh document.
-
 ## The helper surface
 
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets. A module imports
@@ -400,8 +393,7 @@ tag, or `undefined`. `elementsDeclaring(root, key, {direct})` lists the elements
 `root`, or only its children with `direct: true`, whose entries declare `key`.
 `matchesWhen(element, when)` says whether the element's attributes satisfy a
 declaration's `when`, as an `x-thread-seat` declaration's `when` selects its elements.
-`layerFact(owner, name)` returns a copy of a layer-wide `$` declaration, such as
-`$reactions`, from the element or document owner's publication.
+`layerFact(name)` returns a copy of a layer-wide `$` declaration, such as `$reactions`.
 
 ### Following a reference
 
@@ -444,7 +436,7 @@ its indication every animation frame; the driver's own narration says what the m
 means. An indication is browser state, like hover: the log never records it, and a new
 revision does not carry it. A widget whose parts have a face of their own styles
 `[data-lf-indicated]` on them; the default is an accent outline. A target that
-re-renders what a key addresses calls `layoutChanged(this)`, and every standing
+re-renders what a key addresses calls `layoutChanged(this)`, and every current
 indication resolves again.
 
 ## The widget controller
@@ -1090,8 +1082,8 @@ position.
 `scrollLimit(box)` is the furthest a box scrolls down, and `atScrollEnd(box)` says whether
 it stands there. `landingInsets(scroller)` reads the `scroll-padding` a scroller declares
 on each edge. `shownWindow({within, gap})` is the `DOMRect` of the window the page shows,
-below Leaf's banner and above its bottom bar, narrowed to the rectangle `within` and
-inset by `gap`.
+clear of the chrome Leaf fixes to its edges, such as its panel at the foot, narrowed to the
+rectangle `within` and inset by `gap`.
 
 ### Sticky headers
 
@@ -1124,8 +1116,8 @@ as `--lf-landing-room-start` beside its `--lf-top-start`. A header sticks below 
 scroller's top padding; to have it stand on the scroller's top edge, state
 `--lf-top-start` at minus that padding and `--lf-top: var(--lf-top-start)`. A box that only
 clips, such as a card rounding its corners, uses `overflow: clip`: a `hidden` box is a
-scroller, and a header inside it would scroll off with the page rather than stick below
-the banner.
+scroller, and a header inside it would scroll off with the page rather than stick at
+the window's top.
 
 ### Sideways scrollers and container queries
 
@@ -1349,7 +1341,7 @@ Each record contains:
 - An approval ask has `source.kind === "approval"`, `source.version` naming the stamped
   version, and id `approval:v<version>`. Its answer is `null` until that version's approval
   settles it with typed `answer.value === true`; Undo reopens it. Its arrival reaches the
-  banner's Approve control.
+  Approve control in the Questions view of Leaf's panel.
 
 `thread` and `message` name a frozen widget ask's Thread and exact message, and a prose
 ask's Thread and source message; both are null for page-widget and approval asks.
@@ -1399,7 +1391,7 @@ panel uses.
 Leaf's arrival, and resolves to `false` for an unavailable row. `queueActions.done(key)`
 returns an admission promise only for a current to-do on `questions`, one the agent opened
 on the user, and `null` otherwise. A widget ask ends through its widget, a prose ask through
-a reply, a settling reaction or the agent's `leaf task end`, and an approval ask through its version's banner approval.
+a reply, a settling reaction or the agent's `leaf task end`, and an approval ask through its version's approval.
 Done removes its to-do optimistically, a duplicate cannot send again, and a refusal restores
 the admitted reading; the server stays final. Collections keep their shape while `phase` is
 `waiting`, `ready` or `offline`; activate only a ready collection.
@@ -1442,10 +1434,10 @@ a widget that shows how long a worker has gone unheard.
 
 ### Reading version changes
 
-`comparisonChanges(owner)` returns the changed descendant elements in the standing version
+`comparisonChanges(owner)` returns the changed descendant elements in the current version
 comparison, excluding the owner itself; omit the owner to read every changed element. It
 reads the comparison's own record, not CSS markers, and returns an empty array with no
-comparison standing. `watchComparison(owner, callback)` calls the callback when the owner
+comparison active. `watchComparison(owner, callback)` calls the callback when the owner
 first connects and on each change to the comparison; on a return it calls only when the
 comparison changed while the owner was away. A callback that throws is reported, and the
 next change calls it again. Its returned function ends the watch. Use `comparisonChanges`
@@ -1553,11 +1545,7 @@ records. `reveal(id)` settles the visual on the requested part when someone foll
 thread, even if the part is already visible, so cancel any pending work that would retire
 it before returning. `label(id)` names a part in Threads without changing the visual's
 state, and returns `null` for an unknown id. The returned `update()` says the parts or
-their geometry changed; call it after any such rendering change. An `x-visual.parts`
-declaration may set `complete: true` where listing some drawn parts while leaving their
-peers unaddressable would confuse a reader: the render check then requires a nonempty
-authored list to name every registered part, and omitting the attribute keeps the visual
-as one target.
+their geometry changed; call it after any such rendering change.
 
 ## Threads
 
@@ -1580,7 +1568,7 @@ give it; its `root` is its opening message, which a reply or settlement names as
 after a failed response, and `"waiting"` one that is with the agent. Every Thread carries
 `offers: {open, reply, resolve, reopen}` for current command availability. Reply is
 admissible on a resolved Thread and reopens it. Each message's `reactions` is `null` or its
-current vocabulary and `choices`, including labels, glyphs and standing reactions.
+current vocabulary and `choices`, including labels, glyphs and reactions in force.
 
 `threadActions` adds a package's own controls over the current reading and Leaf's
 optimistic event path:
@@ -1625,8 +1613,8 @@ if (editor?.matches(":focus") && editor.setSelectionRange) {
 `reply`, `resolve`, `reopen` and `setReaction` return `null` when the current reading does
 not offer that action, otherwise a promise resolving to the admitted event, or `null` if
 admission refuses it. The action changes `readThreads()` at once; the server stays final. A
-reply needs non-empty text. `setReaction` names the desired standing state, so a stale
-control cannot invert a concurrent change: `false` withdraws a standing reaction, and the
+reply needs non-empty text. `setReaction` names the desired state, so a stale
+control cannot invert a concurrent change: `false` withdraws a reaction in force, and the
 token must be in the current layer's vocabulary on an addressable agent message.
 `create` accepts `text`, an optional `anchor`, `attempt`, `holds`, `about`, `drawing` and
 `suggestion`; empty text needs a drawing. It returns `{key, delivery}` synchronously, where
@@ -1677,8 +1665,9 @@ UI. The handle's `update()` requests a new render after a local layout change. R
 `registerThreadPresentation(owner, {render, reveal})` selects one primary package reader per
 page, for a package that supplies the page's conversation reader, such as a shelf of
 conversations or a feed of individual turns. Interactive message widgets then have one
-native instance, in this reader or in the fallback Threads panel. `mountThreadViews` stays
-useful for optional mirrors of it.
+native instance, in this reader or in the fallback Threads panel. Leaf's floating panel
+draws page threads with its own reader until a package registers one, and then opens them
+in the package's. `mountThreadViews` stays useful for optional mirrors of it.
 
 `render(shownCollection, parts)` nominates connected elements inside the owner as outlets.
 Its collection holds back updates that would move visible content, and Leaf shows a notice

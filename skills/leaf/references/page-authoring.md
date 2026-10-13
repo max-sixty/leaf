@@ -446,8 +446,7 @@ Use images only when they carry information.
 of your own.
 
 For `lf-diagram`, omit `parts` when the whole drawing is one Comment target. When
-individual boxes need their own targets, list every nameable box in `parts`;
-`page check --render` reports a partial list so adjacent boxes do not behave differently.
+individual boxes need their own targets, set `parts="all"` to expose every named box.
 
 The prose beside a shape says only what the shape cannot. What is left for prose is
 the claim, the reason it holds, and the question the page is asking. A few sentences
@@ -667,7 +666,7 @@ and use this declaration rather than posting setup events from a page module.
 
 To begin with threads from the parent, set `data-sample-threads` on the
 template to their space-separated thread ids. The declaration selects from the
-parent's standing log rather than requiring it: a page whose log does not hold one
+parent's current log rather than requiring it: a page whose log does not hold one
 of those threads yet — a first version, or a copy made from the source alone — opens
 the sample without that thread. Their anchored content must exist in the
 child. Reset copies those threads again from the parent; subsequent child

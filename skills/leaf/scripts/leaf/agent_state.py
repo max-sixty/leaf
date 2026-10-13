@@ -4,9 +4,11 @@ they select from.
 The reading uses one transaction and prints the two lists the active view serves
 (`served_state.queues`): On me (`questions`) holds open asks, to-dos on the user and
 resends; On <agent> (`tasks`) holds the answers the agent owes, its work in hand and
-its to-dos. The ask inventory also retains finished records, whatever their `status`
-(`questions`). `source` states whether a document is live and whether an invalid source save leaves the last valid version
-active.
+its to-dos. The ask inventory also retains finished records, whatever their `status` (`questions`). `source` states whether a
+document is live and whether an invalid source save leaves the last valid version
+active. A page this Leaf cannot serve as vendored (`layer.incompatible_layer`) is
+still read, its `source.error` the refusal naming the re-vendor: the reading gives the
+agent the page's context, and the error says not to act on it before `page init`.
 """
 
 import json
@@ -38,8 +40,8 @@ from .work import page_subject
 HISTORY_LIMIT = 50
 
 
-def standing_entry(coordinate, e: dict, thread: str | None = None) -> dict:
-    """One standing action, in the shape `page state` reports every one of them.
+def state_entry(coordinate, e: dict, thread: str | None = None) -> dict:
+    """One action in force, in the shape `page state` reports every one of them.
 
     `revision` is the exact document the action was taken on, which for a widget an agent
     sent is a fact about the gesture and none about the widget: thread markup is
@@ -142,7 +144,7 @@ def _base_state(
             for thread_id, thread in threads.items()
             if not bare_reaction(thread)
         ],
-        # Every reaction still standing — the agent-side reading of the marks
+        # Every reaction still in force — the agent-side reading of the marks
         # the page paints. On the page (`anchor`, or none for the page whole) while
         # its thread is unresolved; in a thread (`parent`) while that thread is open.
         "reactions": [
@@ -183,7 +185,7 @@ def _apply_document_state(
         for record in parser.lf_elements
     ]
     state["state"] = [
-        standing_entry(coordinate, event)
+        state_entry(coordinate, event)
         for coordinate, (event, _) in projection.actions.items()
     ]
     state["measurement_lag"] = measurement_lag_entries(
@@ -220,7 +222,7 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
         key=lambda element: (element["thread"] or "", element["line"])
     )
     state["state"] += [
-        standing_entry(coordinate, event, thread_of[coordinate[0]])
+        state_entry(coordinate, event, thread_of[coordinate[0]])
         for coordinate, (event, _) in thread_actions.actions.items()
     ]
     state["state"].sort(
@@ -230,7 +232,7 @@ def _apply_thread_state(state: dict, thread: FrozenThreadReading) -> None:
 
 def _widget_state(state: dict, page_dir: Path, widget: str, enclosing: dict) -> dict:
     """The page reading narrowed to one widget on the page and what it holds: its
-    element, the actions and reports standing on it or on anything inside it, the
+    element, the actions and reports in force on it or on anything inside it, the
     workflows there, the reports aimed at them, the to-dos open on them, and the
     asks sourced by them."""
 
@@ -294,9 +296,9 @@ def _write_page_state(
 ) -> None:
     """Where the page stands, as one JSON object — the agent-facing projection
     beside the browser projection in /api/state. A session picking a page up needs
-    the same reading; doing it in-head over `leaf page events` is how a standing
-    decision gets missed. So this prints the active revision's elements, the projection of
-    the user's standing state and the reports standing on the agent channel,
+    the same reading; doing it in-head over `leaf page events` is how a decision
+    in force gets missed. So this prints the active revision's elements, the projection of
+    the user's current state and the reports in force on the agent channel,
     authored measurements whose live source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
     the agent messages in it the user has not read, every open to-do on either side,
@@ -415,7 +417,7 @@ def _write_page_state(
         elements = [
             element for element in state["elements"] if element["thread"] == thread_id
         ]
-        standing = [
+        in_force = [
             reading for reading in state["state"] if reading["thread"] == thread_id
         ]
         reports = [
@@ -510,7 +512,7 @@ def _write_page_state(
             "content_source": content_source,
             "content": content,
             "elements": elements,
-            "state": standing,
+            "state": in_force,
             "reactions": reactions,
             "reports": reports,
             "activity": {

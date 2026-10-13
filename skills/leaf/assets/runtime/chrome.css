@@ -84,14 +84,15 @@
   :where(.lf-floating-panel) button:hover {
     background: var(--lf-fp-hover);
   }
-  :where(.lf-floating-panel) button:disabled {
+  :where(.lf-floating-panel) button:is(:disabled, [aria-disabled=true]) {
     color: var(--lf-fp-muted);
     cursor: default;
     background: none;
   }
   :where(.lf-floating-panel) :is(button, input):focus-visible {
-    outline: var(--focus-ring-w) solid var(--focus-ring);
+    outline: var(--focus-ring);
     outline-offset: -2px;
+    --lf-focus-ring: floating-panel;
   }
   .lf-floating-panel .lf-action-icon {
     width: 16px;
@@ -259,6 +260,9 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .lf-fp-dest[data-notice] {
+    color: var(--ink);
   }
   .lf-fp-keys {
     flex: none;
@@ -605,6 +609,7 @@
     align-items: center;
     gap: 6px;
     margin-top: 9px;
+    min-height: 28px;
   }
   .lf-fp-answer {
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
@@ -667,6 +672,11 @@
     color: var(--ink);
     font-size: 13px;
     font-weight: 600;
+  }
+  .lf-fp-explain {
+    margin-top: 3px;
+    white-space: normal;
+    text-wrap: pretty;
   }
   .lf-fp-state[data-tone=working] b {
     color: var(--accent);

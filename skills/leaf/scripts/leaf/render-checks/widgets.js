@@ -10,7 +10,6 @@ import {
   commandDeclarationsWithin,
   commandRoutes,
   pageDocument,
-  unrevealedVisualParts,
   upFrom,
   userScrollport,
   visualPartProblems,
@@ -104,22 +103,17 @@ export const missingUpgrades = (declarations) =>
     .map(([tag]) => tag);
 // visual-parts.js reads each declaration, so a part the gate accepts is one the page
 // can anchor and travel to.
-const visualProviderProblems = (declarations, check) =>
+export const invalidVisualProviders = (declarations) =>
   Object.entries(declarations)
     .filter(([, entry]) => entry["x-visual"])
     .flatMap(([tag, entry]) =>
       [...document.querySelectorAll(tag)].map((el) => ({
         code: "visual-parts",
         at: locate(el),
-        problems: check(el, entry["x-visual"]),
+        problems: visualPartProblems(el, entry["x-visual"]),
       })),
     )
     .filter((instance) => instance.problems.length);
-export const invalidVisualProviders = (declarations) =>
-  visualProviderProblems(declarations, visualPartProblems);
-// Moves each visual it reveals off the state the page opened in: the gate's last reading.
-export const unrevealedVisualProviders = (declarations) =>
-  visualProviderProblems(declarations, unrevealedVisualParts);
 export const undeclaredShadowRoots = (registry) => [
   ...new Set(
     [...document.querySelectorAll("*")]
@@ -153,7 +147,7 @@ export const missingThreads = (declarations) =>
     )
     .filter((instance) => instance.hosts !== 1);
 
-// Attributes standing on a widget that its entry never declared. The schema is the
+// Attributes on a widget that its entry never declared. The schema is the
 // whole of the author's namespace — `additionalProperties: false` on every tag — and
 // the static lint holds an authored document to it. What no source reading can see is the
 // other writer: a module, which upgrades the element and may leave anything it likes on

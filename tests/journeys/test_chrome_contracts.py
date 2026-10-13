@@ -494,10 +494,10 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     list_box = page.locator(".lf-threads").evaluate(
         "el => { const r = el.getBoundingClientRect(); return [r.top, r.bottom]; }"
     )
-    standing = card.evaluate(REPLY_BOX)
-    assert standing["caret"] == [True, 8, 8]
+    resting = card.evaluate(REPLY_BOX)
+    assert resting["caret"] == [True, 8, 8]
     # The live field and Send remain inside the list's visible reading band.
-    assert list_box[0] <= standing["field"][0] < standing["field"][1] <= list_box[1]
+    assert list_box[0] <= resting["field"][0] < resting["field"][1] <= list_box[1]
     send = card.locator(".lf-thread-send").bounding_box()
     assert list_box[0] <= send["y"] < send["y"] + send["height"] <= list_box[1]
 
@@ -528,10 +528,10 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
         # box the list follows lands within a pixel of where it stood (0.875px measured
         # on CI's Linux Chrome, nothing on macOS).
         now = card.evaluate(REPLY_BOX)
-        assert now["caret"] == standing["caret"]
-        assert now["box"] == pytest.approx(standing["box"], abs=0.99), (standing, now)
-        assert now["field"] == pytest.approx(standing["field"], abs=0.99), (
-            standing,
+        assert now["caret"] == resting["caret"]
+        assert now["box"] == pytest.approx(resting["box"], abs=0.99), (resting, now)
+        assert now["field"] == pytest.approx(resting["field"], abs=0.99), (
+            resting,
             now,
         )
         if answers > 1:
@@ -544,7 +544,7 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
                   return range.getBoundingClientRect().bottom;
                 }"""
             )
-            assert list_box[0] < tail <= now["box"][0], (standing, now, tail)
+            assert list_box[0] < tail <= now["box"][0], (resting, now, tail)
 
 
 @pytest.mark.parametrize("contents", ["short", "long"])
@@ -781,7 +781,7 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     )
     assert covered == 0
     # Wheeled on until its trigger has left the list, the list closes rather than
-    # standing unseen, so the keys answer the thread being read.
+    # staying open unseen, so the keys answer the thread being read.
     away = message.evaluate(
         """message => {
           const list = message.closest('.lf-threads');
@@ -1538,7 +1538,7 @@ def test_opening_a_line_under_a_full_last_line_moves_no_words(browser, serve):
 
 
 def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
-    """A standing comparison remains legible in its fixed menu seat."""
+    """An active comparison remains legible in its fixed menu seat."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',

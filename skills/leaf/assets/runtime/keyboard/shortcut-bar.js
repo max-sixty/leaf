@@ -38,7 +38,7 @@
    thread panel makes the line inert background. A coarse pointer is drawn no hint line
    at all — there is no keyboard to advertise, and every hint would name a key the user
    cannot press — and states no bar height. The status stands at the bar's far end, and
-   the line's row ends short of a standing one. The line, status, and chips take no
+   the line's row ends short of a fixed one. The line, status, and chips take no
    pointer events; the More control does, because it is the pointer route to the
    reference. Brief user feedback replaces an ordinal and then restores its live reading;
    background arrivals queue behind user feedback and persistent command context.
@@ -91,7 +91,7 @@ import {
 } from "../notifications.js";
 import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
-import { declareBottomBar } from "../geometry.js";
+import { declareWindowChrome } from "../geometry.js";
 import { pageUpgraded } from "../page-paint.js";
 import { closeLayer, focusDestination } from "../focus.js";
 import {
@@ -202,24 +202,21 @@ const boxesOf = (nodes) =>
 
 // Fixed boxes that Go-to hints and target-picker hints must not cover. The bottom-only
 // subset also bounds composers and floating cards. A transient notice
-// alone does not change page geometry; over a standing walk or command context it keeps
+// alone does not change page geometry; over an active walk or command context it keeps
 // that surface's last stable footprint rather than making a four-second message reflow
 // the page and its hints.
-const standingStatus = () => !walkPositionEl.hidden || !goToStatusEl.hidden;
-let standingStatusBox = null;
-export const standingStatusBoxes = () => {
-  if (!standingStatus()) {
-    standingStatusBox = null;
+const fixedStatus = () => !walkPositionEl.hidden || !goToStatusEl.hidden;
+let fixedStatusBox = null;
+const fixedStatusBoxes = () => {
+  if (!fixedStatus()) {
+    fixedStatusBox = null;
     return [];
   }
-  if (!noticeVisible()) [standingStatusBox = null] = boxesOf([bottomStatusEl]);
-  return standingStatusBox ? [standingStatusBox] : [];
+  if (!noticeVisible()) [fixedStatusBox = null] = boxesOf([bottomStatusEl]);
+  return fixedStatusBox ? [fixedStatusBox] : [];
 };
-export const bottomChromeBoxes = () => [
-  ...boxesOf([shortcutBarEl]),
-  ...standingStatusBoxes(),
-];
-declareBottomBar(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
+const bottomChromeBoxes = () => [...boxesOf([shortcutBarEl]), ...fixedStatusBoxes()];
+declareWindowChrome(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
 
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
@@ -352,8 +349,15 @@ registerBannerControl({
   seat: "menu",
   row: { label: "Keyboard shortcuts", shortcut: "?", group: "page" },
 });
+// The first `?` expands the bar where the bar is drawn; where it is not, under the
+// floating panel or a finger, there is nothing to expand, and `?` opens the reference.
 function advanceShortcutHelp() {
-  if (!shortcutHelpAvailable() || shortcutBarIsExpanded) return openCompleteReference();
+  if (
+    !shortcutHelpAvailable() ||
+    shortcutBarIsExpanded ||
+    !shortcutBarEl.checkVisibility()
+  )
+    return openCompleteReference();
   const scopes = stack();
   const { candidates, short } = arrange(lineRows(scopes));
   const shown = completeLine(scopes, candidates)?.rows ?? short;
@@ -481,14 +485,14 @@ export function renderShortcutBar(goToStatus) {
     presentation,
     span: rowSpans[index],
   }));
-  // The status stands at the bar's far end, level with the one row, so a standing status
+  // The status stands at the bar's far end, level with the one row, so a fixed status
   // pads the row's end and More and the way out stop short of it. A transient notice
-  // keeps the footprint of what it stands over (standingStatusBoxes) rather than trimming
+  // keeps the footprint of what it stands over (fixedStatusBoxes) rather than trimming
   // the line for the seconds it shows. The expanded bar's upper row is not level with the
   // status, so it reserves nothing.
   const barStyle = getComputedStyle(shortcutBarEl);
   const gap = parseFloat(barStyle.columnGap);
-  const [status] = expanded ? [] : standingStatusBoxes();
+  const [status] = expanded ? [] : fixedStatusBoxes();
   const reserved = status ? status.width + gap : 0;
   // Which rows fit is worked out from widths the line already has, not by showing a row
   // to see whether it wraps: a row the line leaves keeps its width out of flow

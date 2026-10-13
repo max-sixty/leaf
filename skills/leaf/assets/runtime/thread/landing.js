@@ -32,9 +32,10 @@
    out is the thread it belongs to whichever of them put the user in it, and the
    panel's own find box hands back to the Threads list. A page-owned first-message seat
    has no standing place of its own; a widget control that explicitly enters its box
-   supplies the caller-owned return target through `landInThread`. Sending leaves
-   focus on the conversation's card or title on every surface (`landSent`). Returning
-   to the page is a separate navigation gesture. */
+   supplies the caller-owned return target through `landInThread`. Sending from a
+   conversation's own box leaves focus on its card or title (`landSent`); the floating
+   panel's field, which stands for the thread open above it, keeps focus for the next
+   turn. Returning to the page is a separate navigation gesture. */
 import {
   alreadyShown,
   fitsWhole,
@@ -197,7 +198,7 @@ pageScope("text entry", {
       description: "Leave the box, keeping what is typed",
       title: () => backFromBox()?.line ?? "back to list",
       // The thread the box belongs to, or the panel's list from its own find box. A
-      // page text box that is neither leaves the row dead and the page's rung standing,
+      // page text box that is neither leaves the row dead and the page's rung in place,
       // which is the honest answer: nothing there to go back to.
       when: leavesBox,
       run: () => {
@@ -417,7 +418,7 @@ export function wireThreadLanding(threadsBox) {
   });
 }
 
-// Shown, not merely standing: a card the narrowing hid keeps its node (thread-list.js),
+// Shown, not merely present: a card the narrowing hid keeps its node (thread-list.js),
 // and a destination in one is as unreachable as a destination with no node at all.
 const listNode = (id, threadsBox, preferMessage = false) => {
   const threadId = threadNames(allThreads()).get(id)?.id ?? id;

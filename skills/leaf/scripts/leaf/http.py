@@ -53,13 +53,10 @@ from .revision_artifact import (
 from .revision_delivery import (
     Delivery,
     DeliveryAddress,
-    PublicationAddress,
-    RuntimeDelivery,
     compose_document,
     deliver_resource,
     delivered_resource,
     layer_import_map,
-    publication_css,
     rebase_document,
 )
 from .samples import Samples
@@ -162,7 +159,6 @@ def page_delivery(
     page_root: str = "",
     asset_root: str | None = None,
     share_url: str | None = None,
-    vocabulary_root: str | None = None,
     probe: str | None = None,
 ) -> Delivery:
     """How an HTTP host delivers a page's document: supervised before anything loads.
@@ -182,7 +178,6 @@ def page_delivery(
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
-    content_address = PublicationAddress(page_root, vocabulary_root or assets)
     bootstrap = resources["/runtime/bootstrap.js"].data.decode()
     release = (
         f' data-lf-release="{html.escape(release_id, quote=True)}"'
@@ -200,14 +195,12 @@ def page_delivery(
         f'data-lf-layer="{layer_id}"{release}{share} '
         f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
         f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
-        f'data-lf-probe="{html.escape(probe or address("/registry.json"), quote=True)}" '
-        f'data-lf-vocabulary-root="{html.escape(content_address("/registry.json"), quote=True)}">'
+        f'data-lf-probe="{html.escape(probe or address("/registry.json"), quote=True)}">'
         f"{bootstrap}</script>"
     )
 
     return Delivery(
-        address=content_address,
-        kernel=RuntimeDelivery(resources, address),
+        address=address,
         import_map=layer_import_map(assets),
         runtime=runtime,
         page_root=page_root,
@@ -431,10 +424,6 @@ class PageEndpoint:
         (`AGENTS.md`, "Pages across Leaf updates").
         """
         state = self._state_service().page_state(view_revision)
-        names = self.source.revision_names
-        state["vocabularies"] = {
-            str(revision): self._artifact_root(revision) for revision in names
-        }
         if not same_leaf(state["layer"].get("producer", {}), self.server.leaf):
             state["leaf"] = self.server.leaf
         return state
@@ -479,7 +468,7 @@ class PageEndpoint:
             registry = self._registry(view_revision)
         else:
             registry = self.source.active_registry()
-        self.response_layer = self._delivery_layer()
+        self.response_layer = registry["$layer"]["generation"]
         reading = self.source.data_source(source, registry)
         return deferred_value(
             reading, registry, source=source, revision=revision, key=key
@@ -865,10 +854,6 @@ class PageEndpoint:
     def _registry(self, revision: int) -> dict:
         return self._reading(revision).registry
 
-    def _delivery_layer(self) -> str:
-        """The current kernel's epoch, independently of a selected content vocabulary."""
-        return self._registry(self._active_revision())["$layer"]["generation"]
-
     def _artifact_root(self, revision: int) -> str:
         return self._named_root(self._revision_name(revision).removesuffix(".html"))
 
@@ -890,7 +875,7 @@ class PageEndpoint:
         it was saved at another protocol (`incompatible_revision`)."""
         if refusal := incompatible_revision(revision, artifact.registry):
             return self._json({"error": str(refusal)}, 409)
-        self.response_layer = self._delivery_layer()
+        self.response_layer = artifact.registry["$layer"]["generation"]
         projected = compose_document(
             artifact.html.decode("utf-8"),
             revision,
@@ -905,25 +890,15 @@ class PageEndpoint:
         response.headers["Leaf-Document"] = str(revision)
         return response
 
-    def _active_revision(self) -> int | None:
-        return self.source.active_revision()
-
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         """How this transport delivers a document; a transport adds its own marks."""
-        current = self._artifact(self._active_revision())
         return page_delivery(
-            current.resources,
+            artifact.resources,
             server_id=self.server.server_id,
-            layer_id=current.registry["$layer"]["generation"],
+            layer_id=artifact.registry["$layer"]["generation"],
             release_id=self.release,
             page_root=self.page_root,
-            asset_root=self._document_asset_root(self._active_revision()),
-            vocabulary_root=self._artifact_root(revision),
-            # With a release, a changed kernel is a changed release, which every answer
-            # names. Without one, a runtime edit re-vendors the page into its next
-            # revision while the kernel's immutable registry goes on naming the layer it
-            # was captured under, so the probe asks the page's registry, which answers
-            # for the active revision.
+            asset_root=self._document_asset_root(revision),
             probe=(
                 self.page_root.rstrip("/") + "/registry.json"
                 if self.release is None
@@ -956,17 +931,10 @@ class PageEndpoint:
         resource = delivered_resource(
             artifact,
             logical,
-            PublicationAddress(
-                self.page_root, self._named_root(name), artifact.shared_modules
-            ),
+            DeliveryAddress(self.page_root, self._named_root(name)),
         )
         if resource is None:
             return None
-        if logical == "/widget-theme.css":
-            resource = Resource(
-                publication_css(resource.data.decode(), revision).encode(),
-                resource.mime,
-            )
         response = self._resource_content(resource)
         # The revision name carries its manifest digest and the address is in the URL,
         # so these bytes never change. Every document of one page shares this namespace:
@@ -1070,7 +1038,7 @@ class PageEndpoint:
                     raise ValueError("view revision is required")
                 sequence = self.requested_view_sequence()
                 browser = self.page_browser_view(revision, sequence)
-                self.response_layer = self._delivery_layer()
+                self.response_layer = self._registry(revision)["$layer"]["generation"]
             except ValueError as error:
                 return self._json({"error": str(error)}, 400)
             return self._json({"browser": browser})
@@ -1131,17 +1099,13 @@ class PageEndpoint:
         elif view_revision not in self.source.revision_names:
             return self._refuse(f"unknown view revision r{view_revision}")
         self.layer_revision = view_revision
-        active_revision = self.source.active_revision()
-        current_layer = (
-            self._registry(active_revision)["$layer"]["generation"]
-            if active_revision is not None
+        self.response_layer = (
+            self._registry(view_revision)["$layer"]["generation"]
+            if view_revision is not None
             else self.layer
         )
-        self.response_layer = current_layer
-        if self.headers.get("Leaf-Layer") != current_layer:
-            # Preparation already consumed the body. A stale runtime needs the
-            # current generation, not a verdict in a vocabulary it no longer speaks.
-            return self._json({"layer": current_layer})
+        if self.headers.get("Leaf-Layer") != self.response_layer:
+            return self._json({"layer": self.response_layer})
         return None
 
     def _body_gate(self) -> Response | None:
@@ -1227,11 +1191,14 @@ class PageEndpoint:
         try:
             # The parent reading is complete before allocation, which validates
             # and writes only the child's directory.
-            inputs = self.source.sample_inputs(revision)
+            artifact, events, data = self.source.sample_inputs(revision)
             asset_root = self._sample_asset_root(revision)
             identity = self.server.samples.create(
                 self.page_dir,
-                inputs,
+                artifact,
+                self._reading(revision).document,
+                events,
+                data,
                 template,
                 message,
                 asset_root,

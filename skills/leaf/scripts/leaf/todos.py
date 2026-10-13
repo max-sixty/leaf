@@ -1,10 +1,11 @@
 """To-dos, the one kind of item on both lists, and the item the agent has in hand.
 
 A to-do is explicit work someone owes, and its `owner` says who: the agent, whose
-to-dos are on Tasks, or the user, whose to-dos are on Questions. How it ends follows
-from its owner and what it stands on, so no field records it.
+to-dos are on its On <agent> list, or the user, whose to-dos are on their On me
+list. How it ends follows from its owner and what it stands on, so no field records
+it.
 
-An item on the agent's Tasks is either an update it owes an answer, whose id is the
+An item on the agent's list is either an update it owes an answer, whose id is the
 update's event id (`workflows`), or a to-do it opened. Working always names one of
 them: `leaf task start` writes a `start` event naming the item with the line the
 banner shows, and the item is in hand, running, from then on. An ephemeral reply to
@@ -23,7 +24,7 @@ resolution, another version, or the end of the session that opened it leaves it
 open: that is what a to-do adds over an update, which its answer settles. Work that
 outlasts the turn that took it on, such as a worker's build, a CI wait, or a change
 promised for the next version, so stays on the agent's side: an open to-do holds its
-thread `waiting` (`served_state.browser`), counts under `queues.tasks` in `page
+thread `waiting` (`served_state.browser`), counts under `queues.on_agent` in `page
 state`, and is named in the banner. Work no update asked for, such as writing or
 revising the page on the agent's own initiative, is a to-do the agent opens on the
 page or the widget or section it concerns; housekeeping, such as re-vendoring or

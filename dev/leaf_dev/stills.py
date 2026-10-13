@@ -758,8 +758,8 @@ def versions_menu(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open Ask, reached with `q`: its ring and its marker in view."""
-    page.keyboard.press("q")
+    """The next open Ask, reached with `m`: its ring and its marker in view."""
+    page.keyboard.press("m")
     page.locator("lf-ask").first.wait_for()
 
 

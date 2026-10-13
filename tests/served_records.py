@@ -35,8 +35,8 @@ def _served(events: tuple[dict, ...]) -> dict:
 
 
 # Something of every kind on each list: a widget ask, a prose ask, a to-do the agent put
-# on the user, a reply that failed and a page action whose pickup failed are on Questions;
-# a comment owed a reply and a to-do the agent has in hand are on Tasks.
+# on the user, a reply that failed and a page action whose pickup failed are on On me;
+# a comment owed a reply and a to-do the agent has in hand are on On <agent>.
 BOTH_SIDES = (
     {"kind": "comment", "text": "Weekly?"},
     {
@@ -330,11 +330,11 @@ ASK_PAGE = leaf_page(
 
 
 def _served_ask_item() -> dict:
-    """One ask as Questions lists it (`served_state.queues`)."""
+    """One ask as On me lists it (`served_state.queues`)."""
     state = served_reading(ASK_PAGE, BOTH_SIDES)
     return next(
         item
-        for item in state["browser"]["views"]["1"]["queues"]["questions"]
+        for item in state["browser"]["views"]["1"]["queues"]["on_user"]
         if item["kind"] == "ask"
     )
 

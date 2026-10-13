@@ -2,7 +2,7 @@
 
    The application supplies the neutral annotation inventory and its live target/action
    directory. This renderer selects clusters and controls from those readings; it does
-   not gather Threads, Questions, workflows or contributed actions. Shared contribution
+   not gather Threads, the On lists, workflows or contributed actions. Shared contribution
    controls retain native entries across page and frozen-Thread seats. This renderer's
    Lit view owns direct/disclosed child order; margin-layout.js owns rail/pin posture,
    lanes and packing. Page Map consumes the inventory independently of this renderer.
@@ -16,7 +16,7 @@
 
    thread-preview.js owns the contextual card and its selected conversation's
    lifetime. The margin supplies its anchor control and manages cluster disclosure.
-   A card accompanies the page target the user stands at, an ask included: `q` lands
+   A card accompanies the page target the user stands at, an ask included: `m` lands
    on an ask and its discussion opens beside it, clear of its options. Keeping the card
    shut while the user works an ask was tried and rejected, since the user walks to an
    ask to read its discussion with it. followStanding and the
@@ -177,7 +177,7 @@ export function createMarginProjection({
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute(
     "aria-label",
-    "Changes, threads, questions, delivery status, and activity",
+    "Changes, threads, asks, delivery status, and activity",
   );
   nav.append(toolbar);
 
@@ -268,7 +268,7 @@ export function createMarginProjection({
   // temporarily owns focus without ending the document interaction beneath it. Preserve
   // that context so its commands remain true and its owning margin entry can receive
   // focus when the surface closes. A side surface standing beside the page, such as
-  // Questions, is somewhere else the user went.
+  // the On panel, is somewhere else the user went.
   const inRetainedContext = (node) =>
     node instanceof Element &&
     (Boolean(nativeLayerHolding(node)) ||
@@ -678,7 +678,7 @@ export function createMarginProjection({
   // browser would otherwise put it on body. An explicit request still shows what it asks
   // for without bringing the layer back: `t`, a Threads row and a Page Map pick open the
   // card at their target, and an arrival that walks to a target or to one of its row's
-  // controls (`q`, `focusForNavigation`) shows that one row, so what decides the target
+  // controls (`m`, `focusForNavigation`) shows that one row, so what decides the target
   // is in reach, until the user stands somewhere else. Tabbing or pressing onto a target
   // reveals nothing: the layer stays as the user left it.
   let revealed = null;
@@ -1546,7 +1546,7 @@ export function createMarginProjection({
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere
-  // inside it and never from outside: after `q` the user stands on the ask element, so
+  // inside it and never from outside: after `m` the user stands on the ask element, so
   // the card shows a thread on the ask but not one on its options or a phrase in its
   // heading. Treating an ask as one target for its threads is a possible refinement. It
   // belongs where a thread's target is decided (anchor-placement), so every

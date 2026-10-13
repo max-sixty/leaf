@@ -280,7 +280,7 @@
       generated(
         "p",
         "margin-entry-gallery-projection-guide",
-        "Use the live Inspect projection control at this exhibit's margin. Press g then Shift+M to find the same disclosure as a labeled Page Map row.",
+        "Use the live Inspect projection control at this exhibit's margin. Press g then Shift+P to find the same disclosure as a labeled Page Map row.",
       ),
     );
     const result = generated(

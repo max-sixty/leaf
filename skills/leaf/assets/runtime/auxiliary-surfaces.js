@@ -253,7 +253,7 @@ export function createAuxiliarySurfaces({
     // The native boundary lifts before the previous surface hides, so the focus it
     // hands back lands on a live page. The selected surface takes the boundary at sync.
     if (!selected || arriving || Boolean(active) !== selected.covers()) seat(null);
-    // Two surfaces on one edge, as Threads and Questions share the right, are two views
+    // Two surfaces on one edge, as Threads and the On panel share the right, are two views
     // of one side panel: selecting one in the other's place swaps them where they stand,
     // with no slide for either (`swap`).
     const swap = Boolean(previous && selected && previous.edge === selected.edge);

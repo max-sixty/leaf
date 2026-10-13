@@ -1336,7 +1336,7 @@ def toggle_surface(page, surface, open=True):
 
 
 # The wide page, whose side track the surface stands over, at both widths; the column
-# and the Questions panel at one each.
+# and the On panel at one each.
 @pytest.mark.parametrize(
     ("case", "width"),
     [
@@ -1349,7 +1349,7 @@ def toggle_surface(page, surface, open=True):
 def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     browser, serve, case, width
 ):
-    """Opening Threads or the Questions panel never moves the page: each stands over the
+    """Opening Threads or the On panel never moves the page: each stands over the
     right edge of the window they share, so the reading column keeps its place, its width and its wrapping, a
     wide page's side track stays where its Layout put it, and the document neither grows nor
     scrolls under it. The page beside the surface stays live rather than going inert
@@ -1444,7 +1444,7 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible()
     row = dialog.get_by_role("button", name="Action 15", exact=True)

@@ -116,8 +116,8 @@ customElements.define(
       this.list = offer("ul");
       this.counts = offer("p", "counts");
       this.queues = Object.fromEntries(
-        ["questions", "tasks", "done"].map((key, i) => {
-          const heading = offer("h4", "", ["Questions", "Tasks", "Done"][i]);
+        ["on_user", "on_agent", "done"].map((key, i) => {
+          const heading = offer("h4", "", ["On me", "On Claude", "Done"][i]);
           const list = offer("ul");
           const group = offer("div", "group");
           group.append(heading, list);
@@ -135,7 +135,7 @@ customElements.define(
         ["index", index],
         ["conversations", this.list],
         ...Object.entries(this.queues).map(([name, body]) => [
-          name.toLowerCase(),
+          name.replaceAll("_", "-"),
           body,
         ]),
       ];

@@ -1,4 +1,4 @@
-/* The Questions panel's generated list. EXPERIMENTAL: the panel is a first cut at one place
+/* The On panel's generated list. EXPERIMENTAL: the panel is a first cut at one place
    for what waits on the user and on the agent, and its groups, rows and words are
    expected to change a lot.
 
@@ -48,7 +48,7 @@ const rowTemplate = (row, activate, finish, end) =>
       data-lf-live=${row.live ? "" : nothing}
       title=${row.account}
       @click=${activate}
-      ${commandsOn("In Questions", [
+      ${commandsOn("In the On panel", [
         { id: "queue.row.open", keys: PRESS, title: "go to this item" },
         {
           id: "queue.row.done",

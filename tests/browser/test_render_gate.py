@@ -55,7 +55,7 @@ from render_cases_layout import (
     HIDDEN_SCROLLERS,
     IDENTIFIERS_IN_CODE_PAGE,
     NOTE_BESIDE_A_CHANGE,
-    QUESTIONS,
+    ON_PANEL,
     RESIZE_LOOP_EVENT,
     SCROLLED_CONTAINER,
     SHOT_SRC,
@@ -2432,9 +2432,9 @@ SURFACES = {
     "go-to": (["g"], None),
     "thread card": (["t"], OPEN_THREADS),
     "threads panel": (["g", "Shift+t"], None),
-    "questions panel": (["g", "Shift+q"], ".lf-btn.lf-queue"),
+    "on panel": (["g", "Shift+m"], ".lf-btn.lf-queue"),
     "leaves drawer": (["g", "Shift+l"], ".lf-btn.lf-others"),
-    "page map": (["g", "Shift+m"], None),
+    "page map": (["g", "Shift+p"], None),
     "versions menu": (["g", "Shift+v"], None),
     "draw mode": (["w"], None),
     "design mode": (["l"], None),
@@ -4260,33 +4260,33 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     )
 
 
-def test_threads_and_questions_stand_on_the_one_edge_the_user_drew(browser, serve):
-    """Threads and Questions are two views of one side panel, one at a time on the right
+def test_threads_and_the_on_panel_stand_on_the_one_edge_the_user_drew(browser, serve):
+    """Threads and the On panel are two views of one side panel, one at a time on the right
     of the window, so the width is the side's rather than either panel's. A user who drew
     the edge out to read a long question has drawn the edge, and finding Threads back at
     its default would be one fact kept in two places — which is what a width per panel
     would have been, and what the shared property is instead. The handle names the side
     panel it sizes, whichever view stands."""
-    page = open_page(browser, serve(QUESTIONS.html(), comments=1))
-    QUESTIONS.stand(page)
-    edge_settled(page, QUESTIONS)
-    handle = page.locator(f"{QUESTIONS.region} .lf-edge")
+    page = open_page(browser, serve(ON_PANEL.html(), comments=1))
+    ON_PANEL.stand(page)
+    edge_settled(page, ON_PANEL)
+    handle = page.locator(f"{ON_PANEL.region} .lf-edge")
     expect(handle).to_have_attribute("aria-label", "Side panel width")
-    draw_edge(page, QUESTIONS, 160)
-    drawn = geometry(page, QUESTIONS)
+    draw_edge(page, ON_PANEL, 160)
+    drawn = geometry(page, ON_PANEL)
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     threads = EDGES[0]
     edge_settled(page, threads)
-    expect(page.locator(QUESTIONS.region)).to_be_hidden()
+    expect(page.locator(ON_PANEL.region)).to_be_hidden()
     expect(page.locator(f"{threads.region} .lf-edge")).to_have_attribute(
         "aria-label", "Side panel width"
     )
     panel = geometry(page, threads)
     page.close()
 
-    assert drawn["width"] == QUESTIONS.wide + 160, f"the drag did not land: {drawn}"
+    assert drawn["width"] == ON_PANEL.wide + 160, f"the drag did not land: {drawn}"
     assert panel["width"] == drawn["width"], (
         f"Threads came up at a width the user had already moved: {panel}"
     )

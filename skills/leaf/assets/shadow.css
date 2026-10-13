@@ -424,12 +424,6 @@ summary {
   margin-top: 16px;
   --lf-working-dim: color-mix(in oklab, var(--muted) 80%, var(--paper));
 }
-.lf-thread-working-toggle {
-  margin-inline-start: auto;
-}
-.lf-thread-working-toggle > .lf-thread-disclosure {
-  padding-block: 0;
-}
 .lf-thread-working-words {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;

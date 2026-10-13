@@ -828,10 +828,10 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
 def test_pending_progress_is_the_threads_working_message_and_never_unread(
     browser, serve, request
 ):
-    """While the agent works, its progress shows as one quiet line above the reply
-    box, not as replies: each step replaces the last, nothing counts unread, and the
-    line's disclosure shows the steps. The answer takes the line's place and folds
-    the steps behind its own disclosure."""
+    """While the agent works, its progress shows as one dim working message above the
+    reply box, not as replies: each step replaces the last, nothing counts unread, and
+    the earlier steps stay out of sight. The answer takes the working message's place
+    and folds the steps behind its own disclosure."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Make the banner quieter", {"section": "h-how"}
@@ -860,14 +860,9 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
         "Trying a lighter weight"
     )
     expect(line).to_have_attribute("data-lf-live", "")
+    expect(line.get_by_role("button")).to_have_count(0)
     for step in steps:
         expect(thread.locator(f'.lf-msg[data-mid="{step["id"]}"]')).to_be_hidden()
-
-    show = line.get_by_role("button", name="Show progress messages", exact=True)
-    show.press("Enter")
-    for step in steps:
-        expect(thread.locator(f'.lf-msg[data-mid="{step["id"]}"]')).to_be_visible()
-    line.get_by_role("button", name="Hide progress messages", exact=True).press("Enter")
 
     answer = thread_model.post_reply(
         serve.page_dir,
@@ -968,8 +963,8 @@ def answer_folding_progress(page_dir, root):
 
 
 def open_card_with_progress(browser, serve, request):
-    """An idle open card whose thread ends with the agent's progress, opened from its
-    working message so the progress message itself shows."""
+    """An idle open card whose thread ends with the agent's progress, found by a search
+    so the progress message itself shows behind the working message."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
     claim_for_codex(serve.page_dir, request)
@@ -984,9 +979,7 @@ def open_card_with_progress(browser, serve, request):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
-    thread.locator(".lf-thread-working").get_by_role(
-        "button", name="Show progress messages", exact=True
-    ).click()
+    page.get_by_role("searchbox", name="Find in threads").fill("release entry")
     progress = thread.locator(".lf-msg.agent .lf-msg-text")
     expect(progress).to_be_visible()
     expect(progress).to_have_text("Checking the board for the release entry")
@@ -1359,8 +1352,9 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     browser, serve, surface, interleaved
 ):
     """The answer and its fold arrive together; originals remain a keyboard route.
-    Pending progress stands behind the working message, so the reader opens it there to
-    stand on it, and the answer that would fold it waits behind its notice."""
+    Pending progress stands hidden behind the working message; in the panel a search
+    for it shows it, and a reader standing on it holds the answer that would fold it
+    behind its notice. The page thread has no search, so its answer lands at once."""
     url = serve(SEATED_ASK_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
@@ -1406,35 +1400,34 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     expect(original).to_be_hidden()
     runs = 2 if interleaved else 1
     expect(card.locator(".lf-thread-checkpoint")).to_have_count(runs)
-    card.locator(".lf-thread-working").get_by_role(
-        "button", name="Show progress messages", exact=True
-    ).click()
-    expect(original).to_be_visible()
-    original.focus()
+    expect(card.locator(".lf-thread-working").get_by_role("button")).to_have_count(0)
     if surface == "panel":
+        page.get_by_role("searchbox", name="Find in threads").fill("the camera")
+        expect(original).to_be_visible()
+        original.focus()
         expect(original).to_be_focused()
 
     answer = thread_model.post_reply(
         serve.page_dir, {"to": owed, "for": owed}, "The schedule works."
     )
     told(page)
-    notice = card.get_by_role("button", name="1 new reply", exact=True)
-    expect(notice).to_be_visible()
-    expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_have_count(0)
-    expect(card.locator(".lf-thread-checkpoint")).to_have_count(runs)
-    expect(original).to_be_visible()
-    assert original.evaluate(
-        "node => { const box = node.getBoundingClientRect(); "
-        "return box.top >= 0 && box.bottom <= innerHeight; }"
-    )
     if surface == "panel":
+        notice = card.get_by_role("button", name="1 new reply", exact=True)
+        expect(notice).to_be_visible()
+        expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_have_count(0)
+        expect(card.locator(".lf-thread-checkpoint")).to_have_count(runs)
+        expect(original).to_be_visible()
+        assert original.evaluate(
+            "node => { const box = node.getBoundingClientRect(); "
+            "return box.top >= 0 && box.bottom <= innerHeight; }"
+        )
         expect(original).to_be_focused()
-    notice.click()
+        notice.click()
+        expect(original).to_be_visible()
     expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_be_visible()
     checkpoint = card.locator(".lf-thread-checkpoint")
     expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
     expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
-    expect(original).to_be_visible()
 
     # A fresh reading starts folded, independent of the live reader's protected focus.
     fresh = open_page(browser, url)

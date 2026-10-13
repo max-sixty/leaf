@@ -467,12 +467,9 @@ summary { align-content: center; }
 /* The working message: the step of work in hand, at the transcript's foot just above
    the reply box. It takes a message's head and body faces, but its words stay dim, and
    while the work runs a sheen passes over them, as over a title being generated, so a
-   step reads as work under way rather than as a reply. Its disclosure, whose words never
-   change with the step, holds the head's end. */
+   step reads as work under way rather than as a reply. */
 .lf-thread-working { margin-top: 16px;
   --lf-working-dim: color-mix(in oklab, var(--muted) 80%, var(--paper)); }
-.lf-thread-working-toggle { margin-inline-start: auto; }
-.lf-thread-working-toggle > .lf-thread-disclosure { padding-block: 0; }
 .lf-thread-working-words { margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content; max-inline-size: 100%;
   font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--lf-working-dim);

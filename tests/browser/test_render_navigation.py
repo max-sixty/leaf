@@ -1739,10 +1739,9 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
                 "Checking whether the room stays free after five.", exact=True
             )
             expect(later).to_be_hidden()
-            card.locator(".lf-thread-working").get_by_role(
-                "button", name="Show progress messages", exact=True
-            ).click()
-            expect(later).to_be_visible()
+            expect(
+                card.locator(".lf-thread-working").get_by_role("button")
+            ).to_have_count(0)
 
     page.locator('#bg-panel-presets [data-view="you"]').click()
     expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(2)

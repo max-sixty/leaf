@@ -263,13 +263,13 @@ export function threadReading(thread, surface, commands, options) {
 
 // The working message's contents: the step of work in hand, drawn as a message is,
 // with who is working at its head, but dimmed under a passing sheen while the work
-// runs, as a title being generated is. The disclosure of the progress messages it
-// stands for holds its head's end, so a new step moves nothing beside it. It is the
-// transcript's last child, so it stands at the conversation's inset on every surface
-// and scrolls with it. Its head wears a message head's face but not its class, since
-// it is no message: a message head's places (a margin's sticky head, held news) skip
-// it. It announces a new step or condition, but not its own disclosure's words.
-function workingView(working, toggle) {
+// runs, as a title being generated is. It shows the latest step alone: the earlier
+// ones are superseded, and the answer that folds them offers them behind its own
+// disclosure. It is the transcript's last child, so it stands at the conversation's
+// inset on every surface and scrolls with it. Its head wears a message head's face but
+// not its class, since it is no message: a message head's places (a margin's sticky
+// head, held news) skip it.
+function workingView(working) {
   return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}
       ${
@@ -277,7 +277,6 @@ function workingView(working, toggle) {
           ? html`<span class="lf-msg-meta">${working.condition}</span>`
           : nothing
       }
-      <span class="lf-thread-working-toggle" aria-live="off">${toggle}</span>
     </div>
     <div class="lf-thread-working-words">${working.words}</div>`;
 }
@@ -901,12 +900,10 @@ export class ThreadView {
       };
     });
     const boundaries = panel ? unreadBoundaries(rangeState) : new Map();
-    // The progress no answer has folded yet stands behind the working message's disclosure.
+    // The progress no answer has folded yet stands hidden behind the working message,
+    // open only where a search matches it or a streaming answer's disclosure opens it.
     const pendingRanges = rangeState.filter((range) => range.summary?.pending);
     this.#pendingOpen = pendingRanges.some((range) => range.expanded);
-    const pendingToggle = pendingRanges.length
-      ? this.#summaryToggle(pendingRanges, true, false)
-      : nothing;
     // Automatic progress folds name the reply that completed them. Its header owns
     // their disclosure, even when a user's intervening reply split the originals. An
     // answer still streaming at the thread's end holds the pending progress's
@@ -970,7 +967,7 @@ export class ThreadView {
     }
     if (model.working) {
       keeps(this.#working, "data-lf-live", model.working.live ? "" : null);
-      render(workingView(model.working, pendingToggle), this.#working);
+      render(workingView(model.working), this.#working);
       transcript.push(this.#working);
     }
     this.#checkpoints = checkpoints;
@@ -1318,8 +1315,6 @@ export class ThreadView {
     );
   }
 
-  // `counted` names how many messages the toggle shows. The working message's own toggle
-  // leaves the count out, since a count that grew with each step would move it.
   // Whether the progress behind the working message stood open when last drawn, opened by
   // the reader or by a search matching it, so each step that joins it shows: held news
   // counts those steps as news here (held-news.js).
@@ -1327,15 +1322,13 @@ export class ThreadView {
     return this.#pendingOpen;
   }
 
-  #summaryToggle(ranges, progress = false, counted = true) {
+  #summaryToggle(ranges, progress = false) {
     const ids = ranges.map((range) => range.summary.id);
     const expanded = ranges.every((range) => range.expanded);
     const count = ranges.reduce((total, range) => total + range.messages.length, 0);
-    const label = counted
-      ? `${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${count} ${
-          progress ? "progress" : "earlier"
-        } message${count === 1 ? "" : "s"}`
-      : `${expanded ? "Hide" : "Show"} progress messages`;
+    const label = `${expanded ? (progress ? "Hide" : "Collapse") : "Show"} ${count} ${
+      progress ? "progress" : "earlier"
+    } message${count === 1 ? "" : "s"}`;
     return html`<button
       type="button"
       class="lf-thread-disclosure lf-summary-expand"

@@ -45,6 +45,7 @@ from interact_support import (
     fresh_process,
     lock_contention,
     model_layer,
+    page_state,
     publish,
     read_page_data,
     refused_on,
@@ -59,6 +60,7 @@ from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
+from leaf import event_meaning as event_meaning_model
 from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import page_memory as page_memory_model
@@ -81,6 +83,7 @@ from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
+from leaf.served_state.service import LivePage
 from leaf.validation import composition as validation_model
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
@@ -282,12 +285,9 @@ def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch)
     assert synced, "a page's own revision is made durable"
 
     synced.clear()
-    artifact = artifact_model.read_artifact(page_dir, parent.revision)
-    document = artifact_model.read_revision(page_dir, parent.revision).document
+    inputs = LivePage(page_dir).sample_inputs(parent.revision)
     samples = samples_model.Samples()
-    identity = samples.create(
-        page_dir, artifact, document, [], {"sources": {}}, "practice", None, None
-    )
+    identity = samples.create(page_dir, inputs, "practice", None, None)
     try:
         child = samples.pages[identity].directory
         assert files_model.latest_revision(child) == 1
@@ -437,6 +437,224 @@ def test_artifact_read_refuses_a_replaced_immutable_manifest(page_dir):
 
     with pytest.raises(artifact_model.ArtifactError, match="manifest digest"):
         artifact_model.read_artifact(page_dir, revision)
+
+
+@pytest.mark.parametrize("manifest", [None, "{", "shared_modules", "widgets"])
+def test_revision_inventory_ignores_incomplete_capture_records(page_dir, manifest):
+    """Stale captures are absent; current publication and numeric order still work."""
+    first = revisioning_model.activate_source(page_dir)
+    assert first.error is None and first.revision == 1
+    marker = files_model.revision_path(page_dir, 1)
+    old = marker.parent / "r9-0123456789abcdef"
+    shutil.copytree(marker.with_suffix(""), old)
+    metadata = old / "manifest.json"
+    if manifest is None:
+        metadata.unlink()
+    elif manifest == "{":
+        metadata.write_text(manifest)
+    else:
+        record = json.loads(metadata.read_bytes())
+        if manifest == "shared_modules":
+            # The previous graph omitted lazy layer libraries. It is an obsolete
+            # contract even though its manifest contains the earlier graph field.
+            record["runtime_modules"] = record.pop(manifest)
+        else:
+            del record[manifest]
+        metadata.write_text(json.dumps(record))
+    old.with_suffix(".html").write_bytes(marker.read_bytes())
+
+    assert files_model.list_revisions(page_dir) == [1]
+    with pytest.raises(Refused, match="no revision r9"):
+        files_model.revision_path(page_dir, 9)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Next plan"))
+    current = revisioning_model.activate_source(page_dir)
+    assert current.error is None and current.revision == 10
+    assert artifact_model.read_artifact(page_dir, 10).shared_modules
+    assert files_model.list_revisions(page_dir) == [1, 10]
+
+
+def test_obsolete_capture_identities_are_never_rebound_to_new_publications(page_dir):
+    """A fresh stamp cannot inherit the decisions or version of an obsolete capture."""
+    first = stamp(page_dir, "Original publication")
+    assert first.exit_code == 0, first.output
+    marker = files_model.revision_path(page_dir, 1)
+    artifact = artifact_model.read_artifact(page_dir, 1)
+    metadata = marker.with_suffix("") / "manifest.json"
+    manifest = json.loads(metadata.read_bytes())
+    del manifest["shared_modules"]
+    metadata.write_text(json.dumps(manifest))
+    original = events_model.read_events(page_dir)
+    assert original[-1]["revision"] == 1 and original[-1]["publication"]
+
+    with fresh_process():
+        assert files_model.list_revisions(page_dir) == []
+        assert files_model.revision_orders(page_dir) == (1,)
+        assert files_model.unfinished_publications(page_dir, original) == []
+        with pytest.raises(artifact_model.ArtifactError, match="r1 already exists"):
+            artifact_model.stage_artifact(page_dir, 1, artifact)
+        (page_dir / "index.html").write_text(PAGE.replace("Plan", "New publication"))
+        current = stamp(page_dir, "Current publication")
+        assert current.exit_code == 0, current.output
+        assert files_model.list_revisions(page_dir) == [2]
+        assert artifact_model.read_artifact(page_dir, 2).shared_modules
+        events = events_model.read_events(page_dir)
+        assert events[: len(original)] == original
+        assert events[-1]["revision"] == 2 and events[-1]["version"] == 2
+
+
+def test_obsolete_capture_with_frozen_reply_is_absent_from_page_state(page_dir):
+    """An unavailable publication drops its frozen widget island, not its prose."""
+    assert revisioning_model.activate_source(page_dir).revision == 1
+    parent = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Choose."},
+    )
+    reply = thread_model.post_reply(
+        page_dir,
+        {"to": parent["id"], "for": parent["id"]},
+        "The captured choice is here.",
+        '<lf-options id="frozen-options" choose>'
+        '<lf-option id="frozen-option">Keep</lf-option></lf-options>',
+    )
+    marker = files_model.revision_path(page_dir, 1)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Updated plan"))
+    assert revisioning_model.activate_source(page_dir).revision == 2
+    marker.unlink()
+    assert files_model.list_revisions(page_dir) == [2]
+    current_parent = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 2,
+            "text": "Keep the current capture.",
+        },
+    )
+    current = thread_model.post_reply(
+        page_dir,
+        {"to": current_parent["id"], "for": current_parent["id"]},
+        "This capture is still available.",
+        '<lf-code id="current-capture" language="python"><pre>2</pre></lf-code>',
+    )
+
+    with fresh_process():
+        state = page_state(page_dir)
+        browser = state["browser"]
+
+    threads = {
+        thread["id"]: thread
+        for thread in browser["views"][str(state["active"]["revision"])]["thread"][
+            "threads"
+        ]
+    }
+    obsolete = threads[parent["id"]]
+    assert [message["text"] for message in obsolete["msgs"]] == [
+        "Choose.",
+        "The captured choice is here.",
+    ]
+    assert "markup" not in obsolete["msgs"][1]
+    assert "markup" not in next(
+        event for event in state["events"] if event["id"] == reply["id"]
+    )
+    current_thread = threads[current_parent["id"]]
+    current_message = next(
+        message for message in current_thread["msgs"] if message["id"] == current["id"]
+    )
+    assert current_message["markup"] == current["markup"]
+    readings = data_contracts_model.page_data_document_readings(
+        page_dir, events_model.read_events(page_dir), {}
+    )
+    assert [
+        label for _elements, label, _registry in readings if label.startswith("event ")
+    ] == [f"event {current['id']!r} markup"]
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", '<p id="frozen-options">Reused id.</p></main>')
+    )
+    refused = check(page_dir)
+    assert refused.exit_code != 0
+    assert 'ids already taken by message markup: ["frozen-options"]' in refused.output
+
+
+def test_unavailable_capture_id_stays_reserved_in_selected_sample_threads(page_dir):
+    """A carried answer cannot settle a child widget reusing its retired owner id."""
+    (page_dir / "index.html").write_text(PAGE)
+    assert revisioning_model.activate_source(page_dir).revision == 1
+    parent = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Can we use this proposal?",
+        },
+    )
+    thread_model.post_reply(
+        page_dir,
+        {"to": parent["id"], "for": parent["id"]},
+        "Here is the proposal.",
+        '<lf-ask id="proposal-ask"><h3>Choose this proposal</h3>'
+        '<lf-options id="sug-reserved" choose multiple>'
+        '<lf-option id="proposal-copy">Keep this.</lf-option>'
+        "</lf-options></lf-ask>",
+    )
+    registry = require_registry(page_dir)
+    answer = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "sug-reserved",
+            "action": "choose",
+            "detail": {"value": ["proposal-copy"]},
+            "meaning": {
+                **event_meaning_model.state_meaning(
+                    {
+                        "widget": "sug-reserved",
+                        "action": "choose",
+                        "detail": {"value": ["proposal-copy"]},
+                    },
+                    registry["lf-options"],
+                    "thread",
+                    "lf-options",
+                ),
+                "answer": parent["id"],
+            },
+        },
+    )
+    assert answer["meaning"]["answer"] == parent["id"]
+    marker = files_model.revision_path(page_dir, 1)
+    marker.unlink()
+    assert files_model.list_revisions(page_dir) == []
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            f'<template id="practice" data-sample data-sample-threads="{parent["id"]}">'
+            '<lf-ask id="child-ask"><h3>Choose</h3>'
+            '<lf-options id="sug-reserved" choose multiple>'
+            '<lf-option id="child-proposal">A new proposal.</lf-option>'
+            "</lf-options></lf-ask></template></main>",
+        )
+    )
+
+    refused = check(page_dir)
+
+    assert refused.exit_code != 0
+    assert (
+        "sample 'practice': ids already taken by message markup: [\"sug-reserved\"]"
+        in refused.output
+    )
+
+
+def test_revision_inventory_retains_duplicate_current_capture_refusal(page_dir):
+    """Ignoring old formats does not choose between two complete current markers."""
+    revisioning_model.activate_source(page_dir)
+    marker = files_model.revision_path(page_dir, 1)
+    duplicate = marker.parent / "r1-0123456789abcdef"
+    shutil.copytree(marker.with_suffix(""), duplicate)
+    duplicate.with_suffix(".html").write_bytes(marker.read_bytes())
+    with pytest.raises(Refused, match="same order"):
+        files_model.list_revisions(page_dir)
 
 
 def test_artifact_cache_holds_a_bundle_by_its_content_addressed_path(page_dir):
@@ -1608,7 +1826,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
                     "kind": "comment",
                     "id": event_id,
                     "author": "user",
-                    "text": f"question {event_id}",
+                    "text": f"ask {event_id}",
                 },
             )
         )
@@ -2516,6 +2734,187 @@ diff --git a/src/second file.py b/src/second file.py
     )
 
 
+def test_native_git_file_operations_survive_capture_without_invented_hunks(
+    page_dir, tmp_path
+):
+    """Git owns operation evidence, including copies it can detect from unchanged files."""
+    repository = tmp_path / "native"
+    repository.mkdir()
+
+    def git(*arguments):
+        return subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    git("init", "-q")
+    original = {
+        "mode.sh": b"echo ready\n",
+        "binary.dat": b"old\0blob\n",
+        "deleted-empty": b"",
+        "copy-source.txt": "".join(f"line {index}\n" for index in range(30)).encode(),
+        "old name.txt": b"same text\n",
+        "old-mode.txt": b"same mode\n",
+        "changed-type": b"before\n",
+        "same-type-content": b"target",
+        "binary-type": b"old\0binary\n",
+    }
+    for name, content in original.items():
+        (repository / name).write_bytes(content)
+    (repository / "removed-link").symlink_to("old-target")
+    git("add", ".")
+    git(
+        "-c",
+        "user.name=Leaf test",
+        "-c",
+        "user.email=leaf@example.invalid",
+        "commit",
+        "-qm",
+        "Original",
+    )
+    for name, target in [
+        ("changed-type", "new-target"),
+        ("same-type-content", "target"),
+        ("binary-type", "binary-target"),
+    ]:
+        (repository / name).unlink()
+        (repository / name).symlink_to(target)
+    (repository / "removed-link").unlink()
+    (repository / "removed-link").write_text("after\n")
+    (repository / "mode.sh").chmod(0o755)
+    (repository / "binary.dat").write_bytes(b"new\0blob\n")
+    (repository / "deleted-empty").unlink()
+    (repository / "added-empty").write_text("")
+    (repository / "copy-pure.txt").write_bytes(original["copy-source.txt"])
+    (repository / "copy-edited.txt").write_bytes(
+        original["copy-source.txt"] + b"extra line\n"
+    )
+    (repository / "old name.txt").rename(repository / "new name.txt")
+    (repository / "old-mode.txt").rename(repository / "new-mode.txt")
+    (repository / "new-mode.txt").chmod(0o755)
+    git("add", ".")
+    patch = git("diff", "--cached", "-M", "-C", "--find-copies-harder")
+    manifest = patch_manifest(patch)
+    files = {file["path"]: file for file in manifest["files"]}
+    assert files["copy-pure.txt"]["operation"] == "copy"
+    assert files["copy-edited.txt"]["operation"] == "copy"
+    assert files["copy-edited.txt"]["previousPath"] == "copy-source.txt"
+    assert files["copy-edited.txt"]["hunkCount"] == 1
+    assert files["copy-edited.txt"]["additions"] == 1
+    assert files["new name.txt"]["operation"] == "rename"
+    for path in ("mode.sh", "new-mode.txt"):
+        assert files[path]["oldMode"] == "100644"
+        assert files[path]["newMode"] == "100755"
+    assert files["binary.dat"]["binary"] is True
+    for path in ("changed-type", "same-type-content", "binary-type", "removed-link"):
+        assert files[path]["operation"] == "modify"
+        assert files[path]["hunkCount"] == 1
+        assert files[path]["oldMode"] != files[path]["newMode"]
+        assert files[path]["patch"].count("diff --git ") == 2
+    assert (
+        files["same-type-content"]["additions"]
+        == files["same-type-content"]["deletions"]
+        == 1
+    )
+    assert files["binary-type"]["binary"] is True
+    opaque = patch_manifest(git("diff", "--cached", "--binary", "--", "binary-type"))[
+        "files"
+    ][0]
+    assert opaque["binary"] and "literal " not in opaque["patch"]
+    assert opaque["patch"].startswith("diff --git ")
+    assert all(file["patch"].startswith("diff --git ") for file in files.values())
+    binary = patch_manifest(git("diff", "--cached", "--binary", "--", "binary.dat"))
+    assert [
+        {key: value for key, value in file.items() if key != "patch"}
+        for file in binary["files"]
+    ] == [{key: value for key, value in files["binary.dat"].items() if key != "patch"}]
+    assert "literal " not in binary["files"][0]["patch"]
+    empty = patch_manifest(
+        git("diff", "--cached", "--no-renames", "--", "added-empty", "deleted-empty")
+    )
+    assert [
+        (file["operation"], file["hunkCount"], file["binary"])
+        for file in empty["files"]
+    ] == [
+        ("add", 0, False),
+        ("delete", 0, False),
+    ]
+    declare_data_input(
+        page_dir, "native-patch", {"type": "object"}, contract="unified-diff"
+    )
+    for value in (manifest, empty, binary):
+        data_model.cmd_data_set(page_dir, "native-patch", value)
+        assert read_page_data(page_dir)["sources"]["native-patch"]["value"] == value
+
+
+@pytest.mark.parametrize(
+    "patch_text",
+    [
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-old
++GIT binary patch
+""",
+        """diff --git a/old.py b/new.py
+similarity index 100%
+rename from old.py
+rename to new.py
+--- a/old.py
++++ b/new.py
+-before
++after
+""",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
++lost
+""",
+        """diff --git a/app.py b/app.py
+@@ -1 +1 @@
+--- bogus-old
++++ bogus-new
+""",
+        """diff --git a/app.py b/app.py
+--- a/other.py
++++ b/other.py
+@@ -1 +1 @@
+-before
++after
+""",
+        """diff --git a/new.py b/new.py
+new file mode 100644
+--- /dev/null
++++ b/new.py
+@@ -0,0 +3 @@
++partial
+""",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
+diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
+""",
+    ],
+)
+def test_the_diff_script_preserves_evidence_for_the_widget_to_judge(patch_text):
+    manifest = patch_manifest(patch_text)
+    assert "".join(file["patch"] for file in manifest["files"]) == patch_text
+
+
 DIFF_PATCH_CASES = json.loads(
     (Path(__file__).parents[1] / "diff_patch_cases.json").read_text()
 )["cases"]
@@ -2597,7 +2996,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
         page_dir,
         {
             "kind": "comment",
-            "id": "data-question",
+            "id": "data-ask",
             "author": "user",
             "revision": 1,
             "text": "Show the feed here.",
@@ -2605,7 +3004,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
     )
     reply = thread_model.post_reply(
         page_dir,
-        {"to": "data-question", "for": "data-question"},
+        {"to": "data-ask", "for": "data-ask"},
         "Here it is.",
         '<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
     )
@@ -2649,7 +3048,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
         page_dir,
         {
             "kind": "comment",
-            "id": "data-question",
+            "id": "data-ask",
             "author": "user",
             "revision": 1,
             "text": "Show another feed here.",
@@ -2658,7 +3057,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
 
     reply = thread_model.post_reply(
         page_dir,
-        {"to": "data-question", "for": "data-question"},
+        {"to": "data-ask", "for": "data-ask"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
     )
@@ -2731,7 +3130,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source
         page_dir,
         {
             "kind": "comment",
-            "id": "draft-data-question",
+            "id": "draft-data-ask",
             "author": "user",
             "revision": 1,
             "text": "Show another feed here.",
@@ -2740,7 +3139,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source
 
     thread_model.post_reply(
         page_dir,
-        {"to": "draft-data-question", "for": "draft-data-question"},
+        {"to": "draft-data-ask", "for": "draft-data-ask"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
     )
@@ -3791,7 +4190,15 @@ def test_ask_history_survives_parse_eviction_and_new_revisions(page_dir, monkeyp
                 page_dir, revision
             ),
         )
-        return WorkReading(events, reading.registry, page).document.asks
+        return WorkReading(
+            events,
+            reading.registry,
+            page,
+            registry_for_revision=lambda revision: (
+                artifact_model.read_revision(page_dir, revision).registry
+            ),
+            available_revisions=revisions,
+        ).document.asks
 
     with fresh_process():
         initial = read()
@@ -4041,7 +4448,14 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
         action("frozen-draft", "Frozen standing.", 4),
     ]
 
-    expected = render_gate_readings._expected_verbatim(page, events, registry, here=1)
+    expected = render_gate_readings._expected_verbatim(
+        page,
+        events,
+        registry,
+        here=1,
+        registry_for_revision=lambda revision: registry,
+        available_revisions={1},
+    )
 
     assert expected == {
         ("page", None, 0): [{"text": "Page authored."}],
@@ -4088,7 +4502,12 @@ def test_projected_verbatim_includes_generated_children():
         "lf-list", registry["lf-list"], registry["lf-list"]["x-state"]["add"]
     )
     expected = render_gate_readings._expected_verbatim(
-        markup, [event], registry, here=1
+        markup,
+        [event],
+        registry,
+        here=1,
+        registry_for_revision=lambda revision: registry,
+        available_revisions={1},
     )
 
     assert expected == {("page", None, 0): [{"text": "Authored item. Generated item."}]}
@@ -4243,9 +4662,9 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     reading = state_json(page_dir)
     [standing] = [item for item in reading["state"] if item["action"] == "choose"]
     assert standing["detail"] == {"value": ["o-shim"]}
-    [question] = reading["asks"]
-    assert question["status"] == "answered"
-    assert question["answer"]["event"]["id"] == picked["id"]
+    [ask] = reading["asks"]
+    assert ask["status"] == "answered"
+    assert ask["answer"]["event"]["id"] == picked["id"]
 
 
 def test_revisions_change_edited_drafts_without_retracting_the_user_edit(page_dir):
@@ -4344,184 +4763,3 @@ def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_di
     [thread] = state_json(page_dir)["threads"]
     assert thread["anchor"] is None
     assert root in events_model.read_events(page_dir)
-
-
-@pytest.mark.parametrize(
-    "patch_text",
-    [
-        """diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--old
-+GIT binary patch
-""",
-        """diff --git a/old.py b/new.py
-similarity index 100%
-rename from old.py
-rename to new.py
---- a/old.py
-+++ b/new.py
--before
-+after
-""",
-        """diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--before
-+after
-+lost
-""",
-        """diff --git a/app.py b/app.py
-@@ -1 +1 @@
---- bogus-old
-+++ bogus-new
-""",
-        """diff --git a/app.py b/app.py
---- a/other.py
-+++ b/other.py
-@@ -1 +1 @@
--before
-+after
-""",
-        """diff --git a/new.py b/new.py
-new file mode 100644
---- /dev/null
-+++ b/new.py
-@@ -0,0 +3 @@
-+partial
-""",
-        """diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--before
-+after
-diff --git a/app.py b/app.py
---- a/app.py
-+++ b/app.py
-@@ -1 +1 @@
--before
-+after
-""",
-    ],
-)
-def test_the_diff_script_preserves_evidence_for_the_widget_to_judge(patch_text):
-    manifest = patch_manifest(patch_text)
-    assert "".join(file["patch"] for file in manifest["files"]) == patch_text
-
-
-def test_native_git_file_operations_survive_capture_without_invented_hunks(
-    page_dir, tmp_path
-):
-    """Git owns operation evidence, including copies it can detect from unchanged files."""
-    repository = tmp_path / "native"
-    repository.mkdir()
-
-    def git(*arguments):
-        return subprocess.run(
-            ["git", "-C", str(repository), *arguments],
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-
-    git("init", "-q")
-    original = {
-        "mode.sh": b"echo ready\n",
-        "binary.dat": b"old\0blob\n",
-        "deleted-empty": b"",
-        "copy-source.txt": "".join(f"line {index}\n" for index in range(30)).encode(),
-        "old name.txt": b"same text\n",
-        "old-mode.txt": b"same mode\n",
-        "changed-type": b"before\n",
-        "same-type-content": b"target",
-        "binary-type": b"old\0binary\n",
-    }
-    for name, content in original.items():
-        (repository / name).write_bytes(content)
-    (repository / "removed-link").symlink_to("old-target")
-    git("add", ".")
-    git(
-        "-c",
-        "user.name=Leaf test",
-        "-c",
-        "user.email=leaf@example.invalid",
-        "commit",
-        "-qm",
-        "Original",
-    )
-    for name, target in [
-        ("changed-type", "new-target"),
-        ("same-type-content", "target"),
-        ("binary-type", "binary-target"),
-    ]:
-        (repository / name).unlink()
-        (repository / name).symlink_to(target)
-    (repository / "removed-link").unlink()
-    (repository / "removed-link").write_text("after\n")
-    (repository / "mode.sh").chmod(0o755)
-    (repository / "binary.dat").write_bytes(b"new\0blob\n")
-    (repository / "deleted-empty").unlink()
-    (repository / "added-empty").write_text("")
-    (repository / "copy-pure.txt").write_bytes(original["copy-source.txt"])
-    (repository / "copy-edited.txt").write_bytes(
-        original["copy-source.txt"] + b"extra line\n"
-    )
-    (repository / "old name.txt").rename(repository / "new name.txt")
-    (repository / "old-mode.txt").rename(repository / "new-mode.txt")
-    (repository / "new-mode.txt").chmod(0o755)
-    git("add", ".")
-    patch = git("diff", "--cached", "-M", "-C", "--find-copies-harder")
-    manifest = patch_manifest(patch)
-    files = {file["path"]: file for file in manifest["files"]}
-    assert files["copy-pure.txt"]["operation"] == "copy"
-    assert files["copy-edited.txt"]["operation"] == "copy"
-    assert files["copy-edited.txt"]["previousPath"] == "copy-source.txt"
-    assert files["copy-edited.txt"]["hunkCount"] == 1
-    assert files["copy-edited.txt"]["additions"] == 1
-    assert files["new name.txt"]["operation"] == "rename"
-    for path in ("mode.sh", "new-mode.txt"):
-        assert files[path]["oldMode"] == "100644"
-        assert files[path]["newMode"] == "100755"
-    assert files["binary.dat"]["binary"] is True
-    for path in ("changed-type", "same-type-content", "binary-type", "removed-link"):
-        assert files[path]["operation"] == "modify"
-        assert files[path]["hunkCount"] == 1
-        assert files[path]["oldMode"] != files[path]["newMode"]
-        assert files[path]["patch"].count("diff --git ") == 2
-    assert (
-        files["same-type-content"]["additions"]
-        == files["same-type-content"]["deletions"]
-        == 1
-    )
-    assert files["binary-type"]["binary"] is True
-    opaque = patch_manifest(git("diff", "--cached", "--binary", "--", "binary-type"))[
-        "files"
-    ][0]
-    assert opaque["binary"] and "literal " not in opaque["patch"]
-    assert opaque["patch"].startswith("diff --git ")
-    assert all(file["patch"].startswith("diff --git ") for file in files.values())
-    binary = patch_manifest(git("diff", "--cached", "--binary", "--", "binary.dat"))
-    assert [
-        {key: value for key, value in file.items() if key != "patch"}
-        for file in binary["files"]
-    ] == [{key: value for key, value in files["binary.dat"].items() if key != "patch"}]
-    assert "literal " not in binary["files"][0]["patch"]
-    empty = patch_manifest(
-        git("diff", "--cached", "--no-renames", "--", "added-empty", "deleted-empty")
-    )
-    assert [
-        (file["operation"], file["hunkCount"], file["binary"])
-        for file in empty["files"]
-    ] == [
-        ("add", 0, False),
-        ("delete", 0, False),
-    ]
-    declare_data_input(
-        page_dir, "native-patch", {"type": "object"}, contract="unified-diff"
-    )
-    for value in (manifest, empty, binary):
-        data_model.cmd_data_set(page_dir, "native-patch", value)
-        assert read_page_data(page_dir)["sources"]["native-patch"]["value"] == value

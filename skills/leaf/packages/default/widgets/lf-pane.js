@@ -13,37 +13,32 @@ import {
 const bodyOf = (pane) =>
   [...pane.children].find((child) => !child.matches("header, footer")) ?? null;
 
-customElements.define(
-  "lf-pane",
-  class extends HTMLElement {
-    #body = null;
-    #stop = null;
-    #children = new MutationObserver(() => this.#register());
+export default class extends HTMLElement {
+  #body = null;
+  #stop = null;
+  #children = new MutationObserver(() => this.#register());
 
-    connectedCallback() {
-      keeps(this, "role", "region");
-      keeps(this, "aria-label", this.getAttribute("label"));
-      if (!once(this)) return;
-      whileConnected(this, () => {
-        this.#register();
-        this.#children.observe(this, { childList: true });
-        return () => {
-          this.#children.disconnect();
-          this.#stop?.();
-          this.#stop = null;
-          this.#body = null;
-        };
-      });
-    }
+  connectedCallback() {
+    keeps(this, "role", "region");
+    keeps(this, "aria-label", this.getAttribute("label"));
+    if (!once(this)) return;
+    whileConnected(this, () => {
+      this.#register();
+      this.#children.observe(this, { childList: true });
+      return () => {
+        this.#children.disconnect();
+        this.#stop?.();
+        this.#stop = null;
+        this.#body = null;
+      };
+    });
+  }
 
-    #register() {
-      const body = bodyOf(this);
-      if (body === this.#body) return;
-      this.#stop?.();
-      this.#body = body;
-      this.#stop = body
-        ? registerReadingRegion({ id: this.id, host: this, body })
-        : null;
-    }
-  },
-);
+  #register() {
+    const body = bodyOf(this);
+    if (body === this.#body) return;
+    this.#stop?.();
+    this.#body = body;
+    this.#stop = body ? registerReadingRegion({ id: this.id, host: this, body }) : null;
+  }
+}

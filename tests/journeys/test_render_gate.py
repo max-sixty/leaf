@@ -760,16 +760,17 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     entries["lf-callout"]["x-shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-callout", class extends HTMLElement {\n'
-        "  connectedCallback() {\n"
-        "    if (!once(this)) return;\n"
-        "    const content = document.createElement('span');\n"
-        "    content.textContent = this.textContent;\n"
-        "    this.textContent = '';\n"
-        "    shadowStage(this, [content]);\n"
-        "  }\n"
-        "});\n"
+        """import { once, shadowStage } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const content = document.createElement('span');
+    content.textContent = this.textContent;
+    this.textContent = '';
+    shadowStage(this, [content]);
+  }
+};
+"""
     )
     wide = "sideways words " * 30
     source = leaf_page(

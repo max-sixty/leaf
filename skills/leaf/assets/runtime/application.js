@@ -318,7 +318,6 @@ export function mountApplication(dependencies) {
   });
 
   threadPresenter = createThreadPresentation({
-    available: dependencies.threadAvailable ?? true,
     inlineView,
     surfaceView,
     anchorPlacement: dependencies.anchorPlacement,

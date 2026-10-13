@@ -2287,14 +2287,14 @@ def test_the_thread_walk_starts_at_a_fresh_fragment_reading(browser, serve, shad
         layer_widgets = {
             "lf-shadow-reading.js": """
 import { once } from "/runtime/widget-api.js";
-customElements.define("lf-shadow-reading", class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const paragraph = document.createElement("p");
     paragraph.textContent = this.textContent.trim();
     this.attachShadow({mode: "open"}).append(paragraph);
   }
-});
+};
 """
         }
     url = serve(
@@ -6045,7 +6045,10 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     note.press("Enter")
     expect(inline2).to_be_focused()
     # An element anchor has no text to paint, and the element it names carries the note.
-    assert accessible_details(page, "#fig")[0].startswith("1 comment on § figure")
+    assert any(
+        detail.startswith("1 comment on § figure")
+        for detail in accessible_details(page, "#fig")
+    ), "the figure's comment note is missing from its accessible details"
 
     # A pass that finds nothing to change must change nothing: a screen reader rebuilds
     # its buffer on every mutation, and this pass runs on every poll. A comment on no

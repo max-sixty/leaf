@@ -1,8 +1,12 @@
 Give each design decision one selection surface. For a choice among visible, fixed
-candidates, put the candidates in `lf-options` inside `lf-ask` so the user selects
-the example they want. Use `lf-playground` when the user needs to tune a configuration
-before choosing it, and include exactly one preview and one output. Use `lf-ask`
-to frame the question and context when they live outside the playground.
+candidates, put the candidates in `lf-options` inside `lf-ask` so the user selects the
+example they want. Each `lf-option` draws its candidate. When the choice changes an
+existing interface, a figure of today's interface between the question and the options
+sets them side by side under it (`references/authoring-asks.md`). A page-local control
+that steps every candidate through the same states or cases sits in that ask too. Use
+`lf-playground` when the user needs to tune a configuration before choosing it, and
+include exactly one preview and one output. Use `lf-ask` to frame the question and
+context when they live outside the playground.
 
 Interactive behavior does not by itself justify a package; `references/packages.md`
 says where page-only and reused behavior belong. A page module can define custom
@@ -171,8 +175,8 @@ A preview that needs JavaScript keeps its page-specific behavior in an inline
 page-specific custom element, following `references/module-authoring.md`, "What a behavior
 module owes".
 
-Wait for `customElements.whenDefined("lf-playground")` before reading
-`closest("lf-playground").values`. Later snapshots arrive in the bubbling
+Read `closest("lf-playground").values` in `afterPresentation(() => …)`.
+Later snapshots arrive in the bubbling
 `lf-playground-change` event's `detail.values`.
 
 A custom state model joins the same configuration with

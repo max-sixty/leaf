@@ -4,7 +4,7 @@
    the ledger publishes the command synchronously. */
 import { actionForWidget, isThreadEvent } from "./model.js";
 import { createPendingLedger } from "./state.js";
-import { applicationState, readApplication } from "../semantic-state.js";
+import { applicationState } from "../semantic-state.js";
 import { randomId } from "../ids.js";
 import { saidNow } from "../presence.js";
 import { messageText } from "../thread/messages.js";
@@ -66,7 +66,7 @@ export function createCommandDispatch() {
         );
       return candidate ? withdraw(candidate) : null;
     }
-    const revision = readApplication().document.revision;
+    const revision = descriptor.document.revision;
     if (revision === null) return null;
     // An adopted document lists every verb the user sends from this widget; any other,
     // a misspelling or an agent's verb, would otherwise be dropped without a word.

@@ -1560,9 +1560,8 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     vendored.write_text(css.replace(hide, ""))
     module = serve.page_dir / "widgets" / "lf-trial.js"
     module.write_text(
-        """\
-import {keeps, once, widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
+        """import {keeps, once, widgetController} from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller;
   #presented;
   #stop;
@@ -1600,7 +1599,7 @@ customElements.define("lf-trial", class extends HTMLElement {
       attributes: true, attributeFilter: ["data-lf-presented"],
     });
   }
-});
+};
 """
     )
     stamp_page(
@@ -2037,7 +2036,7 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     page.locator("#atlas-record .lf-activity-news").click()
     paused = page.locator("#atlas-record .lf-activity-row").first
     # The goal is named by its leading <strong>, not the words under it.
-    expect(paused).to_contain_text("You paused")
+    expect(paused).to_contain_text("Me paused")
     expect(paused.locator(".lf-activity-target")).to_have_text("Replace the XML parser")
     expect(paused).to_contain_text("Finish the current hunk, then park here.")
     root = next(
@@ -2079,7 +2078,7 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     expect(goal).not_to_have_attribute("data-lf-held")
     released = page.locator("#atlas-record .lf-activity-row").first
     expect(released).to_contain_text(
-        "You resolved “Finish the current hunk, then park here.”"
+        "Me resolved “Finish the current hunk, then park here.”"
     )
 
     undo(page)

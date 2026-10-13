@@ -7,6 +7,8 @@ import re
 import sys
 import time
 from collections.abc import Callable, Collection
+from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
 
@@ -176,27 +178,71 @@ class _RevisionFiles(Slot):
     which would otherwise be a directory scan apiece."""
 
 
-def _revision_files(page_dir: Path) -> dict[int, tuple[str, ...]]:
-    """Each revision's marker file names, in revision order."""
+@dataclass(frozen=True)
+class _RevisionInventory:
+    directory: Path
+    markers: dict[int, tuple[str, ...]]
+
+    @property
+    def orders(self) -> tuple[int, ...]:
+        return tuple(self.markers)
+
+    @cached_property
+    def current(self) -> dict[int, tuple[str, ...]]:
+        """Readable captures, loaded only when a caller needs their contents.
+
+        Identity-only readers, including a quiet harness hook recovering unfinished
+        publications, must not load the page model just to list reserved orders.
+        """
+        from .revision_artifact import current_artifact
+
+        return {
+            revision: current
+            for revision, names in self.markers.items()
+            if (
+                current := tuple(
+                    name
+                    for name in names
+                    if current_artifact((self.directory / name).with_suffix(""))
+                )
+            )
+        }
+
+
+def _revision_files(page_dir: Path) -> _RevisionInventory:
+    """Committed identities and readable marker names, in revision order."""
     directory = page_dir / "revisions"
     stamp = file_stamp(directory)
     if stamp is None:
-        return {}
+        return _RevisionInventory(directory, {})
     return memo(page_dir, _RevisionFiles).get(stamp, lambda: _scan_revisions(directory))
 
 
-def _scan_revisions(directory: Path) -> dict[int, tuple[str, ...]]:
+def _scan_revisions(directory: Path) -> _RevisionInventory:
     found: dict[int, list[str]] = {}
     with os.scandir(directory) as entries:
         for entry in entries:
             if REVISION_FILE.fullmatch(entry.name) and entry.is_file():
-                found.setdefault(revision_num(entry.name), []).append(entry.name)
-    return {revision: tuple(sorted(found[revision])) for revision in sorted(found)}
+                revision = revision_num(entry.name)
+                found.setdefault(revision, []).append(entry.name)
+    return _RevisionInventory(
+        directory,
+        {revision: tuple(sorted(found[revision])) for revision in sorted(found)},
+    )
+
+
+def revision_orders(page_dir: Path) -> tuple[int, ...]:
+    """Committed identities, including captures this runtime cannot read.
+
+    An obsolete capture still reserves its identity: its admitted log entries must
+    never become entries about a newly authored publication.
+    """
+    return _revision_files(page_dir).orders
 
 
 def revision_names(page_dir: Path) -> dict[int, str]:
     """Each revision's immutable marker file name, in revision order."""
-    markers = _revision_files(page_dir)
+    markers = _revision_files(page_dir).current
     if any(len(names) > 1 for names in markers.values()):
         raise Refused("more than one immutable revision has the same order")
     return {revision: names[0] for revision, names in markers.items()}
@@ -209,7 +255,7 @@ def list_revisions(page_dir: Path) -> list[int]:
 def revision_path(page_dir: Path, revision: int) -> Path:
     """Resolve one ordered revision to its content-addressed immutable file."""
     revisions = page_dir / "revisions"
-    names = _revision_files(page_dir).get(revision, ())
+    names = _revision_files(page_dir).current.get(revision, ())
     if len(names) != 1:
         if not names:
             raise Refused(f"no revision r{revision} in {revisions}")
@@ -239,7 +285,7 @@ def unfinished_publications(page_dir: Path, events: list) -> list[dict]:
     """The first admitted event naming each publication whose revision marker is
     not yet written: a publication interrupted between its prerequisite and its
     marker (`revision_artifact`), in log order."""
-    published = set(list_revisions(page_dir))
+    published = set(revision_orders(page_dir))
     unfinished = {}
     for event in events:
         if event.get("publication") and event["revision"] not in published:
@@ -295,7 +341,7 @@ def active_descriptor(page_dir: Path, events: list) -> dict | None:
         revision,
         events,
         url=f"/revisions/{path.name}",
-        executable=reading.manifest.get("executable"),
+        executable=reading.manifest["executable"],
         activated_at=reading.activated_at,
     )
 

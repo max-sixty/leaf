@@ -128,6 +128,51 @@ function spreadHints(seats, hints, { barriers = [], lineBox, viewportTop = 0 } =
   }));
 }
 
+// Whether `outer` encloses `inner` and is larger across or down: an equal box is the same
+// place rather than a box around it.
+const encloses = (outer, inner) =>
+  outer.left <= inner.left &&
+  outer.top <= inner.top &&
+  outer.right >= inner.right &&
+  outer.bottom >= inner.bottom &&
+  (outer.right - outer.left > inner.right - inner.left ||
+    outer.bottom - outer.top > inner.bottom - inner.top);
+
+// How far out of its target each before seat stands, beyond its own width and the gap.
+// Chips before nested targets that share a left edge would stand in one flush column,
+// leaving nothing to say which names the group and which each member, so a before seat
+// steps out once for each level of nesting it has below the deepest before seat in its
+// own tree, the targets its outermost enclosing target holds: every chip stands right of
+// the chips of the targets around it, the deepest stand where they would alone, none
+// crosses into its own target, and a target in no nest keeps its chip beside it. The
+// step narrows to fit the outermost chips in the room the window leaves, down to a floor
+// below which the levels would not read as distinct; past it the window clamps them. A
+// chip the window clamps already has no room, so it does not narrow everyone else's.
+const NEST_STEP = 10;
+const NEST_FLOOR = 4;
+function nestOutsets(faces, room) {
+  const before = faces.flatMap(({ placement }, at) =>
+    placement === "before" ? [at] : [],
+  );
+  const around = (at) =>
+    before.filter((by) => by !== at && encloses(faces[by].target, faces[at].target));
+  const depth = new Map(before.map((at) => [at, around(at).length]));
+  const root = new Map(
+    before.map((at) => [at, around(at).find((by) => depth.get(by) === 0) ?? at]),
+  );
+  const deepest = new Map();
+  for (const at of before)
+    deepest.set(root.get(at), Math.max(deepest.get(root.get(at)) ?? 0, depth.get(at)));
+  const levels = faces.map((_, at) =>
+    depth.has(at) ? deepest.get(root.get(at)) - depth.get(at) : 0,
+  );
+  const fits = faces
+    .map((face, at) => (levels[at] ? room(face) / levels[at] : null))
+    .filter((step) => step > 0);
+  const step = Math.floor(clamp(Math.min(NEST_STEP, ...fits), NEST_FLOOR, NEST_STEP));
+  return levels.map((level) => level * step);
+}
+
 // Where each face stands, folded from rectangles `spreadHints` has already read. Each
 // face is `{ start, target, placement }`, `start` the box it was drawn at; the answer
 // is one box per face, in order, each clear of the barriers, the key line and every face
@@ -159,12 +204,14 @@ export function seatHints(
   const edgeTop = viewport.top + band;
   const edgeRight = viewport.right - band;
   const edgeBottom = viewport.bottom - band;
-  const measured = faces.map(({ start, target, placement = "corner" }) => {
+  const beforeLeft = ({ start, target }) => target.left - start.width - clear;
+  const outsets = nestOutsets(faces, (face) => beforeLeft(face) - edgeLeft);
+  const measured = faces.map(({ start, target, placement = "corner" }, at) => {
     const preferredLeft =
       placement === "below"
         ? target.left + (target.width - start.width) / 2
         : placement === "before"
-          ? target.left - start.width - clear
+          ? beforeLeft({ start, target }) - outsets[at]
           : placement === "above"
             ? target.left
             : start.left;

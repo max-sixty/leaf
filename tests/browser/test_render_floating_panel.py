@@ -215,6 +215,61 @@ def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, ser
     expect(inventory).to_have_count(0)
 
 
+def test_a_conversation_reader_arriving_later_takes_the_open_thread(browser, serve):
+    """A page's own reader registered while the panel shows a thread takes that thread
+    (application.js, `yielded`): the panel's view goes and the reader is asked to show
+    it, rather than the panel standing open on a conversation it no longer draws."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(view.locator(".lf-msg")).to_contain_text("Is the window long enough?")
+    # The user stands on a message, which goes with the panel's reader.
+    view.get_by_role("button", name="Edit message").focus()
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const host = document.createElement('div');
+          document.querySelector('main').append(host);
+          window.revealed = [];
+          api.registerThreadPresentation(host, {
+            render: () => {},
+            reveal: (key, request) => { window.revealed.push(request); },
+          });
+        }"""
+    )
+    expect(view).to_have_count(0)
+    page.wait_for_function("() => window.revealed.length === 1")
+    assert page.evaluate("() => window.revealed[0].focus") is not False
+
+
+def test_a_reader_arriving_later_leaves_focus_the_user_moved_elsewhere(browser, serve):
+    """The reader taking the panel's thread takes the user's place in it only where they
+    stood in the panel: focus they moved to the page stays there."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+    page.evaluate(
+        """async () => {
+          const box = document.createElement('input');
+          box.id = 'elsewhere';
+          document.querySelector('main').prepend(box);
+          box.focus();
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const host = document.createElement('div');
+          document.querySelector('main').append(host);
+          api.registerThreadPresentation(host, { render: () => {}, reveal: () => {} });
+        }"""
+    )
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_have_count(0)
+    expect(page.locator("#elsewhere")).to_be_focused()
+
+
 def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):
     """A passing notice is said in the empty field's place, and once the field holds
     words, which hide that, on the line above it, so a refused send's reason is seen
@@ -384,6 +439,82 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     number = re.search(r"v\d+", other.inner_text()).group(0)
     other.click()
     expect(page).to_have_url(re.compile(rf"/versions/{number}\b"))
+
+
+def test_the_questions_walk_arrives_at_the_approval_in_the_panel(browser, serve):
+    """The version's approval waits on the user in Questions, and `q` arrives at it
+    where this chrome shows it: the panel's Questions, standing on its Approve."""
+    url = serve(SIGN_OFF)
+    stamp_page(serve.page_dir, SIGN_OFF, "one")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("q")
+    approve = page.locator(
+        ".lf-fp-view[data-view=questions] [data-approval] .lf-fp-answer"
+    )
+    expect(approve).to_be_focused()
+    expect(page.locator(".lf-walk-position")).to_contain_text("Approval")
+
+    # Answered, it is still arrived at: on its card in Done, at its Undo.
+    with sending(page, "the approval"):
+        page.keyboard.press("Enter")
+    page.keyboard.press("Escape")
+    # A page's own control arrives at it, as a widget's script would.
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const go = document.createElement('button');
+          go.id = 'to-approval';
+          go.textContent = 'To the approval';
+          go.onclick = () => api.askActions.open(
+            api.readAsks().all.find((ask) => ask.source.kind === 'approval').id);
+          go.style.cssText = 'position: fixed; top: 0; left: 0';
+          document.body.append(go);
+        }"""
+    )
+    page.locator("#to-approval").click()
+    card = page.locator(".lf-fp-view[data-view=questions] [data-approval]")
+    expect(card.get_by_role("button", name="Undo")).to_be_focused()
+
+
+def test_the_approval_is_arrived_at_in_sight_below_many_questions(browser, serve):
+    """With more questions than Questions shows at once, arriving at the approval
+    scrolls its card into the view, so the Approve the user stands on is in sight."""
+    asks = "".join(
+        f'<lf-ask id="ask-{n}"><h3>Question {n}?</h3><lf-options id="o-{n}" choose>'
+        f'<lf-option id="y-{n}">Yes</lf-option><lf-option id="n-{n}">No</lf-option>'
+        "</lf-options></lf-ask>"
+        for n in range(12)
+    )
+    source = leaf_page("many", f"<h1>Many</h1>{asks}").replace(
+        "<title>many</title>",
+        '<title>many</title><meta name="lf-review" content="sign-off">',
+    )
+    url = serve(source)
+    stamp_page(serve.page_dir, source, "one")
+    page = floating(browser, url)
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const go = document.createElement('button');
+          go.id = 'to-approval';
+          go.textContent = 'To the approval';
+          go.onclick = () => api.askActions.open(
+            api.readAsks().all.find((ask) => ask.source.kind === 'approval').id);
+          go.style.cssText = 'position: fixed; top: 0; left: 0';
+          document.body.append(go);
+        }"""
+    )
+    page.locator("#to-approval").click()
+    view = page.locator(".lf-fp-view[data-view=questions]")
+    approve = view.locator("[data-approval] .lf-fp-answer")
+    expect(approve).to_be_focused()
+    expect(approve).to_be_in_viewport()
+    box, room = approve.bounding_box(), view.bounding_box()
+    assert (
+        room["y"] <= box["y"]
+        and box["y"] + box["height"] <= room["y"] + room["height"] + 1
+    ), (box, room)
 
 
 def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, serve):

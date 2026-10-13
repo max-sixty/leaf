@@ -32,9 +32,10 @@
    out is the thread it belongs to whichever of them put the user in it, and the
    panel's own find box hands back to the Threads list. A page-owned first-message seat
    has no standing place of its own; a widget control that explicitly enters its box
-   supplies the caller-owned return target through `landInThread`. Sending leaves
-   focus on the conversation's card or title on every surface (`landSent`). Returning
-   to the page is a separate navigation gesture. */
+   supplies the caller-owned return target through `landInThread`. Sending from a
+   conversation's own box leaves focus on its card or title (`landSent`); the floating
+   panel's field, which stands for the thread open above it, keeps focus for the next
+   turn. Returning to the page is a separate navigation gesture. */
 import {
   alreadyShown,
   fitsWhole,

@@ -484,7 +484,10 @@ export function mountApplication(dependencies) {
   // chrome registers one that yields (`registerChromeThreadPresentation`, which the
   // runtime alone is handed): a reader the page's package registers
   // takes the place while it stands, since the author's presentation outranks Leaf's
-  // defaults, and the chrome's returns when it leaves. `primary` says which holds it.
+  // defaults, and the chrome's returns when it leaves. `primary` says which holds it. The
+  // chrome's `yielded`, asked before its reader goes, returns how to hand the reader
+  // taking its place the conversation it shows, which runs once the package holds its
+  // registration, as that reader may ask it to present.
   const attachPresentation = (owner, { render, reveal, replyBox = null }) => {
     const reader = createPrimaryReader(
       owner,
@@ -526,6 +529,7 @@ export function mountApplication(dependencies) {
       if (!authored) entry.attached = attachPresentation(owner, spec);
     } else {
       const displaced = yielding?.attached;
+      const handOff = displaced ? yielding.spec.yielded() : null;
       if (displaced) {
         displaced.detach();
         yielding.attached = null;
@@ -537,6 +541,10 @@ export function mountApplication(dependencies) {
         throw error;
       }
       authored = entry;
+      if (handOff)
+        queueMicrotask(() => {
+          if (authored === entry) handOff();
+        });
     }
     let active = true;
     return Object.freeze({

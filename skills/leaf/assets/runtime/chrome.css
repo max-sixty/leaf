@@ -84,7 +84,7 @@
   :where(.lf-floating-panel) button:hover {
     background: var(--lf-fp-hover);
   }
-  :where(.lf-floating-panel) button:disabled {
+  :where(.lf-floating-panel) button:is(:disabled, [aria-disabled=true]) {
     color: var(--lf-fp-muted);
     cursor: default;
     background: none;
@@ -608,6 +608,7 @@
     align-items: center;
     gap: 6px;
     margin-top: 9px;
+    min-height: 28px;
   }
   .lf-fp-answer {
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);

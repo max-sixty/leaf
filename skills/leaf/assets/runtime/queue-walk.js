@@ -13,7 +13,9 @@
    theirs: an ask arrives through the ask view's `arriveAtAsk`; a thread through the
    t/T walk's own (navigation.js, `arriveAtThread`), so it lands wherever that walk
    lands; a page widget action, or a to-do on an element or the page, by travel's `arrive`,
-   onto the widget the action was made on, the element, or the page's head.
+   onto the widget the action was made on, the element, or the page's head; the
+   version's approval by the chrome showing it, travel onto the banner's control or
+   the floating panel's own arrival (banner.js, `registerApprovalPresentation`).
    A Questions panel row arrives through the same function (`arriveAtItem`), for an item on
    either list or one that is done.
 
@@ -70,7 +72,7 @@ import { itemNoun } from "./queues.js";
 import { watchSemantic } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
-import { approvalTarget } from "./banner.js";
+import { approvalTarget, presentedApproval } from "./banner.js";
 
 const QUALIFIER = "waiting on me";
 const WITHIN = "waiting on me here";
@@ -241,6 +243,9 @@ export function createQueueWalk({
       return record ? arriveAtAsk(record) : Promise.resolve(false);
     }
     if (stop.kind === "thread") return arriveAtThread(stop.id);
+    // A chrome presenting the approval elsewhere brings the user to it itself.
+    if (stop.kind === "approval" && presentedApproval())
+      return presentedApproval().arrive();
     return arriveAtElement(() => stopElement(stop));
   }
 

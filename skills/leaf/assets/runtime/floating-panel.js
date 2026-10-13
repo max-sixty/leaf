@@ -39,7 +39,13 @@ import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { iconTemplate } from "./icons.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
-import { approvalReading, approve, toggleBtn, watchStatus } from "./banner.js";
+import {
+  approvalReading,
+  approve,
+  registerApprovalPresentation,
+  toggleBtn,
+  watchStatus,
+} from "./banner.js";
 import { queueBtn } from "./drawers.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageCommand, pageRung } from "./keyboard/register.js";
@@ -77,6 +83,7 @@ import {
   standingIn,
 } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
+import { scrollIntoView } from "./landing-scroll.js";
 import { declareWindowChrome } from "./geometry.js";
 import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
 import { renderedUnder } from "./shadow.js";
@@ -340,13 +347,8 @@ export function createFloatingPanel({
       close();
       return;
     }
-    // Where the page's package draws its conversations, a thread opens in its reader,
-    // and the view it was chosen from goes, uncovering the page.
     if (route.view === "thread" && presentation && !presentation.primary) {
-      if (before) close();
-      void threadActions.open(threadByKey(route.thread)?.key ?? route.thread, {
-        part: null,
-      });
+      openInPackage(route.thread);
       return;
     }
     if (route.view !== "threads" && route.view !== "thread") searching = false;
@@ -354,6 +356,12 @@ export function createFloatingPanel({
     if (replace && route.view === "thread" && trail.length === 1) trail = pathTo(route);
     if (route.view === "thread") arriveAt(route.thread);
     transition(before, { focus });
+  }
+  // Where the page's package draws its conversations, a thread opens in its reader,
+  // and the view it was chosen from goes, uncovering the page.
+  function openInPackage(key, { focus = true } = {}) {
+    if (trail.length) close();
+    void threadActions.open(threadByKey(key)?.key ?? key, { part: null, focus });
   }
   // Opening a thread shows it whole, at its end, where the latest turn is.
   function arriveAt(key) {
@@ -901,7 +909,7 @@ export function createFloatingPanel({
       answers = html`<button
         type="button"
         class="lf-fp-answer"
-        ?disabled=${Boolean(approval?.reason)}
+        aria-disabled=${approval?.reason ? "true" : nothing}
         title=${approval?.reason ?? nothing}
         @click=${() => approve()}
       >
@@ -940,10 +948,13 @@ export function createFloatingPanel({
       </button>`;
     else answers = html`${arrive}${discuss}`;
     const key = queueItemKey(item);
+    const approval = ask?.source.kind === "approval";
     return html`<section
       class="lf-fp-question"
       data-list=${list}
       data-key=${key}
+      ?data-approval=${approval}
+      tabindex=${approval ? "-1" : nothing}
       style=${seatHeights.has(key) ? `min-height: ${seatHeights.get(key)}px` : ""}
     >
       ${
@@ -954,6 +965,32 @@ export function createFloatingPanel({
       }
       <div class="lf-fp-answers">${answers}</div>
     </section>`;
+  }
+
+  // The version's approval is answered here, in the banner control's place: arriving at
+  // it, as `q` and a Questions row do, opens this view on its card and stands on its
+  // Approve, or once it is answered on its Undo, or the card itself.
+  const approvalControl = () => {
+    const card = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
+    return card?.querySelector("button") ?? card;
+  };
+  function arriveAtApproval() {
+    const lists = queueLists();
+    const holding = (list) =>
+      list.some((item) => item.kind === "ask" && item.ask.source.kind === "approval");
+    const tab = Object.keys(QUEUE_TABS).find((key) => holding(lists[key])) ?? "you";
+    if (tab !== queueTab) {
+      queueTab = tab;
+      seated = null;
+      seatHeights.clear();
+    }
+    open({ view: "questions" }, { reopen: true, focus: false });
+    paint();
+    const target = approvalControl();
+    if (!target) return Promise.resolve(false);
+    scrollIntoView(target, { block: "nearest" });
+    focusDestination(target, "move");
+    return Promise.resolve(true);
   }
 
   function questionsView() {
@@ -1542,6 +1579,15 @@ export function createFloatingPanel({
           ? editor(`reply:${key}`).input
           : null;
       },
+      // A reader the page's package registers later takes the thread open here, and
+      // the user's place in it where they stood in the panel, read before the panel's
+      // reader, and the message they stood on, goes.
+      yielded: () => {
+        const top = trail.at(-1);
+        if (top?.view !== "thread") return null;
+        const focus = standingIn(host);
+        return () => openInPackage(top.thread, { focus });
+      },
       // A thread about the whole page opens here; one about a passage opens beside it.
       reveal: (key, request) => {
         const thread = threadByKey(key);
@@ -1557,6 +1603,7 @@ export function createFloatingPanel({
       status = reading;
       paint();
     });
+    registerApprovalPresentation({ target: approvalControl, arrive: arriveAtApproval });
     // A passing notice is said in the empty field, the one seat this chrome gives it.
     registerNoticePresentation(() => paint());
     watchBannerRows(() => paint());

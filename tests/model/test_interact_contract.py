@@ -2734,7 +2734,6 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
         ("x-verbatim", "false"),
         ("x-work", []),
         ("x-work", {"seat": "content"}),
-        ("x-unknown", True),
     ],
 )
 def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
@@ -2746,6 +2745,21 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "<lf-options> registry extensions are invalid" in result.output
+
+
+def test_check_refuses_a_vendored_entry_declaring_a_key_this_leaf_does_not_admit(
+    page_dir,
+):
+    """A layer entry declaring an x- key outside this Leaf's set is one this Leaf
+    cannot serve (`layer.incompatible_layer`), so the refusal names the re-vendor."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-unknown"] = True
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "x-unknown" in result.output
+    assert f"leaf page init {page_dir}" in result.output
 
 
 @pytest.mark.parametrize(
@@ -3526,9 +3540,7 @@ def test_check_refuses_a_predicate_no_page_could_carry(
         ({"value": "answer"}, "answered"),
     ],
 )
-def test_a_local_question_declares_its_answered_condition(
-    page_dir, declaration, message
-):
+def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, message):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-test-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))

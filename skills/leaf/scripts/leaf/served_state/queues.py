@@ -72,7 +72,7 @@ def queues(
 
     `threads` carry their attention, `workflows` are served strongest first, `todos`
     are the open to-dos on either side and `ended_todos` the ended ones, and `asks`
-    is a `questions.collection`. An ask's canonical next actor selects its list;
+    is an `asks.collection`. An ask's canonical next actor selects its list;
     to-dos and resends keep their own completion routes. An update handed back in a
     thread is that thread's resend, and one handed back outside any thread is its
     own."""

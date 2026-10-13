@@ -251,12 +251,12 @@ def _reference_contract(at: str, v: dict) -> str:
     )
 
 
-def _question_context(at: str, v: dict) -> str:
+def _ask_context(at: str, v: dict) -> str:
     widgets = "; ".join(
         f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
         for w in v["widgets"]
     )
-    return f"{_line(at, v)}: a Question context registers no Question: " + (
+    return f"{_line(at, v)}: an ask context registers no ask: " + (
         widgets or "it holds no widget that declares x-awaits"
     )
 
@@ -412,7 +412,7 @@ _TEXT = {
     "unmarkable": lambda at, v: (
         f"{at} shows {v['w']}x{v['h']}px of words and offers no box to mark: it draws"
         " none of its own and no element inside it draws one either, so a comment"
-        " anchored here would outline nothing and the Question walk would travel to"
+        " anchored here would outline nothing and the Questions walk would travel to"
         " the top of the page. Put the words in an element that takes a box"
     ),
     "undeclared-shadow": lambda at, v: (
@@ -553,6 +553,8 @@ _TEXT = {
     # markup. The source as a whole:
     "no-source": lambda at, v: f"no {v['path']}; write index.html first",
     "not-utf8": lambda at, v: f"{v['path']} is not UTF-8: {v['error']}",
+    # A layer this Leaf can neither serve nor write under (`layer.incompatible_layer`).
+    "invalid-registry": lambda at, v: v["error"],
     "capture-failed": lambda at, v: v["error"],
     "sample-history": lambda at, v: v["error"],
     "missing-vendored": lambda at, v: (
@@ -707,13 +709,13 @@ _TEXT = {
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
-    "empty-question-context": _question_context,
-    "question-context-headings": lambda at, v: (
-        f"{_line(at, v)}: a Question context must have exactly one direct heading,"
+    "empty-ask-context": _ask_context,
+    "ask-context-headings": lambda at, v: (
+        f"{_line(at, v)}: an ask context must have exactly one direct heading,"
         f" found {json_value(v['headings']) if v['headings'] else 'none'}"
     ),
-    "question-context-heading-first": lambda at, v: (
-        f"{_line(at, v)}: a Question context's direct heading must be its first"
+    "ask-context-heading-first": lambda at, v: (
+        f"{_line(at, v)}: an ask context's direct heading must be its first"
         " content, found "
         + ("text" if v["first"] == "#text" else f"<{v['first']}>")
         + " first"
@@ -983,11 +985,9 @@ _TEXT = {
             " must declare a string `id` attribute"
         )
     ),
-    "question-context-id": _declared(
-        lambda v: "x-question-context does not require an id"
-    ),
-    "question-context-prose": _declared(
-        lambda v: "x-question-context must admit prose around the Question it frames"
+    "ask-context-id": _declared(lambda v: "x-ask-context does not require an id"),
+    "ask-context-prose": _declared(
+        lambda v: "x-ask-context must admit prose around the ask it frames"
     ),
     "data-contract": _declared(
         lambda v: (
@@ -1098,7 +1098,7 @@ _TEXT = {
             " receipt, but is written by a value record"
         )
     ),
-    # Its interactions: local work, its Question, and the state its verbs write.
+    # Its interactions: local work, its ask, and the state its verbs write.
     "work-inline": _declared(
         lambda v: "declares x-work but is inline; local work chrome needs a block slot"
     ),
@@ -1109,7 +1109,7 @@ _TEXT = {
         )
     ),
     "awaits-unanswered": _declared(
-        lambda v: "x-awaits local Question declares no `answered` condition"
+        lambda v: "x-awaits local ask declares no `answered` condition"
     ),
     "awaits-verbs": _declared(
         lambda v: (
@@ -1129,7 +1129,7 @@ _TEXT = {
     "awaits-blanket": _declared(
         lambda v: (
             f"x-awaits blanket answer `{v['outcome']}` is not an outcome of a"
-            " deciding verb that answers its Question"
+            " deciding verb that answers its ask"
         )
     ),
     "unoverruled": _declared(
@@ -1148,7 +1148,7 @@ _TEXT = {
     "reserved-resolves": _declared(
         lambda v: (
             "declares attribute `resolves`, a reserved name (the thread an"
-            " answer to its Question closes), but originates no local Question"
+            " answer to its ask closes), but originates no local ask"
         )
     ),
     "verb-detail-schema": _declared(

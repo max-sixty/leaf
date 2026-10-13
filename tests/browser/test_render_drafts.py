@@ -17,7 +17,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
-    SEATED_QUESTION_PAGE,
+    SEATED_ASK_PAGE,
     live_url,
     panel_comment,
 )
@@ -2556,7 +2556,7 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
     to be a message, which is what covers every box that sends one.
     """
     browser, held = held_events
-    page = open_page(browser, serve(SEATED_QUESTION_PAGE))
+    page = open_page(browser, serve(SEATED_ASK_PAGE))
     live = page.locator(".lf-live")
     seat = page.locator("#jobs > .lf-thread-seat > .lf-say")
     field = seat.locator("leaf-text")
@@ -2585,7 +2585,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     unanswered. That makes the window ordinary rather than rare.
     """
     browser, held = held_events
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -2697,7 +2697,7 @@ def test_a_held_reply_send_leaves_a_later_reply_box_focused(
 def test_a_held_reply_send_leaves_the_panel_closed(held_events, serve, continue_inline):
     """Closing Threads during delivery is later than sending the reply."""
     browser, held = held_events
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -3160,7 +3160,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     proves that readable absence is settlement rather than permission to trust the
     old in-memory value.
     """
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     first = open_page(browser, url, context=one_user)
     second = open_page(
         browser,
@@ -3214,7 +3214,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
 
 def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_user):
     """Both inline views may POST the shared reply; its attempt appends it once."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -3257,7 +3257,7 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_user
 
 def test_a_held_thread_send_cannot_clear_a_newer_raw_draft(browser, serve, one_user):
     """Settlement compares raw words, so an older POST cannot erase a later edit."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -3316,7 +3316,7 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
     browser, serve, one_user, newer
 ):
     """A final answer belongs to one execution; the accepted log owns the draft."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
     first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
@@ -3374,7 +3374,7 @@ def test_a_question_can_send_when_draft_storage_refuses_writes(browser, serve):
     """Persistence failure costs recovery, not the live box's Send action."""
     page = open_page(
         browser,
-        serve(SEATED_QUESTION_PAGE),
+        serve(SEATED_ASK_PAGE),
         init_script="""Storage.prototype.setItem = function () {
           throw new DOMException('blocked', 'SecurityError');
         };""",
@@ -3414,7 +3414,7 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     replacement must not learn the attempt is in the log before it sends, or it would
     correctly decline to. Both go through `held_stale` rather than a live `page.route`,
     which reaches no poll already in the wire."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     first = open_page(browser, url, context=held_stale(one_user))
     second_held = held_stale(one_user)
     second = open_page(browser, url, context=second_held)
@@ -3459,7 +3459,7 @@ def test_an_older_settlement_cannot_erase_a_newer_failed_write(
     browser, serve, one_user
 ):
     """A nondurable local generation outranks storage news about its predecessor."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     other = open_page(browser, url, context=one_user)
     old = "The older persisted answer."
     other_say = other.locator("#jobs > .lf-thread-seat > .lf-say")
@@ -3501,7 +3501,7 @@ def test_an_accepted_nondurable_branch_cannot_tombstone_a_newer_shared_generatio
     browser, serve, one_user
 ):
     """A held older send reconciles its base before writing settlement."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     older = open_page(
         browser,
         url,
@@ -3553,7 +3553,7 @@ def test_a_nondurable_branch_yields_to_unrelated_live_storage_news(
     browser, serve, one_user
 ):
     """Only news from a branch's base may be replaced by that local branch."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     local = open_page(
         browser,
         url,
@@ -3593,7 +3593,7 @@ def test_a_delayed_storage_event_cannot_send_a_stale_durable_generation(
     browser, serve, one_user
 ):
     """Send refreshes shared storage instead of trusting a stale durable cache."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     stale = open_page(
         browser, url, context=held_stale(one_user), init_script=DEAF_TO_DRAFT_NEWS
     )
@@ -3653,7 +3653,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     browser, serve, one_user
 ):
     """Log reconciliation settles only the generation still shared by storage."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     # The hold costs the most here, where the poll released at the end is the subject
     # rather than an interruption: an earlier poll reconciling this tab onto the newer
     # generation leaves settlement nothing older to be tempted by, so the assertions
@@ -3711,7 +3711,7 @@ def test_a_read_failure_cannot_make_a_successfully_written_draft_unsendable(
     """The document cache owns its generation even when getItem later refuses it."""
     page = open_page(
         browser,
-        serve(SEATED_QUESTION_PAGE),
+        serve(SEATED_ASK_PAGE),
         init_script="""Storage.prototype.getItem = function () {
           throw new DOMException('blocked', 'SecurityError');
         };""",
@@ -3732,7 +3732,7 @@ def test_a_read_failure_cannot_make_a_successfully_written_draft_unsendable(
 
 def test_a_remove_failure_cannot_resurrect_an_accepted_draft(browser, serve, one_user):
     """Settlement is a record and a log fact; draft cleanup never calls removeItem."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     first = open_page(
         browser,
         url,
@@ -3764,7 +3764,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(browser, serve, one
 
 def test_an_intentional_later_identical_reply_gets_a_fresh_attempt(browser, serve):
     """Identity follows the edit generation, never content or a time window."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {

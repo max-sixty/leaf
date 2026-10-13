@@ -14,7 +14,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_READING,
     LIVE_V1,
-    SEATED_QUESTION_PAGE,
+    SEATED_ASK_PAGE,
     live_url,
 )
 from render_harness import (
@@ -1728,7 +1728,7 @@ def test_compact_reader_opens_the_native_interactive_message(browser, serve, sur
     """A compact reader's button addresses message content, not its own reply row."""
     target = "jobs" if surface == "outlet" else "notes"
     source = (
-        SEATED_QUESTION_PAGE
+        SEATED_ASK_PAGE
         if surface == "outlet"
         else leaf_page("Native reply", '<h1>Native reply</h1><p id="notes">Notes</p>')
     )
@@ -1779,7 +1779,7 @@ def test_compact_reader_opens_the_native_interactive_message(browser, serve, sur
 
 
 @pytest.mark.parametrize("owner", ["root", "middle"])
-def test_frozen_question_reveals_its_exact_message_in_a_selective_primary(
+def test_frozen_ask_reveals_its_exact_message_in_a_selective_primary(
     browser, serve, owner
 ):
     """A message-only primary materializes the widget's turn, including later replies."""
@@ -1839,13 +1839,13 @@ def test_frozen_question_reveals_its_exact_message_in_a_selective_primary(
         expect(reader.locator("#channel")).to_have_count(0)
     assert page.evaluate("""async () => {
       const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
-      return await api.questionActions.open('widget:channel');
+      return await api.askActions.open('widget:channel');
     }""")
     assert reader.evaluate("node => node.message") == f"key-{owner}"
     expect(reader.locator(f'.lf-msg[data-event="{owner}"]')).to_be_visible()
     email = reader.locator("#email")
     expect(email).to_be_in_viewport()
-    with sending(page, "answer the Question in its addressed native turn"):
+    with sending(page, "answer the ask in its addressed native turn"):
         email.click()
     expect(email.get_by_role("checkbox")).to_be_checked()
 
@@ -1917,7 +1917,7 @@ def package_workspace(serve, *, before_reader="", primary=True):
 
 
 def test_package_answer_summary_waits_for_widget_completion(browser, serve):
-    """A selected value remains partial until the multiple-choice Question is done."""
+    """A selected value remains partial until the multiple-choice ask is done."""
     url = package_workspace(serve)
     append_carried_log_record(
         serve.page_dir,

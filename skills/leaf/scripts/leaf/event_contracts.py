@@ -10,6 +10,12 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 
 from pathlib import Path
 
+from leaf.asks import (
+    approval_blocking,
+    asking,
+    projected_action_holders,
+    quoted_in,
+)
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import build_threads, spoken_turns, taken_back, undo_error
@@ -19,12 +25,6 @@ from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
     authored_positions,
     record_members,
-)
-from leaf.questions import (
-    approval_blocking,
-    asking,
-    projected_action_holders,
-    quoted_in,
 )
 from leaf.read_state import read_contract_error
 from leaf.refusals import Refusal
@@ -44,7 +44,7 @@ from leaf.registry.schema import json_value, schema_error
 from leaf.registry.storage import load_registry
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
-from leaf.tasks import task_error
+from leaf.todos import todo_error
 from leaf.work import widget_seat_error
 from leaf.work_reading import WorkReading
 from leaf.workflows import obligation_reading
@@ -516,10 +516,10 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     page = AdmissionReadings(view, events, registry).page(revision)
     work = WorkReading(events, registry, page)
     unanswered = approval_blocking(
-        [*work.document.questions["all"], *work.widget_questions["all"]]
+        [*work.document.asks["all"], *work.widget_asks["all"]]
     )
     if unanswered:
-        identities = ", ".join(question["id"] for question in unanswered)
+        identities = ", ".join(ask["id"] for ask in unanswered)
         return f"v{event['version']} still has unanswered widget asks: {identities}"
     return None
 
@@ -700,15 +700,15 @@ def admission_error(
         or _reanchor_error(view, event, events)
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
-        or _task_error(view, event, readings)
+        or _todo_error(view, event, readings)
     )
 
 
-def _task_error(view, event: dict, readings) -> str | None:
-    """A task stands on an open thread, a widget that seats work or an element, or the
-    page. Task endings also admit an agent withdrawal of a prose Question; a
-    start names explicit agent work or an owed update (`tasks.task_error`)."""
-    from leaf.tasks import start_reading
+def _todo_error(view, event: dict, readings) -> str | None:
+    """A to-do stands on an open thread, a widget that seats work or an element, or the
+    page. A `todo_end` also admits an agent withdrawal of a prose ask; a
+    start names explicit agent work or an owed update (`todos.todo_error`)."""
+    from leaf.todos import start_reading
 
     progress_parent = (
         event["parent"] if event["kind"] == "reply" and "start" in event else None
@@ -743,30 +743,30 @@ def _task_error(view, event: dict, readings) -> str | None:
     def user_widget_error(widget: str) -> str | None:
         if error := element_error(widget):
             return error
-        question = next(
+        ask = next(
             (
                 item
-                for item in readings.work.all_questions["all"]
+                for item in readings.work.all_asks["all"]
                 if item["source"]["kind"] == "widget"
                 and item["source"]["id"] == widget
                 and item["status"] == "open"
             ),
             None,
         )
-        if question is not None:
-            return f"{widget!r} already has ask {question['id']!r}; use that ask instead of opening duplicate work"
+        if ask is not None:
+            return f"{widget!r} already has ask {ask['id']!r}; use that ask instead of opening duplicate work"
         return None
 
     owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
-    return task_error(
+    return todo_error(
         event,
         readings.log,
         seat_error=seat_error,
         element_error=element_error,
         user_widget_error=user_widget_error,
         owed=owed,
-        tasks=lambda: [task for half in readings.work.page_tasks() for task in half],
-        questions=lambda: readings.work.all_questions["all"],
+        todos=lambda: [todo for half in readings.work.page_todos() for todo in half],
+        asks=lambda: readings.work.all_asks["all"],
     )
 
 
@@ -839,7 +839,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
     if kind in WIDGET_KINDS:
         event = admit_widget_event(view.document(event["revision"]), event, readings)
     if opens_on_newest(event):
-        # The revision the task was opened against, which the stamp that completes
+        # The revision the to-do was opened against, which the stamp that completes
         # it must come after (`publishing`).
         event = {**event, "revision": view.revisions[-1]}
     # Fold only a validated event. Attention is server-owned and boolean by
@@ -867,9 +867,10 @@ def admitted_event(view, events: list, event: dict) -> dict:
 
 
 def write_refusal(page_dir: Path) -> str | None:
-    """Why this Leaf may write no event to the page, or None where it may: the
-    page was vendored at another protocol (`layer.incompatible_layer`). A writer
-    that must not fail on a page it cannot write, such as a hook, asks this first."""
+    """Why this Leaf may write no event to the page, or None where it may: its
+    vendored layer is one this Leaf cannot serve (`layer.incompatible_layer`). A
+    writer that must not fail on a page it cannot write, such as a hook, asks this
+    first, and so does `page check`."""
     try:
         registry = load_registry(page_dir)
     except RegistryError:

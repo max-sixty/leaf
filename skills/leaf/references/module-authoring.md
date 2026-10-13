@@ -519,7 +519,7 @@ returns concise words for that answer in the Questions panel. `value` is the ask
 `answer.value`; `element` supplies authored markup such as option labels. Read nothing
 the module renders; Leaf collapses the words' whitespace. A widget without this
 formatter supplies no answer wording, and its typed answer stays available through
-`readQuestions()`.
+`readAsks()`.
 
 ## Data subscriptions and projections
 
@@ -1278,7 +1278,7 @@ The icon is decorative; the button supplies its accessible label.
 ## Page readings
 
 Each page reading below has a `watch…(owner, callback)` subscription; register it once for
-each owner. `watchQuestions`, `watchQueues`, `watchThreads`, `watchReports` and
+each owner. `watchAsks`, `watchQueues`, `watchThreads`, `watchReports` and
 `watchHistory` share these rules. Each calls the callback on the microtask after
 subscribing, then again, at most once per microtask, whenever the application publishes
 a new reading, a drag starts or stops holding the page's projection back ("Pointer
@@ -1295,8 +1295,8 @@ controller.
 
 ### Reading asks and obligation queues
 
-`readQuestions()` returns the publisher's immutable `{phase, all, user, unanswered}`, and
-`watchQuestions(owner, callback)` calls `callback(readQuestions())`. `all` holds widget,
+`readAsks()` returns the publisher's immutable `{phase, all, user, unanswered}`, and
+`watchAsks(owner, callback)` calls `callback(readAsks())`. `all` holds widget,
 prose and stamped-version approval asks, including answered and withdrawn asks whose
 sources remain. `user` selects open asks currently awaiting the user; `unanswered`
 includes every open ask, even one held with the agent or hidden behind a later prompt.
@@ -1320,7 +1320,7 @@ Each record contains:
   `x-awaits.answered` independently decides completion. `answer` is `null` before answer
   content exists. Partial values can appear while `status` is `open`, and a completed
   empty selection has `answer.value === []`. `answer.event` names the admitted answering
-  action, or is `null` for authored or carried state. An optional `x-question-context`
+  action, or is `null` for authored or carried state. An optional `x-ask-context`
   wrapper contributes the ask's heading and arrival target without changing its identity
   or answer owner; `lf-ask` is one such wrapper.
 - A prose ask has `source.kind === "reply"` and its agent message's id as `source.id`. Its
@@ -1344,20 +1344,20 @@ required-version approval and its Undo update that ask at once, and a refusal re
 admitted record. Page-widget asks follow the shown document version; frozen-thread asks are
 page-wide.
 
-`questionWords(question)` formats the answer of a widget, prose or approval ask, using the
+`askWords(ask)` formats the answer of a widget, prose or approval ask, using the
 widget family's `answerWords` ("Declared widget state"). It may return empty words and owns
 no answer state. Display words are not canonical answer data.
 
-`asksIn(region, asks = readQuestions().all)` selects the asks a region of the page holds:
+`asksIn(region, asks = readAsks().all)` selects the asks a region of the page holds:
 each widget ask, not withdrawn, whose source element is `region` or stands under it. It is
 the rule a side-list `lf-tabs` row and `lf-tally` read, so a page module that marks or
 counts asks per card, section or item reads the same set: filter what it returns by
-`status` for answered and open, or pass `readQuestions().user` for the asks waiting on the
+`status` for answered and open, or pass `readAsks().user` for the asks waiting on the
 user.
 
-`questionActions.open(id)` resolves the current ask and follows its arrival, including to
+`askActions.open(id)` resolves the current ask and follows its arrival, including to
 earlier prose prompts and completed asks, and resolves to `false` when that ask is
-unavailable. `questionActions.next({within, dir})` steps to the next ask waiting on the
+unavailable. `askActions.next({within, dir})` steps to the next ask waiting on the
 user inside the element `within`, or the previous with `dir: -1`, as `q` steps through
 Questions: from the one the user stands on, else from their place in document order,
 coming round at either end. From outside the region it counts from the ask the user last

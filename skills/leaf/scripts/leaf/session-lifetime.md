@@ -25,7 +25,7 @@ The table lists each fact the projection reads, and when it stops being believed
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
 | page declaration: `waiting` or `idle`, detail | `status.json` | `leaf status`, which first writes a `put_down` to the log when a start stands | stands until the next declaration, and its age dates the page's other readings |
-| the item in hand: an update's event id or an open to-do's id, the line, and the claimant turn that wrote it, or none for another session's | an explicit `start` or an addressed progress reply's `start` metadata in `events.jsonl`, read by `tasks.start_reading` | `leaf task start`, or `leaf response reply --ephemeral` on an update owed, from a turn of the session driving the page | the item ending: an update's answer, or a to-do's end; a later `put_down` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended |
+| the item in hand: an update's event id or an open to-do's id, the line, and the claimant turn that wrote it, or none for another session's | an explicit `start` or an addressed progress reply's `start` metadata in `events.jsonl`, read by `todos.start_reading` | `leaf task start`, or `leaf response reply --ephemeral` on an update owed, from a turn of the session driving the page | the item ending: an update's answer, or a to-do's end; a later `put_down` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended |
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's task connection | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live App Server reply: one displayed reply plus reply reservations by response address | optional `stream.reply` and `stream.reply_reservations` in `status.json` | an App Server connection bound to a delivery's reply; explicit `response reply` writes directly to the event log | the draft joins its thread once it has words, drawn under its response address, which the durable answer to that input shares, and remains on failure or disconnect until a logged event naming its delivery attempt or its response address retires it; each reply reservation names the claim turn it belongs to (the delivery's turn once its reply opens, the turn current at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it holds only while that is still the claim's turn and the turn is open (`activity.reply_reservation_stands`), and a turn's answer committed after its reservation lapsed yields to a reply another writer already gave |
 | turn identity, when it last opened or took a prompt, and open or closed state | the session lifecycle record | a prompt, an explicit reader acknowledgement for an unnamed harness turn, the queue adapter observing Codex’s native transcript (`codex_state.py`), or an App Server client following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the harness's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and an App Server client on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
@@ -179,7 +179,7 @@ an update, by its event id, which then reads **Working**, or a to-do, which then
 with the start's line. Nothing in a session starts an item while its turn is over,
 and its workers leave the page to it, so a start over work that outlasts the turn
 goes unrenewed until a later turn starts the item again. What holds such work across
-turns is the to-do itself (`tasks.py`), which no turn or session ending lapses.
+turns is the to-do itself (`todos.py`), which no turn or session ending lapses.
 
 ### Turns and generations
 
@@ -434,7 +434,7 @@ records the page's claim under the state home's claims directory; a successor
 arriving before the session server's final recheck keeps that process, and one
 arriving afterward finds the process and lease gone and revives the still-enabled
 service. A revival is a start by the Leaf running the wait, so it is refused as any
-start is for a page vendored at another protocol (`layer.incompatible_layer`): the
+start is for a page this Leaf cannot serve (`layer.incompatible_layer`): the
 wait prints the refusal and reads the page as lost, and the service stays enabled
 until `server stop`. Neither path changes the page's authored work status. A serve
 from a bare shell claims nothing, and a claim on a standing page comes and goes

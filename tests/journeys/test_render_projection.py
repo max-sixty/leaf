@@ -124,7 +124,9 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
             "files": [
                 {
                     "path": "gateway/limits.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 4,
                     "deletions": 2,
                     "patch": patch,
@@ -1804,7 +1806,7 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     page.wait_for_function(onscreen, arg="tail-end")
 
 
-def test_a_thread_question_asks_until_answered(browser, serve):
+def test_a_thread_ask_waits_until_answered(browser, serve):
     """A question in a thread is one of the page's asks — an obligation for the user
         wherever it stands — and `q` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each
@@ -1997,7 +1999,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
-    # A draft without `needed` is optional editing, not a Question framed by an Ask.
+    # A draft without `needed` is optional editing, not an ask framed by an `lf-ask`.
     honoring = honoring.replace(
         '<lf-ask id="decision-ledger-fixture-region">',
         '<div id="decision-ledger-fixture-region">',
@@ -2008,7 +2010,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     assert '<lf-ask id="decision-ledger-fixture-region">' not in honoring
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    # The saved answer remains in the reviewable Question inventory after the source
+    # The saved answer remains in the reviewable ask inventory after the source
     # drops `needed`; it is completed, not newly owed to the user.
     expect_asks_answered(page, "1/5")
     expect(page.locator(".lf-queue")).not_to_have_text("Questions: 0")

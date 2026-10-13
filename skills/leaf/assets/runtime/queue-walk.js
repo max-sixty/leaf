@@ -10,7 +10,7 @@
    (navigation.js).
 
    Arrival belongs to the item's owner, so the walk adds no arrival of its own beside
-   theirs: an ask arrives through the ask view's `arriveAtQuestion`; a thread through the
+   theirs: an ask arrives through the ask view's `arriveAtAsk`; a thread through the
    t/T walk's own (navigation.js, `arriveAtThread`), so it lands wherever that walk
    lands; a page widget action, or a to-do on an element or the page, by travel's `arrive`,
    onto the widget the action was made on, the element, or the page's head.
@@ -38,9 +38,9 @@
    gone, comes after every placed one in the list's own order, as the t/T walk reaches
    such threads from its list's ends. A step past either end comes round to the other.
 
-   The walk can also step within one region of the page (`questionActions.next`, as an
+   The walk can also step within one region of the page (`askActions.next`, as an
    `lf-tally`'s Next question presses it): its stops are then the asks waiting on the user
-   that the region holds (`asksIn`, questions/place.js), stepped by the same standing and
+   that the region holds (`asksIn`, asks/place.js), stepped by the same standing and
    page order, and its position counts them alone. A press from outside the region, such as
    one on the tally's own control above it, counts from the ask the user last went to, if
    it is in the region: Tab and Shift+Tab pass over what they cross on the way to the
@@ -59,14 +59,14 @@ import { pageCommand, pageScope } from "./keyboard/register.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { focused, onStanding } from "./focus.js";
 import { coarsePointer } from "./pointer.js";
-import { questionHolding, placeOf, stepFrom, walkOrigin } from "./standing-target.js";
+import { askHolding, placeOf, stepFrom, walkOrigin } from "./standing-target.js";
 import { seenRect } from "./geometry.js";
 import { elementById, inChrome, pageDocument } from "./passages.js";
 import { byRenderedOrder, inUi, under } from "./shadow.js";
-import { readQuestions } from "./questions/model.js";
-import { asksIn, questionPlace } from "./questions/place.js";
+import { readAsks } from "./asks/model.js";
+import { asksIn, askPlace } from "./asks/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
-import { taskNoun } from "./queues.js";
+import { itemNoun } from "./queues.js";
 import { watchSemantic } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
@@ -84,7 +84,7 @@ const NOUNS = Object.freeze({
 // What a stop is called: by where it is arrived at, but a to-do on an element is a To-do
 // rather than the Update a widget's stop otherwise is.
 const nounOf = (item, stop) =>
-  stop.kind === "widget" && taskNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
+  stop.kind === "widget" && itemNoun(item) === "todo" ? "To-do" : NOUNS[stop.kind];
 
 // Where an item of either list, or one that is done, is arrived at: a widget ask by
 // the ask's own id, anything else by the thread it stands in, a to-do on the page as a
@@ -110,7 +110,7 @@ const pageHead = () =>
   document.body.firstElementChild;
 
 export function createQueueWalk({
-  arriveAtQuestion,
+  arriveAtAsk,
   arriveAtThread,
   threadHere,
   threadPlace,
@@ -127,7 +127,7 @@ export function createQueueWalk({
       : stop.kind === "ask"
         ? stop.thread !== null
           ? threadPlace(stop.thread)
-          : questionPlace(stop.ask).node
+          : askPlace(stop.ask).node
         : stop.kind === "page"
           ? pageHead()
           : stop.thread !== null
@@ -163,7 +163,7 @@ export function createQueueWalk({
 
   // The item the user stands on, if any: the thread holding them, the ask holding their
   // place, or the innermost element that does, in page order the last that holds them,
-  // as `questionHolding` reads asks. The page's own stop is its head element alone, never
+  // as `askHolding` reads asks. The page's own stop is its head element alone, never
   // what that holds, since on a page without a heading the head is `main`. Standing in
   // a thread that holds an open ask is not standing on that ask. `here` is the place
   // the step counts from, the user's own unless a caller names another.
@@ -179,10 +179,10 @@ export function createQueueWalk({
       if (stop) return stop;
     }
     if (!here) return null;
-    const question = questionHolding(readQuestions().all, placeOf(here));
-    if (question) {
+    const ask = askHolding(readAsks().all, placeOf(here));
+    if (ask) {
       const stop = list.find(
-        (candidate) => candidate.kind === "ask" && candidate.id === question.id,
+        (candidate) => candidate.kind === "ask" && candidate.id === ask.id,
       );
       if (stop) return stop;
     }
@@ -237,8 +237,8 @@ export function createQueueWalk({
   // rows return the user to one to review or revise it.
   function arriveAt(stop) {
     if (stop.kind === "ask") {
-      const record = readQuestions().all.find((question) => question.id === stop.id);
-      return record ? arriveAtQuestion(record) : Promise.resolve(false);
+      const record = readAsks().all.find((ask) => ask.id === stop.id);
+      return record ? arriveAtAsk(record) : Promise.resolve(false);
     }
     if (stop.kind === "thread") return arriveAtThread(stop.id);
     return arriveAtElement(() => stopElement(stop));
@@ -292,7 +292,7 @@ export function createQueueWalk({
   // caret or selection stands on the page the step keeps the to-do it was shown for,
   // if it is still on the user; anywhere else, the to-do the user stands on.
   let shownFor = null;
-  function doneTask() {
+  function doneTodo() {
     const stop = standingStop(stops());
     const focus = focused(document);
     if (
@@ -313,7 +313,7 @@ export function createQueueWalk({
 
   // The user's Done on a to-do on them: their `todo_end`, through the one append door.
   // The to-do leaves their Questions in the turn they press it (`application.ts`).
-  function endTask(id) {
+  function endTodo(id) {
     return actions.done(queueItemKey({ kind: "todo", id }));
   }
 
@@ -369,21 +369,21 @@ export function createQueueWalk({
 
   // Where `q` lands on a to-do the user ends with Done, Done is a key, and a step on the
   // banner's row under a finger. Its row in the Questions panel carries the same Done.
-  pageScope("task", {
+  pageScope("todo", {
     title: "On a to-do waiting on you",
     ready: savedReadingSettled,
-    at: () => Boolean(doneTask()),
+    at: () => Boolean(doneTodo()),
     rows: [
       {
-        id: "queue.task.done",
+        id: "queue.todo.done",
         keys: ["x"],
         title: "done",
         description: "Mark the to-do waiting on you done",
         touch: "Done",
-        when: () => Boolean(doneTask()),
+        when: () => Boolean(doneTodo()),
         run: () => {
-          const task = doneTask();
-          if (task) endTask(task.id);
+          const todo = doneTodo();
+          if (todo) endTodo(todo.id);
         },
       },
     ],
@@ -403,25 +403,25 @@ export function createQueueWalk({
   onStanding((node, cause) => {
     if (cause === "step") return;
     const place = node && placeOf(node);
-    wentTo = (place && questionHolding(readQuestions().all, place)?.id) ?? null;
+    wentTo = (place && askHolding(readAsks().all, place)?.id) ?? null;
   });
 
-  // The public walk within a region (`questionActions.next`).
+  // The public walk within a region (`askActions.next`).
   function nextWithin({ within, dir = 1 }) {
     if (!(within instanceof Element))
-      throw new TypeError("leaf: questionActions.next needs an element `within`");
+      throw new TypeError("leaf: askActions.next needs an element `within`");
     const here = walkOrigin();
     const asks = asksIn(within);
     const kept = asks.find((ask) => ask.id === wentTo);
     const toward = dir < 0 ? -1 : 1;
     if (under(here, within)) return walk(toward, within, here);
-    if (kept) return walk(toward, within, questionPlace(kept).source);
+    if (kept) return walk(toward, within, askPlace(kept).source);
     // What the user reads in the region: the first of its asks any of which they see,
     // where they are without standing on it, so a waiting one is the next and an
     // answered one leads to the next after it.
     const clips = new Map();
     const shown = asks
-      .map((ask) => questionPlace(ask).node)
+      .map((ask) => askPlace(ask).node)
       .find((node) => node && seenRect(node, clips));
     return shown ? walk(toward, within, shown, false) : walk(toward, within, here);
   }

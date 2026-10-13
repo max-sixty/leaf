@@ -14,10 +14,12 @@ from interact_support import (
     asks_on_user,
     before_choice,
     check,
+    check_findings,
     comment,
     decide,
     drafted,
     edit,
+    found,
     page_state,
     publish,
     published,
@@ -1519,7 +1521,7 @@ def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):
 
 
 def test_a_closed_thread_stops_asking(page_dir):
-    """Resolving a thread suppresses its Question attention while retaining inventory."""
+    """Resolving a thread suppresses its ask attention while retaining inventory."""
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     root = append_carried_log_record(
@@ -1667,9 +1669,9 @@ def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
             "</main>", '<p id="run-results">New result</p></main>'
         )
     )
-    refused = check(page_dir)
-    assert refused.exit_code != 0, refused.output
-    assert "ids already taken by message markup" in refused.output, refused.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "ids-taken-by-messages", ids=["run-results"])
 
 
 @pytest.mark.parametrize("native", [False, True])

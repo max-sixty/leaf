@@ -10,7 +10,7 @@ import {
   foldProjection,
   foldedValue,
   foldWidgetStates,
-  questionValue,
+  askValue,
   isProjectionEntry,
   stateCoordinate,
 } from "../../runtime/projection/model.js";
@@ -261,7 +261,7 @@ function advance(
 
 
 
-/** One to-do, as `served_state.browser` serves it (`tasks.page_tasks`): `todos` holds
+/** One to-do, as `served_state.browser` serves it (`work_reading.WorkReading.page_todos`): `todos` holds
  * the open ones on either side and `ended_todos` the ones that ended, with their
  * outcome. Asks are separate records and never appear in this list. */
 
@@ -446,66 +446,66 @@ function normalizedProjection(view                             ) {
 const appliesTo = (descriptor                  , event                           ) =>
   event.widget === descriptor.id;
 
-const NO_QUESTIONS = {
-  all: []                    ,
-  user: []                    ,
-  unanswered: []                    ,
+const NO_ASKS = {
+  all: []               ,
+  user: []               ,
+  unanswered: []               ,
 };
 
 /* The admitted inventory owns membership and widget completion. Approval and its
  * undo draw their direct result immediately. Widget values come from
  * the same local-inclusive fold used by their controls, so a partial answer is
  * visible before its POST settles the ask. */
-function normalizedQuestions(
+function normalizedAsks(
   view                 ,
   widgets                                     ,
   document                  ,
   projection                                   ,
   local                        ,
-)                {
+)           {
   const page = view?.document.asks;
   const thread = view?.thread.asks;
   const all = [...(page?.all ?? []), ...(thread?.all ?? [])].map(
-    (question)                 => {
-      if (question.source.kind === "approval") {
-        const version = question.source.version;
+    (ask)            => {
+      if (ask.source.kind === "approval") {
+        const version = ask.source.version;
         const undone = new Set(local.flatMap(({ event }) =>
           event.kind === "undo" ? [event.undoes] : []));
         const approving = local.some(({ event }) =>
           event.kind === "done" && event.version === version);
-        if (approving) return { ...question, answer: { value: true, event: null },
+        if (approving) return { ...ask, answer: { value: true, event: null },
           status: "answered", next_actor: null };
-        if (question.answer?.event && undone.has(question.answer.event.id))
-          return { ...question, answer: null, status: "open", next_actor: "user" };
-        return question;
+        if (ask.answer?.event && undone.has(ask.answer.event.id))
+          return { ...ask, answer: null, status: "open", next_actor: "user" };
+        return ask;
       }
-      if (question.source.kind !== "widget") return question;
-      const sourceId = question.source.id;
+      if (ask.source.kind !== "widget") return ask;
+      const sourceId = ask.source.id;
       const widget = widgets.get(sourceId);
-      const declaration = document.descriptors.get(question.source.id)?.declaration["x-awaits"]
+      const declaration = document.descriptors.get(ask.source.id)?.declaration["x-awaits"]
                                       ;
       const verb = declaration?.value;
-      if (!verb || !widget) return question;
-      const completed = question.status === "answered" &&
-        !(question.answer?.event && projection.pendingWithdrawals.has(question.answer.event.id));
-      const { value, present } = questionValue(widget, verb, completed);
+      if (!verb || !widget) return ask;
+      const completed = ask.status === "answered" &&
+        !(ask.answer?.event && projection.pendingWithdrawals.has(ask.answer.event.id));
+      const { value, present } = askValue(widget, verb, completed);
       const pendingValue = (widget.entries                  ).some(({ e }) =>
         e.action === verb && !Number.isInteger(e.seq)) ||
         [...projection.pendingWithdrawals.values()].some(({ e }) =>
           e.widget === sourceId &&
-          (e.action === verb || e.id === question.answer?.event?.id));
+          (e.action === verb || e.id === ask.answer?.event?.id));
       const answer = present
-        ? { value, event: pendingValue ? null : question.answer?.event ?? null }
+        ? { value, event: pendingValue ? null : ask.answer?.event ?? null }
         : null;
-      return { ...question, answer };
+      return { ...ask, answer };
     },
   );
   const selection = (kind                       ) => {
     const admitted = new Set([...(page?.[kind] ?? []), ...(thread?.[kind] ?? [])]
-      .map((question) => question.id));
-    return all.filter((question) => question.source.kind === "approval"
-      ? kind === "user" ? question.next_actor === "user" : question.status === "open"
-      : admitted.has(question.id));
+      .map((ask) => ask.id));
+    return all.filter((ask) => ask.source.kind === "approval"
+      ? kind === "user" ? ask.next_actor === "user" : ask.status === "open"
+      : admitted.has(ask.id));
   };
   return { all, user: selection("user"), unanswered: selection("unanswered") };
 }
@@ -514,7 +514,7 @@ function normalizedQuestions(
  * user is ending stands ended in the gesture's own turn, and one whose Done they are
  * undoing stands open again; a refused gesture leaves the ledger and so puts the to-do
  * back as the log has it. */
-function localTasks(
+function localTodos(
   state                           ,
   local                        ,
 ) {
@@ -526,21 +526,21 @@ function localTasks(
   );
   const served = state?.browser.todos ?? [];
   const ended = state?.browser.ended_todos ?? [];
-  const reopened = (task          ) =>
-    task.outcome !== null && undoing.has(task.outcome.id ?? "");
+  const reopened = (todo          ) =>
+    todo.outcome !== null && undoing.has(todo.outcome.id ?? "");
   const open = [
     ...served,
     ...ended
       .filter(reopened)
-      .map((task) => ({ ...task, state: "open"         , outcome: null })),
+      .map((todo) => ({ ...todo, state: "open"         , outcome: null })),
   ];
-  const locallyEnded = (task          ) => ending.has(task.id);
+  const locallyEnded = (todo          ) => ending.has(todo.id);
   return {
-    open: open.filter((task) => !locallyEnded(task)),
+    open: open.filter((todo) => !locallyEnded(todo)),
     ended: [
-      ...ended.filter((task) => !reopened(task)),
-      ...open.filter(locallyEnded).map((task) => ({
-        ...task,
+      ...ended.filter((todo) => !reopened(todo)),
+      ...open.filter(locallyEnded).map((todo) => ({
+        ...todo,
         state: "done"         ,
         running: null,
         outcome: { ts: null, detail: null },
@@ -565,7 +565,7 @@ function localQueues(
   threads                                                          ,
   workflows                     ,
   todos                               ,
-  asks               ,
+  asks          ,
 ) {
   const record = new Map(asks.all.map((ask) => [ask.id, ask]));
   const asked = new Map(asks.all.map((ask, at) => [ask.id, at]));
@@ -589,7 +589,7 @@ function localQueues(
       reading.attention.reason === "resend",
     );
   };
-  const question = (item           ) => {
+  const askOf = (item           ) => {
     const local = record.get(item.id);
     if (!local) throw new Error(`Queue item ${item.id} names no ask`);
     return local;
@@ -598,7 +598,7 @@ function localQueues(
   const standsOpen = (item           ) => {
     switch (item.kind) {
       case "ask":
-        return question(item).next_actor === "user";
+        return askOf(item).next_actor === "user";
       case "todo":
         return open.has(item.id);
       case "resend":
@@ -612,23 +612,23 @@ function localQueues(
   // Whether an item the server listed as done stands open again in this tab.
   const reopened = (item          ) =>
     item.kind === "ask"
-      ? question(item).status === "open" && question(item).next_actor === "user"
+      ? askOf(item).status === "open" && askOf(item).next_actor === "user"
       : open.has(item.id);
   // Whether an item the server listed as open has ended in this tab.
   const endedHere = (item           ) =>
     item.kind === "ask"
-      ? question(item).status !== "open"
+      ? askOf(item).status !== "open"
       : item.kind === "todo" && ended.has(item.id);
   // An ask item carries this tab's record of its ask.
   const current =                      (item   )    =>
-    item.kind === "ask" ? { ...item, ask: question(item) } : item;
+    item.kind === "ask" ? { ...item, ask: askOf(item) } : item;
   const asOpen = ({ state: _state, ended: _ended, detail: _detail, ...item }          ) =>
     current(item             );
   const asDone = (item           )           => ({
     ...current(item),
     live: false,
     state:
-      item.kind === "ask" && question(item).status === "withdrawn"
+      item.kind === "ask" && askOf(item).status === "withdrawn"
         ? "dropped"
         : "done",
     ended: null,
@@ -880,7 +880,7 @@ export function createSemanticApplication({
     // A local comment belongs to the shown document even before saved history arrives.
     // Fold it through the same ledger and receipt path in every phase; collection.phase
     // still says whether this is a complete reading. Questions need the log to say which
-    // authored questions the page still holds, so their inventory waits for that reading.
+    // authored asks the page still holds, so their inventory waits for that reading.
     const ready = phase === "ready";
     // The ledger's thread gestures, in the order the user made them.
     const gestures = local.flatMap(({ event, thread, namedParent })                  =>
@@ -894,10 +894,10 @@ export function createSemanticApplication({
     );
     const folded = foldThreads(view?.thread.threads ?? [], gestures);
     const widgets = foldWidgetStates(document.authored, projection);
-    const questions = ready
-      ? normalizedQuestions(view, widgets, document, projection, local)
-      : NO_QUESTIONS;
-    const tasks = ready ? localTasks(state, local) : { open: [], ended: [] };
+    const asks = ready
+      ? normalizedAsks(view, widgets, document, projection, local)
+      : NO_ASKS;
+    const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
     // Thread attention is the server's reading, and one local fact adjusts it: a
     // refused send hands a thread the server left with the agent back to the user,
     // whose Retry it is.
@@ -1025,7 +1025,7 @@ export function createSemanticApplication({
         isTurnEvent(entry.event) ? (localWorkflow(entry, false) ?? []) : [],
       ),
       // A refused message or widget move has a destination to send again.
-      // Other gestures restore their own control or task when speculation ends.
+      // Other gestures restore their own control or to-do when speculation ends.
       ...refused.flatMap((entry) => localWorkflow(entry, true) ?? []),
     ];
     const threads = readThreadRecords(
@@ -1040,8 +1040,8 @@ export function createSemanticApplication({
       ready ? (view?.queues ?? NO_QUEUES) : NO_QUEUES,
       threads,
       workflows,
-      tasks,
-      questions,
+      todos,
+      asks,
     );
     const workflowById = new Map(workflows.map((workflow) => [workflow.id, workflow]));
     const contextual =                                         (
@@ -1074,7 +1074,7 @@ export function createSemanticApplication({
         // included until the reading they restore is drawn (held-news.js, `gesturedOn`).
         gestured: [...new Set(unresolved.flatMap(threadsOfEntry))],
       },
-      asks: { phase, ...questions },
+      asks: { phase, ...asks },
       // Questions (on the user), Tasks (on the agent), and done: the served lists
       // with this tab's sends placed against them (`localQueues`).
       queues: {

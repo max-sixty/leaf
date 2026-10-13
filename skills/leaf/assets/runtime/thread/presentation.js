@@ -91,7 +91,7 @@ export function createThreadPresentation({
 
   // Every epoch owes a fresh generated presentation, because this owner reads more of
   // the root than its own fold: thread receipts come from canonical activity and the
-  // margin draws the Question rows beside them. The claim registers that obligation inside
+  // margin draws the ask rows beside them. The claim registers that obligation inside
   // the publication that seals membership; the pass paints it.
   //
   // Empty startup epochs need no repeated thread paint. Once a local thread is

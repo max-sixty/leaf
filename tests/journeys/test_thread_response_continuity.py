@@ -55,11 +55,11 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
     These surfaces do not repaint on every keystroke as the panel does. News captures
     the same continuity extent, so a panel-only draft fix would leave them broken.
     """
-    from render_cases_interaction import SEATED_QUESTION_PAGE
+    from render_cases_interaction import SEATED_ASK_PAGE
     from render_harness import told
 
     if place == "seat":
-        source = SEATED_QUESTION_PAGE
+        source = SEATED_ASK_PAGE
         anchor = {"section": "jobs"}
         selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread'
     else:
@@ -281,10 +281,10 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
 
 def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, serve):
     """Mirrors retain the writing room; canceled input retains it and edits resize it."""
-    from render_cases_interaction import SEATED_QUESTION_PAGE
+    from render_cases_interaction import SEATED_ASK_PAGE
     from render_harness import stored_draft_text, told
 
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     parent = events_model.append_event(
         serve.page_dir,
         {

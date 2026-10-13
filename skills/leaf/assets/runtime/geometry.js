@@ -32,7 +32,7 @@ import { sampleVisibility } from "./sample-visibility.js";
    that holds the Range and counting that element's own clip. Use:
 
    - `shownBox` for travel, bounds, and reading-position landmarks;
-   - `shownParts` for Question rings and element-anchor outlines;
+   - `shownParts` for ask rings and element-anchor outlines;
    - `shownExtent` for what stands beside a target's parts: a margin row, the
      response field's room;
    - `shownRect` for visible placement of floating chrome and key badges;

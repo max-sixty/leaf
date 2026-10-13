@@ -16,7 +16,7 @@ class ServedPage(NamedTuple):
     the semantic readings, and the page's stored external data.
 
     `reading` is None before the page has an active revision, when there is no
-    document to read threads, Questions, or widgets against.
+    document to read threads, asks, or widgets against.
     """
 
     state: dict
@@ -32,7 +32,7 @@ def project_activity(
     if browser is not None:
         return browser.pop("activity")
     return {
-        key: value for key, value in context.work.activity.items() if key != "tasks"
+        key: value for key, value in context.work.activity.items() if key != "todos"
     }
 
 

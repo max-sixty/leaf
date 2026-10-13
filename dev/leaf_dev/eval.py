@@ -114,7 +114,7 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
 def native_provider(
     harness: str, payload: Path, work: Path
 ) -> tuple[dict, Path | None]:
-    """A read-only native agent and its explicitly invokable installed skill."""
+    """A read-only native agent and its explicitly invocable installed skill."""
     if harness == ClaudeCodeHarness.name:
         child = claude_child(work)
         return {
@@ -421,7 +421,7 @@ def prepare(
     return {
         "prompts": [
             {
-                "id": f"file://{Path(__file__)}:render_prompt",
+                "id": f"file://{Path(__file__)}:{render_prompt.__name__}",
                 "label": "task",
                 "config": {"skills": skills},
             }

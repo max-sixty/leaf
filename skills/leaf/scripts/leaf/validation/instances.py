@@ -9,7 +9,7 @@ from leaf.registry.contract import (
     retirement_slots,
     visual_parts,
 )
-from leaf.registry.schema import json_validator, schema_error_message
+from leaf.registry.schema import json_validator, schema_reading
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import found_at, structure_errors
@@ -58,15 +58,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
             is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
-            errors.append(
-                found_at(
-                    "attribute-schema",
-                    rec,
-                    keyword=err.validator,
-                    path=list(err.path),
-                    reason=schema_error_message(err),
-                )
-            )
+            errors.append(found_at("attribute-schema", rec, **schema_reading(err)))
         want_owners = entry.get("x-owners", [])
         if want_owners and rec["parent"] not in want_owners:
             errors.append(

@@ -103,6 +103,7 @@ import { move } from "../dom-move.js";
 import { declarationFor } from "../registry.js";
 import { LAYOUT } from "../widget-elements.js";
 import { inChrome } from "../passages.js";
+import { visibleTargetParts } from "../visible-target-parts.js";
 import {
   anchorReading,
   carriedAnchor,
@@ -1115,7 +1116,7 @@ function setStyle(row, property, value) {
 function targetShown(target, extent, stands, bands, attachment = target) {
   const shown = (part) =>
     part.checkVisibility() && clippedBand(part, part.getBoundingClientRect(), bands);
-  if (!shownParts(target).some(shown)) return false;
+  if (!visibleTargetParts(target).some(shown)) return false;
   if (!clippedBand(target, extent, bands)) return false;
   if (!stands) return true;
   const view = clippedBand(attachment, EVERYWHERE, bands);

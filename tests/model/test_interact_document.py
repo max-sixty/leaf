@@ -4312,7 +4312,7 @@ def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_di
     source = page_dir / "index.html"
     source.write_text(
         FLOW_PAGE.replace(
-            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="node:A node:B">'
+            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
         )
     )
     publish(page_dir)
@@ -4326,9 +4326,7 @@ def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_di
             "text": "Explain this node.",
         },
     )
-    source.write_text(
-        source.read_text().replace('parts="node:A node:B"', 'parts="node:B"')
-    )
+    source.write_text(source.read_text().replace(' parts="all"', ""))
     assert stamp(page_dir, "revise drawing").exit_code == 0
     [thread] = state_json(page_dir)["threads"]
     assert thread["anchor"] == {"section": "flow"}

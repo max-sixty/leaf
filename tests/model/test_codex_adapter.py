@@ -262,13 +262,28 @@ def test_embedded_codex_delivery_keeps_steered_input_in_one_claim_turn(page_dir)
     assert all(item["condition"] is None for item in interactions.values())
 
 
-def test_embedded_codex_delivery_retries_the_same_immutable_pointer(page_dir):
+@pytest.mark.parametrize("ownership_transferred", [False, True])
+def test_embedded_codex_delivery_retries_the_same_immutable_pointer(
+    page_dir, ownership_transferred
+):
     append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "text": "make this editable"},
     )
     harness = harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid())
     first = codex_model.prepare_codex_delivery(page_dir, harness)
+
+    if ownership_transferred:
+        with service_model.PageTransaction(page_dir) as page:
+            page.take_claim(
+                harness_model.EmbeddedHarness("successor", "Successor", os.getpid())
+            )
+            successor = page.active_claim
+        with pytest.raises(delivery_model.ReceiptRefused, match="no longer owns"):
+            codex_model.prepare_codex_delivery(page_dir, harness)
+        assert service_model.same_claim(service_model.page_claim(page_dir), successor)
+        assert delivery_model.read_delivery(first.payload["id"]) == first.payload
+        return
 
     second = codex_model.prepare_codex_delivery(page_dir, harness)
 

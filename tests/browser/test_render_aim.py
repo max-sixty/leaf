@@ -2878,33 +2878,6 @@ def test_a_generic_package_gets_nested_hits_and_can_narrow_a_paint_surface(
     page.keyboard.up("Alt")
 
 
-def test_an_undeclared_nested_part_does_not_shadow_its_declared_parent(browser, serve):
-    """Authored tokens bound hit-testing, not only the event after it has chosen a hit.
-
-    The package may register more parts than this instance exposes. A hit inside one of
-    those parts still belongs to the nearest declared ancestor rather than widening to
-    the visual as a whole.
-    """
-    page = open_page(
-        browser,
-        serve(
-            GENERIC_VISUAL_PAGE.replace(
-                'parts="outer inner html"', 'parts="outer html"'
-            ),
-            layer_registry=GENERIC_VISUAL_LAYER,
-            layer_widgets=GENERIC_VISUAL_WIDGETS,
-        ),
-    )
-
-    page.locator("#inner path").hover()
-    page.keyboard.down("Alt")
-    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "outer")
-    assert page.eval_on_selector_all(
-        ".lf-aim-shape > g > *", "nodes => nodes.map(node => node.localName)"
-    ) == ["rect"]
-    page.keyboard.up("Alt")
-
-
 def test_a_registered_visual_rebuilds_same_bounds_geometry_on_update(browser, serve):
     """The package's update signal rebuilds a contour even when its box does not move.
 
@@ -3378,18 +3351,12 @@ def test_a_rounded_diagram_part_aim_has_room_to_cover_the_shape_edge(browser, se
 def test_a_declared_flowchart_node_keeps_its_comment_across_renderings(browser, serve):
     """The authored Mermaid id, rather than its generated SVG id, is the anchor.
 
-    An unlisted node is the control: it still takes the whole diagram. A listed node
-    outlines only its current SVG group, while the diagram holds the accessible note
-    and the panel place. Reloading makes Mermaid generate the SVG again and proves the
+    A named node outlines only its current SVG group, while the diagram holds the
+    accessible note and the panel place. Reloading makes Mermaid generate the SVG again and proves the
     stable token resolves to that new box.
     """
     page = open_page(browser, live_url(serve(PART_DIAGRAM_PAGE)))
     diagram = page.locator("#flow")
-
-    unlisted = diagram.locator('g[data-id="U"]')
-    unlisted.click(modifiers=["Alt"])
-    expect(diagram).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
-    page.keyboard.press("Escape")
 
     start = diagram.locator('g[data-id="S"]')
     start.click(modifiers=["Alt"])
@@ -3458,7 +3425,7 @@ def test_a_sequence_actor_is_an_addressable_visual_part(browser, serve):
         "sequence diagram parts",
         """
 <h1 id="t">Exchange</h1>
-<lf-diagram id="exchange" parts="node:A"><pre>
+<lf-diagram id="exchange" parts="all"><pre>
 sequenceDiagram
   participant A as User
   participant B as Server
@@ -3565,7 +3532,7 @@ def test_an_aim_in_a_pane_stands_anchored_to_what_it_outlines(browser, serve, su
       <div>
         <div style="height: 200px"></div>
         <p id="pane-words">The first finding, aimed at.</p>
-        <lf-diagram id="flow" parts="node:S"><pre>
+        <lf-diagram id="flow" parts="all"><pre>
 graph LR
   S[Start request] --> H[Handle request]
 </pre></lf-diagram>

@@ -338,8 +338,6 @@ EXTENSION_SCHEMA = {
                     "type": "object",
                     "properties": {
                         "parts": _ATTRIBUTE_NAME,
-                        "all": {"type": "string", "pattern": "^\\S+$"},
-                        "complete": {"const": True},
                     },
                     "required": ["parts"],
                     "additionalProperties": False,

@@ -189,7 +189,10 @@ wait on CI, or a change you promise for the next version, answer with
 the reply answers the user's message and opens the to-do on that thread under the
 reply's id, which keeps the thread on you, and named in the banner, through the user
 resolving it and the end of your session. A turn-written reply carries no to-do, so
-answer such a promise with this command. Wherever
+answer such a promise with this command. Handing the work to another session, a
+background job, or a later turn is such a promise, even where the tool you hand it with
+counts the launch as the end of your part: the thread that asked still waits for the
+result, and a reply declared `--done` tells the user nothing is owed. Wherever
 the result lands, the to-do ends there: `leaf task end <page> <todo> done "<where the
 result is>"`, or `failed` or `dropped` with the reason, so work that won't come back
 to you takes the page and the to-do's id in its brief. While you work on it, start it,
@@ -255,8 +258,8 @@ on an external result. Complete authorized work without asking for permission
 again. A paused project needs an ask only when its disposition or resumption
 needs the user's decision; after they choose to keep it paused, that decision is
 settled. A blocked action belongs on the user only when they can take the step
-that unblocks it. Work owned by another session stays there; ask here only for the
-decision this page needs.
+that unblocks it. A question about work another session owns stays with that session;
+ask here only for the decision this page needs.
 
 An answer in chat or another surface still settles the real question. Incorporate
 it and retire its page ask in a revision (`authoring-revisions.md`), or end

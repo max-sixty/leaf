@@ -108,7 +108,7 @@ function identifyPreserving(root, owner) {
 // A preserving owner with no id is identified by where it stands among the document's
 // other preserving owners, which is a fact about all of them rather than about any one.
 // A live revision that inserts or drops one therefore renumbers the rest, and leaving
-// the standing owners on the numbers they arrived with would have two of them answering
+// the existing owners on the numbers they arrived with would have two of them answering
 // to the same name. Read from the document rather than from what the patch brought in,
 // for the same reason: the order is the whole document's.
 export function reindexPassageOwners(scope = document, source = ["page", null]) {
@@ -173,7 +173,7 @@ export async function preloadWidgets(scope) {
 }
 
 // Startup and frozen-message presentation may consume their captured markup. Format
-// before module imports can synchronously connect an already-standing custom element.
+// before module imports can synchronously connect an already-present custom element.
 export async function importWidgets(scope) {
   await loadWidgetDependencies(scope);
   formatDeclaredMarkdown(scope);
@@ -219,7 +219,7 @@ async function installDocument(scope) {
 //
 // A patch runs inside the state turn that brought the revision, and that answer may
 // carry more than the revision: a data replacement for a widget the revision left
-// standing reaches that widget only after the turn adopts the answer. So the patch
+// in place reaches that widget only after the turn adopts the answer. So the patch
 // waits for the widgets it brought and for its own dressing, never for the whole
 // application — that wait would be on a renderer whose turn cannot come until this one
 // returns, and a page that stops there has stopped answering with nothing said.

@@ -60,8 +60,9 @@ directory explicitly; export or copy anything that must outlive the page directo
    optional vocabulary or instructions, as in
    `leaf page init --package diagram --package diff <page>`. "Package reach" in
    `references/packages.md` lists the optional packages and what each adds;
-   `playground` fits whenever the user compares or tunes several values or
-   behaviors. Re-running
+   `playground` fits whenever the user tunes several values or behaviors before
+   choosing; candidates the user picks among as drawn need no package, since the
+   user selects the candidate itself (`references/authoring-asks.md`). Re-running
    `page init` with a selection adds it to a page already written.
 2. Read `references/page-authoring.md`, then the authoring reference each part
    of the page needs, listed under "Author a version" below. Follow "Read the
@@ -177,7 +178,7 @@ so a phase does not depend on discovering a chain of references.
 - `references/authoring-asks.md`: when the page needs an answer from the user or
   sign-off, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
-  proposing a rewrite, using a user-owned draft, or revising standing state.
+  proposing a rewrite, using a user-owned draft, or revising the page's current state.
 - `references/authoring-evidence.md`: for work updates or reviews, before drawing
   a figure, or using measured facts, diagrams, charts, source files or text edits,
   images, recordings, or before/after captures.
@@ -199,7 +200,7 @@ so a phase does not depend on discovering a chain of references.
 ### Serve or extend a page
 
 - `references/serving-pages.md`: for the first handoff, `--export`, an unreachable
-  URL, whether an operation changes a page's URL, `--host`, a standing page,
+  URL, whether an operation changes a page's URL, `--host`, a persistent page,
   re-vendoring a served page, a page a Leaf update broke, or resuming another
   session's page.
 - `references/module-authoring.md`: before writing or changing browser behavior in

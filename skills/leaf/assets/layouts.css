@@ -94,7 +94,7 @@
    * where the room beside the column holds it (prepaint.js, `residency`),
    * moving the column over where one side lacks it. Each names the postures it may take,
    * in order of preference; these rules read the answer off `main`'s `data-lf-margin`,
-   * one token per posture standing. Screen only: paper has no drawer and no margin to
+   * one token per posture granted. Screen only: paper has no drawer and no margin to
    * grant. A sidebar in the margin stands sticky below the banner in the room its
    * --sidebar takes left of the column box. A contents map rests as a spine a few pixels
    * wide and reveals its labels over the page, so with a fine pointer a sidebar holding

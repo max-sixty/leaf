@@ -411,7 +411,7 @@ export const semanticStoreOwnershipRule = {
 // or `blur`, and the window's, which is the system's focus, are other questions. The option names,
 // by path from the repository root, the files that may still name a focus event, each
 // with the reason in the config that grants it.
-const standingRepoRoot = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.dirname(fileURLToPath(import.meta.url));
 const STANDING_MESSAGE =
   "Read where the user stands from onStanding (runtime/focus.js): a focusin or focusout listener misses moves inside a shadow tree beneath it and guesses its own cause.";
 const standingListenersRule = {
@@ -421,7 +421,7 @@ const standingListenersRule = {
   },
   create(context) {
     const file = path
-      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
     const allowed = new Set(context.options[0]?.[file] ?? []);
@@ -487,7 +487,7 @@ const placementsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path
-      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
     const owner = (context.options[0] ?? []).includes(file);
@@ -592,7 +592,7 @@ export const standingReadsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path
-      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
     if ((context.options[0] ?? []).includes(file)) return {};
@@ -650,7 +650,7 @@ export const openLayersRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path
-      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
     if ((context.options[0] ?? []).includes(file)) return {};
@@ -712,7 +712,7 @@ const INSERTS = new Set([
   "replaceChildren",
   "replaceWith",
 ]);
-const STANDING = new Set([
+const PLACEMENT = new Set([
   "parentNode",
   "parentElement",
   "nextSibling",
@@ -724,7 +724,7 @@ export const movesRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path
-      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
     if ((context.options[0] ?? []).includes(file)) return {};
@@ -733,18 +733,18 @@ export const movesRule = {
       node.callee.type === "MemberExpression" && !node.callee.computed
         ? node.callee.property.name
         : null;
-    const standingOf = (node) =>
+    const placementOf = (node) =>
       node.type === "MemberExpression" &&
       !node.computed &&
-      STANDING.has(node.property.name);
+      PLACEMENT.has(node.property.name);
     // Whether `test` asks where one of `names` stands.
     const asksWhere = (test, names) => {
       if (!test || typeof test.type !== "string") return false;
-      if (standingOf(test) && names.has(text(test.object))) return true;
+      if (placementOf(test) && names.has(text(test.object))) return true;
       if (
         test.type === "BinaryExpression" &&
         [test.left, test.right].some((side) => names.has(text(side))) &&
-        [test.left, test.right].some(standingOf)
+        [test.left, test.right].some(placementOf)
       )
         return true;
       if (
@@ -876,7 +876,7 @@ export const layerReturnsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
     const file = path
-      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .relative(repoRoot, context.filename ?? context.getFilename())
       .split(path.sep)
       .join("/");
     if ((context.options[0] ?? []).includes(file)) return {};
@@ -978,7 +978,7 @@ const architecturePlugin = {
         const file = runtimeName(context.filename ?? context.getFilename());
         // The bootstrap and the prepaint run before the module graph and write only
         // what the first paint needs, before any authored revision has replaced the
-        // root's attributes. root-state.js is the sole standing mutation boundary.
+        // root's attributes. root-state.js is the sole mutation boundary after that.
         if (["bootstrap.js", "prepaint.js", "root-state.js"].includes(file)) return {};
         const source = context.sourceCode ?? context.getSourceCode();
         const pagePaintAttributes = pagePaintAttributesFrom(

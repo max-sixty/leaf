@@ -387,7 +387,7 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(
     # Only the browser's clock can be moved from here, and every state answer
     # recalibrates the page's one measured offset against the server's real `now`
     # (observeServerNow), which would put the three hours straight back. The page has
-    # a standing reason to ask for one: a served page's status claims work, so its
+    # a lasting reason to ask for one: a served page's status claims work, so its
     # activity carries a transition deadline the jump crosses, and the feed asks
     # rather than beats on that tick. Refusing the read is the arrangement the paint
     # under test needs — no data change, and no answer that could carry one.
@@ -2112,7 +2112,7 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     # stands the composer down (standDown) — so reaching the picker by mouse would end
     # the hold on the very gesture that opens the menu, and whether the page had followed
     # by then would come down to whether a state read landed between the two presses. The
-    # keyboard route leaves the composer standing through both.
+    # keyboard route leaves the composer open through both.
     page.locator(".lf-banner-more").press("Enter")
     expect(page.locator(".lf-banner-menu")).to_be_visible()
     page.locator(".lf-version").press("Enter")
@@ -2233,7 +2233,7 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
     expect(page.locator("#ow-edited")).to_have_text(
         "The cutover finished on the second attempt."
     )
-    standing = page.evaluate(
+    kept = page.evaluate(
         """() => ({
           open: document.getElementById('ow-details').hasAttribute('open'),
           spans: document.querySelectorAll('#ow-code code span').length,
@@ -2244,14 +2244,14 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
           focused: document.activeElement === document.getElementById('ow-land'),
         })"""
     )
-    assert standing == {
+    assert kept == {
         "open": True,
         "spans": held["spans"],
         "sameSpan": True,
         "made": True,
         "landing": "-1",
         "focused": True,
-    }, f"the revision took back what its author never wrote: {standing}"
+    }, f"the revision took back what its author never wrote: {kept}"
     rewritten = page.evaluate(
         """() => {
           const paragraphs = [...document.querySelectorAll('#tw p')];
@@ -2310,7 +2310,7 @@ def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
     (serve.page_dir / "index.html").write_text(second)
     told(page)
     expect(page).to_have_title("Moved second")
-    standing = page.evaluate(
+    kept = page.evaluate(
         """() => {
           const input = document.getElementById('mv-input');
           return {
@@ -2321,12 +2321,12 @@ def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
           };
         }"""
     )
-    assert standing == {
+    assert kept == {
         "order": ["mv-intro", "mv-note", "mv-late"],
         "same": True,
         "focused": True,
         "caret": [6, 9, "backward"],
-    }, f"the revision's move took the user out of their box: {standing}"
+    }, f"the revision's move took the user out of their box: {kept}"
 
 
 def test_a_revision_reorders_a_live_sample_without_replacing_its_document(
@@ -2425,18 +2425,18 @@ def test_a_prose_revision_takes_only_the_words_it_rewrote(browser, serve):
     expect(page.locator("#pr-edited")).to_have_text(
         "The cutover finished on the second attempt."
     )
-    standing = page.evaluate(
+    kept = page.evaluate(
         """() => ({
           selection: getSelection().toString(),
           sameNode: getSelection().anchorNode === window.__prNode,
           sameElement: window.__prKept === document.getElementById('pr-kept'),
         })"""
     )
-    assert standing == {
+    assert kept == {
         "selection": "account",
         "sameNode": True,
         "sameElement": True,
-    }, f"the revision took something the user was holding: {standing}"
+    }, f"the revision took something the user was holding: {kept}"
     # The retained selection still names a commentable passage after the revision.
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_contain_text("account")
@@ -2542,7 +2542,7 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
     assert page.evaluate(template) == "The second account, rewritten.", (
         "the revision did not reach the markup inside the template"
     )
-    standing = page.evaluate(
+    kept = page.evaluate(
         """() => {
           const content = document.getElementById('tl-held').content;
           const lines = [...content.querySelectorAll('p')];
@@ -2564,7 +2564,7 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
           };
         }"""
     )
-    assert standing == {
+    assert kept == {
         "words": [
             "The first line.",
             "The second line, rewritten.",
@@ -2579,7 +2579,7 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
         "classes": ["aside", "note"],
         "src": src,
         "loads": 0,
-    }, f"the revision missed what it rewrote or took what it left alone: {standing}"
+    }, f"the revision missed what it rewrote or took what it left alone: {kept}"
     assert page.evaluate(quoted) == {
         "choose": False,
         "label": "Beta, rewritten",
@@ -2658,7 +2658,7 @@ def test_another_kind_of_sibling_above_an_edited_paragraph_keeps_the_user_on_it(
     expect(page).to_have_title("Kinds second")
 
     expect(page.locator("main h2")).to_have_text("Progress")
-    standing = page.evaluate(
+    kept = page.evaluate(
         """() => ({
           words: document.querySelector('main p').textContent,
           sameParagraph: window.__kdParagraph === document.querySelector('main p'),
@@ -2666,12 +2666,12 @@ def test_another_kind_of_sibling_above_an_edited_paragraph_keeps_the_user_on_it(
           selection: getSelection().toString(),
         })"""
     )
-    assert standing == {
+    assert kept == {
         "words": "The cutover finished on the second attempt.",
         "sameParagraph": True,
         "sameNode": True,
         "selection": "cutover",
-    }, f"the inserted heading took the user's paragraph with it: {standing}"
+    }, f"the inserted heading took the user's paragraph with it: {kept}"
 
 
 def test_a_paragraph_inserted_above_the_user_does_not_shift_the_ones_below(
@@ -2720,7 +2720,7 @@ def test_a_paragraph_inserted_above_the_user_does_not_shift_the_ones_below(
     page.locator(".lf-latest-chip").evaluate("el => el.click()")
     expect(page).to_have_title("Prose order second")
 
-    standing = page.evaluate(
+    kept = page.evaluate(
         """() => {
           const paragraphs = [...document.querySelectorAll('main p')];
           return {
@@ -2731,13 +2731,13 @@ def test_a_paragraph_inserted_above_the_user_does_not_shift_the_ones_below(
           };
         }"""
     )
-    assert standing == {
+    assert kept == {
         "words": ["Paragraph 0", "Paragraph 1", "Paragraph 2", "Paragraph 3"]
         + ["Paragraph 4"],
         "selection": "Paragraph 2",
         "sameNode": True,
         "sameParagraph": True,
-    }, f"the insertion shifted the paragraphs below it: {standing}"
+    }, f"the insertion shifted the paragraphs below it: {kept}"
 
 
 def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
@@ -3940,7 +3940,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
     """A revision arriving under a user mid-press keeps their next press live.
 
     Two kinds of pending input meet an activation. A sequence is the runtime's: bare `g`
-    names the visible targets, and the chips are read off whichever document is standing,
+    names the visible targets, and the chips are read off whichever document is current,
     so the window holds through the revision and the hints land on the new page — minus
     the hint for a link the revision took away, which is the honest reading. The user's
     standing is the document's: the Ask's actions remain live over a focused pick mark,
@@ -4139,7 +4139,7 @@ def test_a_revision_gives_values_to_controls_the_user_never_touched(browser, ser
 
     version_url = serve(first)
     page = open_page(browser, live_url(version_url))
-    # The platform's own answers, standing against the empty default the author wrote.
+    # The platform's own answers, set against the empty default the author wrote.
     assert page.locator("#lk-tick").evaluate("el => [el.value, el.defaultValue]") == [
         "on",
         "",
@@ -4900,7 +4900,7 @@ def test_travelling_to_an_element_lands_where_it_was_aimed(browser, serve):
 
 
 def test_the_ask_walk_follows_registry_declarations(browser, serve):
-    """Removing a standing-request declaration removes that widget from every Ask
+    """Removing an open-request declaration removes that widget from every Ask
     surface without changing the runtime, banner, or keyboard walk."""
     url = serve(ASKS_PAGE)
     registry = json.loads((serve.page_dir / "registry.json").read_text())
@@ -5111,7 +5111,7 @@ def test_a_comparison_reaches_a_version_stamped_before_a_re_vendor(browser, serv
 
 
 def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, serve):
-    """The half of a roster no version can write down. A standing report states what
+    """The half of a roster no version can write down. A report in force states what
     each worker is doing; only the log knows when it last said so, and a page that keeps
     a fleet is at its least trustworthy exactly when the user has been away longest.
     So the row renders elapsed time from the newest report and re-renders on every poll.
@@ -5169,7 +5169,7 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
 
     # And it survives the version that answers the report, which is the case the whole
     # line exists for and the one an earlier build could never reach. Publishing absorbs
-    # a report by id, so a roster reading standing reports blanked every row at every
+    # a report by id, so a roster reading reports in force blanked every row at every
     # publish — and the user most needs this exactly where that left nothing: a worker
     # that claimed work, had the claim written into the document, and then died. The
     # provisional mark goes, because the document speaks again; the log's memory of who
@@ -5666,14 +5666,14 @@ export default class extends HTMLElement {
     expect(page.locator("#tally-fitted")).to_have_attribute("seen", "9")
     expect(page.locator("#tally-seen")).to_have_attribute("count", "5")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
-    standing = page.evaluate(
+    kept = page.evaluate(
         """async () => {
           const {state} = (await window.__lfRuntimeImport('/runtime/widget-api.js'))
             .widgetController(document.getElementById('tally-fitted')).read();
           return [state.set.value, state.observe.value];
         }"""
     )
-    assert standing == ["7", "9"]
+    assert kept == ["7", "9"]
 
     original = page.locator("#tally-seen").element_handle()
     page.keyboard.press("z")
@@ -5790,7 +5790,7 @@ export default class extends HTMLElement {
     page = open_page(browser, url)
     expect(page.locator("#zone-b > #piece")).to_have_count(1)
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
-    standing = page.evaluate(
+    kept = page.evaluate(
         """async () => {
           const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return ['owner', 'piece'].map(id => {
@@ -5800,7 +5800,7 @@ export default class extends HTMLElement {
           });
         }"""
     )
-    assert standing == [["owner", "move"], ["piece", "move"]]
+    assert kept == [["owner", "move"], ["piece", "move"]]
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
     # A data renderer can remount a part while retaining its owner. Both owning
     # coordinates must render onto the new node even when no winning event changed.
@@ -6808,7 +6808,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
 
 
 def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
-    """A decision the next revision keeps standing is still the user's newest gesture
+    """A decision the next revision keeps in force is still the user's newest gesture
     there, so `z` takes it back as the widget's own Undo would."""
     first = leaf_page(
         "Carried decision",
@@ -7051,7 +7051,7 @@ def test_closing_a_thread_withdraws_the_ask_in_it(browser, serve):
     """A question in a thread is the thread's, so closing the thread takes the decision
     with it. The group is still there to read in the Resolved state, and still holds no
     answer — what went is the page's claim on the user, who would otherwise carry a
-    standing decision for the life of the page and have `d` step them into a closed
+    decision in force for the life of the page and have `d` step them into a closed
     hidden thread to reach it."""
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(serve.page_dir, THREAD_ASKS[0])
@@ -7310,7 +7310,7 @@ def test_atlas_input_is_trimmed_before_it_enters_the_record(browser, serve):
     assert edit["detail"]["value"].count("[redacted]") == 2
     page.locator("#atlas-record .lf-activity-news").click()
     saved = page.locator("#atlas-record .lf-activity-row").first
-    expect(saved).to_contain_text("You edited")
+    expect(saved).to_contain_text("Me edited")
     expect(saved.locator('a[href="#ledger-cargo"]')).to_have_count(1)
     expect(page.locator('[data-atlas-count="stopped"]')).to_have_text("4")
     expect(page.locator("#ledger-variance")).to_have_attribute("status", "planned")
@@ -7496,7 +7496,7 @@ def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve):
     assert line.bounding_box()["y"] == pytest.approx(before["y"], abs=0.5)
     control.click()
     expect(
-        page.locator("#feed .lf-activity-row", has_text="You resolved")
+        page.locator("#feed .lf-activity-row", has_text="Me resolved")
     ).to_have_attribute("data-lf-undone", "")
     assert control.bounding_box() == trigger
     before_revision = line.bounding_box()

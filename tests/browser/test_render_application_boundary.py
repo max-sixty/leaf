@@ -1592,6 +1592,13 @@ def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve)
         """async () => {
           const list = document.querySelector('leaf-thread-list');
           const available = window.availableThreadReading;
+          const partial = {...available,
+            rows: [available.rows.find(row => row.kind === 'thread'),
+              {kind: 'empty', key: 'unavailable', text: 'Threads unavailable.'}],
+            count: null,
+          };
+          await list.present(partial);
+          list.commit(partial);
           await list.present(available);
           list.commit(available);
         }"""
@@ -1601,13 +1608,13 @@ def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve)
 
 
 def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
-    """Readiness includes the real Lit paint, preserving the standing editor."""
+    """Readiness includes the real Lit paint, preserving the existing editor."""
     url = serve(LIVE_V1)
     append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
-            "id": "standing-thread",
+            "id": "kept-thread",
             "author": "user",
             "revision": 1,
             "text": "Keep this draft and its exact card.",
@@ -1616,14 +1623,14 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     page = open_page(browser, live_url(url))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    page.locator('.lf-thread[data-id="standing-thread"] .lf-thread-summary').click()
-    reply = page.locator('.lf-thread[data-id="standing-thread"] leaf-text')
+    page.locator('.lf-thread[data-id="kept-thread"] .lf-thread-summary').click()
+    reply = page.locator('.lf-thread[data-id="kept-thread"] leaf-text')
     write(reply, "half a thought")
     reply.evaluate("input => input.setSelectionRange(4, 4)")
-    standing = page.locator('.lf-thread[data-id="standing-thread"]').element_handle()
+    card = page.locator('.lf-thread[data-id="kept-thread"]').element_handle()
 
     def assert_draft_retained():
-        assert standing.evaluate("node => node.isConnected"), "the card was replaced"
+        assert card.evaluate("node => node.isConnected"), "the card was replaced"
         expect(reply).to_be_focused()
         expect(reply).to_have_js_property("value", "half a thought")
         assert reply.evaluate(
@@ -1695,7 +1702,7 @@ export default class extends HTMLElement {
     this.stop = watchThreads(this, collection => {
       this.thread = collection.threads[0];
       keeps(this, 'data-resolved', Boolean(this.thread?.resolved));
-      keeps(this, 'data-reacted', Boolean(this.thread?.msgs.find(msg => msg.author === 'agent')?.reactions?.choices.find(choice => choice.name === 'keep')?.standing));
+      keeps(this, 'data-reacted', Boolean(this.thread?.msgs.find(msg => msg.author === 'agent')?.reactions?.choices.find(choice => choice.name === 'keep')?.inForce));
     });
     this.querySelectorAll('button').forEach(button => button.onclick = () => {
       const key = this.thread.key;
@@ -1706,7 +1713,7 @@ export default class extends HTMLElement {
           ? threadActions.resolve(key)
           : button.textContent === 'Reopen'
             ? threadActions.reopen(key)
-            : threadActions.setReaction(key, agent.key, 'keep', !agent.reactions.choices.find(choice => choice.name === 'keep').standing);
+            : threadActions.setReaction(key, agent.key, 'keep', !agent.reactions.choices.find(choice => choice.name === 'keep').inForce);
       keeps(this, 'data-accepted', this.last !== null);
     });
   }

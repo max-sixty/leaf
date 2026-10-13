@@ -84,7 +84,7 @@ def obligation_reading(readings) -> dict:
 
     Delivery progress, receipt-only updates and presentation are absent. Work in hand,
     an update the agent started or a to-do it opened on a thread or widget, also holds the
-    standing widget inputs on its subject, even while an ask is being composed:
+    widget inputs in force on its subject, even while an ask is being composed:
     changing a pick under ongoing work changes that work before Done. Admission
     compares this reading on either side of the append and stores the result.
     """
@@ -163,7 +163,7 @@ def page_action_unsettled(
     *,
     owed: bool,
 ) -> bool:
-    """Whether one standing page action is still unsettled.
+    """Whether one page action in force is still unsettled.
 
     An owed action — part of an answered ask — settles when the authored markup
     records it. The note of a later version settles the rest: a verb with no
@@ -222,7 +222,7 @@ def canonical_workflows(
 ) -> list[dict]:
     """The unsettled user inputs and strongest evidence held for each.
 
-    A standing start (`todos.item_starts`) holds an update it names, and a start running
+    A start in force (`todos.item_starts`) holds an update it names, and a start running
     on an open to-do over a widget holds that widget's actions delivered before it, as
     the work the to-do answers. A `put_down` in the log, which `leaf status waiting`
     and `idle` write, ends every start before it, so the updates they named are no
@@ -483,7 +483,7 @@ def canonical_workflows(
         # owed action, and for an action that owes nothing any agent turn after it, which
         # has taken the action in as a later version takes in a page action. A reaction
         # is no turn, and a harness's failure reply says no answer is coming rather
-        # than answering. The resolution standing over the thread settles the actions
+        # than answering. The resolution in force on the thread settles the actions
         # made before it, and the answer that resolved it; an action made after it is
         # delivered like any other and keeps its receipt.
         thread_id = thread_reading.thread_by_widget.get(source["widget"])

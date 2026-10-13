@@ -53,7 +53,7 @@ const packageManifest = JSON.parse(
 ) as { dependencies: Record<string, string> };
 
 describe("deployment configuration", () => {
-  it("keeps addressing the standing Cloudflare container application", () => {
+  it("keeps addressing the existing Cloudflare container application", () => {
     const [binding] = config.durable_objects.bindings;
     const [createdClass] = config.migrations[0].new_sqlite_classes ?? [];
     const deployedName = `${config.name}-${createdClass.toLowerCase()}`;

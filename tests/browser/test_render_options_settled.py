@@ -247,7 +247,7 @@ def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, ser
     """A replayed option stays inside the settled disclosure it belongs to.
 
     The disclosure's count and controls describe the complete current option set,
-    including options reconstructed from their standing `add`, and follow the undo
+    including options reconstructed from their `add` in force, and follow the undo
     that takes that `add` back.
     """
     page = open_page(browser, serve(SETTLED_ASK_PAGE))

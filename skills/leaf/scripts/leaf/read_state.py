@@ -19,7 +19,7 @@ changes without naming them (`thread_context.thread_memberships`): a later decis
 on a suggestion that had answered a thread, or the `undo` of an answer. Neither
 shows the user what the thread says, so neither is evidence here. An update the user
 took back is no evidence either, as it is none for every other fold over the
-standing log.
+current log.
 
 A progress message (`ephemeral`) is never unread. While its update is in hand the
 thread draws it as its one working message, not as a reply, and once the next

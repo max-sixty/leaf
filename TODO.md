@@ -56,10 +56,10 @@ has tried; settle that before building it.
   `PiHarness` has no `title_generator`, so a Pi page's thread is named only by the
   agent's reply. Give the page server a request on Pi's configured model, such as
   a print-mode run with tools, extensions and hooks off, and measure it.
-- **Keep a long Thread's standing visible.** Summary checkpoints already condense
+- **Keep a long Thread's current status visible.** Summary checkpoints already condense
   older messages. Test a current one-line reading of what is decided and what remains
   open, distinct from a historical summary, and decide how a revision invalidates it.
-  See the [Thread plan](notes/threads.md#current-standing).
+  See the [Thread plan](notes/threads.md#current-status).
 - **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
   search in Threads and use Page Map on narrow pages; show only one margin treatment
@@ -177,7 +177,7 @@ has tried; settle that before building it.
   before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling"). The
   redesign also settles how focus stays off page content a panel covers (Max,
   2026-10-10). His rule (2026-10-06): the panels dominate focus, so moving focus never
-  closes or changes a standing panel, and focus never lands on content a panel covers.
+  closes or changes an open panel, and focus never lands on content a panel covers.
   Tab walked onto page content under Threads, or under the Questions panel that shares
   its right edge, at 1440×900 on an example since retired; no surviving page has been
   checked for it. Making covered content inert
@@ -400,6 +400,14 @@ on 2026-10-07.
   broad selection is about 3,700 s of test time on a CI runner. If the rate rose,
   look at which escapes a cheap fixed set of tests would have caught, and choose
   that set by measured catches per second rather than by kind.
+- **Resume the thread appearance gate.** Since 2026-10-12 the message-delivery
+  journey and acceptance tests in `tests/*/test_render_thread_snapshots.py` are
+  skipped to save test time while development moves fast; the references had already
+  drifted twice unnoticed, since only a manual macOS run compares them. Once
+  development slows, remove the skips, then capture, review and accept current images
+  (`leaf-dev thread-snapshots`), and have landing run the comparison so it cannot
+  drift again, such as `wt merge`'s macOS pre-merge when the thread runtime or theme
+  changes.
 - **Guard thread appearance on CI again.** The thread snapshot gate compares images
   on macOS only (`dev/leaf_dev/thread_snapshots.py`), so a pull request's Linux CI
   checks the delivery journey but not how it looks. Fonts and antialiasing differ by

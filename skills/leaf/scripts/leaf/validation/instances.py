@@ -59,10 +59,28 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
             errors.append(found_at("attribute-schema", rec, **schema_reading(err)))
+        # A member stands directly in an owner; one declaring x-within may also stand
+        # at any depth inside one of the regions it names. It belongs to its nearest
+        # owner, so going outward it must meet such a region before any owner.
         want_owners = entry.get("x-owners", [])
-        if want_owners and rec["parent"] not in want_owners:
+        within = entry.get("x-within", [])
+        nearest = next(
+            (
+                node["tag"]
+                for node in enclosing_widgets(rec)
+                if node["tag"] in within or node["tag"] in want_owners
+            ),
+            None,
+        )
+        if want_owners and rec["parent"] not in want_owners and nearest not in within:
             errors.append(
-                found_at("not-member", rec, owners=want_owners, parent=rec["parent"])
+                found_at(
+                    "not-member",
+                    rec,
+                    owners=want_owners,
+                    parent=rec["parent"],
+                    within=within,
+                )
             )
         # Tags that name this declaration in x-owners are its admissible members under
         # any content model. "data" takes one <pre>, "members" takes element members

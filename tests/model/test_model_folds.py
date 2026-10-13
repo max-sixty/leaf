@@ -315,7 +315,7 @@ def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
     `resolve` names a parent, and the parent a user has under the pointer is
     whichever message they are reading — an agent's reply, usually, since that is
     what closes a question. A fold that took the parent for the root would leave
-    every thread resolved on a reply standing open: the panel would keep asking,
+    every thread resolved on a reply left open: the panel would keep asking,
     and a command page reading the thread's `holds` would go on calling settled
     work outstanding.
     """

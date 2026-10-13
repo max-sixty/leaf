@@ -96,12 +96,12 @@ export function createDrawingInk({ drawings }) {
       rect,
       cut: className !== "lf-drawing-active",
     };
-    const standing = mounted.get(described)?.shift();
-    const svg = standing ?? document.createElementNS(SVG_NS, "svg");
+    const existing = mounted.get(described)?.shift();
+    const svg = existing ?? document.createElementNS(SVG_NS, "svg");
     const next = mounting.get(described) ?? [];
     next.push(svg);
     mounting.set(described, next);
-    if (standing) return { ...item, node: svg };
+    if (existing) return { ...item, node: svg };
     svg.classList.add("lf-drawing-mark", className);
     if (id) svg.dataset.thread = id;
     svg.setAttribute("viewBox", `${frame.x} ${frame.y} ${frame.width} ${frame.height}`);

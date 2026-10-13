@@ -77,7 +77,7 @@ class PagePool:
     The lent page is moved to the caller's own path, not handed over where it
     lies: a test that selects a fixture package beside its page reaches it as
     `page_dir.parent / ".leaf"`, and `_no_page_outlives_its_test` sweeps
-    `tmp_path` for a server still standing. It is left there when the test ends
+    `tmp_path` for a server still running. It is left there when the test ends
     and moved again on the next loan, so the sweep runs while the page is still
     under the root it walks.
     """

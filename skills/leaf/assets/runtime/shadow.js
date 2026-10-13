@@ -55,7 +55,7 @@ export const shadowRootsIn = (root) =>
     .map(declaredRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);
-// Explicit inertness excludes a node through its composed ancestry. A standing native
+// Explicit inertness excludes a node through its composed ancestry. An open native
 // modal escapes inherited inertness outside itself, but an inert modal or descendant
 // remains excluded. Read node kind rather than realm-specific Element: a sample asks
 // this of the frame its containing document holds too.
@@ -147,7 +147,7 @@ export const SHADOW_STARTUP_CSS = `
     }
   }
 }`;
-// One read for the tab. The three boundaries that import widget modules each ask for the
+// One read per publication. The three boundaries that import widget modules each ask for the
 // rules the widgets they are about to upgrade render under, and an x-shadow widget can
 // arrive at any of them — in the document, in a later version, or in an agent's reply —
 // so the ask is repeated and the answer is not. Sharing the promise rather than the text
@@ -163,4 +163,10 @@ async function readShadowRules(context) {
     throw new Error(`leaf: shadow.css failed to load (${response.status})`);
   context.shadowRules.text = await response.text();
 }
-export const shadowRulesFor = (host) => vocabularyFor(host).shadowRules.text;
+// A stage takes the rules of the publication its host belongs to. A host that stands
+// nowhere yet, such as one a widget stages before appending it, belongs to no
+// publication, and takes the document's own: that is where a host created by
+// `document.createElement` arrives, while a publication's generated children are bound
+// to it at creation (`createWidgetElement`).
+export const shadowRulesFor = (host) =>
+  (vocabularyFor(host) ?? vocabularyFor(document)).shadowRules.text;

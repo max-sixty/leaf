@@ -15,7 +15,7 @@ variants:
     metadata:
       executor: leaf_dev.usability_eval
       scenario: resume
-      purpose: Resume a document with standing decisions.
+      purpose: Resume a document with decisions in force.
       conditions:
       - leaf
   decision:

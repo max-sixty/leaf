@@ -290,25 +290,31 @@ def install_codex_plugin(
     cwd: Path,
     env: dict[str, str],
     output: IO[str] | None = None,
-) -> None:
+) -> Path:
     """Install a complete Leaf payload through Codex's native marketplace commands.
 
-    Callers supply the isolated task's environment and its CLI. Output is captured
-    on subprocess failures, or streamed whole to `output` when the caller keeps a
-    log; native installer JSON documents are separate from task JSON-lines logs.
+    Return the install directory reported by the CLI. Callers supply the isolated
+    task's environment and its CLI. Installer output is captured on failures and
+    copied whole to `output` when the caller keeps a log.
     """
-    streams = (
-        {"stdout": output, "stderr": subprocess.STDOUT}
-        if output is not None
-        else {"capture_output": True, "text": True}
-    )
     for arguments in (
         ("plugin", "marketplace", "add", str(payload), "--json"),
         ("plugin", "add", "leaf@leaf", "--json"),
     ):
-        subprocess.run(
-            [str(codex), *arguments], cwd=cwd, env=env, check=True, **streams
+        result = subprocess.run(
+            [str(codex), *arguments],
+            cwd=cwd,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
         )
+        if output is not None:
+            output.write(result.stdout)
+            output.write(result.stderr)
+            output.flush()
+        result.check_returncode()
+    return Path(json.loads(result.stdout)["installedPath"])
 
 
 def codex_home(path: Path, config: str = "") -> Path:

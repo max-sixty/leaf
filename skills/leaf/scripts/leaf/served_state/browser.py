@@ -100,7 +100,7 @@ def _apply_thread_attention(
         # The agent's open to-dos on the thread, each with the line of the start
         # running on it: a reply that promised one says it is still open (a to-do a
         # reply opens takes the reply's id, `todos.py`), and a running one is work
-        # the thread's progress line reads whoever's turn the thread is.
+        # the thread's working message reads whoever's turn the thread is.
         thread["todos"] = [
             {
                 "id": todo["id"],

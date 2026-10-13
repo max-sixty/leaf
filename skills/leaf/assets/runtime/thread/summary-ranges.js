@@ -53,8 +53,8 @@ export function summaryRanges(messages, summaries = []) {
 // The ranges with each run of pending progress gathered into a range of its own. A
 // progress message no summary covers is one no answer has folded yet (the server folds
 // completed progress, `events._ephemeral_ranges`), so it is a step of work still in hand:
-// the thread draws it as its progress line, and keeps the messages behind that line's
-// disclosure. The range is named for its first message, so it keeps its identity, and
+// the thread draws it as its working message, and keeps the messages behind that
+// message's disclosure. The range is named for its first message, so it keeps its identity, and
 // its disclosure state, as the run grows.
 export function withPendingProgress(ranges) {
   const gathered = [];

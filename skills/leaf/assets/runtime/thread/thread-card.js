@@ -119,20 +119,20 @@ function quoteReading(thread, anchors) {
   });
 }
 
-// The thread's progress line: what the agent is doing about the work it has in hand
+// The thread's working message: what the agent is doing about the work it has in hand
 // here, while no answer has come. Its words are the line the agent last gave for that
-// work, which is the request's state (a start, `todos.py`), so the line agrees with the
+// work, which is the request's state (a start, `todos.py`), so they agree with the
 // banner and Tasks. The work is read from the thread's workflows and to-dos, not from
 // whose turn the thread is, since the agent can be working on one message while an ask
 // in the same thread waits on the user. A message's work speaks before a to-do's, and
 // a proactive progress message, which takes no request in hand, gives its own words.
 // `live` while the work runs; work whose turn ended or went stale without an answer
-// says so beside its last line. The progress messages behind the line are gathered by
-// `withPendingProgress`, and the line's disclosure shows them. An answer already
-// streaming at the thread's end is the agent's next word, so the line gives way to it
+// says so beside its last line. The progress messages behind it are gathered by
+// `withPendingProgress`, and its disclosure shows them. An answer already
+// streaming at the thread's end is the agent's next word, so the working message gives way to it
 // and the answer's head holds the disclosure, as it will once its fold arrives.
 const STOPPED = new Set(["ended", "stale", "interrupted"]);
-function progressLine(thread, attention, messages) {
+function workingMessage(thread, attention, messages) {
   if (thread.resolved || messages.at(-1)?.provisional) return null;
   const covered = new Set(thread.summaries.flatMap(({ covers }) => covers));
   const pending = messages.filter(
@@ -253,7 +253,7 @@ export function threadReading(thread, surface, commands, options) {
     reply: replyAvailable(thread),
     summaries: Object.freeze(thread.summaries),
     messages: Object.freeze(messages),
-    progress: progressLine(thread, attention, messages),
+    working: workingMessage(thread, attention, messages),
     // The thread this reads, and the same reading of another state of it: the one a
     // seat holding news draws, the thread as it drew it (held-news.js).
     source: thread,
@@ -261,21 +261,23 @@ export function threadReading(thread, surface, commands, options) {
   });
 }
 
-// The progress line's contents: who is working, on what, and the disclosure of the
-// progress messages it stands for. The line itself is the transcript's last child, so
-// it stands at the conversation's inset on every surface and scrolls with it.
-function progressView(progress, toggle) {
-  // Who is working wears a message author's face, as on the answer that will take the
-  // line's place; any stopped condition and the step follow in the line's quiet one.
-  const step = [progress.condition, progress.words].filter(Boolean).join(" · ");
-  return html`<span class="lf-thread-progress-words" aria-live="polite"
-      >${
-        progress.who
-          ? html`<b class="lf-thread-progress-who">${progress.who}</b> `
+// The working message's contents: the step of work in hand, drawn as a message is,
+// with who is working at its head, but dimmed under a passing sheen while the work
+// runs, as a title being generated is. The disclosure of the progress messages it
+// stands for holds its head's end, so a new step moves nothing beside it. It is the
+// transcript's last child, so it stands at the conversation's inset on every surface
+// and scrolls with it.
+function workingView(working, toggle) {
+  return html`<div class="lf-msg-head">
+      ${working.who ? html`<b>${working.who}</b>` : nothing}
+      ${
+        working.condition
+          ? html`<span class="lf-msg-meta">${working.condition}</span>`
           : nothing
-      }${step}</span
-    >
-    ${toggle}`;
+      }
+      <span class="lf-thread-working-toggle">${toggle}</span>
+    </div>
+    <div class="lf-thread-working-words" aria-live="polite">${working.words}</div>`;
 }
 
 function navigationSummary(model, control) {
@@ -412,7 +414,7 @@ export class ThreadView {
   #settlements = new Map();
   #actions = document.createElement("span");
   #transcript = document.createElement("div");
-  #progress = document.createElement("div");
+  #working = document.createElement("div");
   // Each pending progress range's covered message ids, as last drawn, so a fold that
   // takes the range over can take its disclosure state with it.
   #pendingCovers = new Map();
@@ -516,7 +518,7 @@ export class ThreadView {
     }
     this.#actions.className = "lf-thread-meta-actions";
     this.#transcript.className = "lf-thread-transcript";
-    this.#progress.className = "lf-thread-progress";
+    this.#working.className = "lf-thread-working";
     // Native disclosure opens at the attribute checkpoint; queued toggle may arrive
     // after paint. Release held news here so the first opened body is current,
     // whether a summary, the panel list's choice (a walk to the card) or a
@@ -896,7 +898,7 @@ export class ThreadView {
       };
     });
     const boundaries = panel ? unreadBoundaries(rangeState) : new Map();
-    // The progress no answer has folded yet stands behind the progress line's disclosure.
+    // The progress no answer has folded yet stands behind the working message's disclosure.
     const pendingRanges = rangeState.filter((range) => range.summary?.pending);
     this.#pendingOpen = pendingRanges.some((range) => range.expanded);
     const pendingToggle = pendingRanges.length
@@ -963,10 +965,10 @@ export class ThreadView {
         range.messages.flatMap((message) => placed(message.key, id)),
       ]);
     }
-    if (model.progress) {
-      keeps(this.#progress, "data-lf-live", model.progress.live ? "" : null);
-      render(progressView(model.progress, pendingToggle), this.#progress);
-      transcript.push(this.#progress);
+    if (model.working) {
+      keeps(this.#working, "data-lf-live", model.working.live ? "" : null);
+      render(workingView(model.working, pendingToggle), this.#working);
+      transcript.push(this.#working);
     }
     this.#checkpoints = checkpoints;
     this.#markers = markers;
@@ -1108,7 +1110,7 @@ export class ThreadView {
     // render took their place puts them in its reply, or on the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
     // A progress disclosure the user stood on that this render replaced, as the
-    // answer's head takes it over from the progress line, hands them to its successor.
+    // answer's head takes it over from the working message, hands them to its successor.
     const toggleFor = (id) =>
       this.node.querySelector(
         `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`,
@@ -1313,9 +1315,9 @@ export class ThreadView {
     );
   }
 
-  // `counted` names how many messages the toggle shows. The progress line's own toggle
-  // leaves the count out, since a count that grew with each step would move the line.
-  // Whether the progress behind the progress line stood open when last drawn, opened by
+  // `counted` names how many messages the toggle shows. The working message's own toggle
+  // leaves the count out, since a count that grew with each step would move it.
+  // Whether the progress behind the working message stood open when last drawn, opened by
   // the reader or by a search matching it, so each step that joins it shows: held news
   // counts those steps as news here (held-news.js).
   get progressOpen() {

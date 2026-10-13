@@ -44,8 +44,8 @@
    where that progress is the run at the thread's end, as the agent's acknowledgement
    is, unless the user stands on a message the fold puts away, by focus or by a
    selection reaching into it (`standsOn`, focus.js). The progress itself is no news:
-   until that answer it joins the thread's progress line, not its replies
-   (thread-card.js), and its messages stand behind the line's disclosure. A run on screen stays open where
+   until that answer it joins the thread's working message, not its replies
+   (thread-card.js), and its messages stand behind that message's disclosure. A run on screen stays open where
    it stood, its group's border drawn around it (components/surfaces.css), so the fold
    moves none of its words; a run off screen folds away. Changes to other existing
    messages, reactions, folds and settlement use the same hold as a seat in page flow,
@@ -218,7 +218,7 @@ function difference(was, now, { progressOpen = false } = {}) {
     const change = messageChange(prior, message);
     if (!prior || prior.provisional) arrived.add(message.id);
     if (change === "completed") completed.add(message.id);
-    // A progress message joins the thread's progress line, not its replies, so it is
+    // A progress message joins the thread's working message, not its replies, so it is
     // no news; the answer that later folds it is. Where the step shows, because the
     // reader opened the progress (`progressOpen`, thread-card.js) or the thread is
     // resolved and keeps its progress as messages, it is a reply's news.

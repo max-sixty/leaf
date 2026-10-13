@@ -11,7 +11,7 @@ The user follows your work on the page:
 | Surface | What it shows | Written by |
 | --- | --- | --- |
 | Banner | one sentence for the whole page: the line of the item you have in hand, or what you want back | `leaf task start`, `leaf status <page> waiting "<detail>"` |
-| Beside a thread or widget | **Working** and your line: the thread's progress line above its reply box, or on the control the work answers | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
+| Beside a thread or widget | **Working** and your line: the thread's working message above its reply box, or on the control the work answers | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
 | Thread | your answer to the user's message, with the progress before it folded behind it | the response operation named by delivered `handling` |
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
@@ -65,7 +65,7 @@ leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a lin
 ```
 
 The user reads it at once, and it takes the update in hand: the update reads
-**Working** with that line as its thread's progress line and in the banner, and
+**Working** with that line as its thread's working message and in the banner, and
 it folds into the progress disclosure when your answer arrives
 ([progress messages](threads.md#progress-messages)). Take any other item in hand,
 such as a to-do or an action on a page widget, which has no thread, with a start:
@@ -76,7 +76,7 @@ leaf task start <page> <id> "reading the reconnect traces" && <command>
 
 Take the item in hand again whenever the user would describe what you are doing
 differently: a new phase such as reading, editing, testing, or waiting on a result.
-Another progress message replaces the thread's progress line and keeps the step
+Another progress message replaces the thread's working message and keeps the step
 behind it; a start changes the line without one, and folding it into the command
 that begins the step costs no extra tool call. Name the operation and its subject in one sentence; "Working on it"
 tells the user nothing the banner's dot does not already say.

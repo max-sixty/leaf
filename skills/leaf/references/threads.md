@@ -199,10 +199,10 @@ takes that update in hand, as `leaf task start` does, with the progress text as 
 the first one your first command after a delivery. A proactive progress message
 names a thread with no response due.
 
-Until an answer comes, the thread draws progress as that one progress line above its
+Until an answer comes, the thread draws progress as one dim working message above its
 reply box, never as a reply, and progress never counts as unread; each new progress
-message replaces the line, and the line's disclosure shows the steps. When your next
-ordinary reply in the thread arrives, it takes the line's place and the progress
+message replaces its words, and its disclosure shows the steps. When your next
+ordinary reply in the thread arrives, it takes the working message's place and the progress
 messages before it fold behind a disclosure beside it, where the user can still
 expand them. So the user reads progress as status and only your replies as words
 addressed to them.

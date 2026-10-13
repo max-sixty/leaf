@@ -825,7 +825,7 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     assert opening.bounding_box() == standing, "the fold moved what stood above it"
 
 
-def test_pending_progress_is_the_threads_progress_line_and_never_unread(
+def test_pending_progress_is_the_threads_working_message_and_never_unread(
     browser, serve, request
 ):
     """While the agent works, its progress shows as one quiet line above the reply
@@ -854,9 +854,10 @@ def test_pending_progress_is_the_threads_progress_line_and_never_unread(
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(thread.locator(".lf-thread-unread")).to_have_count(0)
     thread.locator(":scope > .lf-thread-summary").click()
-    line = thread.locator(".lf-thread-progress")
-    expect(line.locator(".lf-thread-progress-words")).to_have_text(
-        "Codex Trying a lighter weight"
+    line = thread.locator(".lf-thread-working")
+    expect(line.locator(".lf-msg-head b")).to_have_text("Codex")
+    expect(line.locator(".lf-thread-working-words")).to_have_text(
+        "Trying a lighter weight"
     )
     expect(line).to_have_attribute("data-lf-live", "")
     for step in steps:
@@ -882,10 +883,10 @@ def test_pending_progress_is_the_threads_progress_line_and_never_unread(
     ).to_be_visible()
 
 
-def test_a_streaming_answer_takes_the_progress_lines_place_and_disclosure(
+def test_a_streaming_answer_takes_the_working_messages_place_and_disclosure(
     browser, serve, request
 ):
-    """An answer streaming in is the agent's next word: the progress line gives way to
+    """An answer streaming in is the agent's next word: the working message gives way to
     it, and its head holds the progress disclosure the fold will hold once it lands."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
@@ -901,11 +902,11 @@ def test_a_streaming_answer_takes_the_progress_lines_place_and_disclosure(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
-    expect(thread.locator(".lf-thread-progress")).to_be_visible()
+    expect(thread.locator(".lf-thread-working")).to_be_visible()
 
     stream_reply(serve.page_dir, root, "Recording the release now.")
     told(page)
-    expect(thread.locator(".lf-thread-progress")).to_have_count(0)
+    expect(thread.locator(".lf-thread-working")).to_have_count(0)
     streamed = thread.locator(".lf-msg.agent").last
     expect(streamed.locator(".lf-msg-text")).to_have_text("Recording the release now.")
     show = streamed.locator(".lf-msg-head").get_by_role(
@@ -968,7 +969,7 @@ def answer_folding_progress(page_dir, root):
 
 def open_card_with_progress(browser, serve, request):
     """An idle open card whose thread ends with the agent's progress, opened from its
-    progress line so the progress message itself shows."""
+    working message so the progress message itself shows."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
     claim_for_codex(serve.page_dir, request)
@@ -983,7 +984,7 @@ def open_card_with_progress(browser, serve, request):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
-    thread.locator(".lf-thread-progress").get_by_role(
+    thread.locator(".lf-thread-working").get_by_role(
         "button", name="Show progress", exact=True
     ).click()
     progress = thread.locator(".lf-msg.agent .lf-msg-text")
@@ -1358,7 +1359,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     browser, serve, surface, interleaved
 ):
     """The answer and its fold arrive together; originals remain a keyboard route.
-    Pending progress stands behind the progress line, so the reader opens it there to
+    Pending progress stands behind the working message, so the reader opens it there to
     stand on it, and the answer that would fold it waits behind its notice."""
     url = serve(SEATED_ASK_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
@@ -1405,7 +1406,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     expect(original).to_be_hidden()
     runs = 2 if interleaved else 1
     expect(card.locator(".lf-thread-checkpoint")).to_have_count(runs)
-    card.locator(".lf-thread-progress").get_by_role(
+    card.locator(".lf-thread-working").get_by_role(
         "button", name="Show progress", exact=True
     ).click()
     expect(original).to_be_visible()

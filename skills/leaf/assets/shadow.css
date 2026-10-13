@@ -420,37 +420,58 @@ summary {
 .lf-summary-originals > .lf-msg {
   margin-block: 8px;
 }
-.lf-thread-progress {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
-  column-gap: var(--sp-2);
-  margin-top: 10px;
-  color: var(--muted);
-  font: var(--t-6)/1.45 var(--sans);
+.lf-thread-working {
+  margin-top: 16px;
+  --lf-working-dim: color-mix(in oklab, var(--muted) 80%, var(--paper));
+}
+.lf-thread-working-toggle {
+  margin-inline-start: auto;
+}
+.lf-thread-working-toggle > .lf-thread-disclosure {
+  padding-block: 0;
+}
+.lf-thread-working-words {
+  margin-top: var(--lf-msg-body-gap);
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
+  color: var(--lf-working-dim);
   overflow-wrap: anywhere;
 }
-.lf-thread-progress-who {
-  margin-inline-end: 2px;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 600;
+.lf-thread-working[data-lf-live] .lf-thread-working-words {
+  color: transparent;
+  background:
+    linear-gradient(
+      110deg,
+      var(--lf-working-dim) 42%,
+      var(--ink) 50%,
+      var(--lf-working-dim) 58%);
+  background-size: 200% 100%;
+  background-clip: text;
+  animation: lf-working-sheen 2s ease-in-out infinite alternate;
 }
-.lf-thread-progress[data-lf-live] .lf-thread-progress-words::after {
-  content: "…";
-  display: inline-block;
-  inline-size: 1.1em;
-  overflow: hidden;
-  vertical-align: bottom;
-  animation: lf-progress-ellipsis 1.6s steps(4, end) infinite;
-}
-@keyframes lf-progress-ellipsis {
+@keyframes lf-working-sheen {
   from {
-    inline-size: 0;
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
   }
 }
-.lf-thread-progress > .lf-thread-disclosure {
-  padding-block: 0;
+@media (prefers-reduced-motion: reduce) {
+  .lf-thread-working[data-lf-live] .lf-thread-working-words {
+    animation: none;
+    background: none;
+    color: var(--lf-working-dim);
+  }
+}
+@media (forced-colors: active) {
+  .lf-thread-working-words,
+  .lf-thread-working[data-lf-live] .lf-thread-working-words {
+    animation: none;
+    background: none;
+    color: GrayText;
+  }
 }
 .lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring);

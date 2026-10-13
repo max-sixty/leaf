@@ -22,7 +22,7 @@ took back is no evidence either, as it is none for every other fold over the
 standing log.
 
 A progress message (`ephemeral`) is never unread. While its update is in hand the
-thread draws it as the one live progress line, not as a reply, and once the next
+thread draws it as its one working message, not as a reply, and once the next
 ordinary agent reply supersedes it (`events.progress_completions`) it folds behind
 that reply, which itself needs read evidence. Neither is something the user reads in
 order to keep up, so neither pulls them back to the thread. An edit to other content

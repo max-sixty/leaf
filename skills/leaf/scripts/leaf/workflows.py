@@ -30,11 +30,6 @@ under to the newest `answer.ref` a receipt's pickup recorded under it
 the answer's `ref`.
 An update no receipt has carried has none: only its delivery mints one.
 
-Resolving a thread settles the updates it owes unless the agent has one in hand:
-an update a standing start names (a progress reply, `leaf task start`) stays owed
-through the resolve, as a to-do does, until the answer that reopens the thread, or
-until a put-down ends the start.
-
 Two kinds of update have workflows with no answer of their own. An update a
 newer one in the same thread covers is answered through the newest, whose one
 answer settles both. A widget action that answers no ask, such as an edit to a
@@ -415,13 +410,7 @@ def canonical_workflows(
     workflows = []
     for thread_id, thread in threads.items():
         turns = exchange(thread)
-        unanswered_inputs = unanswered_turns(thread)
-        # Resolving a thread settles what it owes, except work the agent has in hand
-        # there: an update a standing start names stays owed through Resolve, as a
-        # to-do does, until the answer that reopens the thread or a put-down ends it.
-        if thread["resolved"] and not any(
-            source["id"] in starts for source in unanswered_inputs
-        ):
+        if thread["resolved"]:
             continue
         target = {"kind": "thread", "id": thread_id}
         coordinate = ["thread", thread_id]
@@ -434,6 +423,7 @@ def canonical_workflows(
             ):
                 continue
             workflows.append(failed(source, target, coordinate, response))
+        unanswered_inputs = unanswered_turns(thread)
         if not unanswered_inputs:
             continue
         # Every exact input keeps its own transport/work evidence. The response

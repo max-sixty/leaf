@@ -232,9 +232,7 @@ than a correction: it arrives as an `edit` event, with the message's new `text` 
 the `was` it replaced, and you owe it an answer like any reply.
 
 An ordinary reply leaves the thread open, or reopens a resolved thread, so the user
-can inspect the answer or revised page. Reactions, progress messages and failure receipts do not reopen it. A message you have in hand stays owed when the user
-resolves its thread, and your answer reopens it; one you have not started, or have put
-down, is settled by the resolve. The user closes it by default. Resolve it yourself only when the
+can inspect the answer or revised page. Reactions, progress messages and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the
 user asks, when a delivered event's handling says to, as for a reaction or a
 version request, or when no review or follow-up can change the outcome.
 Completing the requested work does not meet that bar by itself; when uncertain,

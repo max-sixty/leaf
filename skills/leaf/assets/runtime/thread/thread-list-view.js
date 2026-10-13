@@ -355,7 +355,8 @@ class ThreadListView extends RetainedFace {
       model.rows.filter((row) => row.kind === "thread").map((row) => row.key),
     );
     // An unavailable reading has no complete identity inventory from which to
-    // retire a choice or a dismissal. Keep both until a complete list returns.
+    // retire a choice or a dismissal. Its visible fallback also cannot replace
+    // the choice: a local thread may stand while saved history is unavailable.
     if (model.count !== null) {
       const present = new Set(this.#rows.map((row) => row.key));
       this.#selection = this.#selection.filter((key) => present.has(key));
@@ -366,7 +367,7 @@ class ThreadListView extends RetainedFace {
       );
     }
     const chosen = this.#expandedRow();
-    if (chosen) this.#select(chosen.key);
+    if (chosen && model.count !== null) this.#select(chosen.key);
     for (const [key, view] of this.#views) {
       if (wanted.has(key)) view.commit();
       else {

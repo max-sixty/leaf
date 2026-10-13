@@ -2057,9 +2057,8 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     # The door stands on every page, and claims no count before the log has answered.
     expect(page.locator(".lf-queue")).to_have_text("Questions")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
-    # Which blanket answers exist is the ask inventory's to say, each ask under its own
-    # widget publication, so before the first state answer none is built to offer.
-    expect(page.locator(".lf-answer-all")).to_have_count(0)
+    # The stable blanket control claims no action before the first state answer.
+    expect(page.locator(".lf-answer-all:visible")).to_have_count(0)
     # Opened by hand, the panel counts nothing yet either.
     page.locator(".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_contain_text(

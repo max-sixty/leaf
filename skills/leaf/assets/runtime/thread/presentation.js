@@ -80,18 +80,21 @@ export function createThreadPresentation({
   // unchanging value. A thread the user starts in that window is drawn, and so is its
   // removal, the refusal of the last send included. A user who opens the panel then
   // asks for the reading directly, through `present`, and gets it: every phase owes a
-  // reading when asked.
+  // reading when asked. A page that draws no thread surface (`available` false, as an
+  // offline export does) owes no reading at all.
   const presenter = applicationPresenter({
     region: "thread",
     order: PRESENTATION_ORDER.thread,
     reading: (root) =>
-      root.phase === "waiting" && !root.effective.thread.all.length
-        ? "waiting"
-        : {
-            phase: root.phase,
-            thread: root.effective.thread,
-            document: root.document,
-          },
+      !available
+        ? null
+        : root.phase === "waiting" && !root.effective.thread.all.length
+          ? "waiting"
+          : {
+              phase: root.phase,
+              thread: root.effective.thread,
+              document: root.document,
+            },
     current: () => (available ? readApplication().effective.thread : null),
     paint: async (value, current) => {
       const phase = readApplication().phase;

@@ -9116,10 +9116,9 @@ def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, optio
     """A choice is the group's, so its receipt pins to the options as a whole. The
     group's top-right corner lies on its first option's card, and a card reads as one
     thing, so a pin there reads as that option's: picking "Leave open" drew "Sent" on
-    the "Close" card, just below its radio. A painted box inside the target counts
-    whole as one outside it does, so the pin stands beside the group instead. The
-    group declares no face of its own (`x-face`), so however many cards it holds,
-    every one counts."""
+    the "Close" card, just below its radio. Its first seat is just outside the group's
+    top-right corner, so the pin stands beside the group instead, however many cards
+    it holds."""
     body = (
         '<lf-ask id="a"><h2>Close #1176 as won\'t-fix?</h2>'
         f'<lf-options id="o" choose>{options}</lf-options></lf-ask>'

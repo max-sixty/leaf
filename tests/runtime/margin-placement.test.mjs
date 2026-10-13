@@ -185,6 +185,18 @@ test("a pin that finds every seat taken by pins before it stands below them", ()
   );
   assert.deepEqual(seats.get("first").rect, corner);
   assert.deepEqual(seats.get("second").rect, box(318, 148, 362, 192));
+  // The layout pass seats one pin at a time, handing over what is already placed.
+  const alone = seatRows([pin({ cover: filled, controls: filled })], {
+    gap: 4,
+    occupied: [corner],
+  });
+  assert.deepEqual(alone.get("card").rect, box(318, 148, 362, 192));
+  // A push that would leave the bounds keeps the corner instead.
+  const short = seatRows(
+    [pin({ cover: filled, controls: filled, bounds: box(4, 40, 386, 150) })],
+    { gap: 4, occupied: [corner] },
+  );
+  assert.deepEqual(short.get("card").rect, corner);
 });
 
 // The same card's pin folded to its one control, opening leftward to 140px.

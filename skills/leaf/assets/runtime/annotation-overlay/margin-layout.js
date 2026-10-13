@@ -656,6 +656,12 @@ function coverIn(root, band, target, bands, stop) {
         const shown = clippedBand(node, box, bands, stop);
         if (shown) cover.push(shown);
         if (shown && control) controls.push(shown);
+        // A widget's own buttons stand in its shadow tree, out of the walk's reach.
+        for (const inner of node.shadowRoot?.querySelectorAll(TAB_STOP) ?? []) {
+          if (!inner.checkVisibility()) continue;
+          const part = clippedBand(inner, inner.getBoundingClientRect(), bands, stop);
+          if (part) controls.push(part);
+        }
         continue;
       }
       if (node instanceof SVGElement) continue;
@@ -833,16 +839,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
   const byEntry = new Map(pins.map((pin) => [pin.key, pin]));
   return (entry, occupied) => {
     const pin = byEntry.get(entry);
-    const { rect, folded: on } = seatRows(
-      [
-        {
-          ...pin,
-          cover: [...pin.cover, ...occupied],
-          controls: [...pin.controls, ...occupied],
-        },
-      ],
-      { gap: GAP },
-    ).get(entry);
+    const { rect, folded: on } = seatRows([pin], { gap: GAP, occupied }).get(entry);
     // An open folded row is wider than its one-control seat. Keep the toggle at
     // that seat's right edge while the options spread to its left. Whether it stands
     // open is the face the fold presents (`fold.open()`), not the one the row wears

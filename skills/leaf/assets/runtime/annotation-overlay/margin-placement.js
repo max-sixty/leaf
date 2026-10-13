@@ -136,11 +136,12 @@ export const inSeatingOrder = (rows) =>
 // `cover` what it keeps
 // off (words, controls, media), `controls` the controls among them, `folds` the same pin
 // folded, `{ seats, open }` with `open` its width opened, where it can fold, and `folded`
-// whether it stands folded now, which a held pin keeps. The answer maps each key to its
-// seat, `{ rect, folded }`.
-export function seatRows(pins, { gap }) {
+// whether it stands folded now, which a held pin keeps. `occupied` holds the final
+// footprints already placed, which every pin keeps off as it does a pin seated before it.
+// The answer maps each key to its seat, `{ rect, folded }`.
+export function seatRows(pins, { gap, occupied = [] }) {
   const seats = new Map();
-  const seated = [];
+  const seated = [...occupied];
   for (const pin of inSeatingOrder(pins)) {
     const fold = pin.folds;
     let folded = Boolean(fold && pin.folded);
@@ -174,13 +175,15 @@ export function seatRows(pins, { gap }) {
     const seatsNow = folded ? fold.seats : pin.seats;
     const boundsNow = folded ? foldBounds : pin.bounds;
     const pressed = [...pin.controls, ...seated];
+    const aside = slid(seatsNow[pin.corner], pressed, gap, "left", boundsNow.left);
     rect ??=
       leastCovering(seatsNow, pin.cover, pressed, boundsNow) ??
-      slid(seatsNow[pin.corner], pressed, gap, "left", boundsNow.left);
+      (aside && inside(aside, boundsNow) ? aside : null);
     if (!rect) {
       const corner = boundedHome(seatsNow[pin.corner], boundsNow);
       const push = packRows([{ key: pin.key, rect: corner }], gap, seated).get(pin.key);
-      rect = { ...corner, top: corner.top + push, bottom: corner.bottom + push };
+      const below = { ...corner, top: corner.top + push, bottom: corner.bottom + push };
+      rect = inside(below, boundsNow) ? below : corner;
     }
     seats.set(pin.key, { rect, folded });
     seated.push(rect);

@@ -4,8 +4,10 @@ Lease files are stable coordination points, created on first use and retained
 after release. Only the descriptor's exclusive kernel lock proves a holder is
 live; file existence says nothing. `release_lease` or process exit releases the
 lease, including a crash. Neither holders nor session cleanup remove these
-files. A taker verifies the acquired inode still has its name, since another
-process may have removed or replaced the shared path while it was opening it.
+files; `supersede_lease` alone replaces one, to take its lease from a live
+holder. A taker verifies the acquired inode still has its name, since another
+process may have removed or replaced the shared path while it was opening it,
+and a holder that can be superseded asks the same of its own descriptor.
 """
 
 import contextlib
@@ -38,18 +40,23 @@ def lock_is_held(path: Path) -> bool:
     The question is asked with a shared lock, which every lease here refuses and
     no reading takes for longer than the question. An exclusive probe would be
     answered by another reading's probe as readily as by a lease, so two
-    processes asking at once would tell each other a lease was held.
+    processes asking at once would tell each other a lease was held. An unheld
+    file the name no longer reaches may be one `supersede_lease` displaced with a
+    held one, so the question is asked again of the file the name reaches now.
     """
-    try:
-        with open(path, "r+b") as probe:
-            try:
-                fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
-            except OSError:
-                return True
-            fcntl.flock(probe, fcntl.LOCK_UN)
+    while True:
+        try:
+            with open(path, "r+b") as probe:
+                try:
+                    fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                except OSError:
+                    return True
+                named = still_named(probe.fileno(), path)
+                fcntl.flock(probe, fcntl.LOCK_UN)
+                if named:
+                    return False
+        except OSError:
             return False
-    except OSError:
-        return False
 
 
 def take_lease(path: Path, *, prepare: Callable[[BinaryIO], None] | None = None):
@@ -105,6 +112,26 @@ def take_lease(path: Path, *, prepare: Callable[[BinaryIO], None] | None = None)
             if still_named(record.fileno(), path):
                 return record
         record.close()
+
+
+def supersede_lease(path: Path):
+    """Take the exclusive lease on this file whether or not another process holds
+    it, and return it held, as `take_lease` does.
+
+    The lease moves to a fresh file that takes the name with its lock already held,
+    so a probe of the name never finds it unheld. A process it displaces still holds
+    a lock, on a file the name no longer reaches, and learns it lost the lease from
+    `still_named`."""
+    staged = path.with_name(f"{path.name}.{os.getpid()}")
+    record = open(staged, "w+b")  # noqa: SIM115 - returned and held by the caller
+    try:
+        fcntl.flock(record, fcntl.LOCK_EX)
+        os.replace(staged, path)
+    except BaseException:
+        record.close()
+        staged.unlink(missing_ok=True)
+        raise
+    return record
 
 
 def release_lease(lease) -> None:

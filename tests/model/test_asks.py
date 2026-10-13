@@ -160,12 +160,12 @@ def test_pinned_document_uses_unrequested_intermediate_history_for_registration(
         assert (ask["id"], ask["status"]) == ("widget:choice", "withdrawn")
 
 
-def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
-    """A revision captured its thread widgets under its own registry, so a view
-    pinned to it classifies their decisions there. A decision whose operation that
-    registry defines otherwise is none in that view: the ask it answers stays open
-    and the thread the user's, while the active view reads it answered and the
-    thread waiting on the agent to pick it up."""
+@pytest.mark.parametrize("captured_revision", [1, 2])
+def test_frozen_thread_asks_keep_their_captured_vocabulary_in_every_view(
+    captured_revision,
+):
+    """Old and new messages retain their admitted decisions, asks and attention
+    when another page vocabulary displays them."""
 
     def registry(attr):
         layer = deepcopy(model.model_layer())
@@ -194,22 +194,24 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
     earlier, later = registry("value"), registry("chosen")
     document = model.leaf_page("Value", '<p id="p">Notes.</p>')
     events = model.served_reading(
-        document,
+        {1: document, 2: document},
         [
             {
                 "kind": "comment",
+                "revision": captured_revision,
                 "author": "agent",
                 "text": "Ship it?",
                 "markup": '<lf-value-ask id="typed" active></lf-value-ask>',
             },
             {
                 "kind": "action",
+                "revision": captured_revision,
                 "widget": "typed",
                 "action": "set",
                 "detail": {"value": True},
             },
         ],
-        registry=later,
+        registry={1: earlier, 2: later}[captured_revision],
     )["events"]
     parsed = SourceDocument(document)
     state, _ = browser_state(
@@ -228,23 +230,19 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
         [ask] = view["thread"]["asks"]["all"]
         return (
             [entry["event"]["id"] for entry in view["thread"]["projection"]["entries"]],
-            (ask["id"], ask["status"]),
+            (ask["id"], ask["status"], ask["next_actor"], ask["answer"]["value"]),
             thread["attention"],
             [item["id"] for item in view["queues"]["questions"]],
         )
 
-    assert read(2) == (
-        [events[1]["id"]],
-        ("widget:typed", "answered"),
-        {"kind": "waiting", "reason": "workflow", "workflow": events[1]["id"]},
-        [],
-    )
-    assert read(1) == (
-        [],
-        ("widget:typed", "open"),
-        {"kind": "needs_user", "reason": "ask", "workflow": None},
-        ["widget:typed"],
-    )
+    assert events[0]["revision"] == events[1]["revision"] == captured_revision
+    for revision in (1, 2):
+        assert read(revision) == (
+            [events[1]["id"]],
+            ("widget:typed", "answered", None, True),
+            {"kind": "waiting", "reason": "workflow", "workflow": events[1]["id"]},
+            [],
+        )
 
 
 @pytest.mark.parametrize("value", [False, 0])
@@ -588,7 +586,13 @@ def test_historical_conditional_registration_reuses_work_and_tracks_event_change
         )
         collecting = True
         try:
-            return WorkReading(log, registry, page).document.asks
+            return WorkReading(
+                log,
+                registry,
+                page,
+                registry_for_revision=lambda revision: readings[revision].registry,
+                available_revisions=readings,
+            ).document.asks
         finally:
             collecting = False
 

@@ -3,10 +3,10 @@
    `registry.contract.stamp_states`), so this module derives neither: it finds a verb's
    stamped state and compares a recorded definition with it. */
 
-// The stamped state of the verb an action or report names on `tag`, when the side that
+// The stamped state of the verb an action or report names, when the side that
 // sent it is the verb's writer.
-export function stampedState(registry, tag, event) {
-  const state = registry.$states[tag]?.[event.action];
+export function stampedState(states, event) {
+  const state = states[event.action];
   const writer = { action: "user", report: "agent" }[event.kind];
   return state?.writer === writer ? state : null;
 }

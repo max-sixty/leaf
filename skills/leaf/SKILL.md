@@ -60,8 +60,9 @@ directory explicitly; export or copy anything that must outlive the page directo
    optional vocabulary or instructions, as in
    `leaf page init --package diagram --package diff <page>`. "Package reach" in
    `references/packages.md` lists the optional packages and what each adds;
-   `playground` fits whenever the user compares or tunes several values or
-   behaviors. Re-running
+   `playground` fits whenever the user tunes several values or behaviors before
+   choosing; candidates the user picks among as drawn need no package, since the
+   user selects the candidate itself (`references/authoring-asks.md`). Re-running
    `page init` with a selection adds it to a page already written.
 2. Read `references/page-authoring.md`, then the authoring reference each part
    of the page needs, listed under "Author a version" below. Follow "Read the

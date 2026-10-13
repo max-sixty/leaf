@@ -785,6 +785,39 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
     (nested,) = errors(tone.format(name="page-tone"), inner)
     assert nested.code == "not-member"
 
+    # A quotation cannot supply a control to the surrounding playground, even if
+    # its preview surrounds the quotation. Its names neither collide nor resolve.
+    quoted = (
+        '<lf-sample id="quoted-control" label="Control example">'
+        + tone.format(name="item-tone")
+        + "</lf-sample>"
+    )
+    assert [e.code for e in fragment_errors(quoted, registry)] == ["not-member"]
+    assert [e.code for e in errors(tone.format(name="page-tone"), quoted)] == [
+        "not-member"
+    ]
+    quoted_records = SourceDocument(
+        f'<lf-playground id="quoted-member-scope">{quoted}'
+        '<lf-playground-output><lf-playground-value for="item-tone">'
+        "</lf-playground-value></lf-playground-output></lf-playground>"
+    ).lf_elements
+    assert [e.code for e in reference_errors(quoted_records, registry, set(), {})] == [
+        "unmatched-member"
+    ]
+    assert [
+        e.code
+        for e in errors(
+            tone.format(name="item-tone"), tone.format(name="page-tone") + quoted
+        )
+    ] == ["not-member"]
+    # The quoted playground itself still owns the controls written inside it.
+    assert not errors(
+        tone.format(name="item-tone"),
+        '<lf-sample id="quoted-playground" label="Playground example">'
+        + inner.replace(tone.format(name="lost-tone"), "")
+        + "</lf-sample>",
+    )
+
 
 def test_corpus_is_generated_from_the_examples():
     """examples/corpus.html is derived; a commit that lets it drift fails here."""

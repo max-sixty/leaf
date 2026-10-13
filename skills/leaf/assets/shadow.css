@@ -716,6 +716,11 @@ button.lf-thread-notice[data-lf-focus] {
   vertical-align: top;
   --lf-block-frame: 1;
 }
+@media screen and (max-width: 640px) {
+  :where(:root, .lf-thread-transcript) :is(th, td) {
+    padding-inline: 8px;
+  }
+}
 :where(:root, .lf-thread-transcript) tr > :first-child {
   padding-left: 0;
 }

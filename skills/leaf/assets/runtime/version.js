@@ -1651,9 +1651,9 @@ export function createVersionController({
   // The move a state asks of the live root, prepared ahead of the commit that makes it.
   // Null where there is nothing to follow — no newer revision, or a document that failed
   // to load, which is reported; the commit's own render then lights the chip as the way
-  // to try again. A re-vendored layer needs no answer of its own here: it changes the
-  // revision's executable identity, which takes the fresh-document install above, and a
-  // state that belongs to another layer is refused before it reaches this at all.
+  // to try again. A re-vendored layer never reaches here: the state names the active
+  // revision's layer, which this tab refuses, and the refusal's probe of the document
+  // source reloads it (layer-client.js, `sourceMovedOn`).
   // Whether the move happens now is asked at the commit: an unresolved delivery,
   // `midComposition`, or an open menu defers it, unless the chip was pressed (goActive)
   // — the one override, spent by the install it forced.

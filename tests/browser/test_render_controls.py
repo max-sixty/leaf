@@ -6476,6 +6476,46 @@ def test_retained_moves_keep_native_editor_and_frame_state(
             assert page.evaluate("window.blurs") > 0
 
 
+def test_scoped_native_moves_keep_the_registered_lifecycle(browser, serve):
+    page = open_page(browser, serve(leaf_page("Scoped moves", "<h1>Scoped moves</h1>")))
+    phases = page.evaluate("""() => {
+      const heard = [];
+      const registry = new CustomElementRegistry();
+      class Moving extends HTMLElement {
+        connectedCallback() { heard.push('moving connected'); }
+        disconnectedCallback() { heard.push('moving disconnected'); }
+        connectedMoveCallback() { heard.push('moving moved'); }
+      }
+      class Ordinary extends HTMLElement {
+        connectedCallback() { heard.push('ordinary connected'); }
+        disconnectedCallback() { heard.push('ordinary disconnected'); }
+      }
+      registry.define('lf-moving', Moving);
+      registry.define('lf-ordinary', Ordinary);
+      // Registration captures callbacks, just as the native registry does.
+      Moving.prototype.connectedMoveCallback = () => heard.push('late callback');
+      const host = document.createElement('div');
+      const root = host.attachShadow({mode:'open', customElements:registry});
+      root.innerHTML = '<div id="first"><lf-moving></lf-moving><lf-ordinary></lf-ordinary></div><div id="second"></div>';
+      document.body.append(host);
+      const phases = {connected: heard.splice(0)};
+      const first = root.querySelector('#first');
+      root.querySelector('#second').moveBefore(first, null);
+      phases.moved = heard.splice(0);
+      first.remove();
+      phases.disconnected = heard.splice(0);
+      root.append(first);
+      phases.reconnected = heard.splice(0);
+      return phases;
+    }""")
+    assert phases == {
+        "connected": ["moving connected", "ordinary connected"],
+        "moved": ["moving moved", "ordinary disconnected", "ordinary connected"],
+        "disconnected": ["moving disconnected", "ordinary disconnected"],
+        "reconnected": ["moving connected", "ordinary connected"],
+    }
+
+
 def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):
     page = open_page(
         browser,

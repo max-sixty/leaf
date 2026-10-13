@@ -236,6 +236,9 @@ export class MessageView {
     // makes of the node is written once, on the first presentation.
     if (!prior) {
       this.node.classList.add("lf-msg");
+      // Which message a node draws, for a presentation handing the user's place in a
+      // thread to another, as the floating panel does to a page's own reader.
+      this.node.dataset.message = model.key;
       this.#header.className = "lf-msg-head";
       if (panel) this.node.tabIndex = -1;
       else {

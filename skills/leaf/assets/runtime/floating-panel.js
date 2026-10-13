@@ -87,6 +87,7 @@ import { scrollIntoView } from "./landing-scroll.js";
 import { declareWindowChrome } from "./geometry.js";
 import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
 import { renderedUnder } from "./shadow.js";
+import { closestAcross } from "./passages.js";
 
 const prefs = () => document.documentElement.lfChrome;
 // The Codex panel's tween: one strong ease-out for every change of size and fade.
@@ -359,9 +360,13 @@ export function createFloatingPanel({
   }
   // Where the page's package draws its conversations, a thread opens in its reader,
   // and the view it was chosen from goes, uncovering the page.
-  function openInPackage(key, { focus = true } = {}) {
+  function openInPackage(key, { focus = true, message = null } = {}) {
     if (trail.length) close();
-    void threadActions.open(threadByKey(key)?.key ?? key, { part: null, focus });
+    void threadActions.open(threadByKey(key)?.key ?? key, {
+      part: null,
+      focus,
+      message,
+    });
   }
   // Opening a thread shows it whole, at its end, where the latest turn is.
   function arriveAt(key) {
@@ -1586,7 +1591,10 @@ export function createFloatingPanel({
         const top = trail.at(-1);
         if (top?.view !== "thread") return null;
         const focus = standingIn(host);
-        return () => openInPackage(top.thread, { focus });
+        const message = focus
+          ? (closestAcross(focused(), ".lf-msg")?.dataset.message ?? null)
+          : null;
+        return () => openInPackage(top.thread, { focus, message });
       },
       // A thread about the whole page opens here; one about a passage opens beside it.
       reveal: (key, request) => {

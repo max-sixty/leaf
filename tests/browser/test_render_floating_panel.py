@@ -218,7 +218,8 @@ def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, ser
 def test_a_conversation_reader_arriving_later_takes_the_open_thread(browser, serve):
     """A page's own reader registered while the panel shows a thread takes that thread
     (application.js, `yielded`): the panel's view goes and the reader is asked to show
-    it, rather than the panel standing open on a conversation it no longer draws."""
+    it, at the message the user stood on, rather than the panel standing open on a
+    conversation it no longer draws."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
@@ -228,6 +229,8 @@ def test_a_conversation_reader_arriving_later_takes_the_open_thread(browser, ser
     expect(view.locator(".lf-msg")).to_contain_text("Is the window long enough?")
     # The user stands on a message, which goes with the panel's reader.
     view.get_by_role("button", name="Edit message").focus()
+    stood_on = view.locator(".lf-msg").first.get_attribute("data-message")
+    assert stood_on
     page.evaluate(
         """async () => {
           const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
@@ -242,7 +245,14 @@ def test_a_conversation_reader_arriving_later_takes_the_open_thread(browser, ser
     )
     expect(view).to_have_count(0)
     page.wait_for_function("() => window.revealed.length === 1")
-    assert page.evaluate("() => window.revealed[0].focus") is not False
+    # It takes the user's place too: the message they stood on, with focus.
+    asked = page.evaluate(
+        "() => ({focus: window.revealed[0].focus, part: window.revealed[0].part,"
+        " message: window.revealed[0].message})"
+    )
+    assert asked["focus"] is not False
+    assert asked["part"] == "message"
+    assert asked["message"] == stood_on
 
 
 def test_a_reader_arriving_later_leaves_focus_the_user_moved_elsewhere(browser, serve):

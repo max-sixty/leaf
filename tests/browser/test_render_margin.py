@@ -9239,6 +9239,39 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     expect(thread).to_be_focused(timeout=10_000)
 
 
+def test_a_contents_target_reply_observes_visibility_without_layout(browser, serve):
+    """A reply withheld by its display: contents subject follows descendant visibility
+    alone, without a resize or render request to wake its floating card."""
+    source = leaf_page(
+        "a contents target reply",
+        '<h1>Reply visibility</h1><div id="pair" style="display: contents">'
+        "<p><span>The first half.</span></p><p><span>The second half.</span></p></div>",
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source, events=[_comment_on("pair")]))
+    page.set_default_timeout(10_000)
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="pair"]')
+    marker = row.get_by_role("button", name=re.compile(r"^Thread,"))
+    marker.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible(timeout=10_000)
+    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    reply.click()
+    expect(reply).to_be_focused(timeout=10_000)
+    words = "A reply stays while its display contents subject returns."
+    write(reply, words)
+    expect(reply).to_have_js_property("value", words, timeout=10_000)
+
+    page.locator("#pair").evaluate("el => el.style.visibility='hidden'")
+    expect(preview).to_be_hidden(timeout=10_000)
+    page.locator("#pair").evaluate("el => el.style.visibility='visible'")
+    expect(preview).to_be_visible(timeout=10_000)
+    expect(reply).to_be_focused(timeout=10_000)
+    expect(reply).to_have_js_property("value", words, timeout=10_000)
+
+
 def test_a_workspace_page_keeps_no_rail(browser, serve):
     """A workspace takes the window, which leaves no room beside it for a rail, so a
     comment in a pane stands on its block as a pin, as it does on a sidebar page."""

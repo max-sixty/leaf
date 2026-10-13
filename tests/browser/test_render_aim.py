@@ -4060,12 +4060,10 @@ def test_a_withheld_draft_observes_visibility_without_a_layout_change(
         words = "A reply with the same visibility owner."
         write(field, words)
     page.locator("#ordinary").evaluate("el => el.style.visibility='hidden'")
-    resized(page, 1100, 900)
-    rendered(page)
-    expect(field).not_to_be_visible()
+    expect(field).not_to_be_visible(timeout=10_000)
     page.locator("#ordinary").evaluate("el => el.style.visibility='visible'")
-    expect(field).to_be_visible()
-    expect(field).to_be_focused()
+    expect(field).to_be_visible(timeout=10_000)
+    expect(field).to_be_focused(timeout=10_000)
     assert _draft_in_view(page, words, field)
 
 

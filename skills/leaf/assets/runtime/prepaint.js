@@ -742,12 +742,17 @@
           width: edges.right - edges.left,
           breakouts: [breakout],
         });
-      readings.push([
-        breakout,
+      const reading = [
         Math.max(0, Math.round(edges.left - column.left)),
         Math.max(0, Math.round(column.right - edges.right)),
-        false,
-      ]);
+      ];
+      readings.push([breakout, ...reading, false]);
+      // A holder allocated the column can span the breakout it holds, as an Ask does
+      // (the default package's ask.css), and its padding keeps its content box where
+      // its own holder's is, so it stands in from the column as far: it takes the same
+      // reading, and grows as far each way as the block does.
+      if (holder.matches('[data-lf-space="column"]'))
+        readings.push([holder, ...reading, false]);
     }
     let changed = false;
     for (const [breakout, left, right, arranged] of readings) {

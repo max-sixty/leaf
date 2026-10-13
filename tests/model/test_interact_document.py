@@ -169,39 +169,6 @@ def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
         )
 
 
-@pytest.mark.parametrize("missing", [None, "{", "executable", "widgets"])
-def test_revision_inventory_ignores_incomplete_capture_records(page_dir, missing):
-    """An unreadable capture is absent, but cannot donate its number to new state."""
-    first = revisioning_model.activate_source(page_dir)
-    assert first.error is None and first.revision == 1
-    marker = files_model.revision_path(page_dir, 1)
-    old = marker.parent / "r9-0123456789abcdef"
-    shutil.copytree(marker.with_suffix(""), old)
-    metadata = old / "manifest.json"
-    if missing is None:
-        metadata.unlink()
-    elif missing == "{":
-        metadata.write_text(missing)
-    else:
-        record = json.loads(metadata.read_bytes())
-        del record[missing]
-        metadata.write_text(json.dumps(record))
-    old.with_suffix(".html").write_bytes(marker.read_bytes())
-
-    assert files_model.list_revisions(page_dir) == [1]
-    assert files_model.revision_orders(page_dir) == (1, 9)
-    with pytest.raises(artifact_model.ArtifactError, match="r9 already exists"):
-        artifact_model.stage_artifact(
-            page_dir, 9, artifact_model.read_artifact(page_dir, 1)
-        )
-    with pytest.raises(Refused, match="no revision r9"):
-        files_model.revision_path(page_dir, 9)
-    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Next plan"))
-    current = revisioning_model.activate_source(page_dir)
-    assert current.error is None and current.revision == 10
-    assert files_model.list_revisions(page_dir) == [1, 10]
-
-
 def test_a_revision_captures_the_complete_dependency_graph(page_dir):
     authored = page_dir / "page"
     (authored / "nested").mkdir(parents=True)

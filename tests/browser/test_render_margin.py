@@ -3334,6 +3334,8 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
 
     # Labels remain transient even with abundant room; options never widen the rail.
     resized(page, 2400, 900)
+    page.mouse.move(0, 0)
+    page.evaluate("() => document.activeElement.blur()")
     expect(
         suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
     ).to_be_hidden()
@@ -3354,6 +3356,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     page.keyboard.press("e")
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
 
+    page.keyboard.press("Escape")
+    expect(suggestion_item.locator(".lf-react:visible")).to_have_count(0)
+    expect(options).to_be_visible()
     page.keyboard.press("Escape")
     expect(options).to_be_hidden()
     more.click()

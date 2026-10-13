@@ -40,9 +40,10 @@ def lock_is_held(path: Path) -> bool:
     The question is asked with a shared lock, which every lease here refuses and
     no reading takes for longer than the question. An exclusive probe would be
     answered by another reading's probe as readily as by a lease, so two
-    processes asking at once would tell each other a lease was held. An unheld
-    file the name no longer reaches may be one `supersede_lease` displaced with a
-    held one, so the question is asked again of the file the name reaches now.
+    processes asking at once would tell each other a lease was held. A file the
+    name no longer reaches answers nothing either way: `supersede_lease` may have
+    displaced it, its holder still running or gone, while the lease at the name
+    began or ended. So the question is asked again of the file the name reaches.
     """
     while True:
         try:
@@ -50,11 +51,12 @@ def lock_is_held(path: Path) -> bool:
                 try:
                     fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
                 except OSError:
-                    return True
-                named = still_named(probe.fileno(), path)
-                fcntl.flock(probe, fcntl.LOCK_UN)
-                if named:
-                    return False
+                    held = True
+                else:
+                    held = False
+                    fcntl.flock(probe, fcntl.LOCK_UN)
+                if still_named(probe.fileno(), path):
+                    return held
         except OSError:
             return False
 

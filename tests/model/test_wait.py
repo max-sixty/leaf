@@ -972,10 +972,12 @@ def test_a_watch_superseded_during_a_pass_leaves_its_input_to_the_newer(
         newer.release()
 
 
-def test_a_lease_probe_reads_through_a_handoff(tmp_path, monkeypatch):
+@pytest.mark.parametrize("newer_ends", [False, True])
+def test_a_lease_probe_reads_through_a_handoff(tmp_path, monkeypatch, newer_ends):
     """A probe that opened the lease file before a newer watch put its own in place
-    asks again of the file the name reaches now, rather than reporting the lease
-    unheld once the displaced holder lets its file go."""
+    asks again of the file the name reaches now. What the displaced file says is
+    out of date: the newer lease holds once the displaced holder lets its file go,
+    and has ended though the displaced holder still runs."""
     path = tmp_path / "wait"
     displaced = leases_model.take_lease(path)
     newer = []
@@ -985,15 +987,18 @@ def test_a_lease_probe_reads_through_a_handoff(tmp_path, monkeypatch):
         probe = leases_model.fcntl.LOCK_SH | leases_model.fcntl.LOCK_NB
         if operation == probe and not newer:
             newer.append(leases_model.supersede_lease(path))
-            leases_model.release_lease(displaced)
+            if newer_ends:
+                leases_model.release_lease(newer[0])
+            else:
+                leases_model.release_lease(displaced)
         return flock(record, operation)
 
     monkeypatch.setattr(leases_model.fcntl, "flock", handed_over_before_the_probe)
     try:
-        assert leases_model.lock_is_held(path)
+        assert leases_model.lock_is_held(path) is not newer_ends
     finally:
         monkeypatch.undo()
-        leases_model.release_lease(newer[0])
+        leases_model.release_lease(displaced if newer_ends else newer[0])
 
 
 def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(

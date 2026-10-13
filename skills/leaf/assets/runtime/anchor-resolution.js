@@ -25,6 +25,7 @@ import {
   revealsVisualParts,
   usableVisualPartAt,
   usableVisualParts,
+  registeredVisualParts,
   visualPartAdmission,
 } from "./visual-parts.js";
 import {
@@ -201,10 +202,10 @@ const wholeVisualSurface = (element) =>
   registry[element?.localName]?.["x-visual"] ? element : null;
 
 /** The registered parts a visual's declaration admits, in declaration order. */
-export function visualParts(visual) {
+export function visualParts(visual, { strict = false } = {}) {
   const rank = visualPartRank(visual);
   if (!rank) return [];
-  return usableVisualParts(visual)
+  return (strict ? registeredVisualParts(visual) : usableVisualParts(visual))
     .filter((part) => rank(part.id) >= 0)
     .sort((a, b) => rank(a.id) - rank(b.id));
 }

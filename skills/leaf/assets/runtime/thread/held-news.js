@@ -45,7 +45,10 @@
    is, unless the user stands on a message the fold puts away, by focus or by a
    selection reaching into it (`standsOn`, focus.js). The progress itself is no news:
    until that answer it joins the thread's working message, not its replies
-   (thread-card.js), and its messages stand behind that message's disclosure. A run on screen stays open where
+   (thread-card.js), and its messages stand behind that message's disclosure. The
+   working message's arrival or departure changes the thread's height, so a seat
+   holds it behind its control-row notice when that growth would move the reader.
+   A run on screen stays open where
    it stood, its group's border drawn around it (components/surfaces.css), so the fold
    moves none of its words; a run off screen folds away. Changes to other existing
    messages, reactions, folds and settlement use the same hold as a seat in page flow,
@@ -204,6 +207,14 @@ function difference(was, now, { progressOpen = false } = {}) {
         : "Reopened";
   const news = {
     settled,
+    working:
+      Boolean(was.working) !== Boolean(now.working)
+        ? now.working
+          ? now.working.live
+            ? "Work in progress"
+            : "Work updated"
+          : "Work updated"
+        : null,
     replies: 0,
     messages: 0,
     edits: 0,
@@ -279,7 +290,7 @@ function difference(was, now, { progressOpen = false } = {}) {
     ),
     summaries: gone.map(({ id }) => id),
   };
-  const counts = ["replies", "messages", "edits", "reactions", "summaries"];
+  const counts = ["working", "replies", "messages", "edits", "reactions", "summaries"];
   if (!settled && counts.every((count) => !news[count])) return null;
   const appendedAtEnd =
     news.appended &&
@@ -332,6 +343,7 @@ function withheld(was, now) {
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
 const newsLabel = ({
   settled,
+  working,
   replies,
   messages,
   edits,
@@ -341,6 +353,8 @@ const newsLabel = ({
 }) =>
   [
     settled,
+    ![settled, replies, messages, edits, reactions, summaries, threads].some(Boolean) &&
+      working,
     counted(replies, "new reply", "new replies"),
     counted(messages, "new message", "new messages"),
     counted(edits, "message edited", "messages edited"),
@@ -557,6 +571,9 @@ export class HeldNews {
         const { news } = held;
         return {
           ...thread.reread(withheld(was.source, thread.source)),
+          // Workflows and to-dos update in place, but the working message itself
+          // keeps its drawn presence while its arrival or departure is held.
+          working: news.working ? was.working : thread.working,
           ...(news.settled === "Reopened" && { settlement: null }),
           news,
         };

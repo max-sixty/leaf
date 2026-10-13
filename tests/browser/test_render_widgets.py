@@ -5419,13 +5419,12 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     box = "el => el.getBoundingClientRect()"
     row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(row).to_be_visible()
-    # The row stands on the moved card: at its line, or packed just below the card's
-    # own marker where the two would otherwise stand on one corner.
+    # The row stands on the moved card. Clear-space seating may put it above the
+    # changed words, but it must travel with the card and remain actionable.
     card = page.locator("#card-heater").evaluate(box)
-    change = page.locator("#sug-in-card lf-old").evaluate(box)
     stands = row.evaluate(box)
-    assert change["top"] - 5 <= stands["top"] <= change["top"] + 48, (
-        "the row must find the moved change's line again, not the one it left"
+    assert card["top"] - 5 <= stands["top"] and stands["bottom"] <= card["bottom"] + 5, (
+        "the row must travel with the moved card"
     )
     assert card["left"] < stands["right"] <= card["right"] + 40, (stands, card)
     row.locator(".lf-sug-accept").click()

@@ -61,6 +61,7 @@ from render_harness import (
     FOLLOWER_MARK,
     LONG_PAGE,
     RELEASE_FOCUS,
+    ROOT,
     SUBJECT_MARK,
     _traffic,
     _until,
@@ -8398,6 +8399,45 @@ QUOTED_ON_ASK = {
     **COMMENT_ON_ASK,
     "anchor": {"section": "sec-mounts", "quote": "one came down in January"},
 }
+
+
+def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
+    """A fallback chip for a covered option stays behind the focused discussion."""
+    page = open_page(
+        browser, serve(ROOT / "tests/fixtures/pages/thread-choice-hints.html")
+    )
+    resized(page, 741, 838)
+    page.keyboard.press("Tab")
+    page.locator(".lf-margin-marker").first.focus()
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    expect(card).to_be_focused()
+    chip = page.locator(".lf-command-binding-badge").filter(has_text=re.compile("^2$"))
+    expect(chip).to_have_count(1)
+    rendered(page)
+    paint = chip.evaluate(
+        """chip => {
+          const card = document.querySelector('.lf-margin-preview');
+          const box = chip.getBoundingClientRect();
+          const x = box.left + box.width / 2, y = box.top + box.height / 2;
+          const frame = card.getBoundingClientRect();
+          // The hint is normally pointer-transparent. Include it in the browser's
+          // hit test to read its paint order against the thread without moving it.
+          chip.style.pointerEvents = 'auto';
+          const top = document.elementFromPoint(x, y);
+          chip.style.removeProperty('pointer-events');
+          return {
+            overlaps: x > frame.left && x < frame.right &&
+              y > frame.top && y < frame.bottom,
+            covered: card.contains(top),
+          };
+        }"""
+    )
+    assert paint == {"overlaps": True, "covered": True}, paint
+    # Reading the thread keeps the reply's own hint and keyboard route usable.
+    expect(card.locator(".lf-compose-placeholder > .lf-key-badge")).to_have_text("c")
+    page.keyboard.press("c")
+    expect(card.locator("leaf-text")).to_be_focused()
 
 
 def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):

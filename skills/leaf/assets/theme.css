@@ -28,9 +28,10 @@
   --lf-tabstrip-h: calc(9px + max(38px, var(--aim-floor)));
   --lf-z-page-paint: 8890;
   --lf-z-margin-raised: 8895;
+  --lf-z-page-hints: 8898;
   --lf-z-surface: 8900;
   --lf-z-margin-preview: 8920;
-  --lf-z-page-hints: 8930;
+  --lf-z-region-capture: 8930;
   --lf-z-shortcut-bar: 8940;
   --lf-z-menu: 8950;
   --lf-z-banner: 9000;

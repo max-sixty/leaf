@@ -927,7 +927,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-region-capture {
     position: fixed;
     inset: 0;
-    z-index: var(--lf-z-page-hints);
+    z-index: var(--lf-z-region-capture);
     pointer-events: none;
     overflow: hidden;
     color: var(--ink);

@@ -1131,6 +1131,13 @@ STATES = (
     ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
+    State(
+        "thread-choice-hints",
+        "../tests/fixtures/pages/thread-choice-hints",
+        card_by_keyboard,
+        viewport=(741, 838),
+        region=".lf-margin-preview",
+    ),
     State("plan-card-reply", "review-a-plan", card_reply),
     State(
         "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
@@ -1530,7 +1537,9 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                 source_roots[arm] = scratch / f"{arm}-source"
                 source_roots[arm].mkdir()
                 copy_committed(
-                    ("examples", "leaf-assets.json"), source_roots[arm], commit
+                    ("examples", "tests/fixtures/pages", "leaf-assets.json"),
+                    source_roots[arm],
+                    commit,
                 )
         with chrome() as browser, differences(browser, out) as compare:
             for state in states:

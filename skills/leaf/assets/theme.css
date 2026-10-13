@@ -28,9 +28,10 @@
   --lf-tabstrip-h: calc(9px + max(38px, var(--aim-floor)));
   --lf-z-page-paint: 8890;
   --lf-z-margin-raised: 8895;
+  --lf-z-page-hints: 8898;
   --lf-z-surface: 8900;
   --lf-z-margin-preview: 8920;
-  --lf-z-page-hints: 8930;
+  --lf-z-region-capture: 8930;
   --lf-z-shortcut-bar: 8940;
   --lf-z-menu: 8950;
   --lf-z-banner: 9000;
@@ -75,6 +76,8 @@
   --sidebar-max: 344px;
   --col: 720px;
   --col-pad: 24px;
+  --page-pad-start: 72px;
+  --page-pad-end: 96px;
   --pane-bar-pad: 10px 14px;
   --pane-inset: 14px;
   --wide: 1080px;
@@ -232,7 +235,6 @@ html[data-lf-live][data-lf-floating-chrome] {
 body {
   position: static !important;
   box-sizing: border-box !important;
-  margin: 0;
   background: var(--paper);
   color: var(--ink);
   font: var(--t-4)/1.6 var(--serif);
@@ -250,7 +252,6 @@ html {
     scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     body {
-      min-height: 100%;
       padding-bottom: var(--lf-bottom-bar-h);
     }
     body::before {
@@ -266,12 +267,8 @@ html {
     --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
     --lf-bottom-status-translate: none;
     overflow-y: hidden;
-    body {
-      min-height: 0;
-    }
-    main {
-      padding-block: 24px;
-    }
+    --page-pad-start: 24px;
+    --page-pad-end: 24px;
   }
 }
 @media screen {
@@ -380,9 +377,7 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
 }
 main {
   position: relative;
-  --lf-block-frame: trim;
   container-name: lf-content-frame;
-  padding-block: 72px 96px;
   --lf-free-l: 0px;
   --lf-free-r: 0px;
 }
@@ -399,14 +394,14 @@ main {
 @property --note { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @media screen {
   :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6, [data-lf-space=column]) {
-    max-inline-size: var(--col);
+    max-inline-size: var(--lf-measure);
   }
   :where([data-lf-space=column]) {
     box-sizing: border-box;
-    --lf-reach: min(var(--col), var(--lf-room, 0px));
+    --lf-reach: min(var(--lf-measure), var(--lf-room, 0px));
   }
   :where([data-lf-space=column]:has(> [data-lf-space=wide])) {
-    max-inline-size: var(--wide);
+    max-inline-size: max(var(--lf-measure), var(--wide));
   }
   :where([data-lf-space=column]:has(> [data-lf-space=available])) {
     max-inline-size: none;
@@ -419,9 +414,9 @@ main {
   }
 }
 @media screen and (max-width: 640px) {
-  main {
-    padding-top: 28px;
-    padding-bottom: 72px;
+  :root {
+    --page-pad-start: 28px;
+    --page-pad-end: 72px;
   }
 }
 h1 {
@@ -510,6 +505,9 @@ video {
 }
 img {
   aspect-ratio: attr(width type(<number>)) / attr(height type(<number>));
+}
+img {
+  box-shadow: 0 0 0 1px var(--border-2), 0 2px 8px var(--shade);
 }
 details {
   border: var(--details-border) solid var(--rule);

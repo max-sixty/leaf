@@ -341,6 +341,13 @@ height and where a switch lands wait on the workspace decision under Layout.
 - **Close the tally's small gaps.** On a phone the workspace header, tally
   included, scrolls away after Next; Undo's announcement doesn't name what it
   undid; the `q` help text is ambiguous; and a row's ○ mark has no legend.
+- **Call an ask one thing in the interface.** The Questions panel, "Next question"
+  and "In this question" say question, while a queue row's kind label, the walk
+  announcement ("Ask 2 of 3"), the `q` binding's description and the approval refusal
+  ("Answer every ask before approving") say ask (`queue-panel.js`, `queue-walk.js`,
+  `asks/view.js`, `banner.js`, `contribution-model.js`). The glossary defines the ask
+  record but not the user's word for it; choose one, likely question, as the list is
+  Questions.
 
 ### Recorded interaction review
 
@@ -429,6 +436,12 @@ on 2026-10-07.
   broad selection is about 3,700 s of test time on a CI runner. If the rate rose,
   look at which escapes a cheap fixed set of tests would have caught, and choose
   that set by measured catches per second rather than by kind.
+- **Require `test` on `main` again.** Since 2026-10-13 Leaf merges any change that
+  introduces no new failure, so `test` is not a required check: a pull request
+  inherits whatever main fails among the tests it runs, and only an admin could merge
+  past that (`tests/AGENTS.md`, "Selecting checks"). Once main stays green
+  between merges, make `test` required again in `main`'s branch protection and drop
+  that paragraph's exception.
 - **Resume the thread appearance gate.** Since 2026-10-12 the message-delivery
   journey and acceptance tests in `tests/*/test_render_thread_snapshots.py` are
   skipped to save test time while development moves fast; the references had already

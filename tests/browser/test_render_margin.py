@@ -61,6 +61,7 @@ from render_harness import (
     FOLLOWER_MARK,
     LONG_PAGE,
     RELEASE_FOCUS,
+    ROOT,
     SUBJECT_MARK,
     _traffic,
     _until,
@@ -8387,6 +8388,45 @@ QUOTED_ON_ASK = {
 }
 
 
+def test_a_focused_thread_covers_the_pages_choice_hints(browser, serve):
+    """A fallback chip for a covered option stays behind the focused discussion."""
+    page = open_page(
+        browser, serve(ROOT / "tests/fixtures/pages/thread-choice-hints.html")
+    )
+    resized(page, 741, 838)
+    page.keyboard.press("Tab")
+    page.locator(".lf-margin-marker").first.focus()
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    expect(card).to_be_focused()
+    chip = page.locator(".lf-command-binding-badge").filter(has_text=re.compile("^2$"))
+    expect(chip).to_have_count(1)
+    rendered(page)
+    paint = chip.evaluate(
+        """chip => {
+          const card = document.querySelector('.lf-margin-preview');
+          const box = chip.getBoundingClientRect();
+          const x = box.left + box.width / 2, y = box.top + box.height / 2;
+          const frame = card.getBoundingClientRect();
+          // The hint is normally pointer-transparent. Include it in the browser's
+          // hit test to read its paint order against the thread without moving it.
+          chip.style.pointerEvents = 'auto';
+          const top = document.elementFromPoint(x, y);
+          chip.style.removeProperty('pointer-events');
+          return {
+            overlaps: x > frame.left && x < frame.right &&
+              y > frame.top && y < frame.bottom,
+            covered: card.contains(top),
+          };
+        }"""
+    )
+    assert paint == {"overlaps": True, "covered": True}, paint
+    # Reading the thread keeps the reply's own hint and keyboard route usable.
+    expect(card.locator(".lf-compose-placeholder > .lf-key-badge")).to_have_text("c")
+    page.keyboard.press("c")
+    expect(card.locator("leaf-text")).to_be_focused()
+
+
 def test_a_scroll_that_carries_the_card_writes_nothing(browser, serve):
     """A scroll the card rides with its cluster leaves the page's DOM as it was: the
     card, its target's trace, the marks, and the Ask's binding badges stand in the plane
@@ -11032,7 +11072,8 @@ def test_a_pin_keeps_native_presses_inside_painted_walls_reachable(browser, serv
     """No clear seat leaves native controls reachable and the thread in Page Map.
 
     Adjacent painted cards leave no clear seat beside the second card. A pin at
-    its bounded home previously covered Action inside a tinted header.
+    its bounded home previously covered Action inside a tinted header. The cards
+    run edge to edge and end clear of the window's foot.
     """
     cards = "".join(
         f'<section id="card{i}" style="border:1px solid var(--rule);'
@@ -11042,7 +11083,14 @@ def test_a_pin_keeps_native_presses_inside_painted_walls_reachable(browser, serv
         "onclick=\"this.textContent='Opened'\">Action</button></div></section>"
         for i in range(12)
     )
-    url = serve(leaf_page("Pin controls", "<h1>Pin controls</h1>" + cards, layout=None))
+    url = serve(
+        leaf_page(
+            "Pin controls",
+            "<h1>Pin controls</h1>" + cards,
+            head="<style>body { margin: 0 } main { padding-block: 28px 72px }</style>",
+            layout=None,
+        )
+    )
     append_carried_log_record(
         serve.page_dir,
         {

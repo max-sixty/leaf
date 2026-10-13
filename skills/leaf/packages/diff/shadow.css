@@ -379,12 +379,11 @@
   border: 1px solid var(--rule);
   border-radius: var(--r);
 }
-.lf-diff-thread-outlet > .lf-page-thread {
+.lf-diff-thread-outlet > :is(.lf-page-thread, .lf-resolved-threads) {
   max-width: 760px;
-  padding: var(--sp-2) 0;
 }
-.lf-diff-thread-outlet > details.lf-page-thread:not([open]) {
-  padding: 0;
+.lf-diff-thread-outlet .lf-page-thread {
+  padding: var(--sp-2) 0;
 }
 @media print {
   .lf-diff-tools,

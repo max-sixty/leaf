@@ -263,6 +263,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
 /* Keyframe names are document-global even beside an @scope block. The stable salt
    makes this runtime-private in the one CSS namespace scoping cannot protect. */
 @keyframes lf-runtime-4f3c2a8d-working { to { opacity: .5; } }
+/* The one continuous animation, which marks work under way: a highlight passing across
+   words painted as a background clipped to their glyphs (assets/AGENTS.md, "Motion"). */
+@keyframes lf-runtime-4f3c2a8d-sheen {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
+}
 @keyframes lf-runtime-4f3c2a8d-flash {
   /* The target owns its resting fill, including transparency and focus paint.
      An omitted endpoint lets the browser interpolate to that underlying value. */
@@ -277,7 +283,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
    and every tabbed page clipped to a pixel.) */
 @scope (.lf-chrome) {
   /* Capture paint leaves page hit tests intact; the controller owns its input. */
-  .lf-region-capture { position: fixed; inset: 0; z-index: var(--lf-z-page-hints);
+  .lf-region-capture { position: fixed; inset: 0; z-index: var(--lf-z-region-capture);
     pointer-events: none; overflow: hidden; color: var(--ink); }
   /* The box is the exact crop; its outline paints outside those pixels. */
   .lf-region-selection { position: absolute; outline: 1px solid var(--accent);
@@ -1092,11 +1098,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     color: transparent; background: linear-gradient(110deg,
       var(--lf-pending-title-color) 42%, var(--ink) 50%, var(--lf-pending-title-color) 58%);
     background-size: 200% 100%; background-clip: text;
-    animation: lf-title-sheen 2s ease-in-out infinite alternate; }
-  @keyframes lf-title-sheen {
-    from { background-position: 100% 0; }
-    to { background-position: 0% 0; }
-  }
+    animation: lf-runtime-4f3c2a8d-sheen 2s ease-in-out infinite alternate; }
   @media (prefers-reduced-motion: reduce) {
     .lf-thread-topic[data-lf-pending-title] { animation: none;
       background: none; color: var(--lf-pending-title-color); }

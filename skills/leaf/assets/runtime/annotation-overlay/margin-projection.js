@@ -640,7 +640,10 @@ export function createMarginProjection({
     }
     const standing = available.find((row) => row === focused());
     const candidates = visible.length ? visible : available;
-    const held = candidates.find((row) => row === focused() || row.tabIndex === 0);
+    // A stop in view stays where it is. With none in view the stop is the row nearest
+    // the window, whatever held it before, so the way in follows from the page as it
+    // stands rather than from the widths and scrolls it passed through.
+    const held = visible.find((row) => row.tabIndex === 0);
     const room = shownWindow();
     const distance = (row) => {
       const box = row.getBoundingClientRect();

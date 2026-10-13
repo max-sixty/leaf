@@ -2,7 +2,8 @@
    shares, the panel's Recent order, and the page part each thread stands in. */
 import { addressableLabel, addressableWord } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
-import { inChrome, pageParts } from "../passages.js";
+import { inChrome, pageParts, pageReadingVersion } from "../passages.js";
+import { documentChanged } from "../semantic-state.js";
 import { serverNow } from "../presence.js";
 import { readingRegionFor } from "../reading-regions.js";
 import { byRenderedOrder, renderedOrder, renderedUnder, upFrom } from "../shadow.js";
@@ -56,8 +57,21 @@ export const inPageOrder = (threads, placedAt) =>
 // outline just as much as one written as nested sections. The runtime's own chrome
 // contributes none (pageParts), which also keeps a heading inside a reply's Markdown out
 // of the page's outline.
-export const pageOutline = () =>
-  byRenderedOrder(pageParts("h1, h2, h3, h4, h5, h6"), (heading) => heading);
+//
+// It is a reading of the page's own nodes, so it stands until the page reading moves
+// (passages.js, `pageReadingVersion`) or a caller says the document changed
+// (`presentDocument`): a thread pass over an unchanged page reads the outline it read.
+let outlined = null;
+export function pageOutline() {
+  const key = [pageReadingVersion(), documentChanged()];
+  if (outlined?.key.every((part, index) => part === key[index]))
+    return outlined.outline;
+  const outline = Object.freeze(
+    byRenderedOrder(pageParts("h1, h2, h3, h4, h5, h6"), (heading) => heading),
+  );
+  outlined = { key, outline };
+  return outline;
+}
 
 const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 
@@ -110,13 +124,28 @@ function headingFor(place, outline) {
 // not why it is unplaced: it may be removed or ambiguous. Search also reads the page
 // part it stands in. A general comment never claims a location; a thread in the
 // runtime's own chrome stands in no authored part.
+// A thread's section is kept while its record, its place and the outline stand.
+const sections = new WeakMap();
 export function threadSection(t, outline, placedAt) {
   const place = threadPlace(t, placedAt);
   // The authored owner may still order an unresolved passage; only the canonical
   // resolver establishes that passage's location.
   const unplaced = Boolean((t.detached_from || t.anchor) && !placedAt(t.id));
+  const kept = sections.get(t);
+  if (
+    kept &&
+    kept.place === place &&
+    kept.outline === outline &&
+    kept.unplaced === unplaced
+  )
+    return kept.section;
   const heading = place && !inChrome(place) ? headingFor(place, outline) : null;
-  return Object.freeze({ unplaced, section: heading ? subjectLabel(heading) : "" });
+  const section = Object.freeze({
+    unplaced,
+    section: heading ? subjectLabel(heading) : "",
+  });
+  sections.set(t, { place, outline, unplaced, section });
+  return section;
 }
 
 // ---------- the panel's Recent order ----------

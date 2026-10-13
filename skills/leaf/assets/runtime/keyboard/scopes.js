@@ -53,7 +53,6 @@ import {
   word,
 } from "./bindings.js";
 import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
-import { onStanding } from "../focus.js";
 import { renderedParent, under } from "../shadow.js";
 import { repaint } from "../repaint.js";
 import { keeps } from "../keeps.js";
@@ -793,16 +792,13 @@ const tracked = new WeakMap();
 // command names is gathered across every scope on each pass, since a command may name a
 // control outside the element declaring it; each button's availability is its own
 // tracked effect (`reflectButton`), read again when a signal it read moves or a key
-// paint reaches it. Every button is read again when a declaration is attached, projected
-// or withdrawn, on `paintKeys()`, and when the user's standing moves, which predicates
-// read without a signal. Contribution projections read the same predicates, as one
-// tracked reader beside them.
+// paint reaches it; where the user stands is such a signal (focus.js, `focused`). Every
+// button is read again when a declaration is attached or withdrawn, a command reader
+// registers, and on `paintKeys()`. Contribution projections read the same predicates,
+// as one tracked reader beside them.
 const dirtyButtons = new Set();
 let availabilityTracking = null;
 let availabilityDirty = true;
-onStanding(() => {
-  buttonsDirty = true;
-});
 function reflectAvailabilityReaders() {
   availabilityDirty = false;
   availabilityTracking?.();

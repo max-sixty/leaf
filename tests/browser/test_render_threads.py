@@ -10440,12 +10440,12 @@ def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
     box.evaluate("box => box.setSelectionRange(4, 4)")
     details = page.locator("lf-diff details").first
     details.evaluate("details => { details.open = false; }")
-    expect(seated).to_have_count(0, timeout=5000)
-    expect(box).to_be_hidden(timeout=5000)
+    expect(seated).to_have_count(0)
+    expect(box).to_be_hidden()
     details.evaluate("details => { details.open = true; }")
-    expect(seated).to_be_focused(timeout=5000)
+    expect(seated).to_be_focused()
     page.keyboard.type(" tr")
-    expect(seated).to_have_js_property("value", "Half tr a thought", timeout=5000)
+    expect(seated).to_have_js_property("value", "Half tr a thought")
 
 
 def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser, serve):

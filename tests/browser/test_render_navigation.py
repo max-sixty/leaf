@@ -82,6 +82,7 @@ from render_harness import (
     expect_comment_notes,
     hold_selection,
     holding,
+    is_problem,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -95,10 +96,12 @@ from render_harness import (
     regions_side_by_side,
     resized,
     round_trip,
+    said,
     scroll_settled,
     select,
     sending,
     shortcut_bar_text,
+    shown,
     stamp_page,
     suggestion_control,
     take_browser_errors,
@@ -1878,7 +1881,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     change.get_by_role("button", name="Cancel", exact=True).click()
     expect(retry).to_have_count(0)
 
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_render_that_keeps_an_external_link_gives_back_the_mark_it_dropped(
@@ -3271,7 +3274,7 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
         assert position.text_content() == "1 of 4 waiting on me · Ask"
         assert position.get_attribute("data-lf-boundary") is None
         expect(page.locator("#live-question-decision")).to_be_focused()
-        assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+        assert [said(error) for error in take_browser_errors(page)] == [
             "leaf: Presentation failed: ask reveal probe"
         ]
     finally:
@@ -8140,7 +8143,7 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     page.keyboard.press(prefix)
     assert address_codes(page) == branched, {
         "codes": address_codes(page),
-        "errors": page.lf_errors,
+        "errors": shown(page.lf_errors),
         "line": shortcut_bar_text(page),
         "live": page.locator(".lf-live").text_content(),
     }
@@ -9390,7 +9393,9 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
         }, answers
     refusals = consume_browser_errors(page, "two live meanings for")
     for binding in ("F2", "F4", "1"):
-        assert any(f"meanings for {binding}" in error for error in refusals), refusals
+        assert any(
+            is_problem(error, f"meanings for {binding}") for error in refusals
+        ), refusals
     assert answers["exclusive"] == {
         "declaration": "declared",
         "declared": None,
@@ -14979,15 +14984,13 @@ def test_native_layer_transitions_change_state_without_rewriting_reflected_attri
       guard([document.querySelector('#unrelated'), popover], () => popover.showPopover());
     }""")
     page.evaluate("() => guard([popover], () => popover.showPopover())")
-    failures = consume_browser_errors(page, "unchanged write:")
-    assert len(failures) == 6, failures
-    for target in [
-        "open on dialog#native-transition-probe",
-        "inert on dialog#native-transition-probe",
-        "inert on dialog#shadow-modal in shadow of div#shadow-host",
-        "inert on html",
-        "inert on div#unrelated",
-        "inert on div#native-popover",
-    ]:
-        assert any(target in error for error in failures), failures
+    failures = consume_browser_errors(page, {"code": "unchanged-write"})
+    assert {(error.values["what"], error.values["node"]) for error in failures} == {
+        ("open", "dialog#native-transition-probe"),
+        ("inert", "dialog#native-transition-probe"),
+        ("inert", "dialog#shadow-modal in shadow of div#shadow-host"),
+        ("inert", "html"),
+        ("inert", "div#unrelated"),
+        ("inert", "div#native-popover"),
+    }, failures
     page.evaluate("() => { popover.hidePopover(); dialog.close(); }")

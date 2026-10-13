@@ -22,7 +22,8 @@
 // not count: a key whose typing applied or was cancelled,
 // a modifier, the caret keys, Tab, the page's scroll keys, and a press on the field itself. A wheel,
 // a scroll, a resize, a timer and the server's news are none of them either. Words gone
-// with no such key or press are reported on the console as a browser problem, which
+// with no such key or press are reported as a `words-left-screen` record through the
+// fixture's `__leafWatchFinding` binding, a browser problem which
 // fails the test like any other; a test whose words go for a reason the rule allows, as
 // a box's subject leaving the document, consumes the report where it causes it. Either
 // way the field is no longer watched until the user types in it again.
@@ -248,10 +249,7 @@
     }
     if (putAway(field, typedOrder, source)) return;
     const place = window.lfPlace?.(field) ?? field.localName;
-    console.error(
-      `typed words left the screen without a key or press: ${JSON.stringify(words)}` +
-        ` in ${place}`,
-    );
+    window.__leafWatchFinding({ code: "words-left-screen", words, place });
   };
   const look = (source, afterFrame = false) => {
     // Input-work orders identify new gestures, not callback execution time. Native

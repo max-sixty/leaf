@@ -8,6 +8,8 @@
    changes the page's geometry. A surface whose rows need the first server reading
    declares presentation-time arrival, so its rendering and covering boundary wait for
    that reading.
+   A delayed restored surface keeps document-arrival intent: newer input supersedes
+   that arrival, so saved chrome cannot cover a page the reader has begun using.
 
    Selecting a surface ordinarily keeps the user's place beside it. A navigation
    activation requests `focus` and enters the surface's declared destination; the
@@ -67,6 +69,7 @@ import {
 } from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./page-paint.js";
+import { retainUserIntent } from "./user-intent.js";
 import { keeps, keepsHidden } from "./keeps.js";
 import { nextRender } from "./rendering.js";
 
@@ -102,6 +105,7 @@ export function createAuxiliarySurfaces({
   let standing = null;
   let mounted = false;
   let arriving = null;
+  let arrivalIntent = null;
 
   // The node a surface lands the user on, or the surface itself.
   const landingIn = (controller) => controller.landing() ?? controller.surface;
@@ -245,6 +249,7 @@ export function createAuxiliarySurfaces({
       !pagePresented()
         ? selected
         : null;
+    arrivalIntent = arriving ? retainUserIntent({ since: 0 }) : null;
     // The native boundary lifts before the previous surface hides, so the focus it
     // hands back lands on a live page. The selected surface takes the boundary at sync.
     if (!selected || arriving || Boolean(active) !== selected.covers()) seat(null);
@@ -276,8 +281,13 @@ export function createAuxiliarySurfaces({
 
   function present() {
     if (!arriving) return;
+    if (!arrivalIntent()) {
+      select(null, { remember: false });
+      return;
+    }
     const surface = arriving;
     arriving = null;
+    arrivalIntent = null;
     surface.show({ phase: "arrival" });
     sync();
     syncLayout();

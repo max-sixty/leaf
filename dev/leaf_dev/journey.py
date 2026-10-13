@@ -99,6 +99,7 @@ from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.files import revision_path
+from leaf.findings import Finding
 from leaf.server import running_server
 from leaf.thread import successful_replies
 from leaf.todos import start_reading
@@ -118,6 +119,7 @@ from leaf_dev.verify_site import (
     local_adapter,
     local_worker,
     observe_startup,
+    said,
     start_direct_agent,
     startup_profile,
 )
@@ -169,7 +171,7 @@ class Session(NamedTuple):
 
     context: BrowserContext
     page: Page
-    failures: list[str]
+    failures: list[Finding]
     url: str
     state_url: str
     state: dict
@@ -1054,8 +1056,8 @@ class BrowserEnd:
         )
         await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
         startup = startup_reading(page)
-        # The runtime presents without waiting for its first read, which is what
-        # brings the revision back, so that follow gets its own wait and timing.
+        # Startup can present the offline authored fallback when its first read fails.
+        # A later answer brings the revision back, with its own wait and timing.
         # The revision marker advances as the patch begins; its presentation proof
         # must finish before the text below is a reading of that revision.
         followed_at = time.monotonic()
@@ -1070,7 +1072,7 @@ class BrowserEnd:
         followed_in = (time.monotonic() - followed_at) * 1000
         # After the wait, so an error on the way there is reported rather than the
         # revision it never reached.
-        check(not failures, f"{url} reported browser errors: {failures}")
+        check(not failures, f"{url} reported browser errors: {said(failures)}")
         shown = page.evaluate("window.__leafVerifier.revision")
         # The banner separates a page whose first read answered with an old revision
         # from one that presented offline and was never told.

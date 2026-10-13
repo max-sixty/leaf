@@ -9,6 +9,7 @@ from browser.test_render_application_boundary import (
 )
 from browser.test_render_threads import hold_visible_thread_presentation
 from leaf import event_log as events_model
+from leaf.findings import Finding
 from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -408,9 +409,12 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
     page = editing_reply_page(browser, serve, one_user)
     reply = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
     write(reply, "The exact generation whose route is waiting.")
-    known_loss = (
-        'typed words left the screen without a key or press: "The exact generation whose route is waiting." in '
-        + reply.evaluate("field => window.lfPlace(field)")
+    known_loss = Finding(
+        "words-left-screen",
+        values={
+            "words": "The exact generation whose route is waiting.",
+            "place": reply.evaluate("field => window.lfPlace(field)"),
+        },
     )
     other = open_page(browser, page.url, context=one_user)
     held = page.evaluate(

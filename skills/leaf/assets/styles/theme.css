@@ -865,16 +865,13 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { disp
 /* `main` has no layout until the page gives it one: a Layout class (layouts.css) or the
  * page's own CSS. What stays here is what Leaf's chrome coordinates with: the frame its
  * first and last blocks trim against, the name a margin resident asks the page's readings
- * by, the room around its blocks, and, with no Layout, no room to grow into on either
- * side. The body has no margin, so the column's gutter stands here, where every Layout
- * restates its own: without it an unarranged page sets its text against the window's
- * edge, worse than a browser's default page. */
+ * by, the room above and below its blocks, and, with no Layout, no room to grow into on
+ * either side. */
 main {
   position: relative;
   --lf-block-frame: trim;
   container-name: lf-content-frame;
   padding-block: 72px 96px;
-  padding-inline: var(--col-pad);
   --lf-free-l: 0px;
   --lf-free-r: 0px;
 }

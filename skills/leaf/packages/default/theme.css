@@ -6,9 +6,6 @@
   container: lf-shot / inline-size;
   --lf-shot-rail-size: max(34px, var(--aim-floor));
 }
-:scope:is(lf-shot) {
-  max-width: max(300px, calc(attr(data-lf-media-width type(<number>)) * 1px + 2 * var(--lf-shot-frame-border)));
-}
 :scope:is(lf-shot):has(.lf-shotframe) {
   display: grid;
 }

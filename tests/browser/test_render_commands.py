@@ -632,34 +632,6 @@ def test_a_shot_owns_inspection_without_a_containing_package(browser, serve):
     )
 
 
-@pytest.mark.parametrize("layout", [None, "column"])
-def test_a_shot_stands_at_its_own_pixels_inside_a_gutter(browser, serve, layout):
-    """A review page whose `main` named no Layout set its text against the window's
-    edge and stretched a 560px pair across a 1728px window, three times its pixels and
-    blurred. A page with no Layout keeps the column's gutter, and a pair is never drawn
-    wider than its images, as an img is not, whatever room it is given."""
-    url = serve(
-        leaf_page(
-            "A pair narrower than its room",
-            f'''<h1 id="title">A pair narrower than its room</h1>
-<lf-shot id="small-pair" alt="two small frames"
-  before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>''',
-            layout=layout,
-        ),
-        media={SHOT_SRC[n]: data for n, data in SHOTS.items()},
-    )
-    page = open_page(browser, url)
-    page.wait_for_function(
-        "[...document.querySelectorAll('#small-pair img')]"
-        ".every(image => image.complete && image.naturalWidth)"
-    )
-    assert page.locator("#title").bounding_box()["x"] >= 24
-    widths = page.locator("#small-pair img").evaluate_all(
-        "nodes => nodes.map(node => node.getBoundingClientRect().width)"
-    )
-    assert widths == [pytest.approx(600)] * 2
-
-
 def test_a_shot_outlines_where_its_images_differ(browser, serve):
     """A reader shown one side of the divider, or a screenshot of the page, can't tell
     where a pair differs, or that it differs nowhere: a handoff once shipped a pair

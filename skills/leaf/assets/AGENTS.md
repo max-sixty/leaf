@@ -27,7 +27,7 @@ representative desktop viewport.
 
 - **The page owns its arrangement.** A page arranges itself with a shipped Layout
   class (`layouts.css`, `@layer lf-layouts`) or its own CSS. Leaf owns what pages and
-  widgets coordinate through: the bands, the reading measure as typography, and each
+  widgets coordinate through: the bands, the reading measure a Layout sets, and each
   widget's contract to fill the box it is given, declare the minimum it needs, and
   never let its content widen its holder.
 - **A Layout, a style and a widget never read one another.** A Layout (`layouts.css`)

@@ -9313,8 +9313,17 @@ def test_a_diff_recovers_from_each_failure_on_the_next_good_source(browser, serv
         expect(
             page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
         ).to_contain_text("new first")
-    errors = consume_browser_errors(page, "failed: unified diff repeats file path")
-    assert len(errors) == 2, errors
+    errors = consume_browser_errors(
+        page, "failed: empty diff", "failed: unified diff repeats file path"
+    )
+    assert sum("failed: empty diff" in (said(error) or "") for error in errors) == 1
+    assert (
+        sum(
+            "failed: unified diff repeats file path" in (said(error) or "")
+            for error in errors
+        )
+        == 2
+    )
 
 
 def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(browser, serve):

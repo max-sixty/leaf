@@ -29,6 +29,7 @@ from interact_support import (
     page_state,
     publish,
     record_claim,
+    refused_on,
     response_reference,
     served_thread,
     take_stream_activity,
@@ -1575,13 +1576,14 @@ def test_provider_reservation_refuses_unaddressed_competing_writes(page_dir):
             }
         }
     )
-    with pytest.raises(Refused, match="answered by this turn's messages"):
+    with pytest.raises(Refused) as refused:
         thread_model.post_reply(
             page_dir,
             {"to": comment["id"], "for": comment["id"]},
             "Anchored answer",
             identity={"agent": "Codex", "session": "codex-thread"},
         )
+    assert refused_on(refused.value).code == "reserved-answer"
     assert stream.finish("completed", "Transcript closeout") is None
     replies = [
         event
@@ -1609,13 +1611,14 @@ def test_a_delivery_reserves_its_final_before_provider_execution(page_dir):
 
     thread_model.reserve_delivery_reply("codex-thread", "delivery-1", target)
 
-    with pytest.raises(Refused, match="answered by this turn's messages"):
+    with pytest.raises(Refused) as refused:
         thread_model.post_reply(
             page_dir,
             {"to": comment["id"], "for": comment["id"]},
             "Competing reply",
             identity={"agent": "Codex", "session": "codex-thread"},
         )
+    assert refused_on(refused.value).code == "reserved-answer"
 
     with pytest.raises(RuntimeError, match="already reserved by another delivery"):
         thread_model.reserve_delivery_reply("codex-thread", "delivery-2", target)

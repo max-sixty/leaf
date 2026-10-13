@@ -213,6 +213,7 @@
 <!-- notification-playground.html authored script -->
 <script type="module">
       import {
+        afterPresentation,
         keeps,
         keepsText,
         layoutChanged,
@@ -345,22 +346,23 @@
             this.append(candidates);
           }
 
-          async #connect(signal) {
-            await customElements.whenDefined("lf-playground");
-            if (signal.aborted) return;
-            const playground = this.closest("lf-playground");
-            if (!playground) return;
-            playground.addEventListener(
-              "lf-playground-change",
-              (event) => {
-                if (event.target !== playground) return;
-                this.#values = event.detail.values;
-                this.#render();
-              },
-              { signal },
-            );
-            this.#values = playground.values;
-            this.#render();
+          #connect(signal) {
+            return afterPresentation(() => {
+              if (signal.aborted) return;
+              const playground = this.closest("lf-playground");
+              if (!playground) return;
+              playground.addEventListener(
+                "lf-playground-change",
+                (event) => {
+                  if (event.target !== playground) return;
+                  this.#values = event.detail.values;
+                  this.#render();
+                },
+                { signal },
+              );
+              this.#values = playground.values;
+              this.#render();
+            });
           }
 
           #render() {
@@ -484,6 +486,8 @@
 </style>
 <!-- data-explorer.html authored script -->
 <script type="module">
+      import { afterPresentation } from "/runtime/widget-api.js";
+
       import { keepsText, layoutChanged, offer, once } from "/runtime/widget-api.js";
 
       const RELEASES = [
@@ -586,39 +590,40 @@
             this.append(toolbar, this.#rows, this.#count, tableFrame);
           }
 
-          async #connect() {
-            await customElements.whenDefined("lf-playground");
-            if (!this.isConnected || this.#notify) return;
-            this.#playground = this.closest("lf-playground");
-            this.#notify = this.#playground.registerContributor(
-              "filters",
-              DEFAULT_FILTERS,
-              {
-                read: () => clone(this.#state),
-                apply: (state) => {
-                  this.#state = clone(state);
-                  this.#next =
-                    Math.max(
-                      0,
-                      ...this.#state.rows.map((row) =>
-                        Number(row.id.split("-").at(-1)),
-                      ),
-                    ) + 1;
-                  this.#render();
+          #connect() {
+            return afterPresentation(() => {
+              if (!this.isConnected || this.#notify) return;
+              this.#playground = this.closest("lf-playground");
+              this.#notify = this.#playground.registerContributor(
+                "filters",
+                DEFAULT_FILTERS,
+                {
+                  read: () => clone(this.#state),
+                  apply: (state) => {
+                    this.#state = clone(state);
+                    this.#next =
+                      Math.max(
+                        0,
+                        ...this.#state.rows.map((row) =>
+                          Number(row.id.split("-").at(-1)),
+                        ),
+                      ) + 1;
+                    this.#render();
+                  },
                 },
-              },
-            );
-            this.#playground.registerInstructionProvider((values) => {
-              const rows = values.filters.order.map((id) =>
-                values.filters.rows.find((row) => row.id === id),
               );
-              const conditions = rows
-                .map((row) => `${row.field} ${row.operator} ${row.value}`)
-                .join(" and ");
-              const filterTask = conditions
-                ? `Require ${conditions}`
-                : "Apply no filters";
-              return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
+              this.#playground.registerInstructionProvider((values) => {
+                const rows = values.filters.order.map((id) =>
+                  values.filters.rows.find((row) => row.id === id),
+                );
+                const conditions = rows
+                  .map((row) => `${row.field} ${row.operator} ${row.value}`)
+                  .join(" and ");
+                const filterTask = conditions
+                  ? `Require ${conditions}`
+                  : "Apply no filters";
+                return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
+              });
             });
           }
 
@@ -870,6 +875,8 @@
 </style>
 <!-- code-comparison.html authored script -->
 <script type="module">
+      import { afterPresentation } from "/runtime/widget-api.js";
+
       import {
         frameFor,
         keeps,
@@ -922,23 +929,21 @@
             this.prepend(toolbar);
           }
 
-          async #connect(signal) {
-            await Promise.all([
-              customElements.whenDefined("lf-playground"),
-              customElements.whenDefined("lf-code"),
-            ]);
-            if (signal.aborted) return;
-            if (!this.#notify) this.#initialize();
-            this.#playground.addEventListener("lf-playground-change", this.#change, {
-              signal,
+          #connect(signal) {
+            return afterPresentation(() => {
+              if (signal.aborted) return;
+              if (!this.#notify) this.#initialize();
+              this.#playground.addEventListener("lf-playground-change", this.#change, {
+                signal,
+              });
+              this.addEventListener("lf-layout", this.#readerLayout, { signal });
+              const watching = sizeObserver(this.#scheduleMeasurement);
+              signal.addEventListener("abort", () => watching.disconnect());
+              for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
+                watching.observe(reader);
+              }
+              this.#render();
             });
-            this.addEventListener("lf-layout", this.#readerLayout, { signal });
-            const watching = sizeObserver(this.#scheduleMeasurement);
-            signal.addEventListener("abort", () => watching.disconnect());
-            for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
-              watching.observe(reader);
-            }
-            this.#render();
           }
 
           #initialize() {
@@ -1172,9 +1177,84 @@
 </style>
 <!-- alert-thresholds.html authored script -->
 <script type="module">
-      import { keepsText } from "/runtime/widget-api.js";
+      import { afterPresentation, keepsText } from "/runtime/widget-api.js";
 
-      const ALERTS = [{"key": "rate", "name": "payments-5xx-rate", "rotation": "payments on-call", "today": "1%", "route": "page", "rows": {"0.5%": ["over 0.5%", 31, 3], "1%": ["over 1%", 12, 3], "2%": ["over 2%", 4, 3], "5%": ["over 5%", 1, 1]}}, {"key": "latency", "name": "payments-p99-latency", "rotation": "payments on-call", "today": "800ms", "route": "page", "rows": {"600ms": ["over 600 ms", 44, 2], "800ms": ["over 800 ms", 19, 2], "1200ms": ["over 1,200 ms", 5, 2], "2000ms": ["over 2,000 ms", 0, 0]}}, {"key": "declines", "name": "card-auth-decline-spike", "rotation": "payments on-call", "today": "2x", "route": "ticket", "rows": {"1.5x": ["over 1.5×", 9, 1], "2x": ["over 2×", 3, 1], "3x": ["over 3×", 1, 1]}}, {"key": "webhooks", "name": "webhook-backlog", "rotation": "payments on-call", "today": "5000", "route": "page", "rows": {"1000": ["over 1,000", 22, 0], "5000": ["over 5,000", 6, 1], "20000": ["over 20,000", 1, 1]}}, {"key": "ledger", "name": "ledger-reconciliation-lag", "rotation": "finance-ops", "today": "90min", "route": "off", "rows": {"60min": ["over 60 min", 14, 2], "90min": ["over 90 min", 7, 2], "180min": ["over 180 min", 2, 2]}}, {"key": "cert", "name": "gateway-cert-expiry", "rotation": "payments on-call", "today": "14d", "route": "ticket", "rows": {"30d": ["under 30 days", 1, 1], "14d": ["under 14 days", 1, 1], "7d": ["under 7 days", 1, 1]}}];
+      const ALERTS = [
+        {
+          key: "rate",
+          name: "payments-5xx-rate",
+          rotation: "payments on-call",
+          today: "1%",
+          route: "page",
+          rows: {
+            "0.5%": ["over 0.5%", 31, 3],
+            "1%": ["over 1%", 12, 3],
+            "2%": ["over 2%", 4, 3],
+            "5%": ["over 5%", 1, 1],
+          },
+        },
+        {
+          key: "latency",
+          name: "payments-p99-latency",
+          rotation: "payments on-call",
+          today: "800ms",
+          route: "page",
+          rows: {
+            "600ms": ["over 600 ms", 44, 2],
+            "800ms": ["over 800 ms", 19, 2],
+            "1200ms": ["over 1,200 ms", 5, 2],
+            "2000ms": ["over 2,000 ms", 0, 0],
+          },
+        },
+        {
+          key: "declines",
+          name: "card-auth-decline-spike",
+          rotation: "payments on-call",
+          today: "2x",
+          route: "ticket",
+          rows: {
+            "1.5x": ["over 1.5×", 9, 1],
+            "2x": ["over 2×", 3, 1],
+            "3x": ["over 3×", 1, 1],
+          },
+        },
+        {
+          key: "webhooks",
+          name: "webhook-backlog",
+          rotation: "payments on-call",
+          today: "5000",
+          route: "page",
+          rows: {
+            1000: ["over 1,000", 22, 0],
+            5000: ["over 5,000", 6, 1],
+            20000: ["over 20,000", 1, 1],
+          },
+        },
+        {
+          key: "ledger",
+          name: "ledger-reconciliation-lag",
+          rotation: "finance-ops",
+          today: "90min",
+          route: "off",
+          rows: {
+            "60min": ["over 60 min", 14, 2],
+            "90min": ["over 90 min", 7, 2],
+            "180min": ["over 180 min", 2, 2],
+          },
+        },
+        {
+          key: "cert",
+          name: "gateway-cert-expiry",
+          rotation: "payments on-call",
+          today: "14d",
+          route: "ticket",
+          rows: {
+            "30d": ["under 30 days", 1, 1],
+            "14d": ["under 14 days", 1, 1],
+            "7d": ["under 7 days", 1, 1],
+          },
+        },
+      ];
       const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
       function outcome(alert, values) {
@@ -1193,7 +1273,11 @@
           : missed
             ? ` · misses ${plural(missed, "real incident")}`
             : ` · catches ${seen === 1 ? "the" : `all ${seen}`} real`;
-        const tone = missed ? "danger" : route === "page" && fired > real ? "warn" : "ok";
+        const tone = missed
+          ? "danger"
+          : route === "page" && fired > real
+            ? "warn"
+            : "ok";
         return { route, fired, real, missed, text: head + tail, tone };
       }
 
@@ -1260,7 +1344,11 @@
           const route = values[`${alert.key}-route`];
           const [label] = alert.rows[values[`${alert.key}-threshold`]];
           const action =
-            route === "page" ? `page ${alert.rotation}` : route === "ticket" ? "open a ticket" : "off";
+            route === "page"
+              ? `page ${alert.rotation}`
+              : route === "ticket"
+                ? "open a ticket"
+                : "off";
           return `${alert.name} ${label}, ${action}`;
         });
         return (
@@ -1271,8 +1359,6 @@
         );
       }
 
-      await customElements.whenDefined("lf-playground");
-      const playground = document.getElementById("alert-playground");
       // What each alert does today: the replay's other column of comparison.
       const today = {
         budget: 10,
@@ -1284,11 +1370,14 @@
           ]),
         ),
       };
-      playground.registerInstructionProvider(instruction);
-      paint(playground.values, today);
-      playground.addEventListener("lf-playground-change", (event) =>
-        paint(event.detail.values, today),
-      );
+      afterPresentation(() => {
+        const playground = document.getElementById("alert-playground");
+        playground.registerInstructionProvider(instruction);
+        paint(playground.values, today);
+        playground.addEventListener("lf-playground-change", (event) =>
+          paint(event.detail.values, today),
+        );
+      });
     </script>
 <!-- live-progress.html authored styles -->
 <style>
@@ -2330,56 +2419,58 @@
           output.hidden = false;
         });
 
-      await customElements.whenDefined("lf-sample");
-
-      const titleSample = document.querySelector("#bg-title-sheen-sample");
-      let titleRequested = false;
-      let shownTitleRevision = null;
-      const showPendingTitle = () => {
-        const ready = titleSample.ready;
-        if (!titleRequested || !ready || shownTitleRevision === ready) return;
-        shownTitleRevision = ready;
-        void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
-      };
-      document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
-        titleRequested = true;
-        shownTitleRevision = null;
-        showPendingTitle();
-      });
-      titleSample.addEventListener("lf-sample-ready", showPendingTitle);
-      void titleSample.ready.then(showPendingTitle);
-
-      const sample = document.querySelector("#bg-panel-sample");
-      let selected = null;
-      function selectPanelView(view) {
-        selected = view;
-        for (const button of document.querySelectorAll("#bg-panel-presets button")) {
-          const pressed = String(button.dataset.view === view);
-          if (button.getAttribute("aria-pressed") !== pressed)
-            button.setAttribute("aria-pressed", pressed);
-        }
-        const thread = {
-          overview: "72e031c5bf0d485ba9054628e09869d4",
-          you: "2be2443f0bb6cc49fc86b52f340e6073",
-          resolved: "bab3cdfcfb8c02aacbb27da731de947a",
-          summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
-          progress: "bg-progress-question",
-        }[view];
-        void sample.showThread(thread, {
-          surface: "panel",
-          status: view === "resolved" ? "resolved" : "open",
-          waiting: view === "you" ? "user" : "all",
+      void afterPresentation(() => {
+        const titleSample = document.querySelector("#bg-title-sheen-sample");
+        let titleRequested = false;
+        let shownTitleRevision = null;
+        const showPendingTitle = () => {
+          const ready = titleSample.ready;
+          if (!titleRequested || !ready || shownTitleRevision === ready) return;
+          shownTitleRevision = ready;
+          void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
+        };
+        document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
+          titleRequested = true;
+          shownTitleRevision = null;
+          showPendingTitle();
         });
-      }
+        titleSample.addEventListener("lf-sample-ready", showPendingTitle);
+        void titleSample.ready.then(showPendingTitle);
 
-      for (const button of document.querySelectorAll("#bg-panel-presets button")) {
-        button.addEventListener("click", () => selectPanelView(button.dataset.view));
-      }
-      document.querySelector("#bg-panel-width").addEventListener("change", (event) => {
-        sample.style.maxWidth = event.target.value;
-      });
-      sample.addEventListener("lf-sample-ready", () => {
-        if (selected) selectPanelView(selected);
+        const sample = document.querySelector("#bg-panel-sample");
+        let selected = null;
+        function selectPanelView(view) {
+          selected = view;
+          for (const button of document.querySelectorAll("#bg-panel-presets button")) {
+            const pressed = String(button.dataset.view === view);
+            if (button.getAttribute("aria-pressed") !== pressed)
+              button.setAttribute("aria-pressed", pressed);
+          }
+          const thread = {
+            overview: "72e031c5bf0d485ba9054628e09869d4",
+            you: "2be2443f0bb6cc49fc86b52f340e6073",
+            resolved: "bab3cdfcfb8c02aacbb27da731de947a",
+            summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
+            progress: "bg-progress-question",
+          }[view];
+          void sample.showThread(thread, {
+            surface: "panel",
+            status: view === "resolved" ? "resolved" : "open",
+            waiting: view === "you" ? "user" : "all",
+          });
+        }
+
+        for (const button of document.querySelectorAll("#bg-panel-presets button")) {
+          button.addEventListener("click", () => selectPanelView(button.dataset.view));
+        }
+        document
+          .querySelector("#bg-panel-width")
+          .addEventListener("change", (event) => {
+            sample.style.maxWidth = event.target.value;
+          });
+        sample.addEventListener("lf-sample-ready", () => {
+          if (selected) selectPanelView(selected);
+        });
       });
     </script>
 </head>
@@ -3371,12 +3462,31 @@ export const summarize = checks =>
           ></lf-playground-control>
           <lf-playground-preview id="alert-preview">
             <div class="alert-board">
-              <dl class="alert-totals" aria-label="Last 30 days with these settings" aria-live="polite">
-                <div class="alert-total" data-total="oncall" data-tone="danger"><dt>Payments on-call pages</dt><dd><strong>37</strong> <span>of 10 allowed · today 37</span></dd></div>
-                <div class="alert-total" data-total="false" data-tone="danger"><dt>False pages</dt><dd><strong>31</strong> <span>today 31</span></dd></div>
-                <div class="alert-total" data-total="finance" data-tone=""><dt>Finance-ops pages</dt><dd><strong>0</strong> <span>today 0</span></dd></div>
-                <div class="alert-total" data-total="tickets" data-tone=""><dt>Tickets</dt><dd><strong>4</strong> <span>today 4</span></dd></div>
-                <div class="alert-total" data-total="missed" data-tone="danger"><dt>Real incidents missed</dt><dd><strong>2</strong> <span>today 2</span></dd></div>
+              <dl
+                class="alert-totals"
+                aria-label="Last 30 days with these settings"
+                aria-live="polite"
+              >
+                <div class="alert-total" data-total="oncall" data-tone="danger">
+                  <dt>Payments on-call pages</dt>
+                  <dd><strong>37</strong> <span>of 10 allowed · today 37</span></dd>
+                </div>
+                <div class="alert-total" data-total="false" data-tone="danger">
+                  <dt>False pages</dt>
+                  <dd><strong>31</strong> <span>today 31</span></dd>
+                </div>
+                <div class="alert-total" data-total="finance" data-tone="">
+                  <dt>Finance-ops pages</dt>
+                  <dd><strong>0</strong> <span>today 0</span></dd>
+                </div>
+                <div class="alert-total" data-total="tickets" data-tone="">
+                  <dt>Tickets</dt>
+                  <dd><strong>4</strong> <span>today 4</span></dd>
+                </div>
+                <div class="alert-total" data-total="missed" data-tone="danger">
+                  <dt>Real incidents missed</dt>
+                  <dd><strong>2</strong> <span>today 2</span></dd>
+                </div>
               </dl>
               <div class="alert-pair" id="alert-rate" data-alert="rate">
                 <article class="alert-evidence" id="alert-rate-evidence">
@@ -3384,30 +3494,94 @@ export const summarize = checks =>
                     <h3><code>payments-5xx-rate</code></h3>
                     <span class="alert-today">Today: over 1%, pages</span>
                   </header>
-                  <p class="alert-what">Share of requests returning a 5xx, over 5 minutes.</p>
+                  <p class="alert-what">
+                    Share of requests returning a 5xx, over 5 minutes.
+                  </p>
                   <table class="alert-replay" id="alert-rate-replay">
-                    <thead><tr><th scope="col">Threshold</th><th scope="col" class="num">Fired</th><th scope="col" class="num">Real</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th scope="col">Threshold</th>
+                        <th scope="col" class="num">Fired</th>
+                        <th scope="col" class="num">Real</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      <tr data-threshold="0.5%"><th scope="row">over 0.5%</th><td class="num">31</td><td class="num">3</td></tr>
-                      <tr data-threshold="1%" class="chosen"><th scope="row">over 1% <span class="tag">today</span></th><td class="num">12</td><td class="num">3</td></tr>
-                      <tr data-threshold="2%"><th scope="row">over 2%</th><td class="num">4</td><td class="num">3</td></tr>
-                      <tr data-threshold="5%"><th scope="row">over 5%</th><td class="num">1</td><td class="num">1</td></tr>
+                      <tr data-threshold="0.5%">
+                        <th scope="row">over 0.5%</th>
+                        <td class="num">31</td>
+                        <td class="num">3</td>
+                      </tr>
+                      <tr data-threshold="1%" class="chosen">
+                        <th scope="row">over 1% <span class="tag">today</span></th>
+                        <td class="num">12</td>
+                        <td class="num">3</td>
+                      </tr>
+                      <tr data-threshold="2%">
+                        <th scope="row">over 2%</th>
+                        <td class="num">4</td>
+                        <td class="num">3</td>
+                      </tr>
+                      <tr data-threshold="5%">
+                        <th scope="row">over 5%</th>
+                        <td class="num">1</td>
+                        <td class="num">1</td>
+                      </tr>
                     </tbody>
                   </table>
-                  <p class="alert-note">Over 5% would have missed the 19 September partial outage and the 26 September card-network incident.</p>
-                  <p class="alert-outcome" data-outcome data-tone="warn">12 pages to payments on-call: 3 real, 9 false · catches all 3 real</p>
+                  <p class="alert-note">
+                    Over 5% would have missed the 19 September partial outage and the 26
+                    September card-network incident.
+                  </p>
+                  <p class="alert-outcome" data-outcome data-tone="warn">
+                    12 pages to payments on-call: 3 real, 9 false · catches all 3 real
+                  </p>
                 </article>
-                <section class="alert-settings" id="alert-rate-settings" aria-label="payments-5xx-rate settings">
-                  <lf-playground-control name="rate-threshold" label="Threshold" kind="choice" value="1%">
-                    <lf-playground-choice value="0.5%" label="over 0.5%"></lf-playground-choice>
-                    <lf-playground-choice value="1%" label="over 1%"></lf-playground-choice>
-                    <lf-playground-choice value="2%" label="over 2%"></lf-playground-choice>
-                    <lf-playground-choice value="5%" label="over 5%"></lf-playground-choice>
+                <section
+                  class="alert-settings"
+                  id="alert-rate-settings"
+                  aria-label="payments-5xx-rate settings"
+                >
+                  <lf-playground-control
+                    name="rate-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="1%"
+                  >
+                    <lf-playground-choice
+                      value="0.5%"
+                      label="over 0.5%"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="1%"
+                      label="over 1%"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="2%"
+                      label="over 2%"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="5%"
+                      label="over 5%"
+                    ></lf-playground-choice>
                   </lf-playground-control>
-                  <lf-playground-control name="rate-route" label="Route" kind="choice" value="page">
-                    <lf-playground-choice value="page" label="Page"></lf-playground-choice>
-                    <lf-playground-choice value="ticket" label="Ticket"></lf-playground-choice>
-                    <lf-playground-choice value="off" label="Off"></lf-playground-choice>
+                  <lf-playground-control
+                    name="rate-route"
+                    label="Route"
+                    kind="choice"
+                    value="page"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="off"
+                      label="Off"
+                    ></lf-playground-choice>
                   </lf-playground-control>
                 </section>
               </div>
@@ -3419,27 +3593,86 @@ export const summarize = checks =>
                   </header>
                   <p class="alert-what">p99 latency over 10 minutes.</p>
                   <table class="alert-replay" id="alert-latency-replay">
-                    <thead><tr><th scope="col">Threshold</th><th scope="col" class="num">Fired</th><th scope="col" class="num">Real</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th scope="col">Threshold</th>
+                        <th scope="col" class="num">Fired</th>
+                        <th scope="col" class="num">Real</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      <tr data-threshold="600ms"><th scope="row">over 600 ms</th><td class="num">44</td><td class="num">2</td></tr>
-                      <tr data-threshold="800ms" class="chosen"><th scope="row">over 800 ms <span class="tag">today</span></th><td class="num">19</td><td class="num">2</td></tr>
-                      <tr data-threshold="1200ms"><th scope="row">over 1,200 ms</th><td class="num">5</td><td class="num">2</td></tr>
-                      <tr data-threshold="2000ms"><th scope="row">over 2,000 ms</th><td class="num">0</td><td class="num">0</td></tr>
+                      <tr data-threshold="600ms">
+                        <th scope="row">over 600 ms</th>
+                        <td class="num">44</td>
+                        <td class="num">2</td>
+                      </tr>
+                      <tr data-threshold="800ms" class="chosen">
+                        <th scope="row">over 800 ms <span class="tag">today</span></th>
+                        <td class="num">19</td>
+                        <td class="num">2</td>
+                      </tr>
+                      <tr data-threshold="1200ms">
+                        <th scope="row">over 1,200 ms</th>
+                        <td class="num">5</td>
+                        <td class="num">2</td>
+                      </tr>
+                      <tr data-threshold="2000ms">
+                        <th scope="row">over 2,000 ms</th>
+                        <td class="num">0</td>
+                        <td class="num">0</td>
+                      </tr>
                     </tbody>
                   </table>
-                  <p class="alert-outcome" data-outcome data-tone="warn">19 pages to payments on-call: 2 real, 17 false · catches all 2 real</p>
+                  <p class="alert-outcome" data-outcome data-tone="warn">
+                    19 pages to payments on-call: 2 real, 17 false · catches all 2 real
+                  </p>
                 </article>
-                <section class="alert-settings" id="alert-latency-settings" aria-label="payments-p99-latency settings">
-                  <lf-playground-control name="latency-threshold" label="Threshold" kind="choice" value="800ms">
-                    <lf-playground-choice value="600ms" label="over 600 ms"></lf-playground-choice>
-                    <lf-playground-choice value="800ms" label="over 800 ms"></lf-playground-choice>
-                    <lf-playground-choice value="1200ms" label="over 1,200 ms"></lf-playground-choice>
-                    <lf-playground-choice value="2000ms" label="over 2,000 ms"></lf-playground-choice>
+                <section
+                  class="alert-settings"
+                  id="alert-latency-settings"
+                  aria-label="payments-p99-latency settings"
+                >
+                  <lf-playground-control
+                    name="latency-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="800ms"
+                  >
+                    <lf-playground-choice
+                      value="600ms"
+                      label="over 600 ms"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="800ms"
+                      label="over 800 ms"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="1200ms"
+                      label="over 1,200 ms"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="2000ms"
+                      label="over 2,000 ms"
+                    ></lf-playground-choice>
                   </lf-playground-control>
-                  <lf-playground-control name="latency-route" label="Route" kind="choice" value="page">
-                    <lf-playground-choice value="page" label="Page"></lf-playground-choice>
-                    <lf-playground-choice value="ticket" label="Ticket"></lf-playground-choice>
-                    <lf-playground-choice value="off" label="Off"></lf-playground-choice>
+                  <lf-playground-control
+                    name="latency-route"
+                    label="Route"
+                    kind="choice"
+                    value="page"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="off"
+                      label="Off"
+                    ></lf-playground-choice>
                   </lf-playground-control>
                 </section>
               </div>
@@ -3449,27 +3682,82 @@ export const summarize = checks =>
                     <h3><code>card-auth-decline-spike</code></h3>
                     <span class="alert-today">Today: over 2×, opens a ticket</span>
                   </header>
-                  <p class="alert-what">Card authorization declines against their 7-day baseline, for 15 minutes.</p>
+                  <p class="alert-what">
+                    Card authorization declines against their 7-day baseline, for 15
+                    minutes.
+                  </p>
                   <table class="alert-replay" id="alert-declines-replay">
-                    <thead><tr><th scope="col">Threshold</th><th scope="col" class="num">Fired</th><th scope="col" class="num">Real</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th scope="col">Threshold</th>
+                        <th scope="col" class="num">Fired</th>
+                        <th scope="col" class="num">Real</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      <tr data-threshold="1.5x"><th scope="row">over 1.5×</th><td class="num">9</td><td class="num">1</td></tr>
-                      <tr data-threshold="2x" class="chosen"><th scope="row">over 2× <span class="tag">today</span></th><td class="num">3</td><td class="num">1</td></tr>
-                      <tr data-threshold="3x"><th scope="row">over 3×</th><td class="num">1</td><td class="num">1</td></tr>
+                      <tr data-threshold="1.5x">
+                        <th scope="row">over 1.5×</th>
+                        <td class="num">9</td>
+                        <td class="num">1</td>
+                      </tr>
+                      <tr data-threshold="2x" class="chosen">
+                        <th scope="row">over 2× <span class="tag">today</span></th>
+                        <td class="num">3</td>
+                        <td class="num">1</td>
+                      </tr>
+                      <tr data-threshold="3x">
+                        <th scope="row">over 3×</th>
+                        <td class="num">1</td>
+                        <td class="num">1</td>
+                      </tr>
                     </tbody>
                   </table>
-                  <p class="alert-outcome" data-outcome data-tone="ok">3 tickets: 1 real, 2 false · catches the real</p>
+                  <p class="alert-outcome" data-outcome data-tone="ok">
+                    3 tickets: 1 real, 2 false · catches the real
+                  </p>
                 </article>
-                <section class="alert-settings" id="alert-declines-settings" aria-label="card-auth-decline-spike settings">
-                  <lf-playground-control name="declines-threshold" label="Threshold" kind="choice" value="2x">
-                    <lf-playground-choice value="1.5x" label="over 1.5×"></lf-playground-choice>
-                    <lf-playground-choice value="2x" label="over 2×"></lf-playground-choice>
-                    <lf-playground-choice value="3x" label="over 3×"></lf-playground-choice>
+                <section
+                  class="alert-settings"
+                  id="alert-declines-settings"
+                  aria-label="card-auth-decline-spike settings"
+                >
+                  <lf-playground-control
+                    name="declines-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="2x"
+                  >
+                    <lf-playground-choice
+                      value="1.5x"
+                      label="over 1.5×"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="2x"
+                      label="over 2×"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="3x"
+                      label="over 3×"
+                    ></lf-playground-choice>
                   </lf-playground-control>
-                  <lf-playground-control name="declines-route" label="Route" kind="choice" value="ticket">
-                    <lf-playground-choice value="page" label="Page"></lf-playground-choice>
-                    <lf-playground-choice value="ticket" label="Ticket"></lf-playground-choice>
-                    <lf-playground-choice value="off" label="Off"></lf-playground-choice>
+                  <lf-playground-control
+                    name="declines-route"
+                    label="Route"
+                    kind="choice"
+                    value="ticket"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="off"
+                      label="Off"
+                    ></lf-playground-choice>
                   </lf-playground-control>
                 </section>
               </div>
@@ -3481,25 +3769,77 @@ export const summarize = checks =>
                   </header>
                   <p class="alert-what">Undelivered merchant webhooks in the queue.</p>
                   <table class="alert-replay" id="alert-webhooks-replay">
-                    <thead><tr><th scope="col">Threshold</th><th scope="col" class="num">Fired</th><th scope="col" class="num">Real</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th scope="col">Threshold</th>
+                        <th scope="col" class="num">Fired</th>
+                        <th scope="col" class="num">Real</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      <tr data-threshold="1000"><th scope="row">over 1,000</th><td class="num">22</td><td class="num">0</td></tr>
-                      <tr data-threshold="5000" class="chosen"><th scope="row">over 5,000 <span class="tag">today</span></th><td class="num">6</td><td class="num">1</td></tr>
-                      <tr data-threshold="20000"><th scope="row">over 20,000</th><td class="num">1</td><td class="num">1</td></tr>
+                      <tr data-threshold="1000">
+                        <th scope="row">over 1,000</th>
+                        <td class="num">22</td>
+                        <td class="num">0</td>
+                      </tr>
+                      <tr data-threshold="5000" class="chosen">
+                        <th scope="row">over 5,000 <span class="tag">today</span></th>
+                        <td class="num">6</td>
+                        <td class="num">1</td>
+                      </tr>
+                      <tr data-threshold="20000">
+                        <th scope="row">over 20,000</th>
+                        <td class="num">1</td>
+                        <td class="num">1</td>
+                      </tr>
                     </tbody>
                   </table>
-                  <p class="alert-outcome" data-outcome data-tone="warn">6 pages to payments on-call: 1 real, 5 false · catches the real</p>
+                  <p class="alert-outcome" data-outcome data-tone="warn">
+                    6 pages to payments on-call: 1 real, 5 false · catches the real
+                  </p>
                 </article>
-                <section class="alert-settings" id="alert-webhooks-settings" aria-label="webhook-backlog settings">
-                  <lf-playground-control name="webhooks-threshold" label="Threshold" kind="choice" value="5000">
-                    <lf-playground-choice value="1000" label="over 1,000"></lf-playground-choice>
-                    <lf-playground-choice value="5000" label="over 5,000"></lf-playground-choice>
-                    <lf-playground-choice value="20000" label="over 20,000"></lf-playground-choice>
+                <section
+                  class="alert-settings"
+                  id="alert-webhooks-settings"
+                  aria-label="webhook-backlog settings"
+                >
+                  <lf-playground-control
+                    name="webhooks-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="5000"
+                  >
+                    <lf-playground-choice
+                      value="1000"
+                      label="over 1,000"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="5000"
+                      label="over 5,000"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="20000"
+                      label="over 20,000"
+                    ></lf-playground-choice>
                   </lf-playground-control>
-                  <lf-playground-control name="webhooks-route" label="Route" kind="choice" value="page">
-                    <lf-playground-choice value="page" label="Page"></lf-playground-choice>
-                    <lf-playground-choice value="ticket" label="Ticket"></lf-playground-choice>
-                    <lf-playground-choice value="off" label="Off"></lf-playground-choice>
+                  <lf-playground-control
+                    name="webhooks-route"
+                    label="Route"
+                    kind="choice"
+                    value="page"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="off"
+                      label="Off"
+                    ></lf-playground-choice>
                   </lf-playground-control>
                 </section>
               </div>
@@ -3509,68 +3849,190 @@ export const summarize = checks =>
                     <h3><code>ledger-reconciliation-lag</code></h3>
                     <span class="alert-today">Today: over 90 min, off</span>
                   </header>
-                  <p class="alert-what">Minutes since the last successful ledger reconciliation run.</p>
+                  <p class="alert-what">
+                    Minutes since the last successful ledger reconciliation run.
+                  </p>
                   <table class="alert-replay" id="alert-ledger-replay">
-                    <thead><tr><th scope="col">Threshold</th><th scope="col" class="num">Fired</th><th scope="col" class="num">Real</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th scope="col">Threshold</th>
+                        <th scope="col" class="num">Fired</th>
+                        <th scope="col" class="num">Real</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      <tr data-threshold="60min"><th scope="row">over 60 min</th><td class="num">14</td><td class="num">2</td></tr>
-                      <tr data-threshold="90min" class="chosen"><th scope="row">over 90 min <span class="tag">today</span></th><td class="num">7</td><td class="num">2</td></tr>
-                      <tr data-threshold="180min"><th scope="row">over 180 min</th><td class="num">2</td><td class="num">2</td></tr>
+                      <tr data-threshold="60min">
+                        <th scope="row">over 60 min</th>
+                        <td class="num">14</td>
+                        <td class="num">2</td>
+                      </tr>
+                      <tr data-threshold="90min" class="chosen">
+                        <th scope="row">over 90 min <span class="tag">today</span></th>
+                        <td class="num">7</td>
+                        <td class="num">2</td>
+                      </tr>
+                      <tr data-threshold="180min">
+                        <th scope="row">over 180 min</th>
+                        <td class="num">2</td>
+                        <td class="num">2</td>
+                      </tr>
                     </tbody>
                   </table>
-                  <p class="alert-note">Off since August, after a noisy weekend. Both real firings were reconciliation runs that silently stopped; finance found them two days later.</p>
-                  <p class="alert-outcome" data-outcome data-tone="danger">Off: nothing fires · misses 2 real incidents</p>
+                  <p class="alert-note">
+                    Off since August, after a noisy weekend. Both real firings were
+                    reconciliation runs that silently stopped; finance found them two
+                    days later.
+                  </p>
+                  <p class="alert-outcome" data-outcome data-tone="danger">
+                    Off: nothing fires · misses 2 real incidents
+                  </p>
                 </article>
-                <section class="alert-settings" id="alert-ledger-settings" aria-label="ledger-reconciliation-lag settings">
-                  <lf-playground-control name="ledger-threshold" label="Threshold" kind="choice" value="90min">
-                    <lf-playground-choice value="60min" label="over 60 min"></lf-playground-choice>
-                    <lf-playground-choice value="90min" label="over 90 min"></lf-playground-choice>
-                    <lf-playground-choice value="180min" label="over 180 min"></lf-playground-choice>
+                <section
+                  class="alert-settings"
+                  id="alert-ledger-settings"
+                  aria-label="ledger-reconciliation-lag settings"
+                >
+                  <lf-playground-control
+                    name="ledger-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="90min"
+                  >
+                    <lf-playground-choice
+                      value="60min"
+                      label="over 60 min"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="90min"
+                      label="over 90 min"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="180min"
+                      label="over 180 min"
+                    ></lf-playground-choice>
                   </lf-playground-control>
-                  <lf-playground-control name="ledger-route" label="Route" kind="choice" value="off">
-                    <lf-playground-choice value="page" label="Page"></lf-playground-choice>
-                    <lf-playground-choice value="ticket" label="Ticket"></lf-playground-choice>
-                    <lf-playground-choice value="off" label="Off"></lf-playground-choice>
+                  <lf-playground-control
+                    name="ledger-route"
+                    label="Route"
+                    kind="choice"
+                    value="off"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="off"
+                      label="Off"
+                    ></lf-playground-choice>
                   </lf-playground-control>
-                  <p class="alert-owner">Finance owns this alert: its pages go to the finance-ops rotation, not payments on-call.</p>
+                  <p class="alert-owner">
+                    Finance owns this alert: its pages go to the finance-ops rotation,
+                    not payments on-call.
+                  </p>
                 </section>
               </div>
               <div class="alert-pair" id="alert-cert" data-alert="cert">
                 <article class="alert-evidence" id="alert-cert-evidence">
                   <header class="alert-head">
                     <h3><code>gateway-cert-expiry</code></h3>
-                    <span class="alert-today">Today: under 14 days, opens a ticket</span>
+                    <span class="alert-today"
+                      >Today: under 14 days, opens a ticket</span
+                    >
                   </header>
-                  <p class="alert-what">Days until the payment gateway’s TLS certificate expires.</p>
+                  <p class="alert-what">
+                    Days until the payment gateway’s TLS certificate expires.
+                  </p>
                   <table class="alert-replay" id="alert-cert-replay">
-                    <thead><tr><th scope="col">Threshold</th><th scope="col" class="num">Fired</th><th scope="col" class="num">Real</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th scope="col">Threshold</th>
+                        <th scope="col" class="num">Fired</th>
+                        <th scope="col" class="num">Real</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      <tr data-threshold="30d"><th scope="row">under 30 days</th><td class="num">1</td><td class="num">1</td></tr>
-                      <tr data-threshold="14d" class="chosen"><th scope="row">under 14 days <span class="tag">today</span></th><td class="num">1</td><td class="num">1</td></tr>
-                      <tr data-threshold="7d"><th scope="row">under 7 days</th><td class="num">1</td><td class="num">1</td></tr>
+                      <tr data-threshold="30d">
+                        <th scope="row">under 30 days</th>
+                        <td class="num">1</td>
+                        <td class="num">1</td>
+                      </tr>
+                      <tr data-threshold="14d" class="chosen">
+                        <th scope="row">
+                          under 14 days <span class="tag">today</span>
+                        </th>
+                        <td class="num">1</td>
+                        <td class="num">1</td>
+                      </tr>
+                      <tr data-threshold="7d">
+                        <th scope="row">under 7 days</th>
+                        <td class="num">1</td>
+                        <td class="num">1</td>
+                      </tr>
                     </tbody>
                   </table>
-                  <p class="alert-note">It fires once per renewal whatever the threshold; only the warning time changes.</p>
-                  <p class="alert-outcome" data-outcome data-tone="ok">1 ticket: 1 real, 0 false · catches the real</p>
+                  <p class="alert-note">
+                    It fires once per renewal whatever the threshold; only the warning
+                    time changes.
+                  </p>
+                  <p class="alert-outcome" data-outcome data-tone="ok">
+                    1 ticket: 1 real, 0 false · catches the real
+                  </p>
                 </article>
-                <section class="alert-settings" id="alert-cert-settings" aria-label="gateway-cert-expiry settings">
-                  <lf-playground-control name="cert-threshold" label="Threshold" kind="choice" value="14d">
-                    <lf-playground-choice value="30d" label="under 30 days"></lf-playground-choice>
-                    <lf-playground-choice value="14d" label="under 14 days"></lf-playground-choice>
-                    <lf-playground-choice value="7d" label="under 7 days"></lf-playground-choice>
+                <section
+                  class="alert-settings"
+                  id="alert-cert-settings"
+                  aria-label="gateway-cert-expiry settings"
+                >
+                  <lf-playground-control
+                    name="cert-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="14d"
+                  >
+                    <lf-playground-choice
+                      value="30d"
+                      label="under 30 days"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="14d"
+                      label="under 14 days"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="7d"
+                      label="under 7 days"
+                    ></lf-playground-choice>
                   </lf-playground-control>
-                  <lf-playground-control name="cert-route" label="Route" kind="choice" value="ticket">
-                    <lf-playground-choice value="page" label="Page"></lf-playground-choice>
-                    <lf-playground-choice value="ticket" label="Ticket"></lf-playground-choice>
-                    <lf-playground-choice value="off" label="Off"></lf-playground-choice>
+                  <lf-playground-control
+                    name="cert-route"
+                    label="Route"
+                    kind="choice"
+                    value="ticket"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="off"
+                      label="Off"
+                    ></lf-playground-choice>
                   </lf-playground-control>
                 </section>
               </div>
             </div>
           </lf-playground-preview>
           <lf-playground-output id="alert-instruction">
-            Apply these alert settings to payments-api's monitoring config and show me the
-            config diff.
+            Apply these alert settings to payments-api's monitoring config and show me
+            the config diff.
           </lf-playground-output>
         </lf-playground>
       </lf-ask>
@@ -8010,7 +8472,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Open threads
               </button>
               <button type="button" class="button" data-view="you" aria-pressed="false">
-                On you
+                On me
               </button>
               <button
                 type="button"
@@ -8099,14 +8561,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <kbd>T</kbd>: the same thread stays focused in the panel.
               </li>
               <li>
-                Under “View”, choose “Open”, “On you”, “On agent”, or “Resolved” to
-                narrow the list, and combine “Page” or “Anchored” with “Content” or
-                “Layer”. Switch “Order” from the page's order to “Recent”: the thread
-                with the latest message comes first under its day.
+                Under “View”, choose “Open” or “Resolved”, and “Me” or the agent's name
+                under “Waiting on”, to narrow the list, and combine “Page” or “Anchored”
+                with “Content” or “Design”. Switch “Order” from the page's order to
+                “Recent”: the thread with the latest message comes first under its day.
               </li>
               <li>
                 Look at a collapsed row: it keeps its message count, last activity, and
-                status, and “On you” also names the action you owe.
+                status, and “On me” also names the action you owe.
               </li>
               <li>
                 Open a short thread: Reply follows its last message. In a long one,
@@ -8431,11 +8893,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <p id="bg-thread-text">
                     <strong>An existing thread.</strong> The sample agenda has room for
                     one more topic. Its speech-bubble control is green, and hovering it
-                    shows “On you” under the label. The image question still needs an
-                    answer even though the agent added a later progress message. In
-                    Threads, “On you” still says to answer the question. Open the
+                    shows “My turn to answer” under the label. The image question still
+                    needs an answer even though the agent added a later progress
+                    message. In Threads, “My turn to answer” still says so. Open the
                     control and reply: the control turns blue as the thread comes back
-                    to the agent. The same reading fills the panel’s “On you” filter and
+                    to the agent. The same reading fills the panel’s “Me” filter and
                     this target’s Page Map row.
                   </p>
                   <p id="bg-thread-media">
@@ -8536,7 +8998,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   Look at a margin control whose thread holds unread replies: it carries
-                  the same dot as Threads. “On you to answer” still identifies an
+                  the same dot as Threads. “My turn to answer” still identifies an
                   outstanding question after you read it.
                 </li>
               </ul>

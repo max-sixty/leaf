@@ -101,6 +101,7 @@ from leaf.events import build_threads
 from leaf.files import revision_path
 from leaf.findings import Finding
 from leaf.server import running_server
+from leaf.structure import SourceDocument
 from leaf.thread import successful_replies
 from leaf.todos import start_reading
 from playwright.sync_api import BrowserContext, Locator, Page
@@ -471,6 +472,18 @@ def release_ask(marker: str) -> str:
     )
 
 
+def board_names_release(html: str, marker: str) -> bool:
+    """Read board text and widget labels, excluding release-scoped resource URLs."""
+    main = SourceDocument(html).tree.select_one("main")
+    return main is not None and (
+        marker in main.to_text()
+        or any(
+            marker in (element.attrs.get("label") or "")
+            for element in main.find_all(True)
+        )
+    )
+
+
 def ask_to_record(
     session: Session, marker: str, profile: AgentProfile, ask: int
 ) -> dict:
@@ -738,8 +751,8 @@ def run_journey(
     reading of the ask, its agent's work split into phases where `records` reads the
     session.
 
-    The page check is a containment of the release's short hash anywhere in the
-    page: where and how the agent records it is the agent's call.
+    The page check finds the release's short hash in the authored board markup:
+    where on the board the agent records it is the agent's call.
     """
     marker = version[:8]
     opening = end.opening()
@@ -967,7 +980,9 @@ class HttpEnd:
 
     def names(self, active: dict, marker: str) -> bool:
         """Whether the `active` revision names `marker`."""
-        return marker in revision_path(self.page, active["revision"]).read_text()
+        return board_names_release(
+            revision_path(self.page, active["revision"]).read_text(), marker
+        )
 
     def ask(self, marker: str, profile: AgentProfile, ask: int) -> dict:
         """Post the release ask, the `ask`th time; return its admitted comment."""
@@ -1029,12 +1044,11 @@ class BrowserEnd:
         return read_state(self.session)
 
     def names(self, active: dict, marker: str) -> bool:
-        """Whether the `active` revision's document, as the page serves it, names
-        `marker`."""
+        """Whether the served revision's authored board names `marker`."""
         document = self.session.context.request.get(
             urljoin(self.url, active["url"]), timeout=120_000
         )
-        return document.ok and marker in document.text()
+        return document.ok and board_names_release(document.text(), marker)
 
     def ask(self, marker: str, profile: AgentProfile, ask: int) -> dict:
         return ask_to_record(self.session, marker, profile, ask)
@@ -1056,8 +1070,8 @@ class BrowserEnd:
         )
         await_presentation(page, url, failures, timeout=TURN_PRESENTATION)
         startup = startup_reading(page)
-        # The runtime presents without waiting for its first read, which is what
-        # brings the revision back, so that follow gets its own wait and timing.
+        # Startup can present the offline authored fallback when its first read fails.
+        # A later answer brings the revision back, with its own wait and timing.
         # The revision marker advances as the patch begins; its presentation proof
         # must finish before the text below is a reading of that revision.
         followed_at = time.monotonic()

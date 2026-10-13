@@ -1379,7 +1379,7 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
     expect(second.locator("#card-importer")).to_have_attribute(
         "data-lf-user-override", "1"
     )
-    expect(second.locator("#card-importer > .lf-quiet")).to_have_text("your change")
+    expect(second.locator("#card-importer > .lf-quiet")).to_have_text("my change")
     expect(
         second.get_by_role(
             "button",
@@ -1395,7 +1395,7 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
         second.get_by_role("button", name=re.compile(r"^Open sent: Sent"))
     ).to_be_visible()
     expect(
-        second.get_by_role("button", name=re.compile(r"^Open your change"))
+        second.get_by_role("button", name=re.compile(r"^Open my change"))
     ).to_have_count(0)
     second.keyboard.press("Escape")
     assert (
@@ -1560,9 +1560,8 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     vendored.write_text(css.replace(hide, ""))
     module = serve.page_dir / "widgets" / "lf-trial.js"
     module.write_text(
-        """\
-import {keeps, once, widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
+        """import {keeps, once, widgetController} from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller;
   #presented;
   #stop;
@@ -1600,7 +1599,7 @@ customElements.define("lf-trial", class extends HTMLElement {
       attributes: true, attributeFilter: ["data-lf-presented"],
     });
   }
-});
+};
 """
     )
     stamp_page(
@@ -1687,9 +1686,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
     dead = page.locator('.lf-msg-body a[href="#gone"]')
     expect(dead).to_have_class("detached")
     expect(dead).to_have_attribute("aria-disabled", "true")
-    expect(dead).to_have_attribute(
-        "title", "§ gone isn't in the version you're viewing"
-    )
+    expect(dead).to_have_attribute("title", "§ gone isn't in the version shown")
     # force, because locator.click refuses aria-disabled controls and that refusal is
     # the state under test. Nothing will happen, so there is no fact to consume: the
     # press is the edge, and the hash the browser would write is synchronous with it.

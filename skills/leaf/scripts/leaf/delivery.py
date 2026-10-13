@@ -52,7 +52,7 @@ from pathlib import Path
 from typing import Literal
 from xml.etree import ElementTree
 
-from .files import read_json
+from .files import list_revisions, read_json
 from .harness import session_harness
 from .machine import state_home
 from .refusals import Refused
@@ -211,37 +211,44 @@ def batch_data(
     from .revision_artifact import active_enclosing
     from .thread_context import (
         batch_threads,
+        effective_thread_events,
         thread_memberships,
         thread_names,
-        thread_structure,
         thread_widgets,
     )
 
     registry = _registry(page_dir)
     events = transaction.events
     within = active_enclosing(page_dir)
-    names = thread_names(events)
+    available_revisions = list_revisions(page_dir)
+    effective_events = effective_thread_events(events, available_revisions)
+    words = GestureWords(
+        effective_events,
+        registry,
+        revisions_on_disk(page_dir),
+        available_revisions=available_revisions,
+    )
     memberships = thread_memberships(
-        events,
-        names,
-        thread_widgets(thread_structure(events), names),
+        effective_events,
+        thread_names(effective_events),
+        thread_widgets(words.thread.structure, thread_names(effective_events)),
         within,
     )
     if responses is None:
         responses = current_responses(page_dir, events)
     revisions = {
         revision["id"]: revision
-        for thread in build_threads(events, within).values()
+        for thread in build_threads(effective_events, within).values()
         for revision in thread["revisions"]
     }
     by_id = {event["id"]: event for event in events}
-    words = GestureWords(events, registry, revisions_on_disk(page_dir))
-
+    effective_by_id = {event["id"]: event for event in effective_events}
     captured = []
     for event in batch:
+        effective_event = effective_by_id[event["id"]]
         threads = memberships.get(event["id"], [])
         entry = {
-            **event,
+            **effective_event,
             "subject": _subject(event, threads, by_id),
             "threads": threads,
         }
@@ -250,7 +257,7 @@ def batch_data(
         entry.pop("attempt", None)
         # What an element says is a registry's word, and a page whose active layer
         # does not read is not read for its words at all.
-        if registry is not None and (says := words.says(event)):
+        if registry is not None and (says := words.says(effective_event)):
             entry["says"] = says
         if revision := revisions.get(event["id"]):
             # The thread's digest already reads the new wording; the agent answering
@@ -266,7 +273,11 @@ def batch_data(
         "page": str(page_dir),
         "claim": transaction.delivery_owner,
         "through_seq": max(event["seq"] for event in batch),
-        "threads": batch_threads(events, batch, within),
+        "threads": batch_threads(
+            effective_events,
+            [effective_by_id[item["id"]] for item in batch],
+            within,
+        ),
         "events": captured,
     }
 
@@ -723,7 +734,7 @@ def receive_batch(
         if not may_receive(page.claim, session_id):
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
         if refusal := write_refusal(page.page_dir):
-            raise ReceiptRefused(refusal)
+            raise ReceiptRefused(str(refusal))
         expected = {event["seq"]: event["id"] for event in batch["events"]}
         delivered = {event["seq"]: event for event in page.events}
         if not expected or any(

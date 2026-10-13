@@ -3893,7 +3893,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
         layer_widgets={
             "lf-decoration.js": """
                 import {once} from '/runtime/widget-api.js';
-                customElements.define('lf-decoration', class extends HTMLElement {
+                export default class extends HTMLElement {
                   connectedCallback() {
                     if (!once(this)) return;
                     this.innerHTML = `
@@ -3901,7 +3901,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                       <svg id="decoration-icon" data-lf-gen viewBox="0 0 20 20"
                            width="40" height="40"><path d="M2 18L18 2" /></svg>`;
                   }
-                });
+                };
             """
         },
     )
@@ -4585,14 +4585,14 @@ def test_dismissing_versions_during_thread_upgrade_preserves_the_new_version(
         layer_widgets={
             "lf-menu-preparation.js": """
 import {once, widgetController} from '/runtime/widget-api.js';
-customElements.define('lf-menu-preparation', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     widgetController(this).present(
       new Promise(resolve => { window.finishMenuPreparation = resolve; }),
     );
   }
-});
+};
 """
         },
     )

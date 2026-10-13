@@ -1397,7 +1397,7 @@ SEATED_ASK_ENTRY = {
 # reason the browser door matters as much as the POST one: with the wrong list read here
 # the answer is already on the page, so a refusal is not a refusal the user can see —
 # the control flips, nothing is logged, and the next poll puts it back saying nothing.
-SEATED_ASK_MODULE = browser_source("widgets/seated-ask.js") + "\ndefineSeatedAsk();\n"
+SEATED_ASK_MODULE = browser_source("widgets/seated-ask.js")
 SEATED_ASK_LAYER = {SEATED_ASK_TAG: SEATED_ASK_ENTRY}
 SEATED_ASK_WIDGETS = {f"{SEATED_ASK_TAG}.js": SEATED_ASK_MODULE}
 

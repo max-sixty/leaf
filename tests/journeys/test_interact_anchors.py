@@ -60,9 +60,9 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
         {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
         json.loads((page_dir / "registry.json").read_text()),
     )
-    assert refused == (
-        "visual anchor 'edge:B' is not declared on section 'flow'; "
-        "ids starting with 'node:'"
+    assert (refused.code, refused.values["declared"]["prefixes"]) == (
+        "undeclared-visual",
+        ["node:"],
     )
     for unrenderable in ("node:", "node:a b"):
         assert event_contracts_model.visual_anchor_error(

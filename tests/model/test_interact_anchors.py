@@ -15,6 +15,7 @@ from interact_support import (
     before_choice,
     check,
     check_findings,
+    command_refusal,
     comment,
     decide,
     drafted,
@@ -23,6 +24,7 @@ from interact_support import (
     page_state,
     publish,
     published,
+    refused_on,
     response_reference,
     stamp,
     state_json,
@@ -760,8 +762,9 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     assert events_model.read_events(page_dir) == recovered
 
 
+@pytest.mark.parametrize("obsolete_capture", [False, True])
 def test_an_explicit_replacement_is_durable_before_its_revision_appears(
-    page_dir, monkeypatch
+    page_dir, monkeypatch, obsolete_capture
 ):
     from leaf import revisioning
     from leaf.service import PageTransaction
@@ -769,6 +772,12 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
     original = PAGE.replace("</main>", "<p>Alpha</p></main>")
     (page_dir / "index.html").write_text(original)
     publish(page_dir)
+    if obsolete_capture:
+        obsolete = page_dir / "revisions/r9-0123456789abcdef"
+        obsolete.mkdir()
+        (obsolete / "manifest.json").write_text("{}")
+        obsolete.with_suffix(".html").write_text(original)
+    candidate = 10 if obsolete_capture else 2
     root = json.loads(
         comment(page_dir, "--quote", "Alpha", "--text", "Keep this").output
     )
@@ -805,8 +814,8 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
     assert pending[-1]["kind"] == "reply" and pending[-1]["anchor"]["quote"] == "Beta"
     (page_dir / "index.html").write_text(original.replace("Alpha", "Gamma"))
     with PageTransaction(page_dir) as page:
-        assert files_model.latest_revision(page_dir) == 2
-        assert files_model.revision_path(page_dir, 2).read_text() == revised
+        assert files_model.latest_revision(page_dir) == candidate
+        assert files_model.revision_path(page_dir, candidate).read_text() == revised
         assert page.events == pending
 
 
@@ -871,11 +880,12 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
             "plan",
             "--text",
             "Ambiguous.",
+            "--json",
         ],
     )
 
     assert mixed.exit_code != 0
-    assert "--detach cannot be combined" in mixed.output
+    assert refused_on(mixed.stdout).code == "detach-with-target"
 
 
 def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
@@ -909,10 +919,11 @@ def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
             "--detach",
             "--text",
             "There is no current subject to detach.",
+            "--json",
         ],
     )
     assert detached.exit_code != 0
-    assert "has no current anchor to detach" in detached.output
+    assert refused_on(detached.stdout).code == "no-anchor"
 
     moved = CliRunner().invoke(
         cli_model.cli,
@@ -925,10 +936,11 @@ def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
             "plan",
             "--text",
             "Move the withdrawn mark's thread here.",
+            "--json",
         ],
     )
     assert moved.exit_code != 0
-    assert "has been taken back" in moved.output
+    assert refused_on(moved.stdout).code == "withdrawn-parent"
 
 
 def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
@@ -964,11 +976,12 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
             "backfill-first",
             "--text",
             "Move this hold.",
+            "--json",
         ],
     )
 
     assert moved.exit_code != 0
-    assert "holds the command goal" in moved.output
+    assert refused_on(moved.stdout).code == "held-anchor"
 
     detached = CliRunner().invoke(
         cli_model.cli,
@@ -980,10 +993,11 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
             "--detach",
             "--text",
             "Detach this hold.",
+            "--json",
         ],
     )
     assert detached.exit_code != 0
-    assert "holds the command goal" in detached.output
+    assert refused_on(detached.stdout).code == "held-anchor"
 
 
 PARTED = FLOW_PAGE.replace(
@@ -1480,11 +1494,7 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
 def test_resolve_refuses_a_message_the_log_has_not_got(page_dir):
     """The parent rule is the reply door's, so a thread can't be closed by naming
     something outside the thread."""
-    result = CliRunner().invoke(
-        cli_model.cli, ["thread", "resolve", str(page_dir), "c9"]
-    )
-    assert result.exit_code != 0
-    assert "unknown comment id" in result.output
+    assert command_refusal("thread", "resolve", page_dir, "c9").values["name"] == "c9"
 
 
 def test_unresolve_reopens_a_thread_in_agent_readings(page_dir):

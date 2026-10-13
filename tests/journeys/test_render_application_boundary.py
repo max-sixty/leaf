@@ -1287,7 +1287,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     # One reply answers both prose Questions. Counts include them, while the
     # compact answer summary names only widget choices instead of repeating prose.
     expect(workspace.locator(".counts")).to_have_text(
-        "0 asks on you · 3 answered · Email"
+        "0 asks on me · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(
@@ -1327,9 +1327,12 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         "x-upgrade": True,
     }
     module = (companion / "widgets/lf-conversation-workspace.js").read_text()
+    module = "import NestedReader from './lf-nested-reader.js';\n" + module.replace(
+        "  shadowStage,", "  shadowStage,\n  createWidgetElement,"
+    )
     module = module.replace(
         "body.append(index, this.reader);",
-        """const nested = offer('lf-nested-reader');
+        """const nested = createWidgetElement(this, 'lf-nested-reader', NestedReader);
         nested.style.display = 'block';
         nested.style.minWidth = '0';
         nested.style.minHeight = '0';
@@ -1347,7 +1350,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         layer_registry=registry,
         layer_widgets={
             "lf-conversation-workspace.js": module,
-            "lf-nested-reader.js": "customElements.define('lf-nested-reader', class extends HTMLElement {});",
+            "lf-nested-reader.js": """export default class extends HTMLElement {};""",
         },
     )
     append_carried_log_record(

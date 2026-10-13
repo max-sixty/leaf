@@ -2031,7 +2031,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     )
     draft_control(page, "save", "draft-ops").click()
     item = draft.locator(".lf-draft-footer")
-    expect(item.get_by_role("status")).to_have_text("Save failed. Your edit is kept.")
+    expect(item.get_by_role("status")).to_have_text("Save failed. The edit is kept.")
     expect(editor).to_have_js_property("value", "Keep these unsent words.")
     expect(item.get_by_role("button", name="Retry", exact=True)).to_be_visible()
     expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
@@ -2039,7 +2039,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     write(editor, "Keep the revised unsent words.")
     expect(item.locator(".lf-draft-status")).to_be_empty()
     item.get_by_role("button", name="Save", exact=True).click()
-    expect(item.get_by_role("status")).to_have_text("Save failed. Your edit is kept.")
+    expect(item.get_by_role("status")).to_have_text("Save failed. The edit is kept.")
     page.unroute("**/api/event")
     item.get_by_role("button", name="Retry", exact=True).click()
     round_trip(page)
@@ -7066,14 +7066,14 @@ def datum_draft_url(serve, *, identified=False):
     """Serve a projected subject whose rendering can change independently of its identity."""
     module = """
 import {projectData, html, render} from '/runtime/widget-api.js';
-customElements.define('lf-draft-subject', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() { this.show('Original datum words.'); }
   show(words, key='datum') {
     render(html`<p>${words}</p><p>Other words in the same widget.</p>`, this);
     projectData(this, [{key, IDENTITY node: this.querySelector('p'), label: 'Datum',
       origin: {derived: [{widget: 'subject'}]}}]);
   }
-});
+}
 """
     module = module.replace("IDENTITY", "identity: 'subject'," if identified else "")
     return serve(

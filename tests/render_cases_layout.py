@@ -505,7 +505,7 @@ DRAWING_CONTROL_LAYER = {
 DRAWING_CONTROL_WIDGETS = {
     "lf-test-drawing-control.js": """
 import { once, offer } from '/runtime/widget-api.js';
-customElements.define('lf-test-drawing-control', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const control = offer('button', 'drawing-control', 'Inspect');
@@ -513,7 +513,7 @@ customElements.define('lf-test-drawing-control', class extends HTMLElement {
     control.style.width = '100%';
     this.append(control);
   }
-});
+};
 """
 }
 # A scroller the page wrote and did not position, beside one it did. The commented
@@ -902,7 +902,7 @@ BANNER_ORDER = r"""() => {
       // The version's age ticks with the clock between two readings; the order does not.
       .replace(/ · \S+ ago$/, '')
       // The queue's population does not change the control's place in that order.
-      .replace(/^Questions: \d+ waiting on you$/, 'Questions'));
+      .replace(/^Questions: \d+ waiting on me$/, 'Questions'));
 }"""
 
 
@@ -1305,7 +1305,7 @@ MANY_ASKS_PAGE = leaf_page(
 """
     + "\n".join(
         f'<lf-test-task id="t-{i}" status="review" owner="wren">'
-        f"<strong>Waiting on you, item {i}</strong>"
+        f"<strong>Waiting on me, item {i}</strong>"
         f'<lf-ask id="t-{i}-decision"><h2>Decision {i}</h2>'
         f'<lf-options id="t-{i}-choice" choose>'
         f'<lf-option id="t-{i}-yes"><strong>Approve</strong></lf-option>'

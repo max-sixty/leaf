@@ -62,6 +62,7 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
+    ROOT,
     CutOff,
     admit_before_presenting_comment,
     any_owner_entry,
@@ -184,7 +185,7 @@ def test_thread_rows_name_action_in_existing_status(browser, serve):
 
     asked = page.locator(f'.lf-thread[data-id="{PHOTO_THREAD}"]')
     expect(asked.locator(":scope > .lf-thread-summary .lf-thread-status")).to_have_text(
-        "On you to answer"
+        "My turn to answer"
     )
     summary = asked.locator(":scope > .lf-thread-summary")
     recency = summary.locator(".lf-thread-recency")
@@ -951,10 +952,12 @@ def test_refresh_arrival_returns_to_the_thread_fill(browser, serve):
   </template>
 </lf-sample>
 <script type="module">
-  await customElements.whenDefined('lf-sample');
-  const sample = document.querySelector('#sample');
-  await sample.ready;
-  await sample.showThread('question', {surface: 'panel'});
+  import {afterPresentation} from '/runtime/widget-api.js';
+  afterPresentation(async () => {
+    const sample = document.querySelector('#sample');
+    await sample.ready;
+    await sample.showThread('question', {surface: 'panel'});
+  });
 </script>""",
         )
     )
@@ -3431,6 +3434,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     board = append_carried_log_record(
         serve.page_dir,
         {
+            "revision": 1,
             "kind": "reply",
             "author": "agent",
             "parent": root,
@@ -5402,7 +5406,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     # made from the diff would open the composer on the diff rather than reach the panel
     # at all. Uncommented, too: a click on a mark opens the thread it carries.
     page.locator("#how-store").click()
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on me")
     page.keyboard.press("w")
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
 
@@ -5413,9 +5417,9 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     page.keyboard.press("Shift+t")
     panel_settled(page)
     expect(page.locator(OPEN_TITLE)).to_be_focused()
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (1)")
     expect(page.locator(".lf-needs")).to_have_attribute("title", re.compile(r"\(w\)$"))
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on me")
     # `c` from that thread enters its reply box, and there `w` is a character like any
     # other — the typing scope claims what types one, so the row stands down and the line
     # drops it. Escaping out onto the thread makes it live again. Both directions,
@@ -5425,10 +5429,10 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     expect(
         page.locator(".lf-threads > .lf-thread:not([hidden])[open] leaf-text")
     ).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on me")
     page.keyboard.press("Escape")
     expect(page.locator(OPEN_TITLE)).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on me")
     page.keyboard.press("w")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{theirs}"]')).to_have_count(1)
@@ -5449,7 +5453,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     ).to_have_count(1)
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text(
-        "1 of 2 open threads · On you"
+        "1 of 2 open threads · On me"
     )
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
 
@@ -5487,7 +5491,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     reply.type("Forty is plenty.")
     page.locator(f'.lf-thread[data-id="{theirs}"] .lf-thread-send').click()
     round_trip(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (0)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (0)")
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "false")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
     expect(
@@ -5495,7 +5499,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     ).to_be_focused()
     expect(page.locator(".lf-needs")).to_be_disabled()
     expect(page.locator(".lf-needs")).to_have_attribute(
-        "title", "Nothing shown is waiting on you"
+        "title", "Nothing shown is waiting on me"
     )
 
 
@@ -5504,7 +5508,21 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     answer stays available for follow-up without entering the waiting list; a reply
     carrying an explicit prose ask enters it until the user answers. A widget ask
     needs no duplicate flag: its own standing projection enters and leaves the list."""
-    url = serve(PANEL_PAGE)
+    options = (ROOT / "skills/leaf/packages/default/widgets/lf-options.js").read_text()
+    options = options.replace(
+        "connectedCallback() {",
+        """connectedCallback() {
+          if (this.id === "backend") {
+            const message = this.closest(".lf-msg");
+            window.__backendContext ??= {
+              message: Boolean(message),
+              thread: this.closest(".lf-thread")?.dataset.id ?? null,
+              saidAt: message?.querySelector("time")?.dateTime ?? null,
+            };
+          }""",
+        1,
+    )
+    url = serve(PANEL_PAGE, layer_widgets={"lf-options.js": options})
     answered = panel_comment(serve.page_dir, "Why forty?", {"section": "how-cap"})
     asked = panel_comment(serve.page_dir, "What remains?", {"section": "how-store"})
     thread_model.post_reply(
@@ -5528,33 +5546,15 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
             if (this === document && type === "lf-drafts") counts.drafts += 1;
             return add.call(this, type, ...args);
           };
-          const define = customElements.define.bind(customElements);
-          customElements.define = (name, ctor, options) => {
-            if (name === "lf-options") {
-              const connected = ctor.prototype.connectedCallback;
-              ctor.prototype.connectedCallback = function() {
-                if (this.id === "backend") {
-                  const message = this.closest(".lf-msg");
-                  window.__backendContext ??= {
-                    message: Boolean(message),
-                    thread: this.closest(".lf-thread")?.dataset.id ?? null,
-                    saidAt: message?.querySelector("time")?.dateTime ?? null,
-                  };
-                }
-                return connected?.call(this);
-              };
-            }
-            return define(name, ctor, options);
-          };
         })()""",
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (1)")
     expect(page.locator(".lf-thread")).to_have_count(2)
     expect(
         page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
-    ).to_have_text("On you to answer")
+    ).to_have_text("My turn to answer")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"] .lf-thread-status')
     ).to_have_count(0)
@@ -5590,7 +5590,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
         "</lf-options></lf-ask>",
     )
     told(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (2)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (2)")
     expect(page.locator(f'.lf-thread[data-id="{answered}"]')).to_have_count(1)
     assert page.evaluate("() => window.__backendContext") == {
         "message": True,
@@ -5601,7 +5601,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{answered}"]'))
     page.locator("#backend-sqlite").click()
     round_trip(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (1)")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"]:not([hidden])')
     ).to_have_count(0)
@@ -5617,18 +5617,18 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     # The answer shows as sent at once; whether it answers the Ask is the server's
     # reading, so the thread stays on the user until that arrives.
     status = page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
-    expect(status).to_have_attribute("title", "On you to answer · Sending")
+    expect(status).to_have_attribute("title", "My turn to answer · Sending")
     expect(reply).to_have_js_property("value", "")
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
     # The reading takes the thread off the user, and the user goes with it out of
-    # "Waiting on you" (thread-card.js, `#speak`).
-    expect(page.locator('[data-filter-value="user"]')).to_have_text("You (0)")
+    # "Waiting on me" (thread-card.js, `#speak`).
+    expect(page.locator('[data-filter-value="user"]')).to_have_text("Me (0)")
     expect(page.locator('[data-filter-value="user"]')).to_have_attribute(
         "aria-pressed", "false"
     )
-    expect(page.locator(".lf-needs")).to_have_text("You (0)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (0)")
     expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_be_visible()
 
 
@@ -5683,14 +5683,14 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     # `needs_user` for recovery: the margin and panel name the action owed.
     margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
     expect(margin).to_have_attribute("data-lf-turn", "user")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("On you to resend")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("My turn to resend")
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     panel = page.locator(f'.lf-msg[data-mid="{receipt["id"]}"]')
     expect(panel.locator(".lf-msg-failure")).to_have_text("Not answered")
     status = page.locator(f'.lf-thread[data-id="{unanswered["id"]}"] .lf-thread-status')
-    expect(status).to_have_text("On you to resend")
+    expect(status).to_have_text("My turn to resend")
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the summary clips its failure status"
     )
@@ -5714,12 +5714,12 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
         card.get_by_role("button", name="Send", exact=True).click()
     holding(page, held, 1, "the recovery resend")
     expect(status).to_have_attribute(
-        "title", "On you to resend · Not answered · Sending"
+        "title", "My turn to resend · Not answered · Sending"
     )
     expect(draft).to_have_js_property("value", "")
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
-    expect(status).to_have_text("On you to resend")
-    expect(recovery).to_have_text("You (1)")
+    expect(status).to_have_text("My turn to resend")
+    expect(recovery).to_have_text("Me (1)")
     expect(recovery).to_be_enabled()
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
@@ -6900,14 +6900,14 @@ def _shadow_tree_widget(tag):
     }
     module = f"""
 import {{shadowStage}} from '/runtime/widget-api.js';
-customElements.define('{tag}', class extends HTMLElement {{
+export default class extends HTMLElement {{
   connectedCallback() {{
     if (this.shadowRoot) return;
     const word = document.createElement('span');
     word.textContent = '{tag}';
     shadowStage(this, [word]);
   }}
-}});
+}};
 """
     return declaration, module
 
@@ -8326,7 +8326,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser,
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text(
-        "1 of 2 open threads · On you"
+        "1 of 2 open threads · On me"
     )
     expect(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
@@ -8345,7 +8345,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser,
 def test_a_reply_that_takes_its_card_out_of_the_view_takes_the_user_with_it(
     browser, serve
 ):
-    """The user's own reply answers the question, so "Waiting on you" no longer holds
+    """The user's own reply answers the question, so "Waiting on me" no longer holds
     the thread. Their turn widens the view to show it and leaves them standing on it,
     as a sent reply does, rather than dropping them on the list once the log answers
     (the user's decision, 2026-10-07, #46 on the rewrite survey)."""
@@ -12461,7 +12461,7 @@ def capture_page(browser, serve, *, touch=False):
     declaration, _ = _shadow_tree_widget("lf-capture-art")
     module = """
 import {shadowStage} from '/runtime/widget-api.js';
-customElements.define('lf-capture-art', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (this.shadowRoot) return;
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -12474,7 +12474,7 @@ customElements.define('lf-capture-art', class extends HTMLElement {
     svg.append(rect);
     shadowStage(this, [svg]);
   }
-});
+};
 """
     context = browser.new_context(
         viewport={"width": 390 if touch else 1200, "height": 844 if touch else 900},
@@ -12911,14 +12911,14 @@ def test_a_changed_datum_keeps_its_old_words_open_when_its_label_changes(
     old = "The original requirement keeps a human review before release. " * 12
     module = """
 import {projectData, html, render} from '/runtime/widget-api.js';
-customElements.define('lf-quote-subject', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() { window.quoteSubject = this; this.show('Old plan', this.dataset.words); }
   show(label, words) {
     render(html`<p>${words}</p>`, this);
     projectData(this, [{key: 'plan', node: this.querySelector('p'), label,
       identity: 'plan', origin: {derived: [{widget: 'subject'}]}}]);
   }
-});
+};
 """
     url = serve(
         leaf_page(

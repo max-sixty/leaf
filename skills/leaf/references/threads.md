@@ -54,11 +54,9 @@ template in markup gives the user a live practice page in the thread
 leaf response reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
 ```
 
-Thread markup is frozen in the log and shows in every version of the page, so it
-must validate against the registry each pinned revision captured, not only the active
-one. Use only widget vocabulary those registries share. If no shared widget
-fits, ask in prose with `--text` and `--ask`, or use a page widget
-when the question and its answer belong in the final record. Markup is checked as it
+Thread markup is frozen with the revision in which it was posted. Its widgets keep
+that revision's declarations, behavior and package styles wherever the discussion
+appears, including on a historical page. Markup is checked as it
 is posted but not drawn, so a data widget, such as a chart, whose body does not draw
 reaches you as an `error` event when the user opens its thread; answer with a corrected
 reply.
@@ -160,7 +158,8 @@ version** and a later reply may still move it to a replacement.
 
 An answer says what it leaves the thread with, one of three:
 
-- `--done`: it delivers what the message asked for, and nothing stays on either queue.
+- `--done`: it delivers what the message asked for. Its prose adds no question or
+  promise; widgets in its markup still declare their own asks.
 - `--ask`: its prose asks the user something back. The reply is then an ask
   under `reply:<message-id>` in `page state`'s `asks` collection, until they
   answer in the thread or you end it
@@ -202,7 +201,7 @@ A progress message is progress text, so it cannot carry `--ask`, `--todo`,
 markup, failure or an anchor move. Put questions and results in ordinary replies.
 
 A widget whose registry entry declares `x-awaits` already poses an ask
-and keeps its thread "On you" while that ask awaits the user. Leaf refuses
+and keeps its thread "My turn" while that ask awaits the user. Leaf refuses
 `--ask` beside such markup; the widget's state is the one reading.
 
 Correct an agent-authored message, including a predecessor's, without adding another turn:
@@ -215,6 +214,9 @@ The page labels the message `edited`. Leaf keeps the original and every revision
 in the append-only event log. Only text is revised; any HTML markup stays frozen.
 A committed reply or `leaf thread` write prints the records it appended, one JSON
 line each, as `leaf page events` prints them. A refusal lists the ids it knows.
+Where a script reads the outcome, add `--json`: a refusal then prints one object,
+its `error` and the `findings` it rests on, each with a stable `code` and the
+`values` it names.
 
 The user can rewrite their own messages the same way. Their rewrite is a turn rather
 than a correction: it arrives as an `edit` event, with the message's new `text` and

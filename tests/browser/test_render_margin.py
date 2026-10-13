@@ -1730,7 +1730,7 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
     expect(
-        child.get_by_role("button", name="Questions: 0 waiting on you")
+        child.get_by_role("button", name="Questions: 0 waiting on me")
     ).to_be_visible()
     expect(child.get_by_role("button", name="Open threads: 0")).to_be_visible()
     for width in (720, 390):
@@ -2537,7 +2537,7 @@ def test_the_chrome_names_an_ask_by_its_question(browser, serve):
         )
     )
     expect(group).to_have_count(1)
-    expect(group.locator(".lf-page-map-action")).to_have_text(["Waiting on you"])
+    expect(group.locator(".lf-page-map-action")).to_have_text(["Waiting on me"])
 
 
 def test_a_finger_opens_the_page_map_on_its_first_row(browser, serve):
@@ -3876,7 +3876,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     only thing that changes between the two readings is who spoke last. Pickup and work
     remain secondary when another thread on the same target still needs the user.
     Rails and pins keep that priority in both color schemes, including a target
-    whose marker also carries the authored Ask.
+    whose authored Ask has been handed to the agent by its comment.
     """
     comment = {**COMMENT_ON_ASK, "anchor": {"section": target}}
     page = open_page(
@@ -3885,10 +3885,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     resized(page, 1440, 900)
     cluster = page.locator(f'[data-lf-margin-for="{target}"]')
     marker = cluster.locator(":scope > .lf-margin-marker")
-    expect(marker).to_have_attribute(
-        "data-lf-kinds",
-        "comment ask" if target == "bracket-decision" else "comment",
-    )
+    expect(marker).to_have_attribute("data-lf-kinds", "comment")
     expect(marker).not_to_have_attribute("data-lf-turn", re.compile(".+"))
     marker.evaluate("node => node.dataset.identityProbe = 'retained'")
     with_agent = _margin_entry_paint(marker)
@@ -3908,9 +3905,9 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     told(page)
     expect(marker).to_have_attribute("data-lf-turn", "user")
     expect(marker).to_have_attribute("data-identity-probe", "retained")
-    expect(marker.locator(".lf-margin-entry-context")).to_have_text("On you to answer")
+    expect(marker.locator(".lf-margin-entry-context")).to_have_text("My turn to answer")
     expect(marker).to_have_attribute(
-        "aria-label", re.compile(r"^Threads \(2\), On you to answer,")
+        "aria-label", re.compile(r"^Threads \(2\), My turn to answer,")
     )
     on_user = _margin_entry_paint(marker)
     assert on_user == {
@@ -3935,7 +3932,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     assert _margin_entry_paint(marker) == {
         "background": with_agent["background"],
         "icon": token_colour(page, "--accent"),
-    }, "the answered thread lost its blue cue beside the authored Ask"
+    }, "the answered thread lost its blue cue after the Ask handoff"
     append_carried_log_record(
         serve.page_dir,
         {
@@ -3964,7 +3961,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
           node.dataset.lfTurn ?? null,
           node.querySelector('.lf-page-map-action-context')?.textContent ?? null,
         ])"""
-    ) == [[None, None], ["user", "On you to answer"]]
+    ) == [[None, None], ["user", "My turn to answer"]]
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()
 
@@ -8159,7 +8156,7 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
         )
     ).to_have_count(1)
     expect(
-        dialog.get_by_role("button", name=re.compile(r"^Open your change"))
+        dialog.get_by_role("button", name=re.compile(r"^Open my change"))
     ).to_have_count(0)
 
 
@@ -10069,8 +10066,10 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
     expect(row).to_be_visible()
 
 
-def test_a_touch_pin_stays_inside_a_non_scrolling_sample(browser, serve):
-    """A content-height sample keeps the complete finger-sized receipt in its frame."""
+def test_a_touch_sample_with_no_clear_pin_seat_keeps_its_receipt_in_page_map(
+    browser, serve
+):
+    """A short sample with no clear touch-sized seat retains the receipt in Page Map."""
     source = leaf_page(
         "A receipt inside a block sample",
         """
@@ -10096,21 +10095,15 @@ def test_a_touch_pin_stays_inside_a_non_scrolling_sample(browser, serve):
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
     page = open_page(browser, serve(source), context=context)
-    status = page.frame_locator("#practice iframe").locator(
-        '.lf-margin-entry[data-lf-kinds="sent"]'
-    )
-    expect(status).to_be_visible()
-    reading = status.evaluate("""pin => ({
-      rect: pin.getBoundingClientRect().toJSON(),
-      height: innerHeight,
-      overflow: getComputedStyle(document.documentElement).overflowY,
-      touch: matchMedia('(pointer: coarse)').matches,
-    })""")
-    assert reading["touch"] and reading["overflow"] == "hidden", reading
-    assert reading["rect"]["height"] >= 44, reading
-    assert (
-        0 <= reading["rect"]["top"] < reading["rect"]["bottom"] <= reading["height"]
-    ), reading
+    frame = page.frame_locator("#practice iframe")
+    status = frame.locator('.lf-margin-entry[data-lf-kinds="sent"]')
+    expect(status).to_be_hidden()
+    frame.locator(".lf-banner-more").tap()
+    frame.locator(".lf-page-map-toggle").tap()
+    dialog = frame.get_by_role("dialog", name="Page Map", exact=True)
+    expect(dialog).to_be_visible()
+    expect(dialog).to_contain_text("Sent")
+    expect(dialog).to_contain_text("Print the workshop map")
 
 
 def test_a_pane_row_withheld_at_load_stands_once_its_target_scrolls_in(browser, serve):

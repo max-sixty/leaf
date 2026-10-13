@@ -278,56 +278,58 @@
           output.hidden = false;
         });
 
-      await customElements.whenDefined("lf-sample");
-
-      const titleSample = document.querySelector("#bg-title-sheen-sample");
-      let titleRequested = false;
-      let shownTitleRevision = null;
-      const showPendingTitle = () => {
-        const ready = titleSample.ready;
-        if (!titleRequested || !ready || shownTitleRevision === ready) return;
-        shownTitleRevision = ready;
-        void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
-      };
-      document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
-        titleRequested = true;
-        shownTitleRevision = null;
-        showPendingTitle();
-      });
-      titleSample.addEventListener("lf-sample-ready", showPendingTitle);
-      void titleSample.ready.then(showPendingTitle);
-
-      const sample = document.querySelector("#bg-panel-sample");
-      let selected = null;
-      function selectPanelView(view) {
-        selected = view;
-        for (const button of document.querySelectorAll("#bg-panel-presets button")) {
-          const pressed = String(button.dataset.view === view);
-          if (button.getAttribute("aria-pressed") !== pressed)
-            button.setAttribute("aria-pressed", pressed);
-        }
-        const thread = {
-          overview: "72e031c5bf0d485ba9054628e09869d4",
-          you: "2be2443f0bb6cc49fc86b52f340e6073",
-          resolved: "bab3cdfcfb8c02aacbb27da731de947a",
-          summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
-          progress: "bg-progress-question",
-        }[view];
-        void sample.showThread(thread, {
-          surface: "panel",
-          status: view === "resolved" ? "resolved" : "open",
-          waiting: view === "you" ? "user" : "all",
+      void afterPresentation(() => {
+        const titleSample = document.querySelector("#bg-title-sheen-sample");
+        let titleRequested = false;
+        let shownTitleRevision = null;
+        const showPendingTitle = () => {
+          const ready = titleSample.ready;
+          if (!titleRequested || !ready || shownTitleRevision === ready) return;
+          shownTitleRevision = ready;
+          void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
+        };
+        document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
+          titleRequested = true;
+          shownTitleRevision = null;
+          showPendingTitle();
         });
-      }
+        titleSample.addEventListener("lf-sample-ready", showPendingTitle);
+        void titleSample.ready.then(showPendingTitle);
 
-      for (const button of document.querySelectorAll("#bg-panel-presets button")) {
-        button.addEventListener("click", () => selectPanelView(button.dataset.view));
-      }
-      document.querySelector("#bg-panel-width").addEventListener("change", (event) => {
-        sample.style.maxWidth = event.target.value;
-      });
-      sample.addEventListener("lf-sample-ready", () => {
-        if (selected) selectPanelView(selected);
+        const sample = document.querySelector("#bg-panel-sample");
+        let selected = null;
+        function selectPanelView(view) {
+          selected = view;
+          for (const button of document.querySelectorAll("#bg-panel-presets button")) {
+            const pressed = String(button.dataset.view === view);
+            if (button.getAttribute("aria-pressed") !== pressed)
+              button.setAttribute("aria-pressed", pressed);
+          }
+          const thread = {
+            overview: "72e031c5bf0d485ba9054628e09869d4",
+            you: "2be2443f0bb6cc49fc86b52f340e6073",
+            resolved: "bab3cdfcfb8c02aacbb27da731de947a",
+            summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
+            progress: "bg-progress-question",
+          }[view];
+          void sample.showThread(thread, {
+            surface: "panel",
+            status: view === "resolved" ? "resolved" : "open",
+            waiting: view === "you" ? "user" : "all",
+          });
+        }
+
+        for (const button of document.querySelectorAll("#bg-panel-presets button")) {
+          button.addEventListener("click", () => selectPanelView(button.dataset.view));
+        }
+        document
+          .querySelector("#bg-panel-width")
+          .addEventListener("change", (event) => {
+            sample.style.maxWidth = event.target.value;
+          });
+        sample.addEventListener("lf-sample-ready", () => {
+          if (selected) selectPanelView(selected);
+        });
       });
     </script>
   </head>
@@ -1004,7 +1006,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Open threads
               </button>
               <button type="button" class="button" data-view="you" aria-pressed="false">
-                On you
+                On me
               </button>
               <button
                 type="button"
@@ -1093,14 +1095,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <kbd>T</kbd>: the same thread stays focused in the panel.
               </li>
               <li>
-                Under “View”, choose “Open”, “On you”, “On agent”, or “Resolved” to
-                narrow the list, and combine “Page” or “Anchored” with “Content” or
-                “Layer”. Switch “Order” from the page's order to “Recent”: the thread
-                with the latest message comes first under its day.
+                Under “View”, choose “Open” or “Resolved”, and “Me” or the agent's name
+                under “Waiting on”, to narrow the list, and combine “Page” or “Anchored”
+                with “Content” or “Design”. Switch “Order” from the page's order to
+                “Recent”: the thread with the latest message comes first under its day.
               </li>
               <li>
                 Look at a collapsed row: it keeps its message count, last activity, and
-                status, and “On you” also names the action you owe.
+                status, and “On me” also names the action you owe.
               </li>
               <li>
                 Open a short thread: Reply follows its last message. In a long one,
@@ -1425,11 +1427,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <p id="bg-thread-text">
                     <strong>An existing thread.</strong> The sample agenda has room for
                     one more topic. Its speech-bubble control is green, and hovering it
-                    shows “On you” under the label. The image question still needs an
-                    answer even though the agent added a later progress message. In
-                    Threads, “On you” still says to answer the question. Open the
+                    shows “My turn to answer” under the label. The image question still
+                    needs an answer even though the agent added a later progress
+                    message. In Threads, “My turn to answer” still says so. Open the
                     control and reply: the control turns blue as the thread comes back
-                    to the agent. The same reading fills the panel’s “On you” filter and
+                    to the agent. The same reading fills the panel’s “Me” filter and
                     this target’s Page Map row.
                   </p>
                   <p id="bg-thread-media">
@@ -1530,7 +1532,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   Look at a margin control whose thread holds unread replies: it carries
-                  the same dot as Threads. “On you to answer” still identifies an
+                  the same dot as Threads. “My turn to answer” still identifies an
                   outstanding question after you read it.
                 </li>
               </ul>

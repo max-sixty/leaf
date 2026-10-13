@@ -55,7 +55,7 @@ import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
 import { itemNoun } from "./queues.js";
-import { registry } from "./registry.js";
+import { widgetDeclaration } from "./registry.js";
 import { repaint } from "./repaint.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import {
@@ -99,7 +99,7 @@ function askWord(item) {
   if (ask.source.kind === "reply") return "Thread";
   if (ask.source.kind === "approval") return "Approval";
   const word =
-    registry[ask.source.tag]?.["x-word"] && addressableWord(askPlace(ask).source);
+    widgetDeclaration(ask.source.id, "x-word") && addressableWord(askPlace(ask).source);
   return word ? word.charAt(0).toUpperCase() + word.slice(1) : "Ask";
 }
 
@@ -136,12 +136,12 @@ export function createQueuePanel({ actions, next, announce }) {
     keeps(
       queueBtn,
       "aria-label",
-      count === null ? "Questions" : `Questions: ${count} waiting on you`,
+      count === null ? "Questions" : `Questions: ${count} waiting on me`,
     );
     keeps(
       queueBtn,
       "data-lf-key-title",
-      `Show or hide your questions and ${agent()}'s tasks`,
+      `Show or hide my questions and ${agent()}'s tasks`,
     );
   }
 
@@ -257,7 +257,7 @@ export function createQueuePanel({ actions, next, announce }) {
           id: "you",
           label: known ? `Questions · ${you.length}` : "Questions",
           rows: Object.freeze(you),
-          empty: known ? "No questions for you." : "Loading current questions…",
+          empty: known ? "No questions." : "Loading current questions…",
         }),
         Object.freeze({
           id: "agent",
@@ -281,7 +281,7 @@ export function createQueuePanel({ actions, next, announce }) {
     nameDoor();
     const waiting = reading().questions.length > 0;
     keepsHidden(queueNextBtn, !waiting);
-    // On a phone the door waits in More, which says a question is there as it says an
+    // On a phone the door waits in More, which says an ask is there as it says an
     // approval is open.
     markBannerControl(queueBtn, waiting ? "questions waiting" : null);
     repaint();
@@ -327,7 +327,7 @@ export function createQueuePanel({ actions, next, announce }) {
         entry.list === "done"
           ? "done"
           : entry.list === "you"
-            ? "waiting on you"
+            ? "waiting on me"
             : `waiting on ${agent()}`;
       announce(
         walkPositionLabel(entry.word, list.indexOf(entry) + 1, list.length, qualifier),

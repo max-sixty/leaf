@@ -5,7 +5,12 @@ import math
 import re
 
 import pytest
-from interact_support import add_test_widget, append_carried_log_record, append_command
+from interact_support import (
+    add_test_widget,
+    append_carried_log_record,
+    append_command,
+    refused_on,
+)
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf.registry.contract import RANK
@@ -1003,7 +1008,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
         """import { once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-outer-board", class extends HTMLElement {
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
@@ -1014,7 +1019,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
       for (const card of order) column.append(document.getElementById(card));
     }
   }
-});
+};
 """
     )
     nested = leaf_page(
@@ -1796,7 +1801,7 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
     )
     response = held[0].fetch()
     refusal = response.json()
-    assert response.status == 400 and "already been taken back" in refusal["error"]
+    assert response.status == 400 and refused_on(refusal).code == "withdrawn-gesture"
     assert other_undo in refusal["state"]["events"]
     if not refusal_first:
         cut.restore()
@@ -2529,14 +2534,14 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
         layer_widgets={
             "lf-preparation.js": """
 import {once, widgetController} from '/runtime/widget-api.js';
-customElements.define('lf-preparation', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     widgetController(this).present(fetch('/preparation-content').then(() => {
       this.dataset.ready = 'yes';
     }));
   }
-});
+};
 """
         },
     )

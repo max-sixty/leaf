@@ -87,7 +87,7 @@ import {
   commandReferenceOpen,
 } from "../keyboard/command-reference.js";
 
-import { paintBarReactions } from "../reactions.js";
+import { paintBarReactions, reactionAvailable } from "../reactions.js";
 import { threadInput, standingThread } from "../thread/landing.js";
 import { replyDraftContext } from "../thread/replies.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
@@ -960,6 +960,7 @@ export function createResponseSurface({
     panelIsOpen,
     setReact,
     reactionTokens,
+    reactionAvailable,
     designModeActive,
     openPageThread,
     threadTransitionOrigin,

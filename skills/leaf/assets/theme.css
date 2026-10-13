@@ -511,6 +511,9 @@ video {
 img {
   aspect-ratio: attr(width type(<number>)) / attr(height type(<number>));
 }
+img {
+  box-shadow: 0 0 0 1px var(--border-2), 0 2px 8px var(--shade);
+}
 details {
   border: var(--details-border) solid var(--rule);
   border-radius: var(--r);

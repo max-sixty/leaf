@@ -426,7 +426,8 @@ rows name places, sizes, or connections is a drawing written out.
 
 Show a visible subject with an image instead of describing its appearance: an
 interface with a screenshot, cropped or marked where the point sits so the eye lands
-there, and a visual change with an `lf-shot` before-and-after capture. A proposal or
+there, its crop cutting through background rather than through text the reader would
+try to read, and a visual change with an `lf-shot` before-and-after capture. A proposal or
 a mechanism has nothing to capture yet, so draw it. A process that unfolds over time
 is a diagram that moves: draw it in a page module from its state and the moment,
 with controls to pause and scrub, so every moment stays readable and its parts stay

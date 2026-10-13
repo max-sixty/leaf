@@ -14,6 +14,7 @@ from .asks import collection, thread_ask_readings, thread_asks
 from .document_reading import read_document
 from .events import approvals_in_force, build_threads
 from .projection import frozen_thread_reading
+from .thread_context import effective_thread_events
 from .todos import TodoReading
 
 
@@ -24,10 +25,14 @@ class WorkReading:
         registry: dict,
         page=None,
         *,
+        registry_for_revision,
+        available_revisions,
         within=None,
         thread=None,
         log=None,
     ):
+        self.registry_for_revision = registry_for_revision
+        self.available_revisions = frozenset(available_revisions)
         self.events = events
         self.registry = registry
         self.page = page
@@ -41,20 +46,28 @@ class WorkReading:
 
     def viewing(self, page) -> "WorkReading":
         """This log read beside another revision's document, as a view pinned to that
-        revision shows it. That revision captured its frozen thread widgets under its
-        own registry, so their decisions, the asks they answer and the attention those
-        asks give a thread are classified under it, as the page's own are. The threads
-        themselves fold as every reading of them does, under the published page's
-        containment (`events.build_threads`)."""
+        revision shows it. Page widgets take that revision's vocabulary. Each frozen
+        message retains the vocabulary captured when it was admitted, including its
+        decisions and asks, whichever page revision displays the thread. The threads
+        themselves fold under the published page's containment
+        (`events.build_threads`)."""
         if page is self.page:
             return self
         return WorkReading(
-            self.events, page.registry, page, within=self.within, log=self.log
+            self.events,
+            page.registry,
+            page,
+            registry_for_revision=self.registry_for_revision,
+            available_revisions=self.available_revisions,
+            within=self.within,
+            log=self.log,
         )
 
     @cached_property
     def threads(self) -> dict:
-        return build_threads(self.events, self.within, withdrawn=self.log.withdrawn)
+        return build_threads(
+            self.effective_events, self.within, withdrawn=self.log.withdrawn
+        )
 
     @cached_property
     def thread(self):
@@ -62,15 +75,21 @@ class WorkReading:
             self._thread
             if self._thread is not None
             else frozen_thread_reading(
-                self.events, self.registry, withdrawn=self.log.withdrawn
+                self.events,
+                self.registry_for_revision,
+                available_revisions=self.available_revisions,
+                withdrawn=self.log.withdrawn,
             )
         )
 
     @cached_property
+    def effective_events(self) -> list:
+        """The event history as this page's available frozen islands read it."""
+        return effective_thread_events(self.events, self.available_revisions)
+
+    @cached_property
     def widget_asks(self) -> dict:
-        return thread_ask_readings(
-            self.events, self.registry, self.threads, reading=self.thread
-        )
+        return thread_ask_readings(self.events, self.threads, reading=self.thread)
 
     @cached_property
     def thread_asks(self) -> dict:
@@ -80,7 +99,7 @@ class WorkReading:
                 identity,
                 held,
                 self.registry,
-                self.thread.structure,
+                self.thread,
                 open_widget_threads,
                 self.log.ends,
             )

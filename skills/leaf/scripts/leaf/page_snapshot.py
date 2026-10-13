@@ -32,6 +32,7 @@ from .revision_artifact import (
 )
 from .served_state.context import PageRead
 from .served_state.reading import join_reading
+from .served_state.service import SampleInputs
 from .service import PageTransaction
 from .state import now_iso
 from .structure import SourceDocument
@@ -89,8 +90,16 @@ class PageSnapshot:
         active = self.context.active
         return self.artifacts[active["revision"]], active["revision"], active["version"]
 
-    def sample_inputs(self, revision: int) -> tuple[RevisionArtifact, list, dict]:
-        return self.artifacts[revision], list(self.context.events), self.context.data
+    def sample_inputs(self, revision: int) -> SampleInputs:
+        return SampleInputs(
+            revision,
+            self.artifacts[revision],
+            list(self.context.events),
+            self.context.data,
+            self.context.revisions,
+            self.artifacts,
+            {item: self.context.revision(item) for item in self.context.revisions},
+        )
 
     def user_views(self) -> dict:
         # Captured render previews are instruments, not the user's reading.

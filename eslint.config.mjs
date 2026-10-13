@@ -1562,7 +1562,7 @@ export default [
   {
     // This is the boundary that loads authored/package modules, whose paths are
     // data rather than runtime dependencies. Literal imports still enter the graph.
-    files: ["skills/leaf/assets/runtime/widget-loader.js"],
+    files: ["skills/leaf/assets/runtime/widget-vocabularies.js"],
     rules: {
       "no-restricted-syntax": [
         "error",

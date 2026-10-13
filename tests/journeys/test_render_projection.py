@@ -1560,9 +1560,8 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     vendored.write_text(css.replace(hide, ""))
     module = serve.page_dir / "widgets" / "lf-trial.js"
     module.write_text(
-        """\
-import {keeps, once, widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
+        """import {keeps, once, widgetController} from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller;
   #presented;
   #stop;
@@ -1600,7 +1599,7 @@ customElements.define("lf-trial", class extends HTMLElement {
       attributes: true, attributeFilter: ["data-lf-presented"],
     });
   }
-});
+};
 """
     )
     stamp_page(

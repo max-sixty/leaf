@@ -20,7 +20,6 @@ from leaf.events import build_threads
 from leaf.files import (
     latest_revision,
     require_revision,
-    revision_path,
 )
 from leaf.findings import Finding, Rejected
 from leaf.harness import message_identity
@@ -173,9 +172,7 @@ def current_anchor(
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
-    from leaf.registry.storage import require_registry
-
-    reading = read_revision(page_dir, revision).under(require_registry(page_dir))
+    reading = read_revision(page_dir, revision)
     return revision, _capture_anchor(
         page_dir, events, reading, quote, section, part, revision
     )
@@ -620,8 +617,8 @@ def _compose_and_append(
     title: str | None,
 ) -> dict:
     """Check the reply's content against the page, compose its event and append it
-    at `obligation`, publishing saved page edits first where `validate_source` or a
-    detach reads them."""
+    at `obligation`, publishing the complete saved publication first for source
+    validation, detach, or a markup-bearing reply."""
     page_dir, events = page.page_dir, page.events
     to, thread_id, responds, in_hand = obligation
     opening = _messages(events)[thread_id]
@@ -641,18 +638,14 @@ def _compose_and_append(
     if detach and (current_thread is None or current_thread["anchor"] is None):
         raise Rejected([Finding("no-anchor", values={"thread": thread_id})])
     reply_revision = None
-    prospective_page = None
+    prospective_reading = None
     prospective_anchor = None
     source_events = events
-    source_matches_active = True
-    if validate_source or detach:
+    checked = None
+    if validate_source or detach or markup:
         active = latest_revision(page_dir)
-        source_matches_active = bool(
-            active is not None
-            and (page_dir / "index.html").is_file()
-            and (page_dir / "index.html").read_bytes()
-            == revision_path(page_dir, active).read_bytes()
-        )
+        # A reply freezes the complete publication, including widget modules.
+        # HTML equality cannot decide whether that vocabulary changed.
         if relocating:
             source_events = [
                 *events,
@@ -668,53 +661,48 @@ def _compose_and_append(
                     **({"responds": responds} if responds is not None else {}),
                 },
             ]
-        if source_matches_active:
-            reply_revision = active
-        else:
-            from leaf.validation.source import check_source
+        from leaf.validation.source import check_source
 
-            checked = check_source(page_dir, source_events)
-            if checked.errors:
-                raise Rejected(
-                    [
-                        Finding(
-                            "invalid-source",
-                            values={
-                                "operation": "reply" if validate_source else "detach",
-                                "error": "; ".join(map(str, checked.errors)),
-                            },
-                        )
-                    ]
-                )
-            prospective_page = checked.document
-            if moving:
-                from leaf.registry.storage import require_registry
-
-                prospective_anchor = _capture_anchor(
-                    page_dir,
-                    events,
-                    SourceReading(checked.document, require_registry(page_dir)),
-                    quote,
-                    section,
-                    part,
-                    (active or 0) + 1,
-                )
+        checked = check_source(page_dir, source_events)
+        if checked.errors:
+            raise Rejected(
+                [
+                    Finding(
+                        "invalid-source",
+                        values={
+                            "operation": "reply"
+                            if validate_source or markup
+                            else "detach",
+                            "error": "; ".join(map(str, checked.errors)),
+                        },
+                    )
+                ]
+            )
+        prospective_reading = checked.reading
+        if moving:
+            prospective_anchor = _capture_anchor(
+                page_dir,
+                events,
+                prospective_reading,
+                quote,
+                section,
+                part,
+                (active or 0) + 1,
+            )
     fragment = (
         check_markup(
             page_dir,
             "reply",
             markup,
             events,
-            page=prospective_page,
+            reading=prospective_reading,
             thread=thread_id,
         )
         if markup
         else None
     )
     if ask and fragment:
-        from leaf.registry.storage import require_registry
-
-        registry = require_registry(page_dir)
+        registry = prospective_reading.registry
         structural = sorted(
             {
                 rec["tag"]
@@ -728,7 +716,7 @@ def _compose_and_append(
             raise Rejected(
                 [Finding("widget-ask-markup", values={"tags": list(structural)})]
             )
-    if not source_matches_active:
+    if checked is not None:
         from leaf.revisioning import planned_activation
 
         reply_revision = planned_activation(page_dir, checked).revision
@@ -780,12 +768,12 @@ def _compose_and_append(
     if failure is not None:
         event["failure"] = failure
     if relocating or markup:
-        event["revision"] = revision or latest_revision(page_dir)
+        event["revision"] = revision or reply_revision or latest_revision(page_dir)
     if relocating:
         event["anchor"] = anchor
     if title is not None:
         event["title"] = title
-    if not source_matches_active:
+    if checked is not None:
         from leaf.revisioning import publish_checked_event
 
         record = publish_checked_event(page, checked, event)

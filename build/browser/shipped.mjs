@@ -106,7 +106,13 @@ export function licenseNotices(title, packageRoots) {
         .filter((file) => statSync(path.join(root, file)).isFile())
         .sort();
       const [license, ...licenses] = files.filter((file) => LICENSE.test(file));
-      if (license === undefined)
+      // The published scoped-registry package omits its upstream BSD license file.
+      // Keep that dependency's source license as an explicit build input.
+      const sourceLicense =
+        manifest.name === "@webcomponents/scoped-custom-element-registry"
+          ? new URL("../licenses/scoped-registry.LICENSE", import.meta.url)
+          : null;
+      if (license === undefined && sourceLicense === null)
         throw new Error(`no license file shipped by ${manifest.name}`);
       const bundled = path.join(root, "LICENSES");
       const documents = [
@@ -121,7 +127,7 @@ export function licenseNotices(title, packageRoots) {
       const text = (file) =>
         readFileSync(path.join(root, file), "utf8").replaceAll("\r\n", "\n").trim();
       return [
-        `===== ${manifest.name} ${manifest.version} (${manifest.license}) =====\n${text(license)}`,
+        `===== ${manifest.name} ${manifest.version} (${manifest.license}) =====\n${license === undefined ? readFileSync(sourceLicense, "utf8").trim() : text(license)}`,
         ...documents.map(
           (file) => `===== ${manifest.name}: ${file} =====\n${text(file)}`,
         ),

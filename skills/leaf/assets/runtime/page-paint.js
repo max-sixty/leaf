@@ -9,6 +9,7 @@
 // must see it.
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
+  vocabulary: "data-lf-vocabulary",
   ask: "data-lf-ask",
   done: "data-lf-done",
   restated: "data-lf-restated",

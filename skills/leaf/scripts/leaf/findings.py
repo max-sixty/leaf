@@ -280,16 +280,6 @@ def _outside_main(content: list[dict]) -> list[str]:
     ]
 
 
-def _pinned(v: dict) -> str:
-    revisions = v["revisions"]
-    return (
-        "pinned revision"
-        + ("s " if len(revisions) > 1 else " ")
-        + ", ".join(f"r{revision}" for revision in revisions)
-        + f" cannot render this thread markup: {Finding.loads(v['finding'])}"
-    )
-
-
 # What the layer does with a word a widget declares from one of its lists, where the
 # word is on it (`instances.DECLARED_WORDS`).
 _HONORED = {
@@ -863,11 +853,6 @@ _TEXT = {
     "message-stylesheet": lambda at, v: (
         "<link rel=stylesheet> in message markup dresses the whole document it is put"
         " into; the page serves the one vendored theme it was reviewed with"
-    ),
-    "pinned-unrenderable": lambda at, v: _pinned(v),
-    "pinned-vocabulary": lambda at, v: (
-        "thread markup must use vocabulary shared by the active registry and every"
-        " pinned revision; otherwise ask with --text (and --ask for a reply)"
     ),
     "sample-loop": lambda at, v: (
         f"sample {_json(v['samples'])} selects thread {v['thread']!r}, which"
@@ -1537,6 +1522,10 @@ _TEXT = {
     "unowned-placement": lambda at, v: (
         f"{_invalid_record(v)}position record cannot put <{v['unit_tag']}>"
         f" {v['unit']!r} within <{v['found']}> {v['destination']!r}"
+    ),
+    "thread-widget-publication": lambda at, v: (
+        f"thread widget {v['widget']!r} belongs to publication "
+        f"r{v['publication']}, not r{v['revision']}"
     ),
     "unknown-members": lambda at, v: (
         f"{_invalid_record(v)}{', '.join(v['strangers'])} name no member of"

@@ -60,7 +60,14 @@ def _clock_until_ready(page, through="rendering"):
 
 
 def _history_outstanding(page):
-    """Offline presentation does not supply the held authoritative log."""
+    """Local interaction finishes while history is still loading, before its deadline."""
+    assert (
+        page.evaluate("""async () => {
+      const {runtime} = await __lfRuntimeImport('/runtime/context.js');
+      return runtime.statePhase;
+    }""")
+        == "waiting"
+    )
     assert (
         page.evaluate(
             "() => document.querySelector('script[data-lf-entry]').lfReadiness(null, 'log')"

@@ -39,324 +39,320 @@ import {
 } from "/runtime/widget-api.js";
 import { createEditor } from "./editor.js";
 
-customElements.define(
-  "lf-file-editor",
-  class extends HTMLElement {
-    #placeSelection = null;
+export default class extends HTMLElement {
+  #placeSelection = null;
 
-    connectedCallback() {
-      if (!once(this)) return;
-      this.initialize();
+  connectedCallback() {
+    if (!once(this)) return;
+    this.initialize();
+  }
+
+  // A move keeps the views and the user's focus in one, since their connection
+  // lifetime follows the arrival batch (`whileConnected`), but `moveBefore` collapses
+  // the native selection, which CodeMirror would read back as a caret at the start.
+  connectedMoveCallback() {
+    this.#placeSelection?.();
+  }
+
+  initialize() {
+    const api = boundFile(this.getAttribute("binding"));
+    const recoveryKey = `file:${this.id}:${this.getAttribute("binding")}`;
+    // Stage one retained owner: Lit's markers belong inside it, and CodeMirror's
+    // mounts are persistent node values within the template.
+    const view = offer("div", "lf-file-editor-view");
+    const mount = offer("div", "lf-file-editor-edit");
+    const comparisonMount = offer("div", "lf-file-editor-comparison");
+    view.append(mount);
+    shadowStage(this, [view]);
+    this.replaceChildren();
+    const useFile = () => {
+      if (busy || !latest) return;
+      base = latest;
+      latest = null;
+      failure = null;
+      recovering = false;
+      editor.value = base.text;
+      remember();
+      finishSaving();
+      paint();
+      focusDestination(editor.contentDOM, "return");
+      if (owed) void refresh();
+    };
+    const keepDraft = (event) => void flush(true, event.currentTarget);
+    const retry = (event) => {
+      if (busy) return;
+      const operation = failure;
+      if (operation?.kind === "save")
+        void flush(operation.replace, event.currentTarget);
+      else void refresh(event.currentTarget);
+    };
+    let base = null,
+      latest = null,
+      failure = null,
+      busy = false,
+      comparison = null;
+    let generation = 0,
+      timer = null,
+      slowTimer = null;
+    let recovering = false,
+      owed = false,
+      connected = false,
+      slow = false,
+      announcement = "";
+    const editor = createEditor(mount, {
+      readOnly: true,
+      onChange() {
+        generation++;
+        remember();
+        paint();
+        schedule();
+      },
+      onSave() {
+        clearTimeout(timer);
+        void flush();
+      },
+    });
+    const dirty = () => base !== null && editor.value !== base.text;
+    const unsettled = () => dirty() || latest !== null;
+    function remember() {
+      tabStore.set(
+        recoveryKey,
+        base && unsettled() ? JSON.stringify({ base, text: editor.value }) : null,
+      );
     }
-
-    // A move keeps the views and the user's focus in one, since their connection
-    // lifetime follows the arrival batch (`whileConnected`), but `moveBefore` collapses
-    // the native selection, which CodeMirror would read back as a caret at the start.
-    connectedMoveCallback() {
-      this.#placeSelection?.();
+    function finishSaving() {
+      clearTimeout(slowTimer);
+      slowTimer = null;
+      if (!slow) return;
+      slow = false;
+      announcement = !failure && !latest && !dirty() ? "Changes saved." : "";
     }
-
-    initialize() {
-      const api = boundFile(this.getAttribute("binding"));
-      const recoveryKey = `file:${this.id}:${this.getAttribute("binding")}`;
-      // Stage one retained owner: Lit's markers belong inside it, and CodeMirror's
-      // mounts are persistent node values within the template.
-      const view = offer("div", "lf-file-editor-view");
-      const mount = offer("div", "lf-file-editor-edit");
-      const comparisonMount = offer("div", "lf-file-editor-comparison");
-      view.append(mount);
-      shadowStage(this, [view]);
-      this.replaceChildren();
-      const useFile = () => {
-        if (busy || !latest) return;
-        base = latest;
+    function paint() {
+      const label = base?.label ?? thisBinding;
+      editor.setLabel(label);
+      editor.readOnly = base === null || !api.writable;
+      render(
+        html`
+          <div ${offered("lf-file-editor-head")}>
+            <span ${offered("lf-file-editor-name")}>${label}</span>
+            <span ${offered("lf-file-editor-status")} aria-hidden="true"
+              >${
+                failure
+                  ? base
+                    ? "Not saved"
+                    : "Unavailable"
+                  : latest
+                    ? "Needs review"
+                    : slow
+                      ? "Saving changes…"
+                      : ""
+              }</span
+            >
+          </div>
+          ${mount}
+          <div ${offered("lf-file-editor-problem")} ?hidden=${!latest && !failure}>
+            <p
+              ${offered("lf-file-editor-explanation")}
+              role="alert"
+              .textContent=${
+                failure
+                  ? `${failure.message}${base && dirty() ? " The draft is kept." : ""}`
+                  : latest
+                    ? "The file changed on disk. Use the file version to discard the draft, or save it over the version shown below."
+                    : ""
+              }
+            ></p>
+            <p ${offered("lf-file-editor-legend")} ?hidden=${!latest}>
+              Removed text is on disk. Added text is the draft.
+            </p>
+            <div ${offered("lf-file-editor-actions")}>
+              ${[
+                ["Use file version", !latest, useFile],
+                ["Save my version", !latest, keepDraft],
+                ["Retry", !failure || !api.writable, retry],
+              ].map(
+                ([label, hidden, run]) => html`
+                  <button
+                    ${offered("button")}
+                    ?hidden=${hidden}
+                    aria-disabled=${busy ? "true" : nothing}
+                    @click=${run}
+                  >
+                    ${label}
+                  </button>
+                `,
+              )}
+            </div>
+            ${latest ? comparisonMount : nothing}
+          </div>
+          <span
+            ${offered("lf-file-editor-announcement")}
+            role="status"
+            aria-live="polite"
+            >${announcement}</span
+          >
+        `,
+        view,
+      );
+      if (latest) {
+        if (!comparison)
+          comparison = createEditor(comparisonMount, {
+            text: editor.value,
+            filename: label,
+            original: latest.text,
+            readOnly: true,
+            label: "Compare versions",
+            description: "Read only. Removed text is on disk. Added text is the draft.",
+          });
+        comparison.value = editor.value;
+        comparison.setLabel(label);
+        comparison.setConflict(latest.text);
+      } else if (comparison) {
+        comparison.disconnect();
+        comparison = null;
+      }
+    }
+    const thisBinding = this.getAttribute("binding");
+    function schedule(delay = 500) {
+      clearTimeout(timer);
+      if (connected && api.writable && !latest && !failure && dirty())
+        timer = setTimeout(() => void flush(), delay);
+    }
+    async function flush(replace = false, returnFrom = null) {
+      clearTimeout(timer);
+      if (
+        !connected ||
+        !api.writable ||
+        busy ||
+        !base ||
+        (failure && !returnFrom) ||
+        (latest && !replace) ||
+        (!dirty() && !(replace && latest))
+      )
+        return;
+      const against = replace ? latest : base;
+      const text = editor.value;
+      busy = true;
+      // The host compares the file before writing, so a receipt or a stale answer
+      // covers any read owed before it starts; a failure read nothing.
+      const owedBefore = owed;
+      owed = false;
+      if (!slow && slowTimer === null)
+        slowTimer = setTimeout(() => {
+          slow = true;
+          slowTimer = null;
+          announcement = "Saving changes.";
+          paint();
+        }, 1000);
+      paint();
+      try {
+        base = await api.save({ revision: against.revision, text });
         latest = null;
         failure = null;
+      } catch (fault) {
+        if (fault.current) {
+          latest = fault.current;
+          failure = null;
+        } else {
+          failure = { kind: "save", message: fault.message, replace };
+          owed ||= owedBefore;
+        }
+      } finally {
+        busy = false;
+        if (connected) remember();
+        if (!dirty() || failure || latest || !connected) finishSaving();
+        else if (!slow) {
+          clearTimeout(slowTimer);
+          slowTimer = null;
+        }
+        const returning = connected && returnFrom && focused() === returnFrom;
+        paint();
+        if (returning && returnFrom.hidden)
+          focusDestination(editor.contentDOM, "return");
+        schedule(0);
+        if (owed) void refresh();
+      }
+    }
+    async function refresh(returnFrom = null) {
+      if (!connected) return;
+      if (busy || ((failure || latest) && !returnFrom)) {
+        owed = true;
+        return;
+      }
+      busy = true;
+      owed = false;
+      const seenGeneration = generation;
+      try {
+        const current = await api.read();
+        if (!base || (!recovering && !unsettled() && seenGeneration === generation)) {
+          base = current;
+          latest = null;
+          editor.value = current.text;
+        } else if (current.text === editor.value) {
+          base = current;
+          latest = null;
+        } else latest = current.revision !== base.revision ? current : null;
         recovering = false;
-        editor.value = base.text;
-        remember();
+        failure = null;
+      } catch (fault) {
+        failure = { kind: "read", message: fault.message };
+      } finally {
+        busy = false;
+        if (connected) remember();
+        if (failure || latest || !dirty()) finishSaving();
+        const returning = connected && returnFrom && focused() === returnFrom;
+        paint();
+        if (returning && returnFrom.hidden)
+          focusDestination(editor.contentDOM, "return");
+        schedule(0);
+        if (owed) void refresh();
+      }
+    }
+    const beforeUnload = (event) => {
+      if (unsettled()) {
+        event.preventDefault();
+        event.returnValue = "";
+      }
+    };
+    const visibility = () => {
+      if (document.hidden) void flush();
+      else void refresh();
+    };
+    const pending = tabStore.get(recoveryKey);
+    if (pending && api.writable) {
+      const recovered = JSON.parse(pending);
+      base = recovered.base;
+      editor.value = recovered.text;
+      recovering = true;
+    }
+    paint();
+    this.#placeSelection = () => {
+      editor.placeSelection();
+      comparison?.placeSelection();
+    };
+    let initial = true;
+    whileConnected(this, (signal) => {
+      connected = true;
+      editor.connect();
+      comparison?.connect();
+      window.addEventListener("beforeunload", beforeUnload, { signal });
+      document.addEventListener("visibilitychange", visibility, { signal });
+      const ready = refresh();
+      if (initial) {
+        widgetController(this).present(ready);
+        initial = false;
+      }
+      const stopWatch = api.watch(() => void refresh());
+      return () => {
+        connected = false;
+        stopWatch();
+        clearTimeout(timer);
         finishSaving();
         paint();
-        focusDestination(editor.contentDOM, "return");
-        if (owed) void refresh();
+        remember();
+        editor.disconnect();
+        comparison?.disconnect();
       };
-      const keepDraft = (event) => void flush(true, event.currentTarget);
-      const retry = (event) => {
-        if (busy) return;
-        const operation = failure;
-        if (operation?.kind === "save")
-          void flush(operation.replace, event.currentTarget);
-        else void refresh(event.currentTarget);
-      };
-      let base = null,
-        latest = null,
-        failure = null,
-        busy = false,
-        comparison = null;
-      let generation = 0,
-        timer = null,
-        slowTimer = null;
-      let recovering = false,
-        owed = false,
-        connected = false,
-        slow = false,
-        announcement = "";
-      const editor = createEditor(mount, {
-        readOnly: true,
-        onChange() {
-          generation++;
-          remember();
-          paint();
-          schedule();
-        },
-        onSave() {
-          clearTimeout(timer);
-          void flush();
-        },
-      });
-      const dirty = () => base !== null && editor.value !== base.text;
-      const unsettled = () => dirty() || latest !== null;
-      function remember() {
-        tabStore.set(
-          recoveryKey,
-          base && unsettled() ? JSON.stringify({ base, text: editor.value }) : null,
-        );
-      }
-      function finishSaving() {
-        clearTimeout(slowTimer);
-        slowTimer = null;
-        if (!slow) return;
-        slow = false;
-        announcement = !failure && !latest && !dirty() ? "Changes saved." : "";
-      }
-      function paint() {
-        const label = base?.label ?? thisBinding;
-        editor.setLabel(label);
-        editor.readOnly = base === null || !api.writable;
-        render(
-          html`
-            <div ${offered("lf-file-editor-head")}>
-              <span ${offered("lf-file-editor-name")}>${label}</span>
-              <span ${offered("lf-file-editor-status")} aria-hidden="true"
-                >${
-                  failure
-                    ? base
-                      ? "Not saved"
-                      : "Unavailable"
-                    : latest
-                      ? "Needs review"
-                      : slow
-                        ? "Saving changes…"
-                        : ""
-                }</span
-              >
-            </div>
-            ${mount}
-            <div ${offered("lf-file-editor-problem")} ?hidden=${!latest && !failure}>
-              <p
-                ${offered("lf-file-editor-explanation")}
-                role="alert"
-                .textContent=${
-                  failure
-                    ? `${failure.message}${base && dirty() ? " The draft is kept." : ""}`
-                    : latest
-                      ? "The file changed on disk. Use the file version to discard the draft, or save it over the version shown below."
-                      : ""
-                }
-              ></p>
-              <p ${offered("lf-file-editor-legend")} ?hidden=${!latest}>
-                Removed text is on disk. Added text is the draft.
-              </p>
-              <div ${offered("lf-file-editor-actions")}>
-                ${[
-                  ["Use file version", !latest, useFile],
-                  ["Save my version", !latest, keepDraft],
-                  ["Retry", !failure || !api.writable, retry],
-                ].map(
-                  ([label, hidden, run]) => html`
-                    <button
-                      ${offered("button")}
-                      ?hidden=${hidden}
-                      aria-disabled=${busy ? "true" : nothing}
-                      @click=${run}
-                    >
-                      ${label}
-                    </button>
-                  `,
-                )}
-              </div>
-              ${latest ? comparisonMount : nothing}
-            </div>
-            <span
-              ${offered("lf-file-editor-announcement")}
-              role="status"
-              aria-live="polite"
-              >${announcement}</span
-            >
-          `,
-          view,
-        );
-        if (latest) {
-          if (!comparison)
-            comparison = createEditor(comparisonMount, {
-              text: editor.value,
-              filename: label,
-              original: latest.text,
-              readOnly: true,
-              label: "Compare versions",
-              description:
-                "Read only. Removed text is on disk. Added text is the draft.",
-            });
-          comparison.value = editor.value;
-          comparison.setLabel(label);
-          comparison.setConflict(latest.text);
-        } else if (comparison) {
-          comparison.disconnect();
-          comparison = null;
-        }
-      }
-      const thisBinding = this.getAttribute("binding");
-      function schedule(delay = 500) {
-        clearTimeout(timer);
-        if (connected && api.writable && !latest && !failure && dirty())
-          timer = setTimeout(() => void flush(), delay);
-      }
-      async function flush(replace = false, returnFrom = null) {
-        clearTimeout(timer);
-        if (
-          !connected ||
-          !api.writable ||
-          busy ||
-          !base ||
-          (failure && !returnFrom) ||
-          (latest && !replace) ||
-          (!dirty() && !(replace && latest))
-        )
-          return;
-        const against = replace ? latest : base;
-        const text = editor.value;
-        busy = true;
-        // The host compares the file before writing, so a receipt or a stale answer
-        // covers any read owed before it starts; a failure read nothing.
-        const owedBefore = owed;
-        owed = false;
-        if (!slow && slowTimer === null)
-          slowTimer = setTimeout(() => {
-            slow = true;
-            slowTimer = null;
-            announcement = "Saving changes.";
-            paint();
-          }, 1000);
-        paint();
-        try {
-          base = await api.save({ revision: against.revision, text });
-          latest = null;
-          failure = null;
-        } catch (fault) {
-          if (fault.current) {
-            latest = fault.current;
-            failure = null;
-          } else {
-            failure = { kind: "save", message: fault.message, replace };
-            owed ||= owedBefore;
-          }
-        } finally {
-          busy = false;
-          if (connected) remember();
-          if (!dirty() || failure || latest || !connected) finishSaving();
-          else if (!slow) {
-            clearTimeout(slowTimer);
-            slowTimer = null;
-          }
-          const returning = connected && returnFrom && focused() === returnFrom;
-          paint();
-          if (returning && returnFrom.hidden)
-            focusDestination(editor.contentDOM, "return");
-          schedule(0);
-          if (owed) void refresh();
-        }
-      }
-      async function refresh(returnFrom = null) {
-        if (!connected) return;
-        if (busy || ((failure || latest) && !returnFrom)) {
-          owed = true;
-          return;
-        }
-        busy = true;
-        owed = false;
-        const seenGeneration = generation;
-        try {
-          const current = await api.read();
-          if (!base || (!recovering && !unsettled() && seenGeneration === generation)) {
-            base = current;
-            latest = null;
-            editor.value = current.text;
-          } else if (current.text === editor.value) {
-            base = current;
-            latest = null;
-          } else latest = current.revision !== base.revision ? current : null;
-          recovering = false;
-          failure = null;
-        } catch (fault) {
-          failure = { kind: "read", message: fault.message };
-        } finally {
-          busy = false;
-          if (connected) remember();
-          if (failure || latest || !dirty()) finishSaving();
-          const returning = connected && returnFrom && focused() === returnFrom;
-          paint();
-          if (returning && returnFrom.hidden)
-            focusDestination(editor.contentDOM, "return");
-          schedule(0);
-          if (owed) void refresh();
-        }
-      }
-      const beforeUnload = (event) => {
-        if (unsettled()) {
-          event.preventDefault();
-          event.returnValue = "";
-        }
-      };
-      const visibility = () => {
-        if (document.hidden) void flush();
-        else void refresh();
-      };
-      const pending = tabStore.get(recoveryKey);
-      if (pending && api.writable) {
-        const recovered = JSON.parse(pending);
-        base = recovered.base;
-        editor.value = recovered.text;
-        recovering = true;
-      }
-      paint();
-      this.#placeSelection = () => {
-        editor.placeSelection();
-        comparison?.placeSelection();
-      };
-      let initial = true;
-      whileConnected(this, (signal) => {
-        connected = true;
-        editor.connect();
-        comparison?.connect();
-        window.addEventListener("beforeunload", beforeUnload, { signal });
-        document.addEventListener("visibilitychange", visibility, { signal });
-        const ready = refresh();
-        if (initial) {
-          widgetController(this).present(ready);
-          initial = false;
-        }
-        const stopWatch = api.watch(() => void refresh());
-        return () => {
-          connected = false;
-          stopWatch();
-          clearTimeout(timer);
-          finishSaving();
-          paint();
-          remember();
-          editor.disconnect();
-          comparison?.disconnect();
-        };
-      });
-    }
-  },
-);
+    });
+  }
+}

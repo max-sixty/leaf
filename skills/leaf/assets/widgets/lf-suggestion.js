@@ -118,583 +118,577 @@ function toRanges(segments, spans) {
   return ranges;
 }
 
-customElements.define(
-  "lf-suggestion",
-  class extends HTMLElement {
-    // What the ask was answered with: the decision.
-    static answerWords(value) {
-      return value.outcome === "accept" ? "Accepted" : "Rejected";
-    }
+export default class extends HTMLElement {
+  // What the ask was answered with: the decision.
+  static answerWords(value) {
+    return value.outcome === "accept" ? "Accepted" : "Rejected";
+  }
 
-    #deciding = null; // the decision in flight, so a second press joins it
-    #staging = false; // the synchronous span before that promise exists
-    #failed = null;
-    #undoing = false;
-    #margin = null;
-    #commandScope = null;
-    #controller = null;
-    #presentedOutcome = null;
+  #deciding = null; // the decision in flight, so a second press joins it
+  #staging = false; // the synchronous span before that promise exists
+  #failed = null;
+  #undoing = false;
+  #margin = null;
+  #commandScope = null;
+  #controller = null;
+  #presentedOutcome = null;
 
-    connectedCallback() {
-      // Re-connection — a card dragged to another column, a replay moving one — must
-      // restore this target's contribution to the shared margin entry cluster.
-      if (!once(this)) {
-        this.#offer();
-        return;
-      }
-      this.#controller = widgetController(this);
-      // Presentation, not input, so an exhibited pending change gets it too: quoting
-      // gates the action channel, never what a change looks like. Both consume the
-      // controller's application selection; painted attributes are output only.
-      this.#emphasize();
-      this.#voice();
-      // Quoted material is exhibited, not offered: a suggestion inside an
-      // exhibit shows what a pending change looks like, so it keeps the marks
-      // the theme draws and never grows controls to decide it with.
-      if (quoted(this)) {
-        this.#subscribeReading();
-        return;
-      }
-      // The runtime says it just opened this element's containers (reveal): the entry
-      // may be waiting on geometry the target only now has, and the caller is about
-      // to focus it, so the layout question is answered now rather than at the
-      // observer's next frame.
-      this.addEventListener("lf-reveal", () =>
-        this.#margin?.update({ immediate: true }),
-      );
+  connectedCallback() {
+    // Re-connection — a card dragged to another column, a replay moving one — must
+    // restore this target's contribution to the shared margin entry cluster.
+    if (!once(this)) {
       this.#offer();
+      return;
+    }
+    this.#controller = widgetController(this);
+    // Presentation, not input, so an exhibited pending change gets it too: quoting
+    // gates the action channel, never what a change looks like. Both consume the
+    // controller's application selection; painted attributes are output only.
+    this.#emphasize();
+    this.#voice();
+    // Quoted material is exhibited, not offered: a suggestion inside an
+    // exhibit shows what a pending change looks like, so it keeps the marks
+    // the theme draws and never grows controls to decide it with.
+    if (quoted(this)) {
       this.#subscribeReading();
+      return;
     }
+    // The runtime says it just opened this element's containers (reveal): the entry
+    // may be waiting on geometry the target only now has, and the caller is about
+    // to focus it, so the layout question is answered now rather than at the
+    // observer's next frame.
+    this.addEventListener("lf-reveal", () => this.#margin?.update({ immediate: true }));
+    this.#offer();
+    this.#subscribeReading();
+  }
 
-    #subscribeReading() {
-      this.#controller.subscribe((reading) => {
-        if (quoted(this) || !this.#margin) return;
-        if (
-          standingIn(this.#margin) &&
-          outcomeOf(reading.state) !== this.#presentedOutcome
-        ) {
-          // Signals publish before the projection adapter. Keep the currently focused
-          // entry until that adapter applies the new state: the next complete reading can
-          // hand focus directly to its semantic replacement instead of losing the
-          // user's place when this subscriber removes it first.
-          return;
-        }
-        this.#refreshMargin();
-      });
-    }
-
-    disconnectedCallback() {
-      this.#margin?.unregister();
-      this.#margin = null;
-      emphasized.delete(this);
-      repaintEmphasis();
-    }
-
-    #offer() {
-      if (quoted(this) || this.#margin) return;
-      this.#ensureCommands();
-      this.#margin = registerContribution({
-        key: `suggestion:${this.id}`,
-        // An accepted deletion (or rejected insertion) has no surviving slot and the
-        // suggestion itself leaves layout. Undo still belongs to the containing passage,
-        // so that passage becomes its perch while the gesture can be withdrawn.
-        target: () =>
-          !this.#outcome() || shownParts(this).some((part) => part.checkVisibility())
-            ? this
-            : this.parentElement,
-        source: () => this,
-        read: () => this.#readMargin(),
-        activate: (activation, { focus }) => {
-          if (activation === "accept" || activation === "reject")
-            return this.#decide(activation, focus);
-          if (activation === "undo") return this.#undoOutcome();
-          if (activation === "retry") return this.#retryDecision();
-          if (activation === "cancel-failure") return this.#cancelFailedDecision();
-        },
-      });
-    }
-
-    // Which controls the suggestion offers now, as keys: the question a command row's
-    // `when` asks on every keyboard repaint, answered without building the entries, whose
-    // labels read the suggestion's words.
-    #offered() {
-      const outcome = this.#outcome();
-      if (outcome && !this.#failed) {
-        const pending = Boolean(this.#staging || this.#deciding);
-        return pending || this.#undoable(outcome) ? ["undo"] : [];
+  #subscribeReading() {
+    this.#controller.subscribe((reading) => {
+      if (quoted(this) || !this.#margin) return;
+      if (
+        standingIn(this.#margin) &&
+        outcomeOf(reading.state) !== this.#presentedOutcome
+      ) {
+        // Signals publish before the projection adapter. Keep the currently focused
+        // entry until that adapter applies the new state: the next complete reading can
+        // hand focus directly to its semantic replacement instead of losing the
+        // user's place when this subscriber removes it first.
+        return;
       }
-      if (this.#failed) return ["retry", "cancel-failure"];
-      return Object.keys(WORDS);
-    }
+      this.#refreshMargin();
+    });
+  }
 
-    #entries() {
-      const outcome = this.#outcome();
+  disconnectedCallback() {
+    this.#margin?.unregister();
+    this.#margin = null;
+    emphasized.delete(this);
+    repaintEmphasis();
+  }
+
+  #offer() {
+    if (quoted(this) || this.#margin) return;
+    this.#ensureCommands();
+    this.#margin = registerContribution({
+      key: `suggestion:${this.id}`,
+      // An accepted deletion (or rejected insertion) has no surviving slot and the
+      // suggestion itself leaves layout. Undo still belongs to the containing passage,
+      // so that passage becomes its perch while the gesture can be withdrawn.
+      target: () =>
+        !this.#outcome() || shownParts(this).some((part) => part.checkVisibility())
+          ? this
+          : this.parentElement,
+      source: () => this,
+      read: () => this.#readMargin(),
+      activate: (activation, { focus }) => {
+        if (activation === "accept" || activation === "reject")
+          return this.#decide(activation, focus);
+        if (activation === "undo") return this.#undoOutcome();
+        if (activation === "retry") return this.#retryDecision();
+        if (activation === "cancel-failure") return this.#cancelFailedDecision();
+      },
+    });
+  }
+
+  // Which controls the suggestion offers now, as keys: the question a command row's
+  // `when` asks on every keyboard repaint, answered without building the entries, whose
+  // labels read the suggestion's words.
+  #offered() {
+    const outcome = this.#outcome();
+    if (outcome && !this.#failed) {
       const pending = Boolean(this.#staging || this.#deciding);
-      let words;
-      const change = () => (words ??= this.#label());
-      const failed = (key, icon, label, rank) =>
-        contributionEntry({
-          key,
-          icon,
-          label,
-          rank,
-          state: "failed",
-          activation: key,
-          scope: this.#commandScope,
-        });
-      const entry = {
-        undo: () =>
-          contributionEntry({
-            key: "undo",
-            icon: "undo",
-            label: "Undo",
-            accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change()}`,
-            rank: "primary",
-            state: pending || this.#undoing ? "busy" : "idle",
-            disabled: pending || this.#undoing,
-            activation: "undo",
-            scope: this.#commandScope,
-          }),
-        retry: () => failed("retry", "retry", "Retry", "complete"),
-        "cancel-failure": () => failed("cancel-failure", "cross", "Cancel", "escape"),
-      };
-      const decision = (kind) =>
-        contributionEntry({
-          key: kind,
-          ...FACE[kind],
-          label: WORDS[kind],
-          accessibleLabel: `${WORDS[kind]} the suggested change: ${change()}`,
-          state: this.#deciding ? "busy" : "idle",
-          disabled:
-            this.#staging ||
-            Boolean(this.#deciding) ||
-            !this.#controller.read().actions.decide?.available,
-          activation: kind,
-          className: `lf-sug-${kind}`,
-          scope: this.#commandScope,
-        });
-      return this.#offered().map((key) => (entry[key] ?? decision)(key));
+      return pending || this.#undoable(outcome) ? ["undo"] : [];
     }
+    if (this.#failed) return ["retry", "cancel-failure"];
+    return Object.keys(WORDS);
+  }
 
-    #readMargin() {
-      const outcome = this.#outcome();
-      const entries = this.#entries();
-      return {
-        // What a suggestion is, for a face that stands for it: a pin folded for want of
-        // room wears this kind's (margin-model.js, `clusterProjection`).
-        kind: "change",
-        // The slots use tint and strike/insert paint to carry their relationship on the
-        // page. Away from that paint, concatenating them turns `red` → `blue` into the
-        // meaningless `redblue`; give Page Map that relation in words.
-        subject: this.#subject(),
-        state: this.#failed
-          ? "failed"
-          : this.#staging || this.#deciding || this.#undoing
-            ? "busy"
-            : "idle",
-        side: "before",
-        notice: this.#failed
-          ? {
-              text: this.#failed.undo
-                ? `Undo failed · ${outcome === "accept" ? "Accepted" : "Rejected"}`
-                : "Failed",
-              tone: "negative",
-            }
-          : null,
-        entries,
-        readings: entries.length
-          ? [
-              {
-                id: `suggestion:${this.id}`,
-                // Before settlement this contribution is the ask, so suppress the shared
-                // ask at the same target. Afterwards Undo remains without inventing a
-                // second page-map reading.
-                kind: outcome ? "action" : "ask",
-                ...(outcome ? {} : { represents: true }),
-                text: outcome
-                  ? `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change`
-                  : "Accept or reject suggested change",
-                activate: () => this.#margin?.focus(this.#focusKey(), "move"),
-              },
-            ]
-          : [],
-      };
-    }
-
-    #focusKey() {
-      if (this.#failed) return "retry";
-      return this.#outcome() ? "undo" : "accept";
-    }
-
-    #refreshMargin({ immediate = false, focus = null } = {}) {
-      if (!this.#margin) return;
-      const held = standingIn(this.#margin);
-      this.#margin.update({
-        immediate,
-        focus: focus ?? (held ? this.#focusKey() : null),
+  #entries() {
+    const outcome = this.#outcome();
+    const pending = Boolean(this.#staging || this.#deciding);
+    let words;
+    const change = () => (words ??= this.#label());
+    const failed = (key, icon, label, rank) =>
+      contributionEntry({
+        key,
+        icon,
+        label,
+        rank,
+        state: "failed",
+        activation: key,
+        scope: this.#commandScope,
       });
-      paintKeys();
-    }
-
-    #ensureCommands() {
-      if (this.#commandScope) return;
-      const labels = {
-        accept: "Accept",
-        reject: "Reject",
-        undo: "Undo",
-        retry: "Retry",
-        "cancel-failure": "Cancel",
-      };
-      this.#commandScope = commandScope(
-        "On a suggested change",
-        Object.entries(labels).map(([key, label]) => ({
-          id: `suggestion.${key}`,
-          contextKeys: () => {
-            const position = this.#offered().indexOf(key);
-            return position === -1 ? [] : [String(position + 1)];
-          },
-          control: () => this.#margin?.control(key),
-          bindingBadge: null,
-          decision: true,
-          title: label,
-          description: `${label} the suggested change`,
-          when: () => this.#offered().includes(key),
-          run: () => this.#margin?.activate(key),
-        })),
-      );
-      commands(this, this.#commandScope);
-    }
-
-    // What the change is about, for the button's label and failure receipt: the
-    // proposal where there is one, since that is what accepting brings about —
-    // a deletion has only the markup it would remove.
-    #label() {
-      const slot =
-        this.querySelector(":scope > lf-new") || this.querySelector(":scope > lf-old");
-      const text = (slot && says(slot)) || this.id;
-      return text.length > 48 ? text.slice(0, 48) + "…" : text;
-    }
-
-    #subject() {
-      const cut = this.querySelector(":scope > lf-old");
-      const put = this.querySelector(":scope > lf-new");
-      const before = cut ? says(cut) : "";
-      const after = put ? says(put) : "";
-      if (before && after) return `${before} → ${after}`;
-      return before || after || this.id;
-    }
-
-    // The banner's blanket answer (x-awaits.all) calls the deciding verb by name.
-    decide(outcome) {
-      return this.#decide(outcome);
-    }
-
-    // A press makes the reversible decision locally and the outbox carries that exact
-    // projection until the log accounts for it. A definitive refusal removes the local
-    // winner and reconciles the authored state before this continuation paints the repair
-    // controls, so the user returns to a pending suggestion with Failed, Retry, Cancel.
-    #decide(outcome, focus = null) {
-      if (outcomeOf(this.#controller.read().state)) return Promise.resolve(true);
-      if (!this.#controller.read().actions.decide?.available)
-        return Promise.resolve(false);
-      if (this.#staging || this.#deciding)
-        return this.#deciding ?? Promise.resolve(false);
-      // Read before deciding: deciding retires a slot, a retired slot leaves the page's
-      // reading, and `says` on what has left the reading answers nothing — the notice
-      // then named the widget's id instead of the words the user just judged.
-      const label = this.#label();
-      this.#failed = null;
-      // This decision replaces words the user may still have selected. Clear that
-      // page range before moving its nodes, independent of whether activation came from
-      // pointer, Enter, Space, or an address route; otherwise later reconciliation can
-      // reconstruct the relocated range and raise its Comment field again.
-      getSelection()?.removeAllRanges();
-      // Keep the replacement Undo in the pressed margin entry's seat while delivery is open.
-      // It is present for focus continuity but unavailable until the log gives the
-      // gesture the durable id Undo must name.
-      this.#staging = true;
-      const sent = (
-        this.#controller.dispatch({
-          kind: "action",
-          verb: "decide",
-          detail: { outcome },
-        })?.delivery ?? Promise.resolve(null)
-      ).then((accepted) => {
-        this.#deciding = null;
-        this.removeAttribute("aria-busy");
-        if (!accepted) {
-          // A definitive refusal is a state the user can act from. Keep it at the
-          // target as Failed, Retry, Cancel; there is no detail disclosure because the
-          // transport returned no useful detail beyond the notice it already showed.
-          this.#failed = { outcome, label };
-          this.#refreshMargin();
-          return false;
-        }
-        // Usually the accepted state has already replayed this decision. Paint is
-        // still owed if another part of that state failed to render, but not if the
-        // same event list also carried a later undo: authored state then stands.
-        if (this.#acceptedStillStands(accepted)) {
-          if (this.#presentedOutcome === outcome) {
-            this.#refreshMargin();
-          } else this.#settle(outcome);
-          announce(
-            `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change: ${label}`,
-          );
-        } else {
-          this.#refreshMargin();
-        }
-        // TODO(2026-09-06): Decide whether accepted work with no active agent pickup
-        // needs a distinct post-send presentation.
-        return true;
+    const entry = {
+      undo: () =>
+        contributionEntry({
+          key: "undo",
+          icon: "undo",
+          label: "Undo",
+          accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change()}`,
+          rank: "primary",
+          state: pending || this.#undoing ? "busy" : "idle",
+          disabled: pending || this.#undoing,
+          activation: "undo",
+          scope: this.#commandScope,
+        }),
+      retry: () => failed("retry", "retry", "Retry", "complete"),
+      "cancel-failure": () => failed("cancel-failure", "cross", "Cancel", "escape"),
+    };
+    const decision = (kind) =>
+      contributionEntry({
+        key: kind,
+        ...FACE[kind],
+        label: WORDS[kind],
+        accessibleLabel: `${WORDS[kind]} the suggested change: ${change()}`,
+        state: this.#deciding ? "busy" : "idle",
+        disabled:
+          this.#staging ||
+          Boolean(this.#deciding) ||
+          !this.#controller.read().actions.decide?.available,
+        activation: kind,
+        className: `lf-sug-${kind}`,
+        scope: this.#commandScope,
       });
-      this.#inFlight(sent, focus);
-      this.#staging = false;
-      return sent;
-    }
+    return this.#offered().map((key) => (entry[key] ?? decision)(key));
+  }
 
-    #acceptedStillStands(event) {
-      return Object.values(this.#controller.read().actions).some(({ inForce }) =>
-        inForce.some((winner) => winner.event.id === event.id),
-      );
-    }
+  #readMargin() {
+    const outcome = this.#outcome();
+    const entries = this.#entries();
+    return {
+      // What a suggestion is, for a face that stands for it: a pin folded for want of
+      // room wears this kind's (margin-model.js, `clusterProjection`).
+      kind: "change",
+      // The slots use tint and strike/insert paint to carry their relationship on the
+      // page. Away from that paint, concatenating them turns `red` → `blue` into the
+      // meaningless `redblue`; give Page Map that relation in words.
+      subject: this.#subject(),
+      state: this.#failed
+        ? "failed"
+        : this.#staging || this.#deciding || this.#undoing
+          ? "busy"
+          : "idle",
+      side: "before",
+      notice: this.#failed
+        ? {
+            text: this.#failed.undo
+              ? `Undo failed · ${outcome === "accept" ? "Accepted" : "Rejected"}`
+              : "Failed",
+            tone: "negative",
+          }
+        : null,
+      entries,
+      readings: entries.length
+        ? [
+            {
+              id: `suggestion:${this.id}`,
+              // Before settlement this contribution is the ask, so suppress the shared
+              // ask at the same target. Afterwards Undo remains without inventing a
+              // second page-map reading.
+              kind: outcome ? "action" : "ask",
+              ...(outcome ? {} : { represents: true }),
+              text: outcome
+                ? `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change`
+                : "Accept or reject suggested change",
+              activate: () => this.#margin?.focus(this.#focusKey(), "move"),
+            },
+          ]
+        : [],
+    };
+  }
 
-    #undoable(outcome) {
-      return this.#controller
-        .read()
-        .actions.decide?.undo.find((event) => event.detail?.outcome === outcome);
-    }
+  #focusKey() {
+    if (this.#failed) return "retry";
+    return this.#outcome() ? "undo" : "accept";
+  }
 
-    // The field refuses a second press while the first is unresolved. A pending result
-    // that has not painted also marks the widget busy; an optimistic result instead puts
-    // that state on its disabled Undo margin entry so the settled prose stays legible.
-    #inFlight(decision, focus = null) {
-      this.#deciding = decision;
-      // Optimistic content already says what the press did. Busy belongs to its disabled
-      // Undo margin entry, not as a dimming veil over the settled prose.
-      if (decision && !this.#outcome()) this.setAttribute("aria-busy", "true");
-      else this.removeAttribute("aria-busy");
-      this.#refreshMargin({ immediate: Boolean(focus) });
-      focus?.("undo");
-    }
+  #refreshMargin({ immediate = false, focus = null } = {}) {
+    if (!this.#margin) return;
+    const held = standingIn(this.#margin);
+    this.#margin.update({
+      immediate,
+      focus: focus ?? (held ? this.#focusKey() : null),
+    });
+    paintKeys();
+  }
 
-    #retryDecision() {
-      const failed = this.#failed;
-      if (!failed || this.#deciding) return;
-      this.#failed = null;
-      if (failed.undo) this.#undoOutcome();
-      else this.#decide(failed.outcome);
-    }
+  #ensureCommands() {
+    if (this.#commandScope) return;
+    const labels = {
+      accept: "Accept",
+      reject: "Reject",
+      undo: "Undo",
+      retry: "Retry",
+      "cancel-failure": "Cancel",
+    };
+    this.#commandScope = commandScope(
+      "On a suggested change",
+      Object.entries(labels).map(([key, label]) => ({
+        id: `suggestion.${key}`,
+        contextKeys: () => {
+          const position = this.#offered().indexOf(key);
+          return position === -1 ? [] : [String(position + 1)];
+        },
+        control: () => this.#margin?.control(key),
+        bindingBadge: null,
+        decision: true,
+        title: label,
+        description: `${label} the suggested change`,
+        when: () => this.#offered().includes(key),
+        run: () => this.#margin?.activate(key),
+      })),
+    );
+    commands(this, this.#commandScope);
+  }
 
-    #cancelFailedDecision() {
-      if (!this.#failed || this.#deciding) return;
-      this.#failed = null;
-      this.#refreshMargin({ immediate: true, focus: this.#focusKey() });
-    }
+  // What the change is about, for the button's label and failure receipt: the
+  // proposal where there is one, since that is what accepting brings about —
+  // a deletion has only the markup it would remove.
+  #label() {
+    const slot =
+      this.querySelector(":scope > lf-new") || this.querySelector(":scope > lf-old");
+    const text = (slot && says(slot)) || this.id;
+    return text.length > 48 ? text.slice(0, 48) + "…" : text;
+  }
 
-    async #undoOutcome() {
-      const outcome = outcomeOf(this.#controller.read().state);
-      if (!outcome || this.#undoing) return;
-      if (this.#staging || this.#deciding) {
-        notice("Wait for the current change to finish before undoing");
-        return;
-      }
-      const event = this.#undoable(outcome);
-      if (!event) {
-        notice("This outcome is no longer available to undo");
-        return;
-      }
-      this.#failed = null;
-      this.#undoing = true;
-      this.#refreshMargin();
-      try {
-        if (
-          !(await this.#controller.dispatch({
-            kind: "undo",
-            target: event.attempt ?? event.id,
-          })?.delivery)
-        )
-          this.#failed = { undo: true };
-      } finally {
-        this.#undoing = false;
-        if (this.isConnected) this.#refreshMargin();
-      }
-    }
+  #subject() {
+    const cut = this.querySelector(":scope > lf-old");
+    const put = this.querySelector(":scope > lf-new");
+    const before = cut ? says(cut) : "";
+    const after = put ? says(put) : "";
+    if (before && after) return `${before} → ${after}`;
+    return before || after || this.id;
+  }
 
-    #settle(outcome) {
-      // A settle that changes nothing does nothing, which is what makes the poll's
-      // replay of this tab's own decision the no-op an absolute action promises to be.
-      // The private presented outcome owns that idempotence; the attribute is CSS and
-      // export paint and never feeds the component's semantic decisions back in.
-      if (this.#presentedOutcome === outcome) return;
-      // Read before the state moves: deciding retires the slot, and its words leave
-      // the page's reading with it.
-      const fold = this.#fold(outcome);
-      this.#failed = null;
+  // The banner's blanket answer (x-awaits.all) calls the deciding verb by name.
+  decide(outcome) {
+    return this.#decide(outcome);
+  }
+
+  // A press makes the reversible decision locally and the outbox carries that exact
+  // projection until the log accounts for it. A definitive refusal removes the local
+  // winner and reconciles the authored state before this continuation paints the repair
+  // controls, so the user returns to a pending suggestion with Failed, Retry, Cancel.
+  #decide(outcome, focus = null) {
+    if (outcomeOf(this.#controller.read().state)) return Promise.resolve(true);
+    if (!this.#controller.read().actions.decide?.available)
+      return Promise.resolve(false);
+    if (this.#staging || this.#deciding)
+      return this.#deciding ?? Promise.resolve(false);
+    // Read before deciding: deciding retires a slot, a retired slot leaves the page's
+    // reading, and `says` on what has left the reading answers nothing — the notice
+    // then named the widget's id instead of the words the user just judged.
+    const label = this.#label();
+    this.#failed = null;
+    // This decision replaces words the user may still have selected. Clear that
+    // page range before moving its nodes, independent of whether activation came from
+    // pointer, Enter, Space, or an address route; otherwise later reconciliation can
+    // reconstruct the relocated range and raise its Comment field again.
+    getSelection()?.removeAllRanges();
+    // Keep the replacement Undo in the pressed margin entry's seat while delivery is open.
+    // It is present for focus continuity but unavailable until the log gives the
+    // gesture the durable id Undo must name.
+    this.#staging = true;
+    const sent = (
+      this.#controller.dispatch({
+        kind: "action",
+        verb: "decide",
+        detail: { outcome },
+      })?.delivery ?? Promise.resolve(null)
+    ).then((accepted) => {
       this.#deciding = null;
       this.removeAttribute("aria-busy");
-      this.#presentedOutcome = outcome;
-      keeps(this, "data-lf-state", outcome);
-      // The retired slot's marker is the layer's rendering of that state, and the
-      // theme's one hide rule reads it. The accepted response replays through this
-      // method on the gesture's own tab, so it hides the slot in the frame the
-      // decision lands; the layer then writes the same mark unconditionally.
-      renderRetired(this, outcome);
-      // The emphasis goes with the pending state: a decided suggestion is plain
-      // prose. So does the word naming each slot, which is the same fact said to
-      // whoever is listening.
-      emphasized.delete(this);
-      repaintEmphasis();
-      this.#voice();
-      fold?.();
-      // The only remaining circle is Undo, which still acts; the fold and surviving
-      // content carry the outcome without leaving another status beside them. Asked
-      // once the page stands as the decision leaves it, since a margin entry says
-      // where down the page its target is.
-      this.#refreshMargin();
-    }
+      if (!accepted) {
+        // A definitive refusal is a state the user can act from. Keep it at the
+        // target as Failed, Retry, Cancel; there is no detail disclosure because the
+        // transport returned no useful detail beyond the notice it already showed.
+        this.#failed = { outcome, label };
+        this.#refreshMargin();
+        return false;
+      }
+      // Usually the accepted state has already replayed this decision. Paint is
+      // still owed if another part of that state failed to render, but not if the
+      // same event list also carried a later undo: authored state then stands.
+      if (this.#acceptedStillStands(accepted)) {
+        if (this.#presentedOutcome === outcome) {
+          this.#refreshMargin();
+        } else this.#settle(outcome);
+        announce(
+          `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change: ${label}`,
+        );
+      } else {
+        this.#refreshMargin();
+      }
+      // TODO(2026-09-06): Decide whether accepted work with no active agent pickup
+      // needs a distinct post-send presentation.
+      return true;
+    });
+    this.#inFlight(sent, focus);
+    this.#staging = false;
+    return sent;
+  }
 
-    // The retired slot's room, given back as motion rather than taken in a frame. Only
-    // where there is room worth following: a slot holding block content is the case that
-    // moves the page, and an inline one swaps a few words inside a line the user is
-    // looking at.
-    //
-    // Measured before the decision and played after it, so the state the rest of the
-    // page reads is true from the first frame — the log has it, the banner's count has
-    // it, a second tab converging on it has it — while the pixels catch up. The inline
-    // display outranks the rule that hides the slot for exactly as long as the fold
-    // lasts, and nothing but this function writes it.
-    //
-    // The height is stated as a border box, whatever the slot's own sizing is. The
-    // measurement to hand is the rendered box (padding included, since the block form
-    // pads its slots), and starting a content-box height there would open the fold two
-    // pixels taller than the paragraph it is replacing — a jump on the first frame, in
-    // the one animation written to remove one.
-    #fold(outcome) {
-      const going = this.querySelector(
-        outcome === "accept" ? ":scope > lf-old" : ":scope > lf-new",
-      );
-      if (!going) return null;
-      const style = getComputedStyle(going);
-      if (style.display !== "block") return null;
-      const from = {
-        height: going.getBoundingClientRect().height + "px",
-        marginTop: style.marginTop,
-        marginBottom: style.marginBottom,
-        paddingTop: style.paddingTop,
-        paddingBottom: style.paddingBottom,
-        opacity: 1,
+  #acceptedStillStands(event) {
+    return Object.values(this.#controller.read().actions).some(({ inForce }) =>
+      inForce.some((winner) => winner.event.id === event.id),
+    );
+  }
+
+  #undoable(outcome) {
+    return this.#controller
+      .read()
+      .actions.decide?.undo.find((event) => event.detail?.outcome === outcome);
+  }
+
+  // The field refuses a second press while the first is unresolved. A pending result
+  // that has not painted also marks the widget busy; an optimistic result instead puts
+  // that state on its disabled Undo margin entry so the settled prose stays legible.
+  #inFlight(decision, focus = null) {
+    this.#deciding = decision;
+    // Optimistic content already says what the press did. Busy belongs to its disabled
+    // Undo margin entry, not as a dimming veil over the settled prose.
+    if (decision && !this.#outcome()) this.setAttribute("aria-busy", "true");
+    else this.removeAttribute("aria-busy");
+    this.#refreshMargin({ immediate: Boolean(focus) });
+    focus?.("undo");
+  }
+
+  #retryDecision() {
+    const failed = this.#failed;
+    if (!failed || this.#deciding) return;
+    this.#failed = null;
+    if (failed.undo) this.#undoOutcome();
+    else this.#decide(failed.outcome);
+  }
+
+  #cancelFailedDecision() {
+    if (!this.#failed || this.#deciding) return;
+    this.#failed = null;
+    this.#refreshMargin({ immediate: true, focus: this.#focusKey() });
+  }
+
+  async #undoOutcome() {
+    const outcome = outcomeOf(this.#controller.read().state);
+    if (!outcome || this.#undoing) return;
+    if (this.#staging || this.#deciding) {
+      notice("Wait for the current change to finish before undoing");
+      return;
+    }
+    const event = this.#undoable(outcome);
+    if (!event) {
+      notice("This outcome is no longer available to undo");
+      return;
+    }
+    this.#failed = null;
+    this.#undoing = true;
+    this.#refreshMargin();
+    try {
+      if (
+        !(await this.#controller.dispatch({
+          kind: "undo",
+          target: event.attempt ?? event.id,
+        })?.delivery)
+      )
+        this.#failed = { undo: true };
+    } finally {
+      this.#undoing = false;
+      if (this.isConnected) this.#refreshMargin();
+    }
+  }
+
+  #settle(outcome) {
+    // A settle that changes nothing does nothing, which is what makes the poll's
+    // replay of this tab's own decision the no-op an absolute action promises to be.
+    // The private presented outcome owns that idempotence; the attribute is CSS and
+    // export paint and never feeds the component's semantic decisions back in.
+    if (this.#presentedOutcome === outcome) return;
+    // Read before the state moves: deciding retires the slot, and its words leave
+    // the page's reading with it.
+    const fold = this.#fold(outcome);
+    this.#failed = null;
+    this.#deciding = null;
+    this.removeAttribute("aria-busy");
+    this.#presentedOutcome = outcome;
+    keeps(this, "data-lf-state", outcome);
+    // The retired slot's marker is the layer's rendering of that state, and the
+    // theme's one hide rule reads it. The accepted response replays through this
+    // method on the gesture's own tab, so it hides the slot in the frame the
+    // decision lands; the layer then writes the same mark unconditionally.
+    renderRetired(this, outcome);
+    // The emphasis goes with the pending state: a decided suggestion is plain
+    // prose. So does the word naming each slot, which is the same fact said to
+    // whoever is listening.
+    emphasized.delete(this);
+    repaintEmphasis();
+    this.#voice();
+    fold?.();
+    // The only remaining circle is Undo, which still acts; the fold and surviving
+    // content carry the outcome without leaving another status beside them. Asked
+    // once the page stands as the decision leaves it, since a margin entry says
+    // where down the page its target is.
+    this.#refreshMargin();
+  }
+
+  // The retired slot's room, given back as motion rather than taken in a frame. Only
+  // where there is room worth following: a slot holding block content is the case that
+  // moves the page, and an inline one swaps a few words inside a line the user is
+  // looking at.
+  //
+  // Measured before the decision and played after it, so the state the rest of the
+  // page reads is true from the first frame — the log has it, the banner's count has
+  // it, a second tab converging on it has it — while the pixels catch up. The inline
+  // display outranks the rule that hides the slot for exactly as long as the fold
+  // lasts, and nothing but this function writes it.
+  //
+  // The height is stated as a border box, whatever the slot's own sizing is. The
+  // measurement to hand is the rendered box (padding included, since the block form
+  // pads its slots), and starting a content-box height there would open the fold two
+  // pixels taller than the paragraph it is replacing — a jump on the first frame, in
+  // the one animation written to remove one.
+  #fold(outcome) {
+    const going = this.querySelector(
+      outcome === "accept" ? ":scope > lf-old" : ":scope > lf-new",
+    );
+    if (!going) return null;
+    const style = getComputedStyle(going);
+    if (style.display !== "block") return null;
+    const from = {
+      height: going.getBoundingClientRect().height + "px",
+      marginTop: style.marginTop,
+      marginBottom: style.marginBottom,
+      paddingTop: style.paddingTop,
+      paddingBottom: style.paddingBottom,
+      opacity: 1,
+    };
+    const to = Object.fromEntries(Object.keys(from).map((k) => [k, "0px"]));
+    to.opacity = 0;
+    return () => {
+      going.style.display = "block";
+      going.style.boxSizing = "border-box";
+      going.style.overflow = "hidden";
+      const played = motion(going, [from, to], foldDuration());
+      const done = () => {
+        going.style.display = "";
+        going.style.boxSizing = "";
+        going.style.overflow = "";
       };
-      const to = Object.fromEntries(Object.keys(from).map((k) => [k, "0px"]));
-      to.opacity = 0;
-      return () => {
-        going.style.display = "block";
-        going.style.boxSizing = "border-box";
-        going.style.overflow = "hidden";
-        const played = motion(going, [from, to], foldDuration());
-        const done = () => {
-          going.style.display = "";
-          going.style.boxSizing = "";
-          going.style.overflow = "";
-        };
-        // A fold interrupted — the element taken out from under it — rejects
-        // `finished`. Caught, so it is not an unhandled rejection, and the hand-back
-        // runs either way. A user who asked for less motion gets no animation at
-        // all (motion returns null), so the hand-back runs at once and the collapse
-        // is the frame the decision lands in.
-        played ? played.finished.then(done, done) : done();
-      };
-    }
+      // A fold interrupted — the element taken out from under it — rejects
+      // `finished`. Caught, so it is not an unhandled rejection, and the hand-back
+      // runs either way. A user who asked for less motion gets no animation at
+      // all (motion returns null), so the hand-back runs at once and the collapse
+      // is the frame the decision lands in.
+      played ? played.finished.then(done, done) : done();
+    };
+  }
 
-    // Which slot is which, for a user listening. A struck red run and a green one
-    // are the whole of what says "these words are going" and "these are the proposal",
-    // and none of it is text: a screen reader reads the sentence twice, the two
-    // readings contradicting each other, with nothing to say that either is a change.
-    // Worst on the case the emphasis below hands back for the same reason — an
-    // insert- or delete-only change, where the tint is the entire story and a listener
-    // hears one perfectly ordinary sentence.
-    //
-    // ARIA's own names for the two, said as text, because text is the one thing every
-    // screen reader announces in every mode, which is why role="deletion" is not what
-    // stands here. It follows the state exactly as the
-    // emphasis does: a decided suggestion is plain prose, so the surviving slot gives
-    // up this word along with its marks.
-    //
-    // "proposed", because the word is only ever on a slot nobody has decided and has to
-    // say so itself. Pendingness was encoded as the word's presence, which is the one
-    // thing no user can perceive — there is no settled slot alongside to compare it
-    // against — and `deletion` is ARIA's name for the act already carried out, so a
-    // listener heard a change announced as made while the page was still asking. The
-    // theme shows this word wherever the ✓/✗ row is not there to say the same thing.
-    #voice() {
-      const decided = Boolean(this.#outcome());
-      for (const [tag, word] of [
-        ["lf-old", "proposed deletion"],
-        ["lf-new", "proposed insertion"],
-      ])
-        for (const slot of this.querySelectorAll(`:scope > ${tag}`))
-          quietWord(slot, decided ? "" : word);
-    }
+  // Which slot is which, for a user listening. A struck red run and a green one
+  // are the whole of what says "these words are going" and "these are the proposal",
+  // and none of it is text: a screen reader reads the sentence twice, the two
+  // readings contradicting each other, with nothing to say that either is a change.
+  // Worst on the case the emphasis below hands back for the same reason — an
+  // insert- or delete-only change, where the tint is the entire story and a listener
+  // hears one perfectly ordinary sentence.
+  //
+  // ARIA's own names for the two, said as text, because text is the one thing every
+  // screen reader announces in every mode, which is why role="deletion" is not what
+  // stands here. It follows the state exactly as the
+  // emphasis does: a decided suggestion is plain prose, so the surviving slot gives
+  // up this word along with its marks.
+  //
+  // "proposed", because the word is only ever on a slot nobody has decided and has to
+  // say so itself. Pendingness was encoded as the word's presence, which is the one
+  // thing no user can perceive — there is no settled slot alongside to compare it
+  // against — and `deletion` is ARIA's name for the act already carried out, so a
+  // listener heard a change announced as made while the page was still asking. The
+  // theme shows this word wherever the ✓/✗ row is not there to say the same thing.
+  #voice() {
+    const decided = Boolean(this.#outcome());
+    for (const [tag, word] of [
+      ["lf-old", "proposed deletion"],
+      ["lf-new", "proposed insertion"],
+    ])
+      for (const slot of this.querySelectorAll(`:scope > ${tag}`))
+        quietWord(slot, decided ? "" : word);
+  }
 
-    // The words that moved, as ranges over both slots' own text nodes. Which words
-    // those are, and whether the pair shares enough ink to be worth marking at all,
-    // is `movedWords`.
-    #emphasize() {
-      if (this.#outcome()) return;
-      const oldSlot = this.querySelector(":scope > lf-old");
-      const newSlot = this.querySelector(":scope > lf-new");
-      if (!oldSlot || !newSlot) return; // insert- or delete-only: the tint is the story
-      const [oldSegs, newSegs] = [oldSlot, newSlot].map((slot) => textNodesUnder(slot));
-      const read = (segs) =>
-        segs.map((s) => s.node.data.slice(s.start, s.end)).join("");
-      const moved = movedWords(read(oldSegs), read(newSegs));
-      if (!moved) return;
-      emphasized.set(this, {
-        del: toRanges(oldSegs, moved.del),
-        ins: toRanges(newSegs, moved.ins),
-      });
-      repaintEmphasis();
-    }
+  // The words that moved, as ranges over both slots' own text nodes. Which words
+  // those are, and whether the pair shares enough ink to be worth marking at all,
+  // is `movedWords`.
+  #emphasize() {
+    if (this.#outcome()) return;
+    const oldSlot = this.querySelector(":scope > lf-old");
+    const newSlot = this.querySelector(":scope > lf-new");
+    if (!oldSlot || !newSlot) return; // insert- or delete-only: the tint is the story
+    const [oldSegs, newSegs] = [oldSlot, newSlot].map((slot) => textNodesUnder(slot));
+    const read = (segs) => segs.map((s) => s.node.data.slice(s.start, s.end)).join("");
+    const moved = movedWords(read(oldSegs), read(newSegs));
+    if (!moved) return;
+    emphasized.set(this, {
+      del: toRanges(oldSegs, moved.del),
+      ins: toRanges(newSegs, moved.ins),
+    });
+    repaintEmphasis();
+  }
 
-    // Which of the three changes this is, for anything naming it away from the page:
-    // a row in the Questions panel, the label on a comment anchored here. The slots are the
-    // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
-    // deletes — and it is the reading #voice already speaks on the slots themselves,
-    // said once for the element. A settled suggestion keeps the word it had: the
-    // retired half stays in the markup, and a decision changed the outcome rather than
-    // the kind of thing that was proposed.
-    lfWord() {
-      const cut = this.querySelector(":scope > lf-old");
-      const put = this.querySelector(":scope > lf-new");
-      return cut && put ? "rewrite" : put ? "insertion" : "deletion";
-    }
+  // Which of the three changes this is, for anything naming it away from the page:
+  // a row in the Questions panel, the label on a comment anchored here. The slots are the
+  // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
+  // deletes — and it is the reading #voice already speaks on the slots themselves,
+  // said once for the element. A settled suggestion keeps the word it had: the
+  // retired half stays in the markup, and a decision changed the outcome rather than
+  // the kind of thing that was proposed.
+  lfWord() {
+    const cut = this.querySelector(":scope > lf-old");
+    const put = this.querySelector(":scope > lf-new");
+    return cut && put ? "rewrite" : put ? "insertion" : "deletion";
+  }
 
-    // Its words, for the same askers: the slots' text nodes run together away from the
-    // strike and insert paint, and a thread on a rewrite was quoted as
-    // "courtyardcovered terrace".
-    lfSays() {
-      return this.#subject();
-    }
+  // Its words, for the same askers: the slots' text nodes run together away from the
+  // strike and insert paint, and a thread on a rewrite was quoted as
+  // "courtyardcovered terrace".
+  lfSays() {
+    return this.#subject();
+  }
 
-    renderState(state) {
-      const outcome = outcomeOf(state);
-      if (outcome) return this.#settle(outcome);
-      if (!this.#presentedOutcome) return;
-      for (const slot of this.querySelectorAll(":scope > lf-old, :scope > lf-new"))
-        for (const animation of slot.getAnimations()) animation.cancel();
-      this.#presentedOutcome = null;
-      this.removeAttribute("data-lf-state");
-      renderRetired(this, null);
-      this.#failed = null;
-      this.#deciding = null;
-      this.removeAttribute("aria-busy");
-      this.#refreshMargin();
-      this.#voice();
-      this.#emphasize();
-    }
+  renderState(state) {
+    const outcome = outcomeOf(state);
+    if (outcome) return this.#settle(outcome);
+    if (!this.#presentedOutcome) return;
+    for (const slot of this.querySelectorAll(":scope > lf-old, :scope > lf-new"))
+      for (const animation of slot.getAnimations()) animation.cancel();
+    this.#presentedOutcome = null;
+    this.removeAttribute("data-lf-state");
+    renderRetired(this, null);
+    this.#failed = null;
+    this.#deciding = null;
+    this.removeAttribute("aria-busy");
+    this.#refreshMargin();
+    this.#voice();
+    this.#emphasize();
+  }
 
-    #outcome() {
-      const state = this.#controller?.read().state;
-      return state ? outcomeOf(state) : null;
-    }
-  },
-);
+  #outcome() {
+    const state = this.#controller?.read().state;
+    return state ? outcomeOf(state) : null;
+  }
+}

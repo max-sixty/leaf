@@ -1,4 +1,5 @@
 /* Leaf runtime boot and application composition root. */
+import "./vendor/scoped-registry.js";
 import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 import "./vendor/browser-runtime.js";
 import "./runtime/interaction-log.js";
@@ -430,7 +431,7 @@ app = mountApplication({
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
   accompanyThread: (...args) => landing.accompanyThread(...args),
-  threadAvailable: !offlineInteractive,
+  reportPageError,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
   wireInput: inputs.wireInput,
@@ -753,15 +754,21 @@ if (document.documentElement.lfSample) {
     viewOperation?.abort();
     viewOperation = new AbortController();
     const { signal } = viewOperation;
+    const retained = retainUserIntent({ available: () => !signal.aborted });
+    // A host view never takes focus, but newer child input still supersedes it.
+    const intent = restrictUserIntent(retained, retained);
     // The host's usable interface includes comments while history still loads.
     // Selecting a saved conversation needs the child's authoritative reading.
     return afterPresentation(async () => {
-      if (signal.aborted) return false;
+      if (!intent()) return false;
       if (surface === "panel")
-        return threadPanelController.showView({ thread: id, status, waiting, signal });
-      const retained = retainUserIntent({ available: () => !signal.aborted });
-      // A host view never takes focus, but newer child input still supersedes it.
-      const intent = restrictUserIntent(retained, retained);
+        return threadPanelController.showView({
+          thread: id,
+          status,
+          waiting,
+          signal,
+          intent,
+        });
       intent.handoff(() => threadPanelController.setPanel(false));
       return Boolean(
         await app.threadDestinations.openPageThread(id, {

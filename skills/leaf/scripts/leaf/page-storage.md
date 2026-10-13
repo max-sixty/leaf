@@ -27,10 +27,13 @@ other page files and the external state listed below.
 
 - `leaf.js` — the browser entry, served at /leaf.js
 
-- `theme.css` — tokens, element styles, class idioms, element-widget CSS
+- `theme.css` — current chrome, tokens, element styles, class idioms, and unscoped themes
 
-- `shadow.css` — the rules declared shadow trees also need; theme.css carries them too,
-  ahead of each package's own rules
+- `widget-theme.css` — package widget rules, scoped to the declarations captured by
+  each publication so historical content keeps its own presentation
+
+- `shadow.css` — the rules declared shadow trees also need; the document's theme or
+  widget theme carries them too, ahead of each package's own rules
 
 - `registry.json` — effective widget schemas and layer metadata. Composition and
   identity are defined in [layer-registry.md](layer-registry.md).

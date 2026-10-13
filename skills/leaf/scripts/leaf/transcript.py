@@ -4,13 +4,14 @@ from pathlib import Path
 
 from leaf.event_log import read_events
 from leaf.events import approvals_in_force, build_threads, is_reaction, taken_back
-from leaf.files import latest_revision, revision_label
+from leaf.files import latest_revision, list_revisions, revision_label
 from leaf.gesture_words import GestureWords, revisions_on_disk
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import json_value
 from leaf.registry.storage import active_registry
 from leaf.revision_artifact import read_revision
 from leaf.schema import WIDGET_KINDS, agent_name
+from leaf.thread_context import effective_thread_events
 
 # A quote as a transcript names it. The anchor stores the passage whole, because that
 # is the extent the page marks; a transcript is prose someone pastes into an MR, where
@@ -55,7 +56,12 @@ def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
     # is named by its id, and a body edit's detail already carries the new words.
     withdrawn = taken_back(events)
     words = (
-        GestureWords(events, registry, revisions_on_disk(page_dir))
+        GestureWords(
+            events,
+            registry,
+            revisions_on_disk(page_dir),
+            available_revisions=list_revisions(page_dir),
+        )
         if registry
         else None
     )
@@ -98,14 +104,13 @@ def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
 
 def _published_within(
     page_dir: Path,
-    registry: dict,
     revision: int | None,
 ) -> dict:
     # Against the active revision — the page as it now stands, which is what a
     # transcript is an account of. A page with no valid revision has no reading.
     if revision is None:
         return {}
-    return read_revision(page_dir, revision).under(registry).within
+    return read_revision(page_dir, revision).within
 
 
 def _thread_heading(thread: dict) -> str:
@@ -154,7 +159,10 @@ def _print_message(message: dict, registry: dict) -> None:
     print(f"- **{who}**{edited}: " + body.replace("\n", "\n  "))
 
 
-def _print_threads(events: list, within: dict, registry: dict) -> None:
+def _print_threads(
+    events: list, within: dict, registry: dict, available_revisions: set[int]
+) -> None:
+    events = effective_thread_events(events, available_revisions)
     threads = build_threads(events, within)
     if threads:
         print("\n### Threads\n")
@@ -178,6 +186,6 @@ def cmd_transcript(page_dir: Path) -> None:
     print(f"## Leaf: {title or page_dir.name}")
     _print_versions(events)
     _print_edits(page_dir, events, registry)
-    within = _published_within(page_dir, registry, revision)
-    _print_threads(events, within, registry)
+    within = _published_within(page_dir, revision)
+    _print_threads(events, within, registry, set(list_revisions(page_dir)))
     _print_approvals(events)

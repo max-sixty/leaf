@@ -28,8 +28,8 @@ export of the Worker's entry (`worker/wrangler.toml`'s `main`) by name, as
 
 A default export has no name of its own: its readers import the module, or a tool
 loads it by path, as eslint loads `eslint.config.mjs` and Pi loads `hooks/pi.ts`.
-So it counts as read where a module imports it, or another file names the module's
-file name.
+So it counts as read where a module imports it, another file names the module's
+file name, or a registry declares an upgraded widget that loads its constructor.
 """
 
 import json
@@ -38,6 +38,7 @@ import tomllib
 from pathlib import PurePosixPath
 
 from interact_support import PLUGIN_ROOT, js_facts, shipped_payload
+from leaf.registry.contract import element_declarations
 
 SOURCES = (".js", ".mjs", ".ts")
 WORDED = (".py", ".html", ".md")
@@ -53,6 +54,32 @@ UNCHECKED = re.compile(
 # An escape is consumed whole, so `"\ndefine(…)"` in a Python string reads `define`.
 WORD = re.compile(r"\\[a-z]|([A-Za-z_$][\w$]*)")
 WORKER = "worker/wrangler.toml"
+
+
+def widget_default_readers(texts):
+    """Registry-owned constructor imports consumed by publicationVocabulary.load."""
+    return {
+        (PurePosixPath(relative).parent / "widgets" / f"{tag}.js").as_posix()
+        for relative, text in texts.items()
+        if PurePosixPath(relative).name == "registry.json"
+        for tag, entry in element_declarations(json.loads(text)).items()
+        if entry.get("x-upgrade")
+    }
+
+
+def test_dynamic_default_readers_require_an_upgraded_element_declaration():
+    texts = {
+        "page/registry.json": json.dumps(
+            {
+                "lf-loaded": {"x-upgrade": True},
+                "lf-static": {"x-upgrade": False},
+                "lf-selector.selected": {"x-upgrade": True},
+            }
+        ),
+        "reader.js": 'import value from "./ordinary.js";',
+        "other/widgets/lf-loaded.js": "export default class {}",
+    }
+    assert widget_default_readers(texts) == {"page/widgets/lf-loaded.js"}
 
 
 def test_every_export_has_a_reader_in_another_file():
@@ -99,6 +126,8 @@ def test_every_export_has_a_reader_in_another_file():
             for target in exporters.get(name, ()) if module is None else (module,):
                 if target != reader:
                     mark(target, name)
+    for module in widget_default_readers(texts):
+        mark(module, "default")
     worker = PurePosixPath(WORKER).parent
     mark(str(worker / tomllib.loads(texts[WORKER])["main"]), "*")
 

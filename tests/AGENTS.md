@@ -257,7 +257,7 @@ Take each resource from its owner: a child process from `spawn`, a page server f
 `_no_page_outlives_its_test`, a preview from `preview_slot` and `start_preview`, an
 in-process HTTP server from `running_http_server`, a Unix socket directory from
 `socket_dir` (`test_the_resources_a_fixture_owns_are_taken_from_that_fixture`). A test
-of a standing server stops it explicitly, since a `Popen` handle does not own a
+of a persistent server stops it explicitly, since a `Popen` handle does not own a
 detached server's tree. The cleanup sweep reads only `isolated_session`'s state home
 and `tmp_path`, never the developer's.
 
@@ -514,7 +514,7 @@ refused it.
 
 The corpus has these matrices. Return state is anchored on a first visit
 (`arrival_findings`); semantic replay is anchored on a static authored state, applying
-standing actions or reports twice and checking the visible state and idempotence; a
+the actions or reports in force twice and checking the visible state and idempotence; a
 scroll's writes (`scroll_writes`, read by `scroll_followers`) fail where a place is
 written on every step; a page left alone (`at_rest`) fails anything it does; a
 surface's round trips fail where one leaves a different `reader_state` than the first

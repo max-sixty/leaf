@@ -195,7 +195,7 @@
      A number local to a component's own stacking context stays where it is written. */
   --lf-z-page-paint: 8890;        /* paint on a page element */
   --lf-z-margin-raised: 8895;     /* the margin item under pointer or focus */
-  --lf-z-surface: 8900;           /* a standing drawer or thread panel */
+  --lf-z-surface: 8900;           /* an open drawer or thread panel */
   --lf-z-margin-preview: 8920;    /* the thread card, under the bars it scrolls beneath */
   --lf-z-page-hints: 8930;        /* a key chip naming a page target, under the bars */
   --lf-z-shortcut-bar: 8940;
@@ -684,7 +684,7 @@ html { background: var(--paper); }
  * part of the document's final layout. The render-blocking theme reserves that room so
  * the useful initial HTML paints where it will remain. The root stays the document
  * scrollport. Its definite height lets a page Layout's body minimum (layouts.css) fill a
- * short viewport while a longer body still overflows it. A standing scrollbar prevents a
+ * short viewport while a longer body still overflows it. A permanent scrollbar prevents a
  * later height change from recentering the page. A served page's bootstrap marks it
  * live before its graph has loaded (runtime/bootstrap.js); an export draws no chrome,
  * and paper has no fixed chrome. */
@@ -786,7 +786,7 @@ body {
 :has(> .lf-markdown-body[data-lf-prepaint]) > pre { display: none; }
 html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { display: none; }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
- * parse while JavaScript upgrades widgets and reads the standing log. Generated page
+ * parse while JavaScript upgrades widgets and reads the current log. Generated page
  * interface joins it as soon as widget and page-interface upgrade gives that apparatus
  * its settled upgrade geometry; durable controls still guard mutation until presentation.
  * Ordinary prose, links, scrolling, and layout remain available.
@@ -851,7 +851,7 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { disp
    button's height, so a row of them beside .lf-btn reads as one set of controls. With
    no face the browser drew its own: a 2px inset border and square corners, 21px tall
    beside 30px buttons. At a class's weight, so a component rule naming its own field
-   still wins by standing later. */
+   still wins by coming later. */
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
        [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field) {
   box-sizing: border-box; min-height: max(var(--aim-floor), calc(1em * var(--lf-ui-lh) + 10px));
@@ -1483,7 +1483,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 .lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
 }
-/* Opening a standing reaction leaves its familiar face in place and reveals the
+/* Opening a reaction in force leaves its familiar face in place and reveals the
    separately named removal action beside it. Its existing contour takes the shared
    disclosure accent (above), stated beside it so the two meet on their selectors; the
    mark does not gain a second ring or pretend the reaction itself changed. */

@@ -204,7 +204,7 @@ const setup = (extraDescriptors = [], extraAuthored = []) => {
   app.adopt(state(1));
   return app;
 };
-// The standing decision's outcome, or null while the widget is undecided.
+// The outcome of the decision in force, or null while the widget is undecided.
 const outcomeOf = (state) => state?.decide.detail.outcome ?? null;
 const decision = (app) => outcomeOf(app.read().effective.widgets.get("choice").state);
 
@@ -314,7 +314,7 @@ test("one widget selection publishes optimistic state without writable access", 
   app.enqueue(action("first"), "now");
   assert.equal(selected.read().authored.decide.action, null);
   assert.equal(outcomeOf(selected.read().state), "accept");
-  assert.equal(seen.at(-1).actions.decide.standing[0].event.attempt, "first");
+  assert.equal(seen.at(-1).actions.decide.inForce[0].event.attempt, "first");
   assert.throws(() => {
     selected.read().actions.decide.available = false;
   }, TypeError);
@@ -435,7 +435,7 @@ test("an offline document publishes every host command as unavailable", () => {
   assert.equal(outcomeOf(reading.state), "accept");
 });
 
-test("widget undo candidates name only exact currently standing attempts", () => {
+test("widget undo candidates name only exact attempts currently in force", () => {
   const app = setup();
   const selected = app.selectWidget(descriptor);
   const pending = app.enqueue(action("first"), "now");
@@ -1315,7 +1315,7 @@ for (const resolved of [null, { author: "user" }]) {
     };
     // The server owes nobody a turn in a resolved thread; an open one waits on the
     // user's answer.
-    const standing = resolved ? null : "needs_user";
+    const owed = resolved ? null : "needs_user";
     const accepted = state(2);
     accepted.browser.views[1].thread.threads = [
       servedThread([root], {
@@ -1331,7 +1331,7 @@ for (const resolved of [null, { author: "user" }]) {
       const thread = app.read().effective.thread.all[0];
       return [thread.attention?.kind ?? null, thread.resolved];
     };
-    assert.deepEqual(turn(), [standing, resolved]);
+    assert.deepEqual(turn(), [owed, resolved]);
 
     // The reply reopens the thread it joins, which the gesture settles by itself; whose
     // turn the thread is then waits for the log's reading.
@@ -1345,12 +1345,12 @@ for (const resolved of [null, { author: "user" }]) {
       },
       "now",
     );
-    assert.deepEqual(turn(), [standing, null]);
+    assert.deepEqual(turn(), [owed, null]);
     const answer = { kind: "reply", attempt: "answer", id: "e-answer" };
     app.accept("answer", answer);
     app.present([answer]);
     assert.deepEqual(app.read().unresolved, []);
-    assert.deepEqual(turn(), [standing, resolved]);
+    assert.deepEqual(turn(), [owed, resolved]);
 
     // A refused reply is the user's to send again.
     app.enqueue(

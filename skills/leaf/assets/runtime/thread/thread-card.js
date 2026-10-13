@@ -12,7 +12,7 @@
    arrives is retained while it waits, including when its workflow receipt goes.
    Each message header text item keeps its allocated width while news waits, so a later
    receipt grows only inside its own clipped box. The first notice may use spare
-   room for its new receipt without moving the author or time already standing.
+   room for its new receipt without moving the author or time already shown.
 
    Immutable descriptors contain generated presentation only. Retained native editors,
    margin controls and frozen message widgets keep their mechanical lifetime outside
@@ -629,7 +629,7 @@ export class ThreadView {
       model = Object.freeze(
         this.#heldNews.hold({ threads: [model] }, { row: false }).threads[0],
       );
-    // Capture the standing words only when news starts waiting, before its update
+    // Capture the current words only when news starts waiting, before its update
     // removes a receipt. This allocation lives with the held view, not its reading.
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
     // The messages being rewritten, whose own changes of height the held extent follows
@@ -645,7 +645,7 @@ export class ThreadView {
     const restoreFocus = holdFocus(this.node);
     const standing = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
-    // Only a summary that was not standing before can swallow what the user
+    // Only a summary that was not present before can swallow what the user
     // holds or is reading, and reading geometry here forces layout.
     if (prior && model.summaries.some(({ id }) => !priorSummaries.has(id))) {
       const heldMessage = prior.messages.find(({ key }) =>
@@ -1077,7 +1077,7 @@ export class ThreadView {
       }));
       this.#headerSlot = { header, items, boxWidth: box.width, held: observe };
       for (const { node, width } of allocates ? items : []) {
-        // Keep the author's standing width before the first held render, while
+        // Keep the author's current width before the first held render, while
         // its receipt can still take unused room on that first presentation.
         if (!observe && node.classList.contains("lf-msg-meta")) continue;
         node.classList.toggle("lf-held-header-item", true);
@@ -1410,7 +1410,7 @@ export class ThreadView {
       void landGesture({
         landing,
         answer,
-        standing: () =>
+        pending: () =>
           this.#commands.settlement
             .pendingEntries()
             .some(({ event }) => event.attempt === attempt),

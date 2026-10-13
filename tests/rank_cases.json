@@ -73,7 +73,7 @@
       }
     },
     {
-      "name": "every standing move places its own unit",
+      "name": "every move in force places its own unit",
       "authored": {
         "todo": ["a", "b", "c", "d"],
         "done": ["e"]

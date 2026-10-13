@@ -245,7 +245,7 @@ export function createSelectionComposer({
     return held;
   }
   // Replace the drawing a passage's draft holds, or take it off with null, leaving the
-  // words. The composer standing on that passage, up or put away, holds the draft's
+  // words. The composer on that passage, up or put away, holds the draft's
   // current reading, so it takes the change and saves it; any other draft is rewritten
   // where it is stored, and one left holding nothing is settled.
   function setDraftDrawing(anchor, drawing) {
@@ -289,7 +289,7 @@ export function createSelectionComposer({
   const composerHolds = () => holdsContent(syncComposer.value());
 
   // The composer's suggest-mode rendering — the offer of it, the button label and the
-  // placeholder — derived from the standing state in one place, so the four paths that
+  // placeholder — derived from the current state in one place, so the four paths that
   // set that state (toggle, open, close, another tab's keystroke) can't each restate
   // half of it. The placeholder itself is wireInput's to paint, from the box's hint;
   // syncComposer asks for that paint.
@@ -434,7 +434,7 @@ export function createSelectionComposer({
     composer.toggleAttribute("data-lf-open", open);
     // An explicit Comment gesture focuses the field and drops the native selection, so
     // this mark then becomes the durable pointer to the quoted passage. Automatic passage
-    // selection leaves both readings standing until the user enters the field.
+    // selection leaves both readings in place until the user enters the field.
     refreshThread();
     repaint();
   }
@@ -459,7 +459,7 @@ export function createSelectionComposer({
     suggestCheck.checked = Boolean(suggest);
     return retargeted;
   }
-  // A new passage defaults to the mode standing at the open — a composer opened in
+  // A new passage defaults to the mode current at the open — a composer opened in
   // design mode is about design — and a restored draft passes its saved modes. A pointing
   // gesture passes the row inside the target it landed on (`point`, pointed-place.js),
   // or null; a route that names no point leaves the bar where it stands on this anchor.
@@ -481,7 +481,7 @@ export function createSelectionComposer({
     const previousCtx = composerCtx(pendingAnchor);
     const drawingSupplied = drawing !== undefined;
     let carriedDraft = false;
-    let standing = null;
+    let storedDrawing = null;
     if (previousCtx !== ctx) {
       suggest = suggest === undefined ? false : suggest;
       about = about === undefined ? (designModeActive() ? "design" : null) : about;
@@ -498,7 +498,7 @@ export function createSelectionComposer({
       // the old Alt-click promise without replacing independent work already held at
       // the destination or making a user's next selection silently re-anchor a draft.
       const record = text ? null : composerRecord(ctx);
-      standing = composerRecord(ctx)?.drawing ?? null;
+      storedDrawing = composerRecord(ctx)?.drawing ?? null;
       // A drawing marks its own passage, so a draft holding one stays where it is, as
       // its words do with it (`carryComposerToReply` says the same of a reply).
       const carrying =
@@ -519,7 +519,7 @@ export function createSelectionComposer({
       text: text || syncComposer.value(),
       suggest: suggest === undefined ? suggestCheck.checked : suggest,
       about: about === undefined ? pendingAbout : about,
-      drawing: previousCtx !== ctx ? standing : pendingDrawing,
+      drawing: previousCtx !== ctx ? storedDrawing : pendingDrawing,
     });
     const target = pendingAnchor?.section ? elementById(pendingAnchor.section) : null;
     keeps(
@@ -570,7 +570,7 @@ export function createSelectionComposer({
     openComposer(anchor, "", { carry: true, ...options });
     return syncComposer.addMedia(images);
   }
-  // The box is one view of the draft standing on this passage, and it follows the plain
+  // The box is one view of the draft on this passage, and it follows the plain
   // boxes' rule with one thing of its own: the composer is chrome as well as a box, so a
   // draft settled in another tab — sent, or discarded — leaves it nothing to be open about
   // and it goes down. The subscription moves with the anchor, because the key does.
@@ -581,7 +581,7 @@ export function createSelectionComposer({
       composerCtx(pendingAnchor),
       (value) => {
         // Settled, not discarded. A send masks its generation and leaves the record
-        // standing, because a refusal has to give the words back; discarding here would
+        // in place, because a refusal has to give the words back; discarding here would
         // tombstone them first and there would be nothing left to give.
         if (value === null) return settleComposer();
         const record = composerRecord(composerCtx(pendingAnchor));

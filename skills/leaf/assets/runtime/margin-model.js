@@ -370,6 +370,7 @@ export function clusterProjection(
     primary,
     hasOptions,
     optionsOpen,
+    optionsExpanded: optionsOpen && expandedKey === entry.key,
     folded: folds,
     options: optionGroupProjection(
       entry,

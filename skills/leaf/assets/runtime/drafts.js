@@ -224,13 +224,13 @@ const refreshDraftRecord = (ctx) => {
   if (changed) projectDraftRecord(ctx, shared);
   return shared;
 };
-// A generation this document has sent and not heard back on. Its words are standing
+// A generation this document has sent and not heard back on. Its words are shown
 // wherever the gesture drew them, so the box they were written in reads empty, while
 // the record itself stands, unsettled, until the log accepts it. The two are different
 // facts: what a box shows is about this document, and settlement is a claim over every
 // tab. That is what lets a second tab still show and send the same generation, and what
 // brings the words back here on a refusal with nothing to restore them from.
-const standingGestures = new Map(); // ctx -> attempt
+const sentAttempts = new Map(); // ctx -> attempt
 
 const unsettledDraftRecord = (ctx) => {
   const record = rawDraftRecord(ctx);
@@ -238,7 +238,7 @@ const unsettledDraftRecord = (ctx) => {
 };
 const activeDraftRecord = (ctx) => {
   const record = unsettledDraftRecord(ctx);
-  return standingGestures.get(ctx) === record?.attempt ? null : record;
+  return sentAttempts.get(ctx) === record?.attempt ? null : record;
 };
 // Sending hides a generation's words while its result stands on screen, but does
 // not end its editor's lifetime: refusal still owes those words that same editor.
@@ -291,11 +291,11 @@ export const saveDraft = (ctx, text, payload, held = carriedHeld(ctx)) => {
 // edit made meanwhile starts without it.
 const carriedHeld = (ctx) => {
   const previous = rawDraftRecord(ctx);
-  return previous && !previous.settled && standingGestures.get(ctx) !== previous.attempt
+  return previous && !previous.settled && sentAttempts.get(ctx) !== previous.attempt
     ? previous.held
     : undefined;
 };
-// Set the held reply on the draft's standing generation without minting another: the
+// Set the held reply on the draft's current generation without minting another: the
 // refused attempt stays the one a resend re-evaluates.
 const holdReply = (ctx, held) => {
   const current = activeDraftRecord(ctx);
@@ -377,7 +377,7 @@ export function settleAcceptedDrafts() {
 //
 // Attempt and exact untrimmed text are rechecked immediately before POST. A successful
 // older send settles only that generation; any later edit has a fresh attempt and remains
-// standing. This is the claim both senders below make, and the only thing they share: a
+// open. This is the claim both senders below make, and the only thing they share: a
 // send that no longer owns its generation appends nothing, whichever lifecycle it is in.
 function claimDraft(ctx, owns) {
   const before = activeDraftRecord(ctx);
@@ -400,19 +400,19 @@ function claimDraft(ctx, owns) {
 // Both senders below stage the same way, because both draw their result in the document
 // before the log has answered: `post` paints the message in its thread, and a dispatched
 // action paints its projected outcome. So the box stops showing words the user can now
-// see standing, while the record keeps them — one copy of the words on screen, and a
+// see painted, while the record keeps them — one copy of the words on screen, and a
 // generation still owed an answer. Acceptance settles exactly that generation. A refusal
 // withdraws the result and lifts the mask, so the box the user typed in has the words
 // again; the record stood in the store throughout, which is what a tab that went down
 // with the send recovers from.
 const standGesture = (ctx, current) => {
-  standingGestures.set(ctx, current.attempt);
+  sentAttempts.set(ctx, current.attempt);
   tellDraft(ctx, null);
   return (sent) => {
-    // Lift this generation's mask, not whatever is standing for the context: a second
+    // Lift this generation's mask, not whatever is current for the context: a second
     // send into the box this one emptied has masked its own words by the time this
     // answer arrives, and they are on screen as a gesture of their own.
-    if (standingGestures.get(ctx) === current.attempt) standingGestures.delete(ctx);
+    if (sentAttempts.get(ctx) === current.attempt) sentAttempts.delete(ctx);
     if (sent) {
       if (settleDraft(ctx, current.attempt)) tellDraft(ctx, null);
       return;
@@ -426,7 +426,7 @@ const standGesture = (ctx, current) => {
 
 // An action the sender waits on: a widget edit, an added option. Its dispatch paints the
 // projected outcome before the delivery it returns resolves, so the words are already
-// standing in the document by the time this awaits them. The caller's own control shows
+// shown in the document by the time this awaits them. The caller's own control shows
 // the wait.
 export async function sendDraft(ctx, owns, send) {
   const current = claimDraft(ctx, owns);
@@ -576,8 +576,8 @@ export function forgetWritingPlace(ctx) {
 // sent behind the message or still unsent. That box began with any reply the draft held,
 // so its words now are the draft's held reply (`held`), part of the draft the message
 // was sent from (`openedFrom`), which brings them to the thread its next send opens,
-// edited, carried elsewhere or not (`sendMessage`). Resume writing standing in the
-// withdrawn box moves to that draft, the one place the user acts to get them back.
+// edited, carried elsewhere or not (`sendMessage`). Resume writing, shown in the
+// withdrawn box, moves to that draft, the one place the user acts to get them back.
 //
 // Words back in a box on screen need no sentence. Words back only in a box out of view
 // are the ones a refusal otherwise appears to lose, so they become the Resume writing

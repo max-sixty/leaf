@@ -82,7 +82,7 @@ def _render_version_attempt(
     in both color schemes at wide and compact viewports, because the dark theme and
     responsive layout are real CSS nobody otherwise renders — plus, in one scheme at
     each viewport, a word the registry promised that never reached
-    the page (a declaration is scheme-blind), an attribute a module left standing on a
+    the page (a declaration is scheme-blind), an attribute a module left on a
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
     renderState is relative, so a read's replay of the sender's own gesture moves the

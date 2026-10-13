@@ -169,7 +169,7 @@ const entryReading = (declaration, selected, amount, disabled, hidden = false) =
     hidden,
   });
 
-// Counts describe each named subset under the other standing filters, including
+// Counts describe each named subset under the other active filters, including
 // Status clearing Waiting on. An active choice keeps its subset count; clearing it
 // broadens the results rather than changing what its label counts.
 function presentationReading(reading, threads, shown, places, complete) {

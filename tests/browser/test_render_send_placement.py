@@ -1362,7 +1362,7 @@ def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, s
 @pytest.mark.parametrize(
     "source,read,existing",
     # Each point the wheel can land in the solve, each scroller, and a placement
-    # already standing, each at least once.
+    # already in place, each at least once.
     [
         ("inner", "before-discovery", False),
         ("document", "before-scroll", True),

@@ -93,7 +93,10 @@ const searchCount = (position, total) => `${position} of ${total}`;
 // walk, the scroll freeze, and the paint. What this module declares is which members the
 // map holds and where each chip sits among them. An ancestor and descendant painting the
 // same visible box name one target, and the innermost remains, matching direct aim. A
-// target's chip sits outside its own box, keeping controls and their labels readable. Shared hint seating separates those faces without moving page content.
+// target's chip sits outside its own box, keeping controls and their labels readable.
+// Shared hint seating separates those faces without moving page content, and steps
+// each chip before a nest of targets out by its level in that nest, so a group's chip
+// and its members' chips read as an outline (`nestOutsets`, hints.js).
 // Admission and clipping stay with key-badge-placement.js.
 //
 // `/` opens a real search input over the whole page reading, either directly from the
@@ -386,7 +389,7 @@ export function createTargetPicker({
     return true;
   }
 
-  // Layout invalidation is the mechanical source of a standing walk's refresh: a reflow
+  // Layout invalidation is the mechanical source of an active walk's refresh: a reflow
   // moves the marked line boxes even where the words stand, so the walk repaints either
   // way. The read handed to the shared walk remains a cheap cached lookup.
   function refreshMatchWalk() {

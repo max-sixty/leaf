@@ -9,7 +9,7 @@ import { rowWalk } from "./walk-position.js";
 let others = [];
 let rows = Object.freeze([]);
 
-// The drawer's one offer: something to show, or the drawer already standing — the key that
+// The drawer's one offer: something to show, or the drawer already open — the key that
 // opened it must still close it, and its button must still be pressable. The button's
 // visibility and the key both ask the drawer's own predicate, so the two surfaces cannot
 // disagree about whether there is a drawer to open. A pages drawer of one — the page the

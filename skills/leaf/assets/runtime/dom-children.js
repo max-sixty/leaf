@@ -61,7 +61,7 @@ function order(parent, nodes, passed = () => false) {
   }
 }
 
-/* Apply the difference between two authored revisions to the page standing between them.
+/* Apply the difference between two authored revisions to the live page between them.
 
    `setChildren` answers for a list its caller already holds. This answers a question the
    live tree cannot be asked at all: what did the author change. Diffing the page against
@@ -281,8 +281,8 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
     const held = before && rules.pairs.get(before);
     // An unmatched source node is new, and so is one whose live counterpart has left
     // every tree. One a page module moved elsewhere is still that element: the author's
-    // change reaches it where it stands, and placement leaves it there. Standing is a
-    // parent rather than a connection, since a template's content is never connected.
+    // change reaches it where it stands, and placement leaves it there. Being there is having
+    // a parent rather than a connection, since a template's content is never connected.
     const live = held?.parentNode ? held : null;
     if (!live) {
       placed.push(rules.arrive(node, liveParent));
@@ -301,7 +301,7 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
     if (live.parentNode === liveParent) placed.push(live);
   }
   // `orderChildren`'s ordering pass, walking past what the runtime put here. A node
-  // already standing in its place is left alone, which is the whole point: the common
+  // already in its place is left alone, which is the whole point: the common
   // revision moves nothing at all. A kept node the revision moves keeps the user
   // standing in it, as nothing else would: the carry restores only replaced nodes.
   order(liveParent, placed, rules.generated);

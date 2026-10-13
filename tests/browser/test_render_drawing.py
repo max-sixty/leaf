@@ -993,6 +993,7 @@ def test_an_older_runtimes_anchored_drawing_draft_keeps_its_words_without_the_ma
             text: JSON.stringify({
               text: 'Keep these anchored words.',
               anchor,
+              revision: 1,
               suggest: false,
               about: null,
               drawing: {format: 'leaf-drawing/2', strokes: [[[0, 0], [9, 9]]]},

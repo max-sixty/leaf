@@ -88,7 +88,8 @@
    until it finds the actual control.
 
    Hit testing asks two different questions. `elementFromPointAcross` and `markAt`
-   (anchor-resolution.js) may descend into a shadow root when the exact marked text matters.
+   (anchor-resolution.js) may descend into a declared shadow root when the exact marked
+   text matters.
    `aimedTarget` (composing/aim.js) may keep document retargeting when the host is the
    addressable element. Choose the reading by the question, not by convenience.
 
@@ -163,8 +164,8 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // and never back from the mark that paint leaves: a mark a module wrote where the log
 // decided nothing silences no words.
 //
-// `settlements` is that reading per holder id: its tag, and the tags its standing
-// outcome retires.
+// `settlements` is that reading per holder id: its tag, and the tags its outcome
+// in force retires.
 // It is rebuilt once per publication or registry, and `settledKey` names it, so the
 // page reading is forgotten exactly when it changes (`catchUpReading`).
 let settledFrom = [];
@@ -191,7 +192,7 @@ function settlements() {
   return settled;
 }
 // A slot its holder's decision took off the page: a child of the holder, in its light
-// tree or its shadow root, whose tag the standing outcome retires. Only this
+// tree or its shadow root, whose tag the outcome in force retires. Only this
 // document's holders are settled; a parsed revision's elements share their ids.
 function retiredSlot(el) {
   const holder = upFrom(el);
@@ -667,10 +668,12 @@ export const authoredScope = (node) =>
 // elementFromPoint retargets to the host for a point over a shadow tree, so it names the
 // widget rather than the thing in it, and each root answers for its own. Mark hit testing
 // and item aim both use this exact reading, so a projected datum inside a declared shadow
-// tree can outrank its host.
+// tree can outrank its host. Only a declared root is entered: another library's tree is
+// its control's insides, whose ids (Web Awesome Copy's `#copy-button`) the page never
+// authored, so the hit stays at the control.
 export const elementFromPointAcross = (x, y) => {
   let el = document.elementFromPoint(x, y);
-  while (el?.shadowRoot) {
+  while (el && declaredRoot(el)) {
     const inner = el.shadowRoot.elementFromPoint(x, y);
     if (!inner || inner === el) break;
     el = inner;
@@ -1038,7 +1041,7 @@ export function neighbourhood(reading, at, want, before) {
 // The reading is a function of the document and the user's settlements, so those are
 // what say when it may change. Everything it is built out of is here: the page's words
 // and their shape, the markers those words are read through, the vocabulary the markers
-// mean something against, the slots the standing decisions retire (`settlements`), and
+// mean something against, the slots the decisions in force retire (`settlements`), and
 // the widget parts the cell walk fences on. The first two a MutationObserver reports;
 // the rest have one door each.
 //

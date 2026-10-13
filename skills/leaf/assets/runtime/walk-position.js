@@ -163,7 +163,7 @@ export function beginWalk(key, noun, read, wrapped = false) {
         repaint();
       }, BOUNDARY_MS)
     : 0;
-  const standing = walkPosition();
+  const shown = walkPosition();
   repaint();
-  return standing?.text ?? null;
+  return shown?.text ?? null;
 }

@@ -741,7 +741,7 @@ def test_readiness_reopens_on_widget_preparation_and_retires_removed_work(
         serve(
             leaf_page(
                 "Current readiness",
-                '<lf-suggestion id="readiness">A proposed change.</lf-suggestion>',
+                '<lf-suggestion id="readiness"><lf-new>A proposed change.</lf-new></lf-suggestion>',
             )
         ),
     )

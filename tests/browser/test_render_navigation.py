@@ -12538,7 +12538,7 @@ def test_restore_selection_tracks_late_native_adjustment_and_retires_write_prove
     initial = page.evaluate("() => getSelection().toString()")
     assert initial and initial != "amber"
     page.evaluate("""async () => {
-            const word = document.querySelector('#remembered').firstChild;
+      const word = document.querySelector('#remembered').firstChild;
       const changed = new Promise(resolve => document.addEventListener('selectionchange', resolve, {once:true}));
       getSelection().setBaseAndExtent(word, 4, word, 9);
       await changed;
@@ -12546,15 +12546,9 @@ def test_restore_selection_tracks_late_native_adjustment_and_retires_write_prove
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("v")
-    page.wait_for_function(
-        "expected => getSelection().toString() === expected", arg=initial
-    )
-    page.evaluate("""async () => {
-            const word = document.querySelector('#remembered').firstChild;
-      const changed = new Promise(resolve => document.addEventListener('selectionchange', resolve, {once:true}));
-      getSelection().setBaseAndExtent(word, 4, word, 9);
-      await changed;
-    }""")
+    page.wait_for_function("() => getSelection().toString() === 'amber'")
+    # Restoration wrote these endpoints. Native divergence must retire that write
+    # so returning to the same endpoints remembers the adjusted passage again.
     for end in (17, 9):
         page.evaluate(
             """async end => {

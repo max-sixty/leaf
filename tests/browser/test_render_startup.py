@@ -5352,10 +5352,25 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     stale = page.evaluate("async () => (await fetch('/api/state')).json()")
     stale["taken"] = 0
     stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
-    page.route("**/api/state*", lambda route: route.fulfill(json=stale))
+    crossed = []
+
+    def crossed_state(route):
+        crossed.append(route.request.url)
+        route.fulfill(json=stale)
+
+    # One transient freshness observation asks for the crossed read. Then the
+    # origin again advertises the reading the page holds, so the heartbeat ages
+    # the accepted state rather than repeatedly repairing a freshness mismatch.
+    page.route("**/api/state*", crossed_state)
     with page.expect_response("**/api/state*"):
-        nudge(serve.page_dir)
+        page.route(
+            "**/api/news*",
+            lambda route: route.fulfill(
+                body=stale["reading"] if crossed else "crossed-state-reading"
+            ),
+        )
     ticked(page)
+    assert len(crossed) == 1
     expect(timestamp).to_have_text("1h ago")
 
 

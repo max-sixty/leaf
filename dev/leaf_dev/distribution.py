@@ -163,82 +163,101 @@ def cached_installation(runtime: Path = ROOT) -> Path:
     installation. Authored-page edits and Git-label changes reuse its compiled
     bytes while publishing accurate producer metadata. A payload or compiler edit
     builds a new kernel; no page ever receives private source
-    modules alongside the kernel. A failed build publishes no cache entry.
+    modules alongside the kernel. Recheck after lock acquisition and before
+    returning or publishing: an edit that overtakes this attempt retries selection
+    without needing another watcher event. A failed build publishes no cache entry.
     """
     runtime = runtime.resolve()
     if (runtime / "leaf-distribution.json").is_file():
         return runtime
-    identity = installation_identity(runtime)
     cache = ROOT / ".tmp/compiled-runtime"
     cache.mkdir(parents=True, exist_ok=True)
-    content = cache / f"content-{identity}"
-    with flocked(cache / f"{identity}.lock"):
-        if not content.is_dir():
-            with tempfile.TemporaryDirectory(prefix=".preparing-", dir=cache) as raw:
+
+    def revision_is_current(identity: str, producer: dict) -> bool:
+        return (
+            payload_provenance(root=runtime) == producer
+            and installation_identity(runtime) == identity
+        )
+
+    while True:
+        identity = installation_identity(runtime)
+        content = cache / f"content-{identity}"
+        with flocked(cache / f"{identity}.lock"):
+            if installation_identity(runtime) != identity:
+                continue
+            if not content.is_dir():
+                with tempfile.TemporaryDirectory(
+                    prefix=".preparing-", dir=cache
+                ) as raw:
+                    staged = Path(raw) / "installation"
+                    if runtime == ROOT:
+                        prepare(staged)
+                    else:
+                        staged.mkdir()
+                        for name in PAYLOAD:
+                            source, target = runtime / name, staged / name
+                            if source.is_dir():
+                                shutil.copytree(
+                                    source,
+                                    target,
+                                    ignore=shutil.ignore_patterns(
+                                        "__pycache__", "*.pyc"
+                                    ),
+                                )
+                            elif source.is_file():
+                                target.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.copy2(source, target)
+                        subprocess.run(
+                            [
+                                "uv",
+                                "run",
+                                "-q",
+                                "--no-dev",
+                                "--project",
+                                str(runtime),
+                                "--with-editable",
+                                str(ROOT / "dev"),
+                                "python",
+                                "-c",
+                                (
+                                    "import sys; from pathlib import Path; "
+                                    "from leaf_dev.distribution import compile_installation; "
+                                    "compile_installation(Path(sys.argv[1]))"
+                                ),
+                                str(staged),
+                            ],
+                            cwd=runtime,
+                            check=True,
+                        )
+                    if installation_identity(runtime) != identity:
+                        continue
+                    staged.rename(content)
+            producer = payload_provenance(root=runtime)
+
+            publication = files_identity(
+                {
+                    "content": identity.encode(),
+                    "producer": json.dumps(producer, sort_keys=True).encode(),
+                }
+            ).removeprefix("sha256:")
+            output = cache / publication
+            if output.is_dir():
+                if revision_is_current(identity, producer):
+                    return output
+                continue
+            with tempfile.TemporaryDirectory(prefix=".publishing-", dir=cache) as raw:
                 staged = Path(raw) / "installation"
-                if runtime == ROOT:
-                    prepare(staged)
-                else:
-                    staged.mkdir()
-                    for name in PAYLOAD:
-                        source, target = runtime / name, staged / name
-                        if source.is_dir():
-                            shutil.copytree(
-                                source,
-                                target,
-                                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
-                            )
-                        elif source.is_file():
-                            target.parent.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(source, target)
-                    subprocess.run(
-                        [
-                            "uv",
-                            "run",
-                            "-q",
-                            "--no-dev",
-                            "--project",
-                            str(runtime),
-                            "--with-editable",
-                            str(ROOT / "dev"),
-                            "python",
-                            "-c",
-                            (
-                                "import sys; from pathlib import Path; "
-                                "from leaf_dev.distribution import compile_installation; "
-                                "compile_installation(Path(sys.argv[1]))"
-                            ),
-                            str(staged),
-                        ],
-                        cwd=runtime,
-                        check=True,
-                    )
-                if installation_identity(runtime) != identity:
-                    raise RuntimeError(
-                        "Leaf changed while compiling; retry the preview"
-                    )
-                staged.rename(content)
-        producer = payload_provenance(root=runtime)
-        publication = files_identity(
-            {
-                "content": identity.encode(),
-                "producer": json.dumps(producer, sort_keys=True).encode(),
-            }
-        ).removeprefix("sha256:")
-        output = cache / publication
-        if output.is_dir():
+                # Prepared bytes are immutable. Hard links reuse the compiled kernel;
+                # atomic JSON replacement gives this snapshot its own producer record.
+                shutil.copytree(content, staged, copy_function=os.link)
+                manifest = staged / "leaf-distribution.json"
+                record = json.loads(manifest.read_text())
+                record["producer"] = producer
+                write_json(manifest, record)
+                if not revision_is_current(identity, producer):
+                    continue
+                staged.rename(output)
             return output
-        with tempfile.TemporaryDirectory(prefix=".publishing-", dir=cache) as raw:
-            staged = Path(raw) / "installation"
-            # Prepared bytes are immutable. Hard links reuse the compiled kernel;
-            # atomic JSON replacement gives this snapshot its own producer record.
-            shutil.copytree(content, staged, copy_function=os.link)
-            manifest = staged / "leaf-distribution.json"
-            record = json.loads(manifest.read_text())
-            record["producer"] = producer
-            write_json(manifest, record)
-            staged.rename(output)
-    return output
 
 
 @click.command("distribution")

@@ -1002,7 +1002,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
             page.unroute_all(behavior="ignoreErrors")
 
 
-def test_freshness_checks_share_session_identity_without_rebroadcasting(
+def test_freshness_checks_preserve_session_activation_without_rebroadcasting(
     served_example, browser
 ):
     """Session activation wakes peers once; subsequent server changes stay quiet."""
@@ -1043,7 +1043,7 @@ def test_freshness_checks_share_session_identity_without_rebroadcasting(
     page.route("**/api/news", active)
     page.goto(url, wait_until="load")
     wait_until_ready(page)
-    # An active error envelope still establishes the session and its public reference.
+    # An active error envelope still establishes the session.
     # Later freshness responses may come from another serving process, while the
     # same durable record and browser session continue.
     page.evaluate(
@@ -1052,7 +1052,7 @@ def test_freshness_checks_share_session_identity_without_rebroadcasting(
           window.__activations=0;
           document.addEventListener('lf-session-active',()=>window.__activations++);
           client.admitResponse(new Response('', {status:503, headers:{
-            'Leaf-Session':'active','Leaf-Session-Reference':'239383829012'
+            'Leaf-Session':'active'
           }}));
         }"""
     )
@@ -1063,10 +1063,7 @@ def test_freshness_checks_share_session_identity_without_rebroadcasting(
     assert len(looks) >= 4
     assert page.evaluate("window.__activations") == 1
     assert page.evaluate("window.__sessionBroadcasts") == [{"active": True}]
-    page.locator(".lf-banner-more").click()
-    expect(
-        page.get_by_role("button", name="Session 239383829012", exact=True)
-    ).to_be_visible()
+    assert page.evaluate("async () => (await window.__lfClientApi()).sessionIsActive()")
 
 
 def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):

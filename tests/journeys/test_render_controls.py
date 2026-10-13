@@ -1098,7 +1098,7 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
         const {mountSample} = await window.__lfWidgetApi();
         window.practiceFrame = document.createElement('iframe');
         document.body.append(practiceFrame);
-        window.practiceHost = mountSample(practiceFrame, {template: 'first-source'});
+        window.practiceHost = await mountSample(practiceFrame, {template: 'first-source'});
         await practiceHost.ready;
     }""")
     previous = page.evaluate(
@@ -1144,7 +1144,7 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
     assert (
         page.evaluate("""async () => {
         const {mountSample} = await window.__lfWidgetApi();
-        window.practiceHost = mountSample(practiceFrame, {template: 'first-source'});
+        window.practiceHost = await mountSample(practiceFrame, {template: 'first-source'});
         return practiceHost.ready.catch(error => error.message);
     }""")
         == "Practice could not start"
@@ -1188,7 +1188,7 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
         const {mountSample} = await window.__lfWidgetApi();
         window.pendingFrame = document.createElement('iframe');
         document.body.append(pendingFrame);
-        window.pendingHost = mountSample(pendingFrame, {template: 'first-source'});
+        window.pendingHost = await mountSample(pendingFrame, {template: 'first-source'});
         window.pendingResult = pendingHost.ready.catch(error => error.name);
     }""")
     holding(page, held, 1, "the child allocation")
@@ -1206,7 +1206,7 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
     page.route(re.compile(r"/api/samples/[^/]+/$"), lambda route: held.append(route))
     page.evaluate("""async () => {
         const {mountSample} = await window.__lfWidgetApi();
-        window.pendingHost = mountSample(pendingFrame, {template: 'first-source'});
+        window.pendingHost = await mountSample(pendingFrame, {template: 'first-source'});
         window.pendingResult = pendingHost.ready.catch(error => error.name);
     }""")
     holding(page, held, 1, "a child detached before its document arrives")
@@ -1228,15 +1228,15 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
     page.evaluate("""async () => {
         const {mountSample} = await window.__lfWidgetApi();
         window.pendingResults = [];
-        window.pendingHosts = Array.from({length: 5}, (_, index) => {
+        window.pendingHosts = await Promise.all(Array.from({length: 5}, async (_, index) => {
             const frame = document.createElement('iframe');
             document.body.append(frame);
-            const host = mountSample(frame, {template: 'first-source'});
+            const host = await mountSample(frame, {template: 'first-source'});
             host.ready.then(
                 () => { pendingResults[index] = 'ready'; },
                 error => { pendingResults[index] = error.name; });
             return host;
-        });
+        }));
     }""")
     holding(page, held, 3, "three occupied sample admission slots")
     page.evaluate("""() => {
@@ -1269,11 +1269,11 @@ def test_slow_sample_state_does_not_hold_up_other_child_loads(browser, serve):
     )
     page.evaluate("""async () => {
       const {mountSample} = await window.__lfWidgetApi();
-      window.practiceHosts = Array.from({length: 4}, () => {
+      window.practiceHosts = await Promise.all(Array.from({length: 4}, () => {
         const frame = document.createElement('iframe');
         document.body.append(frame);
         return mountSample(frame, {template: 'first-source'});
-      });
+      }));
     }""")
     holding(page, held, 4, "four sample state reads")
     for route in held:

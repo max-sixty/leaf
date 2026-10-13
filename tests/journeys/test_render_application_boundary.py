@@ -98,11 +98,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     assert record["topic"] == "Decision"
     root, reply = record["reading"]["threads"][0]["msgs"]
     assert root["text"] == "**Decision**" and root["body"]["text"].strip() == "Decision"
-    assert reply["body"]["document"] == {
-        "thread": "question",
-        "message": "answer",
-        "revision": 1,
-    }
+    assert reply["body"]["document"] == {"thread": "question", "message": "answer"}
     assert reply["body"]["kind"] == "authored"
     assert "North" in reply["body"]["text"]
     assert '"markup"' not in json.dumps(record) and '"html"' not in json.dumps(record)

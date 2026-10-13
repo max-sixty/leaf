@@ -183,6 +183,125 @@ def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(3)
 
 
+THREAD_FIT = """() => {
+  const view = document.querySelector('.lf-fp-view[data-view=thread]');
+  const box = view.getBoundingClientRect();
+  const messages = [...view.querySelectorAll('.lf-msg')];
+  return {
+    height: box.height,
+    scrolls: view.scrollHeight > view.clientHeight + 1,
+    below: box.bottom - messages.at(-1).getBoundingClientRect().bottom,
+    first: messages[0].getBoundingClientRect().top,
+    panel: document.querySelector('.lf-fp-card').getBoundingClientRect().top,
+  };
+}"""
+
+
+def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
+    """An opened view is as tall as what it holds. A page comment opens its thread one
+    message tall; a reply that arrives waits behind New reply, moving nothing, and
+    opening it grows the view to show it whole. A long thread reads in most of the
+    window's height, leaving a band of the page above the panel, before it scrolls."""
+    url = serve(LONG_PAGE)
+    long_root = panel_comment(serve.page_dir, "Walk me through the whole rollout.")
+    for step in range(8):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": long_root,
+                "revision": 1,
+                "text": f"Step {step}. "
+                + "The cohort widens once the alarms hold. " * 4,
+            },
+        )
+    page = floating(browser, url)
+    write(field(page), "Could the rollback cover the weekend?")
+    with sending(page, "the page comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    root = events_model.read_events(serve.page_dir)[-1]["id"]
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    expect(view.locator(".lf-msg")).to_have_count(1)
+    settled(page)
+    short = page.evaluate(THREAD_FIT)
+    assert not short["scrolls"]
+    assert short["below"] < 16, short
+
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "It would, with someone on call.",
+        },
+    )
+    told(page)
+    held = view.locator(".lf-primary-news:visible")
+    expect(held).to_be_visible()
+    assert page.evaluate(THREAD_FIT) == short
+    held.click()
+    expect(view.locator(".lf-msg")).to_have_count(2)
+    settled(page)
+    grown = page.evaluate(THREAD_FIT)
+    assert grown["height"] > short["height"], (short, grown)
+    assert not grown["scrolls"]
+    assert grown["below"] < 16, grown
+
+    page.keyboard.press("Escape")
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    page.locator(".lf-fp-thread", has_text="Walk me through the whole rollout.").click()
+    expect(view.locator(".lf-msg")).to_have_count(9)
+    settled(page)
+    long = page.evaluate(THREAD_FIT)
+    assert long["height"] > 600, long
+    assert long["panel"] >= 100, long
+
+
+def test_an_open_view_covers_the_page_beneath_it(browser, serve):
+    """What a view open above the row stands over is hidden from every reading of what
+    the user sees (geometry.js, `declareOccluder`): a paragraph under it reads as seen
+    only beside it, and whole again once the view is put away."""
+    page = floating(browser, serve(LONG_PAGE, comments=12))
+    seen = """async () => {
+      const {seenRect} = await window.__lfCheckApi();
+      const view = document.querySelector('.lf-fp-view').getBoundingClientRect();
+      const under = [...document.querySelectorAll('main p')].find(p => {
+        const box = p.getBoundingClientRect();
+        return box.top > view.top + 20 && box.bottom < view.bottom - 20;
+      });
+      window.under = under;
+      const shown = seenRect(under, new Map());
+      return {view: {left: view.left, top: view.top, right: view.right,
+                     bottom: view.bottom}, shown};
+    }"""
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    expect(page.locator(".lf-fp-thread")).to_have_count(12)
+    settled(page)
+    reading = page.evaluate(seen)
+    view, shown = reading["view"], reading["shown"]
+    assert shown, reading
+    assert shown["right"] <= view["left"] or shown["left"] >= view["right"], reading
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    whole = page.evaluate(
+        """async () => {
+          const {seenRect} = await window.__lfCheckApi();
+          const box = window.under.getBoundingClientRect();
+          const shown = seenRect(window.under, new Map());
+          return shown.right - shown.left >= box.width - 1;
+        }"""
+    )
+    assert whole
+
+
 def test_a_reader_who_chose_nothing_reads_with_the_classic_chrome(browser, serve):
     """A reader without a chrome preference sees the banner and bottom bar. An unknown
     stored value stands for no choice, overriding the test suite's own preference."""

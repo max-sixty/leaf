@@ -19,7 +19,16 @@
  *   it is. Clicking in opens one quiet line above it naming where the words go.
  * - **Opened**: a view above the same row (Questions, Threads, a thread, Versions, or a
  *   group of the page's controls) with where the user is at its top edge. It lasts while
- *   it is used: Escape or a press on the page puts it away.
+ *   it is used: Escape or a press on the page puts it away. It is as tall as what it
+ *   holds, so a one-message thread opens one message tall, up to most of the window's
+ *   height, the larger size a long thread or a long Threads list is read at; past that
+ *   it scrolls. The user chose views that fit their content with a larger size for long
+ *   reading (2026-10-13); content alone reaches that size. Rejected: an Expand
+ *   control at the view's head, which the growth it asks for would carry up from under
+ *   the pointer, and a compact cap with the larger size behind a gesture, which leaves
+ *   every long thread scrolling in a small box until the user finds that gesture.
+ *   While it stands it covers the page under it, which reads as unseen (geometry.js,
+ *   `declareOccluder`).
  *
  * The leaf's menu is a small list above the leaf holding the rest of the page's
  * controls, each one line, with its key where it has one, and a chevron on a row that
@@ -85,7 +94,7 @@ import {
 } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
 import { scrollIntoView } from "./landing-scroll.js";
-import { declareWindowChrome } from "./geometry.js";
+import { declareOccluder, declareWindowChrome } from "./geometry.js";
 import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
 import { renderedUnder } from "./shadow.js";
 import { closestAcross } from "./passages.js";
@@ -98,8 +107,6 @@ const FADE_MS = 180;
 // The view leaving is gone before the one arriving shows, so the two never read
 // through each other.
 const OUT_MS = 80;
-// The least room a thread opened in the panel takes.
-const THREAD_FLOOR = 280;
 
 // The menu's groups, each opened as a view of the toolbar rows declaring it.
 const GROUPS = Object.freeze({
@@ -160,8 +167,11 @@ export function createFloatingPanel({
   ground.append(ring, fill);
   const card = el("div", "lf-fp-card");
   const inner = el("div", "lf-fp-inner");
+  // What stands above the row while a view is open: where the user is, and the view.
+  const opened = el("div", "lf-fp-opened");
   const head = el("div", "lf-fp-head");
   const stage = el("div", "lf-fp-stage");
+  opened.append(head, stage);
   const context = el("div", "lf-fp-context");
   const contextDest = el("span", "lf-fp-dest");
   const contextKeys = el("span", "lf-fp-keys");
@@ -178,20 +188,20 @@ export function createFloatingPanel({
   peek.id = "lf-fp-peek";
   peek.setAttribute("role", "tooltip");
   let peekAsked = false; // the pointer or focus asking the folded leaf's peek to show
-  inner.append(head, stage, context, row);
+  inner.append(opened, context, row);
   card.append(inner);
   // The menu and the peek stand over the leaf by anchoring to it, which they can only
   // do from after it in the tree.
   host.append(card, menu, badge, newsDot, peek);
   // The row stands over the window's foot as the bottom bar did, so what the page
   // reveals stands clear of it. A view opened above it is itself read, and stands over
-  // the page only while it is used, so it leaves the page's room alone. Nor is it an
-  // occluder (`declareOccluder`), whose measure is a panel the window's height at one
-  // side, so what it covers still reads as seen while it is open.
+  // the page only while it is used, so it leaves the page's room alone; but what it
+  // stands over is hidden while it does, as under a side panel (`declareOccluder`).
   declareWindowChrome(() => {
     const box = row.getBoundingClientRect();
     return box.width > 0 && box.height > 0 ? [box] : [];
   }, [row]);
+  declareOccluder(opened);
 
   const leaf = el("button", "lf-fp-leaf");
   leaf.type = "button";
@@ -469,23 +479,20 @@ export function createFloatingPanel({
     followBox();
   });
 
-  // The room a view takes is fixed once it is first drawn whole, for as long as it stays
-  // open, so news arriving in it, or a filter or tab changing what it shows, moves no
-  // control at its head; what does not fit scrolls inside it.
+  // A view is as tall as what it first holds, up to its cap (floating-panel.css,
+  // `--lf-fp-view-height`). A list's room is then fixed for as long as it stays open, so
+  // news arriving in it, or a filter or tab changing what it shows, moves no control at
+  // its head; what does not fit scrolls inside it. A thread's view instead follows its
+  // messages, since its reader already holds back any news that would move what is read
+  // (thread/held-news.js) until the user asks for it, and what the user asks for, a
+  // reply they send or news they open, grows the view to show it.
   const rooms = new Map();
   function holdRoom() {
     const top = trail.at(-1);
-    if (!top || rooms.has(routeKey(top))) return false;
+    if (!top || top.view === "thread" || rooms.has(routeKey(top))) return false;
     const view = stage.querySelector(".lf-fp-view:not([data-leaving])");
-    if (!view || (top.view === "thread" && !outletOf()?.childElementCount))
-      return false;
-    // A thread keeps room below its messages for the turns that follow, which arrive
-    // there without moving what the reader is reading.
-    const floor =
-      top.view === "thread"
-        ? Math.min(THREAD_FLOOR, Number.parseFloat(getComputedStyle(view).maxHeight))
-        : 0;
-    rooms.set(routeKey(top), Math.max(view.offsetHeight, floor));
+    if (!view) return false;
+    rooms.set(routeKey(top), view.offsetHeight);
     return true;
   }
   function transition(before, { focus = true } = {}) {

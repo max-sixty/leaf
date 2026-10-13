@@ -22,15 +22,23 @@ from render_harness import (
 )
 
 
-def test_sample_upgrade_does_not_wait_for_child_saved_state(browser, serve):
-    """Parent and child comments work at upgrade; saved-thread selection waits for state."""
+@pytest.mark.parametrize("surface", ["panel", "page"])
+@pytest.mark.parametrize("newer_input", [False, True])
+def test_sample_upgrade_does_not_wait_for_child_saved_state(
+    browser, serve, surface, newer_input
+):
+    """A saved-thread request waits for history and yields to a newer child draft."""
     source = leaf_page(
         "Independent sample startup",
         '<h1>Independent sample startup</h1><p id="outer">Parent passage.</p>'
         '<lf-sample id="practice" label="Practice" window>'
-        '<template id="practice-source" data-sample>'
+        '<template id="practice-source" data-sample data-sample-events="history">'
         '<h1>Practice</h1><p id="inner">Child passage.</p>'
         "</template></lf-sample>",
+        head="""<script id="history" type="application/json">
+          [{"id":"saved-thread","kind":"comment","anchor":{"section":"inner"},
+            "text":"A saved child conversation."}]
+        </script>""",
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.set_default_timeout(15_000)
@@ -53,20 +61,52 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(browser, serve):
     inner_box = page_comment(child)
     write(inner_box, "Child draft")
     page.keyboard.press("Escape")
-    sample.evaluate("""sample => {
-      window.sampleSelected = false;
-      sample.showThread(undefined, {surface: 'panel'}).then(() => window.sampleSelected = true);
+    child.evaluate("""() => {
+      window.sampleRequestReceived = false;
+      document.documentElement.lfSample.receive(({method}) => {
+        if (method === 'thread') window.sampleRequestReceived = true;
+      });
     }""")
+    sample.evaluate(
+        """(sample, surface) => {
+      window.sampleSelected = false;
+      sample.showThread('saved-thread', {surface}).then(result => {
+        window.sampleSelectionResult = result;
+        window.sampleSelected = true;
+      });
+    }""",
+        surface,
+    )
+    # The child has received this command before newer input supersedes it.
+    child.wait_for_function("window.sampleRequestReceived")
     assert page.evaluate("window.sampleSelected") is False
+    child_words = "Child draft"
+    if newer_input:
+        inner_box = page_comment(child)
+        child_words = "A newer child draft owns this view"
+        write(inner_box, child_words)
     expect(outer_box).to_have_js_property("value", "Parent draft", timeout=5_000)
-    expect(inner_box).to_have_js_property("value", "Child draft", timeout=5_000)
+    expect(inner_box).to_have_js_property("value", child_words, timeout=5_000)
     page.unroute(route_pattern)
     for route in held:
         route.continue_()
     page.wait_for_function("window.sampleSelected", timeout=15_000)
+    assert page.evaluate("window.sampleSelectionResult") is (not newer_input)
     expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(outer_box).to_have_js_property("value", "Parent draft", timeout=5_000)
-    expect(inner_box).to_have_js_property("value", "Child draft", timeout=5_000)
+    expect(inner_box).to_have_js_property("value", child_words, timeout=5_000)
+    if newer_input:
+        expect(child.locator(".lf-thread-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
+        )
+        expect(inner_box).to_be_focused()
+    else:
+        destination = child.locator(
+            ".lf-thread-panel" if surface == "panel" else ".lf-page-thread"
+        )
+        expect(
+            destination.get_by_text("A saved child conversation.", exact=True)
+        ).to_be_visible()
 
 
 def interaction_records(page, page_dir, *, document=None):

@@ -204,7 +204,7 @@ def stamp_page(
     page_dir: Path, html: str, text: str, *, completes: tuple[str, ...] = ()
 ) -> dict:
     """Save HTML as the next revision and stamp that exact source."""
-    order = max(files_model.list_revisions(page_dir), default=0) + 1
+    order = max(files_model.revision_orders(page_dir), default=0) + 1
     source = html.replace("</body>", f"<!-- test revision {order} -->\n</body>")
     (page_dir / "index.html").write_text(source, encoding="utf-8")
     complete_args = [arg for widget in completes for arg in ("--completes", widget)]
@@ -1345,16 +1345,29 @@ def _judge_frame_watches(frame):
 
 
 def _frame_owners_drawn(frame):
-    """Read current ancestor visibility across origin boundaries for the sensor."""
+    """Read native visibility and viewport clipping across frame boundaries."""
+    ancestors = []
     ancestor = frame
     while ancestor.parent_frame is not None:
+        ancestors.append(ancestor)
+        ancestor = ancestor.parent_frame
+    # A hidden outer document cannot deliver its child's intersection observation.
+    for ancestor in reversed(ancestors):
         owner = ancestor.frame_element()
         try:
-            if not owner.evaluate("element => element.checkVisibility()"):
+            if not owner.evaluate("""element => {
+              if (!element.checkVisibility()) return false;
+              return new Promise(resolve => {
+                const observer = new IntersectionObserver(([entry]) => {
+                  observer.disconnect();
+                  resolve(entry.isIntersecting);
+                });
+                observer.observe(element);
+              });
+            }"""):
                 return False
         finally:
             owner.dispose()
-        ancestor = ancestor.parent_frame
     return True
 
 

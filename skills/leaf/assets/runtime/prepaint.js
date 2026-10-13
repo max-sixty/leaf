@@ -853,16 +853,20 @@
     indents,
     skipped,
     register(tag, render) {
-      // The widget loader imports unregistered producers for later revisions and
-      // thread markup that were absent from the initially delivered document.
-      if (!producers.has(tag)) producers.set(tag, render);
+      const revision = document.currentScript.dataset.lfVocabulary;
+      const key = `${revision}:${tag}`;
+      if (producers.has(key))
+        throw new Error(
+          `initial renderer for <${tag}> in r${revision} is already registered`,
+        );
+      producers.set(key, render);
     },
-    has(tag) {
-      return producers.has(tag);
+    has(tag, revision) {
+      return producers.has(`${revision}:${tag}`);
     },
-    paint(host) {
+    paint(host, revision = host.closest("[data-lf-vocabulary]").dataset.lfVocabulary) {
       if (drawings.has(host)) return drawings.get(host);
-      const render = producers.get(host.localName);
+      const render = producers.get(`${revision}:${host.localName}`);
       if (!render) throw new Error(`no initial renderer for <${host.localName}>`);
       for (const node of [host, ...host.querySelectorAll("*")])
         if (!parents.has(node)) parents.set(node, node.parentElement);
@@ -888,7 +892,13 @@
       // no frame can show an unfinished or uninitialized instance.
       template.replaceWith(host);
       for (const node of [host, ...host.querySelectorAll("*")].reverse())
-        if (producers.has(node.localName)) this.paint(node);
+        if (
+          this.has(
+            node.localName,
+            node.closest("[data-lf-vocabulary]").dataset.lfVocabulary,
+          )
+        )
+          this.paint(node);
     },
     restoreSource(root) {
       for (const template of root.querySelectorAll("template[data-lf-initial-source]"))

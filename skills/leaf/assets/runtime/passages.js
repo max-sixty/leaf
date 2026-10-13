@@ -99,6 +99,8 @@
    examines open roots and catches promised words that are absent, clipped, or hidden.
    It also catches a module that replaces declared words after the shared render
    passes. */
+import { knownVocabulary } from "./widget-contexts.js";
+import { registryFor, decisionFor, registry } from "./registry.js";
 
 import {
   SAID,
@@ -115,7 +117,6 @@ import {
   under,
   upFrom,
 } from "./shadow.js";
-import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
 import { readApplication } from "./semantic-state.js";
@@ -171,13 +172,17 @@ let settled = new Map();
 let settledKey = "[]";
 function settlements() {
   const { document: shown, effective } = readApplication();
-  const from = [effective.widgets, registry.$decisions];
+  const from = [effective.widgets, shown.descriptors, registry.$decisions];
   if (from.every((input, index) => input === settledFrom[index])) return settled;
   settledFrom = from;
   settled = new Map();
   for (const [id, { state }] of effective.widgets) {
-    const tag = shown.authored.get(id)?.tag;
-    const decision = registry.$decisions?.[tag];
+    const descriptor = shown.descriptors.get(id);
+    const tag = descriptor?.tag;
+    const declarations =
+      descriptor &&
+      (knownVocabulary(descriptor.document.revision)?.declarations ?? registry);
+    const decision = declarations?.$decisions?.[tag];
     const outcome = decision && state[decision.verb]?.detail?.outcome;
     const retires = outcome ? decision.retires[outcome] : null;
     if (retires?.length) settled.set(id, { tag, retires });
@@ -203,7 +208,7 @@ function retiredSlot(el) {
 // corresponding paint and is never read back. The shared state.css tier hides marked
 // slots in the document and declared shadow stages, above package display defaults.
 export function renderRetired(el, outcome) {
-  const outcomes = decisionFor(el.localName)?.retires;
+  const outcomes = decisionFor(el)?.retires;
   if (!outcomes) return;
   for (const [candidate, tags] of Object.entries(outcomes))
     for (const tag of tags)
@@ -228,7 +233,8 @@ export function renderRetired(el, outcome) {
 // user had put on it detached, and the mark went out from under a thread that was
 // still open. The same suggestion on the page kept both.
 export function settledAway(el) {
-  for (let at = el; at; at = at.parentElement) if (retiredSlot(at)) return true;
+  for (let owner = el; owner; owner = upFrom(owner))
+    if (retiredSlot(owner)) return true;
   const nodes = [...el.childNodes];
   return (
     nodes.some((n) => n.nodeType === 1 && retiredSlot(n)) &&
@@ -418,7 +424,10 @@ const silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
 // count hold no accepted text, and x-says spans are already in the file-side reading.
 const unmodelled = (el) => {
   const attr = el.getAttribute("data-lf-said");
-  return !(attr && registry[el.parentElement?.localName]?.["x-says"]?.[attr]);
+  return !(
+    attr &&
+    registryFor(el.parentElement)[el.parentElement?.localName]?.["x-says"]?.[attr]
+  );
 };
 // Automatic control capture uses authored or registry-declared words, never the
 // mutable value of a native editing host. A user's actual Range remains readable.

@@ -47,10 +47,9 @@ class PageView:
         """The authored markup one immutable revision froze."""
         return read_revision(self._page_dir, revision).document
 
-    def reading(self, revision: int, registry: dict) -> SourceReading:
-        """That markup read under `registry`, held across appends where it is the
-        vocabulary the revision captured (`RevisionReading.under`)."""
-        return read_revision(self._page_dir, revision).under(registry)
+    def reading(self, revision: int) -> SourceReading:
+        """One immutable publication's authored document and vocabulary, held together."""
+        return read_revision(self._page_dir, revision)
 
     def registry(self, revision: int | None) -> dict | None:
         """The vocabulary a revision captured, or the candidate's where the page has
@@ -99,10 +98,10 @@ class CandidatePageView(PageView):
             else super().document(revision)
         )
 
-    def reading(self, revision: int, registry: dict) -> SourceReading:
+    def reading(self, revision: int) -> SourceReading:
         if revision == self._revision:
-            return SourceReading(self._reading.document, registry)
-        return super().reading(revision, registry)
+            return self._reading
+        return super().reading(revision)
 
     def registry(self, revision: int | None) -> dict | None:
         return (
@@ -136,8 +135,8 @@ class InitialPageView:
     def document(self, revision: int) -> SourceDocument:
         return self._document
 
-    def reading(self, revision: int, registry: dict) -> SourceReading:
-        return SourceReading(self._document, registry)
+    def reading(self, revision: int) -> SourceReading:
+        return SourceReading(self._document, self._registry)
 
     def registry(self, revision: int | None) -> dict:
         return self._registry

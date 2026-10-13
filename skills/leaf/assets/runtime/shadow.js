@@ -1,6 +1,7 @@
 /* This module owns declared shadow roots, the shadow.css rules they render under, and
  * the shared highlight rules. */
-import { registry, tagsDeclaring } from "./registry.js";
+import { vocabularyFor } from "./widget-contexts.js";
+import { registryFor, tagsDeclaring } from "./registry.js";
 import {
   byRenderedOrder,
   composedParentNode,
@@ -41,7 +42,7 @@ export const refuseShadowRoot = (root) => refusedRoots.add(root);
 // The declared root `host` holds the page's words in, or null.
 export const declaredRoot = (host) =>
   host.shadowRoot &&
-  registry[host.localName]?.["x-shadow"] &&
+  registryFor(host)[host.localName]?.["x-shadow"] &&
   !refusedRoots.has(host.shadowRoot)
     ? host.shadowRoot
     : null;
@@ -128,7 +129,7 @@ export const inUi = (node) =>
 // followed by semantic state.css (layer.py's `composed_sheets`). Read from the layer
 // rather than written here so a project override travels with the widget, and fetched
 // during upgrade so the stage below stays synchronous for its callers.
-export let shadowRules = "";
+
 // Every legitimate page shadow tree is built here, so repeat the generated-interface
 // boundary and transition suppression inside it. The shadow's ordinary contents paint
 // immediately and its generated interface paints after upgrade, on the same boundaries
@@ -151,15 +152,15 @@ export const SHADOW_STARTUP_CSS = `
 // arrive at any of them — in the document, in a later version, or in an agent's reply —
 // so the ask is repeated and the answer is not. Sharing the promise rather than the text
 // also holds a second caller behind the first read instead of starting another.
-let loading = null;
-export function loadShadowRules() {
-  loading ??= readShadowRules();
-  return loading;
+export function loadShadowRules(scope) {
+  const context = vocabularyFor(scope);
+  context.shadowRules.loading ??= readShadowRules(context);
+  return context.shadowRules.loading;
 }
-async function readShadowRules() {
-  const { runtimeResource } = await import("./context.js");
-  const response = await fetch(runtimeResource("/shadow.css"));
+async function readShadowRules(context) {
+  const response = await fetch(context.resource("/shadow.css"));
   if (!response.ok)
     throw new Error(`leaf: shadow.css failed to load (${response.status})`);
-  shadowRules = await response.text();
+  context.shadowRules.text = await response.text();
 }
+export const shadowRulesFor = (host) => vocabularyFor(host).shadowRules.text;

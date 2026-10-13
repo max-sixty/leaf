@@ -48,6 +48,8 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(browser):
         "/leaf.js": Resource(
             b"""
                 import {initialRender} from '/runtime/initial-render.js';
+                import {bindVocabulary} from '/runtime/widget-contexts.js';
+                bindVocabulary(document, {revision: 1});
                 const host = document.getElementById('outer');
                 const frame = host.querySelector('.initial-frame');
                 const adopted = initialRender(host);
@@ -59,6 +61,10 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(browser):
             (assets / "runtime/prepaint.js").read_bytes(), "application/javascript"
         ),
         "/vendor/initial.js": Resource(producer, "application/javascript"),
+        "/runtime/widget-contexts.js": Resource(
+            (assets / "runtime/widget-contexts.js").read_bytes(),
+            "application/javascript",
+        ),
         "/runtime/initial-render.js": Resource(
             (assets / "runtime/initial-render.js").read_bytes(),
             "application/javascript",
@@ -68,6 +74,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(browser):
             for path in (
                 "/runtime/annotation-overlay/annotation-theme.css",
                 "/runtime/chrome.css",
+                "/widget-theme.css",
                 "/runtime/marks.css",
                 "/runtime/annotation-overlay/annotation-chrome.css",
                 "/runtime/annotation-overlay/annotation-marks.css",
@@ -82,7 +89,7 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(browser):
         source,
         1,
         None,
-        executable=None,
+        executable="sha256:fixture",
         widgets={},
         resources=resources,
         registry=registry,

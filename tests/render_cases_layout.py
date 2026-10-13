@@ -505,7 +505,7 @@ DRAWING_CONTROL_LAYER = {
 DRAWING_CONTROL_WIDGETS = {
     "lf-test-drawing-control.js": """
 import { once, offer } from '/runtime/widget-api.js';
-customElements.define('lf-test-drawing-control', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const control = offer('button', 'drawing-control', 'Inspect');
@@ -513,7 +513,7 @@ customElements.define('lf-test-drawing-control', class extends HTMLElement {
     control.style.width = '100%';
     this.append(control);
   }
-});
+};
 """
 }
 # A scroller the page wrote and did not position, beside one it did. The commented

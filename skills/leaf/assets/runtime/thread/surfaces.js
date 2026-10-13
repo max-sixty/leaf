@@ -22,12 +22,12 @@
    what the reader reads, is held out of what the widget is handed (`HeldArrivals`,
    held-news.js): its target stays out of the batch, so the selected annotation
    presentation notices it, and `revealHeld` is how the margin's marker shows it. */
+import { registryFor } from "../registry.js";
 import { aborted } from "../abort.js";
 import { reportPageError } from "../layer-client.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { closestAcross } from "../passages.js";
-import { tagsDeclaring } from "../registry.js";
 import { watchArrivals } from "../arrivals.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { allThreads, readThreads } from "./state.js";
@@ -52,11 +52,15 @@ function update(registration) {
 }
 
 export function watchThreadSurfaces(commands) {
-  const tags = tagsDeclaring((entry) => entry["x-thread-surface"] === true);
-  if (!tags.length) return;
-  watchArrivals(tags.join(","), [], {
+  // Later revisions and frozen messages can introduce a capability the startup
+  // vocabulary did not declare. Decide it from each arrival's own publication.
+  watchArrivals("*", [], {
     arrive(owner) {
-      if (registrations.has(owner)) return;
+      if (
+        registrations.has(owner) ||
+        !registryFor(owner)[owner.localName]?.["x-thread-surface"]
+      )
+        return;
       // Every door that brings a tag in imports its module before connecting its
       // markup (`widget-loader.js`), and this watch starts after startup's upgrade, so
       // an undefined owner failed to upgrade, which its module's failure reports.

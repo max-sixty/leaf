@@ -63,8 +63,6 @@ import {
   failSoftAfterRetention,
   PRESENTATION_ORDER,
   PresentationRetentionError,
-  readApplication,
-  watchSemantic,
 } from "../semantic-state.js";
 import { hostIn, under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
@@ -142,11 +140,14 @@ export function createQuestionView({
     }
   });
   const questionsRenderer = Object.freeze({ banner: bannerControls });
+  let mounted = false;
   const presenter = applicationPresenter({
     region: "questions",
     renderer: questionsRenderer,
     order: PRESENTATION_ORDER.questions,
-    current: () => (mounted ? readApplication().semanticEpoch : null),
+    // The banner counts the Questions on the user; a publication that leaves them
+    // unchanged claims nothing.
+    reading: (root) => (mounted ? root.effective.asks.user : null),
     failSoft: failSoftAfterRetention(questionsRenderer),
     paint: (epoch, current) => paintQuestions(current),
   });
@@ -192,7 +193,7 @@ export function createQuestionView({
       });
     });
   }
-  // The banner's reading of that one list. Every semantic publication refreshes it,
+  // The banner's reading of that one list. A publication that changes it refreshes it,
   // and a publication is where the server's Question reading changes, so a send moves
   // these counts once the state its POST returns has been adopted.
   async function paintQuestions(current) {
@@ -220,10 +221,10 @@ export function createQuestionView({
       throw error;
     }
   }
-  // Every semantic notification opens the region's ticket synchronously, before its
-  // deferred read. Package subscribers therefore finish their own synchronous updates
-  // first, while the application barrier already knows this inherited Question paint is stale.
-  // The pass runs this reading after the thread whose markup its rows stand on.
+  // A publication that changes the Questions opens the region's ticket synchronously,
+  // before its deferred read, so the application barrier already knows the inherited
+  // Question paint is stale. The pass runs this reading after the thread whose markup
+  // its rows stand on. A local change, such as a blanket answer starting, claims here.
   function syncQuestions() {
     return presenter.present();
   }
@@ -676,8 +677,6 @@ export function createQuestionView({
     return ready;
   }
 
-  let mounted = false;
-  let stopActionChanges = null;
   let stopContextScopes = null;
   const actionsChanged = () => mounted && void syncQuestions();
 
@@ -685,7 +684,7 @@ export function createQuestionView({
     if (mounted) return;
     mounted = true;
     stopContextScopes = contextScopes("In this question", questionContext);
-    stopActionChanges = watchSemantic(actionsChanged);
+    void syncQuestions();
     document.addEventListener(PRESENTATION, actionsChanged);
     addEventListener("resize", repaint);
   }
@@ -693,8 +692,6 @@ export function createQuestionView({
   function destroy() {
     if (mounted) {
       mounted = false;
-      stopActionChanges?.();
-      stopActionChanges = null;
       document.removeEventListener(PRESENTATION, actionsChanged);
       globalThis.removeEventListener("resize", repaint);
     }

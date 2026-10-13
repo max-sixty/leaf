@@ -63,8 +63,6 @@ import {
   failSoftAfterRetention,
   PRESENTATION_ORDER,
   PresentationRetentionError,
-  readApplication,
-  watchSemantic,
 } from "./semantic-state.js";
 import { under } from "./shadow.js";
 import { questionEnding } from "./questions/answer.js";
@@ -310,7 +308,17 @@ export function createQueuePanel({ actions, next, announce }) {
     region: "queue",
     renderer: queueList,
     order: PRESENTATION_ORDER.queue,
-    current: () => (mounted ? readApplication().semanticEpoch : null),
+    // The panel draws the queues, places each row by its thread or Question, and names
+    // the agent; a publication that leaves those unchanged claims nothing.
+    reading: (root) =>
+      mounted
+        ? {
+            queues: root.effective.queues,
+            threads: root.effective.thread.collection.threads,
+            questions: root.effective.asks.all,
+            agent: root.authoritative?.agent ?? null,
+          }
+        : null,
     failSoft: failSoftAfterRetention(queueList),
     paint: (epoch, current) => paintQueue(current),
   });
@@ -353,7 +361,7 @@ export function createQueuePanel({ actions, next, announce }) {
   function mount() {
     if (mounted) return;
     mounted = true;
-    watchSemantic(present);
+    void present();
     document.addEventListener(PRESENTATION, present);
   }
 

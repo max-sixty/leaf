@@ -92,20 +92,26 @@ export const PRESENTATION_ORDER = Object.freeze({
 // no business knowing which those are.
 const documentPresenters = [];
 
-// One region's epoch presenter: the claim is synchronous, inside the publication that
-// opened the epoch, and the paint runs on the pass that follows it. `current` reads the
-// value this region owes now, so claiming never needs the caller to carry one, and
-// returns null where the region owes nothing yet — before the page has read the log,
-// or where this renderer was never mounted. That answer belongs to the
-// presenter rather than to whoever asks it to paint: a region claimed for a renderer
-// that cannot paint stays pending, and the page never presents at all. A renderer
-// withholds a reading it does owe by returning `PRESENTATION_HELD`, which keeps its
-// region pending until a later claim supersedes it.
+// One region's epoch presenter. `reading` selects, from the semantic root, everything
+// the region's paint draws from it, and returns null where the region owes nothing:
+// before the page has read the log, or where this renderer was never mounted. The
+// region claims a presentation inside each publication that changes that selection,
+// and the paint runs on the pass that follows; a publication that leaves it unchanged
+// is no claim, so the region carries its standing commit into the new epoch
+// (presentation.ts, `begin`). A selection shares unchanged parts across publications
+// (snapshot.ts), so a reading that names the parts it draws claims only when one of
+// them moves. What the paint reads beyond the root — the clock, a draft, the document's
+// own nodes — is a mechanical change, and its owner claims through `present`, which
+// selects the root as it stands, or `current` where the region owes a reading the
+// publication's selection withholds. A renderer withholds a reading it does owe by
+// returning `PRESENTATION_HELD`, which keeps its region pending until a later claim
+// supersedes it.
 export const applicationPresenter = ({
   region,
   renderer = document,
   order,
-  current,
+  reading,
+  current = () => reading(readApplication()),
   paint,
   failSoft,
 }) => {
@@ -115,11 +121,12 @@ export const applicationPresenter = ({
     paint,
     failSoft,
   });
-  const present = () => {
-    const value = current();
-    return value === null ? schedule.passed() : presenter.sync(value);
-  };
+  const claim = (value) => (value === null ? schedule.passed() : presenter.sync(value));
+  const present = () => claim(current());
   documentPresenters.push(present);
+  // A document-wide region lives as long as the page; `disconnect` releases its renderer,
+  // and a region that may mount again reads null while it is not mounted.
+  applicationState.select(reading).subscribe(claim);
   return Object.freeze({ present, disconnect: presenter.disconnect });
 };
 

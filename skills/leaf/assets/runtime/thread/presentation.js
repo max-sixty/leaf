@@ -27,7 +27,6 @@ import {
 } from "./inline.js";
 import {
   applicationPresenter,
-  applicationState,
   PRESENTATION_ORDER,
   readApplication,
 } from "../semantic-state.js";
@@ -67,12 +66,34 @@ export function createThreadPresentation({
   let mounted = false;
   let primary = null;
 
+  // The parts of the root a thread presentation draws: the fold itself, the canonical
+  // workflows its receipts and the margin's entries come from, the Question rows the
+  // margin draws beside them, the queues, the agent's name and to-dos, and the document
+  // whose messages, descriptors and revision the cards name. A publication that moves
+  // none of them — a widget's own action, say — claims nothing, and the standing
+  // presentation carries into the new epoch.
+  //
+  // Only epochs the page has read the log for claim. Before it has, each one draws the
+  // same line about waiting, and repainting the margin and the anchors to say it again
+  // is work done ahead of the first paint the user is waiting on. A user who opens the
+  // panel in that window asks for the reading directly, through `present`, and gets
+  // it: every phase owes a reading when asked, the ones before the log included.
   const presenter = applicationPresenter({
     region: "thread",
     order: PRESENTATION_ORDER.thread,
-    // Every phase owes a reading, the ones before the log has been read included: what
-    // the panel says while it waits is this region's to draw, and a user who opens it
-    // then is asking for exactly that.
+    reading: (root) =>
+      !available || root.phase === "waiting"
+        ? null
+        : {
+            phase: root.phase,
+            thread: root.effective.thread,
+            workflows: root.effective.workflows,
+            asks: root.effective.asks,
+            queues: root.effective.queues,
+            agent: root.authoritative?.agent ?? null,
+            todos: root.authoritative?.browser.todos ?? null,
+            document: root.document,
+          },
     current: () => (available ? readApplication().effective.thread : null),
     paint: async (value, current) => {
       const phase = readApplication().phase;
@@ -88,23 +109,6 @@ export function createThreadPresentation({
   });
 
   const present = () => presenter.present();
-
-  // Every epoch owes a fresh generated presentation, because this owner reads more of
-  // the root than its own fold: thread receipts come from canonical activity and the
-  // margin draws the Question rows beside them. The claim registers that obligation inside
-  // the publication that seals membership; the pass paints it.
-  //
-  // Every epoch the page has read the log for, that is. Before it has, each one draws
-  // the same line about waiting, and repainting the margin and the anchors to say it
-  // again is work done ahead of the first paint the user is waiting on. A user who
-  // opens the panel in that window asks for the reading directly, and gets it.
-  applicationState
-    .select((snapshot) =>
-      snapshot.phase === "waiting" ? null : snapshot.semanticEpoch,
-    )
-    .subscribe((value) => {
-      if (value !== null) void present();
-    });
 
   let surfaceGeneration = 0;
   let cancelCurrentRender = () => {};

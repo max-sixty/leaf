@@ -280,16 +280,6 @@ def _outside_main(content: list[dict]) -> list[str]:
     ]
 
 
-def _pinned(v: dict) -> str:
-    revisions = v["revisions"]
-    return (
-        "pinned revision"
-        + ("s " if len(revisions) > 1 else " ")
-        + ", ".join(f"r{revision}" for revision in revisions)
-        + f" cannot render this thread markup: {Finding.loads(v['finding'])}"
-    )
-
-
 # What the layer does with a word a widget declares from one of its lists, where the
 # word is on it (`instances.DECLARED_WORDS`).
 _HONORED = {
@@ -298,11 +288,11 @@ _HONORED = {
 }
 
 
-def _unservable_layer(v: dict, why: str) -> str:
+def _unservable_layer(v: dict, why: str, action: str) -> str:
     """Why this Leaf can neither serve a page nor write its log (`layer`)."""
     return (
-        f"{v['page']} {why}, so it cannot serve the page or write its log. Re-vendor"
-        f" it with `leaf page init {v['page']}`."
+        f"{v['page']} {why}, so it cannot serve the page or write its log. {action}"
+        f" with `leaf page init {v['page']}`."
     )
 
 
@@ -864,11 +854,6 @@ _TEXT = {
         "<link rel=stylesheet> in message markup dresses the whole document it is put"
         " into; the page serves the one vendored theme it was reviewed with"
     ),
-    "pinned-unrenderable": lambda at, v: _pinned(v),
-    "pinned-vocabulary": lambda at, v: (
-        "thread markup must use vocabulary shared by the active registry and every"
-        " pinned revision; otherwise ask with --text (and --ask for a reply)"
-    ),
     "sample-loop": lambda at, v: (
         f"sample {_json(v['samples'])} selects thread {v['thread']!r}, which"
         " holds this message, so its child would hold the same sample again; select"
@@ -1405,8 +1390,7 @@ _TEXT = {
     # The package check's refusal.
     "package": lambda at, v: v["text"],
     "leaf-version": lambda at, v: (
-        f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}. If the"
-        f" page misbehaves, `leaf page init {v['page']}` re-vendors it."
+        f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}."
     ),
     # The widget quality report, for a widget's author.
     "unreadable-examples": lambda at, v: (
@@ -1437,11 +1421,13 @@ _TEXT = {
         v,
         f"was vendored by a Leaf at page protocol {v['vendored']}, and this Leaf"
         f" ({v['leaf']}) speaks protocol {v['protocol']}",
+        "Update the page's Leaf runtime",
     ),
     "retired-layer": lambda at, v: _unservable_layer(
         v,
         f"was vendored by a Leaf that declares {', '.join(v['retired'])}, which this"
         f" Leaf ({v['leaf']}) no longer admits",
+        "Re-vendor it",
     ),
     "foreign-revision": lambda at, v: _unservable_revision(
         v,
@@ -1536,6 +1522,10 @@ _TEXT = {
     "unowned-placement": lambda at, v: (
         f"{_invalid_record(v)}position record cannot put <{v['unit_tag']}>"
         f" {v['unit']!r} within <{v['found']}> {v['destination']!r}"
+    ),
+    "thread-widget-publication": lambda at, v: (
+        f"thread widget {v['widget']!r} belongs to publication "
+        f"r{v['publication']}, not r{v['revision']}"
     ),
     "unknown-members": lambda at, v: (
         f"{_invalid_record(v)}{', '.join(v['strangers'])} name no member of"
@@ -1673,6 +1663,81 @@ _TEXT = {
     "agents-todo": lambda at, v: (
         f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"
     ),
+    # The thread and task commands' refusals (`thread`, `tasks.cmd_open`), before or
+    # beside the append door's. `held` is what the log holds a refused id as
+    # (`validation.admission.logged_id`), and `answer` the command that answers an
+    # owed update (`activity.answer_command`).
+    "unknown-comment": lambda at, v: (
+        f"unknown comment id {v['name']!r}"
+        + (f"; {v['held']}" if v.get("held") else "")
+        + f"; known: {_json(v['known'])}"
+    ),
+    "widget-not-thread": lambda at, v: (
+        f"{v['name']} is a widget on the page, not a thread"
+    ),
+    "unknown-subject": lambda at, v: (
+        f"{v['subject']!r} names no widget or element on this page; `{v['page']}`"
+        " names the page as a whole"
+    ),
+    "invalid-source": lambda at, v: (
+        f"cannot {v['operation']} while index.html is invalid: {v['error']}"
+    ),
+    "unanchorable": lambda at, v: (
+        f"can't anchor in revision r{v['revision']}: {v['error']}"
+        + (
+            f"; {v['held']}, while `--section` takes an element id the page's markup"
+            " declares"
+            if v.get("held")
+            else ""
+        )
+    ),
+    "redeclared-answer": lambda at, v: (
+        f"{v['message']!r} already answered this with a different declaration; ask or"
+        " promise in a new message with `leaf thread reply`"
+    ),
+    "unowed-reply": lambda at, v: (
+        f"event {v['event']!r} takes no reply; "
+        + (v.get("held") or f"this page's log holds no event {v['event']!r}")
+    ),
+    "superseded-reply": lambda at, v: (
+        f"event {v['event']!r} no longer requires a reply to {v['to']!r}; "
+        + (v.get("held") or "read the current delivery or thread state")
+    ),
+    "reserved-answer": lambda at, v: (
+        f"event {v['event']!r} is answered by this turn's messages; "
+        + (
+            "failure receipts wait for this turn to release the answer; answer in your"
+            f" final message or use {v['command']} without `--failure`"
+            if v["failure"]
+            else f"use {v['command']} to commit an explicit answer"
+        )
+    ),
+    "owed-response": lambda at, v: (
+        f"thread {v['thread']!r} currently requires a response; {v['answer']} answers"
+        " it"
+    ),
+    "not-a-reply": lambda at, v: (
+        f"response {v['reference']!r} requires {v['answer']}, not a reply"
+    ),
+    "ephemeral-content": lambda at, v: (
+        "--ephemeral is for progress text; it cannot ask the user, open a to-do, carry"
+        " widgets, report failure, or move the thread"
+    ),
+    "detach-with-target": lambda at, v: (
+        "--detach cannot be combined with --quote, --section, or --part"
+    ),
+    "held-anchor": lambda at, v: (
+        f"thread {v['thread']!r} holds the command goal named by its opening comment,"
+        " so its anchor cannot be changed"
+    ),
+    "no-anchor": lambda at, v: (
+        f"thread {v['thread']!r} has no current anchor to detach"
+    ),
+    "widget-ask-markup": lambda at, v: (
+        "--ask is for a prose ask; reply markup already declares a widget ask"
+        f" ({', '.join(f'<{tag}>' for tag in v['tags'])})"
+    ),
+    "detail-field": lambda at, v: f"detail fields are name=value, got {v['field']!r}",
 }
 
 # What a browser shows the person whose gesture a refusal turned down, where the

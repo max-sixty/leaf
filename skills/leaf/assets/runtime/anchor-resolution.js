@@ -6,6 +6,7 @@
  * `resolveAnchor` is the only search implementation, so repeated text detaches unless
  * its context identifies one occurrence.
  */
+import { registryFor, tagsDeclaring } from "./registry.js";
 
 import { anchorKey } from "./anchor-coordinate.js";
 import {
@@ -52,7 +53,7 @@ import {
   pageQueryAll,
   settledAway,
 } from "./passages.js";
-import { registry, tagsDeclaring } from "./registry.js";
+
 import { PRESSABLE } from "./widget-elements.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
 import {
@@ -129,7 +130,7 @@ function suppliedDatum(source, key) {
 export function requireReference(verb, owner, attribute) {
   if (
     typeof attribute !== "string" ||
-    !Object.hasOwn(registry[owner.localName]?.["x-refers"] ?? {}, attribute)
+    !Object.hasOwn(registryFor(owner)[owner.localName]?.["x-refers"] ?? {}, attribute)
   )
     throw new TypeError(
       `${verb} ${owner.localName} attribute ${String(attribute)} is not declared by x-refers`,
@@ -145,9 +146,10 @@ export function requireReference(verb, owner, attribute) {
 export function referencedProjection(owner, attribute) {
   const id = owner.getAttribute(attribute);
   if (!id) return null;
-  const { tag, key } = registry[owner.localName]["x-refers"][attribute];
+  const declarations = registryFor(owner);
+  const { tag, key } = declarations[owner.localName]["x-refers"][attribute];
   if (tag) {
-    const within = registry[tag]["x-unique"][key];
+    const within = declarations[tag]["x-unique"][key];
     const scopeOf = (element) => element.parentElement?.closest(within) ?? null;
     const scope = scopeOf(owner);
     return (
@@ -194,11 +196,24 @@ export function revealAddressed(source, key) {
 // no parts at all.
 const visualPartRank = (visual) =>
   visual
-    ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"])?.rank
+    ? visualPartAdmission(visual, registryFor(visual)[visual.localName]?.["x-visual"])
+        ?.rank
     : null;
 
 const wholeVisualSurface = (element) =>
-  registry[element?.localName]?.["x-visual"] ? element : null;
+  registryFor(element)[element?.localName]?.["x-visual"] ? element : null;
+
+// Select actual providers through their own publications. A union of declared tags
+// is an inventory prefilter, not evidence that this node is a visual surface.
+function declaredVisualAt(node) {
+  for (
+    let at = node?.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
+    at;
+    at = upFrom(at)
+  )
+    if (wholeVisualSurface(at)) return at;
+  return null;
+}
 
 /** The registered parts a visual's declaration admits, in declaration order. */
 export function visualParts(visual) {
@@ -238,9 +253,9 @@ const genericVisualSelector = "svg, img, figure";
 export const visualSelector = () =>
   [declaredVisualSelector(), genericVisualSelector].filter(Boolean).join(",");
 
-const outermostAcross = (element, selector) => {
+const outermostAcross = (element, find) => {
   for (let parent = upFrom(element); parent;) {
-    const outer = closestAcross(parent, selector);
+    const outer = find(parent);
     if (!outer) break;
     element = outer;
     parent = upFrom(element);
@@ -265,12 +280,14 @@ export const unclaimedVisualGesture = (target) => {
 // picture is the visual reading. The nearest authored id remains the durable seat.
 export function visualAt(target, { unclaimed = true } = {}) {
   if (unclaimed && !unclaimedVisualGesture(target)) return null;
-  const declared = declaredVisualSelector();
-  let element = declared ? closestAcross(target, declared) : null;
-  if (element) element = outermostAcross(element, declared);
+  let element = declaredVisualAt(target);
+  if (element) element = outermostAcross(element, declaredVisualAt);
   else {
     element = closestAcross(target, genericVisualSelector);
-    if (element) element = outermostAcross(element, genericVisualSelector);
+    if (element)
+      element = outermostAcross(element, (node) =>
+        closestAcross(node, genericVisualSelector),
+      );
   }
   if (!element) return null;
   const seat = closestAcross(element, ADDRESSABLE);
@@ -302,8 +319,7 @@ export const ADDRESSABLE = '[id]:not(.lf-ui):not([id^="lf-"])';
 export function isAddressable(at) {
   if (!at.matches(ADDRESSABLE) || inChrome(at) || inUi(at) || settledAway(at))
     return false;
-  const visual = tagsDeclaring((entry) => entry["x-visual"]).join(",");
-  return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
+  return !declaredVisualAt(upFrom(at));
 }
 
 function addressableAt(node) {
@@ -318,14 +334,16 @@ function addressableAt(node) {
 // paragraphs/lists; its declared host remains the seat that comments and reactions can
 // name durably. A resolved passage's `place` is its first segment's seat; a passage in
 // a datum falls back to the datum, where other text falls back to the nearest
-// addressable element.
+// addressable element. Each ancestor's formatting belongs to its own publication;
+// another publication declaring the same tag cannot make it a formatted seat.
 export function annotationAt(node, fallback = addressableAt) {
-  const formatted = tagsDeclaring(
-    (entry) => entry["x-text-format"] === "markdown",
-  ).join(",");
-  return (
-    (formatted && closestAcross(node, formatted)) || blockAt(node) || fallback(node)
-  );
+  for (
+    let at = node?.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
+    at;
+    at = upFrom(at)
+  )
+    if (registryFor(at)[at.localName]?.["x-text-format"] === "markdown") return at;
+  return blockAt(node) || fallback(node);
 }
 
 // A seat inside a shadow root stands at its host, where light-DOM chrome can sit.
@@ -527,8 +545,7 @@ function designTargetAt(
   const control =
     pressed?.matches(`${WORKS},${genericVisualSelector}`) && controlIdentity(pressed);
   const visual = visualAt(at, { unclaimed: false });
-  const declared = declaredVisualSelector();
-  if (declared && visual?.element.matches(declared)) at = visual.element;
+  if (wholeVisualSurface(visual?.element)) at = visual.element;
   else if (
     pressed?.control ||
     (visual && control?.matches(PRESSES) && under(visual.element, control))

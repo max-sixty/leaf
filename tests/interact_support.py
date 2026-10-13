@@ -230,6 +230,7 @@ class ModelPage:
         packages: tuple[str, ...] = (),
         documents: dict | None = None,
         registry: dict | None = None,
+        registries: dict[int, dict] | None = None,
     ):
         """`documents` and `registry` are for a caller that has already parsed and
         composed them — `model_folds.reading` has, and states the same page to the
@@ -240,6 +241,7 @@ class ModelPage:
         }
         self._packages = packages
         self._registry = registry
+        self._registries = registries
 
     @property
     def revisions(self) -> list[int]:
@@ -248,12 +250,17 @@ class ModelPage:
     def document(self, revision: int):
         return self.documents[revision]
 
-    def reading(self, revision: int, registry: dict):
-        return passages_model.SourceReading(self.documents[revision], registry)
+    def reading(self, revision: int):
+        return passages_model.SourceReading(
+            self.documents[revision], self.registry(revision)
+        )
 
     def registry(self, revision: int | None) -> dict:
-        """One layer for every revision: a stated page never re-vendors, so no
-        revision of it captured a vocabulary different from the rest."""
+        """The vocabulary captured by the named publication, or one shared layer."""
+        if self._registries is not None:
+            return self._registries[
+                revision if revision is not None else max(self._registries)
+            ]
         return self._registry or model_layer(*self._packages)
 
     @property
@@ -631,10 +638,10 @@ def registry_refusal(read: Callable) -> Finding:
     return finding
 
 
-def command_refusal(*args: str) -> Finding:
+def command_refusal(*args) -> Finding:
     """The one finding the refusal of the leaf command `args`, run in process,
     carries."""
-    result = CliRunner().invoke(cli_model.cli, list(args), standalone_mode=False)
+    result = CliRunner().invoke(cli_model.cli, [*map(str, args)], standalone_mode=False)
     [finding] = result.exception.__cause__.findings
     return finding
 
@@ -2068,7 +2075,7 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
         )
     if upgrade:
         (package / "widgets" / f"{tag}.js").write_bytes(
-            packages_model.starter_widget_module(tag)
+            packages_model.starter_widget_module()
         )
     return declaration
 

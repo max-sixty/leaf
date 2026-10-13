@@ -1217,6 +1217,7 @@ def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
                 "</lf-options></lf-ask>"
             ),
             "--ask",
+            "--json",
         ],
     )
     aggregate = CliRunner().invoke(
@@ -1239,7 +1240,7 @@ def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
     assert answered.exit_code == 0, answered.output
     assert asking.exit_code == 0, asking.output
     assert duplicate.exit_code == 1
-    assert "reply markup already declares" in duplicate.output
+    assert refused_on(duplicate.stdout).values["tags"] == ["lf-options"]
     assert aggregate.exit_code == 0, aggregate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
     assert "ask" not in replies[0]
@@ -1721,6 +1722,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "author": "agent",
             "agent": "Claude",
             "parent": "c1",
+            "revision": 1,
             "text": "reversibility",
             "markup": '<lf-diagram id="why"><pre>graph LR\n  A --> B</pre></lf-diagram>',
         },
@@ -1841,30 +1843,69 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "…" in head and len(head) < len(long_quote) / 2, head
 
 
-def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear(
+def test_new_replies_require_a_complete_candidate_publication(
     page_dir,
 ):
-    """Text renders with every raw tag escaped, so a plain reply has nothing to
-    validate and posts without the registry; markup is checked against it, so without
-    one the gate refuses rather than guessing."""
+    """New answers capture a complete publication; markup's local asks use
+    those declarations and cannot also be declared by a prose flag."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    (page_dir / "registry.json").unlink()
+    registry = page_dir / "registry.json"
+    declarations = registry.read_bytes()
+    registry.unlink()
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
-    plain = CliRunner().invoke(
+    answer = [
+        "response",
+        "reply",
+        "--done",
+        response_reference(page_dir, "c1"),
+        "--text",
+        "plain answer, x < y",
+    ]
+    diagram = '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>'
+    before = events_model.read_events(page_dir)
+    for arguments in (answer, [*answer, "--markup", diagram]):
+        refused = CliRunner().invoke(cli_model.cli, [*arguments, "--json"])
+        assert refused.exit_code == 1, refused.output
+        refusal = refused_on(refused.stdout)
+        assert refusal.code == "invalid-source"
+        assert refusal.values["operation"] == "reply"
+        assert events_model.read_events(page_dir) == before
+        assert files_model.list_revisions(page_dir) == [1]
+    registry.write_bytes(declarations)
+    plain = CliRunner().invoke(cli_model.cli, answer)
+    assert plain.exit_code == 0, plain.output
+    markup = (
+        '<lf-ask id="captured-question"><h2>Which store?</h2>'
+        '<lf-options id="captured-options" choose>'
+        '<lf-option id="captured-a">A</lf-option>'
+        "</lf-options></lf-ask>"
+    )
+    before = events_model.read_events(page_dir)
+    revisions = files_model.list_revisions(page_dir)
+    duplicate = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
-            "--done",
-            response_reference(page_dir, "c1"),
+            str(page_dir),
+            "c1",
             "--text",
-            "plain answer, x < y",
+            "Choose one.",
+            "--markup",
+            markup,
+            "--ask",
+            "--json",
         ],
     )
-    assert plain.exit_code == 0, plain.output
+    assert duplicate.exit_code == 1, duplicate.output
+    refusal = refused_on(duplicate.stdout)
+    assert refusal.code == "widget-ask-markup"
+    assert refusal.values == {"tags": ["lf-options"]}
+    assert events_model.read_events(page_dir) == before
+    assert files_model.list_revisions(page_dir) == revisions
     with_markup = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1875,7 +1916,7 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
             "--text",
             "See:",
             "--markup",
-            '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+            diagram,
         ],
     )
     assert with_markup.exit_code == 0, with_markup.output

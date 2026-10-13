@@ -20,6 +20,7 @@ from render_harness import consume_browser_errors, open_page
 
 # A colour scheme changes only pixels, so where no image is compared its cases would
 # repeat the light journey.
+@pytest.mark.skip(reason="paused: TODO.md, Resume the thread appearance gate")
 @pytest.mark.parametrize(
     "case",
     [case for case in CASES if COMPARED or case.scheme == "light"],

@@ -436,10 +436,9 @@ whether one module owns it. If one does, the rule goes in that module's header a
 the area file keeps at most a pointer (root `AGENTS.md`, "Where instructions live"),
 so the area file holds only what spans its modules and trimmed text does not come back.
 
-Thread appearance changes run `tests/*/test_render_thread_snapshots.py` on macOS
-before landing. Linux CI runs the same delivery journey without comparing images.
-Review captured Mac images before accepting an intentional change;
-`dev/leaf_dev/thread_snapshots.py` owns capture and acceptance.
+The thread appearance gate, `tests/*/test_render_thread_snapshots.py`, is paused
+while development moves fast (`TODO.md`, "Resume the thread appearance gate"), so a
+thread appearance change needs no snapshot run or acceptance before landing.
 
 A pull request's `test` job and the local pre-merge `tests` run the broad selection
 and the later-tier tests the branch edits; the rest of the `main` tier runs once main

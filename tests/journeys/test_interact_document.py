@@ -1152,4 +1152,3 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
         assert set(metadata) == {marker, "registry.json", "manifest.json"}
         assert metadata[marker] == metadata["registry.json"] == 1
         assert 1 <= metadata["manifest.json"] <= 2
-

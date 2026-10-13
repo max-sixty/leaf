@@ -70,7 +70,8 @@ export function createThreadPresentation({
     region: "thread",
     order: PRESENTATION_ORDER.thread,
     // Before the first server reading there is no thread cohort to prove.
-    current: () => readApplication().phase === "waiting" ? null : readApplication().effective.thread,
+    current: () =>
+      readApplication().phase === "waiting" ? null : readApplication().effective.thread,
     paint: async (value, current) => {
       const phase = readApplication().phase;
       // A pass reads the latest root. Clock changes claim another pass through the

@@ -462,7 +462,7 @@ def test_revision_inventory_ignores_incomplete_capture_records(page_dir, manifes
     old.with_suffix(".html").write_bytes(marker.read_bytes())
 
     assert files_model.list_revisions(page_dir) == [1]
-    with pytest.raises(SystemExit, match="no revision r9"):
+    with pytest.raises(Refused, match="no revision r9"):
         files_model.revision_path(page_dir, 9)
     (page_dir / "index.html").write_text(PAGE.replace("Plan", "Next plan"))
     current = revisioning_model.activate_source(page_dir)
@@ -539,7 +539,12 @@ def test_obsolete_capture_with_frozen_reply_is_absent_from_page_state(page_dir):
         state = page_state(page_dir)
         browser = state["browser"]
 
-    threads = {thread["id"]: thread for thread in browser["thread"]["threads"]}
+    threads = {
+        thread["id"]: thread
+        for thread in browser["views"][str(state["active"]["revision"])]["thread"][
+            "threads"
+        ]
+    }
     obsolete = threads[parent["id"]]
     assert [message["text"] for message in obsolete["msgs"]] == [
         "Choose.",
@@ -646,7 +651,7 @@ def test_revision_inventory_retains_duplicate_current_capture_refusal(page_dir):
     duplicate = marker.parent / "r1-0123456789abcdef"
     shutil.copytree(marker.with_suffix(""), duplicate)
     duplicate.with_suffix(".html").write_bytes(marker.read_bytes())
-    with pytest.raises(SystemExit, match="same order"):
+    with pytest.raises(Refused, match="same order"):
         files_model.list_revisions(page_dir)
 
 
@@ -2106,7 +2111,7 @@ def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
         ("Authored tail", "outside-main"),
         ('<p id="tail">Authored tail</p>', "outside-main"),
         (
-        '<lf-options><lf-option id="tail">Authored tail</lf-option></lf-options>',
+            '<lf-options><lf-option id="tail">Authored tail</lf-option></lf-options>',
             "outside-main",
         ),
         ('<main><p id="tail">Second main</p></main>', "main-count"),

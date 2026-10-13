@@ -1,6 +1,7 @@
 /* Publication identity survives node moves and governs declaration consumers. */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { setImmediate } from "node:timers";
 import { bindVocabulary, vocabularyFor } from "/runtime/widget-contexts.js";
 
 test("imported text and comments retain their publication independently of placement", () => {

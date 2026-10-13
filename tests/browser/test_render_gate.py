@@ -1635,9 +1635,7 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     for tag, body in modules.items():
         (package / "widgets" / f"{tag}.js").write_text(
             'import { once, shadowStage } from "/runtime/widget-api.js";\n'
-            'export default class extends HTMLElement {\n'
-            + body
-            + "};\n"
+            "export default class extends HTMLElement {\n" + body + "};\n"
         )
     # A lazy image that holds no room is reported only in DevTools' Issues panel. The
     # page owns an image it authors in a form-associated control's light DOM, and a
@@ -1872,9 +1870,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     for tag, body in modules.items():
         (package / "widgets" / f"{tag}.js").write_text(
             'import { once } from "/runtime/widget-api.js";\n'
-            'export default class extends HTMLElement {\n'
-            + body
-            + "};\n"
+            "export default class extends HTMLElement {\n" + body + "};\n"
         )
     source = leaf_page(
         "widgets in the page and in replies",

@@ -91,7 +91,9 @@ class Samples:
                 f"unknown sample template {template_id!r}"
                 + (f" in message {message!r}" if message is not None else "")
             )
-        parent_history = page_sample_history(document, events, inputs.available_revisions)
+        parent_history = page_sample_history(
+            document, events, inputs.available_revisions
+        )
         seeded = initial_sample_history(
             parent,
             document,

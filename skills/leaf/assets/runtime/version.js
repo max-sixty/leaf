@@ -70,7 +70,12 @@
  */
 import { bindVocabulary, vocabularyFor } from "./widget-contexts.js";
 import { requireVocabulary } from "./widget-vocabularies.js";
-import { nextAnimation, nextRender, renderingState, sizeObserver } from "./rendering.js";
+import {
+  nextAnimation,
+  nextRender,
+  renderingState,
+  sizeObserver,
+} from "./rendering.js";
 import { frameFor, whileConnected } from "./arrivals.js";
 import { readingPaint } from "./presence.js";
 import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";

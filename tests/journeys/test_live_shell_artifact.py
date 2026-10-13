@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from interact_support import append_carried_log_record as append_event
-from leaf.files import revision_path, replace_files
+from leaf.files import replace_files, revision_path
 from leaf.hosting import TemporaryPageServer
 from leaf.live_shell import write_live_shell
 from leaf.revision_artifact import RESOURCE_TYPES
@@ -169,4 +169,3 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
               (await import(`${root}/runtime/widget-api.js`))""",
             kernel,
         )
-

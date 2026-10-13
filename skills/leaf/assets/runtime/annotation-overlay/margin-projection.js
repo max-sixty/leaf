@@ -1737,7 +1737,7 @@ export function createMarginProjection({
   function mount() {
     // The card anchors to rows laid out before it. Mount the margin first; an
     // application reading can also arrive without mounting this optional chrome.
-    chromeRoot.insertBefore(nav, chromeForeground);
+    move(chromeRoot, nav, chromeForeground);
     mountMarginLayer(toolbar);
     card.mount(() => closePreview(landOnEntry));
     document.addEventListener("lf-margin-layout", ({ detail: { column, height } }) => {

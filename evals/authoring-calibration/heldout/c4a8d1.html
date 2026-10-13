@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workshop room reservation</title>
+<style>
+:root { color-scheme: light; font: 17px/1.45 system-ui, sans-serif; color: #1a2930; background: #f4f7f6; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { width: min(100% - 32px, 920px); margin: 28px auto; }
+h1 { font-size: 1.8rem; line-height: 1.2; }
+h2 { font-size: 1.2rem; margin-top: 0; }
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+article, details, .receipt { background: white; border: 1px solid #b9c9c4; border-radius: 8px; padding: 16px; margin: 16px 0; }
+button { font: inherit; padding: 10px 14px; border: 1px solid #648276; border-radius: 5px; background: white; color: inherit; cursor: pointer; }
+button[aria-pressed="true"] { background: #e1eee8; border-color: #345e4d; }
+button:focus-visible, summary:focus-visible { outline: 3px solid #1469a3; outline-offset: 3px; }
+summary { font-weight: 650; cursor: pointer; }
+output { display: block; font-weight: 650; }
+small { color: #435e53; }
+@media (max-width: 600px) { .cards { grid-template-columns: 1fr; gap: 0; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Choose the workshop room</h1>
+<p>The ceramics workshop is at 18:00 for eight people. Both rooms meet the seating and step-free access requirements. Staff recommend Ochre because it is nearer the kiln; the final room choice is yours.</p>
+<div class="cards">
+<article><h2>Ochre room</h2><p>10 seats · step-free entrance</p><p><small>Staff recommendation: nearer the kiln.</small></p><button type="button" data-room="Ochre room" aria-pressed="false">Reserve Ochre room</button></article>
+<article><h2>Indigo room</h2><p>12 seats · step-free entrance</p><button type="button" data-room="Ochre room" aria-pressed="false">Reserve Indigo room</button></article>
+</div>
+<section class="receipt" aria-label="Reservation receipt"><h2>Reservation receipt</h2><output aria-live="polite" id="receipt">No reservation made.</output></section>
+</main>
+<script>
+document.querySelectorAll("button[data-room]").forEach((button) => {
+  button.addEventListener("click", () => {
+    document.querySelectorAll("button[data-room]").forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
+    document.querySelector("#receipt").textContent = "Reserved: " + button.dataset.room + " · eight people · 18:00.";
+  });
+});
+</script>
+</body>
+</html>

@@ -1,72 +1,51 @@
-# Fixed authoring calibration
+# Fixed authoring controls
 
-These standalone HTML artifacts distinguish required information that is absent,
-information that an evaluator has not revealed, and information that the page
-contains but the user cannot reach. Their expected results follow from the user
-request and deliberately controlled source differences. They do not establish
-general authoring quality or model accuracy.
+Four small native-HTML pages provide two matched valid/defective pairs.
+`controls.json` records their requests, two viewports, fixed source hashes and
+private expectations. The development pair is previously observed calibration
+evidence. The second pair was authored independently and kept sealed from the
+new minimal evaluator implementation; preserve that separation until the
+candidate is frozen. Once exposed or used to revise a candidate, a control is
+development evidence for later revisions.
 
-## Inputs and private expectations
+Give a judge only the case request and recorded capture evidence. Exclude
+`private_` fields from its input. Those fields describe what an independent
+reviewer needs to verify; they do not prove that a browser route works. A source
+omission or incorrect handler can support a diagnosis, while rendered
+reachability and interaction results need ordinary browser operation.
 
-Each split has a `manifest.json` with the request, task requirements, capture
-viewports, ordinary reader routes and the SHA-256 of each artifact. Artifact paths
-are relative to that manifest. A scorer receives the request and captured evidence.
-The requirements and routes guide the independent browser verification; they are
-not evidence that those routes worked.
+Use the existing authoring capture and evaluator. There is no separate
+calibration runner or command. Keep fixture bytes fixed, verify their hashes,
+and record authoring baseline context, captured runtime/browser identity,
+viewport, observed actions and evaluator revision with each result. Retain the
+exact evidence and raw verdict so matched baseline and candidate outputs can
+be rescored by the same evaluator.
 
-`expectations.json` is the oracle: target findings, specific false alarms to reject,
-the source difference that supports each expectation, and browser checks still
-needed. Keep it outside the judged packet. A missing expected finding is a miss
-only when the supplied evidence can establish it. An incomplete observation leaves
-that criterion unverified; it does not prove a page defect.
+The verdict distinguishes a supported defect, a supported pass and unverified
+evidence. A collapsed disclosure or unselected view alone does not establish
+missing information, and a control visible in a screenshot does not establish
+that it works. Missing observation remains unverified. Required task facts and
+user decisions still need preserving; supporting detail omitted from an
+explicitly brief artifact is judged against that request.
 
-The development split exposes matched contrasts for labeled disclosures, queue
-selection and narrow-screen table access. The held-out split was authored before
-candidate validation and is kept separate until the evaluator implementation,
-criteria and scoring prompts are frozen. Reading a held-out expectation while
-developing makes it development evidence; record that exposure rather than calling
-the later result held out.
+These controlled contrasts are a bounded calibration, not a general accuracy
+estimate. Model agreement remains a model judgment. Report independently
+observed behavior and unsupported explanations separately from pass counts.
+Record development and held-out findings here only after grading and independent
+verification; do not rewrite the fixtures to match the judge.
 
-## Revisions and capture records
+On 2026-10-13, the reduced evaluator ran through Promptfoo 0.124.1 with the
+existing `gpt-6.1-sol` screenshot provider and Chrome 155.0.8059.40. At 900×900
+and 390×844, both valid controls received `pass`, both defective controls received
+`defect`, and arrival-only evidence from the valid payments page received
+`insufficient_evidence`. An independent reviewer, without reading model grades,
+operated the controls and confirmed the missing incidents and wrong-room receipt.
+Fixture hashes remained fixed. The room pair was reserved during rubric
+development; its request and expectations were opened during review before final
+capture fixes, so this is bounded control validation, not a blind accuracy test.
 
-The manifest's `authoring_revision` is the repository baseline used when these
-fixtures were hand-authored, not a claim that the baseline commit contains them.
-The per-artifact hashes identify their actual fixed bytes. There is no Leaf layer:
-the runtime is native HTML, CSS and JavaScript, with no external resources.
-
-Before scoring, verify artifact hashes and record the browser identity, viewport,
-capture actions/results, evaluator repository revision and evaluator source/prompt
-hashes alongside each packet. Capture and scoring runs record their own runtime
-and evaluator identities; do not modify the fixed fixtures to insert them. Retain
-the exact packets and raw verdicts so the same evaluator can score matched authored
-baseline and candidate outputs.
-
-The controlled differences independently support source-level claims. Actual
-reachability, clipping and control behavior need the recorded browser checks.
-A judge's agreement is a model judgment; it is not independent confirmation of
-those behaviors. Other findings outside the controlled target need their own
-support and are not automatically false alarms.
-
-## Running the calibration
-
-Use a fresh output directory. Browser observation is serial; the two concurrent
-model judgments start only after that browser closes. Coordinate this browser
-batch with other experiments on the same machine.
-
-```sh
-uv run leaf-dev eval-calibrate --split development --output .tmp/calibration-development
-uv run leaf-dev eval-calibrate --split development --arrival-only --output .tmp/calibration-arrival
-```
-
-Before opening held-out artifacts, record the candidate's evaluator source and
-rubric hashes and finish development checks. Then run the same candidate without
-editing it against the held-out split. Read private expectations only after its
-grades are fixed, and verify the controls independently in a browser. Record
-unsettled input routes separately from a page defect. If a result causes a
-candidate change, that case becomes development evidence; a later held-out claim
-needs new examples.
-
-```sh
-uv run leaf-dev eval-calibrate --split heldout --output .tmp/calibration-heldout
-```
-
+The evaluator source hashes, capture actions, browser identity and raw Promptfoo
+results are recorded under `.tmp/minimal-reduction/validation/`; independent
+browser observations are in `.tmp/minimal-reduction/independent-proof.json`.
+The commit containing this reduced implementation identifies the evaluator used;
+controls identify their authoring bytes and runtime separately in `controls.json`.

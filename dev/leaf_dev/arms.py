@@ -16,9 +16,7 @@ A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would; a `LiveSession` is how
 every live driver holds one: it records the stream, sends chat messages, and tells
 when the session has gone quiet. On macOS a Claude Code child runs under
-`private_tmp`, so concurrent children share no file in `/tmp` and cannot open
-desktop applications through LaunchServices. Drivers own browser observation and
-discover the served URL independently of desktop opening.
+`private_tmp`, so concurrent children share no file in `/tmp`.
 """
 
 import base64
@@ -459,7 +457,8 @@ def scratch(payload: Path | None = None, *, state: Path | None = None):
 
 
 def private_tmp(*owned: Path) -> str:
-    """Confine a macOS Claude Code child's temporary files and desktop effects.
+    """The macOS sandbox profile a Claude Code child runs under, so that two
+    children never share a file under `/tmp`.
 
     Its `TMPDIR` is already its own (`claude_child`), but authoring agents also
     write fixed names there, such as `/tmp/chk.py`, which a concurrent sample would
@@ -468,10 +467,7 @@ def private_tmp(*owned: Path) -> str:
     own machine-local files there: Claude Code's per-user directory and each
     shell's cwd file and socket, and Leaf's per-user package locks and each App
     Server's socket directory. The sandbox resolves `/tmp` to `/private/tmp`, so
-    the rules name that. LaunchServices opening is denied at its native `lsopen`
-    capability, including absolute `/usr/bin/open` calls; native process execution
-    and served-page URLs remain available for the driver's headless browser.
-    """
+    the rules name that."""
     uid = os.getuid()
     names = (
         rf"claude-{uid}(/|$)|claude-[0-9a-f]+-cwd$|cc-socks(/|$)"
@@ -481,7 +477,6 @@ def private_tmp(*owned: Path) -> str:
         [
             "(version 1)",
             "(allow default)",
-            "(deny lsopen)",
             '(deny file-write* (subpath "/private/tmp"))',
             f'(allow file-write* (regex #"^/private/tmp/({names})"))',
             *(

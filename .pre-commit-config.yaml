@@ -15,7 +15,7 @@
 # `leaf-dev corpus` whenever its sibling examples change.
 # Historical eval fixtures are frozen, hash-checked source evidence, including
 # reconstructed variants. Formatting one would invalidate its provenance pin.
-exclude: ^(skills/leaf/packages/default/shadow\.css$|skills/leaf/(assets/vendor|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$|evals/ui-review-detection/fixtures/|evals/authoring-calibration/)
+exclude: ^(skills/leaf/packages/default/shadow\.css$|skills/leaf/(assets/vendor|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$|evals/ui-review-detection/fixtures/|evals/authoring-calibration/(development|heldout)/.*\.html$)
 
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks

@@ -31,20 +31,19 @@ the CSS and script lines in the files it authored, and how many times it wrote a
 rendered the page, the measure of its repair iterations. The user agent and the
 readers spend too; that is the harness's, recorded apart.
 
-Each version saves its actual user inputs, authored files and runtime identity.
-Observation runs on a separate deployment for each viewport, preserving arrival
-states before inspecting disclosures, choices and scrolling. The canonical
-authoring scorer stages these records in a frozen packet; missing observation
-and supported defects remain distinct. `eval-pairs` adds a supplementary model
-preference judgment of matched recorded versions.
+The sample's output is what a judge needs: the user's request, the later messages,
+the author's answer to the comment, and each version's screenshots by width,
+written to `shots`, the one directory its judge may read. Capture records arrival
+before inspecting task destinations, disclosures, selections and scroll regions,
+on a disposable copy per viewport. Observation limits remain explicit. The YAML
+cases hold the visual criteria and their three-way verdict assertion;
+`eval-pairs` is the quality score, judging a pair's final versions side by side.
 """
 
 import json
 import re
 import shutil
 import tempfile
-from collections.abc import Iterable
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -78,11 +77,9 @@ from leaf_dev.arms import (
     trace_result,
     trace_summary,
 )
-from leaf_dev.authoring_observation import observe
 from leaf_dev.browser import chrome, load, settle, tab
 from leaf_dev.eval_cases import definition
-from leaf_dev.eval_provenance import runtime_identity, tree_identity
-from leaf_dev.eval_user import comment_on_passage, decide
+from leaf_dev.eval_user import OPEN, comment_on_passage, decide, reveal
 
 TASKS = ROOT / "evals"
 DEFINITION = definition("arrangement_eval")
@@ -275,8 +272,6 @@ def author(run: Run, cwd: Path) -> None:
     leaf = run.leaf_condition
     prompt = first_prompt(run.payload, page, run.subject, run.condition)
     (run.directory / "prompt-1.txt").write_text(prompt)
-    inputs = {"request": (TASKS / run.subject / "request.md").read_text(), "phases": {}}
-    messages = []
     child = LiveChild(
         cwd,
         prompt,
@@ -304,23 +299,11 @@ def author(run: Run, cwd: Path) -> None:
                 run.phase_starts[phase] = latest_seq(page)
                 before = None
                 if phase == 2:
-                    message = preference_message()
-                    messages.append(message)
-                    live.send(message)
+                    live.send(preference_message())
                 elif phase == 3:
                     before = comment(run, live)
-                    messages.append(comment_message(CASES[run.subject].comment))
                 elif phase == 4:
                     decision_round(run, live)
-                    made = run.recorded("decision")
-                    messages.append(made["message"])
-                    if made["gestures"]:
-                        messages.append(
-                            "Recorded user decisions on the page: "
-                            + json.dumps(made["gestures"])
-                        )
-                inputs["phases"][str(phase)] = {"messages": list(messages)}
-                run.record("authoring-inputs", inputs)
                 settled = live.settle(since, grace=GRACE, wake=WAKE, before=before)
                 snapshot(page, run.directory / f"page-phase{phase}")
                 if not settled or not (page / "index.html").exists():
@@ -438,40 +421,19 @@ def items(decision: Decision) -> str:
 
 
 def reading_schema(decision: Decision) -> str:
-    """Provider-safe fields describe domain labels; each keeps its own value set.
-
-    Labels can contain spaces and punctuation. Native structured-output APIs may
-    restrict property names, so labels are descriptions and the transport keys
-    are positional. `reading_values` converts once at that boundary.
-    """
+    """The reader's answer, which the harness's structured output holds to each
+    item's listed values."""
     return json.dumps(
         {
             "type": "object",
             "properties": {
-                f"item_{number}": {
-                    "type": "string",
-                    "description": item,
-                    "enum": [*values, "undecided"],
-                }
-                for number, (item, values) in enumerate(decision.values.items(), 1)
+                item: {"type": "string", "enum": [*values, "undecided"]}
+                for item, values in decision.values.items()
             },
-            "required": [
-                f"item_{number}" for number in range(1, len(decision.values) + 1)
-            ],
+            "required": list(decision.values),
             "additionalProperties": False,
         }
     )
-
-
-def reading_values(decision: Decision, result: dict) -> dict | None:
-    """Decode the native schema once; a missing structured result stays unknown."""
-    reading = result.get("structured_output")
-    if reading is None:
-        return None
-    return {
-        item: reading[f"item_{number}"]
-        for number, item in enumerate(decision.values, 1)
-    }
 
 
 def matches(decision: Decision, reading: dict | None) -> dict[str, bool]:
@@ -520,7 +482,7 @@ def read_applied(run: Run, reply: str) -> dict:
             dirs=[evidence],
             model=MODELS["judge"],
         )
-    reading = reading_values(decision, trace_result(trace))
+    reading = trace_result(trace).get("structured_output")
     return {
         "reading": reading,
         "items": matches(decision, reading),
@@ -559,7 +521,7 @@ def read_decision(run: Run) -> dict:
             },
             harness=run.harness,
         )
-    reading = reading_values(decision, trace_result(trace))
+    reading = trace_result(trace).get("structured_output")
     return {
         "completed": completed(trace),
         "page_unchanged": source_before == (page / "index.html").read_bytes()
@@ -581,59 +543,183 @@ def chosen_options(page: Path | None) -> set[str]:
     }
 
 
-@contextmanager
-def inspection_copy(page: Path):
-    """Own a mutable inspection deployment while preserving authored input bytes."""
-    with tempfile.TemporaryDirectory(prefix="leaf-inspect-") as temporary:
-        copied = Path(temporary) / "page"
-        shutil.copytree(page, copied)
-        yield copied, Path(temporary) / "state"
-
-
 def gate(run: Run, phase: int, page: Path) -> dict:
     """Independently check the authored page, retaining the check's output."""
-    with inspection_copy(page) as (copied, state):
-        if run.condition == "html":
-            reading = arrangement_plain.gate(copied, WIDTHS)
-        else:
-            proc = run_leaf(
-                run.payload,
-                state,
-                "page",
-                "check",
-                str(copied),
-                "--render",
-                timeout=900,
-            )
-            reading = {
-                "passed": proc.returncode == 0,
-                "output": proc.stdout + proc.stderr,
-            }
+    if run.condition == "html":
+        reading = arrangement_plain.gate(page, WIDTHS)
+    else:
+        proc = run.leaf("page", "check", str(page), "--render", timeout=900)
+        reading = {"passed": proc.returncode == 0, "output": proc.stdout + proc.stderr}
     (run.directory / f"gate-{phase}.json").write_text(json.dumps(reading, indent=2))
     return reading
 
 
-def capture_phase(
-    run: Run,
-    phase: int,
-    page: Path | None = None,
-    *,
-    destinations: Iterable[str] | None = None,
-) -> dict[str, list[str]]:
-    """Observe a disposable copy; retain arrival, inspected states and coverage.
+def capture_views(view, shots: Path, prefix: str, settled, destinations=()) -> dict:
+    """Record arrival and task inspection, without equating DOM text with visibility.
 
-    Serving an immutable snapshot directly would let observation append Leaf
-    events to the calibration input. Each capture owns its mutable server copy.
+    Collection is bounded; unvisited states and failed operations remain explicit
+    limits. The caller provides a disposable page, because inspection can record
+    decisions. Screenshots establish appearance; DOM text only establishes current
+    light-DOM presence, including hidden content, not reachability or legibility.
     """
-    run.shots.mkdir(parents=True, exist_ok=True)
-    if any(run.shots.glob(f"p{phase}-*")):
-        raise ValueError(
-            f"Phase {phase} observations already exist; use a new shots directory"
+    shots.mkdir(parents=True, exist_ok=True)
+    images, states, limits = [], [], []
+
+    def screens(action):
+        view.evaluate("window.scrollTo({top:0,left:0,behavior:'instant'})")
+        height = view.evaluate("document.documentElement.scrollHeight")
+        step = int(view.viewport_size["height"] * 0.85)
+        count = 1 + max(0, height - view.viewport_size["height"] + step - 1) // step
+        if count > 16:
+            limits.append(f"{action}: document exceeds 16 screens")
+        for index in range(min(count, 16)):
+            if len(images) >= 64:
+                limits.append("Screenshot limit reached")
+                return
+            view.evaluate(
+                "y => window.scrollTo({top:y,left:0,behavior:'instant'})", index * step
+            )
+            settled(view)
+            path = shots / f"{prefix}-{len(images)}.png"
+            view.screenshot(path=path)
+            images.append(str(path))
+            states.append(
+                {
+                    "action": action,
+                    "image": str(path),
+                    "accessibility": view.locator("body").aria_snapshot(),
+                    "reading": view.evaluate("""() => {
+                  const copy = (document.querySelector('main') || document.body).cloneNode(true);
+                  copy.querySelectorAll('script,style,template').forEach(n => n.remove());
+                  return {dom_text:copy.textContent, scroll_y:scrollY,
+                    width:innerWidth, scroll_width:document.documentElement.scrollWidth};
+                }"""),
+                }
+            )
+
+    def operate(label, operation):
+        from playwright.sync_api import Error
+
+        try:
+            operation()
+            settled(view)
+        except Error as error:
+            limits.append(f"{label}: {str(error).splitlines()[0]}")
+        screens(label)
+
+    screens("Arrival; authored state before inspection")
+    for target in destinations:
+        operate(
+            f"Inspect task item: {target}",
+            lambda target=target: reveal(view, target, re.escape(target), settled),
         )
+    controls = view.locator(
+        'details > summary, [role="tab"], button[aria-pressed], button[aria-controls]'
+    )
+    if controls.count() > 16:
+        limits.append("More than 16 disclosure/navigation controls; some unvisited")
+    for control in controls.all()[:16]:
+        if (
+            not control.is_visible()
+            or control.evaluate(OPEN)
+            or control.get_attribute("aria-pressed") == "true"
+        ):
+            continue
+        label = control.inner_text().strip()
+        operate(f"Open: {label}", lambda control=control: control.click(timeout=2000))
+    selections = 0
+    for select in view.locator("select").all():
+        if not select.is_visible() or not select.is_enabled():
+            continue
+        original = select.input_value()
+        for option in select.locator("option").all():
+            value = option.evaluate("el => el.value")
+            if value == original or option.is_disabled():
+                continue
+            if selections >= 16:
+                limits.append("Selection limit reached; some options unvisited")
+                break
+            selections += 1
+            operate(
+                f"Inspect option: {option.inner_text()}",
+                lambda value=value, select=select: select.select_option(
+                    value, timeout=2000
+                ),
+            )
+        operate(
+            "Restore original selection",
+            lambda select=select, original=original: select.select_option(
+                original, timeout=2000
+            ),
+        )
+    # Operate actual scroll owners. Hidden/clip overflow is never scrolled by script.
+    handles = view.evaluate_handle("""() => [...document.querySelectorAll('body *')].filter(el => {
+      const css=getComputedStyle(el);
+      return el.checkVisibility() && el.clientWidth && el.clientHeight &&
+        ((el.scrollWidth>el.clientWidth+1 && /auto|scroll/.test(css.overflowX)) ||
+         (el.scrollHeight>el.clientHeight+1 && /auto|scroll/.test(css.overflowY)));
+    })""").get_properties()
+    if len(handles) > 8:
+        limits.append("More than 8 scroll regions; some unvisited")
+    for handle in list(handles.values())[:8]:
+        owner = handle.as_element()
+        for axis in ("x", "y"):
+            extent, size = owner.evaluate(
+                "(el,a) => a==='x' ? [el.scrollWidth-el.clientWidth,el.clientWidth] : [el.scrollHeight-el.clientHeight,el.clientHeight]",
+                axis,
+            )
+            if extent <= 1:
+                continue
+            step = max(1, int(size * 0.85))
+            count = (extent + step - 1) // step
+            if count > 8:
+                limits.append(f"Scroll region on {axis} exceeds 8 screens")
+            for position in range(1, min(count, 8) + 1):
+                target = min(extent, position * step)
+
+                def scroll(owner=owner, axis=axis, target=target):
+                    owner.scroll_into_view_if_needed(timeout=2000)
+                    box = owner.bounding_box()
+                    current = owner.evaluate(
+                        "(el,a) => a==='x' ? el.scrollLeft : el.scrollTop", axis
+                    )
+                    view.mouse.move(
+                        box["x"] + min(20, box["width"] / 2),
+                        box["y"] + min(20, box["height"] / 2),
+                    )
+                    view.mouse.wheel(
+                        target - current if axis == "x" else 0,
+                        target - current if axis == "y" else 0,
+                    )
+                    view.wait_for_function(
+                        "([el,a,end]) => Math.abs((a==='x'?el.scrollLeft:el.scrollTop)-end)<2",
+                        arg=[owner, axis, target],
+                        timeout=2000,
+                    )
+
+                operate(f"Scroll region on {axis} to {target}", scroll)
+    return {
+        "images": images,
+        "states": states,
+        "limits": limits,
+        "note": "Inspection choices are collector inputs, not user decisions. DOM/accessibility text does not prove visual legibility. Controls not operated remain unverified.",
+    }
+
+
+def capture_phase(
+    run: Run, phase: int, page: Path | None = None
+) -> dict[str, list[str]]:
+    """Capture arrival and relevant inspected states on a fresh copy per viewport."""
     captures = {name: [] for name in WIDTHS}
     page = page or run.page(phase)
     if page is None:
         return captures
+    if any(run.shots.glob(f"p{phase}-*")):
+        raise ValueError("Observations already exist; use a fresh shots directory")
+    scenario = CASES[run.subject]
+    targets = list(scenario.decision.values) if run.subject == "queue" else []
+    if phase >= 3 and scenario.reveal:
+        targets.append(scenario.reveal)
     html = run.condition == "html"
 
     def settled(view):
@@ -643,39 +729,29 @@ def capture_phase(
             rendered(view)
             settle(view)
 
-    observation = {"version": 1, "phase": phase, "widths": {}}
-    if destinations is None:
-        scenario = CASES[run.subject]
-        opening = scenario.reveal if phase >= 3 and scenario.comment else ""
-        # Live task identities come from structured inputs, not display prose.
-        destinations = list(scenario.decision.values) if run.subject == "queue" else []
-        if opening and opening not in destinations:
-            destinations.append(opening)
+    observations = {}
     with chrome() as browser:
-        observation["browser"] = browser.version
         for name, (viewport, _) in WIDTHS.items():
-            with inspection_copy(page) as (copied, state):
+            with tempfile.TemporaryDirectory(prefix="leaf-capture-") as temporary:
+                copied = Path(temporary) / "page"
+                shutil.copytree(page, copied)
                 server = (
                     arrangement_plain.serving(copied)
                     if html
-                    else serving(run.payload, state, copied)
+                    else serving(run.payload, Path(temporary) / "state", copied)
                 )
                 with (
                     server as url,
                     tab(browser, viewport=viewport, touch=name == "phone") as view,
                 ):
                     (arrangement_plain.load if html else load)(view, url)
-                    reading = observe(
-                        view,
-                        run.shots,
-                        f"p{phase}-{name}",
-                        settled,
-                        destinations=destinations,
+                    reading = capture_views(
+                        view, run.shots, f"p{phase}-{name}", settled, targets
                     )
-                    observation["widths"][name] = reading
-                    captures[name] = reading["captures"]
-    (run.shots / f"p{phase}-observation.json").write_text(
-        json.dumps(observation, indent=2) + "\n"
+                    captures[name] = reading["images"]
+                    observations[name] = reading
+    (run.shots / f"p{phase}-observations.json").write_text(
+        json.dumps(observations, indent=2)
     )
     return captures
 
@@ -957,6 +1033,11 @@ def execute_scenario(
             row = {
                 "trace": summary,
                 "captures": captures[phase],
+                "observations": json.loads(
+                    (shots / f"p{phase}-observations.json").read_text()
+                )
+                if page
+                else {},
                 **tool_work(split.get(phase, []), run.authored_page),
             }
             if page:
@@ -966,8 +1047,6 @@ def execute_scenario(
                     "page": str(page),
                     "gate": reading,
                     **authored_lines(page, condition),
-                    "artifact": tree_identity(page),
-                    "runtime": runtime_identity(page),
                 }
                 if phase == 3:
                     checks["comment-applied"] = comment_applied(run, page)

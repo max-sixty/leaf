@@ -1,9 +1,9 @@
 preference: 'A standing preference for all my pages from now on: I read them in a window about
-  900px wide, beside my editor. At that width, keep the page''s summary, status, contents
-  or queue beside the main content rather than stacked above or below it.'
-reachable: A labeled control whose content is out of view, such as a collapsed section, an
-  unselected item or a scroll region's remainder, counts as reachable but costs the user a
-  step; content cut off with no visible way to reach it does not count.
+  900px wide, beside my editor. At that width, keep the page''s summary, status, contents or
+  queue beside the main content rather than stacked above or below it.'
+reachable: A labeled control whose content is out of view, such as a collapsed section, an unselected
+  item or a scroll region's remainder, counts as reachable but costs the user a step; content
+  cut off with no visible way to reach it does not count.
 widths:
   laptop:
     viewport:
@@ -27,74 +27,54 @@ widths:
     description: a 390px phone
 prompts:
   first:
-    leaf: 'Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code) for this page. $LEAF
-      is its launcher, {payload}/bin/leaf. Check the page with `$LEAF page check {page} --render`,
-      fix findings and stamp it.
+    leaf: |-
+      Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code) for this page. $LEAF is its launcher, {payload}/bin/leaf. Check the page with `$LEAF page check {page} --render`, fix findings and stamp it.
 
-
-      Write the page at {page}/index.html and hand it over to me in my browser. Produce a
-      finished record with readable evidence and the choices or
-
+      Write the page at {page}/index.html and hand it over to me in my browser. Produce a finished record with readable evidence and the choices or
       navigation the request needs. You may use the browser tooling available on this
-
       machine.
 
+      The user's request follows.
 
-      The user''s request follows.
+      {request}
+    html: |-
+      Build with ordinary HTML, CSS and JavaScript. No Leaf instructions, widgets or runtime are available. Check your output in the browser and fix findings.
 
-
-      {request}'
-    html: 'Build with ordinary HTML, CSS and JavaScript. No Leaf instructions, widgets or
-      runtime are available. Check your output in the browser and fix findings.
-
-
-      Write the page at {page}/index.html; I''ll open it in my browser. Reply with one line
-      naming the path, and I''ll answer here. Produce a finished record with readable evidence
-      and the choices or
-
+      Write the page at {page}/index.html; I'll open it in my browser. Reply with one line naming the path, and I'll answer here. Produce a finished record with readable evidence and the choices or
       navigation the request needs. You may use the browser tooling available on this
-
       machine.
 
+      The user's request follows.
 
-      The user''s request follows.
-
-
-      {request}'
+      {request}
   preference: '{preference} Please revise the page to follow it.'
   comment: 'On {target}: {text}'
   apply:
-    page: 'I''ve made my decisions on the page. Apply them: update the page so it records
-      them as final.'
-    copied: 'I''ve made my decisions on the page, and this is what it gave me to copy:
-
+    page: 'I''ve made my decisions on the page. Apply them: update the page so it records them
+      as final.'
+    copied: |-
+      I've made my decisions on the page, and this is what it gave me to copy:
 
       {copied}
 
+      Apply them: update the page so it records them as final.
+    typed: |-
+      {typed}
 
-      Apply them: update the page so it records them as final.'
-    typed: '{typed}
-
-
-      Apply them: update the page so it records them as final.'
-  reading: '{situation} For each item below, give one of its listed values, or
-
+      Apply them: update the page so it records them as final.
+  reading: |-
+    {situation} For each item below, give one of its listed values, or
     "undecided" where nothing says.
 
-
-    {items}'
-  reading_applied: 'A user had an assistant build a page, made decisions on it and asked the
-    assistant to update the page so it records them as final. Read the page''s files:
-
+    {items}
+  reading_applied: |-
+    A user had an assistant build a page, made decisions on it and asked the assistant to update the page so it records them as final. Read the page's files:
     {listed}
 
-
-    and the assistant''s answers at {answer}. Say what the page''s files now record as the
-    final decision. The answers may tell you where to look, but what they claim counts only
-    where the files show it.'
+    and the assistant's answers at {answer}. Say what the page's files now record as the final decision. The answers may tell you where to look, but what they claim counts only where the files show it.
   reading_decision: 'Read the Leaf skill at {payload}/skills/leaf/SKILL.md. The page at {page}
-    has been reviewed by a user who made decisions on it. Read its current state: what did
-    the user decide? Don''t edit the page or serve it.'
+    has been reviewed by a user who made decisions on it. Read its current state: what did the
+    user decide? Don''t edit the page or serve it.'
 cases:
   document:
     inputs:
@@ -104,8 +84,8 @@ cases:
         - the database owners to say whether 55% peak CPU is acceptable
         - whether 55% peak CPU is acceptable
         - 55% peak CPU
-        text: The database owners are Mei Tanaka's team. Name them here and ask for their
-          answer by Wednesday, the day before the decision.
+        text: The database owners are Mei Tanaka's team. Name them here and ask for their answer
+          by Wednesday, the day before the decision.
         applied: Mei Tanaka
       decision:
         task: 'As the platform team, decide the review''s question: choose option 1, staying
@@ -120,13 +100,63 @@ cases:
           - stateless tokens with a revocation list
       reveal: ''
     assert:
-    - type: python
-      metric: authoring
-      value: file://../dev/leaf_dev/authoring_assertion.py
-    - type: llm-rubric
+    - &phase_1_quality
+      type: javascript
+      metric: phase-1-quality
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 1
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires.
+    - &phase_2_quality
+      type: javascript
+      metric: phase-2-quality
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 2
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires.
+    - &phase_3_quality
+      type: javascript
+      metric: phase-3-quality
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 3
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires. The requested comment change appears in the relevant
+          item or passage.
+    - &phase_4_quality
+      type: javascript
+      metric: phase-4-quality
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 4
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires. The page preserves the final decisions the user
+          supplied.
+    - &phase_2_preference
+      type: javascript
+      metric: phase-2-preference
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 2
+        required_widths: [narrow, short]
+        rubric: >-
+          At both 900px window heights, the page follows the standing preference quoted in the
+          output: summary, status, contents or queue remains beside the main content.
+    - &comment_answered
+      type: llm-rubric
       metric: comment-answered
-      value: Pass only if the author's answer to the user's comment, quoted in the output,
-        tells the user that the requested change was made.
+      value: Pass only if the author's answer to the user's comment, which the output quotes,
+        tells the user that the change the comment asked for is made.
   dashboard:
     inputs:
       comment:
@@ -154,13 +184,12 @@ cases:
           - none
       reveal: ''
     assert:
-    - type: python
-      metric: authoring
-      value: file://../dev/leaf_dev/authoring_assertion.py
-    - type: llm-rubric
-      metric: comment-answered
-      value: Pass only if the author's answer to the user's comment, quoted in the output,
-        tells the user that the requested change was made.
+    - *phase_1_quality
+    - *phase_2_quality
+    - *phase_3_quality
+    - *phase_4_quality
+    - *phase_2_preference
+    - *comment_answered
   queue:
     inputs:
       comment:
@@ -169,14 +198,14 @@ cases:
         - point to the feature request board, already planned for Q4
         - point to the feature request board
         - feature request board
-        text: 'Brightline is on a Team trial that converts next week, so don''t just close
-          it: route it to their account manager, Sam Okafor, with the Q4 plan.'
+        text: 'Brightline is on a Team trial that converts next week, so don''t just close it:
+          route it to their account manager, Sam Okafor, with the Q4 plan.'
         applied: Sam Okafor
       decision:
         task: 'Work through the queue and decide each ticket: ESC-4107: fix; ESC-4108: close;
           ESC-4109: fix; ESC-4111: escalate to engineering; ESC-4112: escalate to engineering;
-          ESC-4113: refund; ESC-4114: escalate to engineering. ESC-4110 is settled by your
-          earlier comment; leave it as it is.'
+          ESC-4113: refund; ESC-4114: escalate to engineering. ESC-4110 is settled by your earlier
+          comment; leave it as it is.'
         typed: 'My decisions: ESC-4107: fix; ESC-4108: close; ESC-4109: fix; ESC-4111: escalate
           to engineering; ESC-4112: escalate to engineering; ESC-4113: refund; ESC-4114: escalate
           to engineering. ESC-4110 as I said in my comment.'
@@ -226,13 +255,12 @@ cases:
           - close
       reveal: ESC-4110
     assert:
-    - type: python
-      metric: authoring
-      value: file://../dev/leaf_dev/authoring_assertion.py
-    - type: llm-rubric
-      metric: comment-answered
-      value: Pass only if the author's answer to the user's comment, quoted in the output,
-        tells the user that the requested change was made.
+    - *phase_1_quality
+    - *phase_2_quality
+    - *phase_3_quality
+    - *phase_4_quality
+    - *phase_2_preference
+    - *comment_answered
   configuration:
     inputs:
       comment:
@@ -241,14 +269,14 @@ cases:
         - minutes since the last successful ledger reconciliation run
         - last successful ledger reconciliation run
         - ledger-reconciliation-lag
-        text: Finance owns this alert. If it pages, it pages the finance-ops rotation, not
-          payments on-call; show that beside its routing.
+        text: Finance owns this alert. If it pages, it pages the finance-ops rotation, not payments
+          on-call; show that beside its routing.
         applied: finance-ops
       decision:
-        task: 'Set each alert''s threshold and routing: payments-5xx-rate: over 2%, pages;
-          payments-p99-latency: over 1,200 ms, opens a ticket; card-auth-decline-spike: over
-          3×, opens a ticket; webhook-backlog: over 20,000, pages; ledger-reconciliation-lag:
-          over 180 min, pages; gateway-cert-expiry: under 30 days, opens a ticket.'
+        task: 'Set each alert''s threshold and routing: payments-5xx-rate: over 2%, pages; payments-p99-latency:
+          over 1,200 ms, opens a ticket; card-auth-decline-spike: over 3×, opens a ticket; webhook-backlog:
+          over 20,000, pages; ledger-reconciliation-lag: over 180 min, pages; gateway-cert-expiry:
+          under 30 days, opens a ticket.'
         typed: 'Final settings: payments-5xx-rate: over 2%, pages; payments-p99-latency: over
           1,200 ms, opens a ticket; card-auth-decline-spike: over 3×, opens a ticket; webhook-backlog:
           over 20,000, pages; ledger-reconciliation-lag: over 180 min, pages; gateway-cert-expiry:
@@ -319,19 +347,46 @@ cases:
           - 'off'
       reveal: ledger-reconciliation-lag
     assert:
-    - type: python
-      metric: authoring
-      value: file://../dev/leaf_dev/authoring_assertion.py
-    - type: llm-rubric
-      metric: comment-answered
-      value: Pass only if the author's answer to the user's comment, quoted in the output,
-        tells the user that the requested change was made.
+    - *phase_1_quality
+    - *phase_2_quality
+    - *phase_3_quality
+    - *phase_4_quality
+    - *phase_2_preference
+    - *comment_answered
   sidebar-page-at-900px:
     inputs:
       comment: null
       decision: null
       reveal: ''
     assert:
-    - type: python
-      metric: authoring
-      value: file://../dev/leaf_dev/authoring_assertion.py
+    -
+      type: javascript
+      metric: phase-1-quality
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 1
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires. The completed rollout's forty entries must remain
+          readable in the document's scroll, rather than showing only one screen of a separate
+          listing. At both 900px window heights, all six checks and their failing result stay
+          accessible beside the log as it scrolls. Page navigation and any supporting sidebar
+          content remain reachable; a sticky box must not hold them below the window. On a
+          phone, the regions stack without covering the log or hiding its entries.
+    -
+      type: javascript
+      metric: phase-2-quality
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 2
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires. The completed rollout's forty entries must remain
+          readable in the document's scroll, rather than showing only one screen of a separate
+          listing. At both 900px window heights, all six checks and their failing result stay
+          accessible beside the log as it scrolls. Page navigation and any supporting sidebar
+          content remain reachable; a sticky box must not hold them below the window. On a
+          phone, the regions stack without covering the log or hiding its entries.
+    - *phase_2_preference

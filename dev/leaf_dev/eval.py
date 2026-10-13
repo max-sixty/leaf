@@ -52,7 +52,6 @@ from leaf_dev.arms import (
     instruction_context,
 )
 from leaf_dev.eval_cases import definition
-from leaf_dev.eval_provenance import run_identity
 from leaf_dev.leaf_assets import pinned_copy
 
 PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
@@ -320,7 +319,12 @@ def prepare(
                 )
                 rubrics = test["assert"]
                 if (
-                    any(r["type"].endswith("agent-rubric") for r in rubrics)
+                    any(
+                        r["type"].endswith("agent-rubric")
+                        or isinstance(r.get("value"), str)
+                        and r["value"].endswith("/authoring_assertion.mjs")
+                        for r in rubrics
+                    )
                     and judge is None
                 ):
                     judge = screenshot_judge(screenshots, scratch / "judge")
@@ -338,7 +342,10 @@ def prepare(
                         {
                             **rubric,
                             **(
-                                {"provider": judge}
+                                {"config": {**rubric["config"], "judge": judge}}
+                                if isinstance(rubric.get("value"), str)
+                                and rubric["value"].endswith("/authoring_assertion.mjs")
+                                else {"provider": judge}
                                 if rubric["type"].endswith("agent-rubric")
                                 else {}
                             ),
@@ -504,17 +511,6 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
             conditions,
             out / "samples",
         )
-        provenance = run_identity({arm: scratch / arm for arm in commits}, commits)
-        (out / "provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
-        for provider in config["providers"]:
-            if provider["id"].endswith("scenario_provider.py"):
-                label = provider["label"].split("/")[-2]
-                provider["config"]["provenance"] = {
-                    "authoring": {"method": "ordinary-html", "leaf_payload": None}
-                    if label == "html"
-                    else provenance["arms"][label],
-                    "original_evaluator": provenance["evaluator"],
-                }
         config["description"] = describe(
             commits.get("base"), commits["candidate"], globs
         )
@@ -524,9 +520,7 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
         (out / "node_modules").symlink_to(ROOT / "node_modules")
         click.echo(config["description"])
         env = environment(
-            PROMPTFOO_DISABLE_TELEMETRY="1",
-            PROMPTFOO_DISABLE_UPDATE_CHECK="1",
-            PROMPTFOO_PYTHON=sys.executable,
+            PROMPTFOO_DISABLE_TELEMETRY="1", PROMPTFOO_DISABLE_UPDATE_CHECK="1"
         )
         # Local-login evals must not silently switch to ambient API billing.
         for key in (
@@ -555,9 +549,5 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
             stdin=subprocess.DEVNULL,
             check=False,
         ).returncode
-        if (out / "results.json").is_file():
-            from leaf_dev.authoring_assertion import summarize_run
-
-            summarize_run(out)
     click.echo(f"evidence: {out}\nview: pnpm run eval:view")
     sys.exit(status)

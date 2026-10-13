@@ -38,7 +38,6 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
             shots=Path(config["screenshots"]) / work.name,
         )
         response.setdefault("metadata", {})["work"] = str(work)
-        response["metadata"]["provenance"] = config.get("provenance", {})
         return response
     executor = import_module(metadata["executor"])
     captures = (
@@ -55,5 +54,4 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
         condition=config["condition"],
     )
     response.setdefault("metadata", {})["work"] = str(work)
-    response["metadata"]["provenance"] = config.get("provenance", {})
     return response

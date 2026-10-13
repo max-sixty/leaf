@@ -49,80 +49,40 @@ queue transport the desktop app and IDE use runs under
 `leaf-dev journey codex-queue`. Each assertion's `metric` is a named score, so a
 comparison reads per metric across columns.
 
-Complete authored tasks use one frozen-evidence judge for live grading and replay.
-It returns `pass`, `defect`, `observation_gap`, or `not_applicable` for content,
-legibility, navigation, standing preferences, requested revisions and decisions.
-A supported defect survives an unrelated gap. Only observed pass/defect criteria
-enter numeric scores; unknown and inapplicable criteria stay separate.
+Complete authoring tasks retain their phase quality metrics. Their visual judge
+returns `pass`, `defect`, or `insufficient_evidence`; native execution or invalid
+judge output is `unscored`. Read
+`gradingResult.componentResults[].metadata.authoring_grade` in saved results for
+that status and its reason. Promptfoo's binary pass rate counts only `pass` as
+passing, so its failure percentage is not a page-defect rate.
 
-Read `authoring-summary.json` for the run's separate pass, defect, observation-gap
-and unscored counts. Promptfoo's binary `authoring` assertion fails for both an
-observed defect and an unsettled evaluation. Its overall failure percentage is
-therefore **not a product-defect rate**. A judge failure, unread image, invalid
-citation or changed frozen packet remains unscored. Source and browser assertions
-are independent evidence; criterion conclusions remain model judgments.
+Capture keeps arrival screenshots before inspecting task items, native disclosures,
+selections and actual scroll regions on disposable copies. The observation record
+names actions and collection limits. DOM text, including hidden text, supports
+presence; screenshots and operated controls support legibility and access.
+Unvisited content is insufficient evidence, not an omission. Known defects still
+fail when other parts remain unobserved. The judge follows the requested output's
+scope rather than requiring every source detail in a summary. See
+[the small fixed control set](authoring-calibration/README.md) for calibration.
 
-`eval-score` grades saved outputs with this checkout's evaluator, without
-reauthoring, serving or changing the originals. Give matched baseline and candidate
-runs to the same invocation. Select the version whose behavior the change concerns:
-version 2 or 3 can measure a tuning interface that version 4 summarizes after apply.
-The default is the last recorded phase, including historical runs ending at 3.
-Recorded prompts and admitted user events supply the task; current case definitions
-never replace historical inputs. Missing historical inputs remain explicit gaps.
-
-```sh
-uv run leaf-dev eval-score BASE_RUN CANDIDATE_RUN --phase 2 --output .tmp/scores-tuning
-uv run leaf-dev eval-score BASE_RUN CANDIDATE_RUN --phase 4 --output .tmp/scores-final
-```
-
-Each fresh output directory retains copied screenshots, action/state observations,
-the exact rubric and schema, native judge input/trace/output, and separate
-content-addressed authoring, runtime and evaluator identities. A Git HEAD alone
-does not identify dirty source. The judge gets public task/evidence files;
-provenance and arm identities stay private. Successful reads are checked, which
-establishes evidence delivery, not the model's understanding.
-
-To improve coverage while holding authorship fixed, `eval-observe` serves copies
-of the saved phase with its original vendored browser assets. It writes a new run
-with fresh observations, frozen recorded user inputs, and separate actual server
-and collector identities. It calls no model. Existing destinations come from
-recorded observation hints; add an explicit `--destination` for an archived task
-whose relevant labeled item was never inspected. Current task definitions never
-replace the archived request. Coordinate this browser batch with other experiments.
-
-```sh
-uv run leaf-dev eval-observe BASE_RUN CANDIDATE_RUN --phase 2 --output .tmp/observed-tuning
-uv run leaf-dev eval-score .tmp/observed-tuning --phase 2 --output .tmp/scored-tuning
-```
-
-The Leaf server defaults to this checkout; use `--server-payload TREE` when saved
-assets need another compatible server. Its identity describes the server actually
-used, not an unavailable historical server. Native HTML uses the static Python
-server and records no Leaf server payload. Original pages and captures are untouched.
-
-`eval-pairs` is a supplementary preference judgment. It compares two columns in
-both orders and counts a winner only when both name it. It permits insufficient
-evidence and retains any supported defects. This guards position preference;
-it does not establish objective quality or remove framework recognition from the
-screenshots. Run each column the same number of times; the Nth samples pair.
-Alternate one-repeat runs, swapping which goes first, to reduce load/drift bias:
+An authored task's quality score is `uv run leaf-dev eval-pairs RUN...`, which
+judges its samples in two columns side by side, each pair in both orders, and counts
+a winner only when both orders name it; each sample's own screenshot rubrics are
+diagnostics. Run each column the same number of times; the Nth samples pair. To keep
+host load and drift from favoring one column, alternate one-repeat runs of each
+condition, swapping which goes first, and pass every run:
 
 ```sh
 uv run leaf-dev eval configuration --harness claude-code --condition leaf --repeat 1 -j 1
 uv run leaf-dev eval configuration --harness claude-code --condition html --repeat 1 -j 1
 uv run leaf-dev eval configuration --harness claude-code --condition html --repeat 1 -j 1
 uv run leaf-dev eval configuration --harness claude-code --condition leaf --repeat 1 -j 1
-uv run leaf-dev eval-pairs RUNS... --phase 3 --output .tmp/pairs-comment
-uv run leaf-dev eval-report PAGE RUNS... --pairs .tmp/pairs-comment/pairs.json
+uv run leaf-dev eval-pairs .tmp/eval/<run>...
 ```
 
-Pair judgments never overwrite earlier verdicts. The report shows the compared
-version's screens, messages and spend; base/candidate columns keep distinct labels.
-Decision-application readings are model-assisted, even though comparing a reading
-with the expected value is deterministic.
-
-See [fixed authoring calibration](authoring-calibration/README.md) for controlled
-defects, valid controls, held-out artifacts and the browser/judge freeze workflow.
+`uv run leaf-dev eval-report PAGE RUN...` then writes a Leaf page showing each pair's
+final screens side by side with what each sample spent, whether it applied the
+user's decision, and what the judge said.
 
 `pnpm run eval:view` opens Promptfoo's viewer on every run recorded on
 this machine, each named by branch, commits and cases. It shows each sample's
@@ -206,7 +166,9 @@ this path. These scores measure the judge, not the agent's behavior.
 A complete task names `metadata.executor`, a `leaf_dev` Python module, and
 `metadata.scenario`, a case in `workflows/<module-name>.yaml`. That YAML owns the
 authored prompts, scenario inputs and native Promptfoo `assert` blocks, including
-text `llm-rubric`, screenshot `agent-rubric`, and the shared structured authoring assertion. Shared request files
+text `llm-rubric` and screenshot `agent-rubric` assertions. Complete authoring
+tasks use a small JavaScript assertion to preserve their three-way visual verdict
+through the same screenshot provider. Shared request files
 and fixture data stay beside their tasks and are read by the executor.
 
 Python prepares fixtures, drives the agent through resumed phases or live user
@@ -225,7 +187,7 @@ declaring both on a case, including through inherited variant metadata, is an er
 
 | Executor | Runs |
 | --- | --- |
-| `arrangement_eval` | Runs a page task the way its user would, in one live session per sample. The author builds the page from `request.md`; the user then asks in chat for the 900px preference, comments on a passage, and makes the page's decision in a browser before asking for it to be applied. Leaf runs as the installed plugin: its agent serves and hands over the page, the comment is posted from a browser selection on that page, and the hook delivers it. HTML gets the comment in chat, and pastes what its page offered to copy, or types the decision. A user agent (`eval_user.py`) makes the decision through the page's own controls; the judge reads the author's answer to the comment, a reader checks the applied result against what was chosen, and on Leaf a fresh reader also reports the decision from the page's state. Screenshots each version on a laptop, at 900px with tall and short windows, and on a phone, preserving each viewport's arrival before operating labeled disclosures, task destinations, selections and actual scroll regions on disposable copies, and records each phase's time, tokens, cost, authored CSS and script lines, and how often it wrote and rendered the page. |
+| `arrangement_eval` | Runs a page task the way its user would, in one live session per sample. The author builds the page from `request.md`; the user then asks in chat for the 900px preference, comments on a passage, and makes the page's decision in a browser before asking for it to be applied. Leaf runs as the installed plugin: its agent serves and hands over the page, the comment is posted from a browser selection on that page, and the hook delivers it. HTML gets the comment in chat, and pastes what its page offered to copy, or types the decision. A user agent (`eval_user.py`) makes the decision through the page's own controls; the judge reads the author's answer to the comment, a reader checks the applied result against what was chosen, and on Leaf a fresh reader also reports the decision from the page's state. Screenshots each version on a laptop, at 900px with tall and short windows, and on a phone, with the commented item open once a version carries the comment, and records each phase's time, tokens, cost, authored CSS and script lines, and how often it wrote and rendered the page. |
 | `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user updates through the served page. Checks read Leaf's page state and its parse of the markup; answers and edited prose go to the text judge; script repairs exercise the affected control. Fixtures are in `usability/fixtures/`. |
 | `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, started and answered. |
 | `website_eval` | Runs the arm's hosted App Server adapter and installed plugin on its configured model and reasoning effort. Asks a page question and a contextual follow-up, without requesting page construction. Retains native notifications, the opening and final reply updates actually published, and exact-input completed replies. Checks successful turns, replies and an unchanged page; judges whether the answers and visible openings address the user. |
@@ -254,20 +216,16 @@ models. Hosted response cases instead read the model, reasoning effort and
 instructions from each arm's website adapter, so they follow the deployed agent
 configuration. They use the local login and adapter, without the Worker, container
 or browser; `leaf-dev journey website-adapter` and the website delivery checks
-cover those boundaries. The `llm-rubric` judge grades text and opens nothing. Legacy
-`agent-rubric` screenshot assertions run on the installed `codex` under a permission profile that lets it read the
+cover those boundaries. The `llm-rubric` judge grades text and opens nothing. The screenshot judge
+runs on the installed `codex` under a permission profile that lets it read the
 run's `screenshots/` and no other file of the repository. Promptfoo counts a
-judge's tokens but not its cost, and doesn't record which screenshots it opened, so
-read its reason. Authoring calibration uses controlled source contrasts and independent browser checks,
-not human quality ratings. A model pass remains bounded by its observed evidence;
-read the output and its limits.
-
-The structured authoring scorer instead uses `MODELS["judge"]` in `arms.py`, a
-Claude child whose successful public-input and image reads are audited. Changing
-that model changes the evaluator identity and requires fresh calibration.
+judge's tokens but not its cost, so read its reason and recorded evidence. Successful
+execution does not prove the judge understood every image. The fixed controls
+exercise particular distinctions; they do not establish general grading accuracy
+or replace human quality ratings.
 
 Another judge may grade the same samples differently, so a judged difference is
-partly the judge's. To compare legacy screenshot judges, point `screenshot_judge` in
+partly the judge's. To compare judges, point `screenshot_judge` in
 `dev/leaf_dev/eval.py` at another model or provider (an `anthropic:claude-agent-sdk`
 grader restricted to `Read` on the screenshot tree works), rerun the same cases, and
 compare the runs in the viewer, starting with the `dashboard/reader-*` calibration.

@@ -87,14 +87,6 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev eval-pairs RUN...` judges an authored task's samples across a run's two
   columns side by side, in both orders, and `leaf-dev eval-report PAGE RUN...` writes
   those samples, their spend and the verdicts to a Leaf page.
-- `leaf-dev eval-score RUN...` grades frozen authoring evidence at a recorded phase;
-  `authoring_score.py` owns packets and criterion statuses, `eval_judge.py` owns
-  native read integrity, and `authoring_observation.py` owns browser coverage.
-  `leaf-dev eval-calibrate` exercises that path on hash-pinned controls with a
-  separate private oracle; `evals/authoring-calibration/README.md` owns the protocol.
-- `leaf-dev eval-observe RUN...` reobserves saved authored versions into a fresh run,
-  preserving recorded inputs and vendored assets while pinning the actual server
-  and collector separately. It runs browsers serially and calls no judge.
 - `leaf-dev eval-ui-review` runs the retained internal viewer-review diagnostics;
   `evals/ui-review-detection/README.md` owns their scope, controls and automatic grading.
 

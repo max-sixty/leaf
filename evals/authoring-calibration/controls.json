@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "runtime": "Native HTML/CSS/JavaScript, no external resources or Leaf layer.",
+  "identity": "Per-artifact SHA-256 is authoritative; authoring baseline is context, not the revision containing these new bytes.",
+  "privacy": "Give the judge only request plus recorded capture evidence. Fields beginning private_ are an oracle, excluded from judge input. Hold heldout entries aside until the candidate evaluator is frozen.",
+  "cases": [
+    {
+      "id": "dev-7a91c5",
+      "split": "development",
+      "artifact": "development/7a91c5.html",
+      "sha256": "18795f5a32307640e94877228224eea4739f55c5975e499f8cf68e814b18fbdb",
+      "authoring_baseline_context": "4f7cc21c1497ce6d449f6ec22d9508651fd654c3",
+      "request": "Make a page for reviewing the payments error threshold. Payments has 24/7 on-call coverage and no quiet hours. Over 2% would have paged 4 times in the last 30 days and caught all 3 real incidents. Over 5% would have paged once and caught 1 real incident; it would have missed the 19 September partial outage and the 26 September card-network incident. Let me select the final paging threshold. I need to inspect the threshold evidence and identify both incidents missed at 5% before deciding. Supporting evidence may be behind a clearly labeled disclosure.",
+      "viewports": [
+        {
+          "width": 900,
+          "height": 900
+        },
+        {
+          "width": 390,
+          "height": 844
+        }
+      ],
+      "private_expected_status": "pass",
+      "private_checks": [
+        "The incidents start collapsed, then become visible by clicking the labeled summary.",
+        "Changing the select to 5% displays a 5% threshold; both phone and desktop are readable."
+      ]
+    },
+    {
+      "id": "dev-ea0723",
+      "split": "development",
+      "artifact": "development/ea0723.html",
+      "sha256": "f51fc83943561f4e82759e42ec0e46b0e7a0a76388507d7b1ca7d5a4634c8b23",
+      "authoring_baseline_context": "4f7cc21c1497ce6d449f6ec22d9508651fd654c3",
+      "request": "Make a page for reviewing the payments error threshold. Payments has 24/7 on-call coverage and no quiet hours. Over 2% would have paged 4 times in the last 30 days and caught all 3 real incidents. Over 5% would have paged once and caught 1 real incident; it would have missed the 19 September partial outage and the 26 September card-network incident. Let me select the final paging threshold. I need to inspect the threshold evidence and identify both incidents missed at 5% before deciding. Supporting evidence may be behind a clearly labeled disclosure.",
+      "viewports": [
+        {
+          "width": 900,
+          "height": 900
+        },
+        {
+          "width": 390,
+          "height": 844
+        }
+      ],
+      "private_expected_status": "fail",
+      "private_checks": [
+        "Open the disclosure and inspect the page; no incident names are available.",
+        "The threshold selector still updates, isolating the missing evidence from control failure."
+      ],
+      "private_defect": "The page omits the two incident identities that the reader explicitly needs before deciding."
+    },
+    {
+      "id": "heldout-v2-76bf24",
+      "split": "heldout",
+      "artifact": "heldout/76bf24.html",
+      "sha256": "7ee64a2f1cd6743f785bdc0cb13bbe2d46c2a67822000b1a391eb4ed99e84e12",
+      "authoring_baseline_context": "c3060df98bc2e6b73d9a81a624d0499fc4221e44",
+      "request": "Make a small room-reservation page for a ceramics workshop at 18:00 with eight people. Step-free access and at least eight seats are hard requirements. Ochre has 10 seats and a step-free entrance; Indigo has 12 seats and a step-free entrance. Both qualify. Staff recommend Ochre because it is nearer the kiln, but the final choice is mine. Show both room cards and a reservation button for each. Start with no reservation. After I press either button, the receipt must name the room I actually chose, eight people and 18:00; a staff recommendation must not silently substitute another room.",
+      "viewports": [
+        {
+          "width": 900,
+          "height": 900
+        },
+        {
+          "width": 390,
+          "height": 844
+        }
+      ],
+      "private_expected_status": "pass",
+      "private_checks": [
+        "Both room cards and buttons fit at 900px and 390px; the arrival receipt says no reservation.",
+        "Click Reserve Ochre room, then Reserve Indigo room; each receipt names the button's room, eight people and 18:00.",
+        "Reload; Tab twice and Enter on Reserve Indigo room produces the same Indigo receipt."
+      ]
+    },
+    {
+      "id": "heldout-v2-c4a8d1",
+      "split": "heldout",
+      "artifact": "heldout/c4a8d1.html",
+      "sha256": "34d7da16fb3089ba5fa69c0049d707e493737a277b7efb11b295968a601b331f",
+      "authoring_baseline_context": "c3060df98bc2e6b73d9a81a624d0499fc4221e44",
+      "request": "Make a small room-reservation page for a ceramics workshop at 18:00 with eight people. Step-free access and at least eight seats are hard requirements. Ochre has 10 seats and a step-free entrance; Indigo has 12 seats and a step-free entrance. Both qualify. Staff recommend Ochre because it is nearer the kiln, but the final choice is mine. Show both room cards and a reservation button for each. Start with no reservation. After I press either button, the receipt must name the room I actually chose, eight people and 18:00; a staff recommendation must not silently substitute another room.",
+      "viewports": [
+        {
+          "width": 900,
+          "height": 900
+        },
+        {
+          "width": 390,
+          "height": 844
+        }
+      ],
+      "private_expected_status": "fail",
+      "private_checks": [
+        "Click Reserve Ochre room; its receipt works, isolating the fault to the Indigo choice.",
+        "Click Reserve Indigo room; the Indigo button becomes pressed but the receipt names Ochre.",
+        "Reload; Tab twice and Enter on Reserve Indigo room produces the same wrong-room receipt; source presence of Indigo is not faithful decision recording."
+      ],
+      "private_defect": "Reserve Indigo room records Ochre instead of the room the user selected."
+    }
+  ]
+}

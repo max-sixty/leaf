@@ -4900,7 +4900,7 @@ class _FailedFirstTurn:
     def get(self, url: str, **kwargs) -> _Read:
         if url.endswith("/api/state"):
             return _Read(self.state())
-        return _Read({}, f"<h1>{self.recorded}</h1>")
+        return _Read({}, f"<main><h1>{self.recorded}</h1></main>")
 
     def state(self) -> dict:
         events = [

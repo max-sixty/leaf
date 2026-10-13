@@ -1133,3 +1133,63 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
     if answer == "offline":
         consume_browser_errors(page, "net::ERR_INTERNET_DISCONNECTED")
     page.close()
+
+
+@pytest.mark.parametrize("started", [False, True], ids=["untouched", "commenting"])
+def test_saved_pages_arrival_yields_to_newer_input(browser, serve, live_leaf, started):
+    """Saved chrome restores a visit, but cannot cover a comment begun meanwhile."""
+    live_leaf("second", "A second leaf")
+    url = serve(
+        leaf_page(
+            "Saved Pages",
+            '<h1>Saved Pages</h1><p id="passage">The prototype needs a mobile check.</p>',
+        )
+    )
+    context = browser.new_context(viewport={"width": 480, "height": 900})
+    try:
+        prior = context.new_page()
+        prior.goto(url, wait_until="load")
+        wait_until_ready(prior)
+        prior.keyboard.press("g")
+        prior.keyboard.press("Shift+l")
+        expect(prior.locator("#lf-leaves")).to_be_visible()
+        prior.close()
+
+        held = []
+        page = context.new_page()
+        watched(page)
+        page.route("**/api/state*", lambda route: held.append(route))
+        page.goto(url, wait_until="load")
+        expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+        assert held
+        expect(page.locator("#lf-leaves")).to_be_hidden()
+        if started:
+            select_words(page, "#passage")
+            expect(page.locator(".lf-fab-bar")).to_be_visible()
+            page.keyboard.press("c")
+            field = page.locator(".lf-fab-input")
+            write(field, "Keep these words.")
+            page.keyboard.press("Home")
+            for _ in range(7):
+                page.keyboard.press("ArrowRight")
+            expect(field).to_be_focused()
+        for route in held:
+            route.continue_()
+        page.unroute("**/api/state*")
+        wait_until_ready(page)
+        if started:
+            expect(page.locator("#lf-leaves")).to_be_hidden()
+            expect(field).to_be_visible()
+            expect(field).to_be_focused()
+            expect(field).to_have_js_property("value", "Keep these words.")
+            assert field.evaluate("f => [f.selectionStart, f.selectionEnd]") == [7, 7]
+            expect(page.locator("html")).not_to_have_attribute(
+                "data-lf-covering-surface", "lf-leaves"
+            )
+        else:
+            expect(page.locator("#lf-leaves")).to_be_visible()
+            expect(page.locator("html")).to_have_attribute(
+                "data-lf-covering-surface", "lf-leaves"
+            )
+    finally:
+        context.close()

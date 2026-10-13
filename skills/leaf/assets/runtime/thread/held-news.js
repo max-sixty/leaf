@@ -642,6 +642,12 @@ export class HeldNews {
     return Boolean(this.#threads.size || this.#holds.size);
   }
 
+  // Whether the seat holds no news and owes no release, so a reading it has drawn would
+  // draw the same again.
+  get settled() {
+    return !this.#holding() && !this.#released.size;
+  }
+
   #stop() {
     this.#stopWatching?.();
     this.#stopWatching = null;

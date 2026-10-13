@@ -48,6 +48,7 @@ test("locked source reproduces the complete committed output", async () => {
     "ref",
     "render",
     "repeat",
+    "share",
     "signal",
     "styleMap",
     "unsafeHTML",

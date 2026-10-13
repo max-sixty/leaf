@@ -9,6 +9,7 @@ from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
+from .findings import Finding
 from .locations import located, locations_overlap
 from .machine import package_store
 from .refusals import Refused
@@ -19,6 +20,7 @@ from .schema import (
     BROWSER_DIRS,
     BUNDLED_PACKAGES,
     DEFAULT_PACKAGE,
+    EXTENSION_SCHEMA,
     HTML_NAME,
     INSTRUCTIONS_DIR,
     INSTRUCTIONS_FILE,
@@ -184,8 +186,8 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
 # outrank a package's default box and a Layout's arrangement. The page's own sheet
 # stays unlayered above these tiers, and inline widget motion outranks them too.
 # The page's rules reach Leaf's own controls only where they name them
-# (runtime/page-sheets.js). The chrome and marks sheets stay unlayered,
-# since their paint must beat page and widget alike (chrome.css).
+# (runtime/page-sheets.js). Chrome and apparatus marks stay unlayered to beat page
+# and widget alike; runtime/stylesheets.js owns their precedence and defaults.
 CASCADE_LAYERS = ("lf-reset", "lf-base", "lf-layouts", "lf-shadow", "lf-state")
 
 
@@ -197,7 +199,7 @@ def _sheet(source: Path) -> str:
     except UnicodeDecodeError:
         raise Refused(f"{source} must be UTF-8")
     if errors := css_syntax_errors(css, str(source)):
-        raise Refused(errors[0])
+        raise Refused(str(errors[0]))
     return css if css.endswith("\n") else css + "\n"
 
 
@@ -225,7 +227,7 @@ ROOT_SHEETS = ("shadow.css", "theme.css")
 
 
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
-    """The layer's two stylesheets, each in layer precedence order.
+    """The layer's document, widget and shadow sheets in layer precedence order.
 
     A root's shadow.css holds the rules a declared shadow tree has to see as well as
     the document: the stage copies the composed shadow.css into each tree, and the
@@ -251,6 +253,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
     theme = [order]
     shadow = [order]
+    widgets = [order]
     for position, root in enumerate(inputs):
         where = widget_confinement(root) if position else None
         for name in ROOT_SHEETS:
@@ -262,7 +265,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             if name == "shadow.css":
                 shadow_css = scoped(css, where[1]) if where else css
                 shadow.append(f"@layer lf-shadow {{\n{shadow_css}}}\n")
-            theme.append(f"@layer lf-base {{\n{placed}}}\n")
+            (widgets if where else theme).append(f"@layer lf-base {{\n{placed}}}\n")
     for name in ("layouts.css", "state.css"):
         if (source := inputs[0] / name).is_file():
             sheet = _sheet(source)
@@ -271,6 +274,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
                 shadow.append(sheet)
     return {
         "theme.css": "".join(theme).encode(),
+        "widget-theme.css": "".join(widgets).encode(),
         "shadow.css": "".join(shadow).encode(),
     }
 
@@ -392,29 +396,106 @@ def payload_server_fingerprint() -> str:
     )
 
 
-def incompatible_layer(page_dir: Path, registry: dict) -> str | None:
+def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     """Why this Leaf can neither serve a page nor write its log, given the registry it
-    would serve the page under: that registry's `$events` were vendored at another
-    `protocol` than this Leaf's own (`registry.kernel.kernel_protocol`). None when it
-    may.
+    would serve the page under; None when it may. Either the registry's `$events`
+    were vendored at another `protocol` than this Leaf's own
+    (`registry.kernel.kernel_protocol`), or its `$keys` document an x- key this Leaf
+    no longer admits (`schema.EXTENSION_SCHEMA`).
 
     A Leaf serves and writes any page vendored at its own number, whichever Leaf
-    vendored it, so a plugin update leaves open pages working. Every page server, the
-    gate's and the website's included (`http.page_endpoint`,
-    `leaf_website.page_binding`), and the one append door (`event_contracts`) refuse
-    on this one reading. A page vendored before the number was declared names none,
-    and is refused too.
+    vendored it, so a plugin update leaves open pages working. A page vendored before
+    the number was declared names none, and is refused too. A key renamed or removed
+    since the page was vendored is the same kind of fact: this Leaf would read the
+    key's new name, find nothing, and drop what the page's layer declares under the
+    old one, so the page is refused rather than misread. The check is one-sided: a
+    key this Leaf added and an older layer lacks refuses nothing. Every page server,
+    the gate's and the website's included (`http.page_endpoint`,
+    `leaf_website.page_binding`), the one append door and the writers that ask it
+    first (`event_contracts.write_refusal`), and `page check` refuse on this one
+    reading, each naming the re-vendor that repairs the page. So does the source
+    check (`validation.source.check_source`), so activation writes no revision under
+    the layer and `page state` reports the refusal as `source.error`. A revision the
+    page saved before its last re-vendor is judged on its own registry
+    (`incompatible_revision`).
     """
-    vendored = registry.get("$events", {}).get("protocol")
-    running = kernel_protocol()
-    if type(vendored) is int and vendored == running:
+    if (vendored := _foreign_protocol(registry)) is not None:
+        return Finding(
+            "foreign-layer",
+            values={
+                "page": str(page_dir),
+                "vendored": vendored,
+                "leaf": str(PLUGIN_ROOT),
+                "protocol": kernel_protocol(),
+            },
+        )
+    if retired := _retired_keys(registry):
+        return Finding(
+            "retired-layer",
+            values={
+                "page": str(page_dir),
+                "retired": retired,
+                "leaf": str(PLUGIN_ROOT),
+            },
+        )
+    return None
+
+
+def incompatible_revision(revision: int, registry: dict) -> Finding | None:
+    """Why this Leaf can neither serve one of a page's revisions nor admit input made
+    against it, given the registry that revision captured: it was saved at another
+    protocol, or its vocabulary uses an x- key this Leaf no longer admits, the two
+    refusals `incompatible_layer` makes of the page's layer. None when it may.
+
+    Each revision captures the runtime and registry it was saved with, and a
+    re-vendor leaves existing revisions as they were, so a page re-vendored across a
+    bump still holds revisions saved before it. Served, one would run its own runtime
+    against this Leaf's server, which is the break the protocol announces. The
+    document server and the append door ask this of the revision they would serve or
+    admit under; readings of the log keep reading every revision's registry, so
+    history still projects. Serving the page saves its source as a revision first,
+    so its live revision is one of these only where the source no longer saves.
+    A revision whose vocabulary uses a retired key is refused for the reason the
+    layer is: this Leaf would read the key's new name there, find nothing, and draw
+    the revision without what it declares, such as a framed ask's prompt.
+    """
+    if (saved := _foreign_protocol(registry)) is not None:
+        return Finding(
+            "foreign-revision",
+            values={
+                "revision": revision,
+                "saved": saved,
+                "protocol": kernel_protocol(),
+            },
+        )
+    if retired := _retired_keys(registry):
+        return Finding(
+            "retired-revision", values={"revision": revision, "retired": retired}
+        )
+    return None
+
+
+def _retired_keys(registry: dict) -> list[str]:
+    """The x- keys a vocabulary documents in `$keys` or declares on an entry that
+    this Leaf no longer admits (`schema.EXTENSION_SCHEMA`), in order; none where it
+    uses only admitted ones. One-sided: a key this Leaf added and the vocabulary
+    lacks is not among them."""
+    admitted = set(EXTENSION_SCHEMA["properties"])
+    keys = registry.get("$keys")
+    used = set(keys if isinstance(keys, dict) else ()) - {"description"}
+    for name, entry in registry.items():
+        if not name.startswith("$") and isinstance(entry, dict):
+            used |= {key for key in entry if key.startswith("x-")}
+    return sorted(used - admitted)
+
+
+def _foreign_protocol(registry: dict) -> int | str | None:
+    """The protocol a registry's `$events` declare where this Leaf does not speak
+    it, `"none"` where they declare none, or None where it is this Leaf's own."""
+    declared = registry.get("$events", {}).get("protocol")
+    if type(declared) is int and declared == kernel_protocol():
         return None
-    return (
-        f"{page_dir} was vendored by a Leaf at page protocol "
-        f"{vendored if vendored is not None else 'none'}, and this Leaf "
-        f"({PLUGIN_ROOT}) speaks protocol {running}, so it cannot serve the page or "
-        f"write its log. Re-vendor it with `leaf page init {page_dir}`."
-    )
+    return declared if declared is not None else "none"
 
 
 def payload_provenance(*, include_path: bool = False) -> dict:

@@ -19,4 +19,4 @@ revision, author, checks and source link. Bind external evidence through a
 page-owned data adapter when it must refresh. Standard code, table, and disclosure
 elements can carry a focused invariant, test result, or remaining uncertainty.
 Pose an ask when the user owes a specific decision
-(`references/authoring-questions.md`).
+(`references/authoring-asks.md`).

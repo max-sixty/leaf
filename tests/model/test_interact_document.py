@@ -37,13 +37,18 @@ from interact_support import (
     asks_on_user,
     before_choice,
     check,
+    check_findings,
+    command_refusal,
     comment,
     declare_data_input,
+    found,
     fresh_process,
     lock_contention,
     model_layer,
+    page_state,
     publish,
     read_page_data,
+    refused_on,
     response_reference,
     stamp,
     state_json,
@@ -55,6 +60,7 @@ from leaf import data as data_model
 from leaf import data_contracts as data_contracts_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
+from leaf import event_meaning as event_meaning_model
 from leaf import files as files_model
 from leaf import leases as leases_model
 from leaf import page_memory as page_memory_model
@@ -77,6 +83,7 @@ from leaf.registry.storage import read_page_registry, require_registry
 from leaf.render_gate import readings as render_gate_readings
 from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
+from leaf.served_state.service import LivePage
 from leaf.validation import composition as validation_model
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
@@ -278,12 +285,9 @@ def test_a_sample_child_stages_its_revision_without_fsync(page_dir, monkeypatch)
     assert synced, "a page's own revision is made durable"
 
     synced.clear()
-    artifact = artifact_model.read_artifact(page_dir, parent.revision)
-    document = artifact_model.read_revision(page_dir, parent.revision).document
+    inputs = LivePage(page_dir).sample_inputs(parent.revision)
     samples = samples_model.Samples()
-    identity = samples.create(
-        page_dir, artifact, document, [], {"sources": {}}, "practice", None, None
-    )
+    identity = samples.create(page_dir, inputs, "practice", None, None)
     try:
         child = samples.pages[identity].directory
         assert files_model.latest_revision(child) == 1
@@ -376,8 +380,7 @@ def test_invalid_dependencies_leave_the_previous_revision_active(page_dir, tmp_p
         ('import "/runtime/events.js";', "public layer entry point"),
         ('import "./data.json";', "JavaScript MIME"),
         ('import "./escape.js";', "symlink"),
-        ('import "./data\\u002ejson";', "unescaped string literals"),
-        ("export const = ;", "invalid JavaScript"),
+        ('import "./data\\u002ejson";', "dependency must be a local URL"),
     ]:
         (authored / "app.js").write_text(source)
         refused = revisioning_model.activate_source(page_dir)
@@ -436,6 +439,224 @@ def test_artifact_read_refuses_a_replaced_immutable_manifest(page_dir):
         artifact_model.read_artifact(page_dir, revision)
 
 
+@pytest.mark.parametrize("manifest", [None, "{", "shared_modules", "widgets"])
+def test_revision_inventory_ignores_incomplete_capture_records(page_dir, manifest):
+    """Stale captures are absent; current publication and numeric order still work."""
+    first = revisioning_model.activate_source(page_dir)
+    assert first.error is None and first.revision == 1
+    marker = files_model.revision_path(page_dir, 1)
+    old = marker.parent / "r9-0123456789abcdef"
+    shutil.copytree(marker.with_suffix(""), old)
+    metadata = old / "manifest.json"
+    if manifest is None:
+        metadata.unlink()
+    elif manifest == "{":
+        metadata.write_text(manifest)
+    else:
+        record = json.loads(metadata.read_bytes())
+        if manifest == "shared_modules":
+            # The previous graph omitted lazy layer libraries. It is an obsolete
+            # contract even though its manifest contains the earlier graph field.
+            record["runtime_modules"] = record.pop(manifest)
+        else:
+            del record[manifest]
+        metadata.write_text(json.dumps(record))
+    old.with_suffix(".html").write_bytes(marker.read_bytes())
+
+    assert files_model.list_revisions(page_dir) == [1]
+    with pytest.raises(Refused, match="no revision r9"):
+        files_model.revision_path(page_dir, 9)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Next plan"))
+    current = revisioning_model.activate_source(page_dir)
+    assert current.error is None and current.revision == 10
+    assert artifact_model.read_artifact(page_dir, 10).shared_modules
+    assert files_model.list_revisions(page_dir) == [1, 10]
+
+
+def test_obsolete_capture_identities_are_never_rebound_to_new_publications(page_dir):
+    """A fresh stamp cannot inherit the decisions or version of an obsolete capture."""
+    first = stamp(page_dir, "Original publication")
+    assert first.exit_code == 0, first.output
+    marker = files_model.revision_path(page_dir, 1)
+    artifact = artifact_model.read_artifact(page_dir, 1)
+    metadata = marker.with_suffix("") / "manifest.json"
+    manifest = json.loads(metadata.read_bytes())
+    del manifest["shared_modules"]
+    metadata.write_text(json.dumps(manifest))
+    original = events_model.read_events(page_dir)
+    assert original[-1]["revision"] == 1 and original[-1]["publication"]
+
+    with fresh_process():
+        assert files_model.list_revisions(page_dir) == []
+        assert files_model.revision_orders(page_dir) == (1,)
+        assert files_model.unfinished_publications(page_dir, original) == []
+        with pytest.raises(artifact_model.ArtifactError, match="r1 already exists"):
+            artifact_model.stage_artifact(page_dir, 1, artifact)
+        (page_dir / "index.html").write_text(PAGE.replace("Plan", "New publication"))
+        current = stamp(page_dir, "Current publication")
+        assert current.exit_code == 0, current.output
+        assert files_model.list_revisions(page_dir) == [2]
+        assert artifact_model.read_artifact(page_dir, 2).shared_modules
+        events = events_model.read_events(page_dir)
+        assert events[: len(original)] == original
+        assert events[-1]["revision"] == 2 and events[-1]["version"] == 2
+
+
+def test_obsolete_capture_with_frozen_reply_is_absent_from_page_state(page_dir):
+    """An unavailable publication drops its frozen widget island, not its prose."""
+    assert revisioning_model.activate_source(page_dir).revision == 1
+    parent = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Choose."},
+    )
+    reply = thread_model.post_reply(
+        page_dir,
+        {"to": parent["id"], "for": parent["id"]},
+        "The captured choice is here.",
+        '<lf-options id="frozen-options" choose>'
+        '<lf-option id="frozen-option">Keep</lf-option></lf-options>',
+    )
+    marker = files_model.revision_path(page_dir, 1)
+    (page_dir / "index.html").write_text(PAGE.replace("Plan", "Updated plan"))
+    assert revisioning_model.activate_source(page_dir).revision == 2
+    marker.unlink()
+    assert files_model.list_revisions(page_dir) == [2]
+    current_parent = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 2,
+            "text": "Keep the current capture.",
+        },
+    )
+    current = thread_model.post_reply(
+        page_dir,
+        {"to": current_parent["id"], "for": current_parent["id"]},
+        "This capture is still available.",
+        '<lf-code id="current-capture" language="python"><pre>2</pre></lf-code>',
+    )
+
+    with fresh_process():
+        state = page_state(page_dir)
+        browser = state["browser"]
+
+    threads = {
+        thread["id"]: thread
+        for thread in browser["views"][str(state["active"]["revision"])]["thread"][
+            "threads"
+        ]
+    }
+    obsolete = threads[parent["id"]]
+    assert [message["text"] for message in obsolete["msgs"]] == [
+        "Choose.",
+        "The captured choice is here.",
+    ]
+    assert "markup" not in obsolete["msgs"][1]
+    assert "markup" not in next(
+        event for event in state["events"] if event["id"] == reply["id"]
+    )
+    current_thread = threads[current_parent["id"]]
+    current_message = next(
+        message for message in current_thread["msgs"] if message["id"] == current["id"]
+    )
+    assert current_message["markup"] == current["markup"]
+    readings = data_contracts_model.page_data_document_readings(
+        page_dir, events_model.read_events(page_dir), {}
+    )
+    assert [
+        label for _elements, label, _registry in readings if label.startswith("event ")
+    ] == [f"event {current['id']!r} markup"]
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", '<p id="frozen-options">Reused id.</p></main>')
+    )
+    refused = check(page_dir)
+    assert refused.exit_code != 0
+    assert 'ids already taken by message markup: ["frozen-options"]' in refused.output
+
+
+def test_unavailable_capture_id_stays_reserved_in_selected_sample_threads(page_dir):
+    """A carried answer cannot settle a child widget reusing its retired owner id."""
+    (page_dir / "index.html").write_text(PAGE)
+    assert revisioning_model.activate_source(page_dir).revision == 1
+    parent = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Can we use this proposal?",
+        },
+    )
+    thread_model.post_reply(
+        page_dir,
+        {"to": parent["id"], "for": parent["id"]},
+        "Here is the proposal.",
+        '<lf-ask id="proposal-ask"><h3>Choose this proposal</h3>'
+        '<lf-options id="sug-reserved" choose multiple>'
+        '<lf-option id="proposal-copy">Keep this.</lf-option>'
+        "</lf-options></lf-ask>",
+    )
+    registry = require_registry(page_dir)
+    answer = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "sug-reserved",
+            "action": "choose",
+            "detail": {"value": ["proposal-copy"]},
+            "meaning": {
+                **event_meaning_model.state_meaning(
+                    {
+                        "widget": "sug-reserved",
+                        "action": "choose",
+                        "detail": {"value": ["proposal-copy"]},
+                    },
+                    registry["lf-options"],
+                    "thread",
+                    "lf-options",
+                ),
+                "answer": parent["id"],
+            },
+        },
+    )
+    assert answer["meaning"]["answer"] == parent["id"]
+    marker = files_model.revision_path(page_dir, 1)
+    marker.unlink()
+    assert files_model.list_revisions(page_dir) == []
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</main>",
+            f'<template id="practice" data-sample data-sample-threads="{parent["id"]}">'
+            '<lf-ask id="child-ask"><h3>Choose</h3>'
+            '<lf-options id="sug-reserved" choose multiple>'
+            '<lf-option id="child-proposal">A new proposal.</lf-option>'
+            "</lf-options></lf-ask></template></main>",
+        )
+    )
+
+    refused = check(page_dir)
+
+    assert refused.exit_code != 0
+    assert (
+        "sample 'practice': ids already taken by message markup: [\"sug-reserved\"]"
+        in refused.output
+    )
+
+
+def test_revision_inventory_retains_duplicate_current_capture_refusal(page_dir):
+    """Ignoring old formats does not choose between two complete current markers."""
+    revisioning_model.activate_source(page_dir)
+    marker = files_model.revision_path(page_dir, 1)
+    duplicate = marker.parent / "r1-0123456789abcdef"
+    shutil.copytree(marker.with_suffix(""), duplicate)
+    duplicate.with_suffix(".html").write_bytes(marker.read_bytes())
+    with pytest.raises(Refused, match="same order"):
+        files_model.list_revisions(page_dir)
+
+
 def test_artifact_cache_holds_a_bundle_by_its_content_addressed_path(page_dir):
     """A revision's name carries its manifest's digest, so a held bundle is read
     once; a later change to its files is not reread."""
@@ -482,14 +703,14 @@ def test_an_image_loads_from_any_server(page_dir):
 @pytest.mark.parametrize(
     "authored, expected",
     [
-        ("<script>window.x = 1;</script>", "still parsing"),
+        ("<script>window.x = 1;</script>", "parser-blocking-script"),
         (
             '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>',
-            "still parsing",
+            "parser-blocking-script",
         ),
         (
             '<script type="module" async src="https://unpkg.com/d3"></script>',
-            "runs whenever it arrives",
+            "async-script",
         ),
     ],
     ids=["inline-classic", "blocking-classic", "async-module"],
@@ -500,10 +721,10 @@ def test_check_runs_each_script_after_leaf_reads_the_page(page_dir, authored, ex
     version = page_dir / "index.html"
     version.write_text(PAGE.replace("</main>", f"{authored}</main>"))
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert expected in result.output
+    assert status == 1
+    assert [f.code for f in findings] == [expected]
 
 
 def test_a_quote_crosses_an_upgraded_verbatim_wrapper(page_dir):
@@ -531,9 +752,10 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
     assert event["revision"] == revision
     assert "anchor" not in event
 
-    anchored = comment(page_dir, "--quote", "Plan", "--text", "Change this")
-    assert anchored.exit_code != 0
-    assert "cannot use invalid index.html" in anchored.output
+    anchored = command_refusal(
+        "thread", "open", page_dir, "--quote", "Plan", "--text", "Change this"
+    )
+    assert (anchored.code, anchored.values["operation"]) == ("invalid-source", "anchor")
 
 
 def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries():
@@ -810,7 +1032,7 @@ def test_rank_rules_match_the_browser_cases():
 )
 def test_the_position_fold_matches_the_browser_cases(case):
     """`tests/runtime/board-order.test.mjs` folds the same authored containers and
-    standing moves through `foldWidgetStates`, so the two runtimes leave every
+    moves in force through `foldWidgetStates`, so the two runtimes leave every
     container in one order."""
     registry = model_layer()
     columns = "".join(
@@ -848,7 +1070,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
         report_settlements={},
         classified={},
         absorbed=frozenset(),
-        standing=frozenset(),
+        in_force=frozenset(),
     )
     order = projection_model.folded_positions(
         "board",
@@ -933,10 +1155,10 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
     publish(page_dir)
     _write_board(page_dir, "nabc", "x")
     publish(page_dir)
-    with pytest.raises(
-        events_model.EventRefused, match="authors 'c-todo' differently"
-    ) as refused:
+    with pytest.raises(events_model.EventRefused) as refused:
         _move(page_dir, "x", "c-todo", "1i")
+    stale = refused_on(refused.value)
+    assert (stale.code, stale.values["container"]) == ("stale-move", "c-todo")
     assert refused.value.user == "The page changed while you moved this; move it again."
     _move(page_dir, "x", "c-todo", "2i", revision=2)
     assert _todo_order(page_dir) == ["n", "a", "x", "b", "c"]
@@ -962,7 +1184,7 @@ def test_page_init_reports_malformed_current_source_after_revendoring(page_dir):
 
 
 def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
-    """`page state` names the active revision's HTML and lists every standing move
+    """`page state` names the active revision's HTML and lists every move in force
     over it with the words, choice or place it carries, so a successor reads the page
     as the user sees it without a second copy of the document."""
     markup = PAGE.replace(
@@ -1179,10 +1401,28 @@ def test_check_refuses_noscript_words_the_browser_never_renders(page_dir):
             "<h2>Plan</h2><noscript>Fallback words.</noscript>",
         )
     )
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "noscript", "<noscript>")
+
+
+def test_check_admits_a_template_whose_words_no_anchor_reaches(page_dir):
+    """A page module may clone a template, so check admits one. The browser and
+    the file parser both keep its contents out of the tree, so no anchor reaches
+    its words."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><template id="row"><p>Cloned words.</p></template>',
+        )
+    )
     result = check(page_dir)
-    assert result.exit_code == 1
-    assert "<noscript>" in result.output
-    assert "the browser renders none of its content" in result.output
+    assert result.exit_code == 0, result.output
+    text = passages_model.page_passages(
+        structure_model.SourceDocument((page_dir / "index.html").read_text()), {}
+    ).text
+    assert "Plan" in text
+    assert "Cloned words." not in text
 
 
 def test_check_rejects_widget_violations(page_dir):
@@ -1198,22 +1438,25 @@ def test_check_rejects_widget_violations(page_dir):
             '<lf-diagram id="bare-body">graph LR</lf-diagram>',
         ).replace('<lf-option id="flag-first"', "<lf-option")
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    out = result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
     # Both the widget and the plain <figure/>: the slash misleads a browser on
     # any non-void tag, not only on the vocabulary's.
-    assert out.count("self-closing") == 2
-    assert "unknown widget" in out
-    assert '<lf-column tone="medium">' in out
-    assert "not a tone this page's layer paints" in out
-    assert "must be a direct member of <lf-options>" in out
-    assert "'id' is a required property" in out
-    assert "does not match" in out  # id pattern
+    assert [f.at for f in found(findings, "self-closing")] == ["<lf-gloss>", "<figure>"]
+    assert found(findings, "unknown-widget", "<lf-bogus>")
+    assert found(findings, "unknown-word", "<lf-column>", attr="tone", value="medium")
+    assert found(findings, "not-member", "<lf-option>", owners=["lf-options"])
+    assert found(findings, "attribute-schema", "<lf-option>", keyword="required")
+    assert found(
+        findings, "attribute-schema", "<lf-diagram>", keyword="pattern", path=["id"]
+    )
     # A stray element beside the <pre>, and a body that never opened one: both are
     # the same rule, since the <pre> is what carries the whitespace the notation needs.
-    assert out.count("its body is one <pre> holding the text") == 2
-    assert "text outside its <pre>" in out
+    assert [f.values["children"] for f in found(findings, "data-body")] == [
+        ["pre", "em"],
+        [],
+    ]
+    assert found(findings, "text-outside-pre", "<lf-diagram>")
 
 
 def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
@@ -1228,10 +1471,11 @@ def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
             '<lf-code id="walk-bad" language="pythn"><pre>z = 3\n</pre></lf-code>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert '<lf-code language="pythn">' in result.output, result.output
-    assert 'class="language-pythn"' not in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert [(f.at, f.values["value"]) for f in found(findings, "unknown-word")] == [
+        ("<lf-code>", "pythn")
+    ]
 
 
 def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
@@ -1249,10 +1493,16 @@ def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
             '<h2>Plan</h2>\n<lf-gloss tip="Feeder layout" dialect="lisp">feeders</lf-gloss>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert '<lf-gloss dialect="lisp">' in result.output
-    assert "not a language this page's layer speaks" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings,
+        "unknown-word",
+        "<lf-gloss>",
+        attr="dialect",
+        value="lisp",
+        declares="x-language",
+    )
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
@@ -1332,12 +1582,9 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
             "<p>First</p></lf-zone>", "<p>First</p><p>Split</p></lf-zone>"
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "<lf-zone> (line" in result.output, result.output
-    assert "x-reading-role pane must contain exactly one direct body element" in (
-        result.output
-    )
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "pane-body", "<lf-zone>", body=["p", "p"])
 
 
 def test_pane_grammar_rejects_misplaced_slots_and_split_content(page_dir):
@@ -1351,13 +1598,13 @@ def test_pane_grammar_rejects_misplaced_slots_and_split_content(page_dir):
 <lf-pane id="loose" label="Loose">Loose text</lf-pane>""",
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "x-reading-role pane direct <header> must be first" in result.output
-    body = "x-reading-role pane must contain exactly one direct body element"
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "pane-header-first", "<lf-pane>", line=10)
     # The split body and the loose text, each named by its own line.
-    for line in (11, 12):
-        assert f"<lf-pane> (line {line}): {body}" in result.output, result.output
+    assert [
+        (f.values["line"], f.values["body"]) for f in found(findings, "pane-body")
+    ] == [(11, ["p", "p"]), (12, ["#text"])]
 
 
 def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_dir):
@@ -1377,20 +1624,26 @@ def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none(page_di
             '<lf-code id="walk" language="python"><pre>x = 1\n</pre></lf-code>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert '<lf-code language="python">' in result.output, result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "unknown-word", "<lf-code>", value="python", known=[])
 
 
 def test_check_rejects_loose_content_in_items_container(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace("<lf-options>", "<lf-options>\nloose text\n<p>stray</p>\n<br/>")
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert 'admits only ["lf-option"] members' in result.output
-    assert '"br"' in result.output  # self-closed strays count as children too
-    assert "loose text" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    # Self-closed strays count as children too.
+    assert found(
+        findings,
+        "stray-members",
+        "<lf-options>",
+        admits=["lf-option"],
+        found=["br", "p"],
+    )
+    assert found(findings, "loose-text", "<lf-options>")
 
 
 def test_retired_question_and_recommendation_attributes_are_rejected(page_dir):
@@ -1399,11 +1652,13 @@ def test_retired_question_and_recommendation_attributes_are_rejected(page_dir):
             'id="backfill-first">', 'id="backfill-first" recommended>'
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "Additional properties are not allowed" in result.output
-    assert "'label' was unexpected" in result.output
-    assert "'recommended' was unexpected" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert [f.at for f in found(findings, "attribute-schema")] == [
+        "<lf-options>",
+        "<lf-option>",
+    ]
+    assert {f.values["keyword"] for f in findings} == {"additionalProperties"}
 
 
 def test_tabs_reject_structural_violations(page_dir):
@@ -1416,22 +1671,25 @@ def test_tabs_reject_structural_violations(page_dir):
 <lf-tab id="ws-stray" label="Stray"><p>y</p></lf-tab>
 <lf-options>"""
     (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", bad))
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "'label' is a required property" in result.output
-    assert "must be a direct member of <lf-tabs>" in result.output
-    assert "loose text" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "attribute-schema", "<lf-tab>", keyword="required")
+    assert found(findings, "not-member", "<lf-tab>", owners=["lf-tabs"])
+    assert found(findings, "loose-text", "<lf-tabs>")
 
 
 def test_suggestion_rejects_malformed_shapes(page_dir):
     for markup, expected in [
-        ('<lf-suggestion id="sug-a"></lf-suggestion><lf-options>', "needs a <lf-old>"),
+        (
+            '<lf-suggestion id="sug-a"></lf-suggestion><lf-options>',
+            ("empty-suggestion", "<lf-suggestion id=sug-a>"),
+        ),
         (
             (
                 '<lf-suggestion id="sug-a"><lf-new><p>x</p></lf-new>'
                 "<lf-new><p>y</p></lf-new></lf-suggestion><lf-options>"
             ),
-            "one at most",
+            ("repeated-slot", "<lf-suggestion id=sug-a>"),
         ),
         (
             (
@@ -1439,24 +1697,24 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
                 '<lf-suggestion id="sug-b"><lf-new>x</lf-new></lf-suggestion>'
                 "</lf-new></lf-suggestion><lf-options>"
             ),
-            "don't nest",
+            ("nested-suggestion", "<lf-suggestion id=sug-b>"),
         ),
         (
             "<lf-old><p>orphan</p></lf-old><lf-options>",
-            "must be a direct member of <lf-suggestion>",
+            ("not-member", "<lf-old>"),
         ),
         (
             (
                 '<lf-suggestion id="sug-a" resolves="nosuch"><lf-new><p>x</p></lf-new>'
                 "</lf-suggestion><lf-options>"
             ),
-            "names no thread in this document",
+            ("unknown-thread", "<lf-suggestion id=sug-a>"),
         ),
     ]:
         (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", markup))
-        result = check(page_dir)
-        assert result.exit_code == 1, markup
-        assert expected in result.output, f"{markup}\n{result.output}"
+        status, findings = check_findings(page_dir)
+        assert status == 1, markup
+        assert expected in [(f.code, f.at) for f in findings], markup
 
 
 def test_reply_refuses_a_suggestion(page_dir):
@@ -1545,11 +1803,12 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
             response_reference(page_dir, "c1"),
             "--text",
             "Updated.",
+            "--json",
         ],
     )
 
     assert result.exit_code != 0
-    assert "cannot reply while index.html is invalid" in result.output
+    assert refused_on(result.stdout).values["operation"] == "reply"
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )
@@ -1567,7 +1826,7 @@ def test_response_reference_selects_one_of_several_obligations(page_dir):
                     "kind": "comment",
                     "id": event_id,
                     "author": "user",
-                    "text": f"question {event_id}",
+                    "text": f"ask {event_id}",
                 },
             )
         )
@@ -1636,13 +1895,10 @@ def test_response_never_settles_a_newer_undelivered_correction(page_dir):
         },
     )
 
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "Made it blue."],
+    refused = command_refusal(
+        "response", "reply", "--done", reference, "--text", "Made it blue."
     )
-
-    assert result.exit_code != 0
-    assert "no longer requires a reply" in result.output
+    assert refused.code == "superseded-reply"
     assert not any(
         event["kind"] == "reply" and event["author"] == "agent"
         for event in events_model.read_events(page_dir)
@@ -1732,11 +1988,16 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     )
     with pytest.raises(Refused) as refused:
         thread_model.post_reply(page_dir, {"to": "c1"}, "Answered.", attempt="r1")
-    assert "'r1' does not match" in str(refused.value)
+    invalid = refused_on(refused.value)
+    assert (invalid.code, invalid.values["field"]) == ("invalid-event", "/attempt")
 
     with pytest.raises(Refused) as unknown_widget:
         thread_model.cmd_report(page_dir, "no-such-widget", "status", ())
-    assert "unknown report widget 'no-such-widget'" in str(unknown_widget.value)
+    assert refused_on(unknown_widget.value).values == {
+        "kind": "report",
+        "widget": "no-such-widget",
+        "revision": 1,
+    }
 
     assert [event["kind"] for event in events_model.read_events(page_dir)] == [
         "note",
@@ -1799,11 +2060,12 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
             "distinct-retry-attempt",
             "--text",
             "Again.",
+            "--json",
         ],
     )
 
     assert result.exit_code != 0
-    assert "no longer requires a reply" in result.output
+    assert refused_on(result.stdout).code == "superseded-reply"
 
 
 @pytest.mark.parametrize(
@@ -1811,40 +2073,58 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
     [
         (
             '<script type="module" src="/leaf.js"></script>',
-            "public layer entry point",
+            ("capture-failed", {"error": "public layer entry point"}),
         ),
         (
             '<link rel="stylesheet" href="/theme.css" media="print">',
-            "escapes /page/ and /media/",
+            ("capture-failed", {"error": "escapes /page/ and /media/"}),
         ),
-        ('<base href="https://outside.example/">', "<base> (line"),
+        (
+            '<base href="https://outside.example/">',
+            ("document-declaration", {"at": "<base>"}),
+        ),
         (
             '<meta http-equiv="Content-Security-Policy" content="default-src none">',
-            "<meta> (line",
+            ("document-declaration", {"at": "<meta>"}),
         ),
-        ('<script type="importmap">{"imports": {}}</script>', "<script> (line"),
+        (
+            '<script type="importmap">{"imports": {}}</script>',
+            ("document-declaration", {"at": "<script>"}),
+        ),
     ],
     ids=["runtime-module", "theme", "base", "policy", "import-map"],
 )
 def test_check_rejects_authored_delivery_assets(page_dir, asset, expected):
+    """Capture refuses a delivery asset the page would load, for its own reason, and
+    the markup check a declaration about the whole document."""
     (page_dir / "index.html").write_text(PAGE.replace("</head>", f"{asset}\n</head>"))
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert expected in result.output
+    assert status == 1
+    code, holds = expected
+    [finding] = findings
+    assert finding.code == code
+    # A capture refusal is still its exception's words (`capture-failed`).
+    if "error" in holds:
+        assert holds["error"] in finding.values["error"]
+    else:
+        assert finding.at == holds["at"]
 
 
 @pytest.mark.parametrize(
-    "outside",
+    "outside, refused",
     [
-        "Authored tail",
-        '<p id="tail">Authored tail</p>',
-        '<lf-options><lf-option id="tail">Authored tail</lf-option></lf-options>',
-        '<main><p id="tail">Second main</p></main>',
+        ("Authored tail", "outside-main"),
+        ('<p id="tail">Authored tail</p>', "outside-main"),
+        (
+            '<lf-options><lf-option id="tail">Authored tail</lf-option></lf-options>',
+            "outside-main",
+        ),
+        ('<main><p id="tail">Second main</p></main>', "main-count"),
     ],
 )
-def test_check_confines_authored_content_to_one_direct_main(page_dir, outside):
+def test_check_confines_authored_content_to_one_direct_main(page_dir, outside, refused):
     """The element the presentation boundary withholds contains the whole page.
 
     Prose, ordinary elements, widgets, and another main beside the first are all
@@ -1852,10 +2132,10 @@ def test_check_confines_authored_content_to_one_direct_main(page_dir, outside):
     """
     (page_dir / "index.html").write_text(PAGE.replace("</main>", f"</main>\n{outside}"))
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert "one <main> directly under <body>" in result.output
+    assert status == 1
+    assert found(findings, refused)
 
 
 def test_check_requires_main_to_be_a_direct_body_child(page_dir):
@@ -1865,10 +2145,10 @@ def test_check_requires_main_to_be_a_direct_body_child(page_dir):
     )
     (page_dir / "index.html").write_text(wrapped)
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert "one <main> directly under <body>" in result.output
+    assert status == 1
+    assert found(findings, "main-count", direct=0)
 
 
 def test_check_requires_an_explicit_head_for_delivery(page_dir):
@@ -1876,10 +2156,10 @@ def test_check_requires_an_explicit_head_for_delivery(page_dir):
     source = PAGE.replace("<head>", "").replace("</head>", "")
     (page_dir / "index.html").write_text(source)
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert "one explicit <head> directly under <html>" in result.output
+    assert status == 1
+    assert found(findings, "head-count", tags=0)
 
 
 def test_check_rejects_an_extra_head_that_html_recovery_ignores(page_dir):
@@ -1887,10 +2167,10 @@ def test_check_rejects_an_extra_head_that_html_recovery_ignores(page_dir):
     source = PAGE.replace("</html>", "<head></head></html>")
     (page_dir / "index.html").write_text(source)
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert "found 2 head tags" in result.output
+    assert status == 1
+    assert found(findings, "head-count", tags=2)
 
 
 @pytest.mark.parametrize(
@@ -1904,10 +2184,10 @@ def test_check_rejects_paintable_markup_the_browser_reparents(page_dir, html):
     """HTML recovery cannot move authored pixels around the main boundary."""
     (page_dir / "index.html").write_text(html)
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert "one <main> directly under <body>" in result.output
+    assert status == 1
+    assert found(findings, "outside-main")
 
 
 def test_check_rejects_an_id_containing_whitespace(page_dir):
@@ -1921,9 +2201,9 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
             '<g id="layout-no class"><rect width="4" height="4"/></g></svg>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "whitespace" in result.output and '"layout-no class"' in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "spaced-ids", ids=["layout-no class"])
 
 
 def test_any_id_names_one_subject_for_every_command(page_dir):
@@ -2017,9 +2297,9 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         {"kind": "thread", "id": opened["id"]},
     )
 
-    not_a_thread = run("thread", "resolve", "g1")
+    not_a_thread = run("thread", "resolve", "g1", "--json")
     assert not_a_thread.exit_code != 0
-    assert "g1 is a widget on the page, not a thread" in not_a_thread.output
+    assert refused_on(not_a_thread.stdout).code == "widget-not-thread"
     [closed] = [
         json.loads(line)
         for line in run("thread", "resolve", "t-ask").output.splitlines()
@@ -2161,8 +2441,8 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
 
 def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     """`page state` is /api/state folded for the agent: the banner's decision list,
-    the standing state replay paints, as one queryable
-    object — the position a session picking up a standing page would otherwise
+    the current state replay paints, as one queryable
+    object — the position a session picking up a persistent page would otherwise
     re-derive from the raw log."""
     opts = OPTIONS.format(
         a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
@@ -2268,7 +2548,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     )
 
     assert written.exit_code == 0, written.output
-    standing = state_json(page_dir)
+    served = state_json(page_dir)
     first = read_page_data(page_dir)
     stored = data_model.source_file(page_dir, "deployments")
     assert first["sources"]["deployments"] == {
@@ -2281,8 +2561,8 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
         "value": ["api", "worker"],
     }
     assert data_model.read_contracts(page_dir) == {"deployments": "deployment-rows"}
-    assert standing["data"] == {"file": "data.json", "dir": "data", "errors": []}
-    assert standing["data_bindings"] == {
+    assert served["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    assert served["data_bindings"] == {
         "deployments": {
             "contract": "deployment-rows",
             "consumers": [
@@ -2408,33 +2688,43 @@ diff --git a/src/second file.py b/src/second file.py
     ] == [
         {
             "path": "app.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
         },
         {
             "path": "new.py",
             "previousPath": "old.py",
-            "kind": "patch",
+            "operation": "rename",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
         },
         {
             "path": "docs/new.md",
             "previousPath": "docs/old.md",
-            "kind": "rename",
+            "operation": "rename",
+            "hunkCount": 0,
+            "binary": False,
             "additions": 0,
             "deletions": 0,
         },
         {
             "path": "café2026 notes.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
         },
         {
             "path": "src/second file.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
         },
@@ -2444,6 +2734,187 @@ diff --git a/src/second file.py b/src/second file.py
     )
 
 
+def test_native_git_file_operations_survive_capture_without_invented_hunks(
+    page_dir, tmp_path
+):
+    """Git owns operation evidence, including copies it can detect from unchanged files."""
+    repository = tmp_path / "native"
+    repository.mkdir()
+
+    def git(*arguments):
+        return subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    git("init", "-q")
+    original = {
+        "mode.sh": b"echo ready\n",
+        "binary.dat": b"old\0blob\n",
+        "deleted-empty": b"",
+        "copy-source.txt": "".join(f"line {index}\n" for index in range(30)).encode(),
+        "old name.txt": b"same text\n",
+        "old-mode.txt": b"same mode\n",
+        "changed-type": b"before\n",
+        "same-type-content": b"target",
+        "binary-type": b"old\0binary\n",
+    }
+    for name, content in original.items():
+        (repository / name).write_bytes(content)
+    (repository / "removed-link").symlink_to("old-target")
+    git("add", ".")
+    git(
+        "-c",
+        "user.name=Leaf test",
+        "-c",
+        "user.email=leaf@example.invalid",
+        "commit",
+        "-qm",
+        "Original",
+    )
+    for name, target in [
+        ("changed-type", "new-target"),
+        ("same-type-content", "target"),
+        ("binary-type", "binary-target"),
+    ]:
+        (repository / name).unlink()
+        (repository / name).symlink_to(target)
+    (repository / "removed-link").unlink()
+    (repository / "removed-link").write_text("after\n")
+    (repository / "mode.sh").chmod(0o755)
+    (repository / "binary.dat").write_bytes(b"new\0blob\n")
+    (repository / "deleted-empty").unlink()
+    (repository / "added-empty").write_text("")
+    (repository / "copy-pure.txt").write_bytes(original["copy-source.txt"])
+    (repository / "copy-edited.txt").write_bytes(
+        original["copy-source.txt"] + b"extra line\n"
+    )
+    (repository / "old name.txt").rename(repository / "new name.txt")
+    (repository / "old-mode.txt").rename(repository / "new-mode.txt")
+    (repository / "new-mode.txt").chmod(0o755)
+    git("add", ".")
+    patch = git("diff", "--cached", "-M", "-C", "--find-copies-harder")
+    manifest = patch_manifest(patch)
+    files = {file["path"]: file for file in manifest["files"]}
+    assert files["copy-pure.txt"]["operation"] == "copy"
+    assert files["copy-edited.txt"]["operation"] == "copy"
+    assert files["copy-edited.txt"]["previousPath"] == "copy-source.txt"
+    assert files["copy-edited.txt"]["hunkCount"] == 1
+    assert files["copy-edited.txt"]["additions"] == 1
+    assert files["new name.txt"]["operation"] == "rename"
+    for path in ("mode.sh", "new-mode.txt"):
+        assert files[path]["oldMode"] == "100644"
+        assert files[path]["newMode"] == "100755"
+    assert files["binary.dat"]["binary"] is True
+    for path in ("changed-type", "same-type-content", "binary-type", "removed-link"):
+        assert files[path]["operation"] == "modify"
+        assert files[path]["hunkCount"] == 1
+        assert files[path]["oldMode"] != files[path]["newMode"]
+        assert files[path]["patch"].count("diff --git ") == 2
+    assert (
+        files["same-type-content"]["additions"]
+        == files["same-type-content"]["deletions"]
+        == 1
+    )
+    assert files["binary-type"]["binary"] is True
+    opaque = patch_manifest(git("diff", "--cached", "--binary", "--", "binary-type"))[
+        "files"
+    ][0]
+    assert opaque["binary"] and "literal " not in opaque["patch"]
+    assert opaque["patch"].startswith("diff --git ")
+    assert all(file["patch"].startswith("diff --git ") for file in files.values())
+    binary = patch_manifest(git("diff", "--cached", "--binary", "--", "binary.dat"))
+    assert [
+        {key: value for key, value in file.items() if key != "patch"}
+        for file in binary["files"]
+    ] == [{key: value for key, value in files["binary.dat"].items() if key != "patch"}]
+    assert "literal " not in binary["files"][0]["patch"]
+    empty = patch_manifest(
+        git("diff", "--cached", "--no-renames", "--", "added-empty", "deleted-empty")
+    )
+    assert [
+        (file["operation"], file["hunkCount"], file["binary"])
+        for file in empty["files"]
+    ] == [
+        ("add", 0, False),
+        ("delete", 0, False),
+    ]
+    declare_data_input(
+        page_dir, "native-patch", {"type": "object"}, contract="unified-diff"
+    )
+    for value in (manifest, empty, binary):
+        data_model.cmd_data_set(page_dir, "native-patch", value)
+        assert read_page_data(page_dir)["sources"]["native-patch"]["value"] == value
+
+
+@pytest.mark.parametrize(
+    "patch_text",
+    [
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-old
++GIT binary patch
+""",
+        """diff --git a/old.py b/new.py
+similarity index 100%
+rename from old.py
+rename to new.py
+--- a/old.py
++++ b/new.py
+-before
++after
+""",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
++lost
+""",
+        """diff --git a/app.py b/app.py
+@@ -1 +1 @@
+--- bogus-old
++++ bogus-new
+""",
+        """diff --git a/app.py b/app.py
+--- a/other.py
++++ b/other.py
+@@ -1 +1 @@
+-before
++after
+""",
+        """diff --git a/new.py b/new.py
+new file mode 100644
+--- /dev/null
++++ b/new.py
+@@ -0,0 +3 @@
++partial
+""",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
+diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
+""",
+    ],
+)
+def test_the_diff_script_preserves_evidence_for_the_widget_to_judge(patch_text):
+    manifest = patch_manifest(patch_text)
+    assert "".join(file["patch"] for file in manifest["files"]) == patch_text
+
+
 DIFF_PATCH_CASES = json.loads(
     (Path(__file__).parents[1] / "diff_patch_cases.json").read_text()
 )["cases"]
@@ -2451,25 +2922,17 @@ DIFF_PATCH_CASES = json.loads(
 
 @pytest.mark.parametrize(
     "case",
-    [case for case in DIFF_PATCH_CASES if "files" in case or "manifest" in case],
+    [case for case in DIFF_PATCH_CASES if "files" in case],
     ids=lambda case: case["id"],
 )
 def test_the_manifest_reads_the_diff_patch_table(case):
-    """What lf-diff can present has two readers in two languages: the widget parses a
+    """A patch lf-diff accepts has two readers in two languages: the widget parses a
     patch text in the browser, and `patch_manifest.py` builds the file manifest from a
-    Git patch. `diff_patch_cases.json` is the one statement of that rule both are held
-    to; `test_render_anchors.py` reads it for the widget.
-
-    A row with `files` is a Git patch both readers accept, naming those paths. A row
-    with a `manifest` message is one the contract excludes, which the manifest refuses
-    before it is stored. A row with only a `widget` message is malformed, and the
-    manifest's reading of it is left unpinned: the widget refuses what it stores."""
-    if "files" in case:
-        files = patch_manifest(case["patch"])["files"]
-        assert [file["path"] for file in files] == case["files"]
-    else:
-        with pytest.raises(ValueError, match=re.escape(case["manifest"])):
-            patch_manifest(case["patch"])
+    Git patch. Both read the paths of each `files` row of `diff_patch_cases.json`
+    alike; `test_render_anchors.py` reads it for the widget, which alone refuses the
+    rest."""
+    files = patch_manifest(case["patch"])["files"]
+    assert [file["path"] for file in files] == case["files"]
 
 
 def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
@@ -2533,7 +2996,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
         page_dir,
         {
             "kind": "comment",
-            "id": "data-question",
+            "id": "data-ask",
             "author": "user",
             "revision": 1,
             "text": "Show the feed here.",
@@ -2541,18 +3004,18 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
     )
     reply = thread_model.post_reply(
         page_dir,
-        {"to": "data-question", "for": "data-question"},
+        {"to": "data-ask", "for": "data-ask"},
         "Here it is.",
         '<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
     )
     assert reply["revision"] == 1
 
     data_model.cmd_data_set(page_dir, "reply-feed", [])
-    standing = state_json(page_dir)
-    assert standing["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    served = state_json(page_dir)
+    assert served["data"] == {"file": "data.json", "dir": "data", "errors": []}
     reading = read_page_data(page_dir)["sources"]["reply-feed"]
     assert (reading["contract"], reading["value"]) == ("rows", [])
-    assert standing["data_bindings"]["reply-feed"]["consumers"] == [
+    assert served["data_bindings"]["reply-feed"]["consumers"] == [
         {
             "widget": "reply-data",
             "input": "data",
@@ -2585,7 +3048,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
         page_dir,
         {
             "kind": "comment",
-            "id": "data-question",
+            "id": "data-ask",
             "author": "user",
             "revision": 1,
             "text": "Show another feed here.",
@@ -2594,7 +3057,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
 
     reply = thread_model.post_reply(
         page_dir,
-        {"to": "data-question", "for": "data-question"},
+        {"to": "data-ask", "for": "data-ask"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
     )
@@ -2616,7 +3079,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
     active = read_page_data(page_dir)["sources"]["project-feed"]
     assert active["contract"] == "rows" and active["value"] == ["active page"]
     captured = artifact_model.read_revision(page_dir, reply["revision"]).registry
-    thread_bindings, _seats, errors = data_contracts_model.declared_data_bindings(
+    thread_bindings, errors = data_contracts_model.declared_data_bindings(
         structure_model.SourceDocument(reply["markup"]).lf_elements, captured
     )
     assert errors == [] and thread_bindings == {"project-feed": "other-rows"}
@@ -2667,7 +3130,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source
         page_dir,
         {
             "kind": "comment",
-            "id": "draft-data-question",
+            "id": "draft-data-ask",
             "author": "user",
             "revision": 1,
             "text": "Show another feed here.",
@@ -2676,7 +3139,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source
 
     thread_model.post_reply(
         page_dir,
-        {"to": "draft-data-question", "for": "draft-data-question"},
+        {"to": "draft-data-ask", "for": "draft-data-ask"},
         "Here it is.",
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
     )
@@ -2738,65 +3201,22 @@ def test_data_set_wraps_an_unproductive_recursive_schema(page_dir):
     )
 
 
-@pytest.mark.parametrize(
-    ("stored", "message"),
-    [
-        ("null", "data must be an object with only sources"),
-        ('{"revision":1,"sources":{}}', "data must be an object with only sources"),
-        (
-            '{"sources":{"builds":{"contract":"Bad Contract"}}}',
-            "source 'builds' must record only a contract",
-        ),
-        (
-            '{"sources":{"builds":{"contract":"build-map","revision":1}}}',
-            "source 'builds' must record only a contract",
-        ),
-    ],
-)
-def test_the_contract_index_refuses_anything_but_contracts(page_dir, stored, message):
-    """data.json records only which contract each source id was bound to."""
-    (page_dir / "data.json").write_text(stored)
-
-    with pytest.raises(data_contracts_model.DataError, match=message):
-        read_page_data(page_dir)
-
-
-def test_the_contract_index_wraps_invalid_utf8_at_its_boundary(page_dir):
-    (page_dir / "data.json").write_bytes(b"\xff")
-
-    with pytest.raises(data_contracts_model.DataError, match="invalid JSON"):
-        read_page_data(page_dir)
-
-
-@pytest.mark.parametrize(
-    ("value", "message"),
-    [
-        (b"\xff", "is not JSON"),
-        (b"[NaN]", "NaN is not JSON"),
-        (b"[]", "must hold a publication"),
-        (
-            b'{"run":"bad","updated":"2026-01-01T00:00:00Z","value":[]}',
-            "must hold a publication",
-        ),
-        (
-            b'{"run":"11111111111111111111111111111111","updated":"yesterday","value":[]}',
-            "must hold a publication",
-        ),
-    ],
-)
-def test_a_corrupted_publication_reads_as_that_sources_error(page_dir, value, message):
-    """External corruption never becomes data or a fabricated publication receipt."""
+def test_a_value_an_earlier_leaf_wrote_reads_as_that_sources_error(page_dir):
+    """A Leaf before publications wrote the bare value, so a page it fed names the
+    rewrite rather than reading that value as a publication."""
     declare_data_input(page_dir, "builds", {"type": "array"}, contract="build-map")
     data_model.cmd_data_set(page_dir, "builds", [])
-    data_model.source_file(page_dir, "builds").write_bytes(value)
+    data_model.source_file(page_dir, "builds").write_bytes(b"[]")
 
     source = read_page_data(page_dir)["sources"]["builds"]
     assert "value" not in source
-    assert message in source["error"]
+    assert source["error"] == (
+        "source 'builds' holds no publication; write it again with leaf data set"
+    )
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):
-    """A Question retains its source identity under an authored context wrapper.
+    """An ask retains its source identity under an authored context wrapper.
     The nested widget remains the canonical answer owner."""
     opts = """<lf-options id="g1" choose>
       <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
@@ -2985,8 +3405,8 @@ def test_events_follow_prints_each_admitted_event_as_it_lands(page_dir, spawn):
     _tasks_version(page_dir, "active")
     publish(page_dir)
     follower = Follower(spawn, page_dir)
-    standing = events_model.read_events(page_dir)
-    assert [follower.next() for _ in standing] == standing
+    before = events_model.read_events(page_dir)
+    assert [follower.next() for _ in before] == before
 
     reported = _report(page_dir, "t-parser", "status", "value=review")
     assert reported.exit_code == 0, reported.output
@@ -2994,7 +3414,7 @@ def test_events_follow_prints_each_admitted_event_as_it_lands(page_dir, spawn):
     assert opened.exit_code == 0, opened.output
 
     followed = [follower.next(), follower.next()]
-    assert followed == events_model.read_events(page_dir)[len(standing) :]
+    assert followed == events_model.read_events(page_dir)[len(before) :]
     assert followed[0]["id"] == json.loads(reported.output)["id"]
     assert followed[0]["meaning"]["unit"] == "t-parser"
     assert followed[1]["id"] == json.loads(opened.output)["id"]
@@ -3562,7 +3982,9 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
     file = {
         "path": "a.py",
-        "kind": "patch",
+        "operation": "modify",
+        "hunkCount": 1,
+        "binary": False,
         "additions": 1,
         "deletions": 1,
         "patch": patch,
@@ -3592,11 +4014,12 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     [
         ([], "does not satisfy minItems: 1"),
         (
-            [{"path": "b.py", "kind": "rename", "additions": 0, "deletions": 0}],
+            [{"path": "b.py", "operation": "rename", "additions": 0, "deletions": 0}],
             "'previousPath' is a required property",
         ),
         (
-            [{"path": "a.py", "kind": "patch", "additions": 1, "deletions": 1}] * 2,
+            [{"path": "a.py", "operation": "modify", "additions": 1, "deletions": 1}]
+            * 2,
             "record keys must be unique",
         ),
     ],
@@ -3616,7 +4039,14 @@ def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
     written = CliRunner().invoke(
         cli_model.cli,
         ["data", "set", str(page_dir), "reading-patch"],
-        input=json.dumps({"files": [{**file, "patch": patch} for file in files]}),
+        input=json.dumps(
+            {
+                "files": [
+                    {**file, "hunkCount": 1, "binary": False, "patch": patch}
+                    for file in files
+                ]
+            }
+        ),
     )
     assert written.exit_code == 1
     assert refusal in written.output
@@ -3719,9 +4149,7 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
         assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
 
 
-def test_question_history_survives_parse_eviction_and_new_revisions(
-    page_dir, monkeypatch
-):
+def test_ask_history_survives_parse_eviction_and_new_revisions(page_dir, monkeypatch):
     """A retry or new version reuses completed historical registration work.
 
     A history larger than the parse cache used to parse every predecessor on every
@@ -3762,7 +4190,15 @@ def test_question_history_survives_parse_eviction_and_new_revisions(
                 page_dir, revision
             ),
         )
-        return WorkReading(events, reading.registry, page).document.questions
+        return WorkReading(
+            events,
+            reading.registry,
+            page,
+            registry_for_revision=lambda revision: (
+                artifact_model.read_revision(page_dir, revision).registry
+            ),
+            available_revisions=revisions,
+        ).document.asks
 
     with fresh_process():
         initial = read()
@@ -4009,14 +4445,21 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "seq": 2,
         },
         action("page-draft", "Page future.", 3),
-        action("frozen-draft", "Frozen standing.", 4),
+        action("frozen-draft", "Frozen current.", 4),
     ]
 
-    expected = render_gate_readings._expected_verbatim(page, events, registry, here=1)
+    expected = render_gate_readings._expected_verbatim(
+        page,
+        events,
+        registry,
+        here=1,
+        registry_for_revision=lambda revision: registry,
+        available_revisions={1},
+    )
 
     assert expected == {
         ("page", None, 0): [{"text": "Page authored."}],
-        ("event", "r-scope", 0): [{"text": "Frozen standing."}],
+        ("event", "r-scope", 0): [{"text": "Frozen current."}],
     }
 
 
@@ -4059,7 +4502,12 @@ def test_projected_verbatim_includes_generated_children():
         "lf-list", registry["lf-list"], registry["lf-list"]["x-state"]["add"]
     )
     expected = render_gate_readings._expected_verbatim(
-        markup, [event], registry, here=1
+        markup,
+        [event],
+        registry,
+        here=1,
+        registry_for_revision=lambda revision: registry,
+        available_revisions={1},
     )
 
     assert expected == {("page", None, 0): [{"text": "Authored item. Generated item."}]}
@@ -4163,10 +4611,10 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     ).replace('id="o-stage"', 'id="o-stage" chosen')
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + edited))
     assert stamp(page_dir, "revise recommendation").exit_code == 0
-    [standing] = [
+    [current] = [
         item for item in state_json(page_dir)["state"] if item["action"] == "choose"
     ]
-    assert standing["detail"] == {"value": ["o-shim"]}
+    assert current["detail"] == {"value": ["o-shim"]}
     source.write_text(PAGE)
     assert stamp(page_dir, "retire answered ask").exit_code == 0
     assert picked in events_model.read_events(page_dir)
@@ -4176,11 +4624,11 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
 
 
 def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
-    """An action admitted by an earlier Leaf keeps standing, and keeps its Question
+    """An action admitted by an earlier Leaf stays in force, and keeps its ask
     answered, under a Leaf that records the same operation's definition with other
-    fields. Before #2329 the definition carried `update`, the flag that became
-    `report`; matching every recorded field dropped each decision on a page that
-    Leaf version had served."""
+    fields. Before #2329 the definition carried `update`, the verb flag now
+    named `text`; matching every recorded field dropped each decision on a page
+    that Leaf version had served."""
     source = page_dir / "index.html"
     source.write_text(
         PAGE.replace(
@@ -4207,16 +4655,16 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
         event = json.loads(line)
         if event["id"] == picked["id"]:
             recorded = event["meaning"]["state"]
-            recorded["update"] = recorded.pop("report", False)
+            recorded["update"] = False
         earlier.append(json.dumps(event))
     log.write_text("\n".join(earlier) + "\n")
 
     reading = state_json(page_dir)
-    [standing] = [item for item in reading["state"] if item["action"] == "choose"]
-    assert standing["detail"] == {"value": ["o-shim"]}
-    [question] = reading["asks"]
-    assert question["status"] == "answered"
-    assert question["answer"]["event"]["id"] == picked["id"]
+    [current] = [item for item in reading["state"] if item["action"] == "choose"]
+    assert current["detail"] == {"value": ["o-shim"]}
+    [ask] = reading["asks"]
+    assert ask["status"] == "answered"
+    assert ask["answer"]["event"]["id"] == picked["id"]
 
 
 def test_revisions_change_edited_drafts_without_retracting_the_user_edit(page_dir):

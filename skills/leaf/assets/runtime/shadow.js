@@ -1,8 +1,28 @@
 /* This module owns declared shadow roots, the shadow.css rules they render under, and
  * the shared highlight rules. */
-import { registry, tagsDeclaring } from "./registry.js";
-import { shadowHost, upFrom, renderedParent } from "./shadow-tree.js";
-export { shadowHost, upFrom, renderedParent };
+import { vocabularyFor } from "./widget-contexts.js";
+import { registryFor, tagsDeclaring } from "./registry.js";
+import {
+  byRenderedOrder,
+  composedParentNode,
+  nativeLayerKind,
+  renderedOrder,
+  renderedParent,
+  renderedUnder,
+  shadowHost,
+  under,
+  upFrom,
+} from "./shadow-tree.js";
+export {
+  byRenderedOrder,
+  composedParentNode,
+  renderedOrder,
+  renderedParent,
+  renderedUnder,
+  shadowHost,
+  under,
+  upFrom,
+};
 
 // The open shadow roots under some root that hold the page's own words, from what the
 // registry declares rather than from a sweep of every element: an x-shadow widget is
@@ -22,7 +42,7 @@ export const refuseShadowRoot = (root) => refusedRoots.add(root);
 // The declared root `host` holds the page's words in, or null.
 export const declaredRoot = (host) =>
   host.shadowRoot &&
-  registry[host.localName]?.["x-shadow"] &&
+  registryFor(host)[host.localName]?.["x-shadow"] &&
   !refusedRoots.has(host.shadowRoot)
     ? host.shadowRoot
     : null;
@@ -35,14 +55,14 @@ export const shadowRootsIn = (root) =>
     .map(declaredRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);
-// Explicit inertness excludes a node through its composed ancestry. A standing native
+// Explicit inertness excludes a node through its composed ancestry. An open native
 // modal escapes inherited inertness outside itself, but an inert modal or descendant
 // remains excluded. Read node kind rather than realm-specific Element: a sample asks
 // this of the frame its containing document holds too.
 export function excludedByInert(node) {
   for (let owner = node; owner; owner = renderedParent(owner)) {
     if (owner.inert) return true;
-    if (owner.nodeType === Node.ELEMENT_NODE && owner.matches(":modal")) break;
+    if (nativeLayerKind(owner) === "modal") break;
   }
   return false;
 }
@@ -52,26 +72,6 @@ export const renderedChildren = (node) =>
   node.localName === "slot"
     ? node.assignedNodes({ flatten: true })
     : (node.shadowRoot ?? node).childNodes;
-// Containment in the rendered tree includes slots and their shadow ancestors.
-export const renderedUnder = (node, root) => {
-  for (let at = node; at; at = renderedParent(at)) if (at === root) return true;
-  return false;
-};
-
-// Which layer a node stands in — the runtime's chrome, a declared label, or the
-// document — is asked by every reading that climbs out of a widget, so it is answered
-// here, beside the climb, where geometry.js and widget-elements.js can ask it without
-// importing the passage readings back.
-// Is `node` inside `root`, or `root` itself? `Element.contains` stops at a shadow
-// boundary and these readings walk through one, so the climb is the same one
-// `closestAcross` makes. The boundary decides whether a quote is found at all: a section
-// holding an x-shadow widget does not `contains` the words that widget renders, so
-// narrowing a search to that section threw away every candidate inside it and the
-// passage resolved to nothing — the anchor captured, the mark never painted.
-export const under = (node, root) => {
-  for (let a = node; a; a = a.parentNode ?? shadowHost(a)) if (a === root) return true;
-  return false;
-};
 
 // What stands for `node` in the tree `root` roots (a Document or a ShadowRoot): the node
 // itself when it is in that tree, else the host of the shadow tree holding it, climbed
@@ -84,6 +84,10 @@ export const hostIn = (node, root) => {
   return at;
 };
 
+// Which layer a node stands in — the runtime's chrome, a declared label, or the
+// document — is asked by every reading that climbs out of a widget, so it is answered
+// here, beside the climb, where geometry.js and widget-elements.js can ask it without
+// importing the passage readings back.
 // The chrome over a node, read within one frame: above the frame it is nobody's, and with
 // no frame at all it is the document's own reading, unchanged.
 export const overIn = (el, selector, frame) => {
@@ -125,7 +129,7 @@ export const inUi = (node) =>
 // followed by semantic state.css (layer.py's `composed_sheets`). Read from the layer
 // rather than written here so a project override travels with the widget, and fetched
 // during upgrade so the stage below stays synchronous for its callers.
-export let shadowRules = "";
+
 // Every legitimate page shadow tree is built here, so repeat the generated-interface
 // boundary and transition suppression inside it. The shadow's ordinary contents paint
 // immediately and its generated interface paints after upgrade, on the same boundaries
@@ -143,20 +147,26 @@ export const SHADOW_STARTUP_CSS = `
     }
   }
 }`;
-// One read for the tab. The three boundaries that import widget modules each ask for the
+// One read per publication. The three boundaries that import widget modules each ask for the
 // rules the widgets they are about to upgrade render under, and an x-shadow widget can
 // arrive at any of them — in the document, in a later version, or in an agent's reply —
 // so the ask is repeated and the answer is not. Sharing the promise rather than the text
 // also holds a second caller behind the first read instead of starting another.
-let loading = null;
-export function loadShadowRules() {
-  loading ??= readShadowRules();
-  return loading;
+export function loadShadowRules(scope) {
+  const context = vocabularyFor(scope);
+  context.shadowRules.loading ??= readShadowRules(context);
+  return context.shadowRules.loading;
 }
-async function readShadowRules() {
-  const { runtimeResource } = await import("./context.js");
-  const response = await fetch(runtimeResource("/shadow.css"));
+async function readShadowRules(context) {
+  const response = await fetch(context.resource("/shadow.css"));
   if (!response.ok)
     throw new Error(`leaf: shadow.css failed to load (${response.status})`);
-  shadowRules = await response.text();
+  context.shadowRules.text = await response.text();
 }
+// A stage takes the rules of the publication its host belongs to. A host that stands
+// nowhere yet, such as one a widget stages before appending it, belongs to no
+// publication, and takes the document's own: that is where a host created by
+// `document.createElement` arrives, while a publication's generated children are bound
+// to it at creation (`createWidgetElement`).
+export const shadowRulesFor = (host) =>
+  (vocabularyFor(host) ?? vocabularyFor(document)).shadowRules.text;

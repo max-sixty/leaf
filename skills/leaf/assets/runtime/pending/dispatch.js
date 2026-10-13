@@ -4,7 +4,7 @@
    the ledger publishes the command synchronously. */
 import { actionForWidget, isThreadEvent } from "./model.js";
 import { createPendingLedger } from "./state.js";
-import { applicationState, readApplication } from "../semantic-state.js";
+import { applicationState } from "../semantic-state.js";
 import { randomId } from "../ids.js";
 import { saidNow } from "../presence.js";
 import { messageText } from "../thread/messages.js";
@@ -14,43 +14,9 @@ import { messageText } from "../thread/messages.js";
 /** @typedef {import("../../../../../build/browser/application.ts").WidgetDescriptor} WidgetDescriptor */
 /** @typedef {ReturnType<typeof import("../../../../../build/browser/application.ts").createSemanticApplication>} Application */
 /** @typedef {ReturnType<ReturnType<Application["selectWidget"]>["read"]>["actions"][string]["undo"][number]} UndoCandidate */
-/** @param {unknown} value @returns {value is Record<string, unknown>} */
-const detailObject = (value) => value !== null && typeof value === "object";
-
-/** The package API is dynamic. Narrow only its command envelope here; admission
- * owns each registry-declared detail schema. @param {unknown} command
- * @returns {{kind: "undo", target: string | null} | {kind: "action", verb: string, detail: Record<string, unknown>, attempt?: string}} */
-function widgetCommand(command) {
-  if (command === null || typeof command !== "object" || !("kind" in command))
-    throw new TypeError("Widget dispatch needs an action or exact undo command");
-  if (command.kind === "undo")
-    return {
-      kind: "undo",
-      target:
-        "target" in command && typeof command.target === "string"
-          ? command.target
-          : null,
-    };
-  if (command.kind !== "action")
-    throw new TypeError("Widget dispatch needs an action or exact undo command");
-  const detail =
-    "detail" in command && command.detail !== undefined ? command.detail : {};
-  if (
-    !("verb" in command) ||
-    typeof command.verb !== "string" ||
-    !command.verb ||
-    !detailObject(detail)
-  )
-    throw new TypeError("Widget action commands need {kind, verb, detail}");
-  return {
-    kind: "action",
-    verb: command.verb,
-    detail,
-    ...("attempt" in command && typeof command.attempt === "string"
-      ? { attempt: command.attempt }
-      : {}),
-  };
-}
+/** A package's command, as `widgetController(owner).dispatch` takes it. Admission
+ * judges each registry-declared detail schema.
+ * @typedef {{kind: "undo", target: string} | {kind: "action", verb: string, detail?: Record<string, unknown>, attempt?: string}} WidgetCommand */
 
 /** @typedef {{
  * afterEnqueue: (entry: import("./state.js").DeliveryHandle) => void,
@@ -86,9 +52,8 @@ export function createCommandDispatch() {
   };
   /** @param {PendingCommand} event */
   const post = (event) => startPost(event) ?? Promise.resolve(null);
-  /** @param {WidgetDescriptor} descriptor @param {unknown} input */
-  const dispatchWidget = (descriptor, input) => {
-    const command = widgetCommand(input);
+  /** @param {WidgetDescriptor} descriptor @param {WidgetCommand} command */
+  const dispatchWidget = (descriptor, command) => {
     const { withdraw } = current();
     const reading = applicationState.selectWidget(descriptor).read();
     if (command.kind === "undo") {
@@ -101,8 +66,16 @@ export function createCommandDispatch() {
         );
       return candidate ? withdraw(candidate) : null;
     }
-    const revision = readApplication().document.revision;
-    if (revision === null || !reading.actions[command.verb]?.available) return null;
+    const revision = descriptor.document.revision;
+    if (revision === null) return null;
+    // An adopted document lists every verb the user sends from this widget; any other,
+    // a misspelling or an agent's verb, would otherwise be dropped without a word.
+    const action = reading.actions[command.verb];
+    if (!action)
+      throw new Error(
+        `<${descriptor.tag} id="${descriptor.id}"> cannot dispatch ${JSON.stringify(command.verb)}; its user verbs are: ${Object.keys(reading.actions).join(", ") || "none"}`,
+      );
+    if (!action.available) return null;
     return startPost(actionForWidget(descriptor, command, revision));
   };
   return Object.freeze({

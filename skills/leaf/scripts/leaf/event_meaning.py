@@ -7,6 +7,7 @@ referenced element still changes containment without changing an old event.
 
 from functools import cached_property
 
+from leaf.asks import answer_verbs, answering_action, asking, replayed_attrs
 from leaf.events import event_document
 from leaf.projection import (
     authored_positions,
@@ -14,9 +15,7 @@ from leaf.projection import (
     page_reading,
     with_action,
 )
-from leaf.questions import answer_verbs, answering_action, asking, replayed_attrs
 from leaf.registry.contract import state_definition
-from leaf.thread_context import thread_structure
 
 
 class AdmissionReadings:
@@ -33,9 +32,9 @@ class AdmissionReadings:
 
     @cached_property
     def log(self):
-        from .tasks import TaskReading
+        from .todos import TodoReading
 
-        return TaskReading(self.events)
+        return TodoReading(self.events)
 
     @cached_property
     def work(self):
@@ -46,6 +45,8 @@ class AdmissionReadings:
             self.events,
             self.registry,
             self.page(revisions[-1]) if revisions else None,
+            registry_for_revision=self.view.registry,
+            available_revisions=revisions,
             thread=self.thread,
             log=self.log,
         )
@@ -53,20 +54,21 @@ class AdmissionReadings:
     @cached_property
     def thread(self):
         return frozen_thread_reading(
-            self.events, self.registry, withdrawn=self.log.withdrawn
+            self.events,
+            self.view.registry,
+            available_revisions=self.view.revisions,
+            withdrawn=self.log.withdrawn,
         )
 
     def page(self, revision: int):
         if revision not in self._pages:
             self._pages[revision] = page_reading(
-                self.view.reading(revision, self.registry),
+                self.view.reading(revision),
                 self.events,
                 revision,
                 withdrawn=self.log.withdrawn,
                 revisions=self.view.revisions,
-                revision_reader=lambda previous: self.view.reading(
-                    previous, self.view.registry(previous)
-                ),
+                revision_reader=self.view.reading,
             )
         return self._pages[revision]
 
@@ -108,14 +110,14 @@ def state_meaning(event: dict, entry: dict, scope: str, origin: str) -> dict:
 def answer_meaning(
     sender, record: dict, event: dict, readings: AdmissionReadings
 ) -> tuple[bool, str | None]:
-    """Whether this admitted action answers its widget's Question, and the thread it closes.
+    """Whether this admitted action answers its widget's ask, and the thread it closes.
 
-    The answering action is the one whose admission makes the Question's declared state
-    condition hold, so it is read with the candidate standing in the fold of its own
+    The answering action is the one whose admission makes the ask's declared state
+    condition hold, so it is read with the candidate in force in the fold of its own
     document. The thread it closes is the widget's authored `resolves`, read from the
     immutable document that sent it rather than carried in the command. A decision
     whose outcome is the widget's `x-withdrawn-as` leaves the page as if nothing had
-    been proposed, so it answers the Question and closes no thread: turning a fix down
+    been proposed, so it answers the ask and closes no thread: turning a fix down
     leaves the question it was written for open. A registered source may retain
     answer provenance after its request is withdrawn; only a source currently
     asking can close the thread it declares."""
@@ -148,9 +150,9 @@ def answer_meaning(
             reading.spoken,
             registry,
             registered=any(
-                question["source"]["kind"] == "widget"
-                and question["source"]["id"] == event["widget"]
-                for question in readings.work.all_questions["all"]
+                ask["source"]["kind"] == "widget"
+                and ask["source"]["id"] == event["widget"]
+                for ask in readings.work.all_asks["all"]
             ),
         ),
         record["attrs"].get("resolves")
@@ -164,11 +166,11 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
     """Stamp server-owned meaning after command validation, under the append lock.
 
     `sender` is the authored document of the revision the command names."""
-    events, registry = readings.events, readings.registry
+    registry = readings.registry
     record = sender.by_id.get(event["widget"])
     scope = "page"
     if record is None:
-        record = thread_structure(events).by_id[event["widget"]]
+        record = readings.thread.by_id[event["widget"]]
         scope = "thread"
     entry = registry[record["tag"]]
     admitted = dict(event)

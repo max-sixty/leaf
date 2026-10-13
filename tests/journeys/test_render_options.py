@@ -5,12 +5,11 @@ import math
 import re
 
 import pytest
-from click.testing import CliRunner
 from interact_support import (
+    command_refusal,
     end_work_on,
     working,
 )
-from leaf import cli as cli_model
 from leaf import event_log as events_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -104,7 +103,7 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
     expect(added.locator("strong")).to_have_text("both")
 
 
-def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_field(
+def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
     browser, serve
 ):
     """The Ask owns its numbered actions wherever focus stands inside it.
@@ -239,7 +238,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     A board card declares a local work seat and receives its page-edge margin entry without
     inventing a comment thread. An options group deliberately has no such seat: adding
     an option changes decision state, and any discussion starts as a separate thread
-    once that option exists. Unrelated versions leave the board claim standing, while
+    once that option exists. Unrelated versions leave the board claim in force, while
     a claim made on v2 does not leak backward into a pinned v1 tab.
     """
     work_page = ASK_PAGE.replace(
@@ -260,12 +259,8 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
         told(page)
 
     claim("card-migration", "checking the shard")
-    unsupported = CliRunner().invoke(
-        cli_model.cli,
-        ["task", "open", str(d), "jobs", "Price the alternatives"],
-    )
-    assert unsupported.exit_code != 0
-    assert "has no work seat" in unsupported.output
+    unsupported = command_refusal("task", "open", d, "jobs", "Price the alternatives")
+    assert unsupported.code == "no-work-seat"
 
     card_button = page.locator(
         '[data-lf-margin-for="card-migration"] > .lf-margin-marker'
@@ -285,7 +280,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     expect(card_button).to_have_class(re.compile(r"\blf-margin-entry\b"))
     card_button.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
-    # An unrelated version leaves the card coordinate standing.
+    # An unrelated version leaves the card coordinate in force.
     stamp_page(d, work_page, "Elsewhere")
     wait_for_revision(page, 2)
     expect(card_button).to_have_attribute("data-identity-probe", "kept")

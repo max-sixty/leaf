@@ -57,12 +57,37 @@ def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None
     ctx.exit()
 
 
+# Where a command's `--json` says the caller reads JSON, in the context every
+# command's context shares (`click.Context.meta`).
+JSON_REQUESTED = "leaf.json"
+
+
+def _json_requested(ctx: click.Context, _param: click.Parameter, value: bool) -> bool:
+    ctx.meta[JSON_REQUESTED] = value
+    return value
+
+
+def json_option(help: str, *, expose_value: bool = True):
+    """A command's `--json`: what it prints becomes JSON, a refusal included
+    (`LeafGroup`)."""
+    return click.option(
+        "--json",
+        "as_json",
+        is_flag=True,
+        expose_value=expose_value,
+        callback=_json_requested,
+        help=help,
+    )
+
+
 class LeafGroup(click.Group):
     """Present a domain refusal (`refusals.Refused`) as a Click error.
 
-    This is the command line's one translation of a refusal. Exit statuses
-    (including a package script's) keep their meaning and output, and any other
-    exception surfaces with its traceback.
+    This is the command line's one translation of a refusal: its words on stderr, or,
+    where the command was given `--json` (`json_option`), one JSON object on stdout,
+    `Refused.json`, whose `findings` carry each refusal's code and fields. Either way
+    the command exits 1. Exit statuses (including a package script's) keep their
+    meaning and output, and any other exception surfaces with its traceback.
     """
 
     def invoke(self, ctx: click.Context):
@@ -71,7 +96,28 @@ class LeafGroup(click.Group):
         try:
             return super().invoke(ctx)
         except Refused as error:
+            if ctx.meta.get(JSON_REQUESTED):
+                click.echo(json.dumps(error.json(), ensure_ascii=False))
+                ctx.exit(1)
             raise click.ClickException(str(error)) from error
+
+
+class RecordsCommand(click.Command):
+    """A write that prints each record it appended as one JSON line, as `page
+    events` prints it, and with `--json` its refusal as one JSON object."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        json_option(
+            "print a refusal as one JSON object: its error and the findings it rests on",
+            expose_value=False,
+        )(self)
+
+
+class RecordsGroup(click.Group):
+    """A group of `RecordsCommand` writes."""
+
+    command_class = RecordsCommand
 
 
 @click.group(cls=LeafGroup)
@@ -235,17 +281,19 @@ def package_init(package_path: Path, widget: str | None) -> None:
     is_flag=True,
     help="also report on the package's widgets as its worked examples render",
 )
-def package_check(package_path: Path, render: bool) -> None:
+@json_option("print the findings as one JSON object instead of lines")
+def package_check(package_path: Path, render: bool, as_json: bool) -> None:
     """Check the package as one composed unit.
 
     --render also draws each worked example the package's own widgets declare in
     the host's browser, the one `page check --render` finds, and prints what the
     widget quality checks find there. A finding is advice for the widgets' author
-    and leaves the exit status alone.
+    and leaves the exit status alone. --json prints one object instead, in the
+    shape `page check --json` prints.
     """
     from leaf.packages import cmd_package_check
 
-    sys.exit(cmd_package_check(package_path, render))
+    sys.exit(cmd_package_check(package_path, render, as_json))
 
 
 @package.command("install", short_help="Install a package for selection by name.")
@@ -290,17 +338,20 @@ def package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
 @click.option(
     "--render", is_flag=True, help="also check the rendered page in the host's browser"
 )
-def check(dir: str, render: bool) -> None:
+@json_option("print the findings as one JSON object instead of lines")
+def check(dir: str, render: bool, as_json: bool) -> None:
     """Check PAGE/index.html.
 
     Runs deterministic markup checks. --render also checks the drawn page in the
     host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
     CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
-    A host with no browser gets a note in place of each browser check.
+    A host with no browser gets a note in place of each browser check. --json prints
+    one object instead: the exit status, every finding with its code, element,
+    measured values and severity, and what each browser check ran in.
     """
     from leaf.validation.command import cmd_check
 
-    sys.exit(cmd_check(resolve_dir(dir), render))
+    sys.exit(cmd_check(resolve_dir(dir), render, as_json))
 
 
 @page.command()
@@ -374,7 +425,9 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     cmd_page_state(resolve_dir(dir), target, after=after, limit=limit)
 
 
-@page.command(short_help="Stamp the current source as the next version.")
+@page.command(
+    cls=RecordsCommand, short_help="Stamp the current source as the next version."
+)
 @click.argument("dir", metavar="PAGE")
 @click.option("--text", help="changelog text (default: stdin)")
 @click.option(
@@ -464,7 +517,10 @@ def picture(dir: str, message: str) -> None:
     sys.exit(cmd_picture(resolve_dir(dir), message))
 
 
-@page.command(short_help="Report a state change onto a page widget, as a worker.")
+@page.command(
+    cls=RecordsCommand,
+    short_help="Report a state change onto a page widget, as a worker.",
+)
 @click.argument("dir", metavar="PAGE")
 @click.argument("widget", metavar="WIDGET")
 @click.argument("verb", metavar="VERB")
@@ -529,12 +585,7 @@ def events(dir: str, after: int, follow: bool) -> None:
     multiple=True,
     help="Select an observation type; repeat to select several.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    help="Print complete reconstructed records as JSON lines.",
-)
+@json_option("Print complete reconstructed records as JSON lines.")
 def interactions(
     dir: str,
     session: str | None,
@@ -628,7 +679,9 @@ def delivery_ack(delivery_id: str) -> None:
     cmd_delivery_ack(delivery_id)
 
 
-@cli.group(short_help="Open, answer, edit, summarize, or resolve a thread.")
+@cli.group(
+    cls=RecordsGroup, short_help="Open, answer, edit, summarize, or resolve a thread."
+)
 def thread() -> None:
     """Open and answer threads as the agent, and maintain them.
 
@@ -734,7 +787,7 @@ def serve_flags(command):
     it spawns, so one spelling is what keeps the pair from drifting."""
     for option in (
         click.option(
-            "--standing",
+            "--persistent",
             is_flag=True,
             help="decline the session claim, so the server outlives this session "
             "and only `leaf server stop` ends it — for a page kept up across "
@@ -754,18 +807,18 @@ def serve_flags(command):
 @server.command(short_help="Start a page's server and print its URL.")
 @click.argument("dir", metavar="PAGE")
 @serve_flags
-def start(dir: str, host: str | None, standing: bool) -> None:
+def start(dir: str, host: str | None, persistent: bool) -> None:
     """Start a page's server and print its URL.
 
     Returns once the server and this harness's watcher are ready; the server
     itself keeps running in a session of its own. `leaf server stop` takes one
     down, and a session server goes down with the session that claimed it
     besides. A page already served reconnects delivery and prints that server's
-    URL. `--standing` claims no page and prepares no agent delivery.
+    URL. `--persistent` claims no page and prepares no agent delivery.
     """
     from leaf.hosting import claim_and_start
 
-    with claim_and_start(resolve_dir(dir), host, standing) as started:
+    with claim_and_start(resolve_dir(dir), host, persistent) as started:
         pass
     print(json.dumps({"url": started.url}))
     print(started.note, file=sys.stderr)
@@ -779,7 +832,7 @@ def start(dir: str, host: str | None, standing: bool) -> None:
     is_flag=True,
     help="serve on loopback for this command only, without claiming the page",
 )
-def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
+def run(dir: str, host: str | None, persistent: bool, temporary: bool) -> None:
     """Serve a page in the foreground, printing its URL and running until stopped.
 
     Run this in a terminal of your own to hold a page up where you can watch it.
@@ -794,13 +847,13 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
     release_on_termination()
     page_dir = resolve_dir(dir)
     if temporary:
-        if standing:
-            raise click.UsageError("choose --temporary or --standing")
+        if persistent:
+            raise click.UsageError("choose --temporary or --persistent")
         if host:
             raise click.UsageError("--temporary is loopback-only; omit --host")
         cmd_serve_temporary(page_dir)
         return
-    cmd_serve(page_dir, host, standing, harness=session_harness(), acquire=True)
+    cmd_serve(page_dir, host, persistent, harness=session_harness(), acquire=True)
 
 
 @server.command("_serve", hidden=True)
@@ -814,7 +867,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
 def _serve(
     dir: str,
     host: str | None,
-    standing: bool,
+    persistent: bool,
     revive: bool,
     acquire: bool,
     claim: str | None,
@@ -835,7 +888,7 @@ def _serve(
         cmd_serve(
             resolve_dir(dir),
             host,
-            standing,
+            persistent,
             revive,
             harness=harness_from_argument(harness),
             handshake=answer,
@@ -988,7 +1041,10 @@ def _reply_options(command):
     return command
 
 
-@cli.group(short_help="Reply to an update by the reference its delivery gave.")
+@cli.group(
+    cls=RecordsGroup,
+    short_help="Reply to an update by the reference its delivery gave.",
+)
 def response() -> None:
     """Reply to a user update with the reference its delivery printed as
     `answer.ref`."""
@@ -1112,7 +1168,9 @@ def thread_resolve(dir: str, thread: str) -> None:
     _print_records(cmd_resolve(resolve_dir(dir), thread))
 
 
-@cli.group(short_help="Open or end to-dos, and start work on your Tasks.")
+@cli.group(
+    cls=RecordsGroup, short_help="Open or end to-dos, and start work on your Tasks."
+)
 def task() -> None:
     """Open and end to-dos, and say which of your Tasks you are working on.
 
@@ -1147,7 +1205,7 @@ def task_open(dir: str, subject: str, title: str, owner: str) -> None:
     the to-do is on the user: it ends at their Done, and you can end it too. Its id is
     the printed record's `id`. In a thread, the reply that promises work opens it
     (`--todo`), and one that asks the user is their ask (`--ask`)."""
-    from leaf.tasks import cmd_open
+    from leaf.todos import cmd_open
 
     _print_records(cmd_open(resolve_dir(dir), subject, title, owner))
 
@@ -1166,7 +1224,7 @@ def task_start(dir: str, item: str, text: str) -> None:
     beside the update or to-do and in the banner. Your answer to the update, or the
     to-do's end, ends the start. If your turn ends first, the item reads stalled
     until you answer it or start it again."""
-    from leaf.tasks import cmd_start
+    from leaf.todos import cmd_start
 
     _print_records(cmd_start(resolve_dir(dir), item, text))
 
@@ -1179,9 +1237,10 @@ def task_start(dir: str, item: str, text: str) -> None:
 def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     """End TODO with OUTCOME. DETAIL says where the result is, such as the
     version or reply holding it, or why there is none. TODO may be a to-do on
-    either side. A prose ask's id (`reply:<message-id>`)
-    withdraws that request without creating a user answer. Widget asks end
-    through their declared state or an authored withdrawal."""
-    from leaf.tasks import cmd_end
+    either side. A prose ask's id (`reply:<message-id>`) ends that request
+    without creating a user answer: `done` records it answered elsewhere, DETAIL
+    saying where, and `dropped` records it withdrawn. Widget asks end through
+    their declared state or an authored withdrawal."""
+    from leaf.todos import cmd_end
 
     _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))

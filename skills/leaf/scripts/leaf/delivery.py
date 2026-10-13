@@ -3,7 +3,7 @@
 A delivery is transport-independent input: one or more complete page batches,
 each preserving the page's monotonic event order. Thread membership is
 context, not a partition key, and response requirements are a snapshot of the
-standing projection at capture. Response commands validate the current page
+current projection at capture. Response commands validate the current page
 again when they write, so this snapshot never becomes settlement authority.
 Receipt validates the current receiver and captured event identities under the
 page transaction before advancing its cursor. Pickup records harness acceptance or
@@ -25,7 +25,7 @@ stands and when it clears. While it stands, no other delivery can reserve the
 address, the turn's final message commits as the reply, and failure receipts and
 other provider finals are refused or write nothing. A direct `leaf response reply` still commits at once,
 and the turn's final then yields to it. `writer` is the hint captured at freeze;
-only a standing reservation decides who writes. Neither changes the answer's
+only an open reservation decides who writes. Neither changes the answer's
 operation: reply and markup answers mean the same on every transport.
 
 Freeze emits an exact `answer.ref`, qualified by delivery, page batch and input.
@@ -35,7 +35,7 @@ of the page, such as a refusal naming the input a thread owes, recovers the ref
 without the envelope's id; an input no receipt has carried has none, and nothing
 mints one outside a delivery. Direct authors and provider
 finals resolve it through `response_address` before the rich durable reply writer
-rechecks the captured logical owner, exact input and standing obligation under the
+rechecks the captured logical owner, exact input and open obligation under the
 page lock. An address may be forwarded to a worker without changing its own
 author identity; another session's claim supersedes its authorization even after
 release or end. The owning session's process restart preserves it.
@@ -52,7 +52,7 @@ from pathlib import Path
 from typing import Literal
 from xml.etree import ElementTree
 
-from .files import read_json
+from .files import list_revisions, read_json
 from .harness import session_harness
 from .machine import state_home
 from .refusals import Refused
@@ -211,37 +211,44 @@ def batch_data(
     from .revision_artifact import active_enclosing
     from .thread_context import (
         batch_threads,
+        effective_thread_events,
         thread_memberships,
         thread_names,
-        thread_structure,
         thread_widgets,
     )
 
     registry = _registry(page_dir)
     events = transaction.events
     within = active_enclosing(page_dir)
-    names = thread_names(events)
+    available_revisions = list_revisions(page_dir)
+    effective_events = effective_thread_events(events, available_revisions)
+    words = GestureWords(
+        effective_events,
+        registry,
+        revisions_on_disk(page_dir),
+        available_revisions=available_revisions,
+    )
     memberships = thread_memberships(
-        events,
-        names,
-        thread_widgets(thread_structure(events), names),
+        effective_events,
+        thread_names(effective_events),
+        thread_widgets(words.thread.structure, thread_names(effective_events)),
         within,
     )
     if responses is None:
         responses = current_responses(page_dir, events)
     revisions = {
         revision["id"]: revision
-        for thread in build_threads(events, within).values()
+        for thread in build_threads(effective_events, within).values()
         for revision in thread["revisions"]
     }
     by_id = {event["id"]: event for event in events}
-    words = GestureWords(events, registry, revisions_on_disk(page_dir))
-
+    effective_by_id = {event["id"]: event for event in effective_events}
     captured = []
     for event in batch:
+        effective_event = effective_by_id[event["id"]]
         threads = memberships.get(event["id"], [])
         entry = {
-            **event,
+            **effective_event,
             "subject": _subject(event, threads, by_id),
             "threads": threads,
         }
@@ -250,7 +257,7 @@ def batch_data(
         entry.pop("attempt", None)
         # What an element says is a registry's word, and a page whose active layer
         # does not read is not read for its words at all.
-        if registry is not None and (says := words.says(event)):
+        if registry is not None and (says := words.says(effective_event)):
             entry["says"] = says
         if revision := revisions.get(event["id"]):
             # The thread's digest already reads the new wording; the agent answering
@@ -266,7 +273,11 @@ def batch_data(
         "page": str(page_dir),
         "claim": transaction.delivery_owner,
         "through_seq": max(event["seq"] for event in batch),
-        "threads": batch_threads(events, batch, within),
+        "threads": batch_threads(
+            effective_events,
+            [effective_by_id[item["id"]] for item in batch],
+            within,
+        ),
         "events": captured,
     }
 
@@ -723,7 +734,7 @@ def receive_batch(
         if not may_receive(page.claim, session_id):
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
         if refusal := write_refusal(page.page_dir):
-            raise ReceiptRefused(refusal)
+            raise ReceiptRefused(str(refusal))
         expected = {event["seq"]: event["id"] for event in batch["events"]}
         delivered = {event["seq"]: event for event in page.events}
         if not expected or any(

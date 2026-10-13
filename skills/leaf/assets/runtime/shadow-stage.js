@@ -18,7 +18,7 @@
    The root is infrastructure owned here, not a template render container. Stage a
    concrete container and render templates inside it; retaining that container across
    stage updates keeps Lit's markers, native editors, and directive lifetimes intact. */
-import { SHADOW_STARTUP_CSS, shadowRules } from "./shadow.js";
+import { SHADOW_STARTUP_CSS, shadowRulesFor } from "./shadow.js";
 import {
   annotationMarkSheets,
   constructSheet,
@@ -41,7 +41,7 @@ const widgetSheets = new Map();
 export function registerWidgetStyles(name, text) {
   const existing = widgetSheets.get(name);
   if (existing) return existing;
-  const sheet = constructSheet(inBaseLayer(text), name);
+  const sheet = constructSheet(inBaseLayer(text));
   widgetSheets.set(name, sheet);
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   for (const root of liveStages())
@@ -66,7 +66,7 @@ export function shadowStage(host, nodes) {
   watchLayers(root);
   watchStandingIn(root);
   const style = document.createElement("style");
-  style.textContent = SHADOW_STARTUP_CSS + shadowRules;
+  style.textContent = SHADOW_STARTUP_CSS + shadowRulesFor(host);
   // Fragment hydration can add a sheet while the user uses an existing control.
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
   setChildren(root, [style, ...nodes]);

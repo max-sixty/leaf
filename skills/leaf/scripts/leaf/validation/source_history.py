@@ -10,7 +10,8 @@ from typing import NamedTuple
 
 from leaf.anchor_capture import resolve_quote
 from leaf.events import build_threads
-from leaf.files import list_revisions
+from leaf.files import list_revisions, revision_orders
+from leaf.findings import Finding
 from leaf.passages import SourceReading, page_passages
 from leaf.projection import (
     generated_children,
@@ -27,6 +28,9 @@ class PredecessorReading(NamedTuple):
     """The active and predecessor documents this exact source is checked against."""
 
     active: int
+    # A changed source gets an identity above every committed marker, including
+    # obsolete captures; readable active/predecessor identities can have gaps.
+    candidate: int
     committed_active: bool
     # The candidate's captured artifact is the active revision's: its transition
     # was checked when that revision activated.
@@ -36,14 +40,10 @@ class PredecessorReading(NamedTuple):
     # document where there is none.
     previous: SourceReading
 
-    @property
-    def candidate(self) -> int:
-        return self.active if self.unchanged else self.active + 1
-
 
 # The predecessor of a first version or an unreadable source.
 EMPTY_READING = SourceReading(SourceDocument(""), {})
-NO_PREDECESSOR = PredecessorReading(0, False, False, 0, EMPTY_READING)
+NO_PREDECESSOR = PredecessorReading(0, 1, False, False, 0, EMPTY_READING)
 
 
 def revision_reanchors(
@@ -52,7 +52,7 @@ def revision_reanchors(
     revision: PredecessorReading,
     *,
     candidate_revision: int,
-) -> tuple[dict, list[str]]:
+) -> tuple[dict, list[Finding]]:
     """Relocate open threads whose authored anchor no longer survives.
 
     A surviving section is a precise fallback the document supplies. A dropped
@@ -121,9 +121,15 @@ def revision_reanchors(
         if not missing:
             continue
         moves[thread["id"]] = {"section": section} if surviving else None
-        destination = f"section {section!r}" if surviving else "a detached thread"
         advice.append(
-            f"open thread {thread['id']} anchor no longer resolves; activation will move it to {destination}"
+            Finding(
+                "relocated-anchor",
+                values={
+                    "thread": thread["id"],
+                    "section": section if surviving else None,
+                },
+                severity="advice",
+            )
         )
     return moves, advice
 
@@ -155,6 +161,9 @@ def predecessor_reading(
     )
     return PredecessorReading(
         active,
+        active
+        if same_as_active and artifact is not None
+        else max(revision_orders(page_dir), default=0) + 1,
         committed_active,
         bool(active and same_as_active and artifact is not None),
         predecessor,

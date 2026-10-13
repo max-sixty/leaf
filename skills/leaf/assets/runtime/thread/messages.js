@@ -31,7 +31,7 @@ import {
   releaseMessageEdit,
   watchRewrite,
 } from "./message-edit.js";
-import { tokenEntry } from "../registry.js";
+import { reactionVocabulary } from "../registry.js";
 import { readAttachedMedia, writeAttachedMedia } from "../media.js";
 import {
   rememberAuthoredParents,
@@ -97,7 +97,7 @@ function proseReading(message) {
 /** @param {import("../../../../../build/browser/domain.ts").Message | Extract<import("../../../../../build/browser/domain.ts").Command, {kind: "comment" | "reply"}>} message @returns {string} */
 export function messageText(message) {
   if (message.token) {
-    const token = tokenEntry(message.token);
+    const token = reactionVocabulary()[message.token];
     return `${token?.glyph ?? ""} ${message.token}`.trim();
   }
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
@@ -106,16 +106,16 @@ export function messageText(message) {
 // A rollback can withdraw an authored island, but neither retry nor a prose edit
 // may instantiate it twice. Its native identity is independent of the prose cache.
 const authoredMessages = new Map();
-export function prepareAuthoredMessage(message, thread) {
+export function prepareAuthoredMessage(message, thread, context) {
   const key = message.attempt ?? message.id;
   if (typeof thread !== "string" || !thread)
     throw new TypeError("an authored message needs its thread's id");
   if (!authoredMessages.has(key)) {
-    const template = document.createElement("template");
-    template.innerHTML = message.markup ?? "";
+    const template = { content: context.prepare(message.markup ?? "") };
     rememberAuthoredParents(template.content);
     const descriptors = stageWidgetDescriptors(template.content, {
       kind: "thread",
+      revision: message.revision,
       thread,
       message: message.id,
     });
@@ -128,7 +128,7 @@ export function prepareAuthoredMessage(message, thread) {
       message: message.id,
       body: {
         text,
-        document: { thread, message: message.id },
+        document: { thread, message: message.id, revision: message.revision },
       },
       authored,
       descriptors,
@@ -140,7 +140,8 @@ export function prepareAuthoredMessage(message, thread) {
   for (const descriptor of prepared.descriptors.descriptors.values())
     if (
       descriptor.document.thread !== thread ||
-      descriptor.document.message !== message.id
+      descriptor.document.message !== message.id ||
+      descriptor.document.revision !== message.revision
     )
       throw new TypeError("an authored message changed its frozen document identity");
   return prepared;
@@ -154,10 +155,10 @@ const authoredMessage = (message) => {
 const FAILURE_LABEL = "Not answered";
 export function messageReading(
   message,
-  { panel, nativeAuthored = false, reactions, workflows },
+  { panel, nativeAuthored = false, reactions, workflows, leaves = null },
 ) {
   const workflow = strongestWorkflow(workflows);
-  const token = isReaction(message) ? tokenEntry(message.token) : null;
+  const token = isReaction(message) ? reactionVocabulary()[message.token] : null;
   const kind = isReaction(message)
     ? "reaction"
     : message.suggestion
@@ -167,14 +168,21 @@ export function messageReading(
   return Object.freeze({
     key: messageKey(message),
     id: message.id,
+    revision: message.revision,
     // A reply still streaming, which the answer it stands for completes in place.
     provisional: Boolean(message.provisional),
+    // The agent's progress message (`ephemeral`): a step of work in hand, which the
+    // thread shows as its working message until an answer folds it (thread-card.js).
+    progress: Boolean(message.ephemeral),
+    // What an answer leaves standing, while it stands: "Waiting on me" for the prose ask the
+    // user owes, "To-do open" for work it promised and has not ended (thread-card.js).
+    leaves,
     version: message.content_version,
     seq: moved(message).seq,
     unread: message.unread,
     attempt: message.attempt ?? null,
     author: message.author,
-    by: message.author === "agent" ? message.agent : "You",
+    by: message.author === "agent" ? message.agent : "Me",
     timestamp: message.ts,
     age: ago(message.ts),
     // What the message said before its last rewrite is the edited mark's to tell, since
@@ -312,6 +320,11 @@ export class MessageView {
         ><span class="lf-msg-meta"
           ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
           ${
+            model.leaves
+              ? html`<span class="lf-msg-leaves">${model.leaves}</span>`
+              : nothing
+          }
+          ${
             model.failure
               ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
               : nothing
@@ -330,7 +343,7 @@ export class MessageView {
             this.#kept
               ? html`<span
                   class="lf-msg-kept"
-                  title="Your rewrite is kept; open it to save or cancel"
+                  title="The rewrite is kept; open it to save or cancel"
                   >unsaved edit</span
                 >`
               : nothing
@@ -362,6 +375,7 @@ export class MessageView {
         ${this.#header}
         <div
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
+          data-lf-vocabulary=${model.nativeAuthored && model.body.authored ? model.revision : nothing}
         >
           ${editing ? this.#editor.node : this.#body(model.body)}
           ${

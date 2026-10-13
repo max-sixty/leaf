@@ -2,32 +2,27 @@
  * Pages own their task and worker vocabulary through $work.widgets; this reader
  * owns progress, assignments, report age and stopped-work meaning independently
  * of how a dashboard composes those facts. */
-import { declarationFor, elementsDeclaring, layerFact, registry } from "./registry.js";
-import { readQuestions } from "./questions/model.js";
+import { declarationFor, registryFor } from "./registry.js";
+import { readAsks } from "./asks/model.js";
+import { asksIn } from "./asks/place.js";
+import { elementById } from "./passages.js";
 import { quietSince } from "./presence.js";
 import { quoted } from "./widget-descriptors.js";
 import { saidAt, reportSequence } from "./reports.js";
 import { widgetController } from "./widget-controller.js";
 import { addressableName } from "./addressable-names.js";
 
-const widgets = () => layerFact("$work")?.widgets ?? {};
-
-function specs(role) {
-  return Object.entries(widgets()).filter(([, spec]) => spec?.role === role);
-}
-
 export function workRole(element, role = null) {
-  const spec = widgets()[element?.localName];
+  const spec = registryFor(element).$work?.widgets?.[element?.localName];
   return spec && (!role || spec.role === role) ? spec : null;
 }
 
 export function workElements(root, role, { direct = false } = {}) {
-  const tags = new Set(specs(role).map(([tag]) => tag));
   const candidates = [...root.querySelectorAll("*")];
   const boundary = workAncestor(root, "scope");
   return candidates.filter(
     (element) =>
-      tags.has(element.localName) &&
+      workRole(element, role) &&
       workAncestor(element, "scope") === boundary &&
       (!direct || workAncestor(element.parentElement) === root),
   );
@@ -45,7 +40,7 @@ export function workAncestor(element, role) {
 function stateReport(element, role) {
   const verb = stateVerb(element, role);
   const spec = declarationFor(element, "x-state")[verb];
-  return registry.$states[element.localName][verb].writer === "agent"
+  return registryFor(element).$states[element.localName][verb].writer === "agent"
     ? [verb, spec]
     : [null, null];
 }
@@ -112,17 +107,20 @@ const done = (goal, read) => {
   return role.done.includes(roleState(goal, "goal", read));
 };
 
+// The elements of the asks waiting on the user that `goal` holds (`asksIn`) and owns
+// itself: in its scope, under no nearer goal, and not a goal.
 function interventions(goal, open) {
   const scope = workAncestor(goal, "scope");
-  return elementsDeclaring(goal, "x-awaits").filter(
-    (item) =>
-      item !== goal &&
-      !workRole(item, "goal") &&
-      workAncestor(item, "scope") === scope &&
-      workAncestor(item.parentElement, "goal") === goal &&
-      !quoted(item) &&
-      open.has(item.id),
-  );
+  return asksIn(goal, open)
+    .map((ask) => elementById(ask.source.id))
+    .filter(
+      (item) =>
+        item !== goal &&
+        !workRole(item, "goal") &&
+        workAncestor(item, "scope") === scope &&
+        workAncestor(item.parentElement, "goal") === goal &&
+        !quoted(item),
+    );
 }
 
 function stopped(goal, open, nested, read) {
@@ -130,7 +128,7 @@ function stopped(goal, open, nested, read) {
   if (read(goal).thread.heldBy) return true;
   if (nested.length) return true;
   if (!role.stopped.includes(roleState(goal, "goal", read))) return false;
-  if (open.has(goal.id)) return true;
+  if (open.some((ask) => ask.source.id === goal.id)) return true;
   const children = directWorkElements(goal, "goal");
   return children.length
     ? children.some((child) => stopped(child, open, interventions(child, open), read))
@@ -167,7 +165,7 @@ function goalView(goal, open, read) {
     leaves: progressLeaves,
     finished: progressLeaves.filter((leaf) => done(leaf, read)).length,
     liveWorkers,
-    openInterventions: nested.filter((item) => open.has(item.id)),
+    openInterventions: nested,
     stoppedAt:
       reportedStoppedAt ?? (role.stoppedAt ? goal.getAttribute(role.stoppedAt) : null),
   };
@@ -179,11 +177,9 @@ export function readWork(scope) {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
-  const open = new Set(
-    readQuestions()
-      .user.filter((question) => question.source.kind === "widget")
-      .map((question) => question.source.id),
-  );
+  // An ask stops work only while it waits on the user; one they left with the agent
+  // does not (asks/place.js).
+  const open = readAsks().user.filter((ask) => ask.source.kind === "widget");
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workElements(scope, "worker").map((worker) =>

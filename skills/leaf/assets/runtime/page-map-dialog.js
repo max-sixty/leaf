@@ -40,7 +40,7 @@ import {
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { coarsePointer } from "./pointer.js";
+import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
 import { closeControl, el, searchField } from "./widget-elements.js";
 import { keepsHidden, keepsText } from "./keeps.js";
@@ -64,6 +64,7 @@ import { versionBtn } from "./version-picker.js";
 import { marginMapGroups } from "./margin-map-model.js";
 
 export const mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
+let mapCount = 0;
 mapButton.type = "button";
 mapButton.title = "Open Page Map";
 registerBannerControl({
@@ -71,6 +72,11 @@ registerBannerControl({
   control: mapButton,
   rank: BANNER_CONTROL_RANK.map,
   present: false,
+  row: {
+    label: "Page Map",
+    value: () => String(mapCount),
+    group: "navigate",
+  },
 });
 
 const dialog = document.createElement("dialog");
@@ -131,7 +137,7 @@ export function createPageMapDialog({
     releaseAnnotations?.(entry);
     const destination = annotationFocus?.(entry);
     // A location without a presented annotation lands on its exact authored target.
-    // Commands that open a Thread or Question retain their own navigation capability.
+    // Commands that open a Thread or ask retain their own navigation capability.
     closeLayer(leavePageMap, () =>
       !destination && targetFor(entry)?.isConnected
         ? focusDestination(targetFor(entry), "move")
@@ -170,7 +176,7 @@ export function createPageMapDialog({
       contributionSource(offered).registration.activate(record.key, {
         origin: control,
         surface: "map",
-        input: event.detail === 0 ? "keyboard" : "pointer",
+        input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer",
       });
       nextRender(() => {
         if (!currentIntent()) return;
@@ -191,7 +197,7 @@ export function createPageMapDialog({
     contributionSource(offered).registration.activate(record.key, {
       origin: control,
       surface: "map",
-      input: event.detail === 0 ? "keyboard" : "pointer",
+      input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer",
     });
   }
 
@@ -339,6 +345,7 @@ export function createPageMapDialog({
   function renderPageMapDialog(nextEntries) {
     entries = nextEntries;
     const label = `Map (${entries.length})`;
+    mapCount = entries.length;
     showBannerControl(mapButton, entries.length > 0);
     keepsText(mapButton, label);
     if (dialog.open) renderSheet();

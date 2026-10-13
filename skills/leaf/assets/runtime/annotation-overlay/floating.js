@@ -11,8 +11,8 @@
 
    `floatingPlacement` is one box's lifecycle around those two calls: it watches the
    element the box stands against, re-arming when that element or its observation
-   contract changes, and numbers each
-   placement so an answer computed for an earlier one is dropped. A placement lands in
+   contract changes, including attribute-driven visibility changes in its composed
+   ancestry, and numbers each placement so an earlier answer is dropped. A placement lands in
    the microtasks after the rendering pass that asks for it, before the frame paints.
 
    A fixed box stands in the plane of whatever holds it, so the scroll that moves that
@@ -33,11 +33,6 @@
    user's place and caret in it (`move`), only when that graph changes. The frame ignores pointer input;
    each surface's own CSS retains its interaction policy. Without the needed native
    capability, the existing observed placement path invalidates on scroll instead.
-   Every attachment solved in the window plane retains its physical attachment point,
-   carrying sources' measured scroll offsets, and written solver point. The physical
-   point may move less than those scrolls (a sticky boundary), and the solver may move
-   less than that point (a viewport constraint). Readers can distinguish both from
-   unrelated movement of the surface or its children.
    In a region's plane the box is anchored to the region's body, the box whose edges
    bound it, which the outer scrolls carry and the region's own scroll does not. The containing frame stays fixed,
    so native focus never scrolls the page under it.
@@ -49,7 +44,8 @@
    where the boundary shifted the box in, the edge against that boundary. Content that
    grows the box then moves only its free edges, in the layout that grows it. Stood by
    its top-left corner, a box that grows at its left or top would paint grown the wrong
-   way for a frame, until the placement that follows the resize carried it back.
+   way for a frame, until the placement that follows the resize carried it back. A `hold`
+   that carries an inline offset names that axis's edge too (`inline`).
 
    Neither surface stands before the user acts, so the bundle stays off the presentation
    path and loads as soon as the page has presented, as an arrival the page answers for.
@@ -57,6 +53,7 @@
    after a fetch. */
 
 import { afterPresentation } from "../presentation.js";
+import { visibleTargetParts } from "../visible-target-parts.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
 import { anchorElement, anchorFor, anchorHolder, anchorName } from "../css-anchors.js";
 import { move } from "../dom-move.js";
@@ -92,7 +89,7 @@ export async function positioningScale({ elements, platform, strategy }) {
 // that space. Nothing where a transform, filter, or containment between the box and the
 // body makes some box other than the viewport its containing block, since an anchor
 // outside that block cannot position it.
-const anchorAt = (reference, context, origins) => ({
+const anchorAt = (reference) => ({
   name: "anchorAt",
   async fn(state) {
     const { rects, elements, platform } = state;
@@ -107,9 +104,6 @@ const anchorAt = (reference, context, origins) => ({
           x: rects.reference.x - client.left / scale.x,
           y: rects.reference.y - client.top / scale.y,
         },
-        scrollOffsets: await referenceScrolls(context, origins, (element) =>
-          platform.getOffsetParent(element),
-        ),
       },
     };
   },
@@ -141,8 +135,9 @@ function holderOf({ edge, at }, context, overflowAncestors) {
 // The edges that hold the box where the answer stands it, one per axis, with the box's
 // size and its containing block's, which an inset on a right or bottom edge is measured
 // from. It runs after the surface's middleware, so it reads the box as sized and shifted.
-// A surface middleware named `hold` that keeps a block edge still reports it as `edge`;
-// an edge the boundary shifted the box against outranks it.
+// A surface middleware named `hold` that keeps a block edge still reports it as `edge`,
+// and one that carries an inline offset its inline edge as `inline`; an edge the
+// boundary shifted the box against outranks either.
 const held = {
   name: "held",
   async fn(state) {
@@ -154,6 +149,7 @@ const held = {
         ? { x: aligned("left", "right"), y: side === "top" ? "bottom" : "top" }
         : { x: side === "left" ? "right" : "left", y: aligned("top", "bottom") };
     edges.y = middlewareData.hold?.edge ?? edges.y;
+    edges.x = middlewareData.hold?.inline ?? edges.x;
     const shifted = middlewareData.shift ?? {};
     if (Math.abs(shifted.x ?? 0) >= 0.5) edges.x = shifted.x < 0 ? "right" : "left";
     if (Math.abs(shifted.y ?? 0) >= 0.5) edges.y = shifted.y < 0 ? "bottom" : "top";
@@ -206,27 +202,6 @@ export function floatingGeometry(contexts) {
       if (anchor) anchors.set(anchor, anchor.getBoundingClientRect());
     }
   return { anchors, origins: scrollOrigins(contexts) };
-}
-
-// Scroll sources that carry the physical reference. A fixed descendant skips to
-// its containing block, as Floating UI resolves it, retaining that block's outer
-// scrolls and any inner scroll that carries words inside the fixed box itself.
-async function referenceScrolls(context, origins, getOffsetParent) {
-  const offsets = [];
-  for (let at = context; at;) {
-    if (at instanceof Element) {
-      const origin = origins.get(at);
-      if (origin && at !== context)
-        offsets.push(Object.freeze({ source: at, left: origin.x, top: origin.y }));
-      if (getComputedStyle(at).position === "fixed") {
-        const block = await getOffsetParent(at);
-        at = block === window ? null : block;
-        continue;
-      }
-    }
-    at = renderedParent(at);
-  }
-  return Object.freeze(offsets);
 }
 
 export function floatingPlacement({ floating, update }) {
@@ -294,6 +269,7 @@ export function floatingPlacement({ floating, update }) {
   let observer = null;
   let tenure = Object.freeze({});
   let stopWatching = null;
+  let lastAnchorStand = null;
   // Writes the held edges' insets and clears the free ones.
   const inset = (insets) => {
     for (const edge of INSETS)
@@ -302,6 +278,7 @@ export function floatingPlacement({ floating, update }) {
   };
   // Each held edge's inset from the same edge of the box's containing block.
   const placedAt = ({ x, y, middlewareData }) => {
+    lastAnchorStand = null;
     const { edges, width, height, block } = middlewareData.held;
     frame.style.removeProperty("position-anchor");
     inset({
@@ -311,19 +288,49 @@ export function floatingPlacement({ floating, update }) {
   };
   // Each held edge's inset from the anchor's start edge on its axis, which `anchor()`
   // resolves as an inset on whichever side the property names. An anchor lost between
-  // placements (a row withheld, a target skipped, its name taken by a revision) stands
-  // the box off screen, as the rows fall back, until the placement that follows finds
-  // it another.
+  // placements retains the last solved spot until its owner repositions or withdraws
+  // the box. Replacing a target must not send an active editor off screen between
+  // the native anchor disappearing and the next asynchronous solve.
   const anchoredAt =
     (anchor, at) =>
     ({ x, y, middlewareData }) => {
-      const { edges, width, height } = middlewareData.held;
-      const from = (side, length) => `calc(anchor(${side}, -9999px) + ${px(length)})`;
+      const { edges, width, height, block } = middlewareData.held;
+      const lengthX = atLayoutPrecision(
+        edges.x === "left" ? x - at.x : at.x - x - width,
+      );
+      const lengthY = atLayoutPrecision(
+        edges.y === "top" ? y - at.y : at.y - y - height,
+      );
+      // Scrolling carries the anchor itself. Re-solving an unchanged offset must
+      // not write a new fallback position and repaint the page's highlights.
+      if (
+        lastAnchorStand?.frame === frame &&
+        lastAnchorStand.anchor === anchor &&
+        lastAnchorStand.edgeX === edges.x &&
+        lastAnchorStand.edgeY === edges.y &&
+        lastAnchorStand.lengthX === lengthX &&
+        lastAnchorStand.lengthY === lengthY
+      )
+        return;
+      const from = (side, length, fallback) =>
+        `calc(anchor(${side}, ${px(fallback)}) + ${px(length)})`;
       frame.style.positionAnchor = anchorName(anchor);
       inset({
-        [edges.x]: from("left", edges.x === "left" ? x - at.x : at.x - x - width),
-        [edges.y]: from("top", edges.y === "top" ? y - at.y : at.y - y - height),
+        [edges.x]: from(
+          "left",
+          lengthX,
+          edges.x === "left" ? at.x : block.width - at.x,
+        ),
+        [edges.y]: from("top", lengthY, edges.y === "top" ? at.y : block.height - at.y),
       });
+      lastAnchorStand = {
+        frame,
+        anchor,
+        edgeX: edges.x,
+        edgeY: edges.y,
+        lengthX,
+        lengthY,
+      };
     };
   let stand = placedAt;
   let scrollAnimations = [];
@@ -338,7 +345,39 @@ export function floatingPlacement({ floating, update }) {
       watched = element;
       observer = autoUpdate;
       tenure = Object.freeze({});
-      stopWatching = autoUpdate(reference, floating, update);
+      const stopGeometry = autoUpdate(reference, floating, update);
+      // Visibility can change without moving or resizing a box. Observe the subject's
+      // composed ancestry alongside Floating UI's geometry watch, including while the
+      // surface is withheld. A `display: contents` subject has no box of its own, so its
+      // descendants supply both the visibility reading and the mutations that change it.
+      // Only a changed visibility reading invalidates placement.
+      let visible = visibleTargetParts(element).length > 0;
+      let observesParts = null;
+      const visibility = new MutationObserver(() => {
+        observeVisibility();
+        const next = visibleTargetParts(element).length > 0;
+        if (next === visible) return;
+        visible = next;
+        update();
+      });
+      const observeVisibility = () => {
+        const parts = getComputedStyle(element).display === "contents";
+        if (parts === observesParts) return;
+        visibility.disconnect();
+        visibility.observe(element, {
+          attributes: true,
+          subtree: parts,
+          childList: parts,
+        });
+        for (let at = renderedParent(element); at; at = renderedParent(at))
+          if (at instanceof Element) visibility.observe(at, { attributes: true });
+        observesParts = parts;
+      };
+      observeVisibility();
+      stopWatching = () => {
+        visibility.disconnect();
+        stopGeometry();
+      };
     },
     holdsHome: (home) =>
       frame !== floating && frame.parentElement === home && frame.contains(floating),
@@ -360,7 +399,6 @@ export function floatingPlacement({ floating, update }) {
       const anchoring = CSS.supports("anchor-name", "--lf-anchor");
       const anchor = anchoring ? anchorFor(context) : null;
       const client = reference.getBoundingClientRect();
-      const point = reference.attachmentPoint ?? client;
       const geometry = reference.geometry ?? floatingGeometry([context]);
       const anchorBox = geometry.anchors.get(anchor);
       const { origins } = geometry;
@@ -418,7 +456,7 @@ export function floatingPlacement({ floating, update }) {
       const answer = await computePosition(measured, frame, {
         ...options,
         strategy: "fixed",
-        middleware: [...options.middleware, held, anchorAt(measured, context, origins)],
+        middleware: [...options.middleware, held, anchorAt(measured)],
       });
       if (placement !== epoch) return null;
       // An unchanged native graph keeps following while a solve is in flight. Retire
@@ -474,9 +512,6 @@ export function floatingPlacement({ floating, update }) {
             frame: frameAnchor,
             plane,
             at,
-            reference: Object.freeze({ left: point.left, top: point.top }),
-            scrollOffsets:
-              plane === "window" ? answer.middlewareData.anchorAt.scrollOffsets : null,
           }
         : null;
       return answer;
@@ -490,15 +525,7 @@ export function floatingPlacement({ floating, update }) {
       }
       const { edges, width, height, block } = answer.middlewareData.held;
       const { offset, scale } = answer.middlewareData.anchorAt;
-      const {
-        subject,
-        anchor,
-        frame: frameAnchor,
-        plane,
-        at,
-        scrollOffsets,
-        reference,
-      } = placementProof;
+      const { subject, anchor, frame: frameAnchor, plane, at } = placementProof;
       const point = {};
       for (const [axis, start, coordinate, length, extent] of [
         ["left", "left", "x", width, block.width],
@@ -525,8 +552,6 @@ export function floatingPlacement({ floating, update }) {
           frame: frameAnchor,
           plane,
           tenure,
-          scrollOffsets,
-          reference,
           edges: Object.freeze({ left: edges.x, top: edges.y }),
           point: Object.freeze(point),
           size: Object.freeze({ width: width * scale.x, height: height * scale.y }),
@@ -554,6 +579,7 @@ export function floatingPlacement({ floating, update }) {
     },
     stop() {
       epoch += 1;
+      lastAnchorStand = null;
       for (const animation of scrollAnimations) animation.cancel();
       scrollAnimations = [];
       stopWatching?.();

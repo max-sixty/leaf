@@ -1,10 +1,11 @@
 """Read and prepare one complete authored page fixture.
 
 The source owns its package selection, versions, history, data and media addresses.
-Preparation supplies local companion media and resolves any remaining addresses
-from the checkout's pinned asset tree, or a build's explicit draft tree. Preview,
-publication and render probes share this boundary rather than adding content inputs
-in their callers.
+A product document's markup is read with the parts other sources own composed into it
+(`leaf_dev.docs`). Preparation supplies local companion media and resolves any
+remaining addresses from the checkout's pinned asset tree, or a build's explicit draft
+tree. Preview, publication and render probes share this boundary rather than adding
+content inputs in their callers.
 """
 
 import functools
@@ -24,7 +25,7 @@ from leaf.schema import CURSOR_FILE, MEDIA_DIR, MEDIA_TYPES
 from leaf.state import write_json
 from leaf.structure import SourceDocument
 
-from leaf_dev import ROOT
+from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
     capture_files,
     data_file,
@@ -132,7 +133,28 @@ def publish_media(files: tuple[str, ...]) -> None:
     click.echo(f"  max-sixty/leaf-assets@{revision}")
 
 
-def read_fixture(source: Path) -> PageFixture:
+def authored_markup(path: Path, assets: Path | None = None) -> str:
+    """The markup a builder installs for one authored version: the file as written, and
+    for a product document, with what other sources own composed into it."""
+    markup = path.read_text(encoding="utf-8")
+    if path.parent != docs.DOCS:
+        return markup
+    return docs.compose(path, markup, assets=assets)
+
+
+def composition_inputs(path: Path) -> list[Path]:
+    """The files besides `path` and the asset pin that `authored_markup` reads."""
+    return docs.inputs(path) if path.parent == docs.DOCS else []
+
+
+def read_fixture(
+    source: Path, *, runtime: Path = ROOT, env: dict[str, str] | None = None
+) -> PageFixture:
+    """Read authored companions using the runtime that will consume produced data.
+
+    Source and runtime are independent: a paired preview can share one authored input
+    while each arm supplies its own package producer and matching data contract.
+    """
     seed = seed_log(source)
     files = page_files(source)
     return PageFixture(
@@ -140,7 +162,7 @@ def read_fixture(source: Path) -> PageFixture:
         page_files=files if files.is_dir() else None,
         packages=tuple(source_packages(source)),
         media=media_source(source),
-        data=tuple(data_operations(source)),
+        data=tuple(data_operations(source, runtime=runtime, env=env)),
         versions=tuple(example_versions(source)),
         seed=seed if seed.is_file() else None,
     )
@@ -281,23 +303,20 @@ def prepare_page(
         run_leaf("page", "init", *selection, str(page))
     if fixture.page_files is not None:
         shutil.copytree(fixture.page_files, page / "page", dirs_exist_ok=True)
-    (page / "index.html").write_text(
-        fixture.source.read_text(encoding="utf-8"), encoding="utf-8"
-    )
+    markup = {version: authored_markup(version, assets) for version in fixture.versions}
+    (page / "index.html").write_text(markup[fixture.source], encoding="utf-8")
     if fixture.media.is_dir():
         shutil.copytree(fixture.media, page / "media", dirs_exist_ok=True)
     import_referenced_media(
         page,
-        [version.read_text(encoding="utf-8") for version in fixture.versions],
+        list(markup.values()),
         run_leaf,
         source=fixture.source,
         assets=assets,
     )
     _seed_data(fixture, page, run_leaf)
     for order, version in enumerate(fixture.versions):
-        (page / "index.html").write_text(
-            version.read_text(encoding="utf-8"), encoding="utf-8"
-        )
+        (page / "index.html").write_text(markup[version], encoding="utf-8")
         run_leaf(
             "page",
             "stamp",

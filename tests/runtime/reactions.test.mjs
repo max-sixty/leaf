@@ -1,7 +1,7 @@
 /* Where putting a reply's reaction choices away hands the user back.
 
    The close names its candidates, the bar's field, the control the press stood the user
-   on, and the list's trigger, and hands the user to the first the close leaves standing.
+   on, and the list's trigger, and hands the user to the first the close leaves in place.
    Asked over happy-dom's focus and inline `display`, since it lays nothing out, gives
    `hidden` no style and draws no popover. */
 
@@ -10,8 +10,10 @@ import test from "node:test";
 
 const { createReactionController } = await import("/runtime/reactions.js");
 const { focusDestination, focused } = await import("/runtime/focus.js");
+const { applicationState } = await import("/runtime/semantic-state.js");
 
 test("closing the choices hands the user to a trigger the close itself shows", () => {
+  applicationState.setPhase("ready");
   document.body.replaceChildren();
   const opener = document.createElement("button");
   const trigger = document.createElement("button");

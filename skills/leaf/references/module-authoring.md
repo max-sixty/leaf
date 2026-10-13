@@ -13,6 +13,13 @@ owns element declarations; its ["User state"](packages.md#user-state) and
 state and source contracts. Add or change those declarations when the module needs
 a new capability.
 
+Registry-declared widgets default-export their constructor. Leaf registers it in
+the publication’s vocabulary. Create child widgets with
+`createWidgetElement(owner, tag, Constructor)` from the public API, importing the
+child’s constructor. Each publication retains these constructors and its private
+module dependencies. The installed layer’s runtime and vendor libraries have one
+instance per running document; changing their bytes requires a fresh document.
+
 ## The helper surface
 
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets. A module imports
@@ -65,7 +72,9 @@ a visible error box naming the widget, with `source` beneath it when given, and 
 the failure as the page's error, which `page check` fails on. In a container a template
 renders, the box is a template value, so the next `render` there replaces it. On a
 widget with a shadow stage the box stands in the stage, and the next `shadowStage` call
-replaces it.
+replaces it. `reportFailure(element, error)` sends that report alone, for a part the
+widget shows failed its own way while the rest stands, such as a diff file whose patch
+it cannot draw.
 
 ## Connection lifetimes
 
@@ -131,17 +140,25 @@ cancellation: `Promise.race([work, aborted(signal)])`.
 
 ## Startup and presentation
 
-`body[data-lf-presented]` means the page's first authoritative state, or its deliberate
-offline fallback, is safe for recorded interaction. Authored content is visible before
-then, and Leaf disables its arrival transitions and durable widget actions until the
-stamp. Printed keys pressed earlier are held and reach the page's key handlers after
-the stamp, in order, so neither a package's keys nor its styles need an arrival guard.
+`body[data-lf-presented]` means the page's first authoritative presentation, or its
+deliberate offline fallback, has rendered. Authored content is visible before then,
+and Leaf disables its arrival transitions until the stamp. New comments and drawings
+become available at `body[data-lf-upgraded]`, when the shown document and its anchors
+are ready. Printed keys pressed earlier are held and handed to the command dispatcher
+at upgrade. Ordinary UI commands use the shown document immediately. A scope, row,
+or route that needs an incomplete reading declares `ready()`; rows and routes
+override their scope. A false reading retains a printed key while startup waits
+for saved state. Decision commands queue while saved state is loading; their owner's
+availability still requires a complete reading. Offline presentation discards pending
+keys and ends startup capture; it does not supply saved state. The shortcut bar names commands
+available now; held keys have their own loading feedback. Packages need no arrival guard.
 A package opens a dialog or popover only after the stamp or in response to a user
 gesture; Leaf does not defer top-layer UI during startup. A declared `x-shadow` widget
 gets the same arrival protection when it builds its shadow root with `shadowStage`
 ("Shadow stages and styles").
 
-Startup dispatches two events on `document`. `PRESENTATION` fires once, in the turn the
+Startup dispatches events on `document`. `UPGRADE` fires when comment capture
+is ready. `PRESENTATION` fires once, in the turn the
 page's complete authoritative layout first stands: UI drawn from element geometry reads
 it there synchronously for its first paint, then follows ordinary layout signals.
 `PAGE_INTERFACE` fires at startup and at each in-place revision activation; UI derived
@@ -383,7 +400,8 @@ tag, or `undefined`. `elementsDeclaring(root, key, {direct})` lists the elements
 `root`, or only its children with `direct: true`, whose entries declare `key`.
 `matchesWhen(element, when)` says whether the element's attributes satisfy a
 declaration's `when`, as an `x-thread-seat` declaration's `when` selects its elements.
-`layerFact(name)` returns a copy of a layer-wide `$` declaration, such as `$reactions`.
+`layerFact(owner, name)` returns a copy of a layer-wide `$` declaration, such as
+`$reactions`, from the element or document owner's publication.
 
 ### Following a reference
 
@@ -426,7 +444,7 @@ its indication every animation frame; the driver's own narration says what the m
 means. An indication is browser state, like hover: the log never records it, and a new
 revision does not carry it. A widget whose parts have a face of their own styles
 `[data-lf-indicated]` on them; the default is an accent outline. A target that
-re-renders what a key addresses calls `layoutChanged(this)`, and every standing
+re-renders what a key addresses calls `layoutChanged(this)`, and every current
 indication resolves again.
 
 ## The widget controller
@@ -460,7 +478,8 @@ surfaces keep their own lifetimes.
 
 `dispatch({kind: "action", verb, detail, attempt?})` and
 `dispatch({kind: "undo", target})` return `null` when the newest reading refuses the
-command, otherwise `{reading, delivery}`. The returned reading already holds the
+command, otherwise `{reading, delivery}`; an action whose verb is not one of the
+reading's `actions` throws. The returned reading already holds the
 optimistic result; `delivery` later yields the admitted event or `null`, and a refusal
 restores authoritative state. Undo targets only a stable `id` or `attempt` from the
 current entry's candidates. The server remains final admission for every command.
@@ -516,7 +535,7 @@ returns concise words for that answer in the Questions panel. `value` is the ask
 `answer.value`; `element` supplies authored markup such as option labels. Read nothing
 the module renders; Leaf collapses the words' whitespace. A widget without this
 formatter supplies no answer wording, and its typed answer stays available through
-`readQuestions()`.
+`readAsks()`.
 
 ## Data subscriptions and projections
 
@@ -688,6 +707,7 @@ Leaf checks each row as it enters the register and throws for a malformed one.
 | `keys` | Bindings in canonical spelling (`"a"`, `"Shift+a"`, `"Mod+Enter"`), or a function returning them. |
 | `contextKeys` | Aliases that may also be forwarded to the enclosing ask's opening and its margin controls and threads ("Decisions and forwarded keys"). A row with `routes` declares them on each route instead. |
 | `routes` | Subcommands, each with its own `id`, `title`, and `binding` or `contextKeys`, where one row's keys mean different things. |
+| `ready` | Whether the command's input is complete ("Startup and presentation"). A route may declare its own. |
 | `when` | Whether the command is available. A route may declare its own. |
 | `run(binding, context)` | Performs the command. A row without `run` presents a native behavior or a shared outer handler and does not shadow it. |
 | `control` | The visible element that activates the command. |
@@ -847,7 +867,8 @@ opening's automatic focus, so place the intended arrival with `focusDestination`
 popover keeps its `source` when Leaf re-seats it, as it does when a panel starts or stops
 covering the page. Close a native dialog or popover with `closeNativeLayer(layer)`,
 which inside a sample keeps the platform's return from taking focus from the containing
-page.
+page. `isNativeLayer(node)` asks whether a popover is open or a dialog stands modal; lint
+refuses a selector that asks it again.
 
 A layer closes with `closeLayer(close, land)`. `close` hides it, and `land`, a function,
 puts a user who stood in it where the close takes them, usually
@@ -880,7 +901,9 @@ its platform meaning, such as a new tab or a context menu.
 
 A control whose label is the page's own words checks `reachedForWords(control)` in its
 click handler: true means the press ended a text selection on the control, so the user
-was taking the words rather than pressing. A container that takes a press anywhere on its
+was taking the words rather than pressing. A click the keyboard made, Enter or Space on
+the control, took no words, so the handler asks `pressIsKeyboardActivation(event)` first
+and lets that click through. A container that takes a press anywhere on its
 box, as an option card does, first asks `worksInside(event.target, container)`, which
 returns the control or widget inside it the press was aimed at, or `null` where the
 container is the aim.
@@ -1221,10 +1244,13 @@ array per line for a widget that numbers its lines. `lang` is one of the registr
 `highlightBlocks(root)` colours each `pre > code` block in `root`, `root` included, whose
 `language-…` class names a language, as Leaf colours authored code.
 
-Leaf adds a Copy button to each `pre > code` block in the page document itself. For a code
-block a widget draws in its shadow stage, `copyCodeBlock(pre, source)` returns the Copy
-button, which copies `source()` when pressed; call it once the styled block is connected,
-and append the button beside the `pre`.
+Leaf adds a Copy button to each `pre > code` block in the page document itself. For any
+other block of source text a widget draws, such as code in its shadow stage,
+`copyBlock(block, source, noun)` returns a Copy button standing at the block's top right,
+which copies `source()` when pressed; `noun`, such as `"code"`, names what it copies.
+Call it once the styled block is connected, and append the button as a child of the
+widget. The button shows while a pointer is over the widget or focus is inside it, which
+a tap on the block gives a finger, and Enter on the block copies too.
 
 ### Text alignment
 
@@ -1233,8 +1259,7 @@ and append the button beside the `pre`.
 and `delete` runs join to `before`, and the `same` and `insert` runs to `after`; a very
 large rewritten middle comes back as one delete and one insert. To align a rewritten
 paragraph by sentences instead, pass an `Intl.Segmenter` with `granularity: "sentence"` as
-the third argument. `alignedNodes(runs)` renders the runs as a `<span>`, `<del>` or `<ins>`
-each.
+the third argument.
 
 ### Image comparison
 
@@ -1270,7 +1295,7 @@ The icon is decorative; the button supplies its accessible label.
 ## Page readings
 
 Each page reading below has a `watch…(owner, callback)` subscription; register it once for
-each owner. `watchQuestions`, `watchQueues`, `watchThreads`, `watchReports` and
+each owner. `watchAsks`, `watchQueues`, `watchThreads`, `watchReports` and
 `watchHistory` share these rules. Each calls the callback on the microtask after
 subscribing, then again, at most once per microtask, whenever the application publishes
 a new reading, a drag starts or stops holding the page's projection back ("Pointer
@@ -1287,8 +1312,8 @@ controller.
 
 ### Reading asks and obligation queues
 
-`readQuestions()` returns the publisher's immutable `{phase, all, user, unanswered}`, and
-`watchQuestions(owner, callback)` calls `callback(readQuestions())`. `all` holds widget,
+`readAsks()` returns the publisher's immutable `{phase, all, user, unanswered}`, and
+`watchAsks(owner, callback)` calls `callback(readAsks())`. `all` holds widget,
 prose and stamped-version approval asks, including answered and withdrawn asks whose
 sources remain. `user` selects open asks currently awaiting the user; `unanswered`
 includes every open ask, even one held with the agent or hidden behind a later prompt.
@@ -1302,7 +1327,8 @@ Each record contains:
   message: null,
   prompt: {text: "When should this ship?", target: "release-context"},
   answer: {value: ["release-later"], event: null},
-  status: "answered", // open | answered | withdrawn
+  status: "answered", // open | answered | answered_elsewhere | withdrawn
+  end: null,          // a prose ask the agent ended: {detail, event}
   next_actor: null,   // user | agent | null
 }
 ```
@@ -1311,12 +1337,15 @@ Each record contains:
   `x-awaits.answered` independently decides completion. `answer` is `null` before answer
   content exists. Partial values can appear while `status` is `open`, and a completed
   empty selection has `answer.value === []`. `answer.event` names the admitted answering
-  action, or is `null` for authored or carried state. An optional `x-question-context`
+  action, or is `null` for authored or carried state. An optional `x-ask-context`
   wrapper contributes the ask's heading and arrival target without changing its identity
   or answer owner; `lf-ask` is one such wrapper.
 - A prose ask has `source.kind === "reply"` and its agent message's id as `source.id`. Its
-  answer holds the settling user message or reaction and its event reference. A message
-  carrying a widget ask does not also pose a prose ask.
+  answer holds the settling user message or reaction and its event reference. When the
+  agent ends it with `leaf task end` instead, `answer` stays `null`, `status` is
+  `answered_elsewhere` for `done` and `withdrawn` for `dropped`, and `end.detail` says
+  where the answer is or why it no longer applies. A message carrying a widget ask does
+  not also pose a prose ask.
 - An approval ask has `source.kind === "approval"`, `source.version` naming the stamped
   version, and id `approval:v<version>`. Its answer is `null` until that version's approval
   settles it with typed `answer.value === true`; Undo reopens it. Its arrival reaches the
@@ -1332,14 +1361,29 @@ required-version approval and its Undo update that ask at once, and a refusal re
 admitted record. Page-widget asks follow the shown document version; frozen-thread asks are
 page-wide.
 
-`questionWords(question)` formats the answer of a widget, prose or approval ask, using the
+`askWords(ask)` formats the answer of a widget, prose or approval ask, using the
 widget family's `answerWords` ("Declared widget state"). It may return empty words and owns
 no answer state. Display words are not canonical answer data.
 
-`questionActions.open(id)` resolves the current ask and follows its arrival, including to
+`asksIn(region, asks = readAsks().all)` selects the asks a region of the page holds:
+each widget ask, not withdrawn, whose source element is `region` or stands under it. It is
+the rule a side-list `lf-tabs` row and `lf-tally` read, so a page module that marks or
+counts asks per card, section or item reads the same set: filter what it returns by
+`status` for answered and open, or pass `readAsks().user` for the asks waiting on the
+user.
+
+`askActions.open(id)` resolves the current ask and follows its arrival, including to
 earlier prose prompts and completed asks, and resolves to `false` when that ask is
-unavailable. Answering uses the source's declared command; asks expose no separate answer
-API.
+unavailable. `askActions.next({within, dir})` steps to the next ask waiting on the
+user inside the element `within`, or the previous with `dir: -1`, as `q` steps through
+Questions: from the one the user stands on, else from their place in document order,
+coming round at either end. From outside the region it counts from the ask the user last
+went to when that ask is in the region, so Tab from an ask to a control above it and
+Enter steps on; otherwise from the first of the region's asks in sight, the next if it
+waits and the one after if it is answered; and with none in sight it enters at the
+region's edge. It resolves to whether it arrived. A control that calls it keeps focus where the user stands on a press
+(`mousedown` default prevented), so a second press steps on. Answering uses the source's
+declared command; asks expose no separate answer API.
 
 `readQueues()` and `watchQueues(owner, callback)` supply the immutable
 `{phase, questions, tasks, done}` that the Questions panel and `q` navigation use. Ask rows
@@ -1355,7 +1399,7 @@ panel uses.
 Leaf's arrival, and resolves to `false` for an unavailable row. `queueActions.done(key)`
 returns an admission promise only for a current to-do on `questions`, one the agent opened
 on the user, and `null` otherwise. A widget ask ends through its widget, a prose ask through
-a reply or settling reaction, and an approval ask through its version's banner approval.
+a reply, a settling reaction or the agent's `leaf task end`, and an approval ask through its version's banner approval.
 Done removes its to-do optimistically, a duplicate cannot send again, and a refusal restores
 the admitted reading; the server stays final. Collections keep their shape while `phase` is
 `waiting`, `ready` or `offline`; activate only a ready collection.
@@ -1398,10 +1442,10 @@ a widget that shows how long a worker has gone unheard.
 
 ### Reading version changes
 
-`comparisonChanges(owner)` returns the changed descendant elements in the standing version
+`comparisonChanges(owner)` returns the changed descendant elements in the current version
 comparison, excluding the owner itself; omit the owner to read every changed element. It
 reads the comparison's own record, not CSS markers, and returns an empty array with no
-comparison standing. `watchComparison(owner, callback)` calls the callback when the owner
+comparison active. `watchComparison(owner, callback)` calls the callback when the owner
 first connects and on each change to the comparison; on a return it calls only when the
 comparison changed while the owner was away. A callback that throws is reported, and the
 next change calls it again. Its returned function ends the watch. Use `comparisonChanges`
@@ -1521,9 +1565,10 @@ as one target.
 
 `readThreads()` returns the same immutable `{phase, threads}` collection the Threads panel
 reads, and `watchThreads(owner, callback)` calls the callback with it ("Page readings").
-`threads` holds conversations; a bare reaction without a spoken turn is not a listed
-Thread. Each widget keeps its own search, filter and order state and derives its displayed
-rows from the collection. `threadTurns(thread)` selects a Thread's displayed turns, and
+`threads` holds conversations, including local sends while `phase` is `waiting` or
+`offline`; only `ready` means the saved inventory is complete. A bare reaction without
+a spoken turn is not a listed Thread. Each widget keeps its own search, filter and order
+state and derives its displayed rows from the collection. `threadTurns(thread)` selects a Thread's displayed turns, and
 `threadSummary(thread)` gives its `topic` and `latest` activity. An agent-written message
 or closing event carries `agent`, the name it is shown under.
 
@@ -1535,7 +1580,7 @@ give it; its `root` is its opening message, which a reply or settlement names as
 after a failed response, and `"waiting"` one that is with the agent. Every Thread carries
 `offers: {open, reply, resolve, reopen}` for current command availability. Reply is
 admissible on a resolved Thread and reopens it. Each message's `reactions` is `null` or its
-current vocabulary and `choices`, including labels, glyphs and standing reactions.
+current vocabulary and `choices`, including labels, glyphs and reactions in force.
 
 `threadActions` adds a package's own controls over the current reading and Leaf's
 optimistic event path:
@@ -1580,15 +1625,15 @@ if (editor?.matches(":focus") && editor.setSelectionRange) {
 `reply`, `resolve`, `reopen` and `setReaction` return `null` when the current reading does
 not offer that action, otherwise a promise resolving to the admitted event, or `null` if
 admission refuses it. The action changes `readThreads()` at once; the server stays final. A
-reply needs non-empty text. `setReaction` names the desired standing state, so a stale
-control cannot invert a concurrent change: `false` withdraws a standing reaction, and the
+reply needs non-empty text. `setReaction` names the desired state, so a stale
+control cannot invert a concurrent change: `false` withdraws a reaction in force, and the
 token must be in the current layer's vocabulary on an addressable agent message.
 `create` accepts `text`, an optional `anchor`, `attempt`, `holds`, `about`, `drawing` and
 `suggestion`; empty text needs a drawing. It returns `{key, delivery}` synchronously, where
 `key` is its minted or supplied attempt and `delivery` is the admission promise, and in a
-ready reading its pending Thread appears at once. Creation needs no Thread reading; its key
-selects the Thread when the collection becomes ready. Leaf's reply editors keep one durable
-draft per Thread, and a package's own input keeps its own ("Text entry and drafts").
+reading its pending Thread appears at once, including while saved history is loading.
+Creation needs no Thread reading; its key selects the local Thread immediately. Leaf's
+reply editors keep one durable draft per Thread, and a package's own input keeps its own ("Text entry and drafts").
 
 ### Starting a thread from a widget
 

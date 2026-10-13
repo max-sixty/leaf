@@ -40,11 +40,12 @@ def require_linux_fonts():
 
 
 @contextmanager
-def chrome():
+def chrome(**options):
     """The host's browser, as the render gate launches and ends it
-    (`launch_browser`, `ending`), however the block is left."""
+    (`launch_browser`, `ending`), however the block is left, with Playwright's
+    launch `options`."""
     with sync_playwright() as playwright:
-        browser, _ = launch_browser(playwright)
+        browser, _ = launch_browser(playwright, **options)
         with ending(browser):
             yield browser
 

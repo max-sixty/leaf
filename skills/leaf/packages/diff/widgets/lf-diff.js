@@ -3,8 +3,8 @@
  * rendered lines support selection anchors. A source revision updates evidence
  * under stable file owners: reader controls, disclosure and code scrollports stay
  * connected. The search reserves its current source's longest count label, so
- * filtering files leaves its field and controls in place. A changed file
- * kind replaces only its inner presentation and hands
+ * filtering files leaves its field and controls in place. Changed file
+ * evidence replaces only its inner presentation and hands
  * source focus to that same file; supplied thread/composer outlets keep core focus
  * ownership across replacement. Unchanged parsed files keep their rendering; changed files
  * reconcile unchanged lines by their datum coordinate, retaining selection and line threads.
@@ -16,7 +16,11 @@
  * disclosure joins the pending source render before reading its evidence, and a closed file shows
  * none of the previous revision while it loads current evidence. Line conversations
  * follow the visible reader width while source lines may scroll horizontally. Passage reveal
- * clears this widget's file filter; addressed datum reveal also hydrates its file. */
+ * clears this widget's file filter; addressed datum reveal also hydrates its file.
+ * All file evidence is read and checked before any listing metadata appears;
+ * closed files retain that parse and defer only textual rendering. Native
+ * operations and textual hunks are independent: metadata-only files have a commentable
+ * row without an empty disclosure, and a file-type replacement keeps one file identity. */
 import {
   DISCLOSE,
   HOLDS_WORD,
@@ -50,6 +54,7 @@ import {
   threadSurface,
   readingPaint,
   releaseOutlets,
+  reportFailure,
   reserve,
   retainUserIntent,
   scrollBehavior,
@@ -63,6 +68,7 @@ import {
   whileConnected,
   scrollIntoView,
   layoutPx,
+  focused,
 } from "/runtime/widget-api.js";
 import {
   diffDatumKey,
@@ -77,6 +83,9 @@ import "/vendor/webawesome.esm.js";
 // module load: the page pays for the renderer when it draws a diff, and a version whose
 // diff has been taken back out stops paying on the next load. The promise is kept, so
 // every later file, every other diff on the page, and every re-render share one import.
+// Metadata must be parsed before its row commits; unopened text needs no renderer.
+let parser = null;
+const parse = () => (parser ??= import("/vendor/pierre-parser.esm.js"));
 let renderer = null;
 const pierre = () => (renderer ??= import("/vendor/pierre-diffs.esm.js"));
 
@@ -110,33 +119,21 @@ function markSyntax(root, foreground) {
 // refuses a manifest that repeats one, and this refuses a patch text that does.
 async function sourceRecords(source) {
   if (typeof source !== "string") return source.files;
-  const files = await parsedFiles(source);
-  const paths = new Set();
-  for (const { name } of files) {
-    if (paths.has(name)) throw new Error(`unified diff repeats file path ${name}`);
-    paths.add(name);
-  }
-  return files.map((file) => ({
-    path: file.name,
-    ...(file.prevName ? { previousPath: file.prevName } : {}),
-    kind: file.type === "rename-pure" ? "rename" : "patch",
-    ...file.hunks.reduce(
-      (counts, hunk) => ({
-        additions: counts.additions + hunk.additionLines,
-        deletions: counts.deletions + hunk.deletionLines,
-      }),
-      { additions: 0, deletions: 0 },
-    ),
-    parsed: file,
-  }));
+  return (await parsedFiles(source)).map((file) => ({ ...file.record, parsed: file }));
 }
 
-// A manifest record's patch, fetched for the delivery that listed it, must hold that
-// one file.
-async function deferredFile(snapshot, path) {
-  const files = await parsedFiles(await loadDeferred(snapshot, path));
+// A manifest record's patch must describe that one logical file, including both
+// native sections of a file-type replacement, and agree with its listing.
+async function deferredFile(patch, record) {
+  const { path } = record;
+  const files = await parsedFiles(patch);
   if (files.length !== 1 || files[0].name !== path)
     throw new Error(`the deferred patch for ${path} does not contain that one file`);
+  const fields = new Set([...Object.keys(files[0].record), ...Object.keys(record)]);
+  fields.delete("patch");
+  for (const key of fields)
+    if (files[0].record[key] !== record[key])
+      throw new Error(`the deferred patch metadata for ${path} disagrees at ${key}`);
   return files[0];
 }
 
@@ -357,18 +354,25 @@ function filePathTemplate({ path, previousPath }) {
 
 // Lit owns only the summary's contents. The native disclosure and Pierre's body
 // stay connected across revisions, including loading and failed evidence.
-function paintSummary(details, record) {
+function paintSummary(details, record, verified = true) {
   const { path, previousPath, additions, deletions } = record;
   const previous = pathParts(details);
   render(
-    html`${keyed(JSON.stringify([path, previousPath]), filePathTemplate(record))}<span
-        class="lf-diff-stat"
-        data-lf-gen="1"
-        ><span class="lf-diff-additions">+${additions}</span>${" "}<span
-          class="lf-diff-deletions"
-          >−${deletions}</span
-        ></span
-      >`,
+    html`${keyed(
+      JSON.stringify([path, verified && previousPath]),
+      filePathTemplate(verified ? record : { path }),
+    )}${
+      verified
+        ? html`<span class="lf-diff-stat" data-lf-gen="1"
+            ><span class="lf-diff-additions">+${additions}</span>${" "}<span
+              class="lf-diff-deletions"
+              >−${deletions}</span
+            ><span class="lf-diff-metadata-words"
+              >${operationWord(record) ? ` · ${operationWord(record)}` : ""}</span
+            ></span
+          >`
+        : null
+    }`,
     details.firstElementChild,
   );
   const current = pathParts(details);
@@ -376,14 +380,14 @@ function paintSummary(details, record) {
   for (const part of current) if (!previous.includes(part)) pathSizes.observe(part);
 }
 
-function summaryNode(record, open) {
+function summaryNode(record, open, verified = true) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
   details.open = open;
   const summary = document.createElement("summary");
   summary.className = `lf-diff-head ${HOLDS_WORD}`;
   details.append(summary);
-  paintSummary(details, record);
+  paintSummary(details, record, verified);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -391,6 +395,7 @@ function summaryNode(record, open) {
       title: () => `${details.open ? "hide" : "show"} this file`,
     },
   ]);
+  paintFileDetails(details, verified ? record : {});
   return details;
 }
 
@@ -614,28 +619,191 @@ function diffTools(host) {
   return { search, progress };
 }
 
-function renameNode(record) {
+function operationWord(record) {
+  return (
+    {
+      add: "added",
+      delete: "deleted",
+      rename: "renamed",
+      copy: "copied",
+    }[record.operation] ?? ""
+  );
+}
+
+function evidenceWords(record) {
+  const words = [];
+  if (record.binary) words.push("binary content");
+  if (record.oldMode !== record.newMode) {
+    words.push(
+      record.oldMode && record.newMode
+        ? `mode ${record.oldMode} → ${record.newMode}`
+        : `mode ${record.newMode ?? record.oldMode}`,
+    );
+  }
+  return words.join(" · ");
+}
+
+function metadataWords(record) {
+  return [operationWord(record), evidenceWords(record)].filter(Boolean).join(" · ");
+}
+
+// Header counts and the short operation keep their columns. Longer mode/binary
+// evidence belongs with the disclosed text, where it can wrap without hiding a path.
+function paintFileDetails(details, record) {
+  const words = evidenceWords(record);
+  let evidence = details.querySelector(":scope > .lf-diff-evidence");
+  if (!words) {
+    evidence?.remove();
+    return;
+  }
+  if (!evidence) {
+    evidence = document.createElement("div");
+    evidence.className = "lf-diff-evidence";
+    evidence.dataset.lfGen = "1";
+    details.firstElementChild.after(evidence);
+  }
+  keepsText(evidence, words);
+}
+
+function metadataNode(record) {
   const row = document.createElement("div");
-  row.className = "lf-diff-rename";
+  row.className = "lf-diff-metadata";
   row.dataset.lfGen = "1";
   render(
-    html`${filePathTemplate(record)}<span class="lf-diff-stat">renamed</span>`,
+    html`${filePathTemplate(record)}<span class="lf-diff-stat"
+        >${metadataWords(record)}</span
+      >`,
     row,
   );
   return row;
 }
 
-// How many hunkless renames the source states in Git's exact path-only form. Pierre also
-// reads a rename whose hunk headers are missing as hunkless, which would show its
-// changed lines as a clean rename, so it must report no more than these.
-const pathOnlyRenames = (source) =>
-  source
-    .split(/(?=^diff --git )/m)
-    .filter((section) =>
-      /^diff --git .+\nsimilarity index 100%\nrename from .+\nrename to .+\n*$/.test(
-        section,
-      ),
-    ).length;
+function headerPath(side, path) {
+  return path.startsWith('"') && path.endsWith('"')
+    ? `"${side}/${path.slice(1)}`
+    : `${side}/${path}`;
+}
+
+function gitPath(path) {
+  if (!path.startsWith('"')) return path;
+  if (!path.endsWith('"')) return null;
+  const inner = path.slice(1, -1);
+  if (!/^(?:[^\\]|\\(?:[abtnvfr"\\]|[0-3][0-7]{2}|[0-7]{1,2}(?![0-7])))*$/.test(inner))
+    return null;
+  const escapes = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13 };
+  const bytes = [];
+  const encoder = new globalThis.TextEncoder();
+  for (let i = 0; i < inner.length; i++) {
+    if (inner[i] !== "\\") {
+      const point = inner.codePointAt(i);
+      bytes.push(...encoder.encode(String.fromCodePoint(point)));
+      if (point > 0xffff) i++;
+      continue;
+    }
+    const match = /^(?:[0-3][0-7]{2}|[0-7]{1,2})/.exec(inner.slice(i + 1));
+    if (match) {
+      bytes.push(parseInt(match[0], 8));
+      i += match[0].length;
+    } else {
+      const escaped = inner[++i];
+      bytes.push(escapes[escaped] ?? escaped.charCodeAt(0));
+    }
+  }
+  if (bytes.includes(0)) return null;
+  try {
+    return new globalThis.TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      new Uint8Array(bytes),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function fileRecord(file, section) {
+  const moved = {};
+  for (const operation of ["rename", "copy"]) {
+    const from = new RegExp(`^${operation} from (.*)$`, "m").exec(section)?.[1];
+    const to = new RegExp(`^${operation} to (.*)$`, "m").exec(section)?.[1];
+    if ((from === undefined) !== (to === undefined))
+      throw new Error(`incomplete ${operation} metadata`);
+    if (from !== undefined) {
+      if (
+        !from ||
+        !to ||
+        from === '\"\"' ||
+        to === '\"\"' ||
+        section.split("\n", 1)[0] !==
+          `diff --git ${headerPath("a", from)} ${headerPath("b", to)}` ||
+        gitPath(from) !== file.prevName ||
+        gitPath(to) !== file.name
+      )
+        throw new Error(`${operation} paths disagree with its diff --git header`);
+      moved[operation] = true;
+    }
+  }
+  if (Object.keys(moved).length > 1)
+    throw new Error("diff mixes rename and copy metadata");
+  const operation =
+    Object.keys(moved)[0] ??
+    (file.type === "new" ? "add" : file.type === "deleted" ? "delete" : "modify");
+  const binary = /^(?:Binary files .+ differ|GIT binary patch)$/m.test(section);
+  if (/^old mode /m.test(section) !== /^new mode /m.test(section))
+    throw new Error("incomplete mode change");
+  for (const line of section.split("\n").slice(1)) {
+    if (line.startsWith("@@") || line === "GIT binary patch") break;
+    if (file.hunks.length && /^(?:---|\+\+\+) /.test(line)) continue;
+    if (
+      line &&
+      !/^(?:(?:old mode|new mode|new file mode|deleted file mode) [0-7]{6}|(?:dis)?similarity index [0-9]+%|(?:rename|copy) (?:from|to) .+|index [0-9a-f]+\.\.[0-9a-f]+(?: [0-7]{6})?|Binary files .+ differ)$/.test(
+        line,
+      )
+    )
+      throw new Error(`unexpected diff metadata for ${file.name}: ${line}`);
+  }
+  if (file.prevName && !Object.keys(moved).length)
+    throw new Error("diff has changed paths without rename or copy metadata");
+  if (file.hunks.length && ["add", "delete"].includes(operation)) {
+    const hunk = file.hunks[0];
+    const consuming = operation === "delete";
+    if (
+      file.hunks.length !== 1 ||
+      (consuming ? hunk.deletionStart : hunk.additionStart) !== 1 ||
+      (consuming ? hunk.additionStart : hunk.deletionStart) !== 0 ||
+      (consuming ? hunk.additionCount : hunk.deletionCount) !== 0
+    )
+      throw new Error(`${operation} must capture its complete file`);
+  }
+  if (!file.hunks.length) {
+    if (!binary && operation === "modify" && (file.prevMode ?? file.mode) === file.mode)
+      throw new Error(`diff has no content or metadata change for ${file.name}`);
+    if (
+      !binary &&
+      ["copy", "rename"].includes(operation) &&
+      !/^similarity index 100%$/m.test(section)
+    )
+      throw new Error(`${operation} with changed content needs textual hunks`);
+  }
+  const oldMode = operation === "add" ? undefined : (file.prevMode ?? file.mode);
+  const newMode = operation === "delete" ? undefined : file.mode;
+  const { additions, deletions } = file.hunks.reduce(
+    (counts, hunk) => ({
+      additions: counts.additions + hunk.additionLines,
+      deletions: counts.deletions + hunk.deletionLines,
+    }),
+    { additions: 0, deletions: 0 },
+  );
+  return {
+    path: file.name,
+    ...(file.prevName ? { previousPath: file.prevName } : {}),
+    operation,
+    hunkCount: file.hunks.length,
+    binary,
+    ...(oldMode ? { oldMode } : {}),
+    ...(newMode ? { newMode } : {}),
+    additions,
+    deletions,
+  };
+}
 
 // One file's evidence, the nodes that go under its disclosure's summary. Each kind of
 // Pierre stylesheet joins `sharedStyles` once, for the stage to hold.
@@ -685,833 +853,939 @@ async function renderFile(file, sharedStyles) {
   return { nodes: [...rendered.children], pre, lines };
 }
 
-// What the widget can present. The diff package's `patch_manifest.py` refuses the same
-// excluded entries before a manifest is stored, and `tests/diff_patch_cases.json` holds
-// both readers to one table of cases.
+function replacementFile(files, parseDiffFromFile) {
+  const deleted = files.find((file) => file.record.operation === "delete");
+  const added = files.find((file) => file.record.operation === "add");
+  const oldMode = deleted?.record.oldMode;
+  const newMode = added?.record.newMode;
+  if (
+    files.length !== 2 ||
+    !deleted ||
+    !added ||
+    !oldMode ||
+    !newMode ||
+    (parseInt(oldMode, 8) & 0o170000) === (parseInt(newMode, 8) & 0o170000)
+  )
+    throw new Error(`unified diff repeats file path ${files[0].name}`);
+  const hunkCount = Number(files.some((file) => file.record.hunkCount > 0));
+  // A different file type consumes the old object and produces the new one, even
+  // when both carry identical text. The maintained comparator keeps that meaning.
+  const side = (file, lines) =>
+    file.record.binary
+      ? null
+      : {
+          name: file.name,
+          contents: lines.join(""),
+        };
+  const file = hunkCount
+    ? parseDiffFromFile(
+        side(deleted, deleted.deletionLines),
+        side(added, added.additionLines),
+        { comparator: () => false },
+        true,
+      )
+    : { name: added.name, hunks: [] };
+  file.record = {
+    path: added.name,
+    operation: "modify",
+    hunkCount,
+    binary: deleted.record.binary || added.record.binary,
+    oldMode,
+    newMode,
+    additions: added.record.additions,
+    deletions: deleted.record.deletions,
+  };
+  return file;
+}
+
+// What the widget can present, which it alone judges: the diff package's
+// `patch_manifest.py` preserves the evidence, and an entry refused here reports when
+// its listing appears, even when its textual file stays closed. `tests/diff_patch_cases.json`
+// is the table of cases.
 async function parsedFiles(source) {
-  if (/^copy (?:from|to) /m.test(source))
-    throw new Error(
-      "unsupported copy diff (copy entries belong in prose; omit " +
-        "copy metadata and use textual @@ hunks for an edited destination)",
-    );
-  const { parsePatchFiles } = await pierre();
+  const { parsePatchFiles, parseDiffFromFile } = await parse();
   const files = parsePatchFiles(source, undefined, true).flatMap(
     (patch) => patch.files,
   );
+  const sections = source
+    .split(/(?=^diff --git )/m)
+    .filter((section) => section.startsWith("diff --git "));
   if (!files.length) throw new Error("empty diff");
-  if (
-    pathOnlyRenames(source) !==
-    files.filter((file) => file.type === "rename-pure").length
-  )
-    throw new Error(
-      "unsupported hunkless rename (only an exact path-only block with " +
-        "diff --git, similarity index 100%, rename from, and rename to " +
-        "lines may omit textual @@ hunks)",
-    );
-  for (const file of files)
-    if (!file.hunks.length && file.type !== "rename-pure")
-      throw new Error(
-        `unsupported hunkless diff for ${file.name || "a file"} ` +
-          "(only path-only renames may omit @@ hunks; binary, mode-only, " +
-          "and empty added/deleted entries belong in prose; changed files " +
-          "need textual @@ hunks)",
-      );
-  return files;
+  if (files.length !== sections.length)
+    throw new Error("diff needs one file per diff --git section");
+  const owners = new Map();
+  for (const [index, file] of files.entries()) {
+    file.record = fileRecord(file, sections[index]);
+    const owned = owners.get(file.name) ?? [];
+    owned.push(file);
+    owners.set(file.name, owned);
+  }
+  return [...owners.values()].map((files) =>
+    files.length === 1 ? files[0] : replacementFile(files, parseDiffFromFile),
+  );
 }
 
 // The box takes the place of the file's lines, so core's composer leaves their outlets
 // first: a user writing about one of them stays in it, and the hold below, which
-// would hand them to Retry, finds them outside the file.
+// would hand them to Retry, finds them outside the file. A patch the widget cannot draw
+// offers no Retry, and the hold lands on the file's header.
 function deferredError(details, error, retry) {
   releaseOutlets(details);
   const restore = holdFocus(details);
+  const header = details.firstElementChild;
+  const message = error?.message || error;
   const box = document.createElement("div");
   box.className = "lf-error";
   box.dataset.lfGen = "1";
-  box.textContent = `That file's diff failed to load: ${error?.message || error}`;
-  const button = offer("button", "lf-btn");
-  button.type = "button";
-  button.textContent = "Retry";
-  button.addEventListener("click", () => {
-    if (button.getAttribute("aria-disabled") === "true") return;
-    button.setAttribute("aria-disabled", "true");
-    retry();
-  });
-  box.append(" ", button);
-  setChildren(details, [details.firstElementChild, box]);
-  restore?.(button);
+  box.textContent = retry
+    ? `That file's diff failed to load: ${message}`
+    : `That file's diff cannot be shown: ${message}`;
+  let standIn = header;
+  if (retry) {
+    standIn = offer("button", "lf-btn");
+    standIn.type = "button";
+    standIn.textContent = "Retry";
+    standIn.addEventListener("click", () => {
+      if (standIn.getAttribute("aria-disabled") === "true") return;
+      standIn.setAttribute("aria-disabled", "true");
+      retry();
+    });
+    box.append(" ", standIn);
+  }
+  setChildren(details, [header, box]);
+  restore?.(standIn);
 }
 
-customElements.define(
-  "lf-diff",
-  class extends HTMLElement {
-    controller = widgetController(this);
-    revealPassage = ({ detail }) => {
-      const entry = this.fileEntries?.find(({ node }) => node.contains(detail.target));
-      if (entry?.filtered) this.clearFilter();
-    };
+export default class extends HTMLElement {
+  controller = widgetController(this);
+  revealPassage = ({ detail }) => {
+    const entry = this.fileEntries?.find(({ node }) => node.contains(detail.target));
+    if (entry?.filtered) this.clearFilter();
+  };
 
-    connectedCallback() {
-      if (!once(this)) return;
-      commands(
-        this,
-        "In a diff review",
-        [
-          // The walk leads the scope, because the shortcut bar's shortlist is its first
-          // two live rows and moving is what a user standing on a diff row does
-          // next, where "filter files" is the press for someone who has not started
-          // reading yet. The rest of the scope is one `?`
-          // away in the compact shortcut bar and complete in the reference dialog.
-          //
-          // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one
-          // unit out. Bracket pairs because that is what an editor and a review tool
-          // already spell this walk with, and punctuation spends none of the page's
-          // small alphabet: these live in the diff's own scope and answer only while
-          // the user is standing in it.
-          {
-            id: "diff.next-hunk",
-            keys: ["]"],
-            title: "next hunk",
-            when: () => this.hasHunks(),
-            run: () => this.present(this.stepHunk(false)),
+  connectedCallback() {
+    if (!once(this)) return;
+    commands(
+      this,
+      "In a diff review",
+      [
+        // The walk leads the scope, because the shortcut bar's shortlist is its first
+        // two live rows and moving is what a user standing on a diff row does
+        // next, where "filter files" is the press for someone who has not started
+        // reading yet. The rest of the scope is one `?`
+        // away in the compact shortcut bar and complete in the reference dialog.
+        //
+        // `]` and `[` are the reviewer's own step, and `}` and `{` the same step one
+        // unit out. Bracket pairs because that is what an editor and a review tool
+        // already spell this walk with, and punctuation spends none of the page's
+        // small alphabet: these live in the diff's own scope and answer only while
+        // the user is standing in it.
+        {
+          id: "diff.next-hunk",
+          keys: ["]"],
+          title: "next hunk",
+          when: () => this.hasHunks(),
+          run: () => this.present(this.stepHunk(false)),
+        },
+        {
+          id: "diff.previous-hunk",
+          keys: ["["],
+          title: "previous hunk",
+          when: () => this.hasHunks(),
+          run: () => this.present(this.stepHunk(true)),
+        },
+        {
+          id: "diff.next-file",
+          keys: ["}"],
+          title: "next file",
+          description: "Go to the next file's header",
+          when: () => this.shownEntries().length > 1,
+          run: () => this.stepFile(false),
+        },
+        {
+          id: "diff.previous-file",
+          keys: ["{"],
+          title: "previous file",
+          description: "Go to the previous file's header",
+          when: () => this.shownEntries().length > 1,
+          run: () => this.stepFile(true),
+        },
+        {
+          id: "diff.search",
+          keys: ["/"],
+          title: "filter files",
+          description: "Filter the files in this diff",
+          run: () => {
+            const search = this.diffTools?.search;
+            if (search) {
+              focusDestination(search, "move");
+              scrollIntoView(search, { block: "nearest" });
+            }
           },
-          {
-            id: "diff.previous-hunk",
-            keys: ["["],
-            title: "previous hunk",
-            when: () => this.hasHunks(),
-            run: () => this.present(this.stepHunk(true)),
+        },
+        // The filter is a layer of this widget, so its way out is read off the
+        // filter rather than off the press that put it on: a live query goes
+        // first, from anywhere in the patch, and then the box itself.
+        {
+          id: "diff.search.back",
+          keys: ["Escape"],
+          when: () => {
+            const search = this.diffTools?.search;
+            if (!search) return false;
+            return Boolean(
+              this.matches(":focus-within") &&
+              (search.value || search.matches(":focus-within")),
+            );
           },
-          {
-            id: "diff.next-file",
-            keys: ["}"],
-            title: "next file",
-            description: "Go to the next file's header",
-            when: () => this.shownEntries().length > 1,
-            run: () => this.stepFile(false),
+          title: () => (this.diffTools?.search.value ? "show all files" : "back"),
+          description: () =>
+            this.diffTools?.search.value
+              ? "Show every file again"
+              : "Leave the diff filter",
+          run: () => {
+            const search = this.diffTools?.search;
+            if (search?.value) {
+              this.clearFilter();
+              focusDestination(search, "return");
+              return;
+            }
+            // The box's container is the patch it filters, so that is where it hands
+            // the user back: a blur alone would drop them out of this widget's
+            // scope with no ring anywhere, and the file walk would stop answering.
+            focusDestination(this, "return");
           },
-          {
-            id: "diff.previous-file",
-            keys: ["{"],
-            title: "previous file",
-            description: "Go to the previous file's header",
-            when: () => this.shownEntries().length > 1,
-            run: () => this.stepFile(true),
-          },
-          {
-            id: "diff.search",
-            keys: ["/"],
-            title: "filter files",
-            description: "Filter the files in this diff",
-            run: () => {
-              const search = this.diffTools?.search;
-              if (search) {
-                focusDestination(search, "move");
-                scrollIntoView(search, { block: "nearest" });
-              }
-            },
-          },
-          // The filter is a layer of this widget, so its way out is read off the
-          // filter rather than off the press that put it on: a live query goes
-          // first, from anywhere in the patch, and then the box itself.
-          {
-            id: "diff.search.back",
-            keys: ["Escape"],
-            when: () => {
-              const search = this.diffTools?.search;
-              if (!search) return false;
-              return Boolean(
-                this.matches(":focus-within") &&
-                (search.value || search.matches(":focus-within")),
-              );
-            },
-            title: () => (this.diffTools?.search.value ? "show all files" : "back"),
-            description: () =>
-              this.diffTools?.search.value
-                ? "Show every file again"
-                : "Leave the diff filter",
-            run: () => {
-              const search = this.diffTools?.search;
-              if (search?.value) {
-                this.clearFilter();
-                focusDestination(search, "return");
-                return;
-              }
-              // The box's container is the patch it filters, so that is where it hands
-              // the user back: a blur alone would drop them out of this widget's
-              // scope with no ring anywhere, and the file walk would stop answering.
-              focusDestination(this, "return");
-            },
-          },
-        ],
-        () => Boolean(this.fileEntries?.length),
-      );
-      const bound = this.hasAttribute("source");
-      // An inline patch never changes, so it is one reading, drawn again on a return
-      // only when the departure cut its rendering short: a refusal stands.
-      const paintInline = bound
-        ? null
-        : readingPaint(this, () => {
-            const rendering = (this.sourceRendering = this.render(this.inlineSource));
-            this.present(rendering);
-            return rendering;
-          });
-      whileConnected(this, (signal) => {
-        this.addEventListener("lf-reveal", this.revealPassage, { signal });
-        // A page diff's file header pins at `--lf-top`, the top of the page's box that
-        // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
-        // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
-        // the module answers it once with the layer's own predicate and paints the answer.
-        this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
-        if (paintInline) {
-          // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
-          // can be a lone space, the context line for a blank source line — so only the
-          // closing newline is the <pre>'s layout.
-          this.inlineSource ??= dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
-          paintInline(this.inlineSource);
-        }
-        return () => {
-          this.rendering = (this.rendering ?? 0) + 1;
-          // Leaf retires this surface on the same departure, taking core's views out of
-          // every outlet, so all of them go.
-          if (this.threadSeats) {
-            for (const record of this.threadSeats.values()) record.active = false;
-            this.retireThreadOutlets();
-          }
-          this.threadSizeTargets = null;
-          this.threadSeats = null;
-          this.threadPairs = null;
-        };
-      });
-      if (bound)
-        watchData(this, "document", (snapshot) => {
-          const rendering = this.render(snapshot?.value ?? null, snapshot);
-          this.sourceRendering = rendering;
+        },
+      ],
+      () => Boolean(this.fileEntries?.length),
+    );
+    const bound = this.hasAttribute("source");
+    // An inline patch never changes, so it is one reading, drawn again on a return
+    // only when the departure cut its rendering short: a refusal stands.
+    const paintInline = bound
+      ? null
+      : readingPaint(this, () => {
+          const rendering = (this.sourceRendering = this.render(this.inlineSource));
+          this.present(rendering);
           return rendering;
         });
-    }
+    whileConnected(this, (signal) => {
+      this.addEventListener("lf-reveal", this.revealPassage, { signal });
+      // A page diff's file header pins at `--lf-top`, the top of the page's box that
+      // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
+      // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
+      // the module answers it once with the layer's own predicate and paints the answer.
+      this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
+      if (paintInline) {
+        // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
+        // can be a lone space, the context line for a blank source line — so only the
+        // closing newline is the <pre>'s layout.
+        this.inlineSource ??= dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
+        paintInline(this.inlineSource);
+      }
+      return () => {
+        this.rendering = (this.rendering ?? 0) + 1;
+        // Leaf retires this surface when it leaves, after this cleanup, and puts
+        // core's views back, so every outlet goes.
+        if (this.threadSeats) {
+          for (const record of this.threadSeats.values()) record.active = false;
+          this.retireThreadOutlets();
+        }
+        this.threadSizeTargets = null;
+        this.threadSeats = null;
+        this.threadPairs = null;
+      };
+    });
+    if (bound)
+      watchData(this, "document", (snapshot) => {
+        const rendering = this.render(snapshot?.value ?? null, snapshot);
+        this.sourceRendering = rendering;
+        return rendering;
+      });
+  }
 
-    // `snapshot` is the bound delivery, null when a bound source has no value, and
-    // undefined for an inline patch.
-    async render(source, snapshot) {
-      const rendering = (this.rendering ?? 0) + 1;
-      this.rendering = rendering;
-      try {
-        if (source === null) {
-          releaseOutlets(this);
-          this.fileEntries = null;
-          this.sharedStyles = null;
-          this.diffTools = null;
-          this.filesBody = null;
-          this.replaceChildren();
-          shadowStage(this, []);
-          projectData(this, [], { snapshot });
-          this.classList.toggle("lf-rendered", false);
-          return;
-        }
-        const records = await sourceRecords(source);
-        const prior = new Map(
-          (this.fileEntries ?? []).map((entry) => [entry.record.path, entry]),
-        );
-        const sharedStyles = this.sharedStyles ?? new Map();
-        const open = !this.hasAttribute("collapsed");
-        const plans = records.map((record) => ({
-          record,
-          previous: prior.get(record.path),
-          prepared: null,
-        }));
-        // Open evidence is prepared without changing the current entries or their native
-        // outlets. A disclosure opened while another file loads joins this same commit.
-        for (;;) {
-          if (rendering !== this.rendering || !this.isConnected) return;
-          const pending = plans.filter(
-            ({ record, previous, prepared }) =>
-              record.kind !== "rename" &&
-              !prepared &&
-              (previous?.details?.open ?? open),
-          );
-          if (!pending.length) break;
-          await Promise.all(
-            pending.map(async (plan) => {
-              plan.prepared = await this.prepareEntry(
-                snapshot,
-                plan.record,
-                plan.previous?.details ? plan.previous.renderKey : null,
-                sharedStyles,
-              );
-            }),
-          );
-        }
-        const fresh = [];
-        const restores = [];
-        const resume = this.controller.defer();
-        try {
-          const entries = plans.map(({ record, previous, prepared }) => {
-            let entry = previous;
-            const rename = record.kind === "rename";
-            if (
-              rename
-                ? !entry ||
-                  entry.details ||
-                  entry.record.previousPath !== record.previousPath
-                : !entry?.details
-            ) {
-              const row = rename ? renameNode(record) : summaryNode(record, open);
-              if (entry) restores.push(replaceFileRendering(entry, row));
-              else fresh.push((entry = fileEntry(row)));
-            }
-            Object.assign(entry, {
-              record,
-              loaded: rename,
-              failed: false,
-              loading: null,
-              prepared,
-            });
-            keeps(entry.node, "data-lf-gen", "1");
-            if (rename) return entry;
-            paintSummary(entry.details, record);
-            if (prepared) restores.push(this.applyEntry(entry));
-            else entry.details.querySelector("pre")?.toggleAttribute("hidden", true);
-            return entry;
-          });
-          this.snapshot = snapshot;
-          this.fileEntries = entries;
-          this.sharedStyles = sharedStyles;
-          this.diffTools ??= diffTools(this);
-          for (const entry of fresh) this.attachEntryControls(entry);
-          for (const entry of entries) this.attachDisclosure(entry);
-          this.filesBody ??= diffBody([]);
-          // A file the patch dropped goes with its outlets, which core's composer leaves first.
-          for (const entry of prior.values())
-            if (!entries.includes(entry)) releaseOutlets(entry.node);
-          setChildren(this.filesBody, [
-            this.diffTools.search,
-            ...entries.map(({ node }) => node),
-          ]);
-          this.replaceChildren();
-          this.layoutThreadOutlets();
-          this.stageFiles();
-          this.projectFiles();
-          this.classList.toggle("lf-rendered", true);
-          this.filterFiles(this.diffTools.search.value);
-          for (const restore of restores) restore?.();
-        } finally {
-          resume();
-        }
-      } catch (err) {
-        if (rendering !== this.rendering || !this.isConnected) return;
+  // `snapshot` is the bound delivery, null when a bound source has no value, and
+  // undefined for an inline patch.
+  async render(source, snapshot) {
+    const rendering = (this.rendering ?? 0) + 1;
+    this.rendering = rendering;
+    try {
+      if (source === null) {
+        releaseOutlets(this);
         this.fileEntries = null;
         this.sharedStyles = null;
         this.diffTools = null;
         this.filesBody = null;
+        this.replaceChildren();
+        shadowStage(this, []);
+        projectData(this, [], { snapshot });
         this.classList.toggle("lf-rendered", false);
-        // The failure box quotes a patch text; a manifest has none to quote. It takes
-        // the place of every outlet, which core's composer leaves first.
-        releaseOutlets(this);
-        failSoft(this, err, typeof source === "string" ? source : undefined);
-        if (snapshot !== undefined) projectData(this, [], { snapshot });
+        return;
       }
-    }
-
-    async prepareEntry(snapshot, record, renderKey, sharedStyles) {
-      try {
-        const file = record.parsed ?? (await deferredFile(snapshot, record.path));
-        const nextKey = JSON.stringify(file);
-        const rendered =
-          renderKey === nextKey ? null : await renderFile(file, sharedStyles);
-        return { renderKey: nextKey, rendered };
-      } catch (error) {
-        return { error };
-      }
-    }
-
-    stageFiles() {
-      if (!this.filesBody) return;
-      shadowStage(this, [...this.sharedStyles.values(), this.filesBody]);
-    }
-
-    // A manifest names the source field each datum came from; a bound patch text's datums
-    // take the whole delivery's origin, and an inline patch has no delivery.
-    projectFiles() {
-      const origin = (index, field) =>
-        this.snapshot && typeof this.snapshot.value === "object"
-          ? { ...this.snapshot.origin, path: ["files", index, field] }
-          : null;
-      projectData(
-        this,
-        (this.fileEntries ?? [])
-          .flatMap((entry, index) => [
-            fileDatum(entry, origin(index, "path")),
-            ...(entry.loaded ? entry.lines : []).map((line) => ({
-              ...line,
-              origin: origin(index, "patch"),
-            })),
-          ])
-          .map(projectionDatum),
-        { snapshot: this.snapshot },
+      const records = await sourceRecords(source);
+      const prior = new Map(
+        (this.fileEntries ?? []).map((entry) => [entry.record.path, entry]),
       );
-    }
-
-    // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over, and
-    // the outlets this placement no longer uses come down once it commits.
-    threadOutlets(targets, { onCommit }) {
-      this.beginThreadSurface();
-      const outlets = targets.map((target) => this.threadOutletFor(target));
-      this.layoutThreadOutlets();
-      onCommit(() => this.retireThreadOutlets());
-      return outlets;
-    }
-
-    // One outlet per datum, kept beside its datum's drawn node for as long as the thread
-    // surface returns it. One the surface stops returning still holds the composer or
-    // a thread view core placed there, until that placement commits; only then does it
-    // come down, so the user's editor never leaves the document with it.
-    beginThreadSurface() {
-      this.threadSeats ??= new Map();
-      this.threadPairs ??= new Map();
-      for (const record of this.threadSeats.values()) record.active = false;
-      for (const [content, pair] of this.threadPairs)
-        if (!content.isConnected || !pair.gutter.isConnected)
-          this.threadPairs.delete(content);
-    }
-
-    threadPair(row) {
-      this.threadPairs ??= new Map();
-      const content = row.parentElement;
-      const gutter = content.closest("pre").querySelector("[data-gutter]");
-      const lineIndex = row.dataset.lineIndex;
-      const gutterRow = [...gutter.children].find(
-        (candidate) => candidate.dataset.lineIndex === lineIndex,
+      const sharedStyles = this.sharedStyles ?? new Map();
+      const open = !this.hasAttribute("collapsed");
+      const plans = await Promise.all(
+        records.map(async (record) => {
+          const evidence = await this.readEntry(snapshot, record);
+          return {
+            record,
+            evidence,
+            previous: prior.get(record.path),
+            prepared: evidence.error ? evidence : null,
+          };
+        }),
       );
-      let pair = this.threadPairs.get(content);
-      if (!pair) {
-        pair = {
-          content,
-          gutter,
-          contentRows: rowSpan(content),
-          gutterRows: rowSpan(gutter),
-          contentGridRow: content.style.gridRow,
-          gutterGridRow: gutter.style.gridRow,
-        };
-        this.threadPairs.set(content, pair);
-      }
-      return { gutterRow, pair };
-    }
-
-    threadOutletFor({ anchor, placement }) {
-      const coordinate = readDiffCoordinate(anchor.datum);
-      const entry = findDiffFile(this.fileEntries, coordinate);
-      if (!entry || entry.filtered) return null;
-      const file = coordinate.file;
-      if (file) {
-        if (placement.datumElement !== entry.node) return null;
-      } else if (
-        !entry.loaded ||
-        (entry.details && !entry.details.open) ||
-        placement.datumElement !==
-          entry.lines.find((line) => diffDatumKey(line) === anchor.datum)?.node
-      )
-        return null;
-
-      const row = placement.datumElement;
-      let record = this.threadSeats.get(anchor.datum);
-      if (!record) {
-        const outlet = document.createElement("section");
-        outlet.className = `lf-diff-thread-outlet lf-ui${
-          file ? " lf-diff-file-thread-outlet" : ""
-        }`;
-        outlet.dataset.lfGen = "1";
-        outlet.dataset.lfThreadDatum = anchor.datum;
-        outlet.setAttribute(
-          "aria-label",
-          `Thread on ${row.dataset.lfDatumLabel || (file ? "file" : "diff line")}`,
-        );
-        let gutterRow = null;
-        if (!file) {
-          gutterRow = document.createElement("div");
-          gutterRow.className = "lf-diff-thread-gutter lf-ui";
-          gutterRow.dataset.lfGen = "1";
-          gutterRow.setAttribute("aria-hidden", "true");
-        }
-        record = { gutterRow, outlet, pair: null, row: null };
-        this.threadSeats.set(anchor.datum, record);
-      }
-      // A datum drawn anew takes its outlet along, which keeps whoever stands in it.
-      if (record.row !== row) {
-        if (file) move(entry.node, record.outlet, null);
-        else {
-          const { gutterRow: lineGutter, pair } = this.threadPair(row);
-          move(row.parentNode, record.outlet, row.nextSibling);
-          move(lineGutter.parentNode, record.gutterRow, lineGutter.nextSibling);
-          record.pair = pair;
-        }
-        record.row = row;
-      }
-      record.active = true;
-      return record.outlet;
-    }
-
-    // Take down the outlets the committed placement no longer uses.
-    retireThreadOutlets() {
-      for (const [key, record] of this.threadSeats) {
-        if (record.active) continue;
-        record.outlet.remove();
-        record.gutterRow?.remove();
-        this.threadSeats.delete(key);
-      }
-      this.layoutThreadOutlets();
-    }
-
-    // Each line outlet takes a grid row of its own beside its line, in the content and
-    // the gutter columns alike. A file drawn anew sets its columns' rows from the fresh
-    // render alone, so the outlets it kept take theirs again here.
-    layoutThreadOutlets() {
-      const counts = new Map();
-      for (const { outlet, pair } of this.threadSeats?.values() ?? [])
-        if (pair && outlet.parentNode === pair.content)
-          counts.set(pair, (counts.get(pair) ?? 0) + 1);
-      const targets = new Set();
-      for (const pair of this.threadPairs?.values() ?? []) {
-        const count = counts.get(pair) ?? 0;
-        if (count) {
-          targets.add(pair.content.closest("code[data-code]"));
-          targets.add(pair.gutter);
-        }
-        const contentRow = count
-          ? `span ${pair.contentRows + count}`
-          : pair.contentGridRow;
-        const gutterRow = count
-          ? `span ${pair.gutterRows + count}`
-          : pair.gutterGridRow;
-        pair.content.style.gridRow = contentRow;
-        pair.gutter.style.gridRow = gutterRow;
-      }
-      for (const target of this.threadSizeTargets ?? [])
-        if (!targets.has(target)) threadSizes.unobserve(target);
-      for (const target of targets)
-        if (!this.threadSizeTargets?.has(target)) threadSizes.observe(target);
-      this.threadSizeTargets = targets;
-    }
-
-    async loadEntry(entry) {
+      // Every row's evidence is judged before its metadata commits. Only open files
+      // need the textual renderer; closed files retain their one parsed reading.
+      // Open evidence is prepared without changing the current entries or their native
+      // outlets. A disclosure opened while another file loads joins this same commit.
       for (;;) {
-        const rendering = this.sourceRendering;
-        await rendering;
-        if (!this.isConnected) return;
-        if (rendering === this.sourceRendering) break;
-      }
-      if (!this.fileEntries?.includes(entry)) return;
-      if (entry.loaded || entry.prepared) return;
-      // A disconnect abandons a load, and the entry stays loadable: an inline patch
-      // keeps its entries across a reconnection, so a later open starts afresh.
-      if (entry.loading?.rendering === this.rendering) return entry.loading.promise;
-      const rendering = this.rendering;
-      const promise = (async () => {
-        const prepared = await this.prepareEntry(
-          this.snapshot,
-          entry.record,
-          entry.renderKey,
-          this.sharedStyles,
-        );
         if (rendering !== this.rendering || !this.isConnected) return;
-        entry.loading = null;
-        entry.prepared = prepared;
-        const restore = this.applyEntry(entry);
+        const pending = plans.filter(
+          ({ record, previous, prepared }) =>
+            !prepared && (record.hunkCount === 0 || (previous?.details?.open ?? open)),
+        );
+        if (!pending.length) break;
+        await Promise.all(
+          pending.map(async (plan) => {
+            plan.prepared = await this.prepareEntry(
+              snapshot,
+              plan.record,
+              plan.previous?.details ? plan.previous.renderKey : null,
+              sharedStyles,
+              plan.evidence,
+            );
+          }),
+        );
+      }
+      const fresh = [];
+      const restores = [];
+      const resume = this.controller.defer();
+      try {
+        const entries = plans.map(({ record, evidence, previous, prepared }) => {
+          let entry = previous;
+          const metadata = record.hunkCount === 0 && !prepared?.error;
+          if (
+            metadata
+              ? !entry ||
+                entry.details ||
+                JSON.stringify(entry.record) !== JSON.stringify(record)
+              : !entry?.details
+          ) {
+            const row = metadata
+              ? metadataNode(record)
+              : summaryNode(
+                  record,
+                  !!prepared?.error || record.hunkCount === 0 || open,
+                  !prepared?.error,
+                );
+            if (entry) restores.push(replaceFileRendering(entry, row));
+            else fresh.push((entry = fileEntry(row)));
+          }
+          Object.assign(entry, {
+            record,
+            file: evidence.file,
+            loaded: metadata,
+            failed: false,
+            refused: false,
+            loading: null,
+            prepared,
+          });
+          keeps(entry.node, "data-lf-gen", "1");
+          if (metadata) {
+            entry.lines = [];
+            entry.renderKey = null;
+            return entry;
+          }
+          paintSummary(entry.details, record, !prepared?.error);
+          if (prepared) restores.push(this.applyEntry(entry));
+          else entry.details.querySelector("pre")?.toggleAttribute("hidden", true);
+          paintFileDetails(entry.details, prepared?.error ? {} : record);
+          return entry;
+        });
+        this.snapshot = snapshot;
+        this.fileEntries = entries;
+        this.sharedStyles = sharedStyles;
+        this.diffTools ??= diffTools(this);
+        for (const entry of fresh) this.attachEntryControls(entry);
+        for (const entry of entries) this.attachDisclosure(entry);
+        this.filesBody ??= diffBody([]);
+        // A file the patch dropped goes with its outlets, which core's composer leaves first.
+        for (const entry of prior.values())
+          if (!entries.includes(entry)) releaseOutlets(entry.node);
+        setChildren(this.filesBody, [
+          this.diffTools.search,
+          ...entries.map(({ node }) => node),
+        ]);
+        this.replaceChildren();
         this.layoutThreadOutlets();
         this.stageFiles();
         this.projectFiles();
-        restore?.();
-      })();
-      entry.loading = { rendering, promise };
-      return promise;
-    }
-
-    // Returns the focus restore for the caller to run once the file's evidence is staged.
-    applyEntry(entry) {
-      const { error, renderKey, rendered } = entry.prepared;
-      entry.prepared = null;
-      if (error) {
-        entry.failed = true;
-        entry.lines = [];
-        entry.renderKey = null;
-        deferredError(entry.details, error, () => {
-          if (!entry.failed) return;
-          entry.failed = false;
-          this.present(this.loadEntry(entry));
-        });
-        return null;
+        this.classList.toggle("lf-rendered", true);
+        this.filterFiles(this.diffTools.search.value);
+        for (const restore of restores) restore?.();
+      } finally {
+        resume();
       }
-      const restore =
-        rendered &&
-        replaceFileContent(entry, rendered, this.threadPairs, this.threadSeats);
-      entry.renderKey = renderKey;
+    } catch (err) {
+      if (rendering !== this.rendering || !this.isConnected) return;
+      this.fileEntries = null;
+      this.sharedStyles = null;
+      this.diffTools = null;
+      this.filesBody = null;
+      this.classList.toggle("lf-rendered", false);
+      // The failure box quotes a patch text; a manifest has none to quote. It takes
+      // the place of every outlet, which core's composer leaves first.
+      releaseOutlets(this);
+      failSoft(this, err, typeof source === "string" ? source : undefined);
+      if (snapshot !== undefined) projectData(this, [], { snapshot });
+    }
+  }
+
+  // A patch that fails to load may load on Retry. One this widget cannot draw never
+  // will, so it offers no Retry, and `applyEntry` reports it to the agent, which stored
+  // it, once the current rendering shows it: the manifest's producer leaves judging a
+  // patch to this widget.
+  async readEntry(snapshot, record) {
+    let patch;
+    if (!record.parsed)
+      try {
+        patch = await loadDeferred(snapshot, record.path);
+      } catch (error) {
+        return { error, retry: true };
+      }
+    try {
+      return { file: record.parsed ?? (await deferredFile(patch, record)) };
+    } catch (error) {
+      return { error };
+    }
+  }
+
+  async prepareEntry(snapshot, record, renderKey, sharedStyles, evidence) {
+    const reading = evidence ?? (await this.readEntry(snapshot, record));
+    if (reading.error) return reading;
+    try {
+      const { file } = reading;
+      const nextKey = JSON.stringify(file);
+      const rendered =
+        !file.hunks.length || renderKey === nextKey
+          ? null
+          : await renderFile(file, sharedStyles);
+      return { file, renderKey: nextKey, rendered };
+    } catch (error) {
+      return { error };
+    }
+  }
+
+  stageFiles() {
+    if (!this.filesBody) return;
+    shadowStage(this, [...this.sharedStyles.values(), this.filesBody]);
+  }
+
+  // A manifest names the source field each datum came from; a bound patch text's datums
+  // take the whole delivery's origin, and an inline patch has no delivery.
+  projectFiles() {
+    const origin = (index, field) =>
+      this.snapshot && typeof this.snapshot.value === "object"
+        ? { ...this.snapshot.origin, path: ["files", index, field] }
+        : null;
+    projectData(
+      this,
+      (this.fileEntries ?? [])
+        .flatMap((entry, index) => [
+          fileDatum(entry, origin(index, "path")),
+          ...(entry.loaded ? entry.lines : []).map((line) => ({
+            ...line,
+            origin: origin(index, "patch"),
+          })),
+        ])
+        .map(projectionDatum),
+      { snapshot: this.snapshot },
+    );
+  }
+
+  // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over, and
+  // the outlets this placement no longer uses come down once it commits.
+  threadOutlets(targets, { onCommit }) {
+    this.beginThreadSurface();
+    const outlets = targets.map((target) => this.threadOutletFor(target));
+    this.layoutThreadOutlets();
+    onCommit(() => this.retireThreadOutlets());
+    return outlets;
+  }
+
+  // One outlet per datum, kept beside its datum's drawn node for as long as the thread
+  // surface returns it. One the surface stops returning still holds the composer or
+  // a thread view core placed there, until that placement commits; only then does it
+  // come down, so the user's editor never leaves the document with it.
+  beginThreadSurface() {
+    this.threadSeats ??= new Map();
+    this.threadPairs ??= new Map();
+    for (const record of this.threadSeats.values()) record.active = false;
+    for (const [content, pair] of this.threadPairs)
+      if (!content.isConnected || !pair.gutter.isConnected)
+        this.threadPairs.delete(content);
+  }
+
+  threadPair(row) {
+    this.threadPairs ??= new Map();
+    const content = row.parentElement;
+    const gutter = content.closest("pre").querySelector("[data-gutter]");
+    const lineIndex = row.dataset.lineIndex;
+    const gutterRow = [...gutter.children].find(
+      (candidate) => candidate.dataset.lineIndex === lineIndex,
+    );
+    let pair = this.threadPairs.get(content);
+    if (!pair) {
+      pair = {
+        content,
+        gutter,
+        contentRows: rowSpan(content),
+        gutterRows: rowSpan(gutter),
+        contentGridRow: content.style.gridRow,
+        gutterGridRow: gutter.style.gridRow,
+      };
+      this.threadPairs.set(content, pair);
+    }
+    return { gutterRow, pair };
+  }
+
+  threadOutletFor({ anchor, placement }) {
+    const coordinate = readDiffCoordinate(anchor.datum);
+    const entry = findDiffFile(this.fileEntries, coordinate);
+    if (!entry || entry.filtered) return null;
+    const file = coordinate.file;
+    if (file) {
+      if (placement.datumElement !== entry.node) return null;
+    } else if (
+      !entry.loaded ||
+      (entry.details && !entry.details.open) ||
+      placement.datumElement !==
+        entry.lines.find((line) => diffDatumKey(line) === anchor.datum)?.node
+    )
+      return null;
+
+    const row = placement.datumElement;
+    let record = this.threadSeats.get(anchor.datum);
+    if (!record) {
+      const outlet = document.createElement("section");
+      outlet.className = `lf-diff-thread-outlet lf-ui${
+        file ? " lf-diff-file-thread-outlet" : ""
+      }`;
+      outlet.dataset.lfGen = "1";
+      outlet.dataset.lfThreadDatum = anchor.datum;
+      outlet.setAttribute(
+        "aria-label",
+        `Thread on ${row.dataset.lfDatumLabel || (file ? "file" : "diff line")}`,
+      );
+      let gutterRow = null;
+      if (!file) {
+        gutterRow = document.createElement("div");
+        gutterRow.className = "lf-diff-thread-gutter lf-ui";
+        gutterRow.dataset.lfGen = "1";
+        gutterRow.setAttribute("aria-hidden", "true");
+      }
+      record = { gutterRow, outlet, pair: null, row: null };
+      this.threadSeats.set(anchor.datum, record);
+    }
+    // A datum drawn anew takes its outlet along, which keeps whoever stands in it.
+    if (record.row !== row) {
+      if (file) move(entry.node, record.outlet, null);
+      else {
+        const { gutterRow: lineGutter, pair } = this.threadPair(row);
+        move(row.parentNode, record.outlet, row.nextSibling);
+        move(lineGutter.parentNode, record.gutterRow, lineGutter.nextSibling);
+        record.pair = pair;
+      }
+      record.row = row;
+    }
+    record.active = true;
+    return record.outlet;
+  }
+
+  // Take down the outlets the committed placement no longer uses.
+  retireThreadOutlets() {
+    for (const [key, record] of this.threadSeats) {
+      if (record.active) continue;
+      record.outlet.remove();
+      record.gutterRow?.remove();
+      this.threadSeats.delete(key);
+    }
+    this.layoutThreadOutlets();
+  }
+
+  // Each line outlet takes a grid row of its own beside its line, in the content and
+  // the gutter columns alike. A file drawn anew sets its columns' rows from the fresh
+  // render alone, so the outlets it kept take theirs again here.
+  layoutThreadOutlets() {
+    const counts = new Map();
+    for (const { outlet, pair } of this.threadSeats?.values() ?? [])
+      if (pair && outlet.parentNode === pair.content)
+        counts.set(pair, (counts.get(pair) ?? 0) + 1);
+    const targets = new Set();
+    for (const pair of this.threadPairs?.values() ?? []) {
+      const count = counts.get(pair) ?? 0;
+      if (count) {
+        targets.add(pair.content.closest("code[data-code]"));
+        targets.add(pair.gutter);
+      }
+      const contentRow = count
+        ? `span ${pair.contentRows + count}`
+        : pair.contentGridRow;
+      const gutterRow = count ? `span ${pair.gutterRows + count}` : pair.gutterGridRow;
+      pair.content.style.gridRow = contentRow;
+      pair.gutter.style.gridRow = gutterRow;
+    }
+    for (const target of this.threadSizeTargets ?? [])
+      if (!targets.has(target)) threadSizes.unobserve(target);
+    for (const target of targets)
+      if (!this.threadSizeTargets?.has(target)) threadSizes.observe(target);
+    this.threadSizeTargets = targets;
+  }
+
+  async loadEntry(entry) {
+    for (;;) {
+      const rendering = this.sourceRendering;
+      await rendering;
+      if (!this.isConnected) return;
+      if (rendering === this.sourceRendering) break;
+    }
+    if (!this.fileEntries?.includes(entry)) return;
+    if (entry.loaded || entry.prepared || entry.refused) return;
+    // A disconnect abandons a load, and the entry stays loadable: an inline patch
+    // keeps its entries across a reconnection, so a later open starts afresh.
+    if (entry.loading?.rendering === this.rendering) return entry.loading.promise;
+    const rendering = this.rendering;
+    const promise = (async () => {
+      const prepared = await this.prepareEntry(
+        this.snapshot,
+        entry.record,
+        entry.renderKey,
+        this.sharedStyles,
+        entry.file ? { file: entry.file } : undefined,
+      );
+      if (rendering !== this.rendering || !this.isConnected) return;
+      entry.loading = null;
+      entry.prepared = prepared;
+      const restore = this.applyEntry(entry);
+      this.layoutThreadOutlets();
+      this.stageFiles();
+      this.projectFiles();
+      restore?.();
+    })();
+    entry.loading = { rendering, promise };
+    return promise;
+  }
+
+  // Returns the focus restore for the caller to run once the file's evidence is staged.
+  applyEntry(entry) {
+    const { error, retry, file, renderKey, rendered } = entry.prepared;
+    entry.prepared = null;
+    if (error) {
+      entry.failed = true;
+      paintSummary(entry.details, entry.record, false);
+      if (!entry.details.open) entry.details.open = true;
+      entry.disclosureOpen = true;
+      // Reopening retries a load; nothing loads a patch this widget refused again.
+      entry.refused = !retry;
+      if (entry.refused) reportFailure(this, error);
+      entry.lines = [];
+      entry.renderKey = null;
+      deferredError(
+        entry.details,
+        error,
+        retry &&
+          (() => {
+            if (!entry.failed) return;
+            entry.failed = false;
+            this.present(this.loadEntry(entry));
+          }),
+      );
+      return null;
+    }
+    entry.file = file;
+    paintSummary(entry.details, entry.record);
+    if (entry.record.hunkCount === 0) {
+      const restore = replaceFileRendering(entry, metadataNode(entry.record));
       entry.loaded = true;
-      entry.details.querySelector("pre")?.toggleAttribute("hidden", false);
-      this.attachLineComments(entry);
+      this.attachDisclosure(entry);
       return restore;
     }
+    const restore =
+      rendered &&
+      replaceFileContent(entry, rendered, this.threadPairs, this.threadSeats);
+    entry.renderKey = renderKey;
+    entry.loaded = true;
+    entry.details.querySelector("pre")?.toggleAttribute("hidden", false);
+    this.attachLineComments(entry);
+    paintFileDetails(entry.details, entry.record);
+    return restore;
+  }
 
-    // Core can place a standing line thread at its file disclosure before that file's
-    // patch exists in the DOM. Navigation asks the second method to make the exact line
-    // real, then the ordinary datum resolver and anchor painter take over.
-    lfDataDatum(key, { outdated = false } = {}) {
-      const coordinate = readDiffCoordinate(key);
-      const entry = findDiffFile(this.fileEntries, coordinate);
-      if (!entry) return null;
-      if (coordinate.file) return fileNode(entry);
-      if (outdated) return entry.node;
-      if (!entry.loaded || entry.filtered) return entry.node;
-      const line = findDiffLine(entry.lines, coordinate);
-      return line ? projectedDatum(this, diffDatumKey(line)) : null;
-    }
+  // Core can place an existing line thread at its file disclosure before that file's
+  // patch exists in the DOM. Navigation asks the second method to make the exact line
+  // real, then the ordinary datum resolver and anchor painter take over.
+  lfDataDatum(key, { outdated = false } = {}) {
+    const coordinate = readDiffCoordinate(key);
+    const entry = findDiffFile(this.fileEntries, coordinate);
+    if (!entry) return null;
+    if (coordinate.file) return fileNode(entry);
+    if (outdated) return entry.node;
+    if (!entry.loaded || entry.filtered) return entry.node;
+    const line = findDiffLine(entry.lines, coordinate);
+    return line ? projectedDatum(this, diffDatumKey(line)) : null;
+  }
 
-    // A datum's label is its coordinate's, so a thread on a line of a file not yet
-    // loaded is named as the drawn line will be.
-    lfDatumLabel(key) {
-      const coordinate = readDiffCoordinate(key);
-      if (!coordinate || coordinate.source) return null;
-      return coordinate.file ? fileLabel(coordinate) : lineLabel(coordinate);
-    }
+  // A datum's label is its coordinate's, so a thread on a line of a file not yet
+  // loaded is named as the drawn line will be.
+  lfDatumLabel(key) {
+    const coordinate = readDiffCoordinate(key);
+    if (!coordinate || coordinate.source) return null;
+    return coordinate.file ? fileLabel(coordinate) : lineLabel(coordinate);
+  }
 
-    lfRevealDatum(key) {
-      const coordinate = readDiffCoordinate(key);
-      const entry = findDiffFile(this.fileEntries, coordinate);
-      if (!entry) return null;
-      if (entry.filtered) this.clearFilter();
-      if (coordinate.file) return null;
-      if (!entry.details || entry.loaded || entry.failed) return null;
-      entry.details.toggleAttribute("open", true);
-      return this.loadEntry(entry);
-    }
+  lfRevealDatum(key) {
+    const coordinate = readDiffCoordinate(key);
+    const entry = findDiffFile(this.fileEntries, coordinate);
+    if (!entry) return null;
+    if (entry.filtered) this.clearFilter();
+    if (coordinate.file) return null;
+    if (!entry.details || entry.loaded || entry.failed) return null;
+    entry.details.toggleAttribute("open", true);
+    return this.loadEntry(entry);
+  }
 
-    attachDisclosure(entry) {
-      if (entry.disclosureNode === entry.details) return;
-      entry.disclosureNode?.removeEventListener("toggle", entry.disclose);
-      entry.disclosureNode = entry.details;
-      if (!entry.details) return;
-      entry.disclose ??= () => {
-        threadSurface(this).update();
-        if (!entry.details.open || !this.fileEntries?.includes(entry)) return;
-        entry.failed = false;
-        this.present(this.loadEntry(entry));
-      };
-      entry.details.addEventListener("toggle", entry.disclose);
-    }
-
-    attachEntryControls(entry) {
-      this.attachLineComments(entry);
-      const hover = (event) => {
-        const line = event.target.closest("[data-content] > [data-line]");
-        const gutter = entry.lineGutters.get(line);
-        if (gutter && !line.contains(event.relatedTarget))
-          gutter.classList.toggle("lf-diff-line-hover", event.type === "pointerover");
-      };
-      entry.node.addEventListener("pointerover", hover);
-      entry.node.addEventListener("pointerout", hover);
-      const label = entry.record.path || "file";
-      entry.fileComment = commentButton(
-        label,
-        () => threadSurface(this).open(entry.node),
-        "lf-diff-file-comment",
-      );
-      entry.node
-        .querySelector(":scope > .lf-diff-file-actions")
-        .prepend(entry.fileComment);
-    }
-    attachLineComments(entry) {
-      entry.lineGutters ??= new WeakMap();
-      for (const line of entry.lines) {
-        const { gutterRow } = this.threadPair(line.node);
-        entry.lineGutters.set(line.node, gutterRow);
-        if (line.comment?.parentElement === gutterRow) continue;
-        line.comment = commentButton(
-          lineLabel(line),
-          () => threadSurface(this).open(line.node),
-          "lf-diff-line-comment",
-        );
-        // Thousands of lines must not become thousands of Tab stops. The page-level
-        // target picker is the keyboard route to the same exact datum; this control is
-        // the conventional pointer affordance in the line-number gutter.
-        line.comment.tabIndex = -1;
-        line.comment.setAttribute(LINE_KEY, diffDatumKey(line));
-        gutterRow.append(line.comment);
-      }
-    }
-
-    present(promise) {
-      return this.controller.present(promise);
-    }
-
-    filterFiles(query) {
-      const needle = query.trim().toLocaleLowerCase();
-      for (const entry of this.fileEntries ?? []) {
-        const paths = [entry.record.path, entry.record.previousPath ?? ""]
-          .join("\n")
-          .toLocaleLowerCase();
-        entry.filtered = Boolean(needle && !paths.includes(needle));
-        entry.node.classList.toggle("lf-diff-filtered", entry.filtered);
-      }
-      this.refreshDiffTools();
-      layoutChanged(this);
+  attachDisclosure(entry) {
+    if (entry.disclosureNode === entry.details) return;
+    entry.disclosureNode?.removeEventListener("toggle", entry.disclose);
+    entry.disclosureNode = entry.details;
+    if (!entry.details) return;
+    entry.disclosureOpen = entry.details.open;
+    entry.disclose ??= () => {
+      const previous = entry.disclosureOpen;
+      entry.disclosureOpen = entry.details.open;
       threadSurface(this).update();
-    }
-
-    clearFilter() {
-      if (this.diffTools) this.diffTools.search.value = "";
-      this.filterFiles("");
-    }
-
-    refreshDiffTools() {
-      if (!this.diffTools || !this.fileEntries) return;
-      const shown = this.fileEntries.filter((entry) => !entry.filtered);
-      const total = this.fileEntries.length;
-      const all = `${total} file${total === 1 ? "" : "s"}`;
-      const matching = `${shown.length} of ${total}`;
-      // Filtering changes the count inside its reserved room, never its containing field.
-      if (this.diffTools.progressRoom !== total) {
-        this.diffTools.progressRoom = total;
-        reserve(this.diffTools.progress, [all, `${total} of ${total}`]);
-      }
-      keepsText(this.diffTools.progress, shown.length === total ? all : matching);
-      paintKeys();
-    }
-
-    shownEntries() {
-      return (this.fileEntries ?? []).filter((entry) => !entry.filtered);
-    }
-
-    hasHunks() {
-      return this.shownEntries().some((entry) => entry.details);
-    }
-
-    // Where the user stands inside this diff. A row, a header, or a control in the
-    // tools row all answer; the walk only needs a node to compare document positions
-    // against, and the tools row standing before every file is why a user who has
-    // touched nothing steps to the first hunk rather than nowhere.
-    hereNode() {
-      const focused = this.shadowRoot?.activeElement;
-      return focused && this.shadowRoot.contains(focused) ? focused : null;
-    }
-
-    // With nothing focused inside the shadow tree — the host itself is focused, which
-    // is where an in-page link to the diff's id lands — every hunk counts as beyond, in
-    // either direction: `order` is already reversed for a backward step, so the walk
-    // opens the last file and lands on its last hunk, the mirror of the first hunk
-    // forward. Answering false there matched no hunk in any file, and the walk opened
-    // and fetched every one of them to land nowhere.
-    beyond(node, here, back) {
-      if (!here) return true;
-      const where = here.compareDocumentPosition(node);
-      return Boolean(
-        where &
-        (back ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING),
-      );
-    }
-
-    markHunkWalk() {
-      beginWalk("diff-hunk", "Hunk", () => {
-        const entry = this.entryAroundFocus();
-        return entry
-          ? listWalkPosition(
-              hunkHeads(entry).map(({ node }) => node),
-              this.hereNode(),
-            )
-          : null;
-      });
-    }
-
-    markFileWalk() {
-      beginWalk("diff-file", "File", () => {
-        const entries = this.shownEntries();
-        return listWalkPosition(
-          entries.map(({ node }) => node),
-          this.entryAroundFocus()?.node,
-        );
-      });
-    }
-
-    async openEntry(entry) {
-      if (!entry.details) return;
-      entry.details.toggleAttribute("open", true);
-      await this.loadEntry(entry);
-    }
-
-    // The walk starts in the file the user is standing in and goes on through the
-    // ones after it, so a closed file is opened only once the step has actually reached
-    // it: a user on the last hunk of the third file loads the fourth and stops, rather
-    // than every remaining file to discover there is nothing past them.
-    // Opening a file may wait on the network, and the user may have moved on by then:
-    // both walks capture the pressing gesture's intent first and land only while it stands.
-    async stepHunk(back) {
-      const mayLand = retainUserIntent();
-      const here = this.hereNode();
-      const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
-      const standing = here
-        ? order.findIndex((entry) => entry.node.contains(here))
-        : -1;
-      for (let index = Math.max(standing, 0); index < order.length; index++) {
-        const entry = order[index];
-        await this.openEntry(entry);
-        if (!mayLand()) return;
-        const heads = hunkHeads(entry);
-        const head = (back ? [...heads].reverse() : heads).find((line) =>
-          this.beyond(line.node, here, back),
-        );
-        if (!head) continue;
-        this.land(head.node);
-        this.markHunkWalk();
-        announce(`${entry.record.path} · hunk ${head.hunk + 1} of ${heads.length}`);
+      if (previous === entry.disclosureOpen) return;
+      if (!entry.details.open || !this.fileEntries?.includes(entry) || entry.refused)
         return;
-      }
+      entry.failed = false;
+      this.present(this.loadEntry(entry));
+    };
+    entry.details.addEventListener("toggle", entry.disclose);
+  }
+
+  attachEntryControls(entry) {
+    this.attachLineComments(entry);
+    const hover = (event) => {
+      const line = event.target.closest("[data-content] > [data-line]");
+      const gutter = entry.lineGutters.get(line);
+      if (gutter && !line.contains(event.relatedTarget))
+        gutter.classList.toggle("lf-diff-line-hover", event.type === "pointerover");
+    };
+    entry.node.addEventListener("pointerover", hover);
+    entry.node.addEventListener("pointerout", hover);
+    const label = entry.record.path || "file";
+    entry.fileComment = commentButton(
+      label,
+      () => threadSurface(this).open(entry.node),
+      "lf-diff-file-comment",
+    );
+    entry.node
+      .querySelector(":scope > .lf-diff-file-actions")
+      .prepend(entry.fileComment);
+  }
+  attachLineComments(entry) {
+    entry.lineGutters ??= new WeakMap();
+    for (const line of entry.lines) {
+      const { gutterRow } = this.threadPair(line.node);
+      entry.lineGutters.set(line.node, gutterRow);
+      if (line.comment?.parentElement === gutterRow) continue;
+      line.comment = commentButton(
+        lineLabel(line),
+        () => threadSurface(this).open(line.node),
+        "lf-diff-line-comment",
+      );
+      // Thousands of lines must not become thousands of Tab stops. The page-level
+      // target picker is the keyboard route to the same exact datum; this control is
+      // the conventional pointer affordance in the line-number gutter.
+      line.comment.tabIndex = -1;
+      line.comment.setAttribute(LINE_KEY, diffDatumKey(line));
+      gutterRow.append(line.comment);
+    }
+  }
+
+  present(promise) {
+    return this.controller.present(promise);
+  }
+
+  filterFiles(query) {
+    const needle = query.trim().toLocaleLowerCase();
+    for (const entry of this.fileEntries ?? []) {
+      const paths = [entry.record.path, entry.record.previousPath ?? ""]
+        .join("\n")
+        .toLocaleLowerCase();
+      entry.filtered = Boolean(needle && !paths.includes(needle));
+      entry.node.classList.toggle("lf-diff-filtered", entry.filtered);
+    }
+    this.refreshDiffTools();
+    layoutChanged(this);
+    threadSurface(this).update();
+  }
+
+  clearFilter() {
+    if (this.diffTools) this.diffTools.search.value = "";
+    this.filterFiles("");
+  }
+
+  refreshDiffTools() {
+    if (!this.diffTools || !this.fileEntries) return;
+    const shown = this.fileEntries.filter((entry) => !entry.filtered);
+    const total = this.fileEntries.length;
+    const all = `${total} file${total === 1 ? "" : "s"}`;
+    const matching = `${shown.length} of ${total}`;
+    // Filtering changes the count inside its reserved room, never its containing field.
+    if (this.diffTools.progressRoom !== total) {
+      this.diffTools.progressRoom = total;
+      reserve(this.diffTools.progress, [all, `${total} of ${total}`]);
+    }
+    keepsText(this.diffTools.progress, shown.length === total ? all : matching);
+    paintKeys();
+  }
+
+  shownEntries() {
+    return (this.fileEntries ?? []).filter((entry) => !entry.filtered);
+  }
+
+  hasHunks() {
+    return this.shownEntries().some((entry) => entry.details);
+  }
+
+  // Where the user stands inside this diff. A row, a header, or a control in the
+  // tools row all answer; the walk only needs a node to compare document positions
+  // against, and the tools row standing before every file is why a user who has
+  // touched nothing steps to the first hunk rather than nowhere.
+  hereNode() {
+    const standing = this.shadowRoot && focused(this.shadowRoot);
+    return standing && this.shadowRoot.contains(standing) ? standing : null;
+  }
+
+  // With nothing focused inside the shadow tree — the host itself is focused, which
+  // is where an in-page link to the diff's id lands — every hunk counts as beyond, in
+  // either direction: `order` is already reversed for a backward step, so the walk
+  // opens the last file and lands on its last hunk, the mirror of the first hunk
+  // forward. Answering false there matched no hunk in any file, and the walk opened
+  // and fetched every one of them to land nowhere.
+  beyond(node, here, back) {
+    if (!here) return true;
+    const where = here.compareDocumentPosition(node);
+    return Boolean(
+      where &
+      (back ? Node.DOCUMENT_POSITION_PRECEDING : Node.DOCUMENT_POSITION_FOLLOWING),
+    );
+  }
+
+  markHunkWalk() {
+    beginWalk("diff-hunk", "Hunk", () => {
+      const entry = this.entryAroundFocus();
+      return entry
+        ? listWalkPosition(
+            hunkHeads(entry).map(({ node }) => node),
+            this.hereNode(),
+          )
+        : null;
+    });
+  }
+
+  markFileWalk() {
+    beginWalk("diff-file", "File", () => {
+      const entries = this.shownEntries();
+      return listWalkPosition(
+        entries.map(({ node }) => node),
+        this.entryAroundFocus()?.node,
+      );
+    });
+  }
+
+  async openEntry(entry) {
+    if (!entry.details) return;
+    entry.details.toggleAttribute("open", true);
+    await this.loadEntry(entry);
+  }
+
+  // The walk starts in the file the user is standing in and goes on through the
+  // ones after it, so a closed file is opened only once the step has actually reached
+  // it: a user on the last hunk of the third file loads the fourth and stops, rather
+  // than every remaining file to discover there is nothing past them.
+  // Opening a file may wait on the network, and the user may have moved on by then:
+  // both walks capture the pressing gesture's intent first and land only while it stands.
+  async stepHunk(back) {
+    const mayLand = retainUserIntent();
+    const here = this.hereNode();
+    const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
+    const standing = here ? order.findIndex((entry) => entry.node.contains(here)) : -1;
+    for (let index = Math.max(standing, 0); index < order.length; index++) {
+      const entry = order[index];
+      await this.openEntry(entry);
+      if (!mayLand()) return;
+      const heads = hunkHeads(entry);
+      const head = (back ? [...heads].reverse() : heads).find((line) =>
+        this.beyond(line.node, here, back),
+      );
+      if (!head) continue;
+      this.land(head.node);
       this.markHunkWalk();
+      announce(`${entry.record.path} · hunk ${head.hunk + 1} of ${heads.length}`);
+      return;
     }
+    this.markHunkWalk();
+  }
 
-    stepFile(back) {
-      const here = this.hereNode();
-      const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
-      // The whole file is the unit, so a step out of one starts past it rather than at
-      // its own header — and a user standing in the tools row, which belongs to no
-      // file, steps to the first (or, walking back, the last).
-      const standing = here
-        ? order.findIndex((entry) => entry.node.contains(here))
-        : -1;
-      const entry = order[standing + 1];
-      if (!entry) return this.markFileWalk();
-      this.fileCursor = entry;
-      // The box rather than the header, which is what the generated fold target settled for
-      // the same shape: a header pinned to the banner is already where it is going, so
-      // aligning it moves nothing, while aligning the file it heads starts the file at
-      // its start. The header is still what takes the focus.
-      this.land(entry.node, entry.details?.firstElementChild ?? entry.node);
-      this.markFileWalk();
-      announce(entry.record.path);
-    }
+  stepFile(back) {
+    const here = this.hereNode();
+    const order = back ? [...this.shownEntries()].reverse() : this.shownEntries();
+    // The whole file is the unit, so a step out of one starts past it rather than at
+    // its own header — and a user standing in the tools row, which belongs to no
+    // file, steps to the first (or, walking back, the last).
+    const standing = here ? order.findIndex((entry) => entry.node.contains(here)) : -1;
+    const entry = order[standing + 1];
+    if (!entry) return this.markFileWalk();
+    this.fileCursor = entry;
+    // The box rather than the header, which is what the generated fold target settled for
+    // the same shape: a header pinned to the banner is already where it is going, so
+    // aligning it moves nothing, while aligning the file it heads starts the file at
+    // its start. The header is still what takes the focus.
+    this.land(entry.node, entry.details?.firstElementChild ?? entry.node);
+    this.markFileWalk();
+    announce(entry.record.path);
+  }
 
-    // Arrival: scrolled to the band the document declares landable, which the pinned
-    // header's own room has been added to, and then the focus without the browser
-    // scrolling a second time. A row is not a tab stop — a patch is thousands of them —
-    // so it is made focusable for the press that lands on it, and wears the band inset
-    // inside its own box (shadow.css). A file header
-    // already is one, and writing a tabindex of -1 onto it would take it out of the
-    // order a user tabs through.
-    //
-    // The shared reading-region landing moves only vertically, including through
-    // the shadow host. Neither the file nor a region around it loses its sideways place.
-    land(box, node = box) {
-      scrollIntoReadingBand(box, box, "start", scrollBehavior());
-      focusDestination(node, "move");
-    }
+  // Arrival: scrolled to the band the document declares landable, which the pinned
+  // header's own room has been added to, and then the focus without the browser
+  // scrolling a second time. A row is not a tab stop — a patch is thousands of them —
+  // so it is made focusable for the press that lands on it, and wears the band inset
+  // inside its own box (shadow.css). A file header
+  // already is one, and writing a tabindex of -1 onto it would take it out of the
+  // order a user tabs through.
+  //
+  // The shared reading-region landing moves only vertically, including through
+  // the shadow host. Neither the file nor a region around it loses its sideways place.
+  land(box, node = box) {
+    scrollIntoReadingBand(box, box, "start", scrollBehavior());
+    focusDestination(node, "move");
+  }
 
-    entryAroundFocus() {
-      const focused = this.hereNode();
-      const focusedEntry =
-        this.fileEntries?.find(({ node }) => focused && node.contains(focused)) ?? null;
-      if (focusedEntry) return focusedEntry;
-      return this.fileEntries?.includes(this.fileCursor) ? this.fileCursor : null;
-    }
+  entryAroundFocus() {
+    const here = this.hereNode();
+    const focusedEntry =
+      this.fileEntries?.find(({ node }) => here && node.contains(here)) ?? null;
+    if (focusedEntry) return focusedEntry;
+    return this.fileEntries?.includes(this.fileCursor) ? this.fileCursor : null;
+  }
 
-    renderState() {
-      this.refreshDiffTools();
-    }
-  },
-);
+  renderState() {
+    this.refreshDiffTools();
+  }
+}

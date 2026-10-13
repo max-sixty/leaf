@@ -78,9 +78,9 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     )
     page.close()
     assert held == []
-    assert any("planted float" in found for found in reported), (
-        "the planted control covers no words, so a gate that never looked would pass too"
-    )
+    assert any(
+        "planted float" in (found["words"], found["covered"]) for found in reported
+    ), "the planted control covers no words, so a gate that never looked would pass too"
 
 
 def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serve):
@@ -99,7 +99,11 @@ def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serv
     collapsed.evaluate("node => node.removeAttribute('hidden')")
     expect(collapsed.locator("p").first).to_be_visible()
     visible = render_checks_model.evaluate_probe(page, "coveredWords")
-    assert any("hidden line" in found for found in visible), (
+    assert any(
+        {found["words"], found["covered"]}
+        == {"First hidden line", "Second hidden line"}
+        for found in visible
+    ), (
         "the visible lines fell on nobody, so a gate that never looked would pass this too"
     )
     collapsed.evaluate("node => node.setAttribute('hidden', 'until-found')")
@@ -184,9 +188,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     serve(LONG_PAGE)
     d = serve.page_dir
 
-    def gate():
+    def gate(*flags):
         return subprocess.run(
-            [*LEAF_COMMAND, "page", "check", str(d), "--render"],
+            [*LEAF_COMMAND, "page", "check", str(d), "--render", *flags],
             capture_output=True,
             text=True,
             check=False,  # both exit codes are the subject
@@ -202,9 +206,15 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     (d / "index.html").write_text(
         LONG_PAGE.replace("</main>", "<div style='width:150vw'>wide</div>\n</main>")
     )
-    broken = gate()
-    assert broken.returncode == 1
-    assert "scrolls sideways" in broken.stderr
+    broken = gate("--json")
+    assert broken.returncode == 1, broken.stderr
+    report = json.loads(broken.stdout)
+    assert report["status"] == 1
+    assert report["browser"]["asked"] == report["browser"]["ran"] == ["render check"]
+    assert report["browser"]["browser"] == "Chrome"
+    scrolls = [f for f in report["findings"] if f["code"] == "page-scrolls"]
+    assert {f["scheme"] for f in scrolls} == {"light", "dark"}, report
+    assert all(f["severity"] == "error" and f["values"]["past"] > 0 for f in scrolls)
 
 
 def test_a_passing_render_check_saves_the_screens_the_author_reads(
@@ -286,11 +296,11 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     names = sorted(path.name for path in into.iterdir())
     assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
     assert {
-        "1200px-question-1.png",
-        "1200px-question-2.png",
-        "1200px-question-3.png",
+        "1200px-ask-1.png",
+        "1200px-ask-2.png",
+        "1200px-ask-3.png",
     } <= set(names)
-    assert "1200px-question-4.png" not in names
+    assert "1200px-ask-4.png" not in names
     assert any("each press of `q`" in line for line in listed)
     assert any('"Pre-handover review"' in line for line in listed)
     stacks = next(line for line in listed if "<main> 1+2 → 1+1+1" in line)
@@ -716,13 +726,15 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
             "film.js": 'import { label } from "./helper.js";\n'
             "export const paint = el => (el.textContent = label);\n",
             "helper.js": 'export const label = "loaded";\n',
-            "widgets/lf-film.js": 'import { paint } from "../film.js";\n'
-            "customElements.define('lf-film', class extends HTMLElement {\n"
-            "  connectedCallback() { paint(this); }\n"
-            "});\n",
-            "widgets/lf-loader.js": "customElements.define('lf-loader', class extends HTMLElement {\n"
-            "  connectedCallback() { this.textContent = 'loaded'; }\n"
-            "});\n",
+            "widgets/lf-film.js": """import { paint } from "../film.js";
+export default class extends HTMLElement {
+  connectedCallback() { paint(this); }
+};
+""",
+            "widgets/lf-loader.js": """export default class extends HTMLElement {
+  connectedCallback() { this.textContent = 'loaded'; }
+};
+""",
         },
         media={"page/missing-image.png": solid_png(1, 1, (0, 0, 0))},
     )
@@ -747,21 +759,28 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     failed = run_page_code(RoutedBrowser(fail_helper=True), url)
     # The runtime's own report carries the error's stack; the check's refusal quotes
     # only the reason the page shows.
+    by_code = {}
+    for report in failed:
+        by_code.setdefault(report.code, []).append(report.values)
     assert any(
-        report.startswith("page failed to start:") and "TypeError" in report
-        for report in failed
+        report["text"].startswith("page failed to start:")
+        and "TypeError" in report["text"]
+        for report in by_code["page-report"]
     ), failed
-    assert any(report.startswith("the runtime could not start:") for report in failed)
+    assert by_code["not-ready"][0]["stage"] == "refused", failed
+    assert by_code["not-ready"][0]["error"].startswith("the runtime could not start:")
     assert any(
-        "Browser request failed (Script, net::ERR_FAILED)" in report
-        and f"in {url}:" in report
-        and "/page/helper.js" in report
-        for report in failed
+        report["kind"] == "Script"
+        and report["error"] == "net::ERR_FAILED"
+        and report["frame"] == url
+        and report["url"].endswith("/page/helper.js")
+        for report in by_code["request-failed"]
     ), failed
     assert any(
-        "Browser request returned HTTP 404 (Image)" in report
-        and "/page/missing-image.png" in report
-        for report in failed
+        report["status"] == 404
+        and report["kind"] == "Image"
+        and report["url"].endswith("/page/missing-image.png")
+        for report in by_code["request-status"]
     ), failed
 
     assert run_page_code(RoutedBrowser(fail_helper=False), url) == []
@@ -785,14 +804,16 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
             "registry.json": json.dumps(FILM_DECLARATION),
             "film.js": "export const paint = (el, step) =>\n"
             "  (el.textContent = (step.cmp ?? []).map(String).join());\n",
-            "widgets/lf-film.js": 'import { paint } from "../film.js";\n'
-            "customElements.define('lf-film', class extends HTMLElement {\n"
-            "  connectedCallback() { paint(this, { cmp: 3 }); }\n"
-            "});\n",
-            "widgets/lf-loader.js": "customElements.define('lf-loader', class extends HTMLElement {\n"
-            "  connectedCallback() { this.load(); }\n"
-            "  async load() { await null; throw new Error('the trace never loaded'); }\n"
-            "});\n",
+            "widgets/lf-film.js": """import { paint } from "../film.js";
+export default class extends HTMLElement {
+  connectedCallback() { paint(this, { cmp: 3 }); }
+};
+""",
+            "widgets/lf-loader.js": """export default class extends HTMLElement {
+  connectedCallback() { this.load(); }
+  async load() { await null; throw new Error('the trace never loaded'); }
+};
+""",
         },
     )
     d = serve.page_dir
@@ -829,9 +850,10 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
         "  (el.textContent = [step.cmp].flat().map(String).join());\n"
     )
     (d / "page" / "widgets" / "lf-loader.js").write_text(
-        "customElements.define('lf-loader', class extends HTMLElement {\n"
-        "  connectedCallback() { this.textContent = 'loaded'; }\n"
-        "});\n"
+        """export default class extends HTMLElement {
+  connectedCallback() { this.textContent = 'loaded'; }
+};
+"""
     )
     clean = check(LEAF_BROWSER_EXECUTABLE=headless_shell)
     assert clean.returncode == 0, clean.stdout + clean.stderr

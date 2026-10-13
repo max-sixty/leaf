@@ -5,7 +5,7 @@
  * (`sectionLabel`). Each reads authored words through the passage
  * reader, so generated chrome never names anything. */
 import { isElementName } from "./registry-contract.js";
-import { registry } from "./registry.js";
+import { registryFor } from "./registry.js";
 import { authoredScope, elementReading } from "./passages.js";
 import { TEXT_BLOCK } from "./passage-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
@@ -42,11 +42,11 @@ const HTML_WORDS = {
 export function addressableWord(addressable) {
   if (!addressable) return "";
   const tag = addressable.tagName.toLowerCase();
-  if (registry[tag]?.["x-word"] === "module") {
+  if (registryFor(addressable)[tag]?.["x-word"] === "module") {
     const own = addressable.lfWord?.();
     if (own) return own;
   }
-  if (registry[tag]?.["x-question-context"]) return "question";
+  if (registryFor(addressable)[tag]?.["x-ask-context"]) return "question";
   if (tag.startsWith("lf-")) return tag.slice(3);
   if (tag === "pre")
     return addressable.querySelector(":scope > code") ? "code" : "block";
@@ -59,7 +59,7 @@ export function addressableWord(addressable) {
 export function addressableSays(addressable) {
   if (!addressable) return "";
   const own =
-    registry[addressable.localName]?.["x-word"] === "module"
+    registryFor(addressable)[addressable.localName]?.["x-word"] === "module"
       ? addressable.lfSays?.()
       : "";
   return own || elementReading(addressable);
@@ -75,7 +75,7 @@ export function addressableSays(addressable) {
 // is no part of a heading's name, and generated chrome names nothing: chrome inside
 // the element, asked about the element's own insides, since a widget an agent sent in
 // a reply stands inside the thread panel's chrome and its heading is still its name.
-// An element the contract gives no name answers "". The server names a Question's
+// An element the contract gives no name answers "". The server names an ask's
 // element by the same rule off the document (`gesture_words.element_name`), and
 // `tests/name_cases.json` holds both to the same cases.
 const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
@@ -90,7 +90,7 @@ function leadingTitle(container) {
 }
 export function addressableName(element) {
   if (!element) return "";
-  const attribute = registry[element.localName]?.["x-name"];
+  const attribute = registryFor(element)[element.localName]?.["x-name"];
   const declared = attribute && element.getAttribute(attribute)?.trim();
   return declared || leadingTitle(element);
 }
@@ -100,10 +100,10 @@ export function addressableName(element) {
 // else its own caption, the `aria-label` its author gave it, or a control's <label>.
 // An element whose words are its own (a block of prose, anything holding text of its
 // own, or a module that answers `lfSays`) is otherwise named by them, cut short. Any other
-// element's words are its members' run together, a question's with its options' and
+// element's words are its members' run together, an ask's with its options' and
 // their chips', which name nothing, so it takes the name of the nearest element
 // holding it that has one, short of the document it stands in (the page's column, or
-// a message's body): a question's options by the question, a chart by its section.
+// a message's body): an ask's options by the ask, a chart by its section.
 // Past that, plain markup is named by its words cut short, and a registered widget by
 // nothing: empty, and the caller says the element's word (`addressableWord`), which it
 // usually shows beside this anyway.
@@ -125,7 +125,8 @@ export const ownName = (element) =>
   addressableName(element) || captionOf(element) || accessibleName(element);
 const saysItself = (element) =>
   element.matches(TEXT_BLOCK) ||
-  (registry[element.localName]?.["x-word"] === "module" && element.lfSays?.()) ||
+  (registryFor(element)[element.localName]?.["x-word"] === "module" &&
+    element.lfSays?.()) ||
   [...element.childNodes].some(
     (node) => node.nodeType === Node.TEXT_NODE && node.data.trim(),
   );
@@ -142,7 +143,8 @@ export function addressableLabel(element) {
   // A registered widget has a word of its own, which says more than its members' words
   // run together. Plain markup has none worth saying (a `div`), so its words, or the
   // name of the picture it holds, are the last resort.
-  if (isElementName(element.localName) && registry[element.localName]) return "";
+  if (isElementName(element.localName) && registryFor(element)[element.localName])
+    return "";
   return excerptWords(
     addressableSays(element) ||
       element.querySelector("[aria-label]")?.getAttribute("aria-label"),

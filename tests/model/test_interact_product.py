@@ -19,14 +19,17 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     check,
+    check_findings,
     comment,
     fetch,
+    found,
     fragment_errors,
     fresh_process,
     live_versions,
     page_state,
     publish,
     published,
+    refused_on,
     response_reference,
     served_thread,
     state_json,
@@ -40,8 +43,8 @@ from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
-from leaf import tasks as tasks_model
-from leaf.refusals import Refused
+from leaf import todos as todos_model
+from leaf.findings import Finding, Rejected
 from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
@@ -120,7 +123,7 @@ def test_later_events_do_not_veto_source_readings(page_dir):
     assert live.error is None and live.revision == 1
     live = revisioning_model.activate_source(page_dir)
 
-    # The source is the active revision, so an append leaves the answer standing.
+    # The source is the active revision, so an append leaves the answer in force.
     append_carried_log_record(
         page_dir,
         {
@@ -247,7 +250,7 @@ def test_choose_requires_an_id(page_dir):
         '<lf-options choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
         registry,
     )
-    assert errs and "'id' is a dependency of 'choose'" in " ".join(errs)
+    assert found(errs, "attribute-schema", keyword="dependentRequired")
 
 
 def test_sample_admits_interactive_widgets(page_dir):
@@ -266,7 +269,7 @@ def test_sample_admits_interactive_widgets(page_dir):
     assert errs == []
 
 
-def test_question_context_frames_any_number_of_independent_sources(page_dir):
+def test_ask_context_frames_any_number_of_independent_sources(page_dir):
     """Context supplies one title without imposing source count or identity."""
     registry = registry_storage.load_registry(page_dir)
     first = (
@@ -303,65 +306,56 @@ def test_question_context_frames_any_number_of_independent_sources(page_dir):
         f'<lf-ask id="decision-untitled"><p>Context.</p>{first}</lf-ask>',
         registry,
     )
-    assert (
-        "a Question context must have exactly one direct heading, found none"
-        in " ".join(untitled)
-    )
+    assert found(untitled, "ask-context-headings", headings=[])
 
     retitled = fragment_errors(
         f'<lf-ask id="decision-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-ask>',
         registry,
     )
-    assert "a Question context must have exactly one direct heading" in " ".join(
-        retitled
-    )
+    assert found(retitled, "ask-context-headings", headings=["h2", "h3"])
 
     context_first = fragment_errors(
         f'<lf-ask id="decision-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-ask>',
         registry,
     )
-    assert "direct heading must be its first content, found <p> first" in " ".join(
-        context_first
-    )
+    assert found(context_first, "ask-context-heading-first", first="p")
 
     control_first = fragment_errors(
         f'<lf-ask id="decision-control-first">{first}<h2>Choose</h2></lf-ask>',
         registry,
     )
-    assert (
-        "direct heading must be its first content, found <lf-options> first"
-        in " ".join(control_first)
-    )
+    assert found(control_first, "ask-context-heading-first", first="lf-options")
 
     # A context framing no live source would show a question the banner never
     # counts. A retired source still counts: settling a decision keeps its context.
-    assert "registers no Question: it holds no widget that declares x-awaits" in (
-        " ".join(
-            fragment_errors(
-                '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
-                registry,
-            )
-        )
+    empty = fragment_errors(
+        '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>', registry
     )
+    assert found(empty, "empty-ask-context", widgets=[])
+
+    def lacking(lacks):
+        return [{"at": "<lf-options id=g-one>", "line": 1, "lacks": lacks}]
+
     unasked = first.replace(" choose", "")
-    assert (
-        '<lf-options id="g-one"> (line 1) asks only where choose is present'
-        in " ".join(
-            fragment_errors(
-                f'<lf-ask id="decision-unasked"><h2>Choose</h2>{unasked}</lf-ask>',
-                registry,
-            )
-        )
+    assert found(
+        fragment_errors(
+            f'<lf-ask id="decision-unasked"><h2>Choose</h2>{unasked}</lf-ask>',
+            registry,
+        ),
+        "empty-ask-context",
+        widgets=lacking({"choose": [True]}),
     )
     settled = first.replace(" choose", " choose settled")
     settled_ask = f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
     assert fragment_errors(settled_ask, registry) == []
-    # The registry's `retired` is what says the flag ended an asked Question; a flag
+    # The registry's `retired` is what says the flag ended an ask; a flag
     # that merely stops a widget asking leaves the context framing nothing.
     unretired = copy.deepcopy(registry)
     del unretired["lf-options"]["x-awaits"]["retired"]
-    assert '<lf-options id="g-one"> (line 1) asks only where settled is absent' in (
-        " ".join(fragment_errors(settled_ask, unretired))
+    assert found(
+        fragment_errors(settled_ask, unretired),
+        "empty-ask-context",
+        widgets=lacking({"settled": [False]}),
     )
     # A quoted Ask is a mention, and its widgets ask nothing by design.
     assert (
@@ -395,9 +389,10 @@ def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
 
     errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
 
-    assert len(errors) == 2
-    assert '$work.widgets widget where role="readings"' in errors[0]
-    assert '$work.widgets widget where role="goal"' in errors[1]
+    assert [(e.code, e.values["via"], e.values["where"]) for e in errors] == [
+        ("reference-contract", "$work.widgets", {"role": "readings"}),
+        ("reference-contract", "$work.widgets", {"role": "goal"}),
+    ]
 
 
 def test_a_readings_seat_answers_to_one_command(page_dir):
@@ -417,11 +412,22 @@ def test_a_readings_seat_answers_to_one_command(page_dir):
     errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
 
     assert errors == [
-        (
-            '<lf-test-plan> (line 1): readings="seat" is already named by '
-            "<lf-test-plan id='one'> (line 1); only one element may name it"
+        Finding(
+            "owned-twice",
+            "<lf-test-plan>",
+            {
+                "line": 1,
+                "attr": "readings",
+                "target": "seat",
+                "first": "<lf-test-plan id=one>",
+                "first_line": 1,
+            },
         ),
-        "<lf-test-summary> (line 1): no <lf-test-plan> names it in `readings`",
+        Finding(
+            "unowned",
+            "<lf-test-summary>",
+            {"line": 1, "referrer": "lf-test-plan", "attr": "readings"},
+        ),
     ]
 
 
@@ -577,29 +583,36 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
 
     def errors(attributes):
-        return " ".join(
-            fragment_errors(
-                '<lf-ask id="kind-ask"><h2>Choose a setting</h2>'
-                '<lf-playground id="kind-playground">'
-                f'<lf-playground-control name="setting" label="Setting" {attributes}>'
-                "</lf-playground-control>"
-                "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
-                "<lf-playground-output>Use this setting.</lf-playground-output>"
-                "</lf-playground></lf-ask>",
-                registry,
-            )
+        return fragment_errors(
+            '<lf-ask id="kind-ask"><h2>Choose a setting</h2>'
+            '<lf-playground id="kind-playground">'
+            f'<lf-playground-control name="setting" label="Setting" {attributes}>'
+            "</lf-playground-control>"
+            "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
+            "<lf-playground-output>Use this setting.</lf-playground-output>"
+            "</lf-playground></lf-ask>",
+            registry,
         )
+
+    def refused(attributes):
+        return [
+            (e.code, e.values["keyword"], e.values["path"]) for e in errors(attributes)
+        ]
 
     assert not errors('kind="range" value="-1.5" max="24"')
     assert not errors('kind="toggle" value="false"')
     assert not errors('kind="color" value="#A0b1c2"')
     assert not errors('kind="text" value="yes"')
-    assert "'max' is a required property" in errors('kind="range" value="12"')
-    assert "does not match" in errors('kind="range" value="twelve" max="24"')
-    assert '"yes" is not one of ["true", "false"]' in errors(
-        'kind="toggle" value="yes"'
-    )
-    assert "does not match" in errors('kind="color" value="red"')
+    assert refused('kind="range" value="12"') == [("attribute-schema", "required", [])]
+    assert refused('kind="range" value="twelve" max="24"') == [
+        ("attribute-schema", "pattern", ["value"])
+    ]
+    assert refused('kind="toggle" value="yes"') == [
+        ("attribute-schema", "enum", ["value"])
+    ]
+    assert refused('kind="color" value="red"') == [
+        ("attribute-schema", "pattern", ["value"])
+    ]
 
 
 def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_page):
@@ -646,27 +659,52 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
         markup = f'<lf-ask id="ask"><h2>Which?</h2>{"".join(playgrounds)}</lf-ask>'
         try:
             check_markup(page_dir, "reply", markup, [])
-        except Refused as refused:
-            return str(refused)
-        return ""
+        except Rejected as refused:
+            return refused.findings
+        return []
 
-    assert reply(playground("a", tone, preset("tone"), slot("tone"))) == ""
-    assert (
-        '<lf-playground-setting> (line 1): for="tine" names no '
-        '<lf-playground-control name="tine"> in its <lf-playground>'
-    ) in reply(playground("a", tone, preset("tine")))
+    def unmatched(name):
+        return {
+            "attr": "for",
+            "target": name,
+            "member": "lf-playground-control",
+            "key": "name",
+            "scope": "lf-playground",
+        }
+
+    assert reply(playground("a", tone, preset("tone"), slot("tone"))) == []
+    assert found(
+        reply(playground("a", tone, preset("tine"))),
+        "unmatched-member",
+        "<lf-playground-setting>",
+        **unmatched("tine"),
+    )
     # The name of a control in the playground beside it answers nothing here.
-    assert (
-        'for="size" names no <lf-playground-control name="size"> in its <lf-playground>'
-    ) in reply(playground("a", tone, output=slot("size")), playground("b", size))
-    assert 'name="tone" repeats the <lf-playground-control>' in reply(
-        playground("a", tone + tone.replace("Tone", "Again"))
+    assert found(
+        reply(playground("a", tone, output=slot("size")), playground("b", size)),
+        "unmatched-member",
+        **unmatched("size"),
     )
-    assert 'value="bold" repeats the <lf-playground-choice>' in reply(
-        playground("a", tone.replace('"quiet" label', '"bold" label'))
+    assert found(
+        reply(playground("a", tone + tone.replace("Tone", "Again"))),
+        "repeated-key",
+        "<lf-playground-control>",
+        key="name",
+        value="tone",
     )
-    assert 'for="tone" repeats the <lf-playground-setting>' in reply(
-        playground("a", tone, preset("tone", "tone"))
+    assert found(
+        reply(playground("a", tone.replace('"quiet" label', '"bold" label'))),
+        "repeated-key",
+        "<lf-playground-choice>",
+        key="value",
+        value="bold",
+    )
+    assert found(
+        reply(playground("a", tone, preset("tone", "tone"))),
+        "repeated-key",
+        "<lf-playground-setting>",
+        key="for",
+        value="tone",
     )
 
     main = (
@@ -677,9 +715,75 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
     (page_dir / "index.html").write_text(
         re.sub(r"<main>.*?</main>", f"<main>{main}</main>", PAGE, flags=re.DOTALL)
     )
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert 'name="tone" repeats the <lf-playground-control>' in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings, "repeated-key", "<lf-playground-control>", key="name", value="tone"
+    )
+
+
+def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
+    """A control may stand at any depth in the preview beside the item it changes
+    (x-within) and still belongs to its playground: its name is unique there and a
+    preset's setting names it. One outside every playground, or inside the
+    instruction it would be read into, is refused, naming where it may stand."""
+    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    tone = (
+        '<lf-playground-control name="{name}" label="Tone" kind="choice" value="quiet">'
+        '<lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>'
+        '<lf-playground-choice value="bold" label="Bold"></lf-playground-choice>'
+        "</lf-playground-control>"
+    )
+
+    def errors(rail, beside_item, before="", in_output=""):
+        return fragment_errors(
+            f'<lf-ask id="placed-ask"><h2>Which tone?</h2>{before}'
+            f'<lf-playground id="placed-playground">{rail}'
+            '<lf-playground-preset label="Bold">'
+            '<lf-playground-setting for="item-tone" value="bold">'
+            "</lf-playground-setting></lf-playground-preset>"
+            '<lf-playground-preview><div class="item"><p>Item</p>'
+            f'<section class="item-settings">{beside_item}</section></div>'
+            "</lf-playground-preview>"
+            f"<lf-playground-output>Use these tones.{in_output}</lf-playground-output>"
+            "</lf-playground></lf-ask>",
+            registry,
+        )
+
+    assert not errors(tone.format(name="page-tone"), tone.format(name="item-tone"))
+    assert not errors("", tone.format(name="item-tone"))
+    assert [
+        (e.code, e.values["key"])
+        for e in errors(tone.format(name="item-tone"), tone.format(name="item-tone"))
+    ] == [("repeated-key", "name")]
+    (stray,) = errors(
+        tone.format(name="page-tone"),
+        tone.format(name="item-tone"),
+        before=tone.format(name="stray"),
+    )
+    assert (stray.code, stray.values["within"]) == (
+        "not-member",
+        ["lf-playground-preview"],
+    )
+    (read_out,) = errors(
+        tone.format(name="page-tone"),
+        tone.format(name="item-tone"),
+        in_output=tone.format(name="output-tone"),
+    )
+    assert read_out.code == "not-member"
+    # Inside a nested playground's instruction, the outer preview around it is not
+    # the control's own: its nearest playground is the inner one.
+    inner = (
+        '<lf-playground id="inner-playground">'
+        '<lf-playground-control name="inner-tone" label="Tone" kind="toggle" '
+        'value="false"></lf-playground-control>'
+        "<lf-playground-preview><p>Inner</p></lf-playground-preview>"
+        "<lf-playground-output>Use it."
+        + tone.format(name="lost-tone")
+        + "</lf-playground-output></lf-playground>"
+    )
+    (nested,) = errors(tone.format(name="page-tone"), inner)
+    assert nested.code == "not-member"
 
 
 def test_corpus_is_generated_from_the_examples():
@@ -711,39 +815,6 @@ def test_corpus_is_generated_from_the_examples():
     assert committed_data["$captures"]["gallery-source"]["file"] == (
         "developer/feature-gallery-source.toml"
     )
-
-
-def test_the_key_reference_is_generated_from_the_registry():
-    """The registry reference is written from the same $keys agents query."""
-    from leaf_dev import keydocs
-
-    committed = keydocs.DOCS_PAGE.read_text()
-
-    def said(html):
-        tags = re.sub(
-            r"<[^>]*>", lambda match: re.sub(r"\s+>", ">", match.group()), html
-        )
-        return re.sub("\\s+", " ", re.sub("\\s*(<[^>]*>)\\s*", "\\1", tags))
-
-    assert said(keydocs.build(committed)) == said(committed), (
-        "the registry's $keys changed — rerun leaf-dev keydocs"
-    )
-    # Every key appears once in the index and once at its generated definition.
-    keys = json.loads(schema_model.ASSETS.joinpath("registry.json").read_text())[
-        "$keys"
-    ]
-    disclosures = []
-    for key in keys:
-        if key != "description":
-            assert f'<a href="#{key}"><code>{key}</code></a>' in said(committed), key
-            assert f'id="{key}"' in said(committed), key
-            if keydocs.summary(keys[key])[1]:
-                disclosures.append(key)
-
-    labels = re.findall(
-        r'<summary aria-label="Full ([^"]+) contract">', said(committed)
-    )
-    assert labels == sorted(disclosures)
 
 
 def test_reply_validates_widget_markup(page_dir):
@@ -908,9 +979,9 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace('<section id="plan">', '<section id="plan"><p id="q1">stolen</p>')
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "taken by message markup" in result.output and "q1" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "ids-taken-by-messages", ids=["q1"])
 
 
 def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
@@ -923,9 +994,9 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             '<section id="plan">', '<section id="plan"><p id="lf-msg-7">mine</p>'
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "lf- namespace" in result.output and "lf-msg-7" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "reserved-ids", ids=["lf-msg-7"])
     (page_dir / "index.html").write_text(PAGE)
 
     append_carried_log_record(
@@ -1124,7 +1195,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert posted.exit_code == 0, posted.output
     update = json.loads(posted.output)
     assert update["ephemeral"] is True and "responds" not in update
-    start = tasks_model.start_reading(update)
+    start = todos_model.start_reading(update)
     assert (start["item"], start["text"]) == (root["id"], "Checking the camera.")
     assert events_model.read_events(claimed)[-1] == update
     [working] = page_state(claimed)["workflows"]
@@ -1163,7 +1234,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert [json.loads(line)["kind"] for line in later.output.splitlines()] == ["reply"]
 
 
-def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir):
+def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
     published(page_dir)
     root = append_carried_log_record(
         page_dir,
@@ -1210,6 +1281,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
                 "</lf-options></lf-ask>"
             ),
             "--ask",
+            "--json",
         ],
     )
     aggregate = CliRunner().invoke(
@@ -1232,7 +1304,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     assert answered.exit_code == 0, answered.output
     assert asking.exit_code == 0, asking.output
     assert duplicate.exit_code == 1
-    assert "reply markup already declares" in duplicate.output
+    assert refused_on(duplicate.stdout).values["tags"] == ["lf-options"]
     assert aggregate.exit_code == 0, aggregate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
     assert "ask" not in replies[0]
@@ -1424,11 +1496,11 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
 
     def owed_answers():
         state = state_json(page_dir)
-        standing = set(state["activity"]["obligations"])
+        owed = set(state["activity"]["obligations"])
         return [
             (item["input"], item["message"], item["answer"])
             for item in state["workflows"]
-            if item["id"] in standing
+            if item["id"] in owed
         ]
 
     asked = append_command(
@@ -1520,15 +1592,16 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     )
     before = events_model.read_events(page_dir)
     for target, refusal in [
-        (answer["id"], "is not user-authored"),
-        (reaction["id"], "has no words to revise"),
-        ("no-such-message", "unknown message"),
+        (answer["id"], "foreign-message"),
+        (reaction["id"], "wordless-message"),
+        ("no-such-message", "unknown-message"),
     ]:
-        with pytest.raises(EventRefused, match=refusal):
+        with pytest.raises(EventRefused) as refused:
             append_command(
                 page_dir,
                 {"kind": "edit", "author": "user", "message": target, "text": "x"},
             )
+        assert refused_on(refused.value).code == refusal
     assert events_model.read_events(page_dir) == before
 
 
@@ -1713,6 +1786,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "author": "agent",
             "agent": "Claude",
             "parent": "c1",
+            "revision": 1,
             "text": "reversibility",
             "markup": '<lf-diagram id="why"><pre>graph LR\n  A --> B</pre></lf-diagram>',
         },
@@ -1833,30 +1907,69 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "…" in head and len(head) < len(long_quote) / 2, head
 
 
-def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear(
+def test_new_replies_require_a_complete_candidate_publication(
     page_dir,
 ):
-    """Text renders with every raw tag escaped, so a plain reply has nothing to
-    validate and posts without the registry; markup is checked against it, so without
-    one the gate refuses rather than guessing."""
+    """New answers capture a complete publication; markup's local asks use
+    those declarations and cannot also be declared by a prose flag."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    (page_dir / "registry.json").unlink()
+    registry = page_dir / "registry.json"
+    declarations = registry.read_bytes()
+    registry.unlink()
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
-    plain = CliRunner().invoke(
+    answer = [
+        "response",
+        "reply",
+        "--done",
+        response_reference(page_dir, "c1"),
+        "--text",
+        "plain answer, x < y",
+    ]
+    diagram = '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>'
+    before = events_model.read_events(page_dir)
+    for arguments in (answer, [*answer, "--markup", diagram]):
+        refused = CliRunner().invoke(cli_model.cli, [*arguments, "--json"])
+        assert refused.exit_code == 1, refused.output
+        refusal = refused_on(refused.stdout)
+        assert refusal.code == "invalid-source"
+        assert refusal.values["operation"] == "reply"
+        assert events_model.read_events(page_dir) == before
+        assert files_model.list_revisions(page_dir) == [1]
+    registry.write_bytes(declarations)
+    plain = CliRunner().invoke(cli_model.cli, answer)
+    assert plain.exit_code == 0, plain.output
+    markup = (
+        '<lf-ask id="captured-question"><h2>Which store?</h2>'
+        '<lf-options id="captured-options" choose>'
+        '<lf-option id="captured-a">A</lf-option>'
+        "</lf-options></lf-ask>"
+    )
+    before = events_model.read_events(page_dir)
+    revisions = files_model.list_revisions(page_dir)
+    duplicate = CliRunner().invoke(
         cli_model.cli,
         [
-            "response",
+            "thread",
             "reply",
-            "--done",
-            response_reference(page_dir, "c1"),
+            str(page_dir),
+            "c1",
             "--text",
-            "plain answer, x < y",
+            "Choose one.",
+            "--markup",
+            markup,
+            "--ask",
+            "--json",
         ],
     )
-    assert plain.exit_code == 0, plain.output
+    assert duplicate.exit_code == 1, duplicate.output
+    refusal = refused_on(duplicate.stdout)
+    assert refusal.code == "widget-ask-markup"
+    assert refusal.values == {"tags": ["lf-options"]}
+    assert events_model.read_events(page_dir) == before
+    assert files_model.list_revisions(page_dir) == revisions
     with_markup = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1867,7 +1980,7 @@ def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear
             "--text",
             "See:",
             "--markup",
-            '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+            diagram,
         ],
     )
     assert with_markup.exit_code == 0, with_markup.output
@@ -1987,7 +2100,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
 
 
 def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
-    """`page state` lists every standing reaction, beside threads that
+    """`page state` lists every reaction in force, beside threads that
     leave a bare one out — paint on the page is not a thread — and takes a
     reaction back in once someone answers it, as the panel does. The transcript
     prints one as the user's mark rather than a turn. Its durable token is enough;

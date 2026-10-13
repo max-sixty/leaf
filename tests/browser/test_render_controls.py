@@ -97,6 +97,7 @@ from render_harness import (
     scroll_settled,
     select,
     sending,
+    shown,
     stamp_page,
     take_browser_errors,
     told,
@@ -420,10 +421,9 @@ KEYBOARD_HINT_REGISTRY = {
     }
 }
 
-KEYBOARD_HINT_MODULE = """\
-import {commandScope, commands, keeps, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
+KEYBOARD_HINT_MODULE = """import {commandScope, commands, keeps, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
 
-customElements.define('lf-keyboard-probe', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     this.count = 0;
     this.allowed = true;
@@ -486,7 +486,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.badge.style.cssText = 'right: calc(100% + 4px); top: 0';
     this.seat.append(this.badge, this.control);
   }
-});
+};
 """
 
 
@@ -715,10 +715,9 @@ def test_widget_context_keys_work_without_an_ask(browser, serve, annotation_mode
     expect(badge).to_be_hidden()
 
 
-KEYBOARD_ROUTE_MODULE = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+KEYBOARD_ROUTE_MODULE = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-customElements.define('lf-keyboard-probe', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const first = offer('button', '', 'First action');
     const second = offer('button', '', 'Second action');
@@ -752,7 +751,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
       run: () => keepsText(result, 'Outer applied'),
     }]);
   }
-});
+};
 """
 
 
@@ -827,10 +826,9 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
     ).to_have_count(0)
 
 
-CONTEXT_COMMAND_MODULE = """\
-import {commands, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
+CONTEXT_COMMAND_MODULE = """import {commands, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
 
-customElements.define('lf-keyboard-probe', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const result = offer('output', '', 'No action');
     const rows = [];
@@ -852,7 +850,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     };
     this.append(replace);
   }
-});
+};
 """
 
 
@@ -923,9 +921,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     expect(result).to_have_text("Replacement applied")
 
 
-def test_restoring_question_focus_can_execute_its_command_in_the_same_turn(
-    browser, serve
-):
+def test_restoring_ask_focus_can_execute_its_command_in_the_same_turn(browser, serve):
     """Focus determines forwarded scopes synchronously, without a paint registering them."""
     page = open_page(
         browser,
@@ -961,10 +957,9 @@ def test_restoring_question_focus_can_execute_its_command_in_the_same_turn(
 
 def test_contextual_escape_agrees_across_dispatch_hints_and_reference(browser, serve):
     """Escape forwarding stays live when its context scope is read more than once."""
-    module = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+    module = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-customElements.define('lf-keyboard-probe', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const control = offer('button', '', 'Apply operation');
     const result = offer('output', '', 'No action');
@@ -974,7 +969,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
       keys: ['x'], contextKeys: ['Escape'], control, bindingBadge: null,
       run: () => keepsText(result, `Applied ${++count}`)}]);
   }
-});
+};
 """
     page = open_page(
         browser,
@@ -1032,10 +1027,9 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 
 def test_context_aliases_do_not_collide_with_authored_command_ids(browser, serve):
     """A contextual projection keeps both commands when an authored id ends in .context."""
-    module = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+    module = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-customElements.define('lf-keyboard-probe', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const control = offer('button', '', 'Apply operation');
     const neighbour = offer('button', '', 'Neighbour operation');
@@ -1049,7 +1043,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         control: neighbour, run: () => keepsText(result, 'Neighbour applied')},
     ]);
   }
-});
+};
 """
     page = open_page(
         browser,
@@ -1103,10 +1097,9 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 
 def test_context_forwarding_preserves_reference_activation_opt_out(browser, serve):
     """A contextual alias cannot turn a reading-only reference row into an action."""
-    module = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+    module = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-customElements.define('lf-keyboard-probe', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const result = offer('output', '', 'No action');
     let count = 0;
@@ -1115,7 +1108,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
       contextKeys: ['F8'], runFromCommandReference: false,
       run: () => keepsText(result, `Applied ${++count}`)}]);
   }
-});
+};
 """
     page = open_page(
         browser,
@@ -1218,10 +1211,9 @@ def test_context_keys_follow_an_ask_into_its_associated_thread(
         expect(result).to_have_text("Action 10 applied")
 
 
-ROUTE_HINT_OVERRIDE_MODULE = """\
-import {commands, keepsText, offer} from '/runtime/widget-api.js';
+ROUTE_HINT_OVERRIDE_MODULE = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-customElements.define('lf-verdict', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     const control = offer('button', '', 'Inspect');
     const inheritedHint = offer('kbd', 'lf-key-badge');
@@ -1239,7 +1231,7 @@ customElements.define('lf-verdict', class extends HTMLElement {
       run: binding => keepsText(result, `${binding}:${++count}`),
     }]);
   }
-});
+};
 """
 
 
@@ -1649,7 +1641,7 @@ def test_controls_share_pointer_and_keyboard_focus_rings(browser, serve):
                 "lf-shadow-focus.js": """
 import {once, shadowStage} from '/runtime/widget-api.js';
 import '/vendor/webawesome.esm.js';
-customElements.define('lf-shadow-focus', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const select = document.createElement('wa-select');
@@ -1664,7 +1656,7 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
     }
     shadowStage(this, [...this.childNodes, select]);
   }
-});
+}
 """
             },
         ),
@@ -1913,7 +1905,7 @@ def test_a_page_asking_for_sign_off_records_the_approval(browser, serve):
 
 
 @pytest.mark.parametrize("width", [1200, 390])
-def test_required_approval_is_a_question_until_approved(browser, serve, width):
+def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     """Sign-off belongs to Questions and leads to the real approval control,
     including its phone overflow seat. A task's Done cannot substitute for it."""
     html = LONG_PAGE.replace(
@@ -1923,19 +1915,17 @@ def test_required_approval_is_a_question_until_approved(browser, serve, width):
     page = open_page(browser, serve(html))
     page.set_viewport_size({"width": width, "height": 900})
     questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on you", exact=True, include_hidden=True
+        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
     )
     expect(questions).to_be_attached()
     target = page.evaluate("""async () => {
-      const {readQuestions, questionActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-      const question = readQuestions().all.find(q => q.source.kind === 'approval');
-      const target = document.getElementById(question.prompt.target);
-      await questionActions.open(question.id);
+      const {readAsks, askActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const ask = readAsks().all.find(q => q.source.kind === 'approval');
+      const target = document.getElementById(ask.prompt.target);
+      await askActions.open(ask.id);
       return target === document.querySelector('.lf-signoff') && document.activeElement === target;
     }""")
-    assert target, (
-        "the public Question route did not reach its declared approval target"
-    )
+    assert target, "the public ask route did not reach its declared approval target"
     page.keyboard.press("q")
     approval = page.locator(".lf-signoff")
     expect(approval).to_be_visible()
@@ -1945,7 +1935,7 @@ def test_required_approval_is_a_question_until_approved(browser, serve, width):
     expect(
         page.get_by_role(
             "button",
-            name="Questions: 0 waiting on you",
+            name="Questions: 0 waiting on me",
             exact=True,
             include_hidden=True,
         )
@@ -1968,7 +1958,7 @@ def test_required_approval_is_a_question_until_approved(browser, serve, width):
 
 
 def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serve):
-    """Approval, its Question and its history agree during send, undo and refusal.
+    """Approval, its ask and its history agree during send, undo and refusal.
 
     Holding each POST proves the result is visible before admission; a definitive
     refusal restores the same admitted approval through every consumer.
@@ -1986,7 +1976,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     panel_settled(page)
     history = page.locator(".lf-threads > .lf-system")
     questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on you", exact=True, include_hidden=True
+        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -2018,7 +2008,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     round_trip(page)
     expect(button).to_have_text("✓ Version approved")
     expect(button).to_have_attribute(
-        "title", "Approved. Press z to undo while approval is still your latest update"
+        "title", "Approved. Press z to undo while approval is still the latest update"
     )
 
     expect(history).to_contain_text("Approved")
@@ -2485,7 +2475,7 @@ def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, ser
 
 
 def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
-    """On a phone Approval stands behind More as a waiting Question, and More wears
+    """On a phone Approval stands behind More as a waiting ask, and More wears
     its dot and names both reasons. Approving takes the dot down and taking the
     approval back puts it up again; on a desk Approval stands on the row and More
     wears no dot for it."""
@@ -2745,24 +2735,24 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     page.evaluate("""async () => {
       window.toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
       for (const [key, rank, offered] of [
-        ['retiring', -30, true], ['arriving', -25, false], ['standing', -20, true],
+        ['retiring', -30, true], ['arriving', -25, false], ['staying', -20, true],
         ['returning', -15, false],
       ]) {
         const control = document.createElement('button');
         control.className = `lf-ui lf-btn test-${key}`;
         control.textContent = key;
-        toolbar.registerBannerControl({key, control, rank, conditional:true, offered});
+        toolbar.registerBannerControl({key, control, rank, conditional:true, offered, row: {label: key, group: 'page'}});
       }
     }""")
     more = page.locator(".lf-banner-more")
     more.focus()
     page.keyboard.press("Enter")
     retiring = page.locator(".test-retiring")
-    standing = page.locator(".test-standing")
+    staying = page.locator(".test-staying")
     arriving = page.locator(".test-arriving")
     retiring.focus()
     expect(retiring).to_be_focused()
-    before = standing.bounding_box()
+    before = staying.bounding_box()
     page.evaluate("""() => {
       toolbar.showNews(document.querySelector('.test-retiring'), false);
       toolbar.showNews(document.querySelector('.test-arriving'), true);
@@ -2770,9 +2760,9 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     }""")
     expect(retiring).to_be_hidden()
     assert arriving.is_hidden()
-    expect(standing).to_be_focused()
+    expect(staying).to_be_focused()
     expect(more).to_have_attribute("aria-label", re.compile("new action"))
-    assert standing.bounding_box() == before
+    assert staying.bounding_box() == before
     assert retiring.evaluate("node => node.offsetHeight") > 0
     page.keyboard.press("Tab")
     expect(arriving).not_to_be_focused()
@@ -2825,7 +2815,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     resized(page, 390, 900)
     expect(page.locator(".lf-banner-menu > .lf-answer-all")).to_have_count(1)
     assert answer_all.evaluate("button => button === window.__lfBulkControl")
-    assert answer_all.locator(":scope > lf-question-banner-face").count() == 1
+    assert answer_all.locator(":scope > lf-ask-banner-face").count() == 1
     order = page.evaluate(
         """() => [...document.querySelector('.lf-banner-menu').children,
                     ...document.querySelector('.lf-banner-actions').children]
@@ -2850,6 +2840,7 @@ def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
               key: `test-focus-candidate-${i}`,
               control,
               rank: toolbar.BANNER_CONTROL_RANK.blanket + i + 1,
+              row: { label: control.textContent, group: "page" },
             });
           }
         }"""
@@ -3127,6 +3118,7 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
                   key: `test-touch-secondary-${i}`,
                   control: button,
                   rank: toolbar.BANNER_CONTROL_RANK.blanket + (i + 1) / 10,
+                  row: { label: button.textContent, group: "page" },
                 });
               }
             }"""
@@ -3235,11 +3227,9 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     it — the widget flips, nothing is logged, no notice fires, and the next poll puts it
     back with nothing anywhere saying why.
 
-    The subject is the project widget SEATED_ASK_ENTRY declares rather than an entry out
-    of the default package, because the pair the split needs — a visible ask and a seat
-    of the widget's own — is a pair of declarations and not a tag. No shipped entry has
-    carried both since 292de9c took `x-thread-seat` off `lf-options`, and the reading
-    under test never asked which widget it was."""
+    The subject is the project widget SEATED_ASK_ENTRY declares, whose seat is where a
+    user most often starts such a thread; any thread anchored on an ask splits it the
+    same way, and the reading under test never asks which widget it is."""
     url = serve(
         leaf_page(
             "seated eligibility",
@@ -3599,7 +3589,7 @@ def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve
     row, and the agent's Tasks count leads the second, under the sentence's start, where
     the run leaves it room whole. A finger's search steps share that row: the count
     stands whole beside them where the font leaves it room, or gives way to them, never
-    cutting a step or standing cut itself, and comes back where it stood once the search
+    cutting a step or being cut itself, and comes back where it stood once the search
     closes."""
     context = browser.new_context(
         viewport={"width": 490, "height": 800}, has_touch=True, is_mobile=True
@@ -3656,7 +3646,7 @@ def test_a_phone_s_one_row_seats_a_finger_s_steps_and_leaves_the_counts_out(
         viewport={"width": 390, "height": 800}, has_touch=True, is_mobile=True
     )
     page = open_page(browser, serve(SUGGESTION_PAGE), context=context)
-    expect(page.locator(".lf-status-detail")).to_contain_text("Waiting on you")
+    expect(page.locator(".lf-status-detail")).to_contain_text("Waiting on me")
     page_at_rest(page)
     resting = page.evaluate(BANNER_ROWS)
     assert_banner_as_stated(resting, wrapped=False)
@@ -3833,7 +3823,7 @@ def test_a_panel_row_follows_its_pages_status_live(
 
 def test_a_closed_leaf_clears_itself_off_the_drawer(browser, serve, other_leaf):
     """A closed leaf leaves the drawer on the poll that says so. Its server stays
-    up — a standing one for good — so the row would otherwise stand forever and the
+    up — a persistent one for good — so the row would otherwise stand forever and the
     count a user glances at to find who needs them would become a tally of
     everything that has ever run here. This page's own row never drops — a user
     looking at a closed page is still looking at it — so a drawer with nothing live
@@ -4072,7 +4062,8 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
             # The console with it: the press can move nothing because the runtime
             # threw, and this names what it said.
             pytest.fail(
-                f"{key} moved nothing on a page nobody had clicked in: {page.lf_errors}"
+                f"{key} moved nothing on a page nobody had clicked in:\n"
+                + shown(page.lf_errors)
             )
         # And then the rest of the glide, so the next key's reset lands on a scroll
         # that is over rather than on one still on its way somewhere.
@@ -6318,7 +6309,7 @@ def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
     append_carried_log_record(
         serve.page_dir,
         {
-            "id": "standing-reaction",
+            "id": "reaction-in-force",
             "kind": "comment",
             "author": "user",
             "revision": 1,
@@ -6352,7 +6343,7 @@ def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert (withdrawn["kind"], withdrawn["undoes"]) == (
         "undo",
-        "standing-reaction",
+        "reaction-in-force",
     )
 
 
@@ -6481,6 +6472,46 @@ def test_retained_moves_keep_native_editor_and_frame_state(
             )
         else:
             assert page.evaluate("window.blurs") > 0
+
+
+def test_scoped_native_moves_keep_the_registered_lifecycle(browser, serve):
+    page = open_page(browser, serve(leaf_page("Scoped moves", "<h1>Scoped moves</h1>")))
+    phases = page.evaluate("""() => {
+      const heard = [];
+      const registry = new CustomElementRegistry();
+      class Moving extends HTMLElement {
+        connectedCallback() { heard.push('moving connected'); }
+        disconnectedCallback() { heard.push('moving disconnected'); }
+        connectedMoveCallback() { heard.push('moving moved'); }
+      }
+      class Ordinary extends HTMLElement {
+        connectedCallback() { heard.push('ordinary connected'); }
+        disconnectedCallback() { heard.push('ordinary disconnected'); }
+      }
+      registry.define('lf-moving', Moving);
+      registry.define('lf-ordinary', Ordinary);
+      // Registration captures callbacks, just as the native registry does.
+      Moving.prototype.connectedMoveCallback = () => heard.push('late callback');
+      const host = document.createElement('div');
+      const root = host.attachShadow({mode:'open', customElements:registry});
+      root.innerHTML = '<div id="first"><lf-moving></lf-moving><lf-ordinary></lf-ordinary></div><div id="second"></div>';
+      document.body.append(host);
+      const phases = {connected: heard.splice(0)};
+      const first = root.querySelector('#first');
+      root.querySelector('#second').moveBefore(first, null);
+      phases.moved = heard.splice(0);
+      first.remove();
+      phases.disconnected = heard.splice(0);
+      root.append(first);
+      phases.reconnected = heard.splice(0);
+      return phases;
+    }""")
+    assert phases == {
+        "connected": ["moving connected", "ordinary connected"],
+        "moved": ["moving moved", "ordinary disconnected", "ordinary connected"],
+        "disconnected": ["moving disconnected", "ordinary disconnected"],
+        "reconnected": ["moving connected", "ordinary connected"],
+    }
 
 
 def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):

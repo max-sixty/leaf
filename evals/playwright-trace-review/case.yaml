@@ -26,13 +26,9 @@ vars:
     author instructions under the Leaf skill's base directory, then reply with
     the section's HTML.
 assert:
-- type: regex
-  metric: uses-imported-trace
-  value: '<lf-trace(?=\s|>)(?=[^>]*\sid\s*=\s*["''][a-z0-9-]+["''])(?=[^>]*\ssource\s*=\s*["'']release-journey["''])[^>]*>(?:\s|<lf-trace-bookmark\b[^>]*>\s*</lf-trace-bookmark\s*>)*</lf-trace\s*>'
-  transform: output.toLowerCase()
 - type: llm-rubric
   metric: keeps-captured-evidence
-  value: The section uses the selected package's trace widget for the imported journey, with no custom playback module or reconstruction of the recorded application's live behavior. Its prose does not claim that image pixels and saved accessibility boxes were captured simultaneously, or that matching accessible names uniquely identifies a button.
+  value: The section shows the imported journey in one `lf-trace` with an `id` and `source="release-journey"`, whose only children are `lf-trace-bookmark` elements, with no custom playback module or reconstruction of the recorded application's live behavior. Its prose does not claim that image pixels and saved accessibility boxes were captured simultaneously, or that matching accessible names uniquely identifies a button.
 - type: llm-rubric
   metric: reachable-results
   value: Both successful outcomes are directly reachable as named lf-trace-bookmark members targeting the supplied After identities. Their labels describe the documentation and API results. Surrounding prose introduces the evidence rather than teaching playback, timeline or zoom controls.

@@ -37,6 +37,7 @@ import tempfile
 import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import cached_property, lru_cache, partial
 from pathlib import Path
 from types import MappingProxyType
@@ -48,11 +49,16 @@ import turbohtml
 from tinycss2.serializer import serialize_string_value
 from tree_sitter import Language, Parser, Query, QueryCursor
 
-from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
+from leaf.files import (
+    file_stamp,
+    latest_revision,
+    revision_orders,
+    revision_path,
+)
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.refusals import Refused
-from leaf.registry.contract import is_element_name
+from leaf.registry.contract import element_declarations
 from leaf.render_checks import PROBE_SOURCES
 from leaf.schema import BROWSER_DIRS, CONTENT_TYPES, SERVED_PATH, VENDORED_FILES
 from leaf.state import fsync_parents
@@ -65,6 +71,33 @@ from leaf.structure import (
 )
 
 PUBLIC_MODULES = ("/runtime/widget-api.js",)
+
+
+def current_artifact(bundle: Path) -> bool:
+    """Whether a stored capture carries this runtime's complete manifest contract.
+
+    Revision inventory ignores absent, unreadable and earlier-format captures at its
+    load boundary. Their records are never repaired or interpreted as current inputs.
+    """
+    try:
+        manifest = json.loads((bundle / "manifest.json").read_bytes())
+    except (OSError, ValueError):
+        return False
+    return isinstance(manifest, dict) and {
+        "html",
+        "title",
+        "entries",
+        "executable",
+        "widgets",
+        "public_modules",
+        "shared_modules",
+        "layer",
+        "declarations",
+        "implementations",
+        "resources",
+    }.issubset(manifest)
+
+
 RESOURCE_TYPES = {
     **CONTENT_TYPES,
     ".mjs": "application/javascript",
@@ -158,6 +191,11 @@ class RevisionArtifact:
         return json.loads(self.resources["/registry.json"].data)
 
     @cached_property
+    def shared_modules(self) -> frozenset[str]:
+        """The captured layer's executable dependency graph, shared once per document."""
+        return frozenset(json.loads(self.manifest)["shared_modules"])
+
+    @cached_property
     def entries(self) -> list[str]:
         """The captured resources the authored document names directly."""
         return json.loads(self.manifest)["entries"]
@@ -180,22 +218,14 @@ class RevisionArtifact:
         }
 
     @cached_property
-    def executable(self) -> str | None:
-        """What this revision is as executable code, or nothing where it predates the field.
-
-        A revision saved before capture recorded this carries a manifest without it, and
-        those revisions are immutable: the addresses that still serve them — every
-        stamped version and every revision URL — can never be repaired by saving the page
-        again. So the absence is a reading rather than a fault. A document that does not
-        say what it is as code is one an open page cannot take a revision from, which is
-        the reload path, and a historical document never activates anything at all.
-        """
-        return json.loads(self.manifest).get("executable")
+    def executable(self) -> str:
+        """The captured code identity that decides whether a revision can activate."""
+        return json.loads(self.manifest)["executable"]
 
     @cached_property
     def widgets(self) -> dict:
         """What each declared widget in this revision's page was written as."""
-        return json.loads(self.manifest).get("widgets", {})
+        return json.loads(self.manifest)["widgets"]
 
 
 def dependency_path(specifier: str, importer: str, *, module=False) -> str | None:
@@ -261,31 +291,27 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
 
 @lru_cache(maxsize=512)
 def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ...]:
-    """The exact string-literal spans of static exports/imports and import().
+    """Read exact string-literal spans of static exports/imports and import().
 
     A computed import() binds when it runs, so capture neither follows nor refuses it:
     a CDN module named that way loads, and a page file it names is in the revision
     only if something imports it literally.
 
-    A layer's modules are the same bytes in every page that selects them, and parsing
-    a vendored bundle takes about a second, so a process reads each module once."""
+    This reads imports, not syntax: the browser judges the module, and its error
+    reaches the agent through `page check` or the watcher.
+
+    Captures, embedded samples and resource delivery read the same module bytes.
+    Keep their immutable spans once per exact source and diagnostic path, as CSS
+    readings do below; the syntax tree is discarded. The bounded shared reading
+    avoids parsing a full vendored runtime again for every sample's page memory.
+    """
     try:
         data.decode("utf-8")
     except UnicodeDecodeError as error:
         raise ArtifactError(f"{path}: JavaScript is not UTF-8") from error
     tree = Parser(_JAVASCRIPT).parse(data)
-    if tree.root_node.has_error:
-        pending = [tree.root_node]
-        while pending:
-            node = pending.pop()
-            if node.is_error or node.is_missing:
-                raise ArtifactError(
-                    f"{path}:{node.start_point[0] + 1}: invalid JavaScript"
-                )
-            pending.extend(reversed(node.children))
-        raise ArtifactError(f"{path}: invalid JavaScript")
     # Document order, a node before the nodes it holds, as a walk of the tree meets
-    # them, so the first problem in the file is the one reported.
+    # them, so the spans come back in the order the file states them.
     nodes = sorted(
         QueryCursor(_IMPORT_NODES).captures(tree.root_node).get("node", []),
         key=lambda node: (node.start_byte, -node.end_byte),
@@ -295,21 +321,16 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
         literal = None
         if node.type in {"import_statement", "export_statement"}:
             literal = node.child_by_field_name("source")
-            if any(child.type == "import_attribute" for child in node.named_children):
-                raise ArtifactError(
-                    f"{path}:{node.start_point[0] + 1}: import attributes are not supported for JavaScript modules"
-                )
         elif node.type == "call_expression":
             function = node.child_by_field_name("function")
-            if function.type == "import":
-                arguments = node.child_by_field_name("arguments").named_children
-                if len(arguments) == 1 and arguments[0].type == "string":
-                    literal = arguments[0]
+            # A tree the parser recovered from may lack the arguments.
+            if function.type == "import" and (
+                arguments := node.child_by_field_name("arguments")
+            ):
+                named = arguments.named_children
+                if len(named) == 1 and named[0].type == "string":
+                    literal = named[0]
         if literal is not None:
-            if any(child.type != "string_fragment" for child in literal.named_children):
-                raise ArtifactError(
-                    f"{path}:{literal.start_point[0] + 1}: module URLs must be unescaped string literals"
-                )
             imports.append(
                 (
                     literal.start_byte,
@@ -683,17 +704,16 @@ def _capture_artifact(
             ):
                 capture.add("/" + path.relative_to(page_dir).as_posix())
     resources["/registry.json"] = Resource(_json(registry), "application/json")
-    for tag, entry in registry.items():
-        if is_element_name(tag) and (initial := entry.get("x-initial")):
+    declarations = element_declarations(registry)
+    for entry in declarations.values():
+        if initial := entry.get("x-initial"):
             capture.add(initial)
 
     if widget_sources is None:
         widget_sources = {
             tag: f"widgets/{tag}.js"
-            for tag, entry in registry.items()
-            if is_element_name(tag)
-            and entry.get("x-upgrade")
-            and f"/widgets/{tag}.js" in resources
+            for tag, entry in declarations.items()
+            if entry.get("x-upgrade") and f"/widgets/{tag}.js" in resources
         }
     for source in widget_sources.values():
         capture.add("/" + source.lstrip("/"))
@@ -759,7 +779,7 @@ def _capture_artifact(
         for tag, source in widget_sources.items()
     }
     layer = registry.get("$layer", {})
-    # Which of this capture's inputs a standing document cannot take on in place. A
+    # Which of this capture's inputs the current document cannot take on in place. A
     # module graph is evaluated once per document and a custom element is defined
     # once, so new bytes behind either need a new document. Stylesheets, media,
     # prose, and markup are absent because an open document can be given all of
@@ -770,6 +790,12 @@ def _capture_artifact(
     # say where a layer was built, and its generation reaches a document through
     # `runtime/layer-generation.js`, where vendoring writes the epoch: a re-vendor
     # moves that module, so the modules below already carry it.
+    module_digests = {
+        path: resource.digest
+        for path, resource in resources.items()
+        if resource.mime == "application/javascript"
+    }
+    shared_modules = _shared_modules(resources)
     executable = _digest(
         _canonical_json(
             {
@@ -783,11 +809,7 @@ def _capture_artifact(
                         }
                     )
                 ),
-                "modules": {
-                    path: resource.digest
-                    for path, resource in resources.items()
-                    if resource.mime == "application/javascript"
-                },
+                "modules": module_digests,
                 # Every script element, whole and in document order: its attributes
                 # and place decide whether and when it runs, a data block's body is
                 # read at boot, and a src no capture holds, such as a CDN library's,
@@ -837,6 +859,7 @@ def _capture_artifact(
             "executable": executable,
             "widgets": widgets,
             "public_modules": list(PUBLIC_MODULES),
+            "shared_modules": sorted(shared_modules),
             "layer": layer,
             "declarations": dict(declaration_sources or {}),
             "implementations": implementations,
@@ -875,7 +898,7 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
     durable = not memo(page_dir, Disposable).held
     revisions = page_dir / "revisions"
     revisions.mkdir(exist_ok=True)
-    if revision in list_revisions(page_dir):
+    if revision in revision_orders(page_dir):
         raise ArtifactError(f"revision r{revision} already exists")
     name = artifact_name(revision, artifact)
     destination = revisions / name
@@ -1062,6 +1085,11 @@ class RevisionReading(SourceReading):
             vars(self).update(vars(adopted))
 
     @cached_property
+    def activated_at(self) -> str:
+        """The immutable marker's publication date, shared by every delivery."""
+        return datetime.fromtimestamp(self.marker.stat().st_mtime, UTC).isoformat()
+
+    @cached_property
     def document(self) -> SourceDocument:
         # Bytes, not text: universal newlines would turn CRLF into LF, and
         # `document.data` must be the captured bytes the digest and the
@@ -1089,15 +1117,6 @@ class RevisionReading(SourceReading):
             lambda: SourceReading.inventory.func(self),
             _inventory_size,
         )
-
-    def under(self, registry: dict) -> SourceReading:
-        """This revision's document read under `registry`: this held reading where
-        that is the captured vocabulary itself, else a reading of its own. A caller
-        reading the active revision under the active vocabulary holds the same
-        object (`registry.storage.page_vocabulary`), so it shares these readings."""
-        if registry is self.registry:
-            return self
-        return SourceReading(self.document, registry)
 
     @cached_property
     def enclosing(self) -> dict:
@@ -1201,10 +1220,10 @@ def _inventory_size(value):
 class _CompactReadings:
     """Compact revision readings with their own byte budget and page lifetime.
 
-    Element identities, Question registration and data consumers are small facts
+    Element identities, ask registration and data consumers are small facts
     about immutable documents. Keeping them separately prevents long-history scans
     from evicting their own completed work with full parses. Each owner charges its retained
-    representation; a Question source also reserves its last dynamic answer,
+    representation; an ask source also reserves its last dynamic answer,
     keyed by the event basis the canonical fold reads. Keys include the marker
     stamp. No document, full registry, SourceReading or event log is retained.
     """
@@ -1331,3 +1350,35 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
                 f"{logical_path}: {specifier!r}: captured layer import is missing"
             )
         yield start, end, target
+
+
+def _shared_modules(resources: Mapping[str, Resource]) -> frozenset[str]:
+    """Record shared dependency ownership before publication, away from page loading.
+
+    The installed layer's vendor modules belong to its executable epoch, including
+    lazy libraries with document-global registrations or caches. They and the public
+    widget API have one instance across vocabulary publications. Recording the graph
+    changes addresses, never loading order. Publication widget implementations and
+    page-private dependencies keep their captured identities. This capture decides
+    the boundary, so immutable module URLs never depend on a later runtime's graph.
+    """
+    found = set()
+    pending = [
+        "/leaf.js",
+        "/runtime/widget-api.js",
+        *(
+            path
+            for path, resource in resources.items()
+            if path.startswith("/vendor/") and resource.mime == "application/javascript"
+        ),
+    ]
+    while pending:
+        path = pending.pop()
+        if path in found:
+            continue
+        found.add(path)
+        pending.extend(
+            target
+            for _, _, target in captured_imports(resources[path].data, path, resources)
+        )
+    return frozenset(found)

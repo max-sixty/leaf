@@ -13,9 +13,12 @@
  * comments and fragments, which Lit inserts for every new row, hold no one. An iframe
  * still reloads there. The return value matches insertBefore, including when inserting
  * a fragment. */
-import { holdFocus } from "./focus.js";
+import { holdFocus, watchStandingIn } from "./focus.js";
 
 export function move(parent, node, before) {
+  // A retained move can enter another shadow root without a focus event. Subscribe
+  // before placement, so connectedMoveCallback and the caller's next move are heard.
+  if (parent.isConnected) watchStandingIn(parent.getRootNode());
   if (
     parent.moveBefore &&
     node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true })

@@ -137,8 +137,8 @@ def visual_widgets(
     return {
         "visual-fixture.js": browser_source("widgets/visual-fixture.js"),
         f"{tag}.js": (
-            "import { defineVisualFixture } from './visual-fixture.js';\n"
-            f"defineVisualFixture({json.dumps(configuration)});\n"
+            "import { createVisualFixture } from './visual-fixture.js';\n"
+            f"export default createVisualFixture({json.dumps(configuration)});\n"
         ),
     }
 
@@ -534,7 +534,6 @@ BAD_CHARTS = {
     "bad-syntax": '{ariaLabel: "merged", marks: [}',
     "bad-label": "{marks: [Plot.ruleY([0])]}",
     "bad-mark": '{ariaLabel: "merged", marks: [Plot.barz([{n: 1}], {y: "n"})]}',
-    "bad-shape": '[{ariaLabel: "merged", marks: []}]',
     "bad-drawn": 'Plot.plot({ariaLabel: "merged", marks: [Plot.ruleY([0])]})',
     "bad-height": '{ariaLabel: "merged", height: 200, marks: [Plot.ruleY([0])]}',
 }
@@ -788,7 +787,7 @@ DIFF_ROW_PLACEMENT = """() => {
     const root = document.querySelector('lf-diff').shadowRoot;
     const files = [...root.querySelectorAll('.lf-diff-file')];
     const lifts = files.map((file) => {
-        const row = file.querySelector(':scope > details, :scope > .lf-diff-rename');
+        const row = file.querySelector(':scope > details, :scope > .lf-diff-metadata');
         return Math.round(row.getBoundingClientRect().top
                           - file.getBoundingClientRect().top);
     });

@@ -203,6 +203,9 @@ class _ProblemPage:
     def add_init_script(self, **_):
         pass
 
+    def expose_binding(self, *_):
+        pass
+
     def on(self, *_):
         pass
 
@@ -351,7 +354,7 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
 def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
     browser, serve
 ):
-    """Under "Waiting on you", the user's answer from another tab takes the thread out
+    """Under "Waiting on me", the user's answer from another tab takes the thread out
     of the view. Its card, open in front of them, stays where it stands, and its
     summary's title row stays the same size when the answered status disappears; the
     browser fixture's shift watch fails anything that moves. The news lands well after
@@ -378,7 +381,7 @@ def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
         {"kind": "reply", "author": "user", "parent": asked, "token": "keep"},
     )
     told(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (0)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (0)")
     rendered(page)
     expect(card).to_be_visible()
     assert card.locator(".lf-thread-summary").bounding_box() == stood
@@ -1133,6 +1136,47 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     assert ".lf-target-trace {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
     assert "::highlight(lf-version-insert)" in selected["marks"]
+
+
+def test_indication_defaults_yield_to_widget_faces_in_document_and_shadow(
+    browser, serve
+):
+    """A widget can choose its indication face in either kind of rendering root.
+
+    Ordinary indicated elements still get the shared contour. The default must
+    yield to layered widget rules, while action-target apparatus keeps its face.
+    """
+    page = open_page(
+        browser, serve(leaf_page("indication-faces", '<h1 id="t">Indication</h1>'))
+    )
+    readings = page.evaluate(
+        """async () => {
+          const {shadowStage} = await window.__lfRuntimeImport('/runtime/shadow-stage.js');
+          const {inBaseLayer} = await window.__lfRuntimeImport('/runtime/stylesheets.js');
+          const nodes = () => {
+            const style = document.createElement('style');
+            style.textContent = inBaseLayer('.custom-indication, .lf-action-target { outline: 4px dashed red; }');
+            return [style, ...['default-indication', 'custom-indication', 'lf-action-target'].map(cls => {
+              const p = document.createElement('p');
+              p.className = cls;
+              p.textContent = cls;
+              p.setAttribute('data-lf-indicated', '');
+              return p;
+            })];
+          };
+          const main = document.querySelector('main');
+          main.append(...nodes());
+          const host = document.createElement('div');
+          main.append(host);
+          const shadow = shadowStage(host, nodes());
+          return [main, shadow].map(root =>
+            [...root.querySelectorAll('[data-lf-indicated]')].map(p => {
+              const s = getComputedStyle(p);
+              return [s.outlineStyle, s.outlineWidth];
+            }));
+        }"""
+    )
+    assert readings == [[["solid", "2px"], ["dashed", "4px"], ["solid", "1px"]]] * 2
 
 
 def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(

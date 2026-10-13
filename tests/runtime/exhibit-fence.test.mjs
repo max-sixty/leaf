@@ -1,7 +1,7 @@
 /* Mention, not use: a widget strictly inside an element the registry marks x-exhibit is
    quoted. The descriptor staged before upgrade carries the answer, and `quoted` gives
    the same one for an element no descriptor holds. The server reads it off
-   the holder chain (`questions.quoted_in`); `tests/exhibit_cases.json` holds both runtimes
+   the holder chain (`asks.quoted_in`); `tests/exhibit_cases.json` holds both runtimes
    to one set of cases. */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -16,7 +16,7 @@ const { registry, cases } = JSON.parse(
 
 for (const { id, markup, quoted: expected } of cases)
   test(`exhibit: ${id}`, () => {
-    adoptRegistry(registry);
+    adoptRegistry({ ...registry, $states: {} });
     document.body.innerHTML = `<main>${markup}</main>`;
     const ids = Object.keys(expected);
     assert.deepEqual(

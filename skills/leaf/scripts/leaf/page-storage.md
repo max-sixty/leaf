@@ -27,10 +27,13 @@ other page files and the external state listed below.
 
 - `leaf.js` — the browser entry, served at /leaf.js
 
-- `theme.css` — tokens, element styles, class idioms, element-widget CSS
+- `theme.css` — current chrome, tokens, element styles, class idioms, and unscoped themes
 
-- `shadow.css` — the rules declared shadow trees also need; theme.css carries them too,
-  ahead of each package's own rules
+- `widget-theme.css` — package widget rules, scoped to the declarations captured by
+  each publication so historical content keeps its own presentation
+
+- `shadow.css` — the rules declared shadow trees also need; the document's theme or
+  widget theme carries them too, ahead of each package's own rules
 
 - `registry.json` — effective widget schemas and layer metadata. Composition and
   identity are defined in [layer-registry.md](layer-registry.md).
@@ -132,8 +135,8 @@ other page files and the external state listed below.
 - `data/` — one JSON publication per source, `<source>.json`, holding `run`,
   `updated`, and `value` together. `leaf data set` validates and atomically writes
   it; a new write gets a new opaque run receipt, including an identical value.
-  Copying the page preserves that receipt. Readings validate the publication and
-  its value against the recorded contract. Deferred record fields served by
+  Copying the page preserves that receipt. Readings trust the publication's shape
+  and validate its value against the recorded contract. Deferred record fields served by
   `/api/deferred` come from the value in these same publications.
 
 - `status.json` — the agent's `waiting` or `idle` declaration, observed activity,
@@ -150,7 +153,8 @@ other page files and the external state listed below.
   first viewed. `presence.py` owns throttled renewal, which the server runs as a
   visible tab asks for news; hidden tabs do not renew it.
 
-- `cursor.json` — acknowledged position in this page's event log. Acknowledgement and
+- `cursor.json` — durable acknowledged position in this page's event log, retained
+  with that log when its serving process is replaced. Acknowledgement and
   log replacement rules are defined in [session-lifetime.md](session-lifetime.md).
 
 - `preview.json` — the preview identity browser chrome labels, written by
@@ -207,8 +211,9 @@ document or keeps its widgets (`revision_artifact.py`).
 `layer` object, shared with `/api/state`, reports the vendored generation,
 fingerprint, server identity, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
-error. `active.file` names the immutable revision the live root actually
-shows when one exists; `data` names the contract file, the value directory, and any source whose
+error, including the refusal of a layer this Leaf cannot serve
+(`layer.incompatible_layer`). `active.file` names the immutable revision the live
+root actually shows when one exists; `data` names the contract file, the value directory, and any source whose
 value fails its contract.
 `active.executable`, shared with `/api/state`, gives the active revision's
 nullable executable digest. Delivery emits `<meta name="lf-executable">` when a
@@ -217,7 +222,7 @@ digest is available; `../../assets/runtime/version.js` owns the resulting instal
 `leaf page events --after`; it is distinct from the acknowledgement cursor.
 
 The page's document is not repeated in the reading: an agent reads the HTML at
-`active.file` beside `state`, which lists each standing user action by widget, unit and
+`active.file` beside `state`, which lists each user action in force by widget, unit and
 verb with the detail it carries, so where the two differ the page shows the action.
 `data_bindings` names each bound source and the widgets that read it, and
 `data/<source>.json` holds its publication.
@@ -228,13 +233,13 @@ messages, with bounded history selected by `--after` and `--limit`, and each
 message's frozen markup under
 `content` (`construction.py`), since that markup has no file of its own. An authored
 node keeps its `tag`, effective `attrs` and `content`, and `source` line and column; a
-standing event supplies its exact `state` and origin, and `authored` preserves the
+event in force supplies its exact `state` and origin, and `authored` preserves the
 input it replaced. Widget `inputs` join each binding to its source's current value,
 contract, source id and revision, or to the `error` a failing value reads as;
 contracts with a deferred record field expose the manifest plus the value file and
 its revision for their payload. The reading's `content_source` names the thread and
 vocabulary file. A widget on the page names itself: the reading is its `widget`
-element, the `state` and `reports` standing on it, the open `todos` on it,
+element, the `state` and `reports` in force on it, the open `todos` on it,
 the canonical `asks` sourced by it, and the `workflows` it is the subject of, with
 their `activity` obligations. Page ids
 and event ids share one address space, which is why `page check` refuses an authored

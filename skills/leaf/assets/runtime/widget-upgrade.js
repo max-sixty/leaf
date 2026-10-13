@@ -1,7 +1,8 @@
 /* The upgrade lifecycle every behavior module shares.
 
-   A module defines its custom element once and makes `connectedCallback` safe to run
-   after reconnection, using `once(el)` for generated chrome so reconnecting does not
+   A module exports its constructor for publication-owned registration and makes
+   `connectedCallback` safe after reconnection, using `once(el)` for generated chrome
+   so reconnecting does not
    duplicate it. A failed upgrade becomes a visible error box (`failSoft`) rather than
    a blank page, and reaches the agent as the page's error; widgetController owns
    asynchronous presentation. */
@@ -45,11 +46,18 @@ export const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
 // fails on wherever it runs the page. Both name the widget the failing element belongs to, and the report adds its
 // id, since that is how the agent finds it.
 export function failSoft(el, err, source) {
+  reportFailure(el, err);
+  showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`, source);
+}
+
+// The report alone, for a widget that shows a part's failure its own way, such as a
+// diff file whose patch it cannot draw beside the files it can.
+export function reportFailure(el, err) {
   const owner = widgetOf(el);
-  const tag = owner.localName;
-  const message = err?.message || err;
-  reportPageError(err, `<${tag}${owner.id ? ` id="${owner.id}"` : ""}> failed`);
-  showFailure(el, `<${tag}> failed: ${message}`, source);
+  reportPageError(
+    err,
+    `<${owner.localName}${owner.id ? ` id="${owner.id}"` : ""}> failed`,
+  );
 }
 
 // The box alone, for the presentation coordinator's fallback: the coordinator reports

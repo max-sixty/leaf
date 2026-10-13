@@ -77,7 +77,7 @@ class PagePool:
     The lent page is moved to the caller's own path, not handed over where it
     lies: a test that selects a fixture package beside its page reaches it as
     `page_dir.parent / ".leaf"`, and `_no_page_outlives_its_test` sweeps
-    `tmp_path` for a server still standing. It is left there when the test ends
+    `tmp_path` for a server still running. It is left there when the test ends
     and moved again on the next loan, so the sweep runs while the page is still
     under the root it walks.
     """
@@ -358,9 +358,9 @@ def _names_tests(path):
 
 
 def _base_sources(root, since):
-    """Each test function's source, decorators included, where `since` and HEAD part,
-    keyed by its module's name and its own. A test that moved to another tier directory
-    keeps its key, so a move that leaves its source alone is no edit of it."""
+    """Every test function's source, decorators included, where `since` and HEAD part.
+    A source names its function, so a test moved to another module or tier directory
+    with its source left alone is no edit of it."""
 
     def git(*args, stdin=None):
         run = subprocess.run(
@@ -383,7 +383,7 @@ def _base_sources(root, since):
     batch = git(
         "cat-file", "--batch", stdin="".join(f"{base}:{p}\n" for p in paths).encode()
     )
-    sources = {}
+    sources = set()
     for path in paths:
         header, _, batch = batch.partition(b"\n")
         size = int(header.split()[2])
@@ -392,9 +392,7 @@ def _base_sources(root, since):
         for node in ast.parse(text).body:
             if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
                 first = min([node.lineno, *(d.lineno for d in node.decorator_list)])
-                sources[Path(path).stem, node.name] = "".join(
-                    lines[first - 1 : node.end_lineno]
-                )
+                sources.add("".join(lines[first - 1 : node.end_lineno]))
     return sources
 
 
@@ -402,8 +400,7 @@ def _touches(item, base):
     """Whether a change edits the test's own function, decorators included."""
     if base is None:
         return False
-    source = "".join(inspect.getsourcelines(item.function)[0])
-    return base.get((item.path.stem, item.function.__name__)) != source
+    return "".join(inspect.getsourcelines(item.function)[0]) not in base
 
 
 # A harness session states its identity in the environment, under names of its own
@@ -440,7 +437,8 @@ def isolated_session(tmp_path_factory, monkeypatch):
     by the loop guard. Isolate XDG_STATE_HOME, where Leaf stores claims and installed
     packages, and CODEX_HOME, where Codex reads its configuration and sessions,
     while retaining HOME so subprocesses share the host's uv cache. Clear the
-    developer's App Server endpoint so a fake task cannot connect to it.
+    developer's App Server endpoint and host launcher override so a fake task
+    cannot use them.
 
     The session the tests run as is this worker: a synthetic id, so nothing of
     the developer's answers for it, and the worker's own pid. Every page a test
@@ -460,6 +458,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
     monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
+    monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
     for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read

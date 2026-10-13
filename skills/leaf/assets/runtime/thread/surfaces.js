@@ -22,12 +22,12 @@
    what the reader reads, is held out of what the widget is handed (`HeldArrivals`,
    held-news.js): its target stays out of the batch, so the selected annotation
    presentation notices it, and `revealHeld` is how the margin's marker shows it. */
+import { registryFor } from "../registry.js";
 import { aborted } from "../abort.js";
 import { reportPageError } from "../layer-client.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { closestAcross } from "../passages.js";
-import { tagsDeclaring } from "../registry.js";
 import { watchArrivals } from "../arrivals.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { allThreads, readThreads } from "./state.js";
@@ -52,20 +52,19 @@ function update(registration) {
 }
 
 export function watchThreadSurfaces(commands) {
-  const tags = tagsDeclaring((entry) => entry["x-thread-surface"] === true);
-  if (!tags.length) return;
-  const offer = watchArrivals(tags.join(","), [], {
+  // Later revisions and frozen messages can introduce a capability the startup
+  // vocabulary did not declare. Decide it from each arrival's own publication.
+  watchArrivals("*", [], {
     arrive(owner) {
-      if (registrations.has(owner)) return;
-      // An element standing before its module defined it is upgraded in that define;
-      // the module's own connection has run by the time the definition resolves. One
-      // still undefined once its definition stands failed to upgrade, which its
-      // module's failure already reports, so it is not waited for again.
-      if (!owner.matches(":defined")) {
-        if (!customElements.get(owner.localName))
-          customElements.whenDefined(owner.localName).then(() => offer(owner));
+      if (
+        registrations.has(owner) ||
+        !registryFor(owner)[owner.localName]?.["x-thread-surface"]
+      )
         return;
-      }
+      // Every door that brings a tag in imports its module before connecting its
+      // markup (`widget-loader.js`), and this watch starts after startup's upgrade, so
+      // an undefined owner failed to upgrade, which its module's failure reports.
+      if (!owner.matches(":defined")) return;
       register(
         owner,
         (targets, context) => owner.threadOutlets(targets, context),
@@ -122,7 +121,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
   };
   // The outlet lifetime also owns its source standing. A page rail's card stands
   // at the source it shows, while its unrelated controls keep their authored place.
-  // The standing reader gives an innermost reply Question priority over this relation.
+  // The standing reader gives an innermost reply ask priority over this relation.
   registration.stopSide = declareSide((node) => {
     const outlet = [...registration.outlets].find((outlet) => under(node, outlet));
     if (!outlet) return null;

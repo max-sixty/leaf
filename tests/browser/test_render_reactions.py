@@ -51,7 +51,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 MARGIN_RESPONSES = '[data-lf-margin-entry-owner="responses"]'
 
-# The wash and the glyphs a standing reaction paints, read off the page: the ranges in
+# The wash and the glyphs a reaction in force paints, read off the page: the ranges in
 # the highlight registry (their words, whitespace dropped, the way the corpus reads a
 # comment's mark) and every seated glyph by its target and accessible action name.
 PAINTED = """() => ({
@@ -131,7 +131,7 @@ def painted(page, glyphs):
     return page.evaluate(PAINTED)
 
 
-def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, serve):
+def test_a_late_reaction_in_force_does_not_move_the_readable_column(browser, serve):
     """Passive information may join the RHS after presentation without claiming space."""
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1440, 900)
@@ -261,7 +261,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(0)
     # The bar raised on the same passage again says the token stands. Its general
-    # response disclosure keeps those choices with the field, while the standing glyph
+    # response disclosure keeps those choices with the field, while the reaction's glyph
     # remains the margin receipt and removal disclosure.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
@@ -282,7 +282,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     expect(surface.locator('.lf-react[data-token="keep"]')).to_have_attribute(
         "aria-pressed", "false"
     )
-    page.mouse.click(40, 300)  # the bar down, the standing glyph remains
+    page.mouse.click(40, 300)  # the bar down, the reaction's glyph remains
     expect(bar).to_be_hidden()
     expect(receipt_item.locator(".lf-react-mark")).to_have_count(1)
     mark = receipt_item.get_by_role(
@@ -367,12 +367,12 @@ def test_comment_reaction_digits_stop_at_nine_for_a_larger_vocabulary(browser, s
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme):
-    """A standing reaction keeps neutral furniture, and the fill it holds with the
+    """A reaction in force keeps neutral furniture, and the fill it holds with the
     pointer away is what says it stands.
 
-    #371 left the lifecycle marker to `busy`, so a standing reaction chip paints no
+    #371 left the lifecycle marker to `busy`, so the chip of a reaction in force paints no
     second witness on top of itself. Hover lays down the same fill; the readings here
-    therefore move the pointer away before distinguishing standing from idle.
+    therefore move the pointer away before distinguishing in force from idle.
     """
     page = open_page(
         browser,
@@ -611,7 +611,7 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(browser, serv
     page.keyboard.press("e")
     expect(item.locator(f"{MARGIN_RESPONSES}:visible")).to_have_count(6)
     # The full inventory remains available to Page Map while the focused rail view
-    # shows reactions alone. Invoke its standing control directly here: this test is
+    # shows reactions alone. Invoke its control directly here: this test is
     # about reconciliation when another owner settles the target, not banner overflow.
     page.locator(".lf-page-map-toggle").evaluate("button => button.click()")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
@@ -1696,7 +1696,7 @@ def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser,
 def test_a_bar_re_placed_by_its_own_controls_still_hands_back_its_subject(
     browser, serve
 ):
-    """Opening the bar's other responses re-places it on the anchor already standing. That
+    """Opening the bar's other responses re-places it on the anchor already in place. That
     is the same gesture continuing, not a fresh one that stood the user nowhere, so the
     way out still ends on the bar's subject — as it does for a user who goes straight
     back out."""
@@ -2629,10 +2629,10 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
         strip.locator('.lf-react[data-token="keep"]').click()
     ok = events_model.read_events(serve.page_dir)[-1]
     assert ok["token"] == "keep" and ok["parent"] == reply
-    expect(page.locator(".lf-needs")).to_have_text("You (0)")  # none
+    expect(page.locator(".lf-needs")).to_have_text("Me (0)")  # none
     expect(page.locator(".lf-thread:not([hidden])")).to_have_count(
         0
-    )  # out of "waiting on you"
+    )  # out of "waiting on me"
     # The mark, pressed again, is the eraser — and the wait comes back with the undo.
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-thread")).to_have_count(1)
@@ -2643,7 +2643,7 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
         strip.locator('.lf-react[data-token="keep"]').click()
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == ok["id"]
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (1)")
     expect(strip.locator('.lf-react[data-token="keep"]')).to_have_attribute(
         "aria-pressed", "false"
     )

@@ -2,7 +2,7 @@
  *
  * This registration consumes the directory after the Thread cohort commits. Its
  * synchronous paint joins that existing presentation proof and immediate contribution
- * updates. Source-linked rows use the existing standing owner; native contribution
+ * updates. Source-linked rows use their existing owner; native contribution
  * controls use the one shared cache, activation and focus directory. No view collects
  * annotations, resolves their anchors, folds events or publishes an application root.
  * The owner retains its rows and layout, and unregisters when its document leaves.

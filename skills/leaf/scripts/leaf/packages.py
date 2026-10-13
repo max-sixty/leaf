@@ -8,11 +8,7 @@ import secrets
 import shutil
 import sys
 import tempfile
-import tomllib
 from pathlib import Path
-
-from packaging.requirements import InvalidRequirement, Requirement
-from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
 from .files import read_json, replace_files
 from .layer import (
@@ -109,8 +105,8 @@ def rollback_package_files(created: list) -> None:
     """Remove only members that are still the exact files this transaction created."""
     for path, device, inode in reversed(created):
         try:
-            standing = path.stat(follow_symlinks=False)
-            if (standing.st_dev, standing.st_ino) == (device, inode):
+            current = path.stat(follow_symlinks=False)
+            if (current.st_dev, current.st_ino) == (device, inode):
                 path.unlink()
         except FileNotFoundError:
             pass
@@ -147,23 +143,20 @@ def starter_element_declaration(tag: str) -> dict:
     }
 
 
-def starter_widget_module(tag: str) -> bytes:
-    """The registration and one-shot upgrade shared by behavioral widgets.
+def starter_widget_module() -> bytes:
+    """The default constructor and one-shot upgrade shared by behavioral widgets.
 
     The layer paints what the declaration alone determines, settlement included, with
     no help from the module. A module that adds a `renderState` subscribes to its
     `widgetController`, which is what calls it."""
     return (
-        'import { once } from "/runtime/widget-api.js";\n\n'
-        "customElements.define(\n"
-        f'  "{tag}",\n'
-        "  class extends HTMLElement {\n"
-        "    connectedCallback() {\n"
-        "      if (!once(this)) return;\n"
-        "    }\n"
-        "  },\n"
-        ");\n"
-    ).encode()
+        b'import { once } from "/runtime/widget-api.js";\n\n'
+        b"export default class extends HTMLElement {\n"
+        b"  connectedCallback() {\n"
+        b"    if (!once(this)) return;\n"
+        b"  }\n"
+        b"}\n"
+    )
 
 
 def protected_package_paths(package: Path) -> list:
@@ -237,14 +230,6 @@ INLINE_METADATA = re.compile(
 )
 
 
-def floor_error(specifier: SpecifierSet) -> str | None:
-    """Why a version constraint is not a floor with no cap, or None."""
-    operators = {spec.operator for spec in specifier}
-    if operators != {">="}:
-        return "must state a floor (>=) and nothing else"
-    return None
-
-
 def check_package_scripts(package: Path) -> None:
     """Refuse a script `package run` could not run apart from the caller's project.
 
@@ -254,10 +239,9 @@ def check_package_scripts(package: Path) -> None:
     producer would depend on where the agent ran it. `--no-project` does not
     close that, since uv still finds the caller's `.venv` for a file with no block,
     so the block is the one guarantee: required here, where `package check` reports
-    it and `package install` refuses it, and for bundled packages by the suite. Its
-    constraints follow the project's dependency policy, a floor and no cap
-    (AGENTS.md, "The install runs this tree"). A
-    subdirectory of `scripts/` holds helpers and is not run.
+    it and `package install` refuses it, and for bundled packages by the suite. What
+    the block declares is uv's to read: a malformed block fails `package run` with
+    uv's own error. A subdirectory of `scripts/` holds helpers and is not run.
     """
     scripts = package / SCRIPTS_DIR
     if not (scripts.exists() or scripts.is_symlink()):
@@ -267,52 +251,15 @@ def check_package_scripts(package: Path) -> None:
     for path in sorted(scripts.glob("*.py")):
         if not path.is_file():
             raise Refused(f"{path} must be a file")
-        script_requirements(path)
-
-
-def script_requirements(path: Path) -> list[Requirement]:
-    """The dependencies one package script's inline metadata declares, held to the
-    policy `check_package_scripts` states; a script that breaks it is refused."""
-    blocks = [
-        match
-        for match in INLINE_METADATA.finditer(path.read_text(encoding="utf-8"))
-        if match["type"] == "script"
-    ]
-    if len(blocks) != 1:
-        raise Refused(
-            f"{path} needs one inline `# /// script` metadata block (PEP 723) "
-            "declaring its dependencies, so `leaf package run` runs it in an "
-            "environment of its own"
-        )
-    content = "".join(
-        line[2:] if line.startswith("# ") else line[1:]
-        for line in blocks[0]["content"].splitlines(keepends=True)
-    )
-    try:
-        metadata = tomllib.loads(content)
-        dependencies = metadata.get("dependencies", [])
-        python = metadata.get("requires-python", ">=0")
-        if not (
-            isinstance(dependencies, list)
-            and all(isinstance(value, str) for value in dependencies)
-            and isinstance(python, str)
+        if not any(
+            match["type"] == "script"
+            for match in INLINE_METADATA.finditer(path.read_text(encoding="utf-8"))
         ):
-            raise ValueError(
-                "dependencies must be a list of strings and requires-python a string"
-            )
-        requirements = [Requirement(value) for value in dependencies]
-        python = SpecifierSet(python)
-    except (ValueError, InvalidRequirement, InvalidSpecifier) as error:
-        raise Refused(f"{path}: invalid script metadata ({error})")
-    if error := floor_error(python):
-        raise Refused(f"{path}: requires-python {error}")
-    for requirement in requirements:
-        if requirement.url is not None or (error := floor_error(requirement.specifier)):
             raise Refused(
-                f"{path}: dependency {str(requirement)!r} "
-                f"{error or 'must name a version floor, not a URL'}"
+                f"{path} needs an inline `# /// script` metadata block (PEP 723) "
+                "declaring its dependencies, so `leaf package run` runs it in an "
+                "environment of its own"
             )
-    return requirements
 
 
 def validate_package_dir(package: Path) -> list:
@@ -426,7 +373,7 @@ def init_starter_widget(
     registry[widget] = starter_element_declaration(widget)
     files = {
         "registry.json": json_bytes(registry, indent=2),
-        f"widgets/{module_name}": starter_widget_module(widget),
+        f"widgets/{module_name}": starter_widget_module(),
     }
     validate_starter_candidate(package, files)
     refuse_package_overlap(
@@ -478,14 +425,52 @@ def cmd_package_init(package: Path, widget: str | None = None) -> Path:
         return package
 
 
-def cmd_package_check(package: Path, render: bool = False) -> int:
-    package, _, _ = check_package(package, require_exists=True)
-    print(f"checked {package}", flush=True)
-    if not render:
-        return 0
-    from .render_gate.command import widget_quality_report
+def cmd_package_check(
+    package: Path, render: bool = False, as_json: bool = False
+) -> int:
+    """Check the package, and with `render` its widgets' worked examples in the
+    host's browser. With `as_json`, print one object in `page check --json`'s shape:
+    `status`, the exit status; `findings`, each finding as a record: the findings a
+    refusal carries, such as a registry's, any other refusal as one `package`
+    record, or the widget quality findings; and `browser`, what
+    the browser gate ran in or why none could, null where none was asked for or the
+    package check refused."""
+    from .findings import Finding, Rejected
 
-    return widget_quality_report(package)
+    def reported(status, findings=(), browser=None):
+        print(
+            json.dumps(
+                {
+                    "status": status,
+                    "findings": [finding.json() for finding in findings],
+                    "browser": browser,
+                },
+                ensure_ascii=False,
+            )
+        )
+        return status
+
+    try:
+        package, _, _ = check_package(package, require_exists=True)
+    except Refused as error:
+        if not as_json:
+            raise
+        found = (
+            error.findings
+            if isinstance(error, Rejected)
+            else [Finding("package", values={"text": str(error)})]
+        )
+        return reported(1, found)
+    if not as_json:
+        print(f"checked {package}", flush=True)
+    if not render:
+        return reported(0) if as_json else 0
+    from .render_gate.command import print_widget_quality, widget_quality
+
+    check = widget_quality(package)
+    if not as_json:
+        return print_widget_quality(check)
+    return reported(check.status, check.findings, check.json())
 
 
 def cmd_package_install(source: Path) -> Path:

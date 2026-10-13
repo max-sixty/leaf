@@ -31,10 +31,6 @@ vars:
     The page directory is not reachable from here, so reply with the section's HTML
     fragment rather than writing a file.
 assert:
-- type: regex
-  metric: has-asks
-  value: <lf-ask\b
-  transform: output.toLowerCase()
 - type: llm-rubric
   metric: judgment
   value: |

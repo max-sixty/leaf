@@ -75,7 +75,7 @@ export function retainUserIntent({
   return current;
 }
 
-// A nested destination may stop standing while the original gesture waits. Restrict
+// A nested destination may stop being available while the original gesture waits. Restrict
 // that same capability; taking a new intent would authorize stale work with newer input.
 // Refine a retained gesture's availability without recapturing its generation. The
 // same admission guards readiness and the actual focus/scroll handoff.

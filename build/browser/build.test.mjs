@@ -251,7 +251,7 @@ test("publisher replaces one immutable reading before subscribers run", () => {
 
 test("publisher secures shallow-frozen inputs and complete selected collections", () => {
   const key = { id: "thread" };
-  const collection = Object.freeze(new Map([[key, { words: ["standing"] }]]));
+  const collection = Object.freeze(new Map([[key, { words: ["kept"] }]]));
   const document = Object.freeze({ collection });
   const publisher = createApplicationPublisher({
     document,

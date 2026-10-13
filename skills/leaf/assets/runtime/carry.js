@@ -26,7 +26,7 @@
  * Modules restore their own stored state, such as tabs and drafts, through their own
  * lifecycles. `version.js` owns when capture and restoration run for each install.
  */
-import { focusDestination, readCaret } from "./focus.js";
+import { focusDestination, readCaret, focused } from "./focus.js";
 import { TEXT_BOX } from "./control-selectors.js";
 import { skipped } from "./geometry.js";
 import { readingRegions } from "./reading-regions.js";
@@ -39,7 +39,7 @@ const holdsTick = (node) =>
 // Capture before replacement. JSON records can cross a reload; held nodes remain local
 // so an in-place install can skip restoration on the nodes it kept.
 export function captureCarry(root, authored) {
-  const active = document.activeElement;
+  const active = focused(document);
   const partOwner = active?.hasAttribute("data-lf-carry")
     ? active.parentElement?.closest("[id]")
     : null;

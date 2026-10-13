@@ -7,8 +7,13 @@ from interact_support import PAGE
 from interact_support import append_carried_log_record as append_event
 from leaf.files import replace_files, revision_path
 from leaf.live_shell import write_live_shell
-from leaf.revision_artifact import read_artifact
-from leaf.revision_delivery import json_script, layer_import_map
+from leaf.revision_artifact import javascript_imports, read_artifact
+from leaf.revision_delivery import (
+    PublicationAddress,
+    delivered_resource,
+    json_script,
+    layer_import_map,
+)
 from leaf.revisioning import activate_source
 
 
@@ -27,6 +32,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
     (authored / "nested").mkdir(parents=True)
     (authored / "widgets").mkdir()
     (authored / "app.js").write_text(
+        'import "/runtime/widget-api.js"; '
         'import { value } from "./nested/value.js"; window.result = value;'
     )
     (authored / "nested" / "value.js").write_text("export const value = 1;")
@@ -64,7 +70,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
     first = publish(1)
     first_artifact = read_artifact(page_dir, first)
     (authored / "nested" / "value.js").write_text("export const value = 2;")
-    page_widget = 'import { value } from "../nested/value.js"; window.widget = value;'
+    page_widget = 'import { value } from "../nested/value.js"; window.widget = value; export default class extends HTMLElement {};'
     (authored / "widgets" / "lf-options.js").write_text(page_widget)
     entry["description"] = "Second page declaration"
     (authored / "registry.json").write_text(json.dumps({"lf-options": entry}))
@@ -112,10 +118,16 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         assert (destination / "revisions" / marker).read_text() == document
         assert f'name="lf-revision" data-lf-runtime content="{revision}"' in document
         assert f'name="lf-version" data-lf-runtime content="{version}"' in document
-        assert f'src="{root}/leaf.js"' in document
+        kernel_root = (
+            (asset_root if asset_root is not None else page_root)
+            + "/revisions/"
+            + revision_path(page_dir, second).stem
+        )
+        assert f'src="{kernel_root}/leaf.js"' in document
         assert f'src="{root}/page/app.js"' in document
         assert f'href="{root}/page/style.css"' in document
-        assert f'data-lf-probe="{root}/registry.json"' in document
+        assert f'data-lf-probe="{kernel_root}/registry.json"' in document
+        assert f'data-lf-vocabulary-root="{root}/registry.json"' in document
         assert f'href="{page_root}/" data-lf-runtime' in document
         assert additions in document
         assert (
@@ -125,6 +137,7 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
             resources / "page" / "nested" / "value.js"
         ).read_text() == f"export const value = {version};"
         assert (resources / "page" / "app.js").read_text() == (
+            'import "/runtime/widget-api.js"; '
             f'import {{ value }} from "{root}/page/nested/value.js"; window.result = value;'
         )
         assert (
@@ -135,20 +148,36 @@ def test_published_shells_bind_documents_and_resources_to_their_revision(
         )
         # The layer is published as captured; the document's import map sends its
         # rooted imports to this revision.
-        assert (resources / "leaf.js").read_bytes() == artifact.resources[
-            "/leaf.js"
-        ].data
-        assert artifact.resources["/runtime/bootstrap.js"].data.decode() in document
-        assert json_script(layer_import_map(root)) in document
+        if revision == second:
+            assert (resources / "leaf.js").read_bytes() == second_artifact.resources[
+                "/leaf.js"
+            ].data
+            assert "/runtime/dom-move.js" in {
+                specifier
+                for _, _, specifier in javascript_imports(
+                    (resources / "vendor" / "lit.js").read_bytes(), "/vendor/lit.js"
+                )
+            }
+        else:
+            assert not (resources / "leaf.js").exists()
+            assert not (resources / "runtime").exists()
+        assert (
+            second_artifact.resources["/runtime/bootstrap.js"].data.decode() in document
+        )
+        assert json_script(layer_import_map(kernel_root)) in document
         expected_widget = (
-            f'export * from "{root}/page/widgets/lf-options.js";\n'.encode()
+            f'export {{default}} from "{root}/page/widgets/lf-options.js";\n'.encode()
             if version == 2
-            else artifact.resources["/widgets/lf-options.js"].data
+            else delivered_resource(
+                artifact,
+                "/widgets/lf-options.js",
+                PublicationAddress(page_root, root, artifact.shared_modules),
+            ).data
         )
         assert (resources / "widgets" / "lf-options.js").read_bytes() == expected_widget
         if version == 2:
             assert (resources / "page" / "widgets" / "lf-options.js").read_text() == (
-                f'import {{ value }} from "{root}/page/nested/value.js"; window.widget = value;'
+                f'import {{ value }} from "{root}/page/nested/value.js"; window.widget = value; export default class extends HTMLElement {{}};'
             )
 
     assert (destination / "index.html").read_bytes() == (

@@ -6,7 +6,7 @@ older generations that the hook transport's owned-page reading no longer covers.
 Either lost ownership or a dead serving incarnation needs reconnecting; the old
 server may still answer during its orphan grace period.
 
-Explicit releases, stops, standing services, previews, and successor claims are not
+Explicit releases, stops, persistent services, previews, and successor claims are not
 outages this session should repair. Inspection holds the service and page locks, then
 the session lock, so a notice cannot race a transfer or explicit stop. Notification
 state lives outside the page log, persists across SessionEnd, and resets only after
@@ -22,7 +22,7 @@ from pathlib import Path
 
 from .files import read_json
 from .leases import page_locked
-from .schema import PREVIEW_FILE, SERVICE_FILE
+from .schema import PREVIEW_FILE
 from .service import (
     PageTransaction,
     claim_is_active,
@@ -123,11 +123,12 @@ def publishing_notices(
                 or (page_dir / PREVIEW_FILE).exists()
             ):
                 continue
-            service = read_json(page_dir / SERVICE_FILE)
+            from .server import read_service
+
+            service = read_service(page_dir)
             if (
-                not isinstance(service, dict)
-                or not {"enabled", "lifetime", "host", "port", "server_id"}
-                <= service.keys()
+                service is None
+                or "server_id" not in service
                 or not service["enabled"]
                 or service["lifetime"] != "session"
             ):

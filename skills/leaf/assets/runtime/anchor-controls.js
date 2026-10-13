@@ -1,11 +1,12 @@
 /* Retained controls derived from the canonical current anchor reading.
  *
- * This view owns visual comment proxies, standing reaction controls, and message
+ * This view owns visual comment proxies, controls for reactions in force, and message
  * fragment state. The dedicated anchor-note projection owns accessible comment notes.
  * Visual proxies are keyed Lit controls, one group per drawing's seat, standing on the
  * details shelf with the seat naming the group as its details (details-shelf.js). A
  * screen reader reaches them from the drawing; a keyboard reaches the drawing and each
- * declared part through the target picker (`s`). A standing reaction first reveals
+ * declared part through the target picker (`s`). A failed thread presentation withdraws
+ * visual proxies until a valid reading replaces them. A reaction in force first reveals
  * its dedicated removal action; only that action withdraws the reaction. Commands enter
  * only through the constructor.
  */
@@ -37,8 +38,8 @@ import {
 import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
 import { elementById, inChrome, pageQueryAll } from "./passages.js";
-import { pagePresented } from "./page-paint.js";
-import { registry } from "./registry.js";
+import { pageUpgraded } from "./page-paint.js";
+import { reactionVocabulary } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
 import { offer, reveal } from "./widget-elements.js";
@@ -207,10 +208,15 @@ export function createAnchorControls({
 
   function prepareVisualActions() {
     pendingVisualActions = visualActionPlan();
-    if (pagePresented()) publishVisualActions();
+    if (pageUpgraded()) publishVisualActions();
   }
 
-  // Each target contributes its complete standing reaction reading. Only the selected
+  function withholdVisualActions() {
+    pendingVisualActions = new Map();
+    reconcileVisualActions(pendingVisualActions);
+  }
+
+  // Each target contributes its complete reading of its reactions in force. Only the selected
   // removal disclosure is local state; both rendered surfaces read the same entry keys.
   function seatReactions(seats) {
     const kept = new Set();
@@ -228,7 +234,7 @@ export function createAnchorControls({
       if (!record) {
         record = { roots, expanded: null, margin: null, surface: null };
         record.scope = commandScope(
-          "On a standing reaction",
+          "On a reaction",
           [
             {
               id: "reaction.removal.close",
@@ -259,7 +265,7 @@ export function createAnchorControls({
       if (!roots.some((root) => root.id === record.expanded)) record.expanded = null;
       if (!record.margin)
         record.margin = registerContribution({
-          key: "standing-reactions",
+          key: "reactions",
           target: at,
           read: () => ({
             side: "after",
@@ -267,7 +273,7 @@ export function createAnchorControls({
             entries: record.roots.flatMap((root) => [
               {
                 key: `reaction:${root.id}:open`,
-                glyph: registry.$reactions.tokens[root.token]?.glyph ?? root.token,
+                glyph: reactionVocabulary()[root.token]?.glyph ?? root.token,
                 label: `${root.token} reaction actions`,
                 behavior: "disclosure",
                 rank: "secondary",
@@ -336,7 +342,7 @@ export function createAnchorControls({
       keeps(
         anchor,
         "title",
-        alive ? `Jump to § ${id}` : `§ ${id} isn't in the version you're viewing`,
+        alive ? `Jump to § ${id}` : `§ ${id} isn't in the version shown`,
       );
     }
   }
@@ -435,8 +441,7 @@ export function createAnchorControls({
     for (const record of reactionSeats.values()) record.margin.unregister();
     reactionSeats.clear();
     anchorNotes.destroy();
-    pendingVisualActions = new Map();
-    reconcileVisualActions(new Map());
+    withholdVisualActions();
   }
 
   return {
@@ -444,6 +449,7 @@ export function createAnchorControls({
     destroy,
     render,
     publishVisualActions,
+    withholdVisualActions,
     visualActionAnchor,
   };
 }

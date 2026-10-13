@@ -43,7 +43,9 @@
    new reply. So is an answer folding the progress before it into Previous updates
    where that progress is the run at the thread's end, as the agent's acknowledgement
    is, unless the user stands on a message the fold puts away, by focus or by a
-   selection reaching into it (`standsOn`, focus.js). A run on screen stays open where
+   selection reaching into it (`standsOn`, focus.js). The progress itself is no news:
+   until that answer it joins the thread's working message, not its replies
+   (thread-card.js), and its messages stand behind that message's disclosure. A run on screen stays open where
    it stood, its group's border drawn around it (components/surfaces.css), so the fold
    moves none of its words; a run off screen folds away. Changes to other existing
    messages, reactions, folds and settlement use the same hold as a seat in page flow,
@@ -64,12 +66,12 @@
    - pressing its notice, or its margin marker where a widget holds it out of the flow;
    - opening the thread: a folded outlet, or a panel card the list opens;
    - arriving at it: coming to stand in it from outside it, by a move of theirs, a t/T
-     walk, a Question, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
+     walk, an ask, a link, Tab, whatever route took them (focus.js, `onStanding`), or by
      a press on its title, which stands for the whole thread, whether or not it already
      stood open. Coming back to the thread they stood in is a stay, whatever puts them
      there, as when the runtime puts back a reply box a surface stopped drawing, and so
      is a move within it, such as Escape out of its reply box onto its title or going to
-     a Question it already shows;
+     an ask it already shows;
    - acting in it (`gesturedOn`): a reply, a reaction on one of its messages, settling
      it, an action on a widget one of them holds or one that closes it, as accepting
      the suggestion it asked for does, or a thread they start in the seat, which
@@ -80,7 +82,7 @@
    sees: none of it stands where a change of size moves what is seen (geometry.js,
    `growthIsSeen`), as when it is scrolled under the banner. A press into the thread, such as into its reply box, shows
    nothing: it asks for what it lands on, and drawing the news would move that under the
-   press. Where the destination is itself held, a message or a Question in a held turn, or a
+   press. Where the destination is itself held, a message or an ask in a held turn, or a
    thread a seat holds whole, the route shows it first (`showHeld`), since nothing
    undrawn can take focus. Anything held in a seat is not drawn, so it stays unread until
    it shows.
@@ -102,7 +104,7 @@
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
    clock decides, such as a command's lists of stopped goals and live workers. The first
    ready reading draws whole. After that, a reading that would change the region's size
-   waits, the region standing as it was, while its growth would be seen, and a control
+   waits, the region staying as it was, while its growth would be seen, and a control
    of fixed size the widget already draws says so and shows it.
 
    No first paint can size such a region, so a widget keeps its rows closed until the
@@ -140,12 +142,12 @@ const gestured = (key) => {
   return Boolean(thread) && gesturedOn(thread);
 };
 
-// The standing reactions a strip draws, by token, since a reaction keeps its token but
+// The reactions in force a strip draws, by token, since a reaction keeps its token but
 // not its id when the log answers it.
 const tokens = (reactions) =>
-  new Set(reactions.choices.filter(({ standing }) => standing).map(({ name }) => name));
+  new Set(reactions.choices.filter(({ inForce }) => inForce).map(({ name }) => name));
 
-// The tokens standing in one of two strips and not the other.
+// The tokens in force in one of two strips and not the other.
 const symmetric = (a, b) => [...a, ...b].filter((name) => !a.has(name) || !b.has(name));
 
 // A summary as a card draws it: the messages of `drawn`, the ids of the turns the card
@@ -192,7 +194,7 @@ function messageChange(prior, message) {
 // so the notice does not count it, and where it folds the run standing at the thread's
 // foot (`footFold`) it changes only that foot, as the answer's arrival does. A message
 // the log took back is no news: it goes. Null where nothing differs.
-function difference(was, now) {
+function difference(was, now, { progressOpen = false } = {}) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
   const settled =
     Boolean(was.resolved) === Boolean(now.resolved)
@@ -216,6 +218,12 @@ function difference(was, now) {
     const change = messageChange(prior, message);
     if (!prior || prior.provisional) arrived.add(message.id);
     if (change === "completed") completed.add(message.id);
+    // A progress message joins the thread's working message, not its replies, so it is
+    // no news; the answer that later folds it is. Where the step shows, because the
+    // reader opened the progress (`progressOpen`, thread-card.js) or the thread is
+    // resolved and keeps its progress as messages, it is a reply's news.
+    if (change === "joined" && message.progress && !progressOpen && !now.resolved)
+      continue;
     if (change === "joined") {
       if (message.author === "agent") news.replies += 1;
       else news.messages += 1;
@@ -281,7 +289,7 @@ function difference(was, now) {
 
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held
 // back: what the log's news changed, as drawn. That is its settlement; its messages, the
-// new ones left out, a reaction taken off or a streaming reply gone still standing, and
+// new ones left out, a reaction taken off or a streaming reply gone still present, and
 // each one's words as drawn, which only an edit or a stream changes; and its summaries
 // as drawn. A held thread is read from this as from any other, so what the reading
 // derives from those, such as its title, its reaction strips or its controls, agrees
@@ -291,9 +299,9 @@ function difference(was, now) {
 // in a thread that holds nothing, so a resolution held from the card already takes its
 // turn off the title.
 function withheld(was, now) {
-  const standing = new Map(now.msgs.map((message) => [messageKey(message), message]));
+  const current = new Map(now.msgs.map((message) => [messageKey(message), message]));
   const msgs = was.msgs.flatMap((prior) => {
-    const message = standing.get(messageKey(prior));
+    const message = current.get(messageKey(prior));
     if (!message) return isReaction(prior) || prior.provisional ? [prior] : [];
     // A streaming reply held as drawn is still the reply arriving, whatever completed it.
     // Its content version is the one its drawn words are, so the words a rewrite holds
@@ -537,7 +545,9 @@ export class HeldNews {
         const shown = thread.visible !== false && !thread.folding;
         const held =
           was && shown && !this.#released.has(thread.key)
-            ? difference(was, thread)
+            ? difference(was, thread, {
+                progressOpen: this.#view(thread.key)?.progressOpen ?? false,
+              })
             : null;
         if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held))
           return { ...thread, news: null };

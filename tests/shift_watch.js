@@ -1,4 +1,28 @@
 // Checks the Stability contract using protected reading/control landmarks.
+//
+// Scope. The sensor credits movement the browser's own placement mechanisms produce,
+// modelled in general for any markup, never for one shape Leaf ships: scrolling,
+// which layout coordinates remove; sticky positioning, through its scroller's travel;
+// CSS anchor positioning, through its anchor's scroll; and native animation, scroll-
+// driven included, through its sampled translation. Beside those it credits only what
+// the Stability contract itself declares: a gesture's rendering, the page before it
+// presents or as it returns from a hidden tab, and runtime regions declared with
+// `data-lf-reflow`. A script that moves a box by writing its geometry has no credit
+// of its own, however the page means it, so a surface that should follow something
+// stands by a native mechanism that does. A new layout shape therefore needs no rule
+// here: where its motion is native, the general rule already credits it, and where it
+// is scripted, the sensor reports it.
+//
+// Leaf's floating surfaces (floating.js) keep two credits for what their solver still
+// writes, until a native mechanism carries it: the inset an attachment limiter rewrites
+// as an anchored surface's target travels (`native_camera`), and a switch between the
+// page's plane and the window or region edge that holds it in (`floating_plane`). The
+// owner's last-written held-edge point, published as `lfFloatingSelections`, declares
+// each under the same subject, anchor and tenure; its solver dimensions, not the
+// holder's rendered displacement, supply the credit, and a rewrite is credited only
+// within the travel of its source. That travel is read from an independent, unpainted
+// native anchor (a camera), whose point no displacement of the holder moves.
+//
 // Chrome admits painted layout transitions; a retained per-frame ledger supplies
 // their meaning. Source rectangles do not choose which landmarks get examined, so
 // anonymous sources, decorative pseudos and the five-source cap cannot excuse a
@@ -18,7 +42,7 @@
 // expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
 // Each trusted gesture owns its counted rendering until declared completion. A widget
-// preparation it began (`observeWidgetPreparations`) works on in a promise the loop
+// preparation it began (`observePreparations`) works on in a promise the loop
 // cannot see; the gesture owns that preparation's landing, as a rendering from the
 // task that settles it until the loop settles again, and nothing while it waits. It
 // began one only when its declaration carries that input's exact callback source.
@@ -40,15 +64,7 @@
 // the ancestor's whole box: independent movement of it or its children still fails.
 // This proof supports unique replace effects with pure transform translation or
 // pixel left/top/marginLeft/marginTop. Scale, rotation and composed effects receive
-// no inferred translation credit. A floating owner's last-written held-edge point
-// declares page/window plane changes under the same subject, anchor and tenure;
-// its solver dimensions, not the holder's rendered displacement, supply that credit.
-// Native anchored surfaces read their compositor source pose from an independent,
-// unpainted native anchor; their own displacement never selects that camera.
-// Observed source attachments in the window plane retain their carrying source offsets,
-// physical attachment point and written solver point. Source travel bounds physical
-// following, which bounds the solver's constrained movement. Only that written
-// movement is credited; extra holder/child movement still fails.
+// no inferred translation credit.
 //
 // Chrome's paint signal and landmark poses answer distinct questions. The ledger
 // retains samples that precede the source-associated frame window and is classified
@@ -763,7 +779,7 @@
   let owed = 0;
   let wasDrawn = null;
   let seenAnimations = [];
-  // One line for a reading that found unannounced changes: the innermost node that
+  // One finding for a reading that found unannounced changes: the innermost node that
   // changed, what changed on it, and how many other nodes changed with it.
   const missed = (misses) => {
     const depth = (node) => {
@@ -774,14 +790,13 @@
     const [node, changed] = misses.reduce((deepest, miss) =>
       depth(miss[0]) > depth(deepest[0]) ? miss : deepest,
     );
-    const others = misses.length - 1;
-    report(
-      `shift watch missed a change to ${node ? name(node) : "the page's nodes"}`,
-      ` (${changed.join(", ")})` +
-        (others ? ` and to ${others} other node${others === 1 ? "" : "s"}` : "") +
-        ": a source of change is missing from the sensor's announcements" +
-        ' (shift_watch.js, "Unchanged frames")',
-    );
+    const named = node ? name(node) : null;
+    report(`missed ${named}`, {
+      code: "shift-watch-missed",
+      node: named,
+      changed,
+      others: misses.length - 1,
+    });
   };
   const read = (time, frame = true) => {
     // Poses belong to their synchronous observation time. The native frame start
@@ -1188,6 +1203,7 @@
     const owner = preparing.get(preparation);
     if (!owner) return;
     preparing.delete(preparation);
+    if (phase === "cancel") return;
     const rendering = {
       start: nativePerformance.now(),
       first: true,
@@ -1345,27 +1361,32 @@
     listen(held, "pointercancel", (event) => presses.delete(event.pointerId), true);
     if (view === view.parent) break;
   }
+  // Each finding goes to the fixture as a record (`leaf/findings.py` words it),
+  // once per `key`, with every node in it named.
   const reported = new Set();
-  const report = (what, detail, evidence) => {
-    if (reported.has(what)) return;
-    reported.add(what);
-    console.error(
-      `${what}${detail}` +
-        (evidence
-          ? `\nshift evidence: ${JSON.stringify(evidence, (_, value) => (value instanceof Node ? name(value) : value))}`
-          : ""),
+  const report = (key, finding) => {
+    if (reported.has(key)) return;
+    reported.add(key);
+    window.__leafWatchFinding(
+      JSON.parse(
+        JSON.stringify(finding, (_, value) =>
+          value instanceof Node ? name(value) : value,
+        ),
+      ),
     );
   };
-  const box = ({ left, top, width, height }) =>
-    `${Math.round(left)},${Math.round(top)} ${Math.round(width)}x${Math.round(height)}`;
-  const by = (from, to) =>
-    ` by (${Math.round(to.left - from.left)}, ${Math.round(to.top - from.top)})px`;
-  const beside = (sources, node) => {
-    const others = sources
-      .filter((source) => source.node !== node)
-      .map((source) => name(source.node));
-    return others.length ? `; the same frame moved ${others.join(", ")}` : "";
-  };
+  const box = ({ left, top, width, height }) => ({
+    left: Math.round(left),
+    top: Math.round(top),
+    width: Math.round(width),
+    height: Math.round(height),
+  });
+  const by = (from, to) => [
+    Math.round(to.left - from.left),
+    Math.round(to.top - from.top),
+  ];
+  const beside = (sources, node) =>
+    sources.filter((source) => source.node !== node).map((source) => name(source.node));
   // Widgets upgrade after the authored document has painted,
   // and the frame that presents the page carries every box their upgrade reshaped. The
   // page before it is presented runs until the second frame after the runtime stamps
@@ -1713,8 +1734,6 @@
       : selection.size[axis === "left" ? "width" : "height"]);
   const scrollMotion = (node, from, to) => {
     const motion = nativeScrollMotion(node, from, to);
-    // Rejected credits need their input facts too, including a missing source reading.
-    motion.attachments = [];
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const anchored = { left: false, top: false };
     const ancestors = ancestryAt(element, to);
@@ -1736,71 +1755,6 @@
         was.tenure === now.tenure &&
         was.subject === now.subject &&
         was.anchor === now.anchor;
-      if (was || now)
-        motion.attachments.push({
-          owner,
-          before: was ?? null,
-          after: now ?? null,
-          before_origin: readingAt(owner, from)?.nativeOrigin ?? null,
-          after_origin: readingAt(owner, to)?.nativeOrigin ?? null,
-          before_surface: boxAt(owner, from),
-          after_surface: boxAt(owner, to),
-          before_frame: was?.frame && {
-            rect: boxAt(was.frame, from),
-            layout: layoutAt(was.frame, from),
-          },
-          after_frame: now?.frame && {
-            rect: boxAt(now.frame, to),
-            layout: layoutAt(now.frame, to),
-          },
-          crosses_fixed: crossesFixed,
-          same_attachment: sameAttachment,
-        });
-      if (
-        sameAttachment &&
-        was.plane === "window" &&
-        now.plane === "window" &&
-        was.scrollOffsets &&
-        now.scrollOffsets?.length === was.scrollOffsets.length &&
-        was.scrollOffsets.every(
-          (source, i) => source.source === now.scrollOffsets[i].source,
-        )
-      ) {
-        const reach = { left: [0, 0], top: [0, 0] };
-        const sources = [];
-        for (const [i, before] of was.scrollOffsets.entries()) {
-          const after = now.scrollOffsets[i];
-          if (before.left === after.left && before.top === after.top) continue;
-          const by = viewportScroll(before.source, from, {
-            left: before.left - after.left,
-            top: before.top - after.top,
-          });
-          sources.push({ source: before.source, before, after, viewport: by });
-          for (const axis of ["left", "top"]) {
-            reach[axis][0] += Math.min(0, by[axis]);
-            reach[axis][1] += Math.max(0, by[axis]);
-          }
-        }
-        for (const axis of ["left", "top"]) {
-          const carried = now.reference[axis] - was.reference[axis];
-          const placed = writtenPoint(now, axis) - writtenPoint(was, axis);
-          if (
-            carried >= reach[axis][0] - 1 &&
-            carried <= reach[axis][1] + 1 &&
-            placed >= Math.min(0, carried) - 1 &&
-            placed <= Math.max(0, carried) + 1
-          )
-            credit(motion, "observed_attachment", owner, axis, placed, {
-              before: was,
-              after: now,
-              crosses_fixed: crossesFixed,
-              reach: reach[axis],
-              carried,
-              placed,
-              sources,
-            });
-        }
-      }
       if (sameAttachment && was.frame && was.frame === now.frame) {
         const before = readingAt(owner, from)?.nativeOrigin;
         const after = readingAt(owner, to)?.nativeOrigin;
@@ -2086,7 +2040,6 @@
         left: observed.left - scroll.left - motion.left,
         top: observed.top - scroll.top - motion.top,
       },
-      scroll_attachments: scroll.attachments,
       scroll_terms: scroll.terms,
       animation_terms: motion.terms,
     };
@@ -2240,17 +2193,19 @@
           ? { previousRect: first.previousRect, currentRect: last.currentRect }
           : chain.find(confirms);
         if (proof)
-          report(
-            `${name(node)} moved without input`,
-            by(proof.previousRect, proof.currentRect) + beside(entry.sources, node),
-            {
+          report(`moved ${name(node)}`, {
+            code: "moved-without-input",
+            node: name(node),
+            by: by(proof.previousRect, proof.currentRect),
+            beside: beside(entry.sources, node),
+            evidence: {
               kind: "passive",
               node: name(node),
               fragment,
               paint_at: entry.startTime,
               comparisons: (stable ? chain : [proof]).map((move) => move.evidence),
             },
-          );
+          });
       }
     for (let i = pendingMotion.length - 1; i >= 0; i--)
       if (admitted.includes(pendingMotion[i])) pendingMotion.splice(i, 1);
@@ -2276,12 +2231,17 @@
         Math.abs(from.top - to.top) >= 1 &&
         Math.abs(after.top - before.top - scroll.top - motion.top) >= 1;
       if (!x && !y) continue;
-      report(
-        `typing in ${window.lfPlace(typing.field)} moved ${window.lfPlace(node)}`,
-        by(before, after) +
-          `; the key found ${box(before)}, the frame painted ${box(after)}` +
-          beside(entry.sources, node),
-        {
+      const field = window.lfPlace(typing.field),
+        place = window.lfPlace(node);
+      report(`typing in ${field} moved ${place}`, {
+        code: "typing-moved",
+        node: place,
+        field,
+        by: by(before, after),
+        found: box(before),
+        painted: box(after),
+        beside: beside(entry.sources, node),
+        evidence: {
           kind: "typing",
           node: name(node),
           field: name(typing.field),
@@ -2299,7 +2259,7 @@
             ),
           ],
         },
-      );
+      });
     }
   };
   // Native observer delivery can precede the next health frame. Its passive pose
@@ -2362,7 +2322,8 @@
     judge(entries);
   };
   const observer = new PerformanceObserver((list) => received(list.getEntries()));
-  observer.observe({ type: "layout-shift" });
+  if (PerformanceObserver.supportedEntryTypes.includes("layout-shift"))
+    observer.observe({ type: "layout-shift" });
   // Once two native frames and their task checkpoint complete, Chrome has painted
   // the work preceding `through`. Drain its native records before retiring that
   // history. Keep the entering pose and active typing's origin, whose comparison

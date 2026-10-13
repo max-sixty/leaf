@@ -8,7 +8,7 @@ from pathlib import Path
 from leaf.files import read_json
 from leaf.schema import WIDGET_NAME
 
-from ..refusals import Refused
+from ..findings import Finding, Rejected, element_at
 from .schema import json_value
 
 
@@ -147,25 +147,26 @@ def registry_path(registry: dict, path: str):
     return value
 
 
-def reference_relation_error(
+def reference_relation_problem(
     reference: dict, registry: dict, declarations: dict
-) -> str | None:
+) -> tuple[str, dict] | None:
     """Why one `{via, where}` or `{tag, key}` target relation cannot name a declared
-    widget. A keyed relation needs its key declared unique on the member, which also
-    supplies the owner it resolves within, so one reference names at most one member."""
+    widget, as a finding's code and values. A keyed relation needs its key declared
+    unique on the member, which also supplies the owner it resolves within, so one
+    reference names at most one member."""
     if member := reference.get("tag"):
         key = reference["key"]
         if member not in declarations:
-            return f"names unknown element declaration <{member}>"
+            return "refers-unknown-member", {"member": member}
         if key not in declarations[member].get("x-unique", {}):
-            return f"names <{member}> by `{key}`, which <{member}> does not declare in x-unique"
+            return "refers-unkeyed", {"member": member, "key": key}
         return None
     via = reference.get("via")
     if via is None:
         return None
     relation = registry_path(registry, via)
     if not isinstance(relation, dict):
-        return f"names unknown registry map {via!r}"
+        return "refers-unknown-map", {"via": via}
     predicate = reference["where"]
     if any(
         target in declarations
@@ -174,47 +175,57 @@ def reference_relation_error(
         for target, declaration in relation.items()
     ):
         return None
-    expected = ", ".join(
-        f"{key}={json_value(value)}" for key, value in predicate.items()
-    )
-    return f"requires {via} where {expected}, but no declared widget matches"
+    return "refers-unmatched", {"via": via, "where": predicate}
 
 
-class RegistryError(Refused):
+class RegistryError(Rejected):
     """A registry that is not a vocabulary, raised rather than exited because two doors
     read one. The CLI prints the message and stops; the page server owes the browser an
     answer, and `sys.exit` inside its request handler killed the connection mid-POST
     while every other rejection beside it returned a 400 — so a page whose vendored
     stamp had fallen behind the running layer met the user's click with a dead socket
     and no words. The CLI renders it with Click's standard Error prefix, while the
-    server catches the same rejection and answers the request."""
+    server catches the same rejection and answers the request.
+
+    It carries the one finding the check stopped at, which `page check` and `package
+    check` report as it is."""
+
+    def __init__(self, finding: Finding):
+        super().__init__([finding])
+
+
+def registry_error(code: str, registry=None, tag: str = "", /, **values):
+    """The refusal of one registry problem: `code` names it, `registry` the file or
+    composition it was read in, `tag` the element declaration it concerns, and
+    `values` what the check read there."""
+    if registry is not None:
+        values["registry"] = str(registry)
+    return RegistryError(Finding(code, element_at(tag) if tag else "", values))
 
 
 def read_registry_declarations(path: Path):
     """Read the top-level declarations one registry layer contributes."""
     if (path.exists() or path.is_symlink()) and not path.is_file():
-        raise RegistryError(f"{path}: registry.json must be a file")
+        raise registry_error("registry-not-file", path)
     try:
         registry = read_json(path)
     except json.JSONDecodeError as error:
-        raise RegistryError(
-            f"{path}: invalid JSON ({error.msg}, line {error.lineno})"
+        raise registry_error(
+            "registry-json", path, error=error.msg, line=error.lineno
         ) from error
     except UnicodeDecodeError:
-        raise RegistryError(f"{path} must be UTF-8") from None
+        raise registry_error("registry-not-utf8", path) from None
     if registry is None:
         if not path.is_file():
             return None
-        raise RegistryError(f"{path}: registry must be a JSON object")
+        raise registry_error("registry-not-object", path)
     if not isinstance(registry, dict):
-        raise RegistryError(f"{path}: registry must be a JSON object")
+        raise registry_error("registry-not-object", path)
     non_objects = [
         name for name, entry in registry.items() if not isinstance(entry, dict)
     ]
     if non_objects:
-        raise RegistryError(
-            f"{path}: registry declarations must be objects: {json_value(non_objects)}"
-        )
+        raise registry_error("declaration-not-object", path, names=non_objects)
     return registry
 
 
@@ -237,9 +248,9 @@ _IDENTITY = {"type": "string", "minLength": 1}
 def detail_schema(entry: dict, spec: dict) -> dict:
     """The event payload contract: an effect's fixed fields or custom command data.
 
-    Recorded values use `value`; positions add `unit` and `rank`, and a report
-    declaring `report` adds required nonempty `text`. Attribute values inherit
-    the destination's exact schema. Every identity the event depends on
+    Recorded values use `value`; positions add `unit` and `rank`, and a verb
+    declaring `text: true` adds a required non-empty `text`. Attribute values
+    inherit the destination's exact schema. Every identity the event depends on
     (`event_meaning.direct_dependencies`) is a nonempty string: a custom verb's
     fold unit, and an attribute set's or position's ids. Derived schemas are
     readings, never inserted into the registry beside the effect that owns them.
@@ -275,7 +286,7 @@ def detail_schema(entry: dict, spec: dict) -> dict:
             unit=_IDENTITY,
             rank={"type": "string", "pattern": f"^(?:{RANK})$"},
         )
-    if spec.get("report"):
+    if spec.get("text"):
         properties["text"] = {"type": "string", "minLength": 1}
     return {
         "type": "object",
@@ -392,7 +403,7 @@ def state_definition(origin: str, entry: dict, spec: dict) -> dict:
 
     Later declarations may reuse a verb's name with different meaning or types.
     Recorded definitions distinguish those new operations from history, while
-    descriptive schema annotations remain free to change. A verb's `report` flag
+    descriptive schema annotations remain free to change. A verb's `text` flag
     is not recorded: all it changes is the required `text` in `detail`.
     """
     from copy import deepcopy
@@ -432,9 +443,10 @@ def same_state_operation(recorded, current) -> bool:
     """The same fold destination and construction, independent of payload domain.
 
     The operation is the fields `state_definition` writes now, `detail` aside. A
-    field an earlier Leaf recorded beside them, such as `update` before it was
-    named `report`, is how that version wrote the definition, not part of the
-    operation, so it never retracts a decision. A missing field still fails."""
+    field an earlier Leaf recorded beside them, such as the verb flag it recorded
+    as `update` and then `report`, is how that version wrote the definition, not
+    part of the operation, so it never retracts a decision. A missing field still
+    fails."""
     return (
         isinstance(recorded, dict)
         and isinstance(current, dict)

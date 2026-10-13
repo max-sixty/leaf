@@ -122,7 +122,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     page.evaluate("lfWordsJudged()")
     consume_browser_errors(
         page,
-        'typed words left the screen without a key or press: "# PendingMore typing."',
+        {"code": "words-left-screen", "words": "# PendingMore typing."},
     )
 
     # A failed write keeps the buffer editable, and Retry saves the newest text.
@@ -183,7 +183,11 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     # The save moved the stamp too; the read that follows it is answered now.
     for route in held_reads:
         route.continue_()
-    consume_browser_errors(page, "Failed to load resource: net::ERR_FAILED", "409 ")
+    consume_browser_errors(
+        page,
+        "Failed to load resource: net::ERR_FAILED",
+        {"code": "failed-load", "status": 409},
+    )
 
     # Two versions remain available after a stale save. Explicit replacement
     # checks the displayed disk revision again instead of force-writing.
@@ -265,7 +269,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     expect(editor).to_contain_text("Newest")
     consume_browser_errors(
         page,
-        "409 ",
+        {"code": "failed-load", "status": 409},
         "Failed to load resource: net::ERR_FAILED",
     )
 

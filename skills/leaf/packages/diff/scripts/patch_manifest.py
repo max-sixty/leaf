@@ -1,24 +1,24 @@
 #!/usr/bin/env -S uv run --script --quiet
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["unidiff>=1"]
+# dependencies = []
 # ///
 """Build the `unified-diff` contract's file manifest from a Git patch.
 
-Reads a UTF-8 patch on stdin and writes the manifest JSON on stdout, ready for
+Reads a UTF-8 patch on stdin and writes manifest JSON on stdout, ready for
 `leaf data set`:
 
     git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE SOURCE
 
-The manifest is the form of the contract whose `patch` fields `/api/state` defers
-(`records.deferred`), so a large review sends each file's patch only when its
-disclosure opens. An entry the contract excludes, a copy or a file with no textual
-hunks other than a path-only rename, is refused here, with the reason on stderr and
-exit status 1, rather than stored.
+Each record describes the native operation, paths, modes and binary status and
+keeps its Git evidence in a deferred patch. Each file's evidence is read before
+its row appears; textual hunks render when their file opens. Compressed binary
+payloads are omitted: the Git binary marker records their presence.
 
-The input is a patch as `git diff` writes it. unidiff reads its hunks and paths, and a
-malformed patch is not diagnosed here. `tests/diff_patch_cases.json` holds this and the
-widget to one table of cases.
+This reads metadata and counts without judging what the widget can present.
+`lf-diff` alone parses and judges the evidence, reporting a refusal to the agent.
+Native delete/add sections replacing a file type share one logical file owner.
+`tests/diff_patch_cases.json` holds both readers to the accepted patches' paths.
 """
 
 import codecs
@@ -26,69 +26,120 @@ import json
 import re
 import sys
 
-from unidiff import PatchSet, UnidiffParseError
+_MOVE = re.compile(r"^(rename|copy) from (.+)\n\1 to (.+)$", re.MULTILINE)
 
 
-class PatchError(ValueError):
-    """An entry the `unified-diff` contract excludes."""
-
-
-_PATH_ONLY_RENAME = re.compile(
-    r"diff --git .+\nsimilarity index 100%\nrename from .+\nrename to .+\n*"
-)
-
-
-def _git_path(token: str) -> str | None:
-    """The path one ---/+++ side names, with Git's C-style quoting decoded and its
-    `a/` or `b/` marker removed, or None for /dev/null."""
-    if token == "/dev/null":
-        return None
+def _git_path(token: str) -> str:
+    """One path as Git writes it, with its C-style quoting decoded."""
     if token.startswith('"'):
-        token = codecs.escape_decode(token[1:-1].encode())[0].decode()
-    return token[2:]
+        return codecs.escape_decode(token[1:-1].encode())[0].decode()
+    return token
+
+
+def _mode(section: str, label: str) -> str | None:
+    match = re.search(rf"^{label} ([0-7]{{6}})$", section, re.MULTILINE)
+    return match.group(1) if match else None
 
 
 def _manifest_file(section: str) -> dict:
-    """One manifest entry for one `diff --git` section of the captured patch."""
-    if re.search(r"^copy (?:from|to) ", section, re.MULTILINE):
-        raise PatchError(
-            "unsupported copy diff; omit copy metadata and provide textual @@ "
-            "hunks for an edited destination"
+    """Read one native section without validating its headers or hunks."""
+    header, _, rest = section.partition("\n")
+    if moved := _MOVE.search(rest):
+        previous, path = map(_git_path, moved.group(2, 3))
+        operation = moved.group(1)
+    else:
+        # Non-moving Git headers repeat one path, with a/ and b/ markers. Halving
+        # preserves spaces and embedded " b/"; a missing marker stays for the widget
+        # to refuse under its own name.
+        both = header.removeprefix("diff --git ")
+        previous = None
+        path = _git_path(both[: (len(both) - 1) // 2]).removeprefix("a/")
+        operation = (
+            "add"
+            if re.search(r"^new file mode ", rest, re.MULTILINE)
+            else "delete"
+            if re.search(r"^deleted file mode ", rest, re.MULTILINE)
+            else "modify"
         )
-    (patched,) = PatchSet.from_string(section)
-    previous = _git_path(patched.source_file)
-    path = _git_path(patched.target_file) or previous
-    # Only Git's exact path-only rename omits textual hunks; a binary rename is
-    # hunkless too, and listing it as a rename would hide its content change.
-    path_only = _PATH_ONLY_RENAME.fullmatch(section) is not None
-    if not patched and not path_only:
-        raise PatchError(
-            f"unsupported hunkless diff for {path}; describe binary, mode-only "
-            "and empty added or deleted files in prose"
-        )
+    index = re.search(r"^index \S+ ([0-7]{6})$", rest, re.MULTILINE)
+    mode = index.group(1) if index else None
+    old_mode = (
+        None
+        if operation == "add"
+        else _mode(rest, "deleted file mode") or _mode(rest, "old mode") or mode
+    )
+    new_mode = (
+        None
+        if operation == "delete"
+        else _mode(rest, "new file mode") or _mode(rest, "new mode") or mode
+    )
+    lines = rest.partition("\n@@")[2].split("\n")
+    # Keep the binary marker and its metadata, without storing Git's opaque bytes.
+    marker = re.search(r"^GIT binary patch$", section, re.MULTILINE)
+    patch = section[: marker.end()] + "\n" if marker else section
     return {
         "path": path,
-        **({"previousPath": previous} if patched.is_rename else {}),
-        "kind": "rename" if path_only else "patch",
-        "additions": patched.added,
-        "deletions": patched.removed,
-        "patch": section,
+        **({"previousPath": previous} if previous is not None else {}),
+        "operation": operation,
+        "hunkCount": len(re.findall(r"^@@ ", rest, re.MULTILINE)),
+        "binary": bool(
+            re.search(
+                r"^(?:Binary files .+ differ|GIT binary patch)$", rest, re.MULTILINE
+            )
+        ),
+        **({"oldMode": old_mode} if old_mode is not None else {}),
+        **({"newMode": new_mode} if new_mode is not None else {}),
+        "additions": sum(line.startswith("+") for line in lines),
+        "deletions": sum(line.startswith("-") for line in lines),
+        "patch": patch,
+    }
+
+
+def _replacement(records: list[dict]) -> dict | None:
+    """Combine the two native sections of a file-type replacement.
+
+    Other repeated paths stay separate for the manifest contract to refuse.
+    The widget checks the combined record against its own reading of both sections.
+    """
+    if len(records) != 2 or {record["operation"] for record in records} != {
+        "delete",
+        "add",
+    }:
+        return None
+    deleted = next(record for record in records if record["operation"] == "delete")
+    added = next(record for record in records if record["operation"] == "add")
+    old_mode, new_mode = deleted.get("oldMode"), added.get("newMode")
+    if (
+        old_mode is None
+        or new_mode is None
+        or (int(old_mode, 8) & 0o170000) == (int(new_mode, 8) & 0o170000)
+    ):
+        return None
+    return {
+        "path": added["path"],
+        "operation": "modify",
+        "hunkCount": int(any(record["hunkCount"] for record in records)),
+        "binary": deleted["binary"] or added["binary"],
+        "oldMode": old_mode,
+        "newMode": new_mode,
+        "additions": added["additions"],
+        "deletions": deleted["deletions"],
+        "patch": "".join(record["patch"] for record in records),
     }
 
 
 def patch_manifest(source: str) -> dict:
-    """One captured Git patch as the `unified-diff` contract's file manifest.
-
-    Each entry carries the file's paths, its change counts, and the verbatim section
-    of the captured text that `lf-diff` renders once its disclosure opens, which is
-    why the source is split here rather than rebuilt from unidiff's reading."""
-    return {
-        "files": [
-            _manifest_file(section)
-            for section in re.split(r"(?=^diff --git )", source, flags=re.MULTILINE)
-            if section.startswith("diff --git ")
-        ]
-    }
+    """Capture native file metadata and preserve its deferred Git evidence."""
+    files = {}
+    for section in re.split(r"(?=^diff --git )", source, flags=re.MULTILINE):
+        if section.startswith("diff --git "):
+            record = _manifest_file(section)
+            files.setdefault(record["path"], []).append(record)
+    captured = []
+    for records in files.values():
+        replacement = _replacement(records)
+        captured.extend([replacement] if replacement else records)
+    return {"files": captured}
 
 
 def main() -> int:
@@ -96,7 +147,7 @@ def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     try:
         manifest = patch_manifest(sys.stdin.read())
-    except (PatchError, UnidiffParseError, UnicodeDecodeError) as error:
+    except UnicodeDecodeError as error:
         print(f"patch_manifest: {error}", file=sys.stderr)
         return 1
     json.dump(manifest, sys.stdout, ensure_ascii=False)

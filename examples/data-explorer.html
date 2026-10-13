@@ -77,6 +77,8 @@
       }
     </style>
     <script type="module">
+      import { afterPresentation } from "/runtime/widget-api.js";
+
       import { keepsText, layoutChanged, offer, once } from "/runtime/widget-api.js";
 
       const RELEASES = [
@@ -179,39 +181,40 @@
             this.append(toolbar, this.#rows, this.#count, tableFrame);
           }
 
-          async #connect() {
-            await customElements.whenDefined("lf-playground");
-            if (!this.isConnected || this.#notify) return;
-            this.#playground = this.closest("lf-playground");
-            this.#notify = this.#playground.registerContributor(
-              "filters",
-              DEFAULT_FILTERS,
-              {
-                read: () => clone(this.#state),
-                apply: (state) => {
-                  this.#state = clone(state);
-                  this.#next =
-                    Math.max(
-                      0,
-                      ...this.#state.rows.map((row) =>
-                        Number(row.id.split("-").at(-1)),
-                      ),
-                    ) + 1;
-                  this.#render();
+          #connect() {
+            return afterPresentation(() => {
+              if (!this.isConnected || this.#notify) return;
+              this.#playground = this.closest("lf-playground");
+              this.#notify = this.#playground.registerContributor(
+                "filters",
+                DEFAULT_FILTERS,
+                {
+                  read: () => clone(this.#state),
+                  apply: (state) => {
+                    this.#state = clone(state);
+                    this.#next =
+                      Math.max(
+                        0,
+                        ...this.#state.rows.map((row) =>
+                          Number(row.id.split("-").at(-1)),
+                        ),
+                      ) + 1;
+                    this.#render();
+                  },
                 },
-              },
-            );
-            this.#playground.registerInstructionProvider((values) => {
-              const rows = values.filters.order.map((id) =>
-                values.filters.rows.find((row) => row.id === id),
               );
-              const conditions = rows
-                .map((row) => `${row.field} ${row.operator} ${row.value}`)
-                .join(" and ");
-              const filterTask = conditions
-                ? `Require ${conditions}`
-                : "Apply no filters";
-              return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
+              this.#playground.registerInstructionProvider((values) => {
+                const rows = values.filters.order.map((id) =>
+                  values.filters.rows.find((row) => row.id === id),
+                );
+                const conditions = rows
+                  .map((row) => `${row.field} ${row.operator} ${row.value}`)
+                  .join(" and ");
+                const filterTask = conditions
+                  ? `Require ${conditions}`
+                  : "Apply no filters";
+                return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
+              });
             });
           }
 
@@ -333,10 +336,10 @@
             });
             for (const id of this.#rowEls.keys())
               if (!byId.has(id)) this.#rowEls.delete(id);
-            const standing = this.#rows.children;
+            const current = this.#rows.children;
             if (
-              shown.length !== standing.length ||
-              shown.some((element, index) => element !== standing[index])
+              shown.length !== current.length ||
+              shown.some((element, index) => element !== current[index])
             )
               this.#rows.replaceChildren(...shown);
             const values = this.#playground?.values;

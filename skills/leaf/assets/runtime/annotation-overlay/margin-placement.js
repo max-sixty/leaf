@@ -2,7 +2,7 @@
 
    A row stands in one of two postures. In the rail it hangs off the column, in the strip
    the page reserves beside it. As a pin it stands over the page by its target, in room
-   that covers none of the page's words where it finds some (`pinSpot`). Nothing here
+   that covers none of the page's words (`pinSpot`). Nothing here
    moves the page's content: a row's posture, seat and push are the row's own geometry.
    The layout pass writes them as `--lf-margin-x` and `--lf-margin-y`, which
    annotation-theme.css reads at .lf-margin-cluster; only the carrier a row stands in is
@@ -33,28 +33,25 @@ export function rowPosture({
   return blockRight - half > railInner ? "pin" : "rail";
 }
 
-// Rows that would stand over one another are pushed down, in seating order
-// (`inSeatingOrder`). Two rows collide only where their rectangles do: a pin and a rail
-// marker at the same height stand apart and stay where they are. A row's `fixed` are
-// boxes it may not stand on and that never move — the page's own controls under a pin,
-// such as a card's grip — so a pin level with one goes below it rather than taking its
-// presses. They are each row's own, since which controls a row can take presses from
-// depends on the scroller it stands in: a pane body's options scrolled behind the pane's
-// footer are there for a pin in the body and nobody else.
+// Rail rows that would stand over one another are pushed down, in seating order
+// (`inSeatingOrder`). Separate bands across the page do not collide. Pins use
+// `seatRows`: packing a chosen pin again could move a clear seat into words or controls.
+// `occupied` holds the final footprints already placed in the shared seating order,
+// including revealed held labels. Later rows in either posture avoid those footprints.
 //
-// Each row is `{ key, rect, came, held, pushed, fixed }`: its rect the one it takes with
+// Each row is `{ key, rect, came, held, pushed }`: its rect the one it takes with
 // no push, `came` the layout pass it came at, and `pushed` the push it stands at now. A
 // held row is packed from where it stands, its rect pushed by `pushed`, so holding a row
 // that stands pushed leaves it there; every other row is packed from its rect, and comes
 // back up as the room above it frees. The answer maps each key to its push.
-export function packRows(rows, gap) {
-  const placed = [];
+export function packRows(rows, gap, occupied = []) {
+  const placed = [...occupied];
   const pushes = new Map();
   const order = inSeatingOrder(rows);
-  for (const { key, rect, held, pushed = 0, fixed = [] } of order) {
+  for (const { key, rect, held, pushed = 0 } of order) {
     const height = rect.bottom - rect.top;
     let top = rect.top + (held ? pushed : 0);
-    const across = [...placed, ...fixed]
+    const across = placed
       .filter((box) => overlapsAcross(box, rect))
       .sort((a, b) => a.top - b.top);
     for (const box of across)
@@ -95,9 +92,9 @@ export function arrivals(previous, rows, pass) {
 // first, so no row pushes it out from under the press or moves the card it opened. Then
 // by the pass each came at, the earliest first (`came`), so a row that has just come
 // takes the room those already there leave rather than moving them: news moves nothing
-// already standing. Then from the top, which is how rows that came together, as a page's
+// already seated. Then from the top, which is how rows that came together, as a page's
 // do at load, take their places.
-const inSeatingOrder = (rows) =>
+export const inSeatingOrder = (rows) =>
   [...rows].sort(
     (a, b) =>
       Number(Boolean(b.held)) - Number(Boolean(a.held)) ||
@@ -110,17 +107,19 @@ const inSeatingOrder = (rows) =>
 // and a seat taken again at that width could move the control the user is pressing. It is
 // seated first, so no other pin takes its room. A held seat that no longer fits the
 // current bounds is seated again, so narrowing a window keeps its controls reachable.
-// A pin with no clear seat uses its home, shifted inside its bounds.
+// A resting pin with no clear seat answers null. The layout owner can try a containing
+// boundary before withholding it; its contribution remains in Page Map. A held pin
+// keeps its user-opened controls reachable, even when a resize leaves no clear seat.
 //
 // A pin that finds no room for its resting face stands folded where it can fold: one
 // control, its options' toggle, seated as any pin is at that size, so it takes room the
-// whole face could not, and stands at its home only where even that finds none. Held
+// whole face could not. Held
 // open, a folded pin spreads leftward from the toggle over whatever stands beside it,
 // and every other pin keeps to its toggle, so opening it moves nothing the user sees but
 // the pin itself. So that every action it opens to lands inside `bounds`, the toggle is
 // seated only where the open width fits to its left: the search's bounds give up that
-// width on the left, and a home too near that edge moves right until it fits, though
-// never past the bounds' right edge, where the toggle at least stays reachable.
+// width on the left. Only an already held pin may keep an overlapping home shifted
+// inside the bounds when a resize exhausts that room.
 //
 // Each pin is `{ key, rect, came, held, seat, parts, cover, walls, neighbours, line,
 // bounds, folds, folded }`, `rect` its home, `held` the rect it holds or null, `folds`
@@ -128,8 +127,11 @@ const inSeatingOrder = (rows) =>
 // fold, and `folded` whether it stands folded now, which a held pin keeps. A pin seated
 // first is a wall to the next, and every other pin's target is one a pin reaching
 // further out must not stand nearer to, unless the two targets meet, as a passage in a
-// commented block does. The answer maps each key to its seat, `{ rect, folded }`.
-export function seatRows(pins, { reach, gap }) {
+// commented block does. The answer maps each key to its seat, `{ rect, folded }`,
+// with a null rectangle when an unheld pin finds no clear seat. `targets` supplies the
+// complete target population when the layout seats a subset amid rail rows; every
+// target still constrains which distant seat reads as this pin's.
+export function seatRows(pins, { reach, gap, targets = pins }) {
   const seats = new Map();
   const seated = [];
   for (const pin of inSeatingOrder(pins)) {
@@ -141,10 +143,10 @@ export function seatRows(pins, { reach, gap }) {
         cover: [...pin.cover, ...seated],
         walls: [...pin.walls, ...seated],
         neighbours: pin.neighbours,
-        others: pins
+        others: targets
           .filter(
             (other) =>
-              other !== pin &&
+              other.key !== pin.key &&
               !other.parts?.some((part) => own.some((mine) => overlaps(part, mine))),
           )
           .flatMap((other) => other.parts ?? []),
@@ -181,12 +183,16 @@ export function seatRows(pins, { reach, gap }) {
       rect = spot(pin);
       folded = !rect && Boolean(pin.folds);
       if (folded) {
-        rect = spot(pin.folds, foldBounds) ?? boundedHome(pin.folds.rect, foldBounds);
+        rect = spot(pin.folds, foldBounds);
       }
     }
-    rect ??= boundedHome(pin.rect, pin.bounds);
+    if (!rect && pin.held)
+      rect = boundedHome(
+        folded ? pin.folds.rect : pin.rect,
+        folded ? foldBounds : pin.bounds,
+      );
     seats.set(pin.key, { rect, folded });
-    seated.push(rect);
+    if (rect) seated.push(rect);
   }
   return seats;
 }

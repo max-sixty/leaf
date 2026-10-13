@@ -3,7 +3,7 @@
    this module only a reader for the standing destination. Owners keep that
    reading current from the source's invalidation signal — directly on paint for cheap
    lists, or through a refreshed cache for an expensive source such as the page-text
-   index — so a resolved thread, answered Question, disappearing leaf, or replaced version
+   index — so a resolved thread, answered ask, disappearing leaf, or replaced version
    cannot leave a stale denominator behind. An end of the list is news, so a landing
    briefly gives its ordinal an accent face where the walk met one: a clamped walk that
    reached the same destination twice could not move, and a cyclic walk that came round
@@ -21,7 +21,7 @@ let walking = null; // {key, noun, read, target, boundary}; never a list snapsho
 let boundaryTimer = 0;
 
 // "Thread 2 of 5", or, for a walk over several kinds that names its list in the
-// qualifier, "2 of 5 waiting on you · Thread" with the kind given there instead.
+// qualifier, "2 of 5 waiting on me · Thread" with the kind given there instead.
 export function walkPositionLabel(noun, position, total, qualifier = "") {
   if (!noun && !qualifier) throw new Error("leaf: a walk position needs a noun");
   return [noun, `${position} of ${total}`, qualifier].filter(Boolean).join(" ");
@@ -163,7 +163,7 @@ export function beginWalk(key, noun, read, wrapped = false) {
         repaint();
       }, BOUNDARY_MS)
     : 0;
-  const standing = walkPosition();
+  const shown = walkPosition();
   repaint();
-  return standing?.text ?? null;
+  return shown?.text ?? null;
 }

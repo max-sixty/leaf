@@ -12,7 +12,7 @@ import {
   presentDocument,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
-import { readQuestions } from "./questions/model.js";
+import { readAsks } from "./asks/model.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
@@ -92,7 +92,7 @@ export function mountApplication(dependencies) {
         ),
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "thread", "questions", "queue"],
+        ["projection:chrome", "thread", "asks", "queue"],
         stillCurrent,
       ),
     ]);
@@ -101,7 +101,7 @@ export function mountApplication(dependencies) {
     const released = ledger
       .releasable()
       .filter((entry) => attempts.has(entry.event.attempt));
-    // Widget updates and the thread, projection, and Question owners have now committed
+    // Widget updates and the thread, projection, and ask owners have now committed
     // this surviving semantic reading. Paint its command surface while the same pending
     // records still stand; removing an accounted record is then a semantic no-op.
     if (!released.length) return false;
@@ -251,10 +251,10 @@ export function mountApplication(dependencies) {
   };
 
   const annotations = createAnnotationInventory({
-    readQuestions,
+    readAsks,
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
-    goToQuestion: dependencies.annotationCommands.goToQuestion,
+    goToAsk: dependencies.annotationCommands.goToAsk,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -318,7 +318,6 @@ export function mountApplication(dependencies) {
   });
 
   threadPresenter = createThreadPresentation({
-    available: dependencies.threadAvailable ?? true,
     inlineView,
     surfaceView,
     anchorPlacement: dependencies.anchorPlacement,
@@ -480,9 +479,13 @@ export function mountApplication(dependencies) {
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
-  const registerThreadPresentation = (owner, { render, reveal }) => {
-    const reader = createPrimaryReader(owner, render, inlineView, () =>
-      threadPresenter.present(),
+  const registerThreadPresentation = (owner, { render, reveal, replyBox = null }) => {
+    const reader = createPrimaryReader(
+      owner,
+      render,
+      inlineView,
+      () => threadPresenter.present(),
+      replyBox,
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;
@@ -538,22 +541,21 @@ export function mountApplication(dependencies) {
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     queueActions,
-    openQuestion(id) {
-      const question = readQuestions().all.find((item) => item.id === id);
-      if (!question) return Promise.resolve(false);
-      if (question.source.kind === "approval")
-        return queueActions.open(JSON.stringify(["ask", question.id]));
-      if (question.source.kind === "reply") {
-        showHeld(question.thread);
-        return threadDestinations.openPageThread(question.message, {
+    openAsk(id) {
+      const ask = readAsks().all.find((item) => item.id === id);
+      if (!ask) return Promise.resolve(false);
+      if (ask.source.kind === "approval")
+        return queueActions.open(JSON.stringify(["ask", ask.id]));
+      if (ask.source.kind === "reply") {
+        showHeld(ask.thread);
+        return threadDestinations.openPageThread(ask.message, {
           part: "message",
         });
       }
-      return dependencies.annotationCommands.goToQuestion(
-        question,
-        readQuestions().all,
-      );
+      return dependencies.annotationCommands.goToAsk(ask, readAsks().all);
     },
+    // The Questions walk within one region (queue-walk.js), the walk an `lf-tally` steps.
+    nextAsk: (options) => dependencies.nextAskWithin(options),
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
   };
@@ -587,8 +589,9 @@ export const threadActions = Object.freeze({
   reopen: (...args) => app().threadActions.reopen(...args),
   setReaction: (...args) => app().threadActions.setReaction(...args),
 });
-export const questionActions = Object.freeze({
-  open: (...args) => app().openQuestion(...args),
+export const askActions = Object.freeze({
+  open: (...args) => app().openAsk(...args),
+  next: (...args) => app().nextAsk(...args),
 });
 export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),

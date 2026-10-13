@@ -13,6 +13,7 @@ import jmespath
 from jmespath.exceptions import JMESPathError
 
 from .files import list_revisions
+from .findings import Finding, element_at
 from .refusals import Refused
 from .registry.schema import (
     json_validator,
@@ -22,7 +23,7 @@ from .registry.schema import (
 from .revision_artifact import read_revision
 from .schema import DATA_SOURCE_NAME, DIR_FILES, MEDIA_DIR
 from .structure import SourceDocument
-from .thread_context import logged_fragment
+from .thread_context import effective_thread_events, logged_fragment
 
 
 class DataError(Refused):
@@ -88,29 +89,36 @@ def declared_data_bindings(
     lf_elements: list,
     registry: dict,
     document: str = "markup",
-) -> tuple[dict, dict, list[str]]:
+) -> tuple[dict, list[Finding]]:
     """Read concrete source ids and their first seats from one document."""
     bindings = {}
     seats = {}
     errors = []
     for _ordinal, rec, input_name, spec, source in data_bindings(lf_elements, registry):
         contract = spec["contract"]
-        seat = f"{document} <{rec['tag']}> input `{input_name}` (line {rec['line']})"
+        seat = {
+            "contract": contract,
+            "document": document,
+            "tag": rec["tag"],
+            "input": input_name,
+            "line": rec["line"],
+        }
         if source in bindings and bindings[source] != contract:
             errors.append(
-                f"source {source!r} is bound to both contract "
-                f"{bindings[source]!r} at {seats[source]} and contract "
-                f"{contract!r} at {seat}; use a new source id for the new meaning"
+                Finding(
+                    "contract-conflict",
+                    values={"source": source, "first": seats[source], "then": seat},
+                )
             )
             continue
         bindings[source] = contract
         seats[source] = seat
-    return bindings, seats, errors
+    return bindings, errors
 
 
 def merge_data_document_readings(
     documents: list[tuple[list, str, dict]],
-) -> tuple[dict, list[str]]:
+) -> tuple[dict, list[Finding]]:
     """Read each document independently; later documents own current bindings.
 
     Conflicting contracts inside one document are ambiguous input. A later version,
@@ -121,9 +129,7 @@ def merge_data_document_readings(
     bindings = {}
     errors = []
     for lf_elements, document, registry in documents:
-        found, _seats, found_errors = declared_data_bindings(
-            lf_elements, registry, document
-        )
+        found, found_errors = declared_data_bindings(lf_elements, registry, document)
         errors.extend(found_errors)
         bindings.update(found)
     return bindings, errors
@@ -181,9 +187,9 @@ def page_data_document_readings(
 ) -> list[tuple[list, str, dict]]:
     """Read each historical data consumer with its captured registry.
 
-    Thread markup uses its admitted revision's registry; seeded markup on a page
-    without revisions uses the initial registry. These readings permit historical
-    producers and inventories without restricting later documents' bindings.
+    Thread markup uses its admitted revision's registry. An unavailable captured
+    publication contributes no authored island, while historical producers and
+    inventories remain available without restricting later documents' bindings.
     """
     documents = []
     registries = {}
@@ -197,14 +203,13 @@ def page_data_document_readings(
             ]
         )
     active_document = documents.pop() if documents else None
-    for event in events:
+    for event in effective_thread_events(events, registries):
         if event.get("markup"):
-            revision = event.get("revision") or max(registries, default=None)
             documents.append(
                 data_document_readings(
                     logged_fragment(event),
                     f"event {event['id']!r} markup",
-                    registries[revision] if registries else registry,
+                    registries[event["revision"]],
                 )
             )
     # The active document owns current bindings ahead of older thread markup.
@@ -253,7 +258,7 @@ def working_data_bindings(
     page_dir: Path,
     registry: dict,
     events: list,
-) -> tuple[dict, list[str]]:
+) -> tuple[dict, list[Finding]]:
     """Latest source bindings, with the current authored document taking precedence."""
     return merge_data_document_readings(
         working_data_document_readings(page_dir, registry, events),
@@ -274,7 +279,7 @@ def page_data_binding_inventory(
     documents = page_data_document_readings(page_dir, events, registry)
     bindings, errors = merge_data_document_readings(documents)
     if errors:
-        raise DataError("conflicting data bindings: " + "; ".join(errors))
+        raise DataError("conflicting data bindings: " + "; ".join(map(str, errors)))
     inventory = {
         source: {"contract": contract, "consumers": []}
         for source, contract in bindings.items()
@@ -340,17 +345,22 @@ def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> 
     return entries
 
 
-def measurement_lag(lf_elements: list, registry: dict, stored: dict) -> list[str]:
-    """`measurement_lag_entries` as source-check advice lines."""
-    lines = []
-    for entry in measurement_lag_entries(lf_elements, registry, stored):
-        identity = f" id={entry['widget']!r}" if entry["widget"] else ""
-        lines.append(
-            f"<{entry['tag']}{identity}> (line {entry['line']}) pins source "
-            f"{entry['source']!r} run {entry['run']}, but that source now holds "
-            f"run {entry['current_run']}"
+def measurement_lag(lf_elements: list, registry: dict, stored: dict) -> list[Finding]:
+    """`measurement_lag_entries` as source-check advice."""
+    return [
+        Finding(
+            "measurement-lag",
+            element_at(entry["tag"], entry["widget"] or ""),
+            {
+                "line": entry["line"],
+                "source": entry["source"],
+                "run": entry["run"],
+                "current_run": entry["current_run"],
+            },
+            severity="advice",
         )
-    return lines
+        for entry in measurement_lag_entries(lf_elements, registry, stored)
+    ]
 
 
 def data_binding_errors(
@@ -360,7 +370,7 @@ def data_binding_errors(
     *,
     authored: SourceDocument | None = None,
     incoming: list[tuple[SourceDocument, str]] | None = None,
-) -> list[str]:
+) -> list[Finding]:
     """Conflicting simultaneous bindings inside the working documents."""
     documents = working_data_document_readings(
         page_dir,
@@ -372,7 +382,7 @@ def data_binding_errors(
     return data_document_errors(documents)
 
 
-def data_document_errors(documents: list[tuple[list, str, dict]]) -> list[str]:
+def data_document_errors(documents: list[tuple[list, str, dict]]) -> list[Finding]:
     """Ambiguous simultaneous bindings within each authored document."""
     _bindings, errors = merge_data_document_readings(documents)
     return list(dict.fromkeys(errors))
@@ -420,11 +430,6 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
                     return (
                         f"source {source!r} contract {contract!r} record "
                         f"{index} needs a non-empty string {records['key']!r}"
-                    )
-                if "deferred" in records and records["deferred"] not in item:
-                    return (
-                        f"source {source!r} contract {contract!r} record "
-                        f"{index} needs {records['deferred']!r}"
                     )
                 if key in keys:
                     duplicates.add(key)

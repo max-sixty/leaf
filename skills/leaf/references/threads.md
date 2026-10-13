@@ -54,11 +54,9 @@ template in markup gives the user a live practice page in the thread
 leaf response reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
 ```
 
-Thread markup is frozen in the log and shows in every version of the page, so it
-must validate against the registry each pinned revision captured, not only the active
-one. Use only widget vocabulary those registries share. If no shared widget
-fits, ask in prose with `--text` and `--ask`, or use a page widget
-when the question and its answer belong in the final record. Markup is checked as it
+Thread markup is frozen with the revision in which it was posted. Its widgets keep
+that revision's declarations, behavior and package styles wherever the discussion
+appears, including on a historical page. Markup is checked as it
 is posted but not drawn, so a data widget, such as a chart, whose body does not draw
 reaches you as an `error` event when the user opens its thread; answer with a corrected
 reply.
@@ -160,10 +158,12 @@ version** and a later reply may still move it to a replacement.
 
 An answer says what it leaves the thread with, one of three:
 
-- `--done`: it delivers what the message asked for, and nothing stays on either queue.
+- `--done`: it delivers what the message asked for. Its prose adds no question or
+  promise; widgets in its markup still declare their own asks.
 - `--ask`: its prose asks the user something back. The reply is then an ask
   under `reply:<message-id>` in `page state`'s `asks` collection, until they
-  answer in the thread.
+  answer in the thread or you end it
+  ([Questions and Tasks](conversation-loop.md#questions-and-tasks)).
 - `--todo "<what you owe>"`: it promises work it doesn't deliver. The reply opens
   that to-do on its thread under the reply's own id, which stays on you until
   `leaf task end <page> <reply-id>` ([Long-running work](conversation-loop.md#long-running-work)).
@@ -172,6 +172,10 @@ An answer says what it leaves the thread with, one of three:
 leaf response reply <answer.ref> --ask --text "Which store should own it?"
 leaf response reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
 ```
+
+The user sees the declaration on the answer itself: its head reads **Waiting on me** while
+its prose ask is theirs to answer, and **To-do open** until you end the to-do. A
+promise declared `--done` reads as finished work, so declare what each answer leaves.
 
 To add an agent-initiated turn to a thread that currently owes no reply, use
 `leaf thread reply <page> <message-id>`. This proactive command takes the same
@@ -190,18 +194,23 @@ leaf response reply <answer.ref> --ephemeral --text "Checking the keyboard route
 
 This posts progress without answering the update. Progress on an update you owe also
 takes that update in hand, as `leaf task start` does, with the progress text as its
-**Working** line beside the thread and in the banner, so it is one line.
+**Working** line in the banner and at the foot of the thread, so it is one line.
 [Conversation loop](conversation-loop.md#when-to-write), "When to write", makes
 the first one your first command after a delivery. A proactive progress message
-names a thread with no response due. When your next ordinary reply in the thread
-arrives, the progress messages before it fold behind a disclosure beside it, where
-the user can still expand them.
+names a thread with no response due.
+
+Until an answer comes, the thread draws progress as one dim working message above its
+reply box, never as a reply, and progress never counts as unread; each new progress
+message replaces its words. When your next ordinary reply in the thread arrives, it
+takes the working message's place and the progress messages before it fold behind a
+disclosure beside it, where the user can still expand them. So the user reads
+progress as status and only your replies as words addressed to them.
 
 A progress message is progress text, so it cannot carry `--ask`, `--todo`,
 markup, failure or an anchor move. Put questions and results in ordinary replies.
 
 A widget whose registry entry declares `x-awaits` already poses an ask
-and keeps its thread "On you" while that ask awaits the user. Leaf refuses
+and keeps its thread "My turn" while that ask awaits the user. Leaf refuses
 `--ask` beside such markup; the widget's state is the one reading.
 
 Correct an agent-authored message, including a predecessor's, without adding another turn:
@@ -214,6 +223,9 @@ The page labels the message `edited`. Leaf keeps the original and every revision
 in the append-only event log. Only text is revised; any HTML markup stays frozen.
 A committed reply or `leaf thread` write prints the records it appended, one JSON
 line each, as `leaf page events` prints them. A refusal lists the ids it knows.
+Where a script reads the outcome, add `--json`: a refusal then prints one object,
+its `error` and the `findings` it rests on, each with a stable `code` and the
+`values` it names.
 
 The user can rewrite their own messages the same way. Their rewrite is a turn rather
 than a correction: it arrives as an `edit` event, with the message's new `text` and

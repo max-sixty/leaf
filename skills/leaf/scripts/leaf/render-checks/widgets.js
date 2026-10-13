@@ -45,8 +45,7 @@ const renderedAt = (element) => {
     ancestors.find((el) => el.matches(ADDRESSABLE)) ??
     element;
   return {
-    tag: owner.localName,
-    id: owner.id,
+    at: locate(owner),
     part:
       ancestors.find((el) => el.hasAttribute("data-id"))?.getAttribute("data-id") ?? "",
   };
@@ -79,6 +78,7 @@ export function invalidPaints() {
         if (!value || !/\bvar\(/i.test(value) || validPaint(element, property, value))
           continue;
         found.push({
+          code: "invalid-paint",
           ...renderedAt(element),
           element: element.localName,
           property,
@@ -109,8 +109,8 @@ const visualProviderProblems = (declarations, check) =>
     .filter(([, entry]) => entry["x-visual"])
     .flatMap(([tag, entry]) =>
       [...document.querySelectorAll(tag)].map((el) => ({
-        tag,
-        id: el.id,
+        code: "visual-parts",
+        at: locate(el),
         problems: check(el, entry["x-visual"]),
       })),
     )
@@ -144,8 +144,8 @@ export const missingThreads = (declarations) =>
             matchesWhen(el, entry["x-thread-seat"].when),
         )
         .map((el) => ({
-          tag,
-          id: el.id,
+          code: "missing-thread-seat",
+          at: locate(el),
           hosts: [...el.querySelectorAll(".lf-thread-seat")].filter(
             (host) => host.dataset.lfThreadSeat === el.id,
           ).length,
@@ -153,7 +153,7 @@ export const missingThreads = (declarations) =>
     )
     .filter((instance) => instance.hosts !== 1);
 
-// Attributes standing on a widget that its entry never declared. The schema is the
+// Attributes on a widget that its entry never declared. The schema is the
 // whole of the author's namespace — `additionalProperties: false` on every tag — and
 // the static lint holds an authored document to it. What no source reading can see is the
 // other writer: a module, which upgrades the element and may leave anything it likes on
@@ -193,7 +193,7 @@ export function undeclaredAttrs(declarations) {
             !platform.has(a.name) &&
             !(a.name in entry.properties)
           )
-            found.push({ tag, id: el.id, attr: a.name });
+            found.push({ code: "undeclared-attr", at: locate(el), tag, attr: a.name });
   }
   return found;
 }
@@ -255,14 +255,9 @@ export function retiredSlots(holders) {
     const el = find(h.id);
     if (!el || inChrome(el) || quoted(el)) continue;
     const mark = el.getAttribute("data-lf-state");
-    const at = `<${h.tag} id='${h.id}'>`;
+    const at = locate(el);
     if (mark !== (h.outcome ?? null)) {
-      const log = h.outcome ? "`" + h.outcome + "`" : "no decision";
-      found.push(
-        `${at} wears data-lf-state=${JSON.stringify(mark)} where the ` +
-          `log records ${log} — the mark is the layer's paint of a logged ` +
-          `decision, so a module may say only what the log decided`,
-      );
+      found.push({ code: "settlement-mark", at, mark, outcome: h.outcome });
       continue;
     }
     for (const tag of h.slots)
@@ -270,13 +265,13 @@ export function retiredSlots(holders) {
         for (const slot of root.querySelectorAll(`:scope > ${tag}`)) {
           const words = showing(slot);
           if (words === null) continue;
-          found.push(
-            `${at} settled \`${h.outcome}\` and its <${tag}> still ` +
-              `shows ${JSON.stringify(words)} — those words have left the ` +
-              `page's reading, so the user can select what no comment can ` +
-              `anchor to; the layer hides a retired slot by default, so ` +
-              `something in this family is showing it anyway`,
-          );
+          found.push({
+            code: "retired-slot",
+            at,
+            outcome: h.outcome,
+            slot: tag,
+            words,
+          });
         }
   }
   return found;
@@ -333,8 +328,8 @@ export function unreservedHeights(declarations) {
         ? []
         : [
             {
-              tag: element.localName,
-              id: element.id,
+              code: "unreserved-height",
+              at: locate(element),
               drawn: Math.round(now),
               reserved: element.getAttribute("data-lf-height") || null,
             },
@@ -472,7 +467,7 @@ export function heldScrollers(tags) {
 
 // Each command in one of `tags`' widgets that declares context keys and no
 // `bindingBadge`. Context keys are the widget's aliases for pressing a control from
-// elsewhere, as a Question forwards its digits; a key the page never shows works only
+// elsewhere, as an ask forwards its digits; a key the page never shows works only
 // for a user who already knows it (module-authoring.md, "Commands and keyboard
 // routes"). A route without its own `bindingBadge` takes its row's. The reading is the
 // declaration, not the keys reachable now, so a command whose keys depend on state is

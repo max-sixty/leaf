@@ -3,6 +3,7 @@
 :scope:is(lf-shot) {
   display: block;
   margin: 16px 0;
+  container: lf-shot / inline-size;
   --lf-shot-rail-size: max(34px, var(--aim-floor));
 }
 :scope:is(lf-shot):has(.lf-shotframe) {
@@ -97,7 +98,7 @@
   align-items: center;
   grid-template: var(--lf-shot-rail-size) / auto auto minmax(0, 1fr) auto auto;
   height: var(--lf-shot-rail-size);
-  padding: 0 11px;
+  padding: 0;
   border: 1px solid var(--rule);
   border-bottom: 0;
   border-radius: var(--r) var(--r) 0 0;
@@ -131,7 +132,7 @@
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state=before] {
   grid-column: 1;
-  margin-inline-start: -5px;
+  border-start-start-radius: calc(var(--r) - 1px);
 }
 :scope:is(lf-shot) .lf-shot-open[data-lf-shot-open=before] {
   grid-column: 2;
@@ -141,7 +142,7 @@
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state=after] {
   grid-column: 5;
-  margin-inline-end: -5px;
+  border-start-end-radius: calc(var(--r) - 1px);
 }
 :scope:is(lf-shot) .lf-shot-open {
   display: grid;
@@ -157,26 +158,76 @@
 :scope:is(lf-shot) .lf-shotdelta {
   grid-area: 1 / 3;
   justify-self: center;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   padding-inline: 4px;
   text-align: center;
   line-height: 1.2;
 }
-:scope:is(lf-shot) .lf-shotdelta[role=button] {
-  display: flex;
-  align-items: center;
-  padding-block: 3px;
-  padding-inline: 8px;
-  border-radius: var(--r);
-  box-shadow: inset 0 0 0 1px var(--rule);
-  outline-offset: -2px;
+:scope:is(lf-shot) :is(.lf-shotchanges, .lf-shotpixels-action) {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  min-height: var(--lf-shot-rail-size);
+  cursor: pointer;
+  color: var(--accent);
+  font: 700 10px/14px var(--sans);
+  white-space: nowrap;
+  outline-offset: 1px;
 }
-:scope:is(lf-shot) .lf-shotdelta[role=button]:hover {
-  background: var(--chip);
+:scope:is(lf-shot) .lf-shotchanges[aria-pressed=false] {
+  color: var(--muted);
 }
-:scope:is(lf-shot) .lf-shotdelta[role=button][aria-pressed=true] {
-  color: var(--warn-ink);
-  background: var(--warn-tint);
-  box-shadow: inset 0 0 0 1px var(--warn), inset 0 -3px var(--warn-ink);
+:scope:is(lf-shot) :is(.lf-shotchanges, .lf-shotpixels-action):hover {
+  box-shadow: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:scope:is(lf-shot) .lf-shotchanges {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+:scope:is(lf-shot) .lf-shotchanges:is(:hover, [data-lf-focus], [data-lf-held-word])::after {
+  content: attr(aria-description);
+  position: absolute;
+  z-index: 2;
+  inset-block-start: calc(100% + 6px);
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  width: max-content;
+  max-width: calc(100cqi - 24px);
+  box-sizing: border-box;
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: 0 2px 8px var(--shade);
+  font: 500 var(--t-6)/1.2 var(--sans);
+  white-space: normal;
+  pointer-events: none;
+}
+@media screen {
+  @container lf-shot (width < 300px) {
+    :scope:is(lf-shot):is([outlines], [pixels]) > .lf-shotrail {
+      grid-template-rows: repeat(2, var(--lf-shot-rail-size));
+      height: calc(2 * var(--lf-shot-rail-size));
+    }
+    :scope:is(lf-shot):is([outlines], [pixels]) .lf-shotdelta {
+      grid-area: 2 / 1 / 3 / -1;
+    }
+    :scope:is(lf-shot):is([outlines], [pixels]):not([data-lf-shot-controls=off]):has(> .lf-shotrail) > :is(.lf-shotcomparison, .lf-shotframe) {
+      --lf-top: calc(var(--lf-top-outer) + 2 * var(--lf-shot-rail-size) + 1px);
+    }
+    :scope:is(lf-shot):is([outlines], [pixels]):not(:has(> .lf-shotrail))::before {
+      height: calc(2 * var(--lf-shot-rail-size));
+    }
+  }
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state] {
   outline-offset: -2px;
@@ -233,7 +284,7 @@
   color: var(--warn-ink);
   font-weight: 650;
 }
-:scope:is(lf-shot):not([outlines]) .lf-shotdiff,
+:scope:is(lf-shot):is(:not([outlines]), [data-lf-shot-changes=off]) .lf-shotdiff,
 :scope:is(lf-shot):not([outlines], [pixels]) .lf-shotdelta[data-lf-shot-delta=areas] {
   display: none;
 }
@@ -264,7 +315,7 @@
   position: absolute;
   inset: 0;
   background: var(--warn);
-  mask: var(--lf-shot-pixels) 0 0 / 100% 100% no-repeat;
+  mask: var(--lf-shot-pixels, linear-gradient(transparent, transparent)) 0 0 / 100% 100% no-repeat;
 }
 :scope:is(lf-shot) > input.lf-shotflip {
   display: none;
@@ -1000,8 +1051,8 @@
       max-inline-size: none;
     }
   }
-  :is(:scope, :scope *)[data-lf-question]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]) {
-    --lf-question-ring: none;
+  :is(:scope, :scope *)[data-lf-ask]:has(lf-options[choose]:not(:where([data-lf-exhibit]) *) [data-lf-focus]) {
+    --lf-ask-ring: none;
   }
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) > lf-option:has(> .lf-pick[data-lf-focus]) {
     outline: var(--focus-ring);
@@ -1608,7 +1659,12 @@
     flex: none;
     color: var(--ok-ink);
   }
-  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-answered]) {
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer[data-lf-asks=open]::before {
+    content: "○" / "";
+    font-weight: 400;
+    color: var(--muted);
+  }
+  :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer:not([data-lf-asks]) {
     visibility: hidden;
   }
   :scope:is(lf-tabs)[list=side].lf-rendered > .lf-tabstrip .lf-tab-answer-words {
@@ -1941,6 +1997,54 @@
   :scope:is(lf-tabs)[list=side] > lf-tab[group]::before {
     content: attr(group) " · " attr(label);
   }
+}
+
+/* skills/leaf/packages/default/styles/tally.css */
+:scope:is(lf-tally) {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+}
+:scope:is(lf-tally) .lf-tally-face {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-1) var(--sp-2);
+  max-width: 100%;
+}
+:scope:is(lf-tally):not([data-lf-ready]) .lf-tally-face {
+  visibility: hidden;
+}
+:scope:is(lf-tally):not([next]) .lf-tally-next {
+  display: none;
+}
+:scope:is(lf-tally) .lf-tally-count {
+  display: inline-grid;
+  font-family: var(--sans);
+  font-size: var(--t-6);
+  line-height: var(--chip-lh);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding: var(--chip-pad);
+  border-radius: var(--chip-r);
+  background: var(--chip);
+  color: var(--ink-2);
+}
+:scope:is(lf-tally) .lf-tally-count > * {
+  grid-area: 1 / 1;
+  justify-self: center;
+}
+:scope:is(lf-tally) .lf-tally-room {
+  visibility: hidden;
+}
+:scope:is(lf-tally)[data-lf-done] .lf-tally-count {
+  background: var(--ok-tint);
+  color: var(--ok-ink);
+}
+:scope:is(lf-tally) .lf-tally-next {
+  font-size: var(--t-6);
+  padding-block: 0;
+  min-height: var(--aim-floor);
 }
 
 /* skills/leaf/packages/default/styles/toc.css */
@@ -2826,7 +2930,7 @@
 }
 .lf-draft-edit.lf-ui {
   display: block;
-  width: 100%;
+  width: auto;
   padding: 0;
   border: 0;
   background: none;
@@ -2849,6 +2953,9 @@
       display: grid;
       grid-template-rows: minmax(min-content, auto) minmax(max(32px, var(--aim-floor)), auto);
       gap: 8px;
+    }
+    :scope:is(lf-draft) > .lf-draft-edit {
+      margin-right: calc(var(--lf-code-copy-size) + var(--lf-code-copy-inset) + 6px - 14px - 1px);
     }
   }
   :scope:is(lf-draft):has(.lf-draft-edit) {
@@ -2886,29 +2993,6 @@
   .lf-draft-status:empty {
     display: none;
   }
-  .lf-draft-history {
-    flex: 1;
-    min-width: 0;
-    margin: 0;
-    padding: 0;
-    border: 0;
-    --lf-block-frame: 1;
-    font: inherit;
-    color: var(--ink-2);
-  }
-  .lf-draft-history[hidden] {
-    display: none;
-  }
-  .lf-draft-history > summary {
-    width: max-content;
-    max-width: 100%;
-    cursor: pointer;
-    padding-block: 5px;
-    color: var(--muted);
-  }
-  .lf-draft-history > summary:hover {
-    color: var(--ink-2);
-  }
 }
 @media (forced-colors: active) {
   :scope:is(lf-draft):has(.lf-draft-edit[data-lf-focus]) {
@@ -2916,46 +3000,6 @@
     outline-offset: -5px;
     box-shadow: none;
   }
-}
-.lf-draft-current {
-  margin: 10px 0;
-}
-.lf-draft-current > strong {
-  display: block;
-  margin-bottom: 4px;
-}
-.lf-draft-revisions {
-  margin: 0;
-  padding-left: 20px;
-}
-.lf-draft-revisions > li {
-  margin: 8px 0;
-  padding-left: 3px;
-}
-.lf-draft-revision-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 3px;
-}
-.lf-draft-delta,
-.lf-draft-snapshot {
-  white-space: pre-wrap;
-  color: var(--ink-2);
-}
-.lf-draft-delta del {
-  background: var(--del-tint);
-  color: var(--danger-ink);
-}
-.lf-draft-delta ins {
-  background: var(--add-tint);
-  color: var(--ok-ink);
-  text-decoration: none;
-}
-.lf-draft-restore {
-  flex: none;
-  font-size: var(--t-6);
 }
 
 /* skills/leaf/packages/default/styles/theme.css */

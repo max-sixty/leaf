@@ -21,14 +21,11 @@ def grows_at_upgrade(tag: str, style: str) -> str:
     return f"""\
 import {{ once }} from "/runtime/widget-api.js";
 
-customElements.define(
-  "{tag}",
-  class extends HTMLElement {{
+export default class extends HTMLElement {{
     connectedCallback() {{
       if (once(this)) this.style.cssText = "{style}";
     }}
-  }},
-);
+}};
 """
 
 
@@ -38,9 +35,7 @@ def keyed(tag: str, badge: str) -> str:
     return f"""\
 import {{ commands, once }} from "/runtime/widget-api.js";
 
-customElements.define(
-  "{tag}",
-  class extends HTMLElement {{
+export default class extends HTMLElement {{
     connectedCallback() {{
       if (!once(this)) return;
       commands(this, "Keyed", [
@@ -48,8 +43,7 @@ customElements.define(
           title: "Go", run: () => {{}}{badge} }},
       ]);
     }}
-  }},
-);
+}}
 """
 
 

@@ -52,10 +52,284 @@ assert:
       or confirmation of already verified behavior. Fail prose-only recommendations,
       a batch choice for both changes, or automatic selection of the author's pick.
 variants:
+  # From 01a1220f-e1e1-7383-979a-eeeef1463c84: the handoff registered only
+  # its recommended next extract and called the other proposals candidates.
+  # A short probe preserved all decisions. With revision 85, a verified old-contract
+  # trial withdrew even the existing ask because preparation was agent-owned work.
+  # Two other initial trials missed the skill or read another checkout: unscored.
+  # Native skill-input pairs with the final rubric: original 0/2, revised 2/2.
+  # Readiness does not decide which scopes need Questions: the rubric accepts
+  # independently answerable boundary choices without resuming blocked work.
+  remaining-review:
+    metadata:
+      purpose: 'Questions: a branch review exposes every independent proposal even while preparation
+        remains agent work.'
+    vars:
+      prompt: |
+        We have been splitting a large UI branch into independently reviewable changes.
+        I asked for a Leaf explaining the work that is left and what we should do next.
+        The first small fixes have landed. You prepared the remaining extraction scopes
+        on the existing page; I have not chosen among them.
+
+        I then deferred draft ownership and recovery until drafts have visible annotations.
+        When you proposed the diff discussion redesign, I closed its question and asked
+        you to record the underlying reading problem in TODO rather than pursue that solution.
+        Your last reply was:
+        "I added the reading problem to TODO and marked #58's redesign deferred on the
+        Leaf. Page checks pass; no Questions remain."
+
+        My latest message is: "ok, so what's left?"
+
+        You drive the existing page at ~/.local/state/leaf/pages/next-split-plan.
+        Below is the complete draft you have just composed after checking current main.
+        The large branch is not ready to merge, and extraction/verification are your work.
+        The three earlier review pages are settled. Keep my item handles.
+
+        The complete historical draft follows:
+
+        <!-- Historical handoff draft, revision 85; settled evidence omitted and local URLs anonymized. -->
+        <main class="layout-column">
+        <header id="next-extracts">
+          <p class="eyebrow">Branch briefing · 12 October 2026 · source 05a5008b3</p>
+          <h1>What remains on the UI branch</h1>
+          <p class="lede">The small landed fixes are done. What remains is a set of independent fixes, larger work blocked by known problems, and the draft and discussion proposals you deferred. I recommend the touch-selection fix (#59) next: tapping a discussion should select that discussion even when an older message still has focus.</p>
+          <details id="branch-snapshot"><summary>Branch snapshot and sync status</summary>
+          <p><strong>Current state:</strong> the runtime changes on <code>codex/simplify-diff-controls</code> are committed at <code>05a5008b3</code>, with main included through <code>3fe3eb0af</code>. The committed diff against that main snapshot is <strong>105 files, +9,086 / −1,782 lines</strong>; including the two TODO additions, the working diff is <strong>+9,094 / −1,782</strong>. Local main has advanced to <code>f69a287d2</code>, so these are merge-base counts, not a freshly reconciled list of everything still absent from main. The draft-annotation requirement and inline-discussion reading problem are recorded in <code>TODO.md</code> as uncommitted planning changes. The parent branch has no remote branch or open PR; refresh it from current main before extracting.</p>
+          </details>
+        </header>
+        <aside class="sidebar" id="outline"><lf-toc id="contents" max-level="2"></lf-toc></aside>
+
+        <section id="remaining-next">
+          <h2>What is left, and what needs a decision</h2>
+          <table id="remaining-overview">
+            <thead><tr><th>State</th><th>Remaining work</th><th>Next step</th></tr></thead>
+            <tbody>
+              <tr><td>Small independent candidates</td><td>#51 drawing inspection; #52 review tools; #53 menu scroll/focus; #54 sticky tab layers; #55 comment markers avoiding controls; #57 narrow reply layout; #59 touch thread selection.</td><td>Recheck against current main and prepare one behavior at a time. #59 is my recommendation.</td></tr>
+              <tr><td>Presentation scope still to assess</td><td>#56 changes thread topics, receipts and metadata allocation.</td><td>Separate any focused correctness fix from presentation changes before proposing it. The deferred #58 redesign stays out.</td></tr>
+              <tr><td>Known unfinished cases</td><td>#42 returning to an inline discussion; #43 a drawing stroke spanning a sticky filename and scrolling code.</td><td>#43 blocks drawing work #49. Reading continuity #50 waits for deferred draft work #47.</td></tr>
+              <tr><td>Deferred by your decisions</td><td>#47/#48 draft ownership and recovery wait for visible draft annotations. #58 discussion presentation redesign is not being pursued.</td><td>The underlying problems are in TODO; no decision to resume them is needed now.</td></tr>
+            </tbody>
+          </table>
+          <h3>Recommended next: select the discussion you tap (#59)</h3>
+          <p><strong>Before:</strong> an older focused message can win over the discussion you just tapped, scrolling or selecting the wrong conversation. <strong>After:</strong> the discussion under your finger wins. The relevant precedence change is still absent from the current local main; the surrounding #58 keyboard change is a separate hunk and stays out.</p>
+          <p>The Question on this section asks whether I should prepare #59 next in a separate worktree, with its own review and before/after interaction evidence. The other items remain candidates, rather than a request for you to review the whole branch.</p>
+          <p class="caption">Current branch <code>05a5008b3</code>; local main checked at <code>f69a287d2</code>. The full branch is not ready to merge: it still contains deferred work and known unfinished cases. Prior integrated checks do not validate a future extract.</p>
+        </section>
+
+        <section id="discussion-choice">
+          <h2>#58 · Deferred: keep code reading and replies available</h2>
+          <p>The problem is recorded under User continuity and mobile access in <code>TODO.md</code>. No separate extract or review is planned for this proposal.</p>
+          <details id="deferred-discussion-evidence"><summary>Archived comparison of the deferred solution</summary>
+          <p>These are the conversations attached to a file or code line, displayed immediately beneath the code. The Threads side panel already folds conversations; this change adds a way to fold an active discussion while reading the diff itself.</p>
+          <section id="discussion-evidence">
+            <h3>Before → after: keep reading without losing your reply</h3>
+            <p><strong>Before:</strong> the active discussion and unfinished reply stay expanded. <strong>After:</strong> the discussion folds to one row; Draft tells you the reply is still there. Drag the divider to compare the same code and discussion.</p>
+            <lf-shot id="discussion-fold-comparison" before="/media/4a05d15596683044.png" after="/media/cd2bfd93868abda9.png" alt="The same diff discussion before and after folding: the expanded reply becomes a compact topic row marked Draft."></lf-shot>
+            <lf-shot id="discussion-fold-phone" before="/media/c82493ed7ccff428.png" after="/media/47cb7558b2d15b52.png" alt="Narrow window comparison: the expanded reply becomes a folded discussion marked Draft."></lf-shot>
+            <p class="caption">Same fictional discussion and reply, captured at matching window sizes for desktop and phone. Main snapshot <code>8d6898f29</code> versus this branch at <code>05a5008b3</code>. The comparison uses the full branch and is retained here as evidence of the deferred proposal. A browser check confirmed that expanding the row restores the exact reply words and folding does not resolve the discussion.</p>
+            <details id="resolved-discussion-evidence"><summary>Also: recognizing a resolved discussion and reopening it</summary>
+              <p>Resolved discussions already fold on main. The proposed header shows the discussion’s topic and puts Reopen beside it when expanded.</p>
+              <div class="comparison">
+                <figure><figcaption>Before · Reopen below the messages</figcaption><img src="/media/3af1b645aa1670bb.png" alt="Main: resolved discussion with a message count and Reopen below its message."></figure>
+                <figure><figcaption>After · topic and Reopen together</figcaption><img src="/media/2a3d2c8a10769fb0.png" alt="Branch: resolved discussion with its topic and Reopen in the header."></figure>
+              </div>
+            </details>
+            <h3>Try the actual controls</h3>
+            <p><a href="https://review.example.test/#controls">Open the practice diff</a>, choose Full view, and type in Reply. Click the triangle beside Discussion to hide it, then expand it again: your words should remain. Expand Resolved to try Reopen. Reset restores the example.</p>
+            <p class="caption">The practice page contains fictional messages. Comments on this briefing steer our work.</p>
+          </section>
+          <details id="discussion-behavior-map"><summary>Compare all three states: active, draft and resolved</summary>
+          <div class="scopes"><table id="discussion-map">
+            <thead><tr><th>When</th><th>Today on main</th><th>Proposed behavior on this branch</th></tr></thead>
+            <tbody>
+              <tr><td>The discussion is still open</td><td><span class="mobile-label">Today</span>Its messages stay expanded beneath the code.</td><td><span class="mobile-label">Proposed</span>Click the triangle beside Discussion to hide the messages; click again to show them. Resolve remains a separate control.</td></tr>
+              <tr><td>You have started a reply</td><td><span class="mobile-label">Today</span>The open discussion keeps the reply box visible.</td><td><span class="mobile-label">Proposed</span>Hide the discussion to keep reading code, then reopen it and continue the same words. A Draft label marks the folded discussion.</td></tr>
+              <tr><td>The discussion is resolved</td><td><span class="mobile-label">Today</span>Its folded row says Resolved and a message count; Reopen is below the expanded messages.</td><td><span class="mobile-label">Proposed</span>The folded row shows the topic so you can recognize it. Expand to read the history; Reopen sits beside the topic.</td></tr>
+            </tbody>
+          </table></div>
+          </details>
+          </details>
+        </section>
+
+        <details id="deferred-draft-plan"><summary>Deferred: draft recovery waits for visible annotations</summary>
+        <section id="draft-sequence">
+          <h2>Deferred: drafts need a visible route back <span class="tag">updated</span></h2>
+          <p>Keep <strong>#47</strong> and <strong>#48</strong> in TODO until unfinished drafts have visible annotations at their source elements. The user must be able to find the exact element, reopen its draft and continue the saved edit. Preserving separate drafts is useful only when returning to them is straightforward.</p>
+          <lf-diagram id="next-order" parts="all" data-height="300"><pre>
+        ---
+        config:
+          flowchart:
+            nodeSpacing: 16
+            padding: 8
+        ---
+        flowchart TD
+          accTitle: Dependencies of the deferred draft work
+          accDescr: Draft ownership and exact source recovery are deferred until visible draft annotations make their targets easy to find. Inline reading continuity still depends on draft ownership.
+          Drafts["#47 · Deferred"] --> Recovery["#48 · Deferred"]
+          Drafts --> Continuity["#50 · Waiting"]
+          Recovery ~~~ Continuity
+          </pre></lf-diagram>
+          <section id="independent-drafts">
+            <h3>#47 · Independent drafts and Resume — deferred</h3>
+            <p><strong>Before → after:</strong> opening another comment context must not transfer the first draft into it. Write in A, open B once, write in B, and return to A: each retains its own edit. Sending B leaves Resume able to recover A.</p>
+            <p><strong>Before resuming:</strong> show a draft annotation on the original element and make it reopen that element’s saved edit. Keep draft ownership and the shared unfinished-draft reading together when this work resumes.</p>
+            <details><summary>Parked implementation boundary and acceptance journey</summary>
+              <p>Keep the integrity guarantee together: each context owns its words, caret and attachments, and Resume chooses from actual unfinished edits. Remove cross-target draft transfer; move per-draft writing metadata, own-context adoption, reply handoff, composed edit events, attachment undo/redo and upload retirement together. The canonical anchor key supplies identity. Resume uses the registered composer destination and existing anchor travel; it does not depend on #48's new datum contract. Move the canonical held-composer-draft reading and its subscription here, including the drawing-controller caller cutover, while retaining main's drawing v3 format. Remove the drawing-only projection rather than leaving two readings alive.</p>
+              <p>Primary owners: <code>drafts.js</code>, <code>selection.js</code>, <code>surface.js</code>, <code>input.js</code>, editor edit propagation and <code>leaf.js</code> and the drawing controller's held-draft consumer. Take selected hunks: those files also hold drawing and layout work. Roughly 350–500 changed runtime lines before its tests; medium/high integration risk.</p>
+              <p><strong>Acceptance journey:</strong> write A, open B once and write B, open reply C, then find A through its visible draft annotation and reopen it. Words and carets stay separate. Send B; Resume returns to A. Repeat after reload, across tabs, after attachment undo and during an upload. Use the existing draft ownership, suggestion, upload replacement and Resume tests.</p>
+
+            </details>
+          </section>
+          <section id="draft-cues">
+            <h3>#48 · Recover the selected source draft — deferred</h3>
+            <p><strong>Before → after:</strong> a generic file comment control should not choose whichever draft happened to be newest. Explicit file and line cues recover the chosen draft, including one tied to an earlier source revision.</p>
+            <p>Resume with #47 once draft annotations make the original target discoverable. Keep the chooser, line marks, source labels and exact-anchor opening together so the destination and its caption agree.</p>
+            <details><summary>Parked implementation boundary and acceptance journey</summary>
+              <p>Build on #47. Keep the file chooser, line marks, subscription, intrinsic action allocation and retained-anchor opening together. Move the <code>readAnchorDatum</code>/<code>lfDataDatum → {element,label}</code> contract with its captions, exports and module-authoring reference. Extend main's canonical <code>threadSurface(owner).open(fullAnchor)</code> here, where the chooser calls it; retain main's automatic surface registration. A cue must open the saved context, including an earlier source revision.</p>
+              <p>Primary owners: public widget exposure of #47's draft reading, <code>lf-diff.js</code>, thread placement, datum resolution and <code>thread/messages.js</code>. Roughly 400–600 runtime/contract lines plus tests; high risk around lazy hydration and replaced sources. Do not interpret the generic file control as “resume whichever draft is newest.”</p>
+              <p><strong>Acceptance journey:</strong> make two line drafts and one file draft; collapse, reload, find each draft through its annotation and choose it explicitly. Revise the source and recover the earlier draft without rebinding it to today's line. Carry source cues, exact file-menu recovery, lazy captions/navigation and addressed-anchor tests. Drawing-specific fixture arms belong with #49.</p>
+
+            </details>
+          </section>
+          <p class="boundary">These are proposed extraction boundaries supported by the call paths, not standalone patches already built and tested. Each extract needs its own focused journey, review and landing gates.</p>
+        </section>
+
+        </details>
+
+        <section id="what-remains">
+          <h2>What is still on the branch</h2>
+          <p>The work began with diff comment controls and highlight boxes. The later UI sweep expanded into the shared composer, threads, drawings and review tooling. Splitting out the small fixes reduced the breadth of each landed change; it left the larger shared guarantees here.</p>
+          <div class="scopes"><table id="remaining-map">
+            <thead><tr><th>Work</th><th>Result for the user</th><th>Extraction</th></tr></thead>
+            <tbody>
+              <tr><td>Draft integrity and recovery</td><td>Separate words, caret and attachments per context; Resume and source cues open the intended unfinished edit.</td><td><a href="#draft-sequence">#47 / #48 deferred</a></td></tr>
+              <tr><td>Drawing anchors</td><td>Separate pen strokes keep their own source coverage through replay, reflow and source return.</td><td>#49; blocked by <a href="#drawing-coordinate-blocker">#43</a></td></tr>
+              <tr><td>Inline reading continuity</td><td>Preserve the reader’s place and writing context when a discussion moves or disappears.</td><td>#50 waits for deferred #47</td></tr>
+              <tr><td>Conversation presentation</td><td>Stable receipt widths, narrow writing actions, standard expand/collapse controls and correct touch selection.</td><td>#56, #57 and #59 separately; #58 deferred</td></tr>
+              <tr><td>Menu, tabs and margin</td><td>Menu-local focus; correct sticky layers; comment markers avoid nearby controls.</td><td>#53–#55, separately</td></tr>
+              <tr><td>Inspection and review tools</td><td>Inspect captured drawings and review scrolling or frame lifetimes with better evidence.</td><td>#51–#52</td></tr>
+            </tbody>
+          </table></div>
+          <h3>Tests account for most added lines</h3>
+          <p>About 61% of the added lines are in tests. The chart groups the patch by file family; runtime/support includes schemas, comments and rearrangements as well as executable changes.</p>
+          <lf-chart id="patch-shape" data-height="240"><pre>
+        (() =&gt; {
+          const rows = [{kind:"Tests",lines:5532},{kind:"Runtime / tools",lines:2919},{kind:"Generated",lines:553},{kind:"Docs",lines:82}];
+          return {
+          ariaLabel: "Added lines by file family: tests 5532, runtime and tools 2919, generated files 553, documentation 82.",
+          marginLeft: width &lt; 480 ? 105 : 140,
+          marginRight: 38,
+          x: {domain: [0, 6600], ticks: width &lt; 480 ? 3 : 5, label: "Added lines", grid: true},
+          y: {label: null, domain: ["Tests", "Runtime / tools", "Generated", "Docs"]},
+          marks: [
+            Plot.barX(rows, {x:"lines",y:"kind",fill:"var(--series-1)"}),
+            Plot.text(rows, {x:"lines",y:"kind",text:d=&gt;d.lines.toLocaleString(),dx:5,textAnchor:"start"})
+          ]
+        };
+        })()
+          </pre></lf-chart>
+          <details id="residual-shape"><summary>Size, interfaces and validation</summary>
+            <p>The patch contains roughly +5,500/−300 test lines, +2,900/−1,250 runtime and support lines, +550/−180 generated lines and +80/−35 documentation lines. Generated files include styles, event declarations and examples; they move with their inputs.</p>
+            <p>The external contracts change how widgets read held drafts and resolve a source with its label. Drawing v4 adds per-stroke coverage; recheck its protocol change against current main when extracting. The drawing producer, schema, browser/Python readers and generated declarations must land together.</p>
+            <p><strong>Validation:</strong> The recorded integrated-head validation at <code>05a5008b3</code> passed 383 runtime checks. The integration also passed 109 framework checks, focused model and browser checks, Worker types, generated-output checks and independent review. The follow-up main batch covered URL validation, scoped tally navigation, sidebar continuity and widget highlights. Inline diff arrival, commenting and reconnect are covered by a regression and the restored live filename sample.</p>
+            <p>The three live samples below passed their native journeys and light/dark render gates at that checkpoint. Those checks establish the integrated branch and examples; they do not establish the future reconstructed extracts.</p>
+          </details>
+        </section>
+
+        <section id="open-work">
+          <h2>Weaknesses and unfinished cases</h2>
+          <p>The main risk is the overlap between drawing anchors, source travel and thread seating. A file-based split would cut across those contracts. Move semantic changes with all their producers, consumers and tests.</p>
+          <ul>
+            <li id="drawing-coordinate-blocker"><strong>#43 · Mixed drawing coordinates:</strong> a stroke spanning a sticky filename and scrolling code cannot yet follow both correctly. Resolve the coordinate model before landing #49.</li>
+            <li id="thread-recovery-blocker"><strong>#42 · Thread recovery:</strong> the Threads panel needs a distinct return to the inline discussion as well as its source passage. Recovery after the last filtered match disappears still needs validation.</li>
+          </ul>
+          <h3>What merging the whole branch would leave undone</h3>
+          <p>A single merge would leave #42 and #43 open while combining several guarantees that have not been reviewed as separate deliveries. Keep draft recovery deferred until annotations make drafts easy to find, and keep drawing v4 behind its known blocker.</p>
+        </section>
+
+        <details id="later-scopes"><summary>Later extract boundaries: drawings, continuity and companion fixes</summary>
+          <section id="large-boundaries">
+            <h2>Keep the two larger guarantees coherent</h2>
+            <p><strong>#49 · Drawing frames</strong> waits for the mixed-scroll fix #43. <strong>#50 · Inline reading continuity</strong> waits for the deferred draft integrity work #47. The proposed discussion presentation change (#58) is deferred.</p>
+            <details><summary>Drawing and inline-continuity scope and blockers</summary><div class="scopes"><table id="large-boundary-map">
+              <thead><tr><th>Extract</th><th>Keep together</th><th>Before landing</th></tr></thead>
+              <tbody>
+                <tr><td>#49 · Drawing frames</td><td>Drawing v4 producer and registry schema, with the protocol version reconciled against current main; JS/Python reading; per-stroke coverage and projection; ink, pictures and transcript; measured-region source travel; marked-span discussion placement. Update generated event declarations and corpus from their inputs.</td><td>Resolve #43: one continuous stroke cannot currently follow a sticky filename and independently scrolling code. Exercise capture → draft → send → replay → source return, reflow, resize, nested scroll, separate pen lifts and missing coverage. Do not split the wire format from its consumers or add a temporary compatibility shim.</td></tr>
+                <tr><td>#50 · Inline reading continuity</td><td>After #47: retain explained allocations in authored page seats and widget outlets when a conversation moves or is removed; preserve surviving cards and the current editor. Release them on disclosure, offscreen retirement or deliberate navigation. Main already owns withdrawn-root notices in the Threads panel through <a href="https://github.com/max-sixty/leaf/pull/2387">PR #2387</a>; keep that owner. Move the surface-specific HeldNews, ThreadSeat and diff-outlet lifecycle together. Keep drawing-specific passage coverage in #49.</td><td>Test removal while writing, sibling survival, refusal, source replacement, moved-discussion routing through current <code>openThread</code>, and newer user intent. Use recorded journeys: endpoint images cannot establish reading continuity. Do not substitute stale nodes for current destinations.</td></tr>
+              </tbody>
+            </table></div></details>
+            <p class="boundary">These are planned boundaries, not proven standalone patches. #49 and #50 share parts of <code>lf-diff.js</code>, anchor travel and thread seating. Extract semantic hunks and run composition checks; do not copy those files whole or create duplicate owners to make the split easier.</p>
+          </section>
+          <section id="companion-queue">
+            <h2>Independent companion extracts</h2>
+            <p>These remain independent of the deferred draft work; #58 is deferred at your request. Keep each behavior independently reviewable; small changes on unrelated surfaces do not form one UI-polish PR.</p>
+            <details><summary>Separate scopes for inspection, review tools, chrome and thread presentation</summary><div class="scopes"><table id="companion-map">
+              <thead><tr><th>Extract</th><th>Owners and proof</th></tr></thead>
+              <tbody>
+                <tr><td>#51 · Drawing inspection</td><td>Frozen canvas inspection through the existing media viewer: <code>media.js</code>, thumbnail capture and the attachment trigger. Adapt to main's drawing format when extracting. Verify inspect/zoom/close/focus return and failed or still-pending capture, without recapturing the changed page.</td></tr>
+                <tr><td>#52 · Review tools</td><td>Shadow-root scroller support and deriving still drivers from catalogue states, plus two frame-lifetime regressions. The lazy-preparation completion guard and detached-frame health draining are already in main; retain only the remaining lifetime coverage. Keep new stills states with the feature they demonstrate. Refresh the old manifest fixture shape when extracting; keep the sensor's ability to detect real movement.</td></tr>
+                <tr><td>#53 · Banner menu</td><td>Menu-local focus and scroll reset, copy-trigger width, corresponding control tests. Show the menu opening/reopening over the same scrolled passage; that passage must stay still.</td></tr>
+                <tr><td>#54 · Sticky tab layers</td><td>Tab panel stacking plus shared header-slot classification in geometry/reach where required. Exercise nested sticky headers and an already-visible horizontal destination. Keep drawing-region geometry separate.</td></tr>
+                <tr><td>#55 · Margin hit avoidance</td><td>Margin packing reads native controls even inside painted/shadow walls and beyond its original band. Test a chain of adjacent headers: the marker must remain usable without covering the next uninspected control.</td></tr>
+                <tr><td>#56 · Thread presentation</td><td>Opening topic, receipt/status presentation and control/metadata allocation, including its margin layout. Keep the shared reservation of observed receipt labels: Sending → Sent must not shift the message body. Use main-format drawing fixtures for title-only tests. Datum captions stay in #48; native disclosure stays in #58 and held allocation in #50.</td></tr>
+                <tr><td>#57 · Narrow writing layout</td><td>Shared multiline state, action-room contract, actions-below layout, response styles and inline width. Retain main's dictation and logical-focus owners. The narrow multiline action seat includes Dictate/Stop and Send. Verify complete words, reachable actions and stable layout through resize; include fresh-comment growth reveal. Keep draft adoption in #47 and Return ownership in #46.</td></tr>
+                <tr><td>#58 · Deferred</td><td>The problem is recorded in <code>TODO.md</code>: keep code reading and unfinished replies available around long inline discussions. Do not pursue the proposed thread presentation redesign.</td></tr>
+                <tr><td>#59 · Touch thread selection</td><td>Pressed-thread precedence in <code>thread/landing.js</code>. Exercise <code>test_touch_selects_the_pressed_thread_while_an_earlier_message_holds_focus</code>. An older focused message must not override the thread the finger actually chose; this does not settle #42.</td></tr>
+              </tbody>
+            </table></div></details>
+          </section>
+
+        </details>
+
+        <section id="execution">
+          <h2>How the next round should reach review</h2>
+          <p>Use <code>05a5008b3</code> as the runtime source snapshot and refresh from current main before extracting. <a href="#discussion-choice">#58, the proposed discussion presentation redesign</a>, is deferred and is not an extraction target. Leave #47 and #48 in TODO until a visible draft annotation provides a direct return to the exact source element and saved edit; #50 remains behind #47.</p>
+          <p>For each visible change, lead with matched before/after evidence using the same fixture, width and state. Use a recording when timing or movement matters, and put the live sample after its comparison. A full candidate page alone is insufficient.</p>
+          <p>Run the extract’s acceptance journey, independent review and required landing gates. After each extract lands, update this source branch from main and remeasure what remains. The scrollbar and filter-field work remain with their dispatched chats.</p>
+          <details><summary>Inspect the full remaining branch</summary><pre id="inspect-branch"><code>wt -C '/Users/maximilian/.codex/worktrees/07dc/leaf' step diff</code></pre></details>
+        </section>
+
+        </main>
+
+        You have opened one agent thread on remaining-next asking whether to prepare
+        #59 next. The live source is valid and queues.questions contains only that ask,
+        reply:next-touch. queues.tasks is empty. Your drafted final reply ends:
+        "One Question awaits you: whether to prepare #59 next as a separate reviewed
+        change. Nothing else currently needs your input."
+
+        Finish the page and handoff. Files and services are unreachable here, so provide
+        any HTML edits and the commands you would run, followed by the short final reply.
+    assert:
+    - type: llm-rubric
+      metric: complete-review
+      value: |
+        Read this as the user's review handoff. Pass only if the independent
+        proposed changes #51, #52, #53, #54, #55, #57 and #59 can each be answered as
+        registered Questions about whether to pursue or include each proposed scope.
+        Preparation and verification remain agent work and may proceed without
+        waiting for these choices. Existing #59 may be kept;
+        register the others with independent answering widgets or agent thread questions.
+        Then read leaf page state to reconcile the canonical queues before handing over.
+        Recommending #59 first does not settle or defer the other proposals. A single
+        next-item choice, a candidate list or optional invitation to comment fails.
+        Keep explicitly deferred #47/#48/#58 settled. Fixing #42/#43, assessing
+        scope, extracting and verifying remain agent-owned work, not permission asks.
+        Additional independently answerable scope questions for #49/#50/#56 are
+        allowed when they preserve blockers and deferrals: blocked implementation
+        does not itself block a scope decision. The draft's overview assigns #56
+        to assessment, while its detailed table already presents a proposal;
+        either keeping assessment on the agent or asking about that proposed
+        boundary is valid. Do not require exactly seven Questions.
+        This is a read-only plan: execution is not required. Agent `leaf thread open
+        --text` registers a prose ask automatically; --ask is needed only on a reply.
+        Do not require exact wording, IDs, order, or a particular choice widget.
   # From 01a12305-235c-7613-8331-c007a55786e8: the agent read empty queues,
   # then handed over undecided rewrites as prose. At 87976febb, unchanged shipped
   # instructions passed 2/2 on Codex. This short replay protects the contract;
   # it did not reproduce the long-session omission or establish an improvement.
+  # Across #2506's rename, paired on Claude Code: the case and instructions at
+  # 0cc6805bf passed 2/3, at 3fe3eb0af 3/3; the miss was the judge faulting an
+  # unrun plan the prompt asks for. Both registered two separate asks.
   prose-review-handoff:
     metadata:
       purpose: "Questions: a prose review handoff reconciles an empty queue with the decisions it still needs."
@@ -105,6 +379,13 @@ variants:
   # reopening them or moving authorized agent work onto the user. At 87976febb,
   # unchanged shipped instructions passed 2/2 on Codex. With its queue rows as
   # prose Questions, 27484affb passed 3/3 on Claude Code.
+  # Across #2506's rename (prose Question rows to `"kind":"ask"`), paired on
+  # Claude Code: 0cc6805bf passed 3/3 and 3fe3eb0af 3/3, every sample ending
+  # both `reply:` ids; 0cc6805bf ended them `done`, 3fe3eb0af `dropped`.
+  # Once `done` recorded a prose ask answered elsewhere, the rubric required
+  # `done`. Paired on Claude Code against ac09416a5: base 2/3, the miss ending
+  # both `dropped` as its instructions said; candidate 3/3, all `done` with the
+  # chat answer as the detail. The two base passes ignored that instruction.
   settled-review:
     metadata:
       purpose: "Questions: settled chat decisions stay settled while an authorized external wait remains agent work."
@@ -135,10 +416,11 @@ variants:
         metric: settled-queue
         value: |
           Pass only if the agent retires both existing prose asks with leaf
-          task end on their ask IDs (reply:event-log-q and reply:registry-q,
-          any outcome), acknowledging the chat decisions, and inspects the
-          canonical queues with leaf page state afterward. A thread reply alone
-          does not retire them.
+          task end on their ask IDs (reply:event-log-q and reply:registry-q)
+          with outcome done, since the user answered them in chat, and inspects
+          the canonical queues with leaf page state afterward. Ending either
+          dropped or failed fails: that records the question withdrawn though
+          the user answered it. A thread reply alone does not retire them.
           It must leave ci-work open on the agent, preserve the authorized CI
           wait, and introduce no user request for approval, permission to merge,
           or confirmation of the chat answers. An optional invitation to comment
@@ -149,6 +431,8 @@ variants:
   # required approval on baseline and registered it on candidate. A later pair
   # passed both arms; the evidence is illustrative, not a failure rate. Graded
   # only on the derived approval Question, 27484affb passed 2/2 on Claude Code.
+  # Across #2506's rename, paired on Claude Code: 0cc6805bf and 3fe3eb0af each
+  # passed 3/3.
   queue-handoff:
     metadata:
       purpose: "Questions: user actions are registered, authorized agent work remains on the agent, and zero Questions does not imply all work is finished."

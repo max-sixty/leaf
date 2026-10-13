@@ -30,16 +30,16 @@ from leaf.render_gate.preview import preview_server
 from leaf.render_gate.readings import DevtoolsIssues
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    ACTIONS_IN_FORCE,
     COMMAND_HUB_EXAMPLE,
     COMMAND_HUB_PAGE,
+    IN_FORCE_PAGE,
     LIVE_V1,
     LIVE_V2,
     LIVE_V3,
     REF_PAGE,
     RELATIVE_WIDGET_MODULE,
     RELATIVE_WIDGET_PAGE,
-    STANDING_ACTIONS,
-    STANDING_PAGE,
     THREAD_ASKS,
     TWO_HOLDER_PAGE,
     TWO_HOLDER_SPARE_PAGE,
@@ -67,6 +67,7 @@ from render_harness import (
     expect_banner_control_offered,
     holding,
     leaf_page,
+    names,
     open_page,
     opened_tab,
     page_comment,
@@ -123,7 +124,9 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
             "files": [
                 {
                     "path": "gateway/limits.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 4,
                     "deletions": 2,
                     "patch": patch,
@@ -904,7 +907,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
     write(general, "Do not replace the page under these words.")
 
     # Let the page learn that the second revision exists before holding a read. The
-    # standing draft keeps the first revision shown and leaves the direct activation
+    # open draft keeps the first revision shown and leaves the direct activation
     # route available through the latest-version chip.
     (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
     told(page)
@@ -1039,7 +1042,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
             release.set()
 
     assert asked.is_set(), "nothing ever asked for the stalled file, so nothing stalled"
-    assert failures and all("the server stopped answering" in f for f in failures), (
+    assert failures and all(f.code == "server-stopped" for f in failures), (
         f"a wedged server has to come back as a failure, and this came back as {failures}"
     )
 
@@ -1087,20 +1090,20 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
     expect(page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
 
 
-def test_the_render_gate_applies_every_standing_action_a_second_time(
+def test_the_render_gate_applies_every_action_in_force_a_second_time(
     browser, serve, tmp_path, monkeypatch
 ):
     """Absoluteness is what makes a fold a fold, and it is the one thing about a widget
     module no reading of a rendered page can see: a relative implementation renders
     perfectly and costs the user their gesture later, on the poll that replays it. So
-    the gate applies each standing action again and asks what moved, and the page's
+    the gate applies each action in force again and asks what moved, and the page's
     composed vocabulary has nothing to do — a card placed where it already is, a pick set to
     what it already holds, a body assigned the words it already reads.
 
     The corpus cannot say this on its own: `test_page_fixture_renders` serves every page
     under a log holding one note, so the fold is empty there and the reading passes
     without applying anything. This page is the log the examples haven't got, and the
-    floor is that the standing state covers every verb the registry declares — a verb
+    floor is that the state in force covers every verb the registry declares — a verb
     added without an event here fails rather than going unexercised.
 
     Beside that clean vocabulary stands the bug-back for the module contract's first
@@ -1145,14 +1148,14 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(
         ) : RELATIVE_WIDGET_PAGE.rindex("</lf-tally>") + len("</lf-tally>")
     ]
     url = serve(
-        STANDING_PAGE.replace("</main>", tallies + "</main>"),
+        IN_FORCE_PAGE.replace("</main>", tallies + "</main>"),
         packages=(*EXAMPLE_PACKAGES, ROOT / "tests/fixtures/packages/work", "./.leaf"),
     )
     relative_actions = [
         ("tally-fitted", "step", {"value": "3"}),
         ("tally-fitted", "caption", {"value": "Two greys at the north feeder."}),
     ]
-    for widget, action, detail in [*STANDING_ACTIONS, *relative_actions]:
+    for widget, action, detail in [*ACTIONS_IN_FORCE, *relative_actions]:
         append_command(
             serve.page_dir,
             {
@@ -1180,11 +1183,11 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(
         assert sent.exit_code == 0, sent.output
 
     page = open_page(browser, url)
-    standing_ids = sorted(
-        {widget for widget, _action, _detail in [*STANDING_ACTIONS, *relative_actions]}
+    in_force_ids = sorted(
+        {widget for widget, _action, _detail in [*ACTIONS_IN_FORCE, *relative_actions]}
         | {"ab-baffles", "ab-wren"}
     )
-    standing = page.evaluate(
+    in_force = page.evaluate(
         """async ids => {
           const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return ids.flatMap(id => {
@@ -1196,7 +1199,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(
                 .map(({action}) => [widget.id, widget.localName, verb, action]));
           });
         }""",
-        standing_ids,
+        in_force_ids,
     )
     page.close()
     registry = registry_storage.load_registry(serve.page_dir)
@@ -1206,30 +1209,26 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(
         if tag.startswith("lf-")
         for verb in entry.get("x-state", {})
     }
-    assert {(tag, verb) for _id, tag, _key, verb in standing} == declared, (
-        "the gate applies the standing state, so a declared verb missing from it is a "
-        f"verb nothing here re-applies: page holds {standing}, registry declares "
+    assert {(tag, verb) for _id, tag, _key, verb in in_force} == declared, (
+        "the gate applies the state in force, so a declared verb missing from it is a "
+        f"verb nothing here re-applies: page holds {in_force}, registry declares "
         f"{sorted(declared)}"
     )
     assert {
-        (key, action) for widget, _tag, key, action in standing if widget == "ab-pick"
+        (key, action) for widget, _tag, key, action in in_force if widget == "ab-pick"
     } == {("choose", "choose"), ("answer", "answer"), ("add", "add")}
     failures = render_gate_model.render_version(browser, url).failures
-    assert [f for f in failures if "is relative" in f] == [
-        (
-            "[light] <lf-tally id=tally-fitted> renderState is relative — rendering "
-            "the same complete state changed tally-fitted, body text. Render the "
-            "supplied values without stepping from the DOM."
-        ),
-        (
-            "[light] <lf-tally id=tally-seen> renderState is relative — rendering "
-            "the same complete state changed body text. Render the "
-            "supplied values without stepping from the DOM."
-        ),
+    assert [
+        (f.scheme, f.at, f.values["changed"])
+        for f in failures
+        if f.code == "relative-render"
+    ] == [
+        ("light", "<lf-tally id=tally-fitted>", ["tally-fitted", "body text"]),
+        ("light", "<lf-tally id=tally-seen>", ["body text"]),
     ], failures
     # The relative widget's appended caption is its own fault in other readings too;
-    # the standing vocabulary beside it leaves the gate nothing to say.
-    assert all("lf-tally" in f for f in failures), failures
+    # the current vocabulary beside it leaves the gate nothing to say.
+    assert all(names(f, "lf-tally") for f in failures), failures
 
 
 def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
@@ -1248,7 +1247,7 @@ def test_a_widget_standing_out_of_place_is_a_page_the_gate_reports(
     page = open_page(browser, url)
     covered = render_checks_model.evaluate_probe(page, "coveredWords")
 
-    assert covered and all("drift-note" in f for f in covered), covered
+    assert covered and all(names(f, "drift-note") for f in covered), covered
 
 
 def test_the_render_gate_reads_a_page_that_has_finished_arriving(
@@ -1380,7 +1379,7 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
     expect(second.locator("#card-importer")).to_have_attribute(
         "data-lf-user-override", "1"
     )
-    expect(second.locator("#card-importer > .lf-quiet")).to_have_text("your change")
+    expect(second.locator("#card-importer > .lf-quiet")).to_have_text("my change")
     expect(
         second.get_by_role(
             "button",
@@ -1396,7 +1395,7 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
         second.get_by_role("button", name=re.compile(r"^Open sent: Sent"))
     ).to_be_visible()
     expect(
-        second.get_by_role("button", name=re.compile(r"^Open your change"))
+        second.get_by_role("button", name=re.compile(r"^Open my change"))
     ).to_have_count(0)
     second.keyboard.press("Escape")
     assert (
@@ -1496,9 +1495,9 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     )
     page.close()
 
-    # The mark follows the fold out as well as in: the file's standing state is the
+    # The mark follows the fold out as well as in: the file's current state is the
     # last surviving action per verb and unit, so a decision on an outcome that
-    # settles nothing displaces the one before it, and a mark left standing would
+    # settles nothing displaces the one before it, and a mark left in place would
     # silence a slot the log has handed back.
     append_command(
         serve.page_dir,
@@ -1561,9 +1560,8 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     vendored.write_text(css.replace(hide, ""))
     module = serve.page_dir / "widgets" / "lf-trial.js"
     module.write_text(
-        """\
-import {keeps, once, widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
+        """import {keeps, once, widgetController} from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller;
   #presented;
   #stop;
@@ -1601,7 +1599,7 @@ customElements.define("lf-trial", class extends HTMLElement {
       attributes: true, attributeFilter: ["data-lf-presented"],
     });
   }
-});
+};
 """
     )
     stamp_page(
@@ -1611,13 +1609,16 @@ customElements.define("lf-trial", class extends HTMLElement {
     )
     failures = render_gate_model.render_version(browser, live_url(url)).failures
     assert any(
-        "<lf-trial id='th-cache'> settled `shelve` and its <lf-proposed> still shows"
-        in failure
+        failure.code == "retired-slot"
+        and failure.at == "<lf-trial id=th-cache>"
+        and (failure.values["outcome"], failure.values["slot"])
+        == ("shelve", "lf-proposed")
         for failure in failures
     ), failures
     assert any(
-        "<lf-trial id='th-spare'> wears data-lf-state=\"shelve\" where the log "
-        "records no decision" in failure
+        failure.code == "settlement-mark"
+        and failure.at == "<lf-trial id=th-spare>"
+        and (failure.values["mark"], failure.values["outcome"]) == ("shelve", None)
         for failure in failures
     ), failures
 
@@ -1685,9 +1686,7 @@ def test_a_message_reference_travels_or_says_it_cant(browser, serve, one_user):
     dead = page.locator('.lf-msg-body a[href="#gone"]')
     expect(dead).to_have_class("detached")
     expect(dead).to_have_attribute("aria-disabled", "true")
-    expect(dead).to_have_attribute(
-        "title", "§ gone isn't in the version you're viewing"
-    )
+    expect(dead).to_have_attribute("title", "§ gone isn't in the version shown")
     # force, because locator.click refuses aria-disabled controls and that refusal is
     # the state under test. Nothing will happen, so there is no fact to consume: the
     # press is the edge, and the hash the browser would write is synchronous with it.
@@ -1804,7 +1803,7 @@ def test_an_arrival_lands_where_the_url_aimed(browser, serve):
     page.wait_for_function(onscreen, arg="tail-end")
 
 
-def test_a_thread_question_asks_until_answered(browser, serve):
+def test_a_thread_ask_waits_until_answered(browser, serve):
     """A question in a thread is one of the page's asks — an obligation for the user
         wherever it stands — and `q` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each
@@ -1921,7 +1920,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # another verb, so it survives that rebuild. Whether the decision is open again is
     # the log's reading, so the count moves when the withdrawal reaches it and not while
     # it is held at the wire. In particular, the surviving `choose` action cannot answer
-    # a `multiple` set, whose x-awaits.answered condition is a standing `answer`.
+    # a `multiple` set, whose x-awaits.answered condition is an `answer` in force.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
@@ -1997,7 +1996,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
-    # A draft without `needed` is optional editing, not a Question framed by an Ask.
+    # A draft without `needed` is optional editing, not an ask framed by an `lf-ask`.
     honoring = honoring.replace(
         '<lf-ask id="decision-ledger-fixture-region">',
         '<div id="decision-ledger-fixture-region">',
@@ -2008,7 +2007,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     assert '<lf-ask id="decision-ledger-fixture-region">' not in honoring
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
-    # The saved answer remains in the reviewable Question inventory after the source
+    # The saved answer remains in the reviewable ask inventory after the source
     # drops `needed`; it is completed, not newly owed to the user.
     expect_asks_answered(page, "1/5")
     expect(page.locator(".lf-queue")).not_to_have_text("Questions: 0")
@@ -2037,7 +2036,7 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     page.locator("#atlas-record .lf-activity-news").click()
     paused = page.locator("#atlas-record .lf-activity-row").first
     # The goal is named by its leading <strong>, not the words under it.
-    expect(paused).to_contain_text("You paused")
+    expect(paused).to_contain_text("Me paused")
     expect(paused.locator(".lf-activity-target")).to_have_text("Replace the XML parser")
     expect(paused).to_contain_text("Finish the current hunk, then park here.")
     root = next(
@@ -2079,7 +2078,7 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     expect(goal).not_to_have_attribute("data-lf-held")
     released = page.locator("#atlas-record .lf-activity-row").first
     expect(released).to_contain_text(
-        "You resolved “Finish the current hunk, then park here.”"
+        "Me resolved “Finish the current hunk, then park here.”"
     )
 
     undo(page)

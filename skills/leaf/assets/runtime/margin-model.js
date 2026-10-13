@@ -161,7 +161,7 @@ export const optionsOffered = (entry, primary) =>
   secondaryCount(entry, primary) > RESTING_MARGIN_ENTRY_BUDGET - 1;
 
 // The words a reading's control shows: its kind's word, plural for several items, or
-// the one item's own label where it has one (a Question's question). Accessible names keep
+// the one item's own label where it has one (an ask's question). Accessible names keep
 // the kind's word and say the subject beside it.
 export function readingLabel(choice) {
   const face = readingFace(choice);
@@ -370,6 +370,7 @@ export function clusterProjection(
     primary,
     hasOptions,
     optionsOpen,
+    optionsExpanded: optionsOpen && expandedKey === entry.key,
     folded: folds,
     options: optionGroupProjection(
       entry,

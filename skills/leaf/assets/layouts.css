@@ -94,7 +94,7 @@
    * where the room beside the column holds it (prepaint.js, `residency`),
    * moving the column over where one side lacks it. Each names the postures it may take,
    * in order of preference; these rules read the answer off `main`'s `data-lf-margin`,
-   * one token per posture standing. Screen only: paper has no drawer and no margin to
+   * one token per posture granted. Screen only: paper has no drawer and no margin to
    * grant. A sidebar in the margin stands sticky below the banner in the room its
    * --sidebar takes left of the column box. A contents map rests as a spine a few pixels
    * wide and reveals its labels over the page, so with a fine pointer a sidebar holding
@@ -108,9 +108,12 @@
   main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> [data-lf-resident="map"]:only-child:empty) {
     display: block; margin-block: 0; }
   /* A resident changes its relationship to the flow; anchor the reading to its
-   * passage instead of choosing the complementary text as a native scroll anchor. */
+   * passage instead of choosing the complementary text as a native scroll anchor. It is
+   * a reading region of the Layout's own in either posture (`--lf-reading-region`,
+   * reading-regions.js), scrolling in the margin and flowing in the column, so the
+   * reader's place in it survives the change between them. */
   main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar) {
-    --lf-resident: sidebar; overflow-anchor: none; }
+    --lf-resident: sidebar; overflow-anchor: none; --lf-reading-region: layout; }
   main.layout-column aside.sidenote { --lf-resident: note; overflow-anchor: none; }
   @media screen {
     /* Sticky, it can stand level with any band of the page, so it takes its whole side: a
@@ -481,8 +484,39 @@
   }
   main.layout-sidebar > :is(header, footer) { flex: 1 0 100%; margin-block: 0; }
   main.layout-sidebar > :not(header, footer) { flex: 2 1 30rem; margin-block: 0; }
-  main.layout-sidebar > aside { flex: 1 1 18rem; }
+  main.layout-sidebar > aside { flex: 1 1 18rem; --lf-resident: track; }
   main.layout-sidebar > :not(header, footer) > :first-child { margin-top: 0; }
+  /* A track that holds one block keeps that block in view while the body scrolls beside
+   * it: the block sticks a gap below Leaf's banner and any page tab strip, and scrolls
+   * what it holds within the window, so a track taller than the window keeps its end
+   * reachable. The track itself is never the scroller: it keeps the flex sizing that
+   * placed it, its content's minimum included, and runs its line's height, so the block
+   * sticks only inside that line, never past the body it stands beside, over a footer, or
+   * into the next row. Stacked, the block flows with the page. Which of the two it is
+   * depends on the window's width, the shares the page gives the track and the body, and
+   * what the body's content needs, which no query reads, so the margin reading says so
+   * on the track (`data-lf-beside`, prepaint.js `residency`).
+   *
+   * Like a column's sidebar standing in the margin, the block starts the slot and landing
+   * band again for what it holds, keeps a focused control's ring room
+   * (`--lf-head-inset`), and anchors no reading (`overflow-anchor`). It is a reading
+   * region of the Layout's own in either posture (`--lf-reading-region`,
+   * reading-regions.js), bounded beside the body and flowing stacked, so the reader's
+   * place in it survives the change between them. */
+  main.layout-sidebar > aside:has(> :only-child) { align-self: stretch; }
+  main.layout-sidebar > aside > :only-child { --lf-reading-region: layout; }
+  @media screen {
+    main.layout-sidebar { --lf-top-outer: var(--lf-top); }
+    main.layout-sidebar > aside[data-lf-beside] > :only-child {
+      position: sticky;
+      top: calc(var(--lf-top-outer) + var(--sp-4));
+      --lf-top: 0px; --lf-top-covered: 0px; --lf-landing-room: 0px;
+      --lf-head-inset: initial;
+      max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
+      overflow-y: auto;
+      overflow-anchor: none;
+    }
+  }
   /* Tiles: equal cells, as many to a row as fit at 9rem each, and every cell in a row
    * as tall as the row. How a row wraps is the page's to judge: the pre-handover review
    * (page-authoring.md) names a lone tile on its own row as a look to avoid, and the

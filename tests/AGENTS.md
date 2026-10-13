@@ -116,8 +116,8 @@ Broad discovery skips both later tiers; `--run-main` adds `browser/` and
 `--run-nightly` runs every tier. An explicit tier directory, file, node id, `-k`, `-m`,
 or `--lf` runs what it names.
 Both landing gates pass `--changed-since`, which adds the tests of either later tier
-whose own source the change edits; a test moved between directories unchanged is no
-edit.
+whose own source the change edits; a test moved to another module or directory
+unchanged is no edit.
 
 ### Without external network access
 
@@ -285,7 +285,7 @@ Take each resource from its owner: a child process from `spawn`, a page server f
 `_no_page_outlives_its_test`, a preview from `preview_slot` and `start_preview`, an
 in-process HTTP server from `running_http_server`, a Unix socket directory from
 `socket_dir` (`test_the_resources_a_fixture_owns_are_taken_from_that_fixture`). A test
-of a standing server stops it explicitly, since a `Popen` handle does not own a
+of a persistent server stops it explicitly, since a `Popen` handle does not own a
 detached server's tree. The cleanup sweep reads only `isolated_session`'s state home
 and `tmp_path`, never the developer's.
 
@@ -321,9 +321,13 @@ over `browser.unwatched`.
 ### Browser errors
 
 The `browser` fixture instruments every page it makes and fails the test on any
-problem left at the end; do not install a second collector. Consume an expected fault
-at its causal point with `consume_browser_errors`, or `reported_browser_errors` when
-its report arrives in parts. For a recurring fault, close the page first and then
+problem left at the end; do not install a second collector. Each problem is a record
+(`leaf/findings.py`), and the health sensors below hand theirs over as data
+rather than as console sentences. Consume an expected fault at its causal point with
+`consume_browser_errors`, or `reported_browser_errors` when its report arrives in parts,
+naming it by its fields (`{"code": "failed-load", "status": 400}`), or by a fragment of
+what the page itself said where the fault is a console entry or an exception
+(`render_harness.is_problem`). For a recurring fault, close the page first and then
 consume. Otherwise close a page only when closing is part of the journey. Filtering
 the collector is not an assertion.
 
@@ -538,7 +542,7 @@ refused it.
 
 The corpus has these matrices. Return state is anchored on a first visit
 (`arrival_findings`); semantic replay is anchored on a static authored state, applying
-standing actions or reports twice and checking the visible state and idempotence; a
+the actions or reports in force twice and checking the visible state and idempotence; a
 scroll's writes (`scroll_writes`, read by `scroll_followers`) fail where a place is
 written on every step; a page left alone (`at_rest`) fails anything it does; a
 surface's round trips fail where one leaves a different `reader_state` than the first

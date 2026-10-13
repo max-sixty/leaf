@@ -71,51 +71,53 @@ call to the agent.
 Checks follow the same line. `page check` and its render checks hold Leaf's contracts
 on every page: each widget upgrades, nothing a user needs is clipped out of reach, every
 control can be pressed. Don't add a check that anticipates one particular authoring
-mistake, such as one attribute misapplied to one tag. Each such check costs code, tests
-and gate time on every page from then on, while a mistake agents rarely make costs one
-fix on the page where it happened, or a clearer line in the instruction it misread. Add
-a narrow check only where agents get what it reports wrong on real pages and fix it when
+mistake, such as one attribute misapplied to one tag (root `AGENTS.md`, "Leaf's role",
+weighs what a check costs). A mistake agents rarely make costs one fix on the page where
+it happened, or a clearer line in the instruction it misread. Add a narrow check only where agents get what it reports wrong on real pages and fix it when
 told. A check that fires mostly on pages that already work, because delivery or the
 page's own CSS handles what it looks for, costs more than it catches. Prefer widening a
 general reading to adding a narrow one beside it.
 
-## Let the agent correct its own input
+## Be a helpful linter, not a nanny nor a complicated partial checker
 
-The agent that writes a page or sets its data reads what comes back: a `page check`
-finding, a widget's failure box, a command's error. It fixes a mistake it can see, so
-code handles the input its contract describes, such as a patch as `git diff` writes
-it, and lets anything else fail through the parser or check already in its path.
-Detecting, repairing or explaining each malformed variant adds code to every reader of
-that input and buys nothing the agent's next attempt would not. Handle a malformed
-case only where it would otherwise pass silently into state the user relies on, such
-as an admitted event or a stored decision.
+Root `AGENTS.md`, "Leaf's role", says what a check is worth. A nanny refuses or
+explains input the agent's next attempt would fix anyway. A partial checker judges an
+input that a component in its path already judges, such as a parser, a widget or uv:
+the second judgment disagrees with the first at the edges, and each disagreement found
+becomes another check.
+Leave the judging to that component and make sure its refusal reaches the agent:
+`patch_manifest.py` stores a patch as given, and `lf-diff` refuses a file it cannot
+draw and reports it with `reportFailure`.
 
-What one Leaf module writes for another is not input: the browser reading the
-server's answer, the Worker reading the manifest its build wrote, a caller reading what
-admission accepted. The reader uses it directly, and the producer's own tests hold its
-shape. The exception is a record an older Leaf left in the state home, which root
-`AGENTS.md`, "Stage", has the reader tolerate. Recovery from a state no Leaf writer
-produces goes the same way: delete it with the test that manufactures the state to
-reach it.
+What one Leaf module writes for another, over a channel only Leaf code writes, is not
+input: the browser reading the server's answer, the Worker reading the manifest its
+build wrote, a caller reading what admission accepted. The reader uses it directly, and
+the producer's own tests hold its shape. What a person or an agent can write on the way
+is input even when Leaf code sent it: a request the browser posts, a file an agent
+edits, the answer of leaf.page's container, whose agent a visitor steers (root
+`AGENTS.md`, "Validate once and share readings"). The exception is a record an older
+Leaf left in the state home, which root `AGENTS.md`, "Stage", has the reader tolerate.
+Recovery from a state no Leaf writer produces goes the same way: delete it with the test
+that manufactures the state to reach it.
 
 ## Explore an open design
 
 Whenever the user is to choose among designs for a visual or interaction
 question, whether options for a new interface, alternatives to a shipped one, or
-sketches they asked for, put the candidates in one playground, where the user
-compares them, tries the interactions needed to decide, comments, and submits a
-choice. The submitted configuration or feedback chooses the one implementation
-the change keeps. First look in the shipped examples and `notes/` for an
-exploration of the same surface, and extend its playground when it owns the same
-decision.
+sketches they asked for, show the candidates side by side in one ask, where the
+user compares them, tries the interactions needed to decide, comments, and
+selects the one to build. That selection, or the configuration a playground
+submits, chooses the one implementation the change keeps. First look in the
+shipped examples and `notes/` for an exploration of the same surface, and extend
+it when it owns the same decision.
 
-A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
+The exploration is one HTML file, like a standalone sketch. Write it under `.tmp/`
 and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
 page"), which builds the page from that file alone. Its CSS reads the live
 theme's tokens. Follow
 `<root>/skills/leaf/packages/playground/instructions/author.md` to choose the
-selection and exploration elements, present the candidates, and submit a task
-saying what to build.
+selection and exploration elements, present the candidates, and say what to
+build.
 
 For an existing-interface comparison, the property the user named defines which
 controls and states the survey covers. Find it in its defining code; it can
@@ -404,9 +406,10 @@ contexts another retained case already covers. The leading comment records the
 case's origin and whether it distinguished the instructions.
 
 The prompt never states the behavior under test. A prompt pointing at a file beyond
-the references names that file from the skill's base directory. Grade a fixed form
-with a `regex` assertion, and a judgment with an `llm-rubric` assertion whose `value`
-states the passing reading without requiring particular wording.
+the references names that file from the skill's base directory. Grade what the agent
+wrote with an `llm-rubric` assertion whose `value` states the passing reading without
+requiring particular wording, and keep `regex` for a literal such as a command name or
+a URL (`evals/README.md`, "Case format").
 
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the
@@ -433,10 +436,9 @@ whether one module owns it. If one does, the rule goes in that module's header a
 the area file keeps at most a pointer (root `AGENTS.md`, "Where instructions live"),
 so the area file holds only what spans its modules and trimmed text does not come back.
 
-Thread appearance changes run `tests/*/test_render_thread_snapshots.py` on macOS
-before landing. Linux CI runs the same delivery journey without comparing images.
-Review captured Mac images before accepting an intentional change;
-`dev/leaf_dev/thread_snapshots.py` owns capture and acceptance.
+The thread appearance gate, `tests/*/test_render_thread_snapshots.py`, is paused
+while development moves fast (`TODO.md`, "Resume the thread appearance gate"), so a
+thread appearance change needs no snapshot run or acceptance before landing.
 
 A pull request's `test` job and the local pre-merge `tests` run the broad selection
 and the later-tier tests the branch edits; the rest of the `main` tier runs once main

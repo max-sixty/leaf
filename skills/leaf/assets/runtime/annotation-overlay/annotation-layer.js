@@ -1,13 +1,13 @@
 /* Whether the annotation layer shows.
 
    The annotation layer is everything Leaf draws over the page's content: the margin rows
-   standing as pins, whatever they hold, the durable marks on commented and reacted
+   shown as pins, whatever they hold, the durable marks on commented and reacted
    passages, an open card, and an unfolded cluster. The rail
    covers nothing, so it and everything standing in it stay. Hiding the layer changes no
    geometry, since nothing in it takes up room; it lets the user see what lies under it.
 
    The fact is this tab's view of the page, so it lives in the tab store and comes back
-   with a reload, and a new page opens with the layer shown: a standing "never show
+   with a reload, and a new page opens with the layer shown: a lasting "never show
    markers" would hide every arrival on every page.
 
    `setAnnotationsHidden` is the one writer. It states the fact on the root for the
@@ -38,6 +38,7 @@ export function mountAnnotationControls() {
     description: "Hide or show the annotations drawn over the page",
     title: () => (hidden ? "show annotations" : "hide annotations"),
     touch: () => (hidden ? "Show annotations" : "Hide annotations"),
+    menu: "annotate",
     when: () => watchers.size > 0,
     run: () => {
       setAnnotationsHidden(!hidden);

@@ -119,6 +119,7 @@
   :where(.lf-floating-panel) :is(button, input):focus-visible {
     outline: var(--focus-ring-w) solid var(--focus-ring);
     outline-offset: -2px;
+    --lf-focus-ring: floating-panel;
   }
   .lf-floating-panel .lf-action-icon {
     width: 16px;

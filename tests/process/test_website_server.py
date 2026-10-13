@@ -2412,7 +2412,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     acknowledgement is a request App Server may well have acted on. So the
     provider is told to stop whatever it started, and the delivery gives the
     moves back — both the offer and its reply reservation, because either
-    left standing blocks the `startup_failed` receipt this raise asks the Worker
+    left held blocks the `startup_failed` receipt this raise asks the Worker
     for, and that receipt is what invites the user to send again.
     """
     comment = append_event(
@@ -2652,7 +2652,7 @@ def test_a_failed_turn_hands_every_kind_of_owed_move_back(
     The hosted site starts a turn for every move that owes an answer: a message or
     an answer to a page Ask. Each takes the failure its own answer takes, and each
     leaves the next step with the user, so none stays owed with no turn coming for
-    it. A pick keeps standing on the page, and the workflow says it was
+    it. A pick stays in force on the page, and the workflow says it was
     not answered until the user answers again. A message is told in its own
     thread.
     """
@@ -3419,7 +3419,7 @@ def test_a_stream_that_goes_silent_ends_its_turn_like_a_dropped_one(
     )
     # Without the lease this page is not listening, and a page that is not
     # listening reads `away` whatever its stream reading holds — which would pass
-    # the activity assertion below on a follower that left one standing.
+    # the activity assertion below on a follower that left one held.
     harness._hold_waiter(page_dir, "hosted-thread")
 
     hosted_follower(harness, page_dir, prepared, silent).follow()
@@ -4726,7 +4726,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
 def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
     """The other half of the same reading: nothing is coming, so do not wait it out.
 
-    A container that dropped its session leaves the obligation standing with no turn
+    A container that dropped its session leaves the obligation open with no turn
     behind it. Extending the wait there would spend the step's whole budget to raise
     the failure it could already raise.
     """

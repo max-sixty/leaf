@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from leaf.event_log import read_events
-from leaf.events import build_threads, is_reaction, standing_approvals, taken_back
+from leaf.events import approvals_in_force, build_threads, is_reaction, taken_back
 from leaf.files import latest_revision, list_revisions, revision_label
 from leaf.gesture_words import GestureWords, revisions_on_disk
 from leaf.registry.reactions import reaction_tokens
@@ -174,7 +174,7 @@ def _print_threads(
 
 
 def _print_approvals(events: list) -> None:
-    for approval in standing_approvals(events):
+    for approval in approvals_in_force(events):
         print(f"Approved v{approval['version']} at {approval['ts']}.")
 
 

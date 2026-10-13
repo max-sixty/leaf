@@ -92,7 +92,7 @@ export function arrivals(previous, rows, pass) {
 // first, so no row pushes it out from under the press or moves the card it opened. Then
 // by the pass each came at, the earliest first (`came`), so a row that has just come
 // takes the room those already there leave rather than moving them: news moves nothing
-// already standing. Then from the top, which is how rows that came together, as a page's
+// already seated. Then from the top, which is how rows that came together, as a page's
 // do at load, take their places.
 export const inSeatingOrder = (rows) =>
   [...rows].sort(

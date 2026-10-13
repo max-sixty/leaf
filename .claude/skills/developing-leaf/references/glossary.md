@@ -61,6 +61,7 @@ session currently holds the page, on both the banner and neighboring-page rows.
 | **Package** | One composable source directory of declarations and their payload |
 | **Leaf layer** | One checked, vendored composition of packages |
 | **User session** | One browser tab's temporary interaction with a page instance |
+| **In force** | An action, report, reaction or decision that no undo withdrew and no version note retracted; at each owner-unit-verb coordinate the latest in force wins (`events.InForce`, `StateProjection.in_force`; the served event field keeps its name, `stands`) |
 
 Core Leaf owns revision activation, scoped serving, the executable and inert-input
 boundaries, target identity, event admission, comments, and export. A package owns
@@ -89,7 +90,9 @@ For an authored occurrence say *Leaf element*, never *instance* alone.
 An element declaration keeps independent dimensions in separate keys:
 
 - `x-content`, what its body holds: `markup`, `members`, `data`, or `empty`.
-- `x-owners`, the compound owner types that may hold it directly.
+- `x-owners`, the compound owner types that may hold it directly; with `x-within`, it
+  may also stand at any depth inside the regions that key names, belonging to the
+  nearest owner around them.
 - `x-reading-role`, an authored reading-structure role.
 - Every other `x-*` key declares a capability, not an element family.
 
@@ -129,7 +132,7 @@ stylesheet decides whether their bodies scroll.
 |---|---|
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
 | **Leaf panel** | The default chrome (`floating-panel.js`): one box floating over the window's foot whose resting row holds the leaf, coloured by the agent's state and opening the leaf's menu of the page's other controls; the comment field, which shows the agent's status and passing notices while empty; and the Questions and Threads marks. Threads, Questions, Versions and the menu's groups open as views above that row, and folding leaves the leaf alone in the window's corner. It stands for the banner and the bottom bar, drawing their controls from the toolbar's rows (`banner-toolbar.js`) |
-| **Banner** | Classic chrome, which `?lf-chrome=classic` chooses in place of the Leaf panel (`prepaint.js`): the persistent row at the window's top: page status ending with the agent's Tasks count, the primary Approval, Comment on the page, Questions and Threads controls, and an overflow disclosure of secondary controls (`banner-toolbar.js` says where each control sits) |
+| **Banner** | Classic chrome, which `?lf-chrome=classic` chooses in place of the Leaf panel (`prepaint.js`): the fixed row at the window's top: page status ending with the agent's Tasks count, the primary Approval, Comment on the page, Questions and Threads controls, and an overflow disclosure of secondary controls (`banner-toolbar.js` says where each control sits) |
 | **Page comment card** | The card hung from the banner's Comment on the page control, holding the page's general comment box, the one place a page thread starts (`thread/page-comment.js`) |
 | **Bottom bar** | Classic chrome's row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
@@ -234,7 +237,10 @@ These terms name Leaf concepts that no standard term covers, so they stay:
 
 - **Standing**, not *focus*: a user stands at a target from its margin cluster, its
   thread card, or its note on the details shelf as well as from the element, while DOM
-  focus is on one node. Where the two coincide, say *focus*.
+  focus is on one node. Where the two coincide, say *focus*. *Standing* means only
+  where the user is: say *in force* for an event not withdrawn, *current* for the
+  latest value, *open* for something still owed or on screen, and *persistent* for a
+  serve that outlives sessions.
 - **Trip** and **Journey**, not *navigation*: a trip decides whether to leave a history
   entry (it stays when the user already has the destination), and a journey shares one
   entry across trips. Web navigation always adds an entry, or replaces one.

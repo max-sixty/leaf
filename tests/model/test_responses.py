@@ -933,7 +933,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
 
 
 @pytest.mark.parametrize("retry", ["same", "different"])
-def test_retry_identity_cannot_take_a_standing_reply_reservation(
+def test_retry_identity_cannot_take_an_open_reply_reservation(
     page_dir, monkeypatch, retry
 ):
     revisioning_model.activate_source(page_dir)

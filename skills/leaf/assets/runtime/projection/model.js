@@ -9,7 +9,7 @@
 /** @typedef {import("../../../../../build/browser/domain.ts").ProjectionEntry} ProjectionEntry */
 /** @typedef {import("../../../../../build/browser/domain.ts").ClassifiedEntry} ClassifiedEntry */
 /** @typedef {import("../../../../../build/browser/domain.ts").AuthoredMap} AuthoredMap */
-/** @typedef {import("../../../../../build/browser/domain.ts").StandingValue} StandingValue */
+/** @typedef {import("../../../../../build/browser/domain.ts").ActionValue} ActionValue */
 /** @typedef {import("../../../../../build/browser/domain.ts").UnitValue} UnitValue */
 /** @typedef {import("../../../../../build/browser/domain.ts").PositionValue} PositionValue */
 /** @typedef {import("../../../../../build/browser/domain.ts").Projection} Projection */
@@ -32,10 +32,10 @@ export function foldedValue(event, record) {
   return value ?? null;
 }
 
-// Whether a standing value says the same as another: values are JSON, and an
+// Whether one value says the same as another: values are JSON, and an
 // attribute record's is a sorted list.
 /** @param {unknown} a @param {unknown} b */
-const sameStandingValue = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const sameValue = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 /** @param {ProjectionEntry} a @param {ProjectionEntry} b */
 const compareProjected = (a, b) => {
@@ -89,9 +89,9 @@ export function foldProjection({
   for (const id of reportIds) {
     const entry = byId.get(id);
     if (!entry || entry.terminal) continue;
-    const standing = reports.get(entry.coordinate) ?? [];
-    standing.push(entry);
-    reports.set(entry.coordinate, standing);
+    const reported = reports.get(entry.coordinate) ?? [];
+    reported.push(entry);
+    reports.set(entry.coordinate, reported);
   }
   for (const id of desiredIds) {
     const entry = byId.get(id);
@@ -170,7 +170,7 @@ const authoredValue = (
   return value;
 };
 
-// Derive the durable provenance attached to each standing unit from the same values
+// Derive the durable provenance attached to each unit in force from the same values
 // that render widget state. One unit has at most one reading for each origin.
 /** @param {AuthoredMap} authoredSnapshots @param {Projection} projection */
 export function projectionOrigins(authoredSnapshots, projection) {
@@ -188,7 +188,7 @@ export function projectionOrigins(authoredSnapshots, projection) {
   for (const entry of projection.desired.values()) {
     const { unit, e, spec, value } = entry;
     const overridesSource = spec.record
-      ? !sameStandingValue(value, authoredValue(authoredSnapshots, entry))
+      ? !sameValue(value, authoredValue(authoredSnapshots, entry))
       : true;
     if (!overridesSource) continue;
     add(e.kind === "action" ? "user" : "reported", unit);
@@ -292,7 +292,7 @@ export function rankAt({ value, ranks }, container, index, unit) {
 
 // Compose complete verb values in memory. A position record the document has not
 // absorbed places its unit at the rank it names, a coordinate of that unit's own (rank keys
-// above), so each container lists its units by rank once every standing placement is
+// above), so each container lists its units by rank once every placement in force is
 // in. `projection.py`'s `folded_positions` is the server's reading of the same rule.
 /** @param {AuthoredMap} authoredSnapshots @param {Projection} projection */
 export function foldWidgetStates(authoredSnapshots, projection) {
@@ -336,16 +336,16 @@ export function foldWidgetStates(authoredSnapshots, projection) {
     const { spec, e, unit } = entry;
     const record = spec.record;
     const value = record ? structuredClone(e.detail.value) : e.action;
-    const standing = { action: e.action, value, detail: structuredClone(e.detail) };
+    const current = { action: e.action, value, detail: structuredClone(e.detail) };
     owner.entries.push(entry);
     const target = owner.state[e.action];
     if (target && "units" in target) {
-      target.units[unit] = standing;
+      target.units[unit] = current;
       if ("ranks" in target && !entry.absorbed) place(target, unit, e.detail);
     } else {
       if (spec.unit !== "widget")
         throw new Error(`Missing authored units for ${e.widget}/${e.action}`);
-      owner.state[e.action] = standing;
+      owner.state[e.action] = current;
     }
   }
 

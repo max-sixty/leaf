@@ -141,7 +141,7 @@ def reply_reservation_stands(
 ) -> bool:
     """Whether the exact claim turn still reserves an automatic provider answer.
 
-    Before the provider reply opens, its reservation names the claim turn standing
+    Before the provider reply opens, its reservation names the claim turn current
     at reservation; afterward it names the delivery's turn. A different or closed
     claim turn cannot retain that reservation. A client still following its turn
     commits before closing it (`codex.TurnFold.commit`).

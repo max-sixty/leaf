@@ -728,7 +728,7 @@ export function paintClips(item, box, clips, aboveSurfaces, held = false) {
       ? hidden
       : { plane, window: window ?? null, bands };
   for (const { surface, box: over, level } of aboveSurfaces
-    ? standingOccluders(clips)
+    ? openOccluders(clips)
     : []) {
     if (!overlaps(shown, over) || under(item, surface) || stackLevel(item) >= level)
       continue;
@@ -899,7 +899,7 @@ const standsNow = (surface) =>
 // Where an occluder stands, not where its slide has carried it this frame: every declared
 // occluder is fixed to the window, so its offset box is its viewport box without the
 // slide's transform.
-const standingBox = (surface) => ({
+const restingBox = (surface) => ({
   left: surface.offsetLeft,
   top: surface.offsetTop,
   right: surface.offsetLeft + surface.offsetWidth,
@@ -923,13 +923,13 @@ export function rightCover() {
   let left = Infinity;
   for (const surface of occluders) {
     if (!standsNow(surface)) continue;
-    const box = standingBox(surface);
+    const box = restingBox(surface);
     if (box.left > 0 && box.right >= edge - 1) left = Math.min(left, box.left);
   }
   return left;
 }
 // A clip pass that reads past some occluders. Travel asks what the page shows of a
-// destination beside the surface it leaves standing, which is the most any movement of
+// destination beside the surface it leaves open, which is the most any movement of
 // the page can show while that surface stands.
 const PAST = Symbol("past");
 export const clipsPast = (surfaces) => new Map([[PAST, new Set(surfaces)]]);
@@ -951,11 +951,11 @@ export function hides(surface, where) {
   if (under(holder, surface) || stackLevel(holder) >= stackLevel(surface)) return false;
   const box = placeBox(where);
   const { left, right } = clippedPlace(where, clipsPast([surface]), box) ?? box;
-  const column = standingBox(surface);
+  const column = restingBox(surface);
   const covered = Math.min(right, column.right) - Math.max(left, column.left);
   return covered > (right - left) / 2;
 }
-// Whether any standing occluder hides `where`, by the same measure. A seat a panel stands
+// Whether any open occluder hides `where`, by the same measure. A seat a panel stands
 // over is no place to put the user, since the panels dominate what focus reaches.
 export const underOccluder = (where) =>
   [...occluders].some((surface) => hides(surface, where));
@@ -989,24 +989,24 @@ export function stackLevel(node) {
   return level;
 }
 const OCCLUDERS = Symbol("occluders");
-function standingOccluders(clips) {
-  let standing = clips.get(OCCLUDERS);
-  if (standing) return standing;
+function openOccluders(clips) {
+  let open = clips.get(OCCLUDERS);
+  if (open) return open;
   const past = clips.get(PAST);
-  standing = [...occluders]
+  open = [...occluders]
     .filter(standsNow)
     .filter((surface) => !past?.has(surface))
     .map((surface) => ({
       surface,
-      box: standingBox(surface),
+      box: restingBox(surface),
       level: stackLevel(surface),
     }));
-  clips.set(OCCLUDERS, standing);
-  return standing;
+  clips.set(OCCLUDERS, open);
+  return open;
 }
 const area = (box) => (box.right - box.left) * (box.bottom - box.top);
 function occluded(rect, item, clips) {
-  for (const { surface, box, level } of standingOccluders(clips)) {
+  for (const { surface, box, level } of openOccluders(clips)) {
     if (!overlaps(rect, box) || under(item, surface) || stackLevel(item) >= level)
       continue;
     rect = uncovered(rect, box);

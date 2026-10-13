@@ -153,12 +153,12 @@ test("a thread's unread is the server reading less what this tab is acknowledgin
   const read = (acknowledging) =>
     readThreadRecords(threads, NO_DOCUMENT, new Map(), [], acknowledging)[0];
 
-  const standing = read([]);
+  const unread = read([]);
   assert.deepEqual(
-    standing.msgs.map((message) => message.unread),
+    unread.msgs.map((message) => message.unread),
     [true, true],
   );
-  assert.equal(standing.unread.length, 2);
+  assert.equal(unread.unread.length, 2);
 
   // Acknowledging the reply's earlier version leaves its current one unread.
   const stale = read([{ message: "reply", version: "reply" }]);
@@ -443,14 +443,14 @@ test("panel narrowing controllers keep independent intent over shared threads", 
 
   // Revealing a destination already in this view keeps the intent that retained
   // arrivals use to distinguish repainting from a deliberate change of view.
-  const standing = second.narrowing.model(threads, places).intent;
+  const kept = second.narrowing.model(threads, places).intent;
   await second.narrowing.revealThread("open");
-  assert.equal(second.narrowing.model(threads, places).intent, standing);
+  assert.equal(second.narrowing.model(threads, places).intent, kept);
   assert.equal(second.narrowing.widen(), false);
-  assert.equal(second.narrowing.model(threads, places).intent, standing);
+  assert.equal(second.narrowing.model(threads, places).intent, kept);
 
   await second.narrowing.revealThread("resolved");
-  assert.notEqual(second.narrowing.model(threads, places).intent, standing);
+  assert.notEqual(second.narrowing.model(threads, places).intent, kept);
   assert.deepEqual(second.narrowing.model(threads, places).shown, [resolved]);
   first.narrowing.widen();
   assert.deepEqual(first.narrowing.model(threads, places).shown, [open]);

@@ -160,21 +160,21 @@ export interface ProjectionInput {
   coverage?: readonly Coverage[];
   pendingEntries?: readonly PendingProjection[];
 }
-export interface StandingValue {
+export interface ActionValue {
   action: string | null;
   value: unknown;
   detail: Record<string, unknown>;
 }
 export interface UnitValue {
   value: Record<string, string[]>;
-  units: Record<string, StandingValue>;
+  units: Record<string, ActionValue>;
 }
 export interface PositionValue extends UnitValue {
   ranks: Record<string, string>;
 }
 export interface AuthoredWidget {
   tag: string;
-  state: Record<string, StandingValue | UnitValue | PositionValue>;
+  state: Record<string, ActionValue | UnitValue | PositionValue>;
   specs: ReadonlyMap<string, ActionSpec>;
 }
 export type AuthoredMap = ReadonlyMap<string, Immutable<AuthoredWidget>>;

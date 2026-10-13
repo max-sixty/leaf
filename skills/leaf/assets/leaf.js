@@ -292,7 +292,7 @@ const navigation = createNavigation({
   },
 });
 
-// The standing furniture every generated-hint map is spread around: the window's
+// The fixed furniture every generated-hint map is spread around: the window's
 // declared chrome (geometry.js), the key line and the banner's foot. Both maps read the
 // same boxes, and they are passed rather than imported so the hint machine keeps no
 // ownership edge back to the shortcut bar it is placed against.
@@ -516,7 +516,7 @@ declareReading(landingPlace);
 // And where it goes instead while a surface covers the page: the page is inert under one,
 // so the reading above cannot take the user and a step that let go would leave them
 // wherever the closing layer happened to drop them. The modality that covers already
-// answers both halves for whichever surface is standing — the panel, either drawer — and
+// answers both halves for whichever surface is open — the panel, either drawer — and
 // the keyboard register carries the same pair to the dispatcher.
 declareCovering({
   surface: auxiliarySurfaces.coveringSurface,

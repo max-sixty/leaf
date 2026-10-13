@@ -667,7 +667,7 @@ and use this declaration rather than posting setup events from a page module.
 
 To begin with threads from the parent, set `data-sample-threads` on the
 template to their space-separated thread ids. The declaration selects from the
-parent's standing log rather than requiring it: a page whose log does not hold one
+parent's current log rather than requiring it: a page whose log does not hold one
 of those threads yet — a first version, or a copy made from the source alone — opens
 the sample without that thread. Their anchored content must exist in the
 child. Reset copies those threads again from the parent; subsequent child

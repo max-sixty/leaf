@@ -154,7 +154,7 @@ cases:
         Expected answer: 6
         Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
     - type: llm-rubric
-      metric: answer_standing-action
+      metric: answer_action-in-force
       value: |-
         Question 6: Which cutover mode has the user picked?
         Expected answer: Shard by shard: the user picked it, then picked Dual write, then undid the Dual write pick
@@ -260,7 +260,7 @@ cases:
         Question 1: What is max_parallel_copies set to in the copier configuration the page shows?
         Expected answer: 6
         Pass only if the answer to this question conveys the expected meaning. Equivalent wording is fine; contradicting the expected answer fails, even when its words occur in the reply.
-  reading-standing-action:
+  reading-action-in-force:
     inputs:
       prompts:
       - |-
@@ -271,10 +271,10 @@ cases:
         1. Which cutover mode has the user picked?
 
         This session is headless: nobody can open a browser or answer you during it, so don't start a server or wait for feedback.
-      fixture: reading-standing-action
+      fixture: reading-action-in-force
     assert:
     - type: llm-rubric
-      metric: answer_standing-action
+      metric: answer_action-in-force
       value: |-
         Question 1: Which cutover mode has the user picked?
         Expected answer: Shard by shard: the user picked it, then picked Dual write, then undid the Dual write pick

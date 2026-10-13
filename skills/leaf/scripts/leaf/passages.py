@@ -263,11 +263,11 @@ class _PassageParser:
     widget with nothing — a deletion accepted, an insertion refused — empties the
     wrapper too (`gone`), because an element showing nothing is one nobody can point
     at, however present its markup. `rewrites` is the user's
-    standing text per element whose element declaration records a verb as the body
+    current text per element whose element declaration records a verb as the body
     (`rewritten_bodies`): their words stand in the authored body's place, because
     replay writes exactly that into the DOM. Without either, the reading is the
     version as authored — every slot pending, every body Claude's. `additions`
-    supplies the standing generated children from the same projection. They pass
+    supplies the generated children in force from the same projection. They pass
     through the ordinary element reading at the end of their declared owner,
     including retirement, ancestry, and the fences around opaque widgets."""
 
@@ -636,7 +636,7 @@ class SourceReading:
     requests (`revision_artifact.read_revision`); a candidate's lives as long as
     the check that built it.
 
-    The log never reaches this object. A reading under standing outcomes is the
+    The log never reaches this object. A reading under the outcomes in force is the
     same `page_passages` walk with `decided`, taken by `decided_passages`, which
     returns the authored reading where no outcome names an element this document
     carries: the parser consults `decided` only by the id of an element it opens,
@@ -702,7 +702,7 @@ class SourceReading:
         return self.passages.enclosing
 
     def decided_passages(self, decided: dict) -> Passages:
-        """The passage reading under standing retirement outcomes
+        """The passage reading under the retirement outcomes in force
         (`projection.retirement_outcomes`)."""
         carried = tuple(
             sorted(

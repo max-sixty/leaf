@@ -9,10 +9,11 @@ from browser.test_render_application_boundary import (
 )
 from browser.test_render_threads import hold_visible_thread_presentation
 from leaf import event_log as events_model
+from leaf.findings import Finding
 from leaf.render_checks import wait_until_ready
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    SEATED_QUESTION_PAGE,
+    SEATED_ASK_PAGE,
     live_url,
     panel_comment,
 )
@@ -233,7 +234,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     """One request may lose its answer while another tab gets the same attempt
     accepted. The first tab adopts that durable outcome instead of reporting failure
     or offering the words as a second message."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
     first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
@@ -408,9 +409,12 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
     page = editing_reply_page(browser, serve, one_user)
     reply = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
     write(reply, "The exact generation whose route is waiting.")
-    known_loss = (
-        'typed words left the screen without a key or press: "The exact generation whose route is waiting." in '
-        + reply.evaluate("field => window.lfPlace(field)")
+    known_loss = Finding(
+        "words-left-screen",
+        values={
+            "words": "The exact generation whose route is waiting.",
+            "place": reply.evaluate("field => window.lfPlace(field)"),
+        },
     )
     other = open_page(browser, page.url, context=one_user)
     held = page.evaluate(
@@ -558,7 +562,9 @@ def test_resume_writing_keeps_editor_identity_caret_and_sent_conversation(
     write(edit, "Rewritten page text")
     page.keyboard.press("Home")
     page.keyboard.press("ArrowRight")
-    page.keyboard.press("Escape")
+    # Escape would cancel the edit; stepping out to the page leaves it open.
+    page.locator("h1").click()
+    expect(edit).not_to_be_focused()
     # The desktop More reference invokes the same semantic command as gi.
     page.keyboard.press("?")
     page.keyboard.press("?")

@@ -9,6 +9,7 @@ from interact_support import (
     append_carried_log_record,
     append_command,
     record_claim,
+    refused_on,
     working,
 )
 from leaf import delivery as delivery_model
@@ -633,7 +634,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    expect(page.locator("#approach-decision[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#approach-decision[data-lf-ask]")).to_have_count(1)
     ring_on = """el => { const on = el.closest('lf-option');
                       const drawn = (e) => { const s = getComputedStyle(e);
                           return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); };
@@ -1019,9 +1020,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # The rule stands at the log's own door as well as in the browser's controller, so
     # the state a quoted widget would reconcile cannot be written in the first place.
     # Any sender reaches that door; this one is the CLI's side of it.
-    with pytest.raises(
-        events_model.EventRefused, match="quoted material takes no input"
-    ):
+    with pytest.raises(events_model.EventRefused) as refused:
         append_command(
             serve.page_dir,
             {
@@ -1033,6 +1032,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
                 "detail": {"outcome": "accept"},
             },
         )
+    assert refused_on(refused.value).code == "quoted-widget"
     page = open_page(browser, url)
     assert page.locator(".lf-error").count() == 0
 
@@ -1213,7 +1213,7 @@ def test_one_band_says_where_the_user_is_standing(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    expect(page.locator("#storage-decision[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#storage-decision[data-lf-ask]")).to_have_count(1)
     drawn = """el => { const s = getComputedStyle(el);
                        return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); }"""
     assert page.locator("#storage-decision").evaluate(drawn) == 0
@@ -1458,7 +1458,7 @@ def test_only_bound_cards_yield_their_header_state_to_the_ask(browser, serve):
     )
 
 
-def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
+def test_an_ask_inside_an_option_keeps_its_own_arity(browser, serve):
     """An option's content model is prose, so a question nests inside another question's
     option — the theme's argument-row form lists `lf-options` among the block content it
     lays out. The arity a mark wears has to be its own group's, and the shape that says so
@@ -1484,7 +1484,7 @@ def test_a_question_inside_an_option_keeps_its_own_arity(browser, serve):
     assert page.locator("#out-keys > .lf-pick").evaluate(corner) < 0.5
 
 
-def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve):
+def test_a_nested_asks_commands_belong_only_to_their_own_ask(browser, serve):
     """An Ask projects commands from its answer source, but containment alone does
     not confer ownership: a second Ask may stand inside an option as evidence.
 
@@ -1506,7 +1506,7 @@ def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve
     expect(page.locator("#inner > lf-option[chosen]")).to_have_count(0)
 
 
-def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve):
+def test_a_nested_asks_pick_is_not_part_of_its_outers_record(browser, serve):
     """Attribute records are sets owned by one recorded widget. A chosen option in a
     nested question must not enter the outer question's authored state, or an outer log
     choice that exactly matches its markup is falsely painted as awaiting the author."""
@@ -2390,7 +2390,7 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     )
 
 
-def test_a_thread_questions_done_press_keeps_its_keys_and_one_workflow(browser, serve):
+def test_a_thread_asks_done_press_keeps_its_keys_and_one_workflow(browser, serve):
     """Done wears its digit in its button while the bar and ARIA expose its keys.
 
     A tick followed by Done are two coordinates. The message carries their shared

@@ -42,10 +42,12 @@ from interact_support import (
     append_command,
     assert_revendor_serializes_writer,
     check,
+    check_findings,
     comment,
     declare_data_input,
     element_declaration,
     fetch,
+    found,
     fresh_process,
     lock_contention,
     model_layer,
@@ -54,6 +56,8 @@ from interact_support import (
     published,
     queue_board_registry,
     read_page_data,
+    refused_on,
+    registry_refusal,
     styled,
     wait_for,
     yaml_block,
@@ -81,6 +85,7 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+from leaf.findings import Finding
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import page as registry_page
@@ -292,7 +297,11 @@ def test_a_pick_names_only_options_its_group_holds():
 
     with pytest.raises(events_model.EventRefused) as refused:
         admit(STATED_LOG, pick)
-    assert "live-mine name no member of 'live-pick'" in str(refused.value)
+    strangers = refused_on(refused.value)
+    assert (strangers.code, strangers.values["strangers"]) == (
+        "unknown-members",
+        ["live-mine"],
+    )
 
     add = admit(
         STATED_LOG,
@@ -434,7 +443,8 @@ def test_the_move_that_empties_the_queue_answers_its_ask():
                 "detail": {"unit": "not-a-card", "value": "keep", "rank": "0r"},
             },
         )
-    assert "unknown unit 'not-a-card'" in str(refused.value)
+    unknown = refused_on(refused.value)
+    assert (unknown.code, unknown.values["unit"]) == ("unknown-unit", "not-a-card")
 
 
 def test_admission_decides_from_the_markup_and_the_standing_log_alone():
@@ -458,7 +468,7 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
     def refusal(event):
         with pytest.raises(events_model.EventRefused) as refused:
             admit(event)
-        return str(refused.value)
+        return refused_on(refused.value)
 
     choose_live = {
         **STATED_PICK,
@@ -466,19 +476,21 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
         "detail": {"value": ["live-gps"]},
     }
     assert admit(choose_live)["meaning"]["unit"] == "live-pick"
-    assert (
-        refusal({**choose_live, "revision": 2}) == "action revision must be one of [1]"
-    )
-    assert "stands inside an exhibit" in refusal(
-        {**STATED_PICK, "widget": "quoted-pick", "detail": {"value": ["quoted-gps"]}}
-    )
+    assert refusal({**choose_live, "revision": 2}).values["revisions"] == [1]
+    quoted = {
+        **STATED_PICK,
+        "widget": "quoted-pick",
+        "detail": {"value": ["quoted-gps"]},
+    }
+    assert refusal(quoted).code == "quoted-widget"
     answer = {"kind": "reply", "author": "agent", "revision": 1, "text": "The GPS."}
-    assert refusal({**answer, "parent": "c9"}) == "unknown parent 'c9'"
+    assert refusal({**answer, "parent": "c9"}) == Finding(
+        "unknown-parent", values={"kind": "reply", "parent": "c9"}
+    )
     assert admit({**answer, "parent": "c1"})["parent"] == "c1"
     for version in ([1], {"version": 1}, True):
-        assert "done event is invalid" in refusal(
-            {"kind": "done", "author": "user", "version": version}
-        )
+        invalid = refusal({"kind": "done", "author": "user", "version": version})
+        assert (invalid.code, invalid.values["field"]) == ("invalid-event", "/version")
 
 
 def test_a_created_child_is_its_actions_unit_and_its_words_stay_payload():
@@ -699,14 +711,18 @@ def test_server_takes_back_only_a_standing_gesture_of_the_users_own(server, page
     # user's history rather than toggling the last gesture on and off.
     status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
     refusal = json.loads(body)
-    assert status == 400 and "already been taken back" in refusal["error"]
+    assert status == 400 and refused_on(refusal).code == "withdrawn-gesture"
     assert took_back in refusal["state"]["events"]
     assert refusal["state"]["browser"]["basis"]["through_seq"] >= took_back["seq"]
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": took_back["id"]}).encode(),
     )
-    assert status == 400 and "undo events cannot be taken" in json.loads(body)["error"]
+    unundoable = refused_on(body)
+    assert status == 400 and (unundoable.code, unundoable.values["target"]) == (
+        "unundoable",
+        "undo",
+    )
 
 
 def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
@@ -794,7 +810,8 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     assert validation_calls == 2
     assert {status for status, _ in results} == {200, 400}
     refusal = next(json.loads(body) for status, body in results if status == 400)
-    assert refusal["final"] is True and "already been taken back" in refusal["error"]
+    assert refusal["final"] is True
+    assert refused_on(refusal).code == "withdrawn-gesture"
     undos = [
         event
         for event in events_model.read_events(page_dir)
@@ -2007,20 +2024,22 @@ def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
     `records: null` a same-protocol Leaf vendored still reads as absent."""
     kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
 
-    def facts_error(**changes):
+    def facts(**changes):
         registry = deepcopy(kernel)
         for fact, value in changes.items():
             registry[f"${fact}"] = {**registry[f"${fact}"], **value}
-        return registry_layer.layer_facts_error(registry)
+        registry_layer.check_layer_facts(registry, "kernel")
 
-    assert facts_error() is None
+    facts()
     absent = {"description": "Build facts.", "schema": {}, "records": None}
-    assert facts_error(data={"contracts": {"builds": absent}}) is None
+    facts(data={"contracts": {"builds": absent}})
     named = {"description": "Build facts.", "schema": {}}
-    assert "does not match" in facts_error(data={"contracts": {"builds\n": named}})
-    assert "does not match" in facts_error(
-        reactions={"tokens": {"keep\n": {"glyph": "+"}}}
+    refused = registry_refusal(lambda: facts(data={"contracts": {"builds\n": named}}))
+    assert refused.values["keyword"] == "pattern"
+    refused = registry_refusal(
+        lambda: facts(reactions={"tokens": {"keep\n": {"glyph": "+"}}})
     )
+    assert refused.values["keyword"] == "pattern"
 
 
 def test_a_custom_units_identity_rule_keeps_the_details_reference_base():
@@ -2294,9 +2313,9 @@ def test_revendoring_an_unreadable_edit_does_not_require_historical_bindings(
         assert "error" in reading and "value" not in reading
     assert files_model.list_revisions(page_dir) == revisions
     assert source.read_bytes() == b"\xff"
-    checked = check(page_dir)
-    assert checked.exit_code != 0
-    assert "not UTF-8" in checked.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert [f.code for f in findings] == ["not-utf8"]
 
 
 def _page_owned_deferred_source(page_dir):
@@ -2359,6 +2378,56 @@ def _page_owned_deferred_source(page_dir):
         {"files": [{"key": "app.py", "patch": "old", "body": "new"}]},
     )
     return authored
+
+
+def test_a_contracts_item_schema_decides_whether_a_record_has_deferred_content(
+    page_dir,
+):
+    """The item schema owns presence; delivery neither invents nor requires payloads."""
+    authored = _page_owned_deferred_source(page_dir)
+    with pytest.raises(data_model.DataError, match="'patch' is a required property"):
+        data_model.cmd_data_set(
+            page_dir,
+            "files",
+            {"files": [{"key": "metadata", "body": "mode 100644 → 100755"}]},
+        )
+    declarations = json.loads(authored.read_text())
+    contract = declarations["$data"]["contracts"]["local-files"]
+    contract["schema"]["properties"]["files"]["items"]["required"] = ["key", "body"]
+    authored.write_text(json.dumps(declarations))
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None
+    value = {
+        "files": [
+            {"key": "metadata", "body": "mode 100644 → 100755"},
+            {"key": "text", "body": "changed", "patch": "source evidence"},
+        ]
+    }
+    data_model.cmd_data_set(page_dir, "files", value)
+    registry = registry_storage.require_registry(page_dir)
+    stored = data_model.read_data(page_dir, registry)
+    reading = stored["sources"]["files"]
+    browser = data_model.browser_data_from(stored, registry)
+    assert browser["sources"]["files"]["value"] == {
+        "files": [
+            value["files"][0],
+            {"key": "text", "body": "changed"},
+        ]
+    }
+    assert (
+        data_model.deferred_value(
+            reading, registry, source="files", revision=reading["revision"], key="text"
+        )["value"]
+        == "source evidence"
+    )
+    with pytest.raises(data_model.DataError, match="deferred"):
+        data_model.deferred_value(
+            reading,
+            registry,
+            source="files",
+            revision=reading["revision"],
+            key="metadata",
+        )
 
 
 @pytest.mark.parametrize("change", ["schema", "records", "resources"])
@@ -2647,18 +2716,18 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
             '<p id="g" data-lf-gen="1">generated-looking</p>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert result.output.count("the runtime's own markers") == 4, result.output
-    # The marker list in parentheses, not the bare word: `reserved_marker_errors` names
-    # the tag, the line and the markers and never the element's id, so an `id="k"`
-    # conjunct here would have passed under the very fault it was written to catch. A
-    # bare "note" is the opposite failure — a future message carrying "denote" or
-    # "annotation" turns this red for a reason that has nothing to do with the page.
-    assert "(note)" not in result.output, (
-        "an ordinary authored class was refused as the runtime's own record, so "
-        f"the reservation reaches past the lf- namespace: {result.output}"
-    )
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    # Exactly these markers: an ordinary class among them would mean the reservation
+    # reaches past the lf- namespace.
+    assert [
+        (f.at, f.values["markers"]) for f in found(findings, "reserved-markers")
+    ] == [
+        ("<div>", ["lf-chrome"]),
+        ("<p>", ["lf-quiet"]),
+        ("<p>", ["lf-not-coined-yet"]),
+        ("<p>", ["data-lf-gen"]),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -2679,7 +2748,6 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
         ("x-verbatim", "false"),
         ("x-work", []),
         ("x-work", {"seat": "content"}),
-        ("x-unknown", True),
     ],
 )
 def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
@@ -2691,6 +2759,21 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
     result = check(page_dir)
     assert result.exit_code != 0
     assert "<lf-options> registry extensions are invalid" in result.output
+
+
+def test_check_refuses_a_vendored_entry_declaring_a_key_this_leaf_does_not_admit(
+    page_dir,
+):
+    """A layer entry declaring an x- key outside this Leaf's set is one this Leaf
+    cannot serve (`layer.incompatible_layer`), so the refusal names the re-vendor."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    registry["lf-options"]["x-unknown"] = True
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+    assert result.exit_code != 0
+    assert "x-unknown" in result.output
+    assert f"leaf page init {page_dir}" in result.output
 
 
 @pytest.mark.parametrize(
@@ -2812,6 +2895,10 @@ def test_patterns_read_as_the_browser_reads_them(page_dir):
     letters = {"type": "string", "pattern": r"^\p{L}+$"}
     registry_schema.check_schema(letters)
     assert registry_schema.schema_error(letters, "héllo") is None
+    # So does a value a schema declares a regular expression.
+    regex = {"type": "string", "format": "regex"}
+    assert registry_schema.schema_error(regex, r"^\p{L}+$") is None
+    assert registry_schema.schema_error(regex, "(?P<id>a)") is not None
 
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-options"]["properties"]["id"]["pattern"] = "^(?P<id>[a-z]+)$"
@@ -2985,8 +3072,9 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
         for required in ("widget", "action", "detail", "revision"):
             malformed = {**command, "detail": valid}
             del malformed[required]
-            with pytest.raises(events_model.EventRefused, match="required property"):
+            with pytest.raises(events_model.EventRefused) as refused:
                 event_contracts_model.admitted_event(page, [], malformed)
+            assert refused_on(refused.value).values["rule"] == "required"
         assert admitted["detail"] == valid
         assert admitted["meaning"]["unit"] == (
             valid["unit"] if widget == "board" else widget
@@ -3467,9 +3555,7 @@ def test_check_refuses_a_predicate_no_page_could_carry(
         ({"value": "answer"}, "answered"),
     ],
 )
-def test_a_local_question_declares_its_answered_condition(
-    page_dir, declaration, message
-):
+def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, message):
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-test-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -4456,13 +4542,18 @@ def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
             '<lf-pane id="queue" label="Queue">loose<p>Two</p></lf-pane>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert (
-        'data-bound="bottom"> (line 9) has an invalid value; expected one of start, '
-        in (result.output)
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings,
+        "allocation-value",
+        "<pre>",
+        line=9,
+        attr="data-bound",
+        value="bottom",
+        allowed=["start", "end"],
     )
-    assert "x-reading-role pane must contain exactly one direct body" in result.output
+    assert found(findings, "pane-body", "<lf-pane>", body=["#text", "p"])
 
 
 def test_check_rejects_an_unknown_authored_width(page_dir):
@@ -4472,11 +4563,16 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
             '<h2>Plan</h2><table data-width="full"><tr><td>A</td></tr></table>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert (
-        '<table data-width="full"> (line 9) has an invalid value; expected one of '
-        "wide, available" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings,
+        "allocation-value",
+        "<table>",
+        line=9,
+        attr="data-width",
+        value="full",
+        allowed=["wide", "available"],
     )
 
 
@@ -4492,11 +4588,10 @@ def test_check_takes_a_stated_height_in_whole_css_pixels(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + chart.format("240px"))
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert (
-        'data-height="240px"> (line 9) has an invalid value; expected a whole number '
-        "of CSS pixels" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings, "allocation-value", attr="data-height", value="240px", allowed=None
     )
 
 
@@ -4510,10 +4605,16 @@ def test_check_takes_a_rail_only_by_name(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace("<body>", '<body data-rail="left">')
     )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert 'data-rail="left"> (line' in result.output
-    assert "expected one of right, none" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(
+        findings,
+        "allocation-value",
+        "<body>",
+        attr="data-rail",
+        value="left",
+        allowed=["right", "none"],
+    )
 
 
 def test_a_fresh_server_does_not_revalidate_the_active_revisions_inputs(
@@ -4717,13 +4818,15 @@ def test_sample_diagnostics_report_authored_lines(page_dir, nested):
         f'<template\n id="practice"\n data-sample>\n{markup}</template></main>',
     )
     (page_dir / "index.html").write_text(source)
-    result = check(page_dir)
-    assert result.exit_code != 0, result.output
-    assert "sample 'practice'" in result.output
-    if nested:
-        assert "sample 'nested'" in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    samples = ("practice", "nested") if nested else ("practice",)
     line = source[: source.index("<noscript>")].count("\n") + 1
-    assert f"<noscript> at line {line}:" in result.output
+    unknown = source[: source.index("<lf-unknown")].count("\n") + 1
+    assert [(f.code, f.samples, f.values["line"]) for f in findings] == [
+        ("noscript", samples, line),
+        ("unknown-widget", samples, unknown),
+    ]
 
 
 def test_sample_checks_available_history_beside_forward_thread_references(
@@ -4750,9 +4853,11 @@ def test_sample_checks_available_history_beside_forward_thread_references(
             '<h1 id="duplicate">Child</h1></template></main>',
         )
     )
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert 'ids already taken by message markup: ["duplicate"]' in result.output
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert [(f.code, f.samples, f.values) for f in findings] == [
+        ("ids-taken-by-messages", ("practice",), {"ids": ["duplicate"]})
+    ]
 
 
 def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_dir):
@@ -4765,12 +4870,13 @@ def test_check_reports_css_syntax_errors_in_every_source_the_page_writes(page_di
         )
     )
 
-    result = check(page_dir)
+    status, findings = check_findings(page_dir)
 
-    assert result.exit_code == 1
-    assert "page <style> syntax error" in result.output
-    assert re.search(r"<p style> \(line \d+\) syntax error", result.output)
-    assert result.output.count("syntax error") == 2
+    assert status == 1
+    assert [f.values["sheet"] for f in found(findings, "css-syntax")] == [
+        "page <style>",
+        "<p style> (line 10)",
+    ]
 
 
 def test_an_ask_role_declares_an_addressable_instance(page_dir):
@@ -4883,13 +4989,10 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
         "</lf-shot>"
     )
     (page_dir / "index.html").write_text(PAGE.replace("</main>", shot + "</main>"))
-    refused = check(page_dir)
-    assert refused.exit_code == 1
-    assert (
-        "/media/0000000000000001.png isn't in the page directory" in refused.output
-    ), (
-        f"the version door stopped asking, so the comparison below is empty: "
-        f"{refused.output}"
+    status, findings = check_findings(page_dir)
+    assert status == 1
+    assert found(findings, "missing-media", ref="/media/0000000000000001.png"), (
+        "the version door stopped asking, so the comparison below is empty"
     )
 
     (page_dir / "index.html").write_text(PAGE)
@@ -5119,7 +5222,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": root["id"]}).encode(),
     )
-    assert status == 400 and "is not a reaction" in json.loads(body)["error"]
+    assert status == 400 and refused_on(body).code == "said-message"
     # The mark on the thread comes off with one press.
     status, body = fetch(
         f"{server}/api/event",
@@ -5138,7 +5241,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     assert status == 400, body
     answer = json.loads(body)
     assert answer["final"] is True, body
-    assert "already been taken back" in answer["error"], body
+    assert refused_on(answer).code == "withdrawn-gesture", body
     # Every thread fold drops a withdrawn message, so nothing may name it as a parent:
     # a reply to it would open a thread with no root.
     status, body = fetch(
@@ -5147,7 +5250,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
             {"kind": "reply", "revision": 1, "parent": nod["id"], "token": "keep"}
         ).encode(),
     )
-    assert status == 400 and "has been taken back" in json.loads(body)["error"]
+    assert status == 400 and refused_on(body).code == "withdrawn-parent"
     # Nor may a message another stands on be withdrawn, a reaction to it included.
     mark = json.loads(
         fetch(
@@ -5167,7 +5270,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
     )
-    assert status == 400 and "has been answered" in json.loads(body)["error"]
+    assert status == 400 and refused_on(body).code == "answered-reaction"
     # Answered, the page reaction is a thread, and the withdrawal would orphan
     # the answer; the user's move is in the thread it opened.
     thread_model.post_reply(page_dir, {"to": reaction["id"]}, "Which part is long?")
@@ -5175,7 +5278,25 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
     )
-    assert status == 400 and "has been answered" in json.loads(body)["error"]
+    assert status == 400 and refused_on(body).code == "answered-reaction"
+    # A Leaf older than the parent rule could have admitted that reply to the
+    # withdrawn mark; the log it left still reads, the reply standing on nothing.
+    logged = events_model.read_events(page_dir)
+    with (page_dir / schema_model.EVENTS_FILE).open("a") as log:
+        log.write(
+            json.dumps(
+                {
+                    **nod,
+                    "id": "older-leaf-reply",
+                    "parent": nod["id"],
+                    "seq": logged[-1]["seq"] + 1,
+                }
+            )
+            + "\n"
+        )
+    assert fetch(f"{server}/api/state")[0] == 200
+    read = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+    assert read.exit_code == 0, read.output
 
 
 def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(

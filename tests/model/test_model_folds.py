@@ -464,7 +464,7 @@ def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
     ]
 
 
-def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlement():
+def test_ask_lifecycle_selects_current_prompt_and_preserves_first_settlement():
     """Only the latest question is on the user; a settled later question uncovers
     an older one, and a reply after a task end does not change that end."""
     events = []
@@ -482,11 +482,11 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
         "version": "second",
     }
     assert state["todos"] == []
-    assert [question["id"] for question in served_thread(state)["asks"]["all"]] == [
+    assert [ask["id"] for ask in served_thread(state)["asks"]["all"]] == [
         "reply:first",
         "reply:second",
     ]
-    assert [question["id"] for question in served_thread(state)["asks"]["user"]] == [
+    assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
         "reply:second"
     ]
     state = add("reply", "reaction", "user", parent="second", token="keep")
@@ -494,7 +494,7 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
         "message": "first",
         "version": "first",
     }
-    assert [question["id"] for question in served_thread(state)["asks"]["user"]] == [
+    assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
         "reply:first"
     ]
     assert served_thread(state)["asks"]["all"][1]["answer"]["event"]["id"] == "reaction"
@@ -518,7 +518,7 @@ def test_question_lifecycle_selects_current_prompt_and_preserves_first_settlemen
     assert state["todos"] == []
     assert model.threads(state)["first"]["user_prompt"] is None
     state = add("unresolve", "reopen", "user", parent="first")
-    assert [question["id"] for question in served_thread(state)["asks"]["user"]] == [
+    assert [ask["id"] for ask in served_thread(state)["asks"]["user"]] == [
         "reply:third"
     ]
     assert model.threads(state)["first"]["user_prompt"] == {
@@ -549,9 +549,9 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
         "workflow": None,
     }
     assert state["todos"] == []
-    [question] = served_thread(state)["asks"]["all"]
-    assert question["id"] == "widget:routes"
-    assert question["next_actor"] == "user"
+    [ask] = served_thread(state)["asks"]["all"]
+    assert ask["id"] == "widget:routes"
+    assert ask["next_actor"] == "user"
     events.append(
         {
             "kind": "action",
@@ -564,161 +564,14 @@ def test_frozen_ask_attention_comes_from_its_widget_without_a_prose_task():
     assert model.threads(state)["e1"]["user_prompt"] is None
     assert state["todos"] == []
     assert state["ended_todos"] == []
-    [question] = served_thread(state)["asks"]["all"]
-    assert (question["status"], question["answer"]["value"]) == (
+    [ask] = served_thread(state)["asks"]["all"]
+    assert (ask["status"], ask["answer"]["value"]) == (
         "answered",
         ["route-a"],
     )
 
 
-def test_after_is_what_each_gesture_leaves_the_thread_as_the_log_reads_it():
-    """While a gesture the user sent is unanswered, the browser draws its thread, and
-    the asks in it, as the log will read them once it lands, and only the log
-    knows what a gesture leaves standing: a reply answers prose and leaves a widget ask, a
-    rewrite answers nothing, a reopening brings back what the resolution suppressed,
-    a `keep` reaction settles the question it marks and taking it back reopens that
-    question, and nothing the user says
-    recovers a pick whose answer failed. Each served
-    `after[kind]` is checked against the reading of the log with that gesture
-    appended: its attention, the waiting one's workflow aside, and the asks the
-    user owes in the thread. Each ask it owes is one the served lists already carry,
-    on Questions, held or done, so the browser places it rather than building it."""
-    asked = {"kind": "comment", "text": "Chart the year."}
-    prose = {
-        "kind": "reply",
-        "author": "agent",
-        "parent": "e1",
-        "text": "Which year?",
-        "ask": True,
-    }
-    ask = {
-        "kind": "reply",
-        "author": "agent",
-        "parent": "e1",
-        "text": "Pick one.",
-        "markup": '<lf-options id="years" choose><lf-option id="y24">2024</lf-option><lf-option id="y25">2025</lf-option></lf-options>',
-    }
-    pick = {
-        "kind": "action",
-        "widget": "years",
-        "action": "choose",
-        "detail": {"value": ["y25"]},
-    }
-    # The harness gave up answering the user's pick, which is theirs to send again
-    # whatever they say beside it.
-    failed = {
-        "kind": "reply",
-        "author": "agent",
-        "parent": "e2",
-        "responds": "e3",
-        "failure": "turn_failed",
-        "text": "No answer is coming.",
-    }
-    resolve = {"kind": "resolve", "parent": "e1"}
-    done = {"kind": "reply", "author": "agent", "parent": "e1", "text": "Done."}
-    cases = {
-        "plain": (asked, done),
-        "prose question": (asked, prose),
-        "Ask in the thread": (asked, ask),
-        "prose beside an Ask": (asked, ask, {**prose, "parent": "e2"}),
-        "resolved over a prose question": (asked, prose, resolve),
-        "resolved over an Ask": (asked, ask, resolve),
-        "failed answer to a pick": (asked, ask, pick, failed),
-        "resolved after a failed pick": (asked, ask, pick, failed, resolve),
-        "prose settled by a reaction": (
-            asked,
-            prose,
-            {"kind": "reply", "parent": "e2", "token": "keep"},
-        ),
-        # The agent at work on the comment: the thread waits on that work, which
-        # outranks a send beside it, as the log will say.
-        "at work on the comment": (
-            asked,
-            {
-                "kind": "start",
-                "author": "agent",
-                "agent": "Agent",
-                "session": "s",
-                "turn": "t",
-                "item": "e1",
-                "text": "Charting",
-            },
-        ),
-    }
-    gestures = {
-        "reply": {"kind": "reply", "parent": "e1", "text": "2025."},
-        "edit": {"kind": "edit", "message": "e1", "text": "Chart 2025."},
-        "resolve": {"kind": "resolve", "parent": "e1"},
-        "unresolve": {"kind": "unresolve", "parent": "e1"},
-        # A reaction whose token settles the question the user owes.
-        "react": {"kind": "reply", "token": "keep"},
-        # Taking back the newest such reaction the thread holds.
-        "unreact": {"kind": "undo"},
-    }
-
-    def owed(state):
-        return [
-            question["id"]
-            for question in served_thread(state)["asks"]["user"]
-            if question["thread"] == "e1"
-        ]
-
-    for name, events in cases.items():
-        served = model.reading(HUB, events)
-        thread = model.threads(served)["e1"]
-        lists = served["views"]["1"]["queues"]
-        carried = {
-            item["id"] for side in ("questions", "held", "done") for item in lists[side]
-        }
-        for kind, gesture in gestures.items():
-            after = thread["after"][kind]
-            assert after is None or set(after["owed"]) <= carried, (name, kind)
-            if (kind == "resolve") == bool(thread["resolved"]) and kind in {
-                "resolve",
-                "unresolve",
-            }:
-                assert after is None, (name, kind)
-                continue
-            if kind == "react":
-                if thread["user_prompt"] is None:
-                    assert after is None, (name, kind)
-                    continue
-                gesture = {**gesture, "parent": thread["user_prompt"]["message"]}
-            named = {}
-            if kind == "unreact":
-                reaction = next(
-                    (
-                        message
-                        for message in reversed(thread["msgs"])
-                        if message["author"] == "user"
-                        and message.get("token") == "keep"
-                        and message.get("parent")
-                        in {
-                            turn["id"]
-                            for turn in thread["msgs"]
-                            if turn["author"] == "agent"
-                        }
-                    ),
-                    None,
-                )
-                if reaction is None:
-                    assert after is None, (name, kind)
-                    continue
-                named = {"undoes": reaction["id"]}
-                gesture = {**gesture, **named}
-            state = model.reading(HUB, (*events, gesture))
-            attention = model.threads(state)["e1"]["attention"]
-            # A wait on the gesture itself names no workflow: the browser draws its
-            # own send there. A wait on any other names it as the log does.
-            if attention is not None and attention["workflow"] == f"e{len(events) + 1}":
-                attention = {**attention, "workflow": None}
-            assert after == {"attention": attention, "owed": owed(state), **named}, (
-                name,
-                kind,
-            )
-
-
-def test_summary_protects_the_unanswered_question_after_later_agent_messages():
+def test_summary_protects_the_unanswered_ask_after_later_agent_messages():
     """A summary cannot hide the question the user owes merely because a newer
     agent message is the last turn. Protection selects the canonical prompt."""
     state = model.reading(

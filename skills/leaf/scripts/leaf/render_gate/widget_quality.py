@@ -15,7 +15,8 @@ an example may point at data or an element a package cannot carry, and what the 
 reads is the widget, not the page. A package carries no media either, so a blank
 image stands in for each one an example names.
 
-Each check has one name in `CHECKS`, which a finding carries:
+Each check has one name in `CHECKS`, which is the code of the finding
+(`findings.Finding`) it reports, with the widget's tag in its values:
 
 - `example`: each of the package's tags appears in some worked example, since a tag no
   example shows is one no other check reads.
@@ -41,9 +42,9 @@ import re
 import struct
 import tempfile
 import zlib
-from dataclasses import dataclass
 from pathlib import Path
 
+from leaf.findings import Finding, element_at
 from leaf.layer import LayerComposition, checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
 from leaf.registry.contract import element_declarations, read_registry_declarations
@@ -51,7 +52,7 @@ from leaf.registry.storage import read_page_registry
 from leaf.render_checks import (
     RENDER_VIEWPORT,
     evaluate_probe,
-    install_window_errors,
+    install_driver,
     wait_for_probe,
     wait_until_ready,
 )
@@ -72,19 +73,12 @@ CHECKS = ("example", "keeps-first-box", "grows-with-content", "shows-context-key
 MEDIA_REFERENCE = re.compile(f"/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}")
 
 
-@dataclass(frozen=True, slots=True)
-class Finding:
-    """One check's reading of one widget: `id` names the instance where the check read
-    one, and `fact` is what it measured."""
-
-    tag: str
-    check: str
-    fact: str
-    id: str = ""
-
-    def __str__(self) -> str:
-        widget = f"<{self.tag} id={self.id!r}>" if self.id else f"<{self.tag}>"
-        return f"{widget} {self.check}: {self.fact}"
+def _finding(check: str, tag: str, id: str = "", **values) -> Finding:
+    """One check's reading of one widget, named by its instance where the check read
+    one."""
+    return Finding(
+        check, element_at(tag, id), {"tag": tag, **values}, severity="advice"
+    )
 
 
 class UnreadablePage(Exception):
@@ -148,10 +142,6 @@ def _blank_image(suffix: str) -> bytes:
     )
 
 
-def _size(box: dict) -> str:
-    return f"{round(box['width'])}x{round(box['height'])}"
-
-
 def _readings(
     browser, url: str, tags: list[str]
 ) -> tuple[list[dict], list[dict], list[dict]]:
@@ -162,10 +152,10 @@ def _readings(
 
     page = browser.new_page(viewport=RENDER_VIEWPORT)
     arm_interception(page)
-    install_window_errors(page)
+    install_driver(page)
     try:
         if faults := start_with_pre_upgrade_proof(page, url):
-            raise UnreadablePage("; ".join(faults))
+            raise UnreadablePage("; ".join(map(str, faults)))
         wait_until_ready(page, served(page, url, "/api/state").json())
         wait_for_probe(page, "pageSettled")
         changed = evaluate_probe(page, "changedBoxes")
@@ -212,35 +202,32 @@ def _page_findings(
             with preview_server(page_dir, document, 1, artifact=artifact) as url:
                 changed, unshown, held = _readings(browser, url, tags)
             findings += [
-                Finding(
-                    box["tag"],
+                _finding(
                     "keeps-first-box",
-                    f"first painted {_size(box['first'])}, "
-                    f"{_size(box['now'])} once presented",
+                    box["tag"],
                     box["id"],
+                    first=box["first"],
+                    now=box["now"],
                 )
                 for box in changed
                 if box["tag"] in tags
             ]
             findings += [
-                Finding(
-                    command["tag"],
+                _finding(
                     "shows-context-keys",
-                    f"{command['command']} declares context keys and no bindingBadge, "
-                    "so its key works with nothing on the page showing it; lend the "
-                    "command a face, or request a corner badge with bindingBadge: null",
+                    command["tag"],
                     command["id"],
+                    command=command["command"],
                 )
                 for command in unshown
             ]
             findings += [
-                Finding(
-                    box["tag"],
+                _finding(
                     "grows-with-content",
-                    f"{box['at']} holds {box['height']}px and scrolls inside it; "
-                    "let it grow with its content, or declare --lf-holds-height: 1 "
-                    "where the task needs its own scroll",
+                    box["tag"],
                     box["id"],
+                    box=box["at"],
+                    height=box["height"],
                 )
                 for box in held
             ]
@@ -257,11 +244,7 @@ def widget_findings(browser, package: Path) -> list[Finding]:
     composition = compose_layer(checked_layer_inputs(package_layer_inputs(package)))
     pages = [SourceDocument(html) for html in example_pages(composition.registry, tags)]
     shown = {record["tag"] for page in pages for record in page.lf_elements}
-    findings = [
-        Finding(tag, "example", "no worked example shows it")
-        for tag in tags
-        if tag not in shown
-    ]
+    findings = [_finding("example", tag) for tag in tags if tag not in shown]
     if pages:
         findings += _page_findings(browser, composition, pages, tags)
     return findings

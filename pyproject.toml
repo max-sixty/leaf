@@ -33,9 +33,6 @@
 # watchfiles supplies the native subscriptions shared by page maintenance,
 # delivery waits and developer previews, avoiding repeated idle filesystem scans.
 #
-# packaging and tomllib read a package script's inline
-# metadata when `package check` holds it to the dependency policy (`packages.py`).
-#
 # Playwright is a runtime dependency because the skill's own flow runs the
 # browser: `page check --render` gates every finished page and `version
 # export` copies one. Its wheel lands in each version's environment as links
@@ -51,11 +48,10 @@ dependencies = [
   "anyio>=4.10",
   "click>=8",
   "jmespath>=1",
-  "jsonschema>=4",
+  "jsonschema>=4.18",
   "linkify-it-py>=2",
   "markdown-it-py>=4",
   "mdit-py-plugins>=0.4",
-  "packaging>=22",
   "playwright>=1.63",
   "psutil>=6",
   "pywhatwgurl>=0.1.2",
@@ -94,9 +90,10 @@ dev = [
   "pytest-regtest>=2.7",
   # The YAML snapshots `interact_support.yaml_document` writes.
   "pyyaml>=6",
-  # Every requirement a bundled package script's header declares, repeated here so
-  # this lock pins what the suite runs those scripts against and a fresh machine
-  # needs no network after setup.
+  # Reads bundled package scripts' declared dependencies, to hold them to the
+  # dependency policy (`test_interact_layer.py`).
+  "packaging>=22",
+  # Reads the example review's captured patch by line (`test_product_page.py`).
   "unidiff>=1",
   # The developer tooling package in `dev/`.
   "leaf-dev",
@@ -181,6 +178,7 @@ ignore_names = [
   # click, uvicorn, markdown-it
   "get_command",
   "format_commands",
+  "command_class",
   "main_loop",
   "validateLink",
 ]

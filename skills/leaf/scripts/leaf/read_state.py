@@ -26,11 +26,12 @@ so completed progress leaves unread even when its body was never exposed. The re
 itself still needs read evidence. Edits to completed progress remain superseded; an
 edit to other content is a new version needing fresh evidence. An explicit summary
 does not mark read what it covers. Unread is independent of turn-taking and of the
-user's outstanding work: reading never answers a Question, and answering one does
+user's outstanding work: reading never answers an ask, and answering one does
 mark it read.
 """
 
 from .events import progress_completions, taken_back
+from .findings import Finding
 from .schema import MESSAGE_KINDS
 from .thread_context import event_threads
 
@@ -65,17 +66,14 @@ def content_versions(events: list[dict]) -> dict[str, set[str]]:
     return versions
 
 
-def read_contract_error(event: dict, events: list[dict]) -> str | None:
+def read_contract_error(event: dict, events: list[dict]) -> Finding | None:
     """Reject a `read` event naming no admitted content version."""
     if event["kind"] != "read":
         return None
     versions = content_versions(events)
     for item in event["messages"]:
         if item["version"] not in versions.get(item["message"], ()):
-            return (
-                f"{item['version']!r} is not a content version of agent message "
-                f"{item['message']!r}"
-            )
+            return Finding("unknown-content-version", values=dict(item))
     return None
 
 

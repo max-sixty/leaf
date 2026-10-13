@@ -14,7 +14,7 @@ import {
 } from "../banner-toolbar.js";
 import { el } from "../widget-elements.js";
 import { keepsText } from "../keeps.js";
-import { live, word } from "./bindings.js";
+import { bindings, live, spell, word } from "./bindings.js";
 import { invokePress, standing } from "./dispatch.js";
 import { touchPresses } from "./register.js";
 import { keys } from "./scopes.js";
@@ -32,7 +32,7 @@ function place(press, seat) {
   const button = el("button", "lf-btn");
   button.type = "button";
   // A step acts on what the user stands on, so its press leaves them standing there
-  // rather than moving focus onto the banner, as Done on the task they stand at reads.
+  // rather than moving focus onto the banner, as Done on the to-do they stand at reads.
   if (seat === "gesture")
     button.addEventListener("mousedown", (event) => event.preventDefault());
   button.addEventListener("click", () => {
@@ -60,6 +60,10 @@ function place(press, seat) {
     // A page command says which of a menu's groups it belongs with (`menu`).
     row: {
       label: () => word(controls.get(press.id).press.words),
+      shortcut: () => {
+        const [binding] = bindings(controls.get(press.id).press.row);
+        return binding ? spell(binding) : "";
+      },
       group: press.row.menu ?? "page",
       // The same activation as the control's own: a command that acts on where the
       // reader stood gets that place back before it runs.

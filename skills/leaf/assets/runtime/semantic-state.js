@@ -32,6 +32,9 @@ export const readApplication = applicationState.read;
 // What the page calls its agent: the name the server's answer gives, or "the agent"
 // before one has arrived. Every surface naming the agent's side reads it here.
 export const agentName = () => readApplication().authoritative?.agent || "the agent";
+// The same name where it opens a sentence or stands alone as a label.
+export const agentLabel = () =>
+  agentName().replace(/^./, (first) => first.toUpperCase());
 export const projectView = applicationState.projectView;
 export const selectWidgets = applicationState.selectWidgets;
 export const attachApplicationPresentation = (region, renderer) =>
@@ -39,51 +42,19 @@ export const attachApplicationPresentation = (region, renderer) =>
 const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
 const widgetRegions = (widget) =>
   ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
-// A widget preparation is work a widget declared it is still doing in a promise, such
-// as lf-diff loading a file the reader opened, which the rendering loop cannot see.
-// Observers hear each declaration as it is made ("begin") and once the coordinator has
-// settled its completion ("settle"), in the task that committed it, under one frozen
-// identity naming the widget. The declaration runs synchronously in the callback that
-// declared it,
-// so a render check can carry that callback's exact source by this identity across
-// native awaits: the input owns its preparation's landing, and no waiting time.
-const preparationObservers = new Set();
-/** Observe each widget preparation from its declaration to its settlement. */
-export function observeWidgetPreparations(observer) {
-  preparationObservers.add(observer);
-  return () => preparationObservers.delete(observer);
-}
-export const attachWidgetPresentation = (widget, kind, renderer) => {
-  const handle = presentation.attach(widgetRegion(widget, kind), renderer);
-  if (kind !== "preparation") return handle;
-  return Object.freeze({
-    present(value, failSoft) {
-      const presenting = handle.present(value, failSoft);
-      const observers = [...preparationObservers];
-      if (observers.length) {
-        const preparation = Object.freeze({ widget });
-        for (const observer of observers) observer("begin", preparation);
-        const settle = () => {
-          for (const observer of observers) observer("settle", preparation);
-        };
-        presenting.ready.then(settle, settle);
-      }
-      return presenting;
-    },
-    disconnect: handle.disconnect,
-  });
-};
+export const attachWidgetPresentation = (widget, kind, renderer) =>
+  presentation.attach(widgetRegion(widget, kind), renderer);
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
-// thread resolves its passages over the nodes that leaves, the Question view resolves
+// thread resolves its passages over the nodes that leaves, the ask view resolves
 // the widget nodes those passages placed, and the Questions panel formats the canonical
 // answers against those source nodes. Declaring the order here is what lets
 // every publisher simply publish.
 export const PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
-  questions: 2,
+  asks: 2,
   queue: 3,
 });
 
@@ -126,7 +97,13 @@ export const applicationPresenter = ({
   documentPresenters.push(present);
   // A document-wide region lives as long as the page; `disconnect` releases its renderer,
   // and a region that may mount again reads null while it is not mounted.
-  applicationState.select(reading).subscribe(claim);
+  // A selection's subscriber hears its value at once; a region claims on the changes
+  // after it, and a renderer that owes its first reading earlier asks with `present`.
+  let subscribed = false;
+  applicationState.select(reading).subscribe((value) => {
+    if (subscribed) void claim(value);
+    subscribed = true;
+  });
   return Object.freeze({ present, disconnect: presenter.disconnect });
 };
 

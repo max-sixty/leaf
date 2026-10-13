@@ -31,7 +31,13 @@
    whole-thread geometry readings rather than descendant nodes. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { setChildLists, setChildren } from "../dom-children.js";
-import { holdFocus, focusDestination, focused, standsOn } from "../focus.js";
+import {
+  holdFocus,
+  focusDestination,
+  focused,
+  standsOn,
+  standingIn,
+} from "../focus.js";
 import { html, render, nothing, ref, signal } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
@@ -39,6 +45,7 @@ import { offer, reachedForWords, measure, reserve } from "../widget-elements.js"
 import { keeps, keepsHidden, layoutPx } from "../keeps.js";
 import { commandsOn, keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
+import { pressIsKeyboardActivation } from "../pointer.js";
 import {
   createReplyView,
   replyIsEditing,
@@ -103,8 +110,8 @@ function quoteReading(thread, anchors) {
               ? "Jump to the quoted item's current location"
               : "Jump to this passage"
         : thread.detached_from
-          ? "This passage is no longer in the version you're viewing"
-          : "This passage can't be identified in the version you're viewing",
+          ? "This passage is no longer in the version shown"
+          : "This passage can't be identified in the version shown",
   });
 }
 
@@ -146,9 +153,6 @@ export function threadReading(thread, surface, commands, options) {
       thread.attention.reason === "workflow",
     unreadCount: thread.unread.length,
     id: thread.id,
-    // The message a reply or settlement addresses, which is not the thread's id where
-    // the log lost the message that opened it.
-    root: thread.root.id,
     attempt: thread.root.attempt ?? null,
     surface,
     visible,
@@ -286,7 +290,7 @@ function paintBoundary(node, kind) {
   keeps(
     node,
     "aria-label",
-    kind === "new" ? "New since you last looked" : "End of this new section",
+    kind === "new" ? "New since I last looked" : "End of this new section",
   );
 }
 
@@ -626,8 +630,7 @@ export class ThreadView {
           grow: false,
           settlement: Object.freeze({ ...prior.settlement, pending: false }),
         });
-        if (this.node.contains(focused()))
-          focusDestination(this.#commands.listRoot, "return");
+        if (standingIn(this.node)) focusDestination(this.#commands.listRoot, "return");
       }
     }
     if (this.#heldNews)
@@ -877,7 +880,7 @@ export class ThreadView {
                 role=${model.quote.found ? "button" : nothing}
                 tabindex=${model.quote.found ? "0" : nothing}
                 title=${model.quote.title ?? nothing}
-                @click=${this.#returnToQuote}
+                @click=${this.#quotePressed}
                 ${commandsOn("On a comment's quoted passage", [
                   {
                     id: "passage.return",
@@ -885,7 +888,7 @@ export class ThreadView {
                     description: "Return to the quoted passage on the page",
                     title: "return to the passage",
                     when: () => Boolean(model.quote.found),
-                    run: () => this.#returnToQuote({ detail: 0 }),
+                    run: this.#returnToQuote,
                   },
                 ])}
               >
@@ -1273,7 +1276,7 @@ export class ThreadView {
     this.#showNews();
     if (!model.resolved) dismissReply(model.key);
     void settleThread({
-      parent: () => this.#model.root,
+      parent: () => this.#model.id,
       key: model.key,
       resolved: model.resolved,
       prepareLanding:
@@ -1297,7 +1300,7 @@ export class ThreadView {
       available: () => this.node.isConnected,
     });
     const land = (may = mayLand) => {
-      if (!may() || !this.node.contains(focused())) return false;
+      if (!may() || !standingIn(this.node)) return false;
       scrollThreadIntoView(this.node, focused());
       return true;
     };
@@ -1311,10 +1314,16 @@ export class ThreadView {
     this.repaint();
   };
 
-  #returnToQuote = (event) => {
+  // A pointer press that ended holding the quote's words took them rather than the trip.
+  #quotePressed = (event) => {
+    if (!pressIsKeyboardActivation(event) && reachedForWords(event.currentTarget))
+      return;
+    this.#returnToQuote();
+  };
+
+  #returnToQuote = () => {
     const model = this.#model;
     if (!model.quote?.anchored || !model.quote.found) return;
-    if (event.detail !== 0 && reachedForWords(event.currentTarget)) return;
     const travel = this.#commands.travel;
     // The trip promises to show the passage, so it clears the panel where the panel
     // stands over most of it and leaves the panel open beside one seen where it stands.

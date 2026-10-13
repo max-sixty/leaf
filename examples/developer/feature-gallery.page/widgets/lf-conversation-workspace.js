@@ -11,8 +11,8 @@ import {
   queueActions,
   queueItemKey,
   queueTitle,
-  readQuestions,
-  questionWords,
+  readAsks,
+  askWords,
   readQueues,
   readThreads,
   registerThreadPresentation,
@@ -22,7 +22,7 @@ import {
   threadActions,
   threadSummary,
   threadTurns,
-  watchQuestions,
+  watchAsks,
   watchQueues,
   whileConnected,
 } from "/runtime/widget-api.js";
@@ -58,7 +58,7 @@ customElements.define(
           this.presentation.unregister();
         };
       });
-      watchQuestions(this, () => this.paintObligations());
+      watchAsks(this, () => this.paintObligations());
       watchQueues(this, () => this.paintObligations());
     }
     build() {
@@ -272,22 +272,17 @@ customElements.define(
       return JSON.parse(shown);
     }
     paintObligations() {
-      const questions = readQuestions();
-      const answered = questions.all.filter(
-        (question) => question.status === "answered",
-      );
+      const asks = readAsks();
+      const answered = asks.all.filter((ask) => ask.status === "answered");
       // Counts cover every ask; this summary lists completed widget choices.
-      const labels = questions.all
-        .filter(
-          (question) =>
-            question.source.kind === "widget" && question.status === "answered",
-        )
-        .map(questionWords)
+      const labels = asks.all
+        .filter((ask) => ask.source.kind === "widget" && ask.status === "answered")
+        .map(askWords)
         .filter(Boolean);
       keepsText(
         this.counts,
         [
-          `${questions.user.length} asks on you`,
+          `${asks.user.length} asks on me`,
           ...(answered.length ? [`${answered.length} answered`] : []),
           ...labels,
         ].join(" · "),

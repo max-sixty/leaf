@@ -64,7 +64,7 @@ export type LocalEdit = Extract<Command, { kind: "edit" }> & {
   pending: true;
 };
 /** A user's edit as a thread holds it, with the words it replaced. */
-export type Revision = (EventMap["edit"] | LocalEdit) & { was: string };
+type Revision = (EventMap["edit"] | LocalEdit) & { was: string };
 /** What the ledger hands `foldThreads`: each message or rewrite as the thread draws it,
  * each settlement, and each undo. */
 export type ThreadGesture =
@@ -89,7 +89,6 @@ export type Attention = {
   reason: string;
   workflow: string | null;
 } | null;
-export type ThreadAfter = { attention: Attention; owed: readonly string[] };
 export interface Thread {
   id: string;
   root: Message;
@@ -115,19 +114,6 @@ export interface Thread {
   })[];
   unread: readonly ContentVersion[];
   attention: Attention;
-  /** What each gesture of the user's would leave the thread with, as the server reads
-   * the log with it supposed (`_apply_thread_attention`), `react` being a reaction
-   * that settles the ask the user owes and `unreact` taking back the newest such
-   * reaction the thread holds, which it names: its attention, whose `workflow` is
-   * null where it waits on that gesture itself, and the asks in it the user owes.
-   * Null where the thread offers no such gesture. */
-  after: Record<
-    "reply" | "edit" | "resolve" | "unresolve" | "react",
-    ThreadAfter | null
-  > & { unreact: (ThreadAfter & { undoes: string }) | null };
-  /** The asks in the thread the user owes once this tab's pending gestures on it
-   * land, from `after`; absent where none are pending (`foldThreads`). */
-  owed?: readonly string[];
   settling?: "resolve" | "unresolve";
 }
 export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {

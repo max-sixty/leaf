@@ -24,6 +24,7 @@ from leaf import media as media_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
+from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -38,8 +39,8 @@ from render_cases_interaction import (
     PHOTO_THREAD,
     PROJECTOR_THREAD,
     SEATED_ASK_LAYER,
+    SEATED_ASK_PAGE,
     SEATED_ASK_WIDGETS,
-    SEATED_QUESTION_PAGE,
     THREAD_DIFF_PAGE,
     WORKSHOP_THREAD_EVENTS,
     WORKSHOP_THREADS_PAGE,
@@ -79,6 +80,7 @@ from render_harness import (
     reported_browser_errors,
     resized,
     round_trip,
+    said,
     scroll_settled,
     select_words,
     sending,
@@ -182,7 +184,7 @@ def test_thread_rows_name_action_in_existing_status(browser, serve):
 
     asked = page.locator(f'.lf-thread[data-id="{PHOTO_THREAD}"]')
     expect(asked.locator(":scope > .lf-thread-summary .lf-thread-status")).to_have_text(
-        "On you to answer"
+        "My turn to answer"
     )
     summary = asked.locator(":scope > .lf-thread-summary")
     recency = summary.locator(".lf-thread-recency")
@@ -896,7 +898,7 @@ def test_a_fold_at_the_foot_admits_no_change_above_it(browser, serve, request):
     told(page)
     expect(thread.locator(".lf-thread-checkpoint")).to_have_count(1)
     judge_watches()
-    consume_browser_errors(page, "moved without input")
+    consume_browser_errors(page, {"code": "moved-without-input"})
 
 
 def assert_arrival_returns_to_own_fill(page, destination):
@@ -978,7 +980,7 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     """A direct reply link opens and cues the exact message, even in a long thread or
     in the Resolved state. The surrounding card can span more than a viewport,
     so using it as the arrival flash obscures the destination the link named."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
@@ -1063,7 +1065,7 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     The messages before and after the range are controls: hiding either would mean the
     presentation collapsed by position rather than by the summary's declared ids.
     """
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(
         serve.page_dir, "Keep the opening question visible.", {"section": "jobs"}
     )
@@ -1172,7 +1174,7 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
     """The same disclosure keeps progress available without an authored digest."""
     # The disclosure is the same at any width; the narrow one has the least room.
     width = 390
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(
         serve.page_dir, "Please check the schedule.", {"section": "jobs"}
     )
@@ -1217,7 +1219,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     browser, serve, surface, interleaved
 ):
     """The answer and its fold arrive together; originals remain a keyboard route."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
         serve.page_dir,
@@ -1729,9 +1731,9 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     expect(card.locator(f'.lf-msg[data-mid="{third["id"]}"]')).to_be_visible()
 
 
-def test_a_summary_cannot_hide_an_active_question(browser, serve):
+def test_a_summary_cannot_hide_an_active_ask(browser, serve):
     """A checkpoint with a user obligation is context, never a closed cover."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
@@ -1777,7 +1779,7 @@ def test_a_summary_cannot_hide_an_active_question(browser, serve):
 
 def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     """The production reply link cannot retake focus after its list reveal settles."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
@@ -2001,7 +2003,7 @@ def test_z_leaves_the_user_in_a_seated_thread_they_resolved(browser, serve):
     """A thread seated on the page folds where it stands when resolved, so the user
     never left it, and taking the resolve back moves them nowhere either: not to
     Threads, and not to a margin card for the same thread."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -2392,7 +2394,7 @@ def test_settlement_controls_share_one_request_across_page_and_panel(
 ):
     """Mirrored controls share optimistic resolution, delivery, and reopening."""
     browser, held = held_events
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -2458,7 +2460,7 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     tick or state read.
     """
     browser, held = held_events
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -2548,7 +2550,7 @@ def test_a_sent_page_comment_closes_and_a_refusal_restores_its_draft(browser, se
         "Couldn't send — refused before append"
     )
     page.unroute("**/api/event", hold)
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
     with sending(page, "the retried comment with its image"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -2747,7 +2749,7 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     expect(box).to_have_js_property("value", "Kept for later")
     assert card.evaluate(is_open)
     page.unroute("**/api/event")
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
     page.keyboard.press("Escape")
 
     # With Threads open, the card is still where a page thread starts: it hangs over
@@ -2794,7 +2796,7 @@ def test_a_refused_page_comment_respects_newer_reading_input(browser, serve):
     expect(card).to_be_hidden()
     expect(page.locator(".lf-page-comment")).to_be_focused()
     page.unroute("**/api/event", hold)
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
     page.keyboard.press("c")
     expect(box).to_be_focused()
 
@@ -4590,7 +4592,7 @@ def test_a_failed_thread_list_update_keeps_one_coherent_reading(browser, serve):
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text("1 open thread")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 1")
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+    assert [said(error) for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: injected thread-card failure"
     ]
 
@@ -4646,7 +4648,7 @@ def test_a_failed_narrowing_restore_has_one_owned_presentation_error(browser, se
             "deliberate narrowing failure; deliberate narrowing failure"
         )
     ]
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == expected
+    assert [said(error) for error in take_browser_errors(page)] == expected
 
     page.get_by_role("searchbox", name="Find in threads").fill("")
     page.wait_for_function(
@@ -4725,7 +4727,7 @@ def test_a_failed_narrowing_view_restores_its_committed_list_and_keeps_the_input
             before.open === view.querySelector('[data-filter-value="open"]');
         }"""
     )
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+    assert [said(error) for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: injected narrowing-view failure"
     ]
 
@@ -4783,7 +4785,7 @@ def test_a_failed_reopen_reveal_still_processes_its_durable_answer(held_events, 
         }"""
     )
     expected = ["leaf: Presentation failed: deliberate reveal failure"]
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == expected
+    assert [said(error) for error in take_browser_errors(page)] == expected
 
     routes = {route.request.post_data_json["kind"]: route for route in held}
     held.clear()
@@ -5402,7 +5404,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     # made from the diff would open the composer on the diff rather than reach the panel
     # at all. Uncommented, too: a click on a mark opens the thread it carries.
     page.locator("#how-store").click()
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on me")
     page.keyboard.press("w")
     expect(page.locator(".lf-thread-panel")).not_to_be_visible()
 
@@ -5413,9 +5415,9 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     page.keyboard.press("Shift+t")
     panel_settled(page)
     expect(page.locator(OPEN_TITLE)).to_be_focused()
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (1)")
     expect(page.locator(".lf-needs")).to_have_attribute("title", re.compile(r"\(w\)$"))
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on me")
     # `c` from that thread enters its reply box, and there `w` is a character like any
     # other — the typing scope claims what types one, so the row stands down and the line
     # drops it. Escaping out onto the thread makes it live again. Both directions,
@@ -5425,10 +5427,10 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     expect(
         page.locator(".lf-threads > .lf-thread:not([hidden])[open] leaf-text")
     ).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("waiting on me")
     page.keyboard.press("Escape")
     expect(page.locator(OPEN_TITLE)).to_be_focused()
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on you")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("waiting on me")
     page.keyboard.press("w")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{theirs}"]')).to_have_count(1)
@@ -5443,13 +5445,13 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     # The card the narrowing hides keeps its node. A widget an agent sent in a reply is
     # instantiated once, in that card, and the Ask reading and the Questions panel find it by
     # id in the document — hidden is the list's business, gone would be a claim about the
-    # log (test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page).
+    # log (test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page).
     expect(
         page.locator(f'.lf-threads > .lf-thread[hidden][data-id="{mine}"]')
     ).to_have_count(1)
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text(
-        "1 of 2 open threads · On you"
+        "1 of 2 open threads · On me"
     )
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "true")
 
@@ -5487,7 +5489,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     reply.type("Forty is plenty.")
     page.locator(f'.lf-thread[data-id="{theirs}"] .lf-thread-send').click()
     round_trip(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (0)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (0)")
     expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "false")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
     expect(
@@ -5495,7 +5497,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     ).to_be_focused()
     expect(page.locator(".lf-needs")).to_be_disabled()
     expect(page.locator(".lf-needs")).to_have_attribute(
-        "title", "Nothing shown is waiting on you"
+        "title", "Nothing shown is waiting on me"
     )
 
 
@@ -5550,11 +5552,11 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     )
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (1)")
     expect(page.locator(".lf-thread")).to_have_count(2)
     expect(
         page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
-    ).to_have_text("On you to answer")
+    ).to_have_text("My turn to answer")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"] .lf-thread-status')
     ).to_have_count(0)
@@ -5590,7 +5592,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
         "</lf-options></lf-ask>",
     )
     told(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (2)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (2)")
     expect(page.locator(f'.lf-thread[data-id="{answered}"]')).to_have_count(1)
     assert page.evaluate("() => window.__backendContext") == {
         "message": True,
@@ -5601,7 +5603,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{answered}"]'))
     page.locator("#backend-sqlite").click()
     round_trip(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (1)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (1)")
     expect(
         page.locator(f'.lf-thread[data-id="{answered}"]:not([hidden])')
     ).to_have_count(0)
@@ -5614,21 +5616,21 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     with page.expect_request("**/api/event"):
         page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-send').click()
     holding(page, held, 1, "the answer to the prose Ask")
-    expect(
-        page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
-    ).to_have_text("Sending")
-    expect(page.locator('[data-filter-value="user"]')).to_have_text("You (0)")
-    # The answer takes the thread off the user, and the user goes with it out of
-    # "Waiting on you" (thread-card.js, `#speak`).
-    expect(page.locator('[data-filter-value="user"]')).to_have_attribute(
-        "aria-pressed", "false"
-    )
-    expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_be_visible()
+    # The answer shows as sent at once; whether it answers the Ask is the server's
+    # reading, so the thread stays on the user until that arrives.
+    status = page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
+    expect(status).to_have_attribute("title", "My turn to answer · Sending")
     expect(reply).to_have_js_property("value", "")
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (0)")
+    # The reading takes the thread off the user, and the user goes with it out of
+    # "Waiting on me" (thread-card.js, `#speak`).
+    expect(page.locator('[data-filter-value="user"]')).to_have_text("Me (0)")
+    expect(page.locator('[data-filter-value="user"]')).to_have_attribute(
+        "aria-pressed", "false"
+    )
+    expect(page.locator(".lf-needs")).to_have_text("Me (0)")
     expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_be_visible()
 
 
@@ -5683,21 +5685,21 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     # `needs_user` for recovery: the margin and panel name the action owed.
     margin = page.locator('[data-lf-margin-for="cd-q"] > .lf-margin-marker')
     expect(margin).to_have_attribute("data-lf-turn", "user")
-    expect(margin.locator(".lf-margin-entry-context")).to_have_text("On you to resend")
+    expect(margin.locator(".lf-margin-entry-context")).to_have_text("My turn to resend")
 
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     panel = page.locator(f'.lf-msg[data-mid="{receipt["id"]}"]')
     expect(panel.locator(".lf-msg-failure")).to_have_text("Not answered")
     status = page.locator(f'.lf-thread[data-id="{unanswered["id"]}"] .lf-thread-status')
-    expect(status).to_have_text("On you to resend")
+    expect(status).to_have_text("My turn to resend")
     assert status.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "the summary clips its failure status"
     )
 
     # The thread's recovery `attention` is the user filter's authority, though no
-    # question or Ask is left open on it. A held resend hands the thread to
-    # Sending immediately; refusal restores the same recovery and draft.
+    # question or Ask is left open on it. A held resend shows as sending while the
+    # recovery stands until the server reads it; refusal restores the draft.
     page.locator(".lf-thread-filter-toggle").click()
     recovery = page.locator('[data-filter-value="user"]')
     expect(recovery).to_be_enabled()
@@ -5713,14 +5715,13 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     with page.expect_request("**/api/event"):
         card.get_by_role("button", name="Send", exact=True).click()
     holding(page, held, 1, "the recovery resend")
-    expect(status).to_have_text("Sending")
-    expect(recovery).to_have_text("You (0)")
-    # The resend takes the thread off the user, and the user goes with it (#46).
-    expect(recovery).to_have_attribute("aria-pressed", "false")
+    expect(status).to_have_attribute(
+        "title", "My turn to resend · Not answered · Sending"
+    )
+    expect(draft).to_have_js_property("value", "")
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
-    expect(status).to_have_text("On you to resend")
-    expect(recovery).to_have_text("You (1)")
-    expect(recovery).to_have_attribute("aria-pressed", "true")
+    expect(status).to_have_text("My turn to resend")
+    expect(recovery).to_have_text("Me (1)")
     expect(recovery).to_be_enabled()
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
@@ -6477,9 +6478,12 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
         expect(reply).to_have_js_property("value", "")
         return
     if finish == "filter":
-        withdrawn_words = (
-            f'typed words left the screen without a key or press: "{words}" in '
-            + reply.evaluate("field => window.lfPlace(field)")
+        withdrawn_words = Finding(
+            "words-left-screen",
+            values={
+                "words": words,
+                "place": reply.evaluate("field => window.lfPlace(field)"),
+            },
         )
         find = page.get_by_role("searchbox", name="Find in threads")
         find.click()
@@ -6535,7 +6539,7 @@ def test_an_external_resolution_keeps_a_panel_reply_until_it_is_sent(
 
 def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     """A direct jump uses the resolved card, even before its outgoing fold ends."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
     reply = thread_model.post_reply(
         serve.page_dir,
@@ -8302,10 +8306,8 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
     expect(card.locator("leaf-text")).to_be_focused()
 
 
-def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
-    browser, serve
-):
-    """Thread narrowing changes presentation, not the admitted Question inventory.
+def test_a_narrowing_hides_a_thread_without_taking_its_ask_off_the_page(browser, serve):
+    """Thread narrowing changes presentation, not the admitted ask inventory.
 
     After both Questions are answered, hiding a thread with the On you filter keeps
     both canonical records in Done and preserves the page-wide completion count.
@@ -8326,7 +8328,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     page.locator(".lf-needs").click()
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
     expect(page.locator(".lf-thread-view-summary")).to_have_text(
-        "1 of 2 open threads · On you"
+        "1 of 2 open threads · On me"
     )
     expect(
         page.locator('.lf-threads > .lf-thread[hidden][data-resolved="false"]')
@@ -8345,7 +8347,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
 def test_a_reply_that_takes_its_card_out_of_the_view_takes_the_user_with_it(
     browser, serve
 ):
-    """The user's own reply answers the question, so "Waiting on you" no longer holds
+    """The user's own reply answers the question, so "Waiting on me" no longer holds
     the thread. Their turn widens the view to show it and leaves them standing on it,
     as a sent reply does, rather than dropping them on the list once the log answers
     (the user's decision, 2026-10-07, #46 on the rewrite survey)."""
@@ -10146,7 +10148,9 @@ def _seat_manifest(patch):
         "files": [
             {
                 "path": "app.py",
-                "kind": "patch",
+                "operation": "modify",
+                "hunkCount": 1,
+                "binary": False,
                 "additions": 1,
                 "deletions": 1,
                 "patch": patch,
@@ -10169,7 +10173,7 @@ def _refused_file(serve, page):
     )
     told(page)
     expect(page.locator("lf-diff .lf-error")).to_contain_text("unavailable")
-    consume_browser_errors(page, "500")
+    consume_browser_errors(page, {"code": "failed-load", "status": 500})
 
 
 def _refused_patch(serve, page):
@@ -10334,7 +10338,7 @@ def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser,
     assert threads.evaluate("list => list.scrollTop") == pytest.approx(wheeled, abs=2)
 
 
-def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve):
+def test_a_walk_to_an_ask_the_narrowing_hides_widens_the_list(browser, serve):
     """A card the narrowing hid keeps its node, so the `q` walk can still name the
     question in it — and arriving there has to show it, the way showThread does:
     focus on a card with no box is a no-op and the announcement would say "1 of 2"
@@ -10915,6 +10919,60 @@ def test_a_zoomed_window_places_floating_surfaces_by_their_held_edges(browser, s
         assert reading["bottom"] == pytest.approx(reading["targetTop"], abs=0.5), (
             reading
         )
+
+
+@pytest.mark.parametrize("surface", ["card", "composer"])
+def test_a_dropped_surface_keeps_its_box_until_placement_commits(
+    browser, serve, surface
+):
+    """Release transfers the carried box without a visit to its old placement.
+
+    Firefox drops hover during that visit, then restarts the delayed border tint.
+    Read when the carry ends, before asynchronous placement can hide a gap.
+    The comment box shares the same handoff even where hover happens to survive.
+    """
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Keep this explanation.", {"section": "how-store"})
+    page = open_page(browser, url)
+    if surface == "card":
+        page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+        holder = page.locator(".lf-margin-preview")
+        expect(holder).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
+    else:
+        select_words(page, "#how-cap")
+        page.keyboard.press("c")
+        holder = page.locator(".lf-fab-bar")
+        expect(holder.locator(".lf-fab-input")).to_be_focused()
+    grip = holder.locator(":scope > .lf-surface-grip")
+    box = grip.bounding_box()
+    x, y = box["x"] + 25, box["y"] + (6 if surface == "card" else 2)
+    page.mouse.move(x, y)
+    page.mouse.down()
+    expect(holder).to_have_attribute("data-lf-carried", "")
+    page.mouse.move(x - 100, y - 30, steps=6)
+    one_frame(page)
+    held = holder.bounding_box()
+    holder.evaluate(
+        """surface => {
+          const observer = new MutationObserver(() => {
+            if (surface.hasAttribute('data-lf-carried')) return;
+            surface.lfDroppedBox = surface.getBoundingClientRect().toJSON();
+            observer.disconnect();
+          });
+          observer.observe(surface, {attributes:true, attributeFilter:['data-lf-carried']});
+        }"""
+    )
+    page.mouse.up()
+    released = holder.evaluate("surface => surface.lfDroppedBox")
+    assert released is not None, "the release never reached the grip"
+    for axis in ("x", "y"):
+        assert released[axis] == pytest.approx(held[axis], abs=0.5), (
+            f"{surface} returned to its old {axis} at release: {held} -> {released}"
+        )
+    expect(holder).not_to_have_attribute("data-lf-carried", "")
+    landed = holder.bounding_box()
+    for axis in ("x", "y"):
+        assert landed[axis] == pytest.approx(held[axis], abs=0.5), (held, landed)
 
 
 @pytest.mark.parametrize(
@@ -12048,7 +12106,7 @@ def test_a_second_rewrite_over_a_refused_first_goes_with_it(browser, serve):
     assert not [e for e in events_model.read_events(d) if e["kind"] == "edit"]
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
     assert stored_draft_text(page, f"rewrite:{mine['id']}") == "Third."
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
     page.unroute_all(behavior="wait")
 
 

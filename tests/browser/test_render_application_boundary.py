@@ -14,13 +14,14 @@ from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_READING,
     LIVE_V1,
-    SEATED_QUESTION_PAGE,
+    SEATED_ASK_PAGE,
     live_url,
 )
 from render_harness import (
     consume_browser_errors,
     expect_asks_answered,
     holding,
+    is_problem,
     leaf_page,
     open_page,
     page_comment,
@@ -28,6 +29,7 @@ from render_harness import (
     refuse,
     reported_browser_errors,
     round_trip,
+    said,
     scroll_settled,
     sending,
     take_browser_errors,
@@ -314,7 +316,7 @@ def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, ser
     assert sum(row["type"] == "pointermove" for row in browser_rows) < 512
     sequences = sorted(row["sequence"] for row in browser_rows)
     assert any(later - earlier > 1 for earlier, later in pairwise(sequences))
-    consume_browser_errors(page, "503")
+    consume_browser_errors(page, {"code": "failed-load", "status": 503})
 
 
 def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser, serve):
@@ -360,7 +362,7 @@ def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser,
     browser_rows = [row for row in rows if row.get("source") == "client"]
     assert sum(row["type"] == "click" for row in browser_rows) == 512
     assert not any(row["type"] == "pointermove" for row in browser_rows)
-    consume_browser_errors(page, "503")
+    consume_browser_errors(page, {"code": "failed-load", "status": 503})
 
 
 PAGE_MODULE = """\
@@ -759,6 +761,11 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         "pageLocal = document.querySelector('#page-local'); "
         "pageLocal.controller.dispatch({kind: 'undo', target: 'not-a-candidate'}) === null"
     )
+    # A verb the widget does not send throws rather than vanishing without a word.
+    assert 'cannot dispatch "chose"' in page.evaluate(
+        "(() => { try { pageLocal.controller.dispatch({kind: 'action', verb: 'chose'});"
+        " return ''; } catch (error) { return error.message; } })()"
+    )
     page.locator("#page-local").get_by_role("button", name="Choose").click()
     round_trip(page)
     expect(page.locator("#page-local")).to_have_attribute("data-delivery", "accepted")
@@ -883,7 +890,7 @@ def test_a_returning_controller_widget_draws_again_only_a_changed_reading(
     )
     assert page.evaluate(leave_and_return) == {"drawn": 0, "failed": 1, "pending": []}
     errors = take_browser_errors(page)
-    assert [error.splitlines()[0] for error in errors] == [
+    assert [said(error) for error in errors] == [
         (
             "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
             "deliberate render failure"
@@ -1198,13 +1205,13 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
     errors = take_browser_errors(page)
-    assert [error.splitlines()[0] for error in errors] == [
+    assert [said(error) for error in errors] == [
         (
             "leaf: paint failed for lf-local#page-local: <lf-local> renderState threw: "
             "deliberate render failure"
         )
     ]
-    assert "Caused by: Error: deliberate render failure" in errors[0]
+    assert "Caused by: Error: deliberate render failure" in errors[0].values["text"]
 
 
 @pytest.mark.parametrize(
@@ -1288,7 +1295,9 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
         "deliberate preparation failure"
     )
     errors = take_browser_errors(page)
-    assert errors and all("deliberate preparation failure" in error for error in errors)
+    assert errors and all(
+        is_problem(error, "deliberate preparation failure") for error in errors
+    )
     page.evaluate("releaseSibling()")
     rendered(page)
 
@@ -1455,7 +1464,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     expect(page.locator("#thread-failing")).to_have_count(1)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+    assert [said(error) for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: frozen descendant failure"
     ]
 
@@ -1723,7 +1732,7 @@ def test_compact_reader_opens_the_native_interactive_message(browser, serve, sur
     """A compact reader's button addresses message content, not its own reply row."""
     target = "jobs" if surface == "outlet" else "notes"
     source = (
-        SEATED_QUESTION_PAGE
+        SEATED_ASK_PAGE
         if surface == "outlet"
         else leaf_page("Native reply", '<h1>Native reply</h1><p id="notes">Notes</p>')
     )
@@ -1751,7 +1760,7 @@ def test_compact_reader_opens_the_native_interactive_message(browser, serve, sur
     page = open_page(browser, url)
     if surface == "margin":
         page.get_by_role(
-            "button", name=re.compile("Thread, On you to answer")
+            "button", name=re.compile("Thread, My turn to answer")
         ).first.click()
         compact = page.locator(".lf-margin-thread")
     else:
@@ -1774,7 +1783,7 @@ def test_compact_reader_opens_the_native_interactive_message(browser, serve, sur
 
 
 @pytest.mark.parametrize("owner", ["root", "middle"])
-def test_frozen_question_reveals_its_exact_message_in_a_selective_primary(
+def test_frozen_ask_reveals_its_exact_message_in_a_selective_primary(
     browser, serve, owner
 ):
     """A message-only primary materializes the widget's turn, including later replies."""
@@ -1834,13 +1843,13 @@ def test_frozen_question_reveals_its_exact_message_in_a_selective_primary(
         expect(reader.locator("#channel")).to_have_count(0)
     assert page.evaluate("""async () => {
       const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
-      return await api.questionActions.open('widget:channel');
+      return await api.askActions.open('widget:channel');
     }""")
     assert reader.evaluate("node => node.message") == f"key-{owner}"
     expect(reader.locator(f'.lf-msg[data-event="{owner}"]')).to_be_visible()
     email = reader.locator("#email")
     expect(email).to_be_in_viewport()
-    with sending(page, "answer the Question in its addressed native turn"):
+    with sending(page, "answer the ask in its addressed native turn"):
         email.click()
     expect(email.get_by_role("checkbox")).to_be_checked()
 
@@ -1912,7 +1921,7 @@ def package_workspace(serve, *, before_reader="", primary=True):
 
 
 def test_package_answer_summary_waits_for_widget_completion(browser, serve):
-    """A selected value remains partial until the multiple-choice Question is done."""
+    """A selected value remains partial until the multiple-choice ask is done."""
     url = package_workspace(serve)
     append_carried_log_record(
         serve.page_dir,
@@ -1930,12 +1939,12 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     counts = workspace.locator(".counts")
     workspace.get_by_role("button", name="Which extras? Chat", exact=True).click()
     expect(workspace.locator("#extra-chat").get_by_role("checkbox")).to_be_checked()
-    expect(counts).to_have_text("2 asks on you")
+    expect(counts).to_have_text("2 asks on me")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
             "button", name="Done: my picks here are complete", exact=True
         ).click()
-    expect(counts).to_have_text("1 asks on you · 1 answered · Chat")
+    expect(counts).to_have_text("1 asks on me · 1 answered · Chat")
 
 
 def test_public_queue_commands_recheck_membership_and_restore_refusals(browser, serve):

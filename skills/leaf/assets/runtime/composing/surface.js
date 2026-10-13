@@ -11,6 +11,8 @@
    browser's, leaving the bar past either end. Escape folds the extension; Escape from
    the field hides the draft.
    The same anchor resolves both states against the target's geometry.
+   An active quoted draft whose words change stays beside its containing subject; this is
+   placement only and never changes the quote recorded by its eventual send.
 
    The bar a selection or keyboard-selected addressable raises is `.lf-fab-bar`: the
    durable, compact `.lf-fab-input`, which spans the bar so a sent message keeps the
@@ -55,7 +57,7 @@ import {
   visualAt,
 } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
-import { WORKS } from "../control-selectors.js";
+import { CARET_KEYS, selectsAll, WORKS } from "../control-selectors.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import {
   BANNER_CONTROL_RANK,
@@ -85,7 +87,7 @@ import {
   commandReferenceOpen,
 } from "../keyboard/command-reference.js";
 
-import { paintBarReactions } from "../reactions.js";
+import { paintBarReactions, reactionAvailable } from "../reactions.js";
 import { threadInput, standingThread } from "../thread/landing.js";
 import { replyDraftContext } from "../thread/replies.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
@@ -123,13 +125,14 @@ import {
   focusDestination,
   focused,
   closeLayer,
+  standingIn,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
-import { heldQuestion } from "../standing-target.js";
+import { heldAsk } from "../standing-target.js";
 
-import { coarsePointer, pointerAt } from "../pointer.js";
+import { coarsePointer, pointerAt, pressIsKeyboardActivation } from "../pointer.js";
 import { anchorLabel } from "../thread/messages.js";
 
 import { standingPoint } from "../pointed-place.js";
@@ -186,7 +189,7 @@ export function createResponseSurface({
   let usesPlacement = false;
   let fabInlineOutlet = null;
   let fabPositionWaiters = [];
-  const fabFocused = () => (fabInlineOutlet ? focused() : document.activeElement);
+  const fabFocused = () => focused(fabInlineOutlet ? null : document);
 
   const fabDrawn = () => drawn(composerOpen ? fabInput : fabBar);
   const answerFabPosition = (positioned) => {
@@ -312,8 +315,22 @@ export function createResponseSurface({
   };
   // Asked of a stored anchor from outside a live response transaction, where the composer
   // is down and there is no native selection to read the passage off.
-  const anchorStands = (anchor) =>
-    Boolean(anchor) && standsIn(anchor, resolveAnchor(anchor));
+  const responseTarget = (anchor) => {
+    if (!anchor) return null;
+    const found = resolveAnchor(anchor);
+    if (standsIn(anchor, found)) return found;
+    // Reading saved edits or a later revision can replace the words under a live
+    // draft. Its original anchor remains the event's meaning; its containing
+    // subject supplies only a place to keep the editor visible and editable. An
+    // explicitly detached quote never named that subject as its resolved location.
+    return composerOpen &&
+      anchor.quote &&
+      !anchor.detached &&
+      sameAnchor(anchor, fabAnchor)
+      ? (found ?? resolveAnchor({ section: anchor.section }))
+      : null;
+  };
+  const anchorStands = (anchor) => Boolean(responseTarget(anchor));
   const fabPointIn = (target) =>
     fabAnchor?.quote ? null : standingPoint(target, fabPoint);
   const placement =
@@ -333,6 +350,9 @@ export function createResponseSurface({
         get target() {
           return fabTargetAt();
         },
+        get resolved() {
+          return responseTarget(fabAnchor);
+        },
         get captured() {
           return fabHoldsCapturedPassage();
         },
@@ -342,15 +362,14 @@ export function createResponseSurface({
       threadsBox,
       positioned: answerFabPosition,
       dismiss: () => letGoOfFab(),
-      standsIn,
       scrollToElement,
       scrollToRange,
     }) ?? null;
   // An element response exits to its subject, or the declared proxy representing it
   // where the subject cannot take focus. Resolve that structural parent from the current
-  // anchor, so c from a Question and an aimed press on the same Question unwind alike.
-  // There is no saved pre-command focus: standing on an option comments on its Question,
-  // and closing returns to the Question itself. A drawing's proxy is the fallback, not
+  // anchor, so c from an ask and an aimed press on the same ask unwind alike.
+  // There is no saved pre-command focus: standing on an option comments on its ask,
+  // and closing returns to the ask itself. A drawing's proxy is the fallback, not
   // the parent, even for a user who pressed it: focused, its face stands under the
   // banner, away from the drawing it is about (chrome.css). A quoted selection clears to
   // the page; a removed subject has no parent to land on.
@@ -370,8 +389,7 @@ export function createResponseSurface({
       // The shared return tests each place in turn: a subject that cannot take focus
       // yields to its proxy. If neither remains, it lands on the page.
       else if (leavingBar && !toPage) handBack(...places);
-      else if (leavingBar || (toPage && places.includes(document.activeElement)))
-        letGo();
+      else if (leavingBar || (toPage && places.includes(focused(document)))) letGo();
     });
   }
   function putAwayFab() {
@@ -413,7 +431,7 @@ export function createResponseSurface({
     usesPlacement = Boolean(placement);
     paintFab();
   }
-  function showFab(anchor, { place = true, point = undefined } = {}) {
+  function showFab(anchor, { place = true, point = undefined, reveal = false } = {}) {
     const previous = fabAnchor;
     if (!anchor) {
       restoreFab({ place: false });
@@ -444,7 +462,7 @@ export function createResponseSurface({
       // skipped. Every route that actually shows the bar keeps the geometry gate. The gate
       // is for opening: the bar already standing on this anchor, placed again, is
       // withheld rather than put away (standFab).
-      if (usesPlacement && !placement.place()) {
+      if (usesPlacement && !placement.place({ reveal })) {
         if (same && placement.stands()) placement.withhold();
         else clearFab();
       }
@@ -496,7 +514,7 @@ export function createResponseSurface({
   // draft is about, which is what the route back to it has to travel to.
   const anchorTargetAt = (anchor) => {
     if (!anchor) return null;
-    const found = resolveAnchor(anchor);
+    const found = responseTarget(anchor);
     if (!found) return null;
     if (!anchor.quote) return targetElement(found);
     return lightSeat(targetPlace(found));
@@ -551,6 +569,7 @@ export function createResponseSurface({
     }
     const anchor = structuredClone(fabAnchor);
     bringBackSurfaceOf(fabBar);
+    showFab(anchor, { reveal: true });
     landFabFocus(handoff, anchor, () => sameAnchor(anchor, fabAnchor));
   }
   const fabOptionsAvailable = () =>
@@ -593,15 +612,17 @@ export function createResponseSurface({
     selectionOffered = Boolean(anchor);
     showBannerControl(selectionComment, selectionOffered);
   };
-  const commentOnOfferedSelection = () => {
-    const selection = anchoringIsReady() ? pageSelection() : null;
-    const anchor = selection ? selectionAnchor(selection) : null;
+  const commentOnSelection = (anchor) => {
     offerSelection(null);
     if (!hasQuote(anchor)) return;
     dismissBannerControls();
     cancelRender(selectionUpdate);
     selectionUpdate = null;
     openComment(anchor, "");
+  };
+  const commentOnOfferedSelection = () => {
+    const selection = anchoringIsReady() ? pageSelection() : null;
+    commentOnSelection(selection ? selectionAnchor(selection) : null);
   };
 
   function observeSelection() {
@@ -939,6 +960,7 @@ export function createResponseSurface({
     panelIsOpen,
     setReact,
     reactionTokens,
+    reactionAvailable,
     designModeActive,
     openPageThread,
     threadTransitionOrigin,
@@ -1118,20 +1140,7 @@ export function createResponseSurface({
       const target = ev.composedPath()[0];
       if (takesLetters(target) || inChrome(target)) return;
       if (!pageWords(target) && !pageSelection()) return;
-      if (
-        (ev.shiftKey &&
-          [
-            "ArrowLeft",
-            "ArrowRight",
-            "ArrowUp",
-            "ArrowDown",
-            "Home",
-            "End",
-            "PageUp",
-            "PageDown",
-          ].includes(ev.key)) ||
-        (ev.key.toLowerCase() === "a" && (ev.metaKey || ev.ctrlKey))
-      ) {
+      if ((ev.shiftKey && CARET_KEYS.includes(ev.key)) || selectsAll(ev)) {
         rememberSelection();
         scheduleSelectionUpdate();
       } else observeSelection();
@@ -1187,7 +1196,9 @@ export function createResponseSurface({
       // A click with no press behind it carries 0,0 rather than a position — `offer` calls
       // click() to supply the keys a span doesn't come with — and the record would answer
       // for wherever the pointer is parked, so that one keeps reading the event.
-      const point = ev.detail ? pointerAt() : { x: ev.clientX, y: ev.clientY };
+      const point = pressIsKeyboardActivation(ev)
+        ? { x: ev.clientX, y: ev.clientY }
+        : pointerAt();
       const threadId = markAt?.(point.x, point.y);
       if (threadId)
         return void openPageThread(threadId, {
@@ -1232,10 +1243,10 @@ export function createResponseSurface({
     const here = standingTarget();
     const anchor = fabAnchorAt();
     // The thread the user is at continues where it is about what they stand on: they
-    // are in it, or its target lies within the element they stand at — the Question holding
-    // focus, answered or not, else the element itself — as a Question's options group does
+    // are in it, or its target lies within the element they stand at — the ask holding
+    // focus, answered or not, else the element itself — as an ask's options group does
     // when the user holds one of its marks. A card showing an enclosing block's thread is
-    // about that block, so an element inside it, such as a Question in a commented task,
+    // about that block, so an element inside it, such as an ask in a commented task,
     // takes a thread of its own, and a selection still starts one on its words.
 
     const inline = threadHere();
@@ -1246,13 +1257,13 @@ export function createResponseSurface({
       inline &&
       (inline.dataset.thread ?? inline.dataset.id) === threadId &&
       (!here ||
-        inline.contains(focused()) ||
-        (target && under(target, heldQuestion() ?? here.element))) &&
+        standingIn(inline) ||
+        (target && under(target, heldAsk() ?? here.element))) &&
       threadInput(inline);
     const said =
       standingThread() ?? (inlineBox ? { held: inline, box: inlineBox } : null);
     const subject =
-      threadId && (!here || (target && under(target, heldQuestion() ?? here.element)));
+      threadId && (!here || (target && under(target, heldAsk() ?? here.element)));
     const replySubject = subject && replyId;
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // standing target. Read both page and thread standing before choosing the aim.
@@ -1349,7 +1360,15 @@ export function createResponseSurface({
       (anchoringIsReady() || !pageSelection()) &&
       (!coveringAuxiliarySurface() || inPanel(panelIsOpen)),
     run: () => {
-      updateFab(); // the selection may be newer than the mouseup that last placed the bar
+      // Activation reads the current native selection directly. Painting its offer
+      // first would displace the reading controls only to restore them in this press.
+      const selection = pageSelection();
+      const anchor = selection ? selectionAnchor(selection) : null;
+      if (hasQuote(anchor)) {
+        commentOnSelection(anchor);
+        return;
+      }
+      updateFab();
       commentDestination().go();
     },
   });

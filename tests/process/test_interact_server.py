@@ -40,6 +40,7 @@ from interact_support import (
     declare_data_input,
     declare_work,
     fetch,
+    fresh_process,
     live_versions,
     lock_contention,
     neighbour_page,
@@ -47,18 +48,21 @@ from interact_support import (
     publish,
     read_page_data,
     record_claim,
+    refused_on,
     release_codex_command,
     response_reference,
     retire_test_services,
     running_http_server,
     spawn_probe,
     vendored_at_another_protocol,
+    vendored_before_the_ask_rename,
     wait_for,
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
 from leaf import codex_adapter as codex_adapter_model
 from leaf import data as data_model
+from leaf import delivery as delivery_model
 from leaf import detached as detached_model
 from leaf import document_reading as document_reading_model
 from leaf import event_log as event_model
@@ -235,7 +239,9 @@ def test_interaction_trace_does_not_change_page_or_presence_readings(page_dir):
     assert presence_model._page_stamp(page_dir) != presence_stamp
 
 
-@pytest.mark.parametrize("name", schema_model.SESSION_FILES)
+@pytest.mark.parametrize(
+    "name", (*schema_model.SESSION_FILES, *schema_model.LOG_STATE_FILES)
+)
 def test_a_session_write_does_not_revalidate_the_source(page_dir, monkeypatch, name):
     """Declaring status, acknowledging a delivery, or taking a wait writes a session
     file, and the next state read holds the activation it had rather than validating
@@ -961,7 +967,7 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(mixed).encode())
         assert status == 400
-        assert b"names a box rather than a passage" in body
+        assert refused_on(body).code == "visual-with-passage"
 
     invalid = {
         **valid,
@@ -970,7 +976,9 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(invalid).encode())
     assert status == 400
-    assert 'known: ["node:A", "node:B"]' in json.loads(body)["error"]
+    undeclared = refused_on(body)
+    assert undeclared.code == "undeclared-visual"
+    assert undeclared.values["declared"]["tokens"] == ["node:A", "node:B"]
 
 
 def test_a_datum_comment_names_the_source_revision_its_section_displayed(
@@ -1031,7 +1039,7 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(unsupplied).encode())
     assert status == 400
-    assert "source 'other-patch' has never been supplied" in json.loads(body)["error"]
+    assert refused_on(body).code == "datum-unsupplied-source"
 
     data_model.cmd_data_set(page_dir, "other-patch", "unrelated patch")
     wrong_source = {
@@ -1041,7 +1049,11 @@ def test_a_datum_comment_names_the_source_revision_its_section_displayed(
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(wrong_source).encode())
     assert status == 400
-    assert "is not bound by section 'patch'" in json.loads(body)["error"]
+    unbound = refused_on(body)
+    assert (unbound.code, unbound.values["section"]) == (
+        "datum-unbound-source",
+        "patch",
+    )
 
 
 def test_the_door_takes_a_passage_anchor_the_runtime_already_resolved(server, page_dir):
@@ -1599,10 +1611,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         data=json.dumps({"kind": "done", "version": 1}).encode(),
     )
     assert status == 400
-    assert json.loads(body)["error"] == (
-        'v1 does not declare <meta name="lf-review" content="sign-off">, '
-        "so it has no approval to record"
-    )
+    assert refused_on(body).code == "not-sign-off"
 
     signoff = PAGE.replace(
         "<title>t</title>",
@@ -1615,8 +1624,10 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
-    assert json.loads(body)["error"] == (
-        "v2 still has unanswered widget asks: widget:choice"
+    unanswered = refused_on(body)
+    assert (unanswered.code, unanswered.values["asks"]) == (
+        "unanswered-asks",
+        ["widget:choice"],
     )
 
     status, body = fetch(
@@ -1667,9 +1678,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
         data=json.dumps({"kind": "done", "version": 2}).encode(),
     )
     assert status == 400
-    assert json.loads(body)["error"] == (
-        "v2 still has unanswered widget asks: widget:thread-approval"
-    )
+    assert refused_on(body).values["asks"] == ["widget:thread-approval"]
 
     status, body = fetch(
         f"{server}/api/event",
@@ -1774,7 +1783,7 @@ def test_server_makes_attempt_identity_atomic_without_deduplicating_content(
     changed = {**first, "text": "Different payload under the same attempt."}
     status, body = fetch(f"{server}/api/event", data=json.dumps(changed).encode())
     assert status == 409
-    assert "already belongs to another event" in json.loads(body)["error"]
+    assert refused_on(body).code == "attempt-conflict"
 
     later = {**first, "attempt": "attempt-00000002"}
     status, body = fetch(f"{server}/api/event", data=json.dumps(later).encode())
@@ -1837,7 +1846,8 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(draft).encode())
     assert status == 400
-    assert json.loads(body)["error"] == "comment revision must be one of [1]"
+    stale = refused_on(body)
+    assert (stale.code, stale.values["revisions"]) == ("unknown-revision", [1])
 
     (page_dir / "index.html").write_text(
         PAGE.replace("<title>t</title>", "<title>Moved</title>")
@@ -1860,7 +1870,7 @@ def test_a_refused_attempt_is_re_read_against_the_page_that_refused_it(
     moved = {**draft, "revision": 1}
     status, body = fetch(f"{server}/api/event", data=json.dumps(moved).encode())
     assert status == 409
-    assert "already belongs to another event" in json.loads(body)["error"]
+    assert refused_on(body).code == "attempt-conflict"
     comments = [
         event
         for event in event_model.read_events(page_dir)
@@ -1926,12 +1936,13 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(forged).encode())
     assert status == 400, body
-    assert "meaning" in json.loads(body)["error"]
+    forging = refused_on(body)
+    assert forging.code == "invalid-event" and "meaning" in forging.values["error"]
     # An authored option is not the user's to write into being.
     authored = {**base, "detail": {"option": "delivery-now", "text": "Now again"}}
     status, body = fetch(f"{server}/api/event", data=json.dumps(authored).encode())
     assert status == 400, body
-    assert "already names an authored element" in json.loads(body)["error"]
+    assert refused_on(body).code == "created-exists"
 
 
 def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_dir):
@@ -2555,7 +2566,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "action": "move",
                 "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             },
-            "unknown action widget",
+            ("unknown-sender", None),
         ),
         (
             {
@@ -2565,7 +2576,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "action": "move",
                 "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             },
-            "<lf-diagram> does not declare action verb",
+            ("undeclared-verb", None),
         ),
         (
             {
@@ -2575,7 +2586,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "action": "move",
                 "detail": {"unit": "card-baffle", "value": "col-doing", "rank": 0},
             },
-            "detail is invalid",
+            ("invalid-detail", "/rank"),
         ),
         (
             {
@@ -2585,14 +2596,15 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "action": "move",
                 "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "10"},
             },
-            "'10' does not match",
+            ("invalid-detail", "/rank"),
         ),
     ]
     before = len(event_model.read_events(page_dir))
-    for event, message in invalid:
+    for event, expected in invalid:
         status, body = fetch(f"{server}/api/event", data=json.dumps(event).encode())
         assert status == 400, event
-        assert message in json.loads(body)["error"]
+        found = refused_on(body)
+        assert (found.code, found.values.get("field")) == expected
     assert len(event_model.read_events(page_dir)) == before
 
     # The page may have advanced since the gesture, so resolve the sender from
@@ -2640,7 +2652,7 @@ def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broke
         ).encode(),
     )
     assert status == 400, body
-    assert "unknown action widget" in json.loads(body)["error"]
+    assert refused_on(body).code == "unknown-sender"
     assert not [e for e in event_model.read_events(page_dir) if e["kind"] == "action"]
     status, state = fetch(f"{server}/api/state")
     assert status == 200
@@ -2715,13 +2727,13 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
         ).encode(),
     )
     assert status == 400
-    assert "stands inside an exhibit" in json.loads(body)["error"]
+    assert refused_on(body).code == "quoted-widget"
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({**choose, "widget": "text-pick"}).encode(),
     )
     assert status == 400
-    assert "unknown action widget" in json.loads(body)["error"]
+    assert refused_on(body).code == "unknown-sender"
 
 
 def test_concurrent_posts_never_tear_the_log(server, page_dir):
@@ -3745,8 +3757,15 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     ] == []
 
 
-def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
+def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
     """A browser check cannot combine state written after its candidate was frozen."""
+    now = datetime.now().astimezone().replace(microsecond=0)
+    monkeypatch.setattr(served_context, "now_iso", lambda: now.isoformat())
+    monkeypatch.setattr(page_snapshot_model, "now_iso", lambda: now.isoformat())
+    cleanup_model.write_json(
+        page_dir / "status.json",
+        {"state": "waiting", "detail": "", "ts": now.isoformat()},
+    )
     schema = {
         "type": "object",
         "properties": {
@@ -3791,6 +3810,16 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir):
         url=active["url"],
     )
     projection = served_service.PageStateService(page_dir, source=snapshot).page_state()
+    # Live input can age on its clock; a capture changes only when replaced.
+    deadline = (now + activity_model.WORKING_GRACE).isoformat()
+    assert (
+        served_service.PageStateService(page_dir).page_state()["activity"][
+            "next_transition_at"
+        ]
+        == deadline
+    )
+    assert snapshot.context.work.activity["next_transition_at"] == deadline
+    assert projection["activity"]["next_transition_at"] is None
 
     append_carried_log_record(
         page_dir,
@@ -4278,6 +4307,153 @@ def test_a_server_refuses_a_page_another_leaf_vendored_until_it_is_re_vendored(
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
+
+
+def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_dir):
+    """A re-vendor across a protocol bump leaves the revisions the page saved before
+    it standing, each with the runtime it was saved with. Served, that runtime would
+    talk to this Leaf's server across the bump, so its address refuses, as does an
+    event made against it, a widget to-do opened on it as the newest included, while
+    the revision saved since serves and admits. An event made against no document,
+    such as a pickup, is judged by the page's layer, so it goes through before the
+    source saves again."""
+    board = PAGE.replace(
+        "<h2>Plan</h2>",
+        '<h2>Plan</h2>\n<lf-board id="rollout"><lf-column id="rollout-now" '
+        'label="Now"><lf-card id="rollout-card">Ship it</lf-card></lf-column>'
+        "</lf-board>",
+    )
+    (page_dir / "index.html").write_text(board)
+    foreign = vendored_at_another_protocol(page_dir)
+    revisioning_model.activate_source(page_dir)
+    waiting = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Still there?"},
+    )
+    reinitialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert reinitialized.exit_code == 0, reinitialized.output
+    with service_model.PageTransaction(page_dir) as page:
+        assert delivery_model.record_pickup(
+            page, [waiting], session="session", turn="turn"
+        )
+    todo = {
+        "kind": "todo",
+        "author": "agent",
+        "owner": "agent",
+        "agent": "Claude",
+        "session": "session",
+        "subject": {"kind": "widget", "id": "rollout-card"},
+        "title": "Check the rollout",
+    }
+    with pytest.raises(event_model.EventRefused) as unadmitted:
+        append_command(page_dir, todo)
+    assert refused_on(unadmitted.value).values["saved"] == foreign
+    (page_dir / "index.html").write_text(board.replace("Ship it", "Ship it now"))
+    revisioning_model.activate_source(page_dir)
+    old, new = (
+        next((page_dir / "revisions").glob(f"r{n}-*.html")).name for n in (1, 2)
+    )
+
+    temporary = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
+    try:
+        status, body = fetch(f"{temporary.origin}/revisions/{old}")
+        assert status == 409, body
+        assert f"Revision 1 was saved at page protocol {foreign}" in body.decode()
+        assert fetch(f"{temporary.origin}/revisions/{new}")[0] == 200
+        assert fetch(f"{temporary.origin}/")[0] == 200
+
+        def commented(revision):
+            event = {
+                "kind": "comment",
+                "revision": revision,
+                "text": "Which plan?",
+                "anchor": {"section": "plan"},
+            }
+            return fetch(
+                f"{temporary.origin}/api/event", data=json.dumps(event).encode()
+            )
+
+        before = event_model.read_events(page_dir)
+        status, body = commented(1)
+        assert status == 400, body
+        assert f"page protocol {foreign}" in body.decode()
+        assert event_model.read_events(page_dir) == before
+        assert commented(2)[0] == 200
+        assert append_command(page_dir, todo)["revision"] == 2
+    finally:
+        temporary.close()
+
+
+def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input(
+    page_dir,
+):
+    """A Leaf that renamed an x- key reads only the new name, so a page an older Leaf
+    vendored, at the same protocol, would lose what it declares under the old one: a
+    framed ask its prompt and landing region. The page is refused until a re-vendor,
+    which the refusal names. Afterwards the revision saved since serves with the
+    prompt, while the one saved before neither opens nor takes input, as a revision
+    saved at another protocol does."""
+    framed = (
+        '<lf-ask id="route-ask"><h2>Which route?</h2><p>Context for the choice.</p>'
+        '<lf-options id="route" choose><lf-option id="route-a">A</lf-option>'
+        '<lf-option id="route-b">B</lf-option></lf-options></lf-ask>'
+    )
+    page = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>\n" + framed)
+    (page_dir / "index.html").write_text(page)
+    revisioning_model.activate_source(page_dir)
+    vendored_before_the_ask_rename(page_dir)
+    # Read as the next process does, which holds nothing of the revision saved above.
+    with fresh_process():
+        _serve_after_the_ask_rename(page_dir, page)
+
+
+def _serve_after_the_ask_rename(page_dir, page):
+    comment = {"kind": "comment", "author": "user", "text": "Which plan?"}
+    with pytest.raises(event_model.EventRefused, match="x-question-context") as refused:
+        append_command(page_dir, {**comment, "revision": 1})
+    assert f"leaf page init {page_dir}" in str(refused.value)
+
+    reinitialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert reinitialized.exit_code == 0, reinitialized.output
+    (page_dir / "index.html").write_text(
+        page.replace("Which route?", "Which route now?")
+    )
+    revisioning_model.activate_source(page_dir)
+    [ask] = [
+        ask
+        for ask in page_state(page_dir)["browser"]["views"]["2"]["document"]["asks"][
+            "all"
+        ]
+        if ask["source"]["id"] == "route"
+    ]
+    assert ask["prompt"] == {"text": "Which route now?", "target": "route-ask"}
+    old, new = (
+        next((page_dir / "revisions").glob(f"r{n}-*.html")).name for n in (1, 2)
+    )
+
+    temporary = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
+    try:
+        status, body = fetch(f"{temporary.origin}/revisions/{old}")
+        assert status == 409, body
+        assert "Revision 1 was saved by a Leaf that declares x-question-context" in (
+            body.decode()
+        )
+        assert fetch(f"{temporary.origin}/revisions/{new}")[0] == 200
+
+        def commented(revision):
+            return fetch(
+                f"{temporary.origin}/api/event",
+                data=json.dumps({**comment, "revision": revision}).encode(),
+            )
+
+        before = event_model.read_events(page_dir)
+        status, body = commented(1)
+        assert status == 400, body
+        assert "x-question-context" in body.decode()
+        assert event_model.read_events(page_dir) == before
+        assert commented(2)[0] == 200
+    finally:
+        temporary.close()
 
 
 def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_dir):
@@ -5174,7 +5350,7 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(ambiguous).encode())
     assert status == 400
-    assert "exact-section anchor" in json.loads(body)["error"]
+    assert refused_on(body).code == "hold-target"
 
     for target in ("plain-goal", "plan"):
         bad = {
@@ -5184,7 +5360,7 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400
-        assert "matching x-thread-seat hold target" in json.loads(body)["error"]
+        assert refused_on(body).code == "hold-target"
 
 
 def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_dir):

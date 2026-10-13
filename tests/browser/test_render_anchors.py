@@ -1785,7 +1785,9 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
 
     pierre_bad = page.evaluate(
         """async (langs) => {
-          const { parsePatchFiles, preloadDiffHTML } =
+          const { parsePatchFiles } =
+            await window.__lfRuntimeImport('/vendor/pierre-parser.esm.js');
+          const { preloadDiffHTML } =
             await window.__lfRuntimeImport('/vendor/pierre-diffs.esm.js');
           const { themeName } =
             await window.__lfRuntimeImport('/vendor/syntax.esm.js');
@@ -2256,14 +2258,19 @@ DIFF_EMPTY_CONTEXT_MARKUP = """diff --git a/example.txt b/example.txt
 
 
 def test_the_widget_reads_the_diff_patch_table(browser, serve):
-    """`diff_patch_cases.json` states what lf-diff can present, for both of its
-    readers (`test_interact_document.py`, "the manifest reads the diff patch table").
-    The widget draws each accepted patch, under the row's paths, as inline text and
-    as the manifest `patch_manifest.py` builds from it, and refuses each row with a
-    `widget` message without hiding evidence, quoting the patch it could not draw.
+    """`diff_patch_cases.json` states what lf-diff can present, which it alone
+    judges. The widget draws each accepted patch, under the row's paths, as inline
+    text and as the manifest `patch_manifest.py` builds from it (whose paths
+    `test_interact_document.py` checks), and refuses each row with a `widget` message
+    without hiding evidence: inline, quoting the patch it could not draw, and in a
+    stored manifest, in the file it cannot draw. Every refusal reaches the author.
     The same page draws the samples above, which the table's rows do not reach."""
     accepted = [case for case in DIFF_PATCH_CASES if "files" in case]
     refused = [case for case in DIFF_PATCH_CASES if "widget" in case]
+    # The manifest stores what it is given, so the widget alone refuses a stored
+    # file's patch, in that file. The contract itself refuses an empty manifest and a
+    # repeated path at `data set`.
+    stored = [case for case in refused if case["id"] not in {"empty", "repeated-path"}]
     markup = "".join(
         [
             *(
@@ -2272,7 +2279,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
             ),
             *(
                 f'<lf-diff id="files-{case["id"]}" source="files-{case["id"]}"><pre></pre></lf-diff>'
-                for case in accepted
+                for case in [*accepted, *stored]
             ),
             f'<lf-diff id="inert-diff"><pre>{escape(DIFF_INERT_SOURCE)}</pre></lf-diff>',
             (
@@ -2286,7 +2293,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
         ]
     )
     url = serve(leaf_page("diff patch table", f'<h1 id="cases">Cases</h1>{markup}'))
-    for case in accepted:
+    for case in [*accepted, *stored]:
         data_model.cmd_data_set(
             serve.page_dir, f"files-{case['id']}", patch_manifest(case["patch"])
         )
@@ -2316,11 +2323,19 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
             "errors": [f"<lf-diff> failed: {case['widget']}"],
             "source": case["patch"].rstrip("\n") or None,
         }, case["id"]
+    for case in stored:
+        reading = readings[f"files-{case['id']}"]
+        assert reading["rendered"], (case["id"], reading)
+        assert reading["errors"] == [
+            f"That file's diff cannot be shown: {case['widget']}"
+        ], (case["id"], reading)
     # Each refusal reaches the author too, naming the diff that could not draw.
     reported = consume_browser_errors(
-        page, *(f'<lf-diff id="text-{case["id"]}"> failed: ' for case in refused)
+        page,
+        *(f'<lf-diff id="text-{case["id"]}"> failed: ' for case in refused),
+        *(f'<lf-diff id="files-{case["id"]}"> failed: ' for case in stored),
     )
-    assert len(reported) == len(refused), reported
+    assert len(reported) == len(refused) + len(stored), reported
 
     result = page.evaluate("""() => {
       const host = document.querySelector('#inert-diff');
@@ -2343,7 +2358,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
     result = page.evaluate("""async () => {
       const host = document.querySelector('#mixed-rename-diff');
       const shadow = host.shadowRoot;
-      const renames = [...(shadow?.querySelectorAll('.lf-diff-rename') ?? [])];
+      const renames = [...(shadow?.querySelectorAll('.lf-diff-metadata') ?? [])];
       const rename = renames[0];
       const quotedRename = renames[1];
       const bomRename = renames[2];
@@ -2555,6 +2570,148 @@ def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_standing(
     )
     page.wait_for_function("() => window.heard.at(-1)?.[0] === 'two'")
     assert page.evaluate("() => window.heard.at(-1)") == ["two", "step"]
+
+
+@pytest.mark.parametrize(
+    "removed",
+    [
+        "layer",
+        "control",
+        "later-close",
+        "reparent",
+        "staged-reparent",
+        "former-popover",
+        "retained-root",
+        "retained-immediate",
+    ],
+)
+def test_internal_focus_moves_publish_before_old_markup_is_collected(
+    browser, serve, removed
+):
+    """Entering a component subscribes focus to its later internal moves. The move
+    publishes while both controls are alive; detached ancestry cannot recast its cause.
+    """
+    page = open_page(
+        browser, serve(leaf_page("Focus lifetime", "<h1>Focus lifetime</h1>"))
+    )
+    page.evaluate(
+        """async removed => {
+          const host = document.createElement('div');
+          host.id = 'own-root';
+          host.attachShadow({mode: 'open'}).innerHTML =
+            '<dialog open><button id="one">First</button></dialog>' +
+            '<button id="two">Next</button>';
+          document.querySelector('main').append(host);
+          if (removed === 'former-popover') {
+            const dialog = host.shadowRoot.querySelector('dialog');
+            const layer = document.createElement('div');
+            layer.popover = 'manual';
+            layer.append(...dialog.children);
+            dialog.replaceWith(layer);
+            layer.showPopover();
+          }
+          const {onStanding} = await window.__lfRuntimeImport('/runtime/focus.js');
+          window.heard = [];
+          onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
+          host.shadowRoot.getElementById('one').focus();
+        }""",
+        removed,
+    )
+    page.wait_for_function("() => window.heard.at(-1)?.[0] === 'one'")
+    if removed in {"retained-root", "retained-immediate"}:
+        assert page.evaluate(
+            """async removed => {
+              const oldHost = document.getElementById('own-root');
+              const oldRoot = oldHost.shadowRoot;
+              const nextHost = document.createElement('div');
+              const nextRoot = nextHost.attachShadow({mode: 'open'});
+              oldHost.after(nextHost);
+              const {move} = await window.__lfRuntimeImport('/runtime/dom-move.js');
+              const place = removed === 'retained-immediate' ? move : (parent, node) => parent.moveBefore(node, null);
+              place(nextRoot, oldRoot.querySelector('dialog'), null);
+              place(nextRoot, oldRoot.getElementById('two'), null);
+              oldHost.id = '';
+              nextHost.id = 'own-root';
+              const preserved = nextRoot.activeElement === nextRoot.getElementById('one');
+              if (removed === 'retained-immediate') nextRoot.getElementById('two').focus();
+              return preserved;
+            }""",
+            removed,
+        )
+        rendered(page)
+    page.evaluate(
+        """removed => {
+          const root = document.getElementById('own-root').shadowRoot;
+          window.oldFocus = new WeakRef(root.getElementById('one'));
+          // This internal move emits no event at the document. The focus owner
+          // must hear it inside the root, while its departing node is still alive.
+          root.getElementById('two').focus();
+          const layer = root.querySelector('dialog, [popover]');
+          if (removed === 'later-close' || removed === 'former-popover') window.detachedLayer = layer;
+          else layer.open = false;
+          (['control', 'staged-reparent'].includes(removed) ? root.getElementById('one') : layer).remove();
+        }""",
+        removed,
+    )
+    rendered(page)
+    if removed == "later-close":
+        page.evaluate(
+            "() => { window.detachedLayer.open = false; window.detachedLayer = null; }"
+        )
+        rendered(page)
+    elif removed in {"reparent", "staged-reparent"}:
+        page.evaluate(
+            """removed => {
+              const layer = document.createElement('dialog');
+              layer.open = removed === 'reparent';
+              layer.append(window.oldFocus.deref());
+            }""",
+            removed,
+        )
+        rendered(page)
+    elif removed == "former-popover":
+        page.evaluate(
+            "() => { window.detachedLayer.removeAttribute('popover'); window.detachedLayer = null; }"
+        )
+        rendered(page)
+    assert page.evaluate("() => window.heard.at(-1)") == ["two", "move"]
+    heard = page.evaluate("() => window.heard")
+    cdp = page.context.new_cdp_session(page)
+    try:
+        cdp.send("HeapProfiler.collectGarbage")
+    finally:
+        cdp.detach()
+    assert page.evaluate("() => window.oldFocus.deref() === undefined")
+    page.keyboard.press("Shift")
+    page.wait_for_function("() => window.heard.at(-1)?.[0] === 'two'")
+    assert page.evaluate("() => window.heard") == heard
+
+
+@pytest.mark.parametrize("arrival", ["native", "return"])
+def test_first_entry_into_a_shadow_root_can_forward_focus(browser, serve, arrival):
+    """A component's focus handler can forward its first arrival before focusin.
+    The final control still publishes the placement's cause without another input.
+    """
+    page = open_page(browser, serve(leaf_page("Focus entry", "<h1>Focus entry</h1>")))
+    page.evaluate(
+        """async arrival => {
+          const host = document.createElement('div');
+          const root = host.attachShadow({mode: 'open'});
+          root.innerHTML = '<button id="one">First</button><button id="two">Next</button>';
+          document.querySelector('main').append(host);
+          const {onStanding, focusDestination} = await window.__lfRuntimeImport('/runtime/focus.js');
+          window.heard = [];
+          onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
+          const one = root.getElementById('one');
+          one.addEventListener('focus', () => root.getElementById('two').focus(), {once: true});
+          if (arrival === 'return') focusDestination(one, 'return');
+          else one.focus();
+        }""",
+        arrival,
+    )
+    assert page.evaluate("() => window.heard") == [
+        ["two", "return" if arrival == "return" else "move"]
+    ]
 
 
 def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
@@ -4769,7 +4926,9 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             "files": [
                 {
                     "path": "app.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 1,
                     "deletions": 1,
                     "patch": """diff --git a/app.py b/app.py
@@ -5049,12 +5208,14 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
     expect(added).to_have_class(re.compile(r"\blf-mark-here\b"))
 
 
-# Two files in one manifest, each loaded only when it is opened.
+# Two files in one manifest, each rendered only when it is opened.
 TWO_FILE_MANIFEST = {
     "files": [
         {
             "path": "first.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
             "patch": """diff --git a/first.py b/first.py
@@ -5067,7 +5228,9 @@ TWO_FILE_MANIFEST = {
         },
         {
             "path": "second.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
             "patch": """diff --git a/second.py b/second.py
@@ -5081,23 +5244,27 @@ TWO_FILE_MANIFEST = {
     ]
 }
 
-# Hold the second file's deferred patch until the test releases it.
+# Observe evidence requests, then hold the second file's textual rendering. Its
+# complete Git evidence is already checked before either closed row is shown.
 HOLD_SECOND_FILE = """
           window.__leafDeferredRequests = [];
           const originalFetch = window.fetch.bind(window);
           window.fetch = (input, init) => {
             const url = new URL(input instanceof Request ? input.url : String(input),
                                 location.href);
-            if (url.pathname === '/api/deferred') {
-              const key = url.searchParams.get('key');
-              window.__leafDeferredRequests.push(key);
-              if (key === 'second.py')
-                return new Promise(resolve => {
-                  window.__leafReleaseDeferred = () => resolve(originalFetch(input, init));
-                });
-            }
+            if (url.pathname === '/api/deferred')
+              window.__leafDeferredRequests.push(url.searchParams.get('key'));
             return originalFetch(input, init);
           };
+          customElements.whenDefined('lf-diff').then(() => {
+            const prototype = customElements.get('lf-diff').prototype;
+            const prepare = prototype.prepareEntry;
+            prototype.prepareEntry = async function(...args) {
+              if (args[1].path === 'second.py' && !window.__leafReleaseDeferred)
+                await new Promise(resolve => { window.__leafReleaseDeferred = resolve; });
+              return prepare.apply(this, args);
+            };
+          });
 """
 
 
@@ -5105,14 +5272,14 @@ HOLD_SECOND_FILE = """
     ("activation", "superseded"),
     [("mouse", False), ("keyboard", False), ("mouse", True)],
 )
-def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
+def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
     browser, serve, activation, superseded
 ):
     """A collapsed manifest is the startup surface, not a hidden fully-rendered patch.
 
-    Opening one file fetches and renders only that file. A standing line thread on a
+    All file evidence is checked first; opening one file renders only that file. A standing line thread on a
     different unopened file remains attached at its disclosure; pressing its quote
-    hydrates that deferred patch before ordinary exact-line navigation resumes.
+    renders that file before ordinary exact-line navigation resumes.
     """
     authored = leaf_page(
         "deferred diff",
@@ -5145,7 +5312,7 @@ def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
     expect(page.locator("lf-diff [data-line]")).to_have_count(0)
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(0)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
-    assert page.evaluate("window.__leafDeferredRequests") == []
+    assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
     page.locator("lf-diff summary").first.click()
     expect(
@@ -5154,7 +5321,7 @@ def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
     expect(
         page.locator('lf-diff [data-lf-datum=\'["second.py","new",1]\']')
     ).to_have_count(0)
-    assert page.evaluate("window.__leafDeferredRequests") == ["first.py"]
+    assert page.evaluate("window.__leafDeferredRequests") == ["first.py", "second.py"]
 
     if activation == "keyboard":
         resized(page, 400, 900)
@@ -5202,7 +5369,7 @@ def test_a_deferred_diff_loads_only_opened_files_and_hydrates_comment_travel(
 def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve):
     """`]` into a file still loading lands only while the user is where they pressed it.
 
-    The step opens the next file and waits for its deferred patch. A user who presses
+    The step opens the next file and waits for its textual rendering. A user who presses
     somewhere else in that wait has moved on, and the landing the step owed is dropped
     rather than dragging them back into the diff when the file arrives.
     """
@@ -5257,7 +5424,9 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
             "files": [
                 {
                     "path": path,
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 1,
                     "deletions": 1,
                     "patch": f"""diff --git a/{path} b/{path}
@@ -5277,14 +5446,6 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
     page = open_page(browser, url)
     expect(page.locator("lf-diff summary")).to_contain_text("first.py")
 
-    data_model.cmd_data_set(
-        serve.page_dir, "review-patch", manifest("second.py", "old", "second")
-    )
-    told(page)
-    summary = page.locator("lf-diff summary")
-    expect(summary).to_contain_text("second.py")
-    expect(summary).not_to_contain_text("first.py")
-
     refused = []
 
     def refuse_once(route):
@@ -5295,11 +5456,17 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
             route.continue_()
 
     page.route("**/api/deferred*", refuse_once)
-    summary.click()
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", manifest("second.py", "old", "second")
+    )
+    told(page)
+    summary = page.locator("lf-diff summary")
+    expect(summary).to_contain_text("second.py")
+    expect(summary).not_to_contain_text("first.py")
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "the patch is unavailable"
     )
-    consume_browser_errors(page, "500 http")
+    consume_browser_errors(page, {"code": "failed-load", "status": 500})
     summary.click()
     summary.click()
     expect(
@@ -5328,7 +5495,9 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
         "files": [
             {
                 "path": "app.py",
-                "kind": "patch",
+                "operation": "modify",
+                "hunkCount": 1,
+                "binary": False,
                 "additions": 1,
                 "deletions": 1,
                 "patch": original,
@@ -5427,7 +5596,9 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
             "files": [
                 {
                     "path": "second.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 1,
                     "deletions": 1,
                     "patch": """diff --git a/second.py b/second.py
@@ -5457,8 +5628,9 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
         requests.append(True)
         route.fulfill(status=500, json={"error": "the patch is unavailable"})
 
-    page = open_page(browser, url)
-    page.route("**/api/deferred*", refuse)
+    context = browser.new_context()
+    context.route("**/api/deferred*", refuse)
+    page = open_page(browser, url, context=context)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.locator(".lf-thread-summary").click()
@@ -5468,7 +5640,7 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     )
     page.wait_for_timeout(250)
     assert len(requests) == 1, "thread hydration retried without another user gesture"
-    consume_browser_errors(page, "500 http")
+    consume_browser_errors(page, {"code": "failed-load", "status": 500})
 
     summary = page.locator("lf-diff summary")
     summary.click()
@@ -5484,7 +5656,9 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
     ) as retried:
         summary.click()
     assert len(requests) == 2
-    reported_browser_errors(page, f"500 {retried.value.url}")
+    reported_browser_errors(
+        page, {"code": "failed-load", "status": 500, "url": retried.value.url}
+    )
 
 
 def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):
@@ -5716,3 +5890,259 @@ def test_every_mark_the_layer_paints_on_words_is_seen_against_the_paper(browser,
                 f"unmarked control is at {control:.0%}. A marked passage whose only signal "
                 f"is its wash is one the user never learns is marked. All: {seen}"
             )
+
+
+@pytest.mark.parametrize("manifest", [False, True])
+@pytest.mark.parametrize("mobile", [False, True])
+def test_a_diff_shows_native_file_metadata_without_empty_disclosures(
+    browser, serve, manifest, mobile
+):
+    """Inline and deferred evidence preserve native operations at reading widths."""
+    source = """diff --git a/app.js b/app.js
+old mode 100644
+new mode 100755
+--- a/app.js
++++ b/app.js
+@@ -1 +1 @@
+-const value = 1;
++const value = 2;
+diff --git a/old-name.js b/new-name.js
+similarity index 100%
+rename from old-name.js
+rename to new-name.js
+diff --git "a/old\\tname.js" "b/new\\tname.js"
+similarity index 100%
+rename from "old\\tname.js"
+rename to "new\\tname.js"
+diff --git "a/\\357\\273\\277old.js" "b/\\357\\273\\277new.js"
+similarity index 100%
+rename from "\\357\\273\\277old.js"
+rename to "\\357\\273\\277new.js"
+diff --git a/mode.sh b/mode.sh
+old mode 100644
+new mode 100755
+diff --git a/binary.dat b/binary.dat
+index 1111111..2222222 100644
+Binary files a/binary.dat and b/binary.dat differ
+diff --git a/original.js b/copy.js
+similarity index 100%
+copy from original.js
+copy to copy.js
+diff --git a/original.js b/edited-copy.js
+similarity index 75%
+copy from original.js
+copy to edited-copy.js
+--- a/original.js
++++ b/edited-copy.js
+@@ -1 +1 @@
+-const original = 1;
++const copied = 2;
+diff --git a/added-empty b/added-empty
+new file mode 100644
+index 0000000..e69de29
+diff --git a/deleted-empty b/deleted-empty
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/type-change b/type-change
+deleted file mode 100644
+--- a/type-change
++++ /dev/null
+@@ -1 +0,0 @@
+-before
+diff --git a/type-change b/type-change
+new file mode 120000
+--- /dev/null
++++ b/type-change
+@@ -0,0 +1 @@
++target
+\\ No newline at end of file
+diff --git a/reverse-type b/reverse-type
+deleted file mode 120000
+--- a/reverse-type
++++ /dev/null
+@@ -1 +0,0 @@
+-target
+\\ No newline at end of file
+diff --git a/reverse-type b/reverse-type
+new file mode 100644
+--- /dev/null
++++ b/reverse-type
+@@ -0,0 +1 @@
++after
+diff --git a/same-type-text b/same-type-text
+deleted file mode 100644
+--- a/same-type-text
++++ /dev/null
+@@ -1 +0,0 @@
+-target
+\\ No newline at end of file
+diff --git a/same-type-text b/same-type-text
+new file mode 120000
+--- /dev/null
++++ b/same-type-text
+@@ -0,0 +1 @@
++target
+\\ No newline at end of file
+diff --git a/binary-type b/binary-type
+deleted file mode 100644
+index ac46f4c6762c926aeadd5b94702c2041e45f63c9..0000000000000000000000000000000000000000
+GIT binary patch
+literal 0
+HcmV?d00001
+
+literal 9
+Qcmd1LNnuFJ$xq?}01v?e=>Px#
+
+diff --git a/binary-type b/binary-type
+new file mode 120000
+--- /dev/null
++++ b/binary-type
+@@ -0,0 +1 @@
++binary-target
+\\ No newline at end of file"""
+    authored = leaf_page(
+        "Native Git changes",
+        '<h1 id="changes">Changes</h1><lf-diff id="mixed-rename-diff"><pre>'
+        + ("" if manifest else escape(source))
+        + "</pre></lf-diff>",
+    )
+    if manifest:
+        authored = authored.replace(
+            'id="mixed-rename-diff"', 'id="mixed-rename-diff" source="native-patch"'
+        )
+    url = serve(authored)
+    if manifest:
+        data_model.cmd_data_set(serve.page_dir, "native-patch", patch_manifest(source))
+    context = browser.new_context(
+        viewport={"width": 390 if mobile else 1280, "height": 900}, has_touch=mobile
+    )
+    deferred = []
+    context.on(
+        "request",
+        lambda request: (
+            deferred.append(request.url) if "/api/deferred?" in request.url else None
+        ),
+    )
+    page = open_page(browser, url, context=context)
+    result = page.evaluate("""async () => {
+      const host = document.querySelector('#mixed-rename-diff');
+      const shadow = host.shadowRoot;
+      const renames = [...(shadow?.querySelectorAll('.lf-diff-metadata') ?? [])];
+      const rename = renames[0];
+      const quotedRename = renames[1];
+      const bomRename = renames[2];
+      const { says, wrote } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      return {
+        rendered: host.classList.contains('lf-rendered'),
+        error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
+        details: shadow?.querySelectorAll('details').length ?? 0,
+        diffs: shadow?.querySelectorAll('pre[data-diff]').length ?? 0,
+        renameCount: renames.length,
+        evidence: [...shadow.querySelectorAll(".lf-diff-evidence")].map(node => node.textContent),
+        metadata: renames.slice(3).map(node => node.querySelector('.lf-diff-stat').textContent),
+        copied: [...shadow.querySelectorAll('summary')].find(node => node.textContent.includes('edited-copy.js'))?.textContent.includes('copied'),
+        overflow: shadow.host.scrollWidth > shadow.host.clientWidth,
+        pathsVisible: [...shadow.querySelectorAll('summary .lf-diff-base')].every(node => node.getBoundingClientRect().width > 1),
+        metadataLines: renames.reduce((total, node) => total + node.querySelectorAll('[data-line]').length, 0),
+        from: rename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        to: rename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
+        stat: rename?.querySelector('.lf-diff-stat')?.textContent ?? null,
+        generated: rename?.dataset.lfGen === '1',
+        saidOverride: rename?.hasAttribute('data-lf-said') ?? null,
+        quotedFrom:
+          quotedRename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        quotedTo: quotedRename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
+        bomFrom: bomRename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        bomTo: bomRename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
+        lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
+          .map(line => line.textContent),
+        saysRename: says(document).includes('old-name.js → new-name.js'),
+        wroteRename: wrote(document).includes('old-name.js → new-name.js'),
+      };
+    }""")
+    assert result == {
+        "rendered": True,
+        "error": None,
+        "details": 6,
+        "diffs": 6,
+        "renameCount": 8,
+        "evidence": [
+            "mode 100644 → 100755",
+            "mode 100644 → 120000",
+            "mode 120000 → 100644",
+            "mode 100644 → 120000",
+            "binary content · mode 100644 → 120000",
+        ],
+        "metadata": [
+            "mode 100644 → 100755",
+            "binary content",
+            "copied",
+            "added · mode 100644",
+            "deleted · mode 100644",
+        ],
+        "copied": True,
+        "overflow": False,
+        "pathsVisible": True,
+        "metadataLines": 0,
+        "from": "old-name.js",
+        "to": "new-name.js",
+        "stat": "renamed",
+        "generated": True,
+        "saidOverride": False,
+        "quotedFrom": "old\tname.js",
+        "quotedTo": "new\tname.js",
+        "bomFrom": "\ufeffold.js",
+        "bomTo": "\ufeffnew.js",
+        "lines": [
+            "const value = 1;",
+            "const value = 2;",
+            "const original = 1;",
+            "const copied = 2;",
+            "before",
+            "target",
+            "target",
+            "after",
+            "target",
+            "target",
+            "binary-target",
+        ],
+        "saysRename": True,
+        "wroteRename": False,
+    }
+
+    assert len(deferred) == (14 if manifest else 0), deferred
+    for path, side, text in [
+        ("type-change", "old", "before"),
+        ("type-change", "new", "target"),
+        ("reverse-type", "old", "target"),
+        ("reverse-type", "new", "after"),
+        ("same-type-text", "old", "target"),
+        ("same-type-text", "new", "target"),
+    ]:
+        key = json.dumps([path, side, 1], separators=(",", ":"))
+        line = page.locator(f"lf-diff [data-lf-datum='{key}']")
+        expect(line).to_have_text(text)
+        expect(line).to_have_attribute("data-lf-datum-label", f"{path} · {side} line 1")
+        comment = page.get_by_role(
+            "button", name=f"Comment on {path} · {side} line 1", exact=True
+        )
+        if mobile:
+            comment.tap()
+        else:
+            line.hover()
+            comment.click()
+        outlet = page.locator(
+            f"lf-diff .lf-diff-thread-outlet[data-lf-thread-datum='{key}']"
+        )
+        expect(outlet.locator(".lf-fab-input")).to_be_focused()
+        page.keyboard.press("Escape")
+        assert (
+            page.locator("lf-diff").evaluate(
+                "(diff, key) => diff.lfDataDatum(JSON.stringify(key)).textContent.trim()",
+                [path, "source", side, 1],
+            )
+            == text
+        )
+        expect(
+            page.locator(f'lf-diff [data-lf-datum=\'["{path}","file"]\']')
+        ).to_have_count(1)

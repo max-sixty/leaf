@@ -17,6 +17,7 @@ from interact_support import (
     _observer,
     append_carried_log_record,
     append_command,
+    command_refusal,
     delivered_ref,
     delivery_through,
     last_deliverable_seq,
@@ -24,6 +25,7 @@ from interact_support import (
     publish,
     receive_through,
     record_claim,
+    refused_on,
     response_reference,
 )
 from leaf import cli as cli_model
@@ -35,8 +37,8 @@ from leaf import harness as harness_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
-from leaf import tasks as tasks_model
 from leaf import thread as thread_model
+from leaf import todos as todos_model
 from leaf.refusals import Refused
 
 
@@ -66,10 +68,11 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
             reference,
             "--text",
             "Used A.",
+            "--json",
         ],
     )
     assert stale.exit_code != 0
-    assert "no longer requires a reply" in stale.output
+    assert refused_on(stale.stdout).code == "superseded-reply"
 
     current = CliRunner().invoke(
         cli_model.cli,
@@ -510,12 +513,10 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
     )
     # An answer to the same reference is not a retry of the receipt: it is refused
     # as an answer to a settled input rather than handed the receipt back.
-    answered = CliRunner().invoke(
-        cli_model.cli,
-        ["response", "reply", reference, "--done", "--text", "Here it is."],
+    answered = command_refusal(
+        "response", "reply", reference, "--done", "--text", "Here it is."
     )
-    assert answered.exit_code != 0
-    assert "no longer requires a reply" in answered.output
+    assert answered.code == "superseded-reply"
     assert [event["id"] for event in events_model.read_events(page_dir)][-1] == (
         reply["id"]
     )
@@ -698,8 +699,9 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
         page_dir, events_model.read_events(page_dir)
     )
     assert thread_model.post_response(target["ref"], "Retry", ask=True) == answer
-    with pytest.raises(Refused, match="different declaration"):
+    with pytest.raises(Refused) as refused:
         thread_model.post_response(target["ref"], "Retry", todo="Promise it")
+    assert refused_on(refused.value).code == "redeclared-answer"
 
 
 def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
@@ -708,21 +710,23 @@ def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
     )
     reference = response_reference(page_dir, comment)
     # Progress is the Working line, so the kernel schema holds it to one line.
-    with pytest.raises(Refused, match="reply event is invalid"):
+    with pytest.raises(Refused) as refused:
         thread_model.post_response(reference, "Checking\nthe store.", ephemeral=True)
+    assert refused_on(refused.value).values["field"] == "/text"
     progress = thread_model.post_response(
         reference, "Checking the store.\n", ephemeral=True
     )
     events = events_model.read_events(page_dir)
     assert [event["kind"] for event in events] == ["comment", "reply"]
     assert progress["start"]["item"] == comment["id"]
-    assert tasks_model.item_starts(events)[comment["id"]]["id"] == progress["id"]
+    assert todos_model.item_starts(events)[comment["id"]]["id"] == progress["id"]
     assert comment["id"] in delivery_model.current_responses(page_dir, events)
     # A proactive command cannot infer which pending input this progress means.
-    with pytest.raises(Refused, match="requires a response"):
+    with pytest.raises(Refused) as refused:
         thread_model.post_reply(
             page_dir, {"to": comment["id"]}, "Proactive", ephemeral=True
         )
+    assert refused_on(refused.value).code == "owed-response"
     answer = thread_model.post_response(reference, "The durable answer.")
     assert answer["responds"] == comment["id"]
     assert comment["id"] not in delivery_model.current_responses(
@@ -907,10 +911,11 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
     reference = response_reference(page_dir, action)
     for options in ({}, {"ephemeral": True}, {"failure": "unavailable"}):
         before = events_model.read_events(page_dir)
-        with pytest.raises(Refused, match="requires.*not a reply"):
+        with pytest.raises(Refused) as refused:
             thread_model.post_response(reference, "This is not a revision.", **options)
+        assert refused_on(refused.value).code == "not-a-reply"
         assert events_model.read_events(page_dir) == before
-    started = tasks_model.cmd_start(
+    started = todos_model.cmd_start(
         page_dir, action["id"], "Recording the selected plan."
     )
     assert started["item"] == action["id"]

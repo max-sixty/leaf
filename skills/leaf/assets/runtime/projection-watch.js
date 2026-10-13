@@ -17,7 +17,7 @@
    function permanently ends the subscription, including queued paints. Its `refresh()`
    reruns the same clock-tracked paint synchronously for mechanical changes such as
    revealing held news, or on the return when the owner is away, while retaining the
-   owner's lifetime and readiness proof. `watchQuestions`, `watchQueues`,
+   owner's lifetime and readiness proof. `watchAsks`, `watchQueues`,
    `watchThreads`, `watchReports` and `watchHistory` are this watcher with a reading of
    their own, so none of them states these rules again. */
 import { applicationState, watchPresentation } from "./semantic-state.js";

@@ -74,18 +74,26 @@ export function createThreadPresentation({
   // also draws the Questions and the workflows; its own watcher follows those
   // (`annotationSelection`).
   //
-  // Only epochs the page has read the log for claim. Before it has, each one draws the
-  // same line about waiting, and repainting the margin and the anchors to say it again
-  // is work done ahead of the first paint the user is waiting on. A user who opens the
-  // panel in that window asks for the reading directly, through `present`, and gets
-  // it: every phase owes a reading when asked, the ones before the log included.
+  // Before the page has read the log, an epoch with no thread draws the same line about
+  // waiting, and repainting the margin and the anchors to say it again is work done
+  // ahead of the first paint the user is waiting on, so all of them read as one
+  // unchanging value. A thread the user starts in that window is drawn, and so is its
+  // removal, the refusal of the last send included. A user who opens the panel then
+  // asks for the reading directly, through `present`, and gets it: every phase owes a
+  // reading when asked.
   const presenter = applicationPresenter({
     region: "thread",
     order: PRESENTATION_ORDER.thread,
     reading: (root) =>
-      !available || root.phase === "waiting"
+      !available
         ? null
-        : { phase: root.phase, thread: root.effective.thread, document: root.document },
+        : root.phase === "waiting" && !root.effective.thread.all.length
+          ? "waiting"
+          : {
+              phase: root.phase,
+              thread: root.effective.thread,
+              document: root.document,
+            },
     current: () => (available ? readApplication().effective.thread : null),
     paint: async (value, current) => {
       const phase = readApplication().phase;
@@ -94,7 +102,7 @@ export function createThreadPresentation({
       if (phase === "ready") await paintCurrent(current);
       else {
         paintCurrent.stop();
-        await startRender(current, phase);
+        await startRender(current);
       }
       return value;
     },
@@ -104,14 +112,14 @@ export function createThreadPresentation({
 
   let surfaceGeneration = 0;
   let cancelCurrentRender = () => {};
-  const startRender = (presenting, phase = "ready") => {
+  const startRender = (presenting) => {
     cancelCurrentRender();
     const { promise: cancelled, resolve } = Promise.withResolvers();
     cancelCurrentRender = resolve;
-    return renderReading(phase, cancelled, presenting);
+    return renderReading(cancelled, presenting);
   };
 
-  async function renderReading(phase, cancelled, presenting) {
+  async function renderReading(cancelled, presenting) {
     const generation = ++surfaceGeneration;
     read.begin();
     const current = () => generation === surfaceGeneration && presenting();
@@ -123,9 +131,8 @@ export function createThreadPresentation({
     const livePanels = [...panels];
     let surfaces = null;
     try {
-      const { all } = threadState();
+      const { all: threads } = threadState();
       const collection = readThreads();
-      const threads = phase === "ready" ? all : [];
       const listed = collection.threads;
       const continueReplies = holdReplyCompositions(threads, continueThread);
       renderHolds(threads);
@@ -151,14 +158,7 @@ export function createThreadPresentation({
         if (!current()) return;
         prepared = Promise.all(
           livePanels.map(({ controller, view }) =>
-            phase === "ready"
-              ? controller.renderThreads(collection, view)
-              : controller.renderThreadListUnavailable(
-                  phase === "offline"
-                    ? "Current threads are unavailable while the server is offline."
-                    : "Loading current threads…",
-                  view,
-                ),
+            controller.renderThreads(collection, view),
           ),
         );
         void prepared.catch(() => {});
@@ -205,6 +205,9 @@ export function createThreadPresentation({
     } catch (error) {
       surfaces?.cancel();
       if (!current()) throw error;
+      // Placement and control preparation both read visual coordinates. A failure
+      // in either invalidates the proxies retained from the previous reading.
+      anchorControls.withholdVisualActions();
       read.abort();
       primary?.cancel();
       // A synchronous sibling failure may leave the panel's widget preparation in

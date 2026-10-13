@@ -37,6 +37,7 @@ import tempfile
 import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import cached_property, lru_cache, partial
 from pathlib import Path
 from types import MappingProxyType
@@ -267,6 +268,9 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
     a CDN module named that way loads, and a page file it names is in the revision
     only if something imports it literally.
 
+    This reads imports, not syntax: the browser judges the module, and its error
+    reaches the agent through `page check` or the watcher.
+
     A layer's modules are the same bytes in every page that selects them, and parsing
     a vendored bundle takes about a second, so a process reads each module once."""
     try:
@@ -274,18 +278,8 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
     except UnicodeDecodeError as error:
         raise ArtifactError(f"{path}: JavaScript is not UTF-8") from error
     tree = Parser(_JAVASCRIPT).parse(data)
-    if tree.root_node.has_error:
-        pending = [tree.root_node]
-        while pending:
-            node = pending.pop()
-            if node.is_error or node.is_missing:
-                raise ArtifactError(
-                    f"{path}:{node.start_point[0] + 1}: invalid JavaScript"
-                )
-            pending.extend(reversed(node.children))
-        raise ArtifactError(f"{path}: invalid JavaScript")
     # Document order, a node before the nodes it holds, as a walk of the tree meets
-    # them, so the first problem in the file is the one reported.
+    # them, so the spans come back in the order the file states them.
     nodes = sorted(
         QueryCursor(_IMPORT_NODES).captures(tree.root_node).get("node", []),
         key=lambda node: (node.start_byte, -node.end_byte),
@@ -295,21 +289,16 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
         literal = None
         if node.type in {"import_statement", "export_statement"}:
             literal = node.child_by_field_name("source")
-            if any(child.type == "import_attribute" for child in node.named_children):
-                raise ArtifactError(
-                    f"{path}:{node.start_point[0] + 1}: import attributes are not supported for JavaScript modules"
-                )
         elif node.type == "call_expression":
             function = node.child_by_field_name("function")
-            if function.type == "import":
-                arguments = node.child_by_field_name("arguments").named_children
-                if len(arguments) == 1 and arguments[0].type == "string":
-                    literal = arguments[0]
+            # A tree the parser recovered from may lack the arguments.
+            if function.type == "import" and (
+                arguments := node.child_by_field_name("arguments")
+            ):
+                named = arguments.named_children
+                if len(named) == 1 and named[0].type == "string":
+                    literal = named[0]
         if literal is not None:
-            if any(child.type != "string_fragment" for child in literal.named_children):
-                raise ArtifactError(
-                    f"{path}:{literal.start_point[0] + 1}: module URLs must be unescaped string literals"
-                )
             imports.append(
                 (
                     literal.start_byte,
@@ -1062,6 +1051,11 @@ class RevisionReading(SourceReading):
             vars(self).update(vars(adopted))
 
     @cached_property
+    def activated_at(self) -> str:
+        """The immutable marker's publication date, shared by every delivery."""
+        return datetime.fromtimestamp(self.marker.stat().st_mtime, UTC).isoformat()
+
+    @cached_property
     def document(self) -> SourceDocument:
         # Bytes, not text: universal newlines would turn CRLF into LF, and
         # `document.data` must be the captured bytes the digest and the
@@ -1201,10 +1195,10 @@ def _inventory_size(value):
 class _CompactReadings:
     """Compact revision readings with their own byte budget and page lifetime.
 
-    Element identities, Question registration and data consumers are small facts
+    Element identities, ask registration and data consumers are small facts
     about immutable documents. Keeping them separately prevents long-history scans
     from evicting their own completed work with full parses. Each owner charges its retained
-    representation; a Question source also reserves its last dynamic answer,
+    representation; an ask source also reserves its last dynamic answer,
     keyed by the event basis the canonical fold reads. Keys include the marker
     stamp. No document, full registry, SourceReading or event log is retained.
     """

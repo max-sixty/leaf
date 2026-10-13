@@ -2,8 +2,9 @@
 
 from typing import NamedTuple
 
+from ..asks import approval_blocking, collection
 from ..document_reading import DocumentReading
-from ..events import UndoReading, is_reaction
+from ..events import UndoReading
 from ..files import stamped_version
 from ..gesture_words import GestureWords, RevisionReader
 from ..history import history, wants_history
@@ -13,7 +14,6 @@ from ..projection import (
     canonical_reports,
     page_reading,
 )
-from ..questions import approval_blocking, collection
 from ..schema import WIDGET_KINDS
 from ..thread_context import thread_memberships
 from ..work_reading import WorkReading
@@ -21,7 +21,7 @@ from .context import PageRead
 from .document import browser_document, browser_undo_candidates
 from .queues import queues
 from .thread import browser_thread
-from .work import WorkState, served_workflows, work_state
+from .work import WorkState, work_state
 
 
 class BrowserReading(NamedTuple):
@@ -80,172 +80,22 @@ def _thread_attention(
     return None
 
 
-def _readings(
-    threads, asks: dict, workflows: list[dict], todos: list[dict]
-) -> dict[str, tuple[dict | None, list[str]]]:
-    """Each thread's attention and the asks in it the user owes, by thread id."""
-    owed: dict[str, list[str]] = {}
-    for ask in asks["user"]:
-        if ask["thread"] is not None:
-            owed.setdefault(ask["thread"], []).append(ask["id"])
+def _apply_thread_attention(
+    durable: WorkReading, workflows: list[dict], threads: list[dict], todos: list[dict]
+):
+    """Attach each served thread's `attention`, the browser's one reading of whose turn
+    it is. `durable` is the reading of the view these threads are served in, so a pinned
+    revision's threads take the attention its own vocabulary reads; `workflows` are
+    the page's, enriched with delivery liveness."""
+    owed = {ask["thread"] for ask in durable.asks["user"]}
     by_thread: dict[str, list[dict]] = {}
     for workflow in workflows:
         if workflow["thread"] is not None:
             by_thread.setdefault(workflow["thread"], []).append(workflow)
-    return {
-        thread["id"]: (
-            _thread_attention(
-                thread,
-                thread["id"] in owed,
-                by_thread.get(thread["id"], []),
-                todos,
-            ),
-            owed.get(thread["id"], []),
-        )
-        for thread in threads
-    }
-
-
-# The gestures a user makes on a thread whose effect on its attention and asks
-# only the log can read, each supposed on the threads where it is possible.
-_SUPPOSED = ("reply", "edit", "resolve", "unresolve", "react", "unreact")
-
-
-def _supposed(
-    kind: str, thread: dict, seq: int, prompt: str | None, settling: tuple[str, ...]
-) -> dict | None:
-    """The user's `kind` gesture on `thread`, as the log would hold it, or None where
-    the thread offers none: a rewrite needs words of the user's to rewrite, a
-    settlement goes the way the thread does not stand, `react`, a reaction with a
-    `settling` token on the agent turn whose ask the user owes (`prompt`), needs
-    both, and `unreact`, taking back the newest reaction with such a token on an
-    agent turn the log holds, needs one."""
-    gesture = {
-        "id": f"supposed-{kind}:{thread['id']}",
-        "kind": kind,
-        "author": "user",
-        "seq": seq,
-        "ts": thread["msgs"][-1]["ts"] if thread["msgs"] else None,
-    }
-    if kind == "reply":
-        return {**gesture, "parent": thread["root"]["id"], "text": "…"}
-    if kind == "edit":
-        mine = next(
-            (
-                message
-                for message in reversed(thread["msgs"])
-                if message["author"] == "user"
-                and not is_reaction(message)
-                and message.get("text")
-            ),
-            None,
-        )
-        return mine and {**gesture, "message": mine["id"], "text": "…"}
-    if kind == "react":
-        token = settling[0] if settling else None
-        return (
-            prompt
-            and token
-            and {**gesture, "kind": "reply", "parent": prompt, "token": token}
-        )
-    if kind == "unreact":
-        # Only a reaction on an agent turn settles anything; a bare one is its own
-        # thread, which taking it back removes.
-        turns = {
-            message["id"] for message in thread["msgs"] if message["author"] == "agent"
-        }
-        reaction = next(
-            (
-                message
-                for message in reversed(thread["msgs"])
-                if message["author"] == "user"
-                and is_reaction(message)
-                and message["token"] in settling
-                and message.get("parent") in turns
-            ),
-            None,
-        )
-        return reaction and {**gesture, "kind": "undo", "undoes": reaction["id"]}
-    if (kind == "resolve") == bool(thread["resolved"]):
-        return None
-    return {**gesture, "parent": thread["root"]["id"]}
-
-
-def _apply_thread_attention(
-    durable: WorkReading, workflows: list[dict], threads: list[dict], todos: list[dict]
-):
-    """Attach each served thread's `attention`, and `after`: the attention and owed
-    asks each gesture of the user's would leave it with.
-
-    A reply answers the prose asks before it and no widget ask, a rewrite
-    answers none, either reopens a resolved thread and supersedes a failed response
-    to a thread input, a reopening brings back what its resolution suppressed, such
-    as a failed pick or an ask, and a reaction whose token settles (`$reactions`)
-    answers the question the turn it marks asks, which `react` supposes on the turn
-    whose ask the user owes, and taking such a reaction back reopens what it
-    answered, which `unreact` supposes of the newest the thread holds, naming it as
-    `undoes`. Rather than restate those rules, each `after`
-    reading is the log's own: the same reading of the work, folded with that gesture
-    supposed on every thread where it is possible (threads are independent, so one
-    fold serves them all), and the same `_thread_attention`. `after[kind]` is
-    `{attention, owed}`, or None where the thread offers no such gesture. A waiting
-    attention's `workflow` is null where it waits on the supposed gesture itself,
-    which the browser draws as its own send. Delivery liveness, which activity adds
-    to served workflows from claims and the clock, is not supposed, so where it would
-    mark an earlier input uncertain the reading names the gesture's own wait instead;
-    which actor owes the thread, and what, are the log's either way.
-
-    The browser reads `after` while a gesture it sent is unanswered, so its thread
-    attention and asks agree with the reading the log gives back
-    (`thread/model.js`, `foldThreads`).
-
-    `durable` is the reading of the view these threads are served in, so a pinned
-    revision's threads take the attention its own vocabulary reads; `workflows` are
-    the page's, enriched with delivery liveness."""
     for thread in threads:
-        thread["after"] = {}
-    current = _readings(threads, durable.questions, workflows, todos)
-    for thread in threads:
-        thread["attention"] = current[thread["id"]][0]
-    base = durable.events[-1]["seq"] if durable.events else 0
-    held = durable.threads
-    tokens = durable.registry.get("$reactions", {}).get("tokens", {})
-    settling = tuple(name for name, token in tokens.items() if token.get("settles"))
-    prompts = {
-        identity: reading.prompt["message"] if reading.prompt else None
-        for identity, reading in durable.thread_questions.items()
-    }
-    for kind in _SUPPOSED:
-        supposed = {
-            identity: gesture
-            for at, (identity, thread) in enumerate(held.items(), start=1)
-            if (
-                gesture := _supposed(
-                    kind, thread, base + at, prompts[identity], settling
-                )
-            )
-            is not None
-        }
-        if not supposed:
-            for thread in threads:
-                thread["after"][kind] = None
-            continue
-        reading = durable.supposing(list(supposed.values()))
-        workflows = served_workflows(reading.workflows, reading.thread)
-        after = _readings(reading.threads.values(), reading.questions, workflows, todos)
-        for thread in threads:
-            gesture = supposed.get(thread["id"])
-            if gesture is None:
-                thread["after"][kind] = None
-                continue
-            attention, owed = after[thread["id"]]
-            if attention is not None and attention["workflow"] == gesture["id"]:
-                attention = {**attention, "workflow": None}
-            thread["after"][kind] = {
-                "attention": attention,
-                "owed": owed,
-                **({"undoes": gesture["undoes"]} if kind == "unreact" else {}),
-            }
+        thread["attention"] = _thread_attention(
+            thread, thread["id"] in owed, by_thread.get(thread["id"], []), todos
+        )
 
 
 def browser_state(
@@ -294,7 +144,7 @@ def browser_state(
         absorbed=active_page.projection.absorbed,
     )
     workflows = work.workflows
-    todos, ended_todos = durable.page_tasks(work.activity["tasks"])
+    todos, ended_todos = durable.page_todos(work.activity["todos"])
     agent_todos = [todo for todo in todos if todo["owner"] == "agent"]
 
     views = {}
@@ -375,7 +225,7 @@ def browser_state(
     activity = {
         key: value
         for key, value in work.activity.items()
-        if key not in {"workflows", "tasks"}
+        if key not in {"workflows", "todos"}
     }
     if wants_history(readings[revision] for revision in view_revisions):
         words = GestureWords(events, active_registry, revisions or readings.__getitem__)

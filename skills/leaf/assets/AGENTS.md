@@ -51,16 +51,15 @@ representative desktop viewport.
   when their CSS loads before first paint: adding, removing or moving one keeps every
   block's position, wrapping and size. No rule pads, indents, widens or reflows a block
   to clear a pin, since reserved room would make the page's geometry depend on which
-  markers exist and where. Where a pin covers something the user needs, the answers are
-  `o` (Hide annotations under More on a touch screen) and a better placement
-  (`TODO.md`), never room made for it. The rail sits right of `main` wherever the window
+  markers exist and where. Resting pins use clear space or are withheld, while Page Map
+  retains their threads and actions. The rail sits right of `main` wherever the window
   has room, and seating it there never moves, narrows or indents the column
   (`content-layout.js`). `data-rail` on `body` withholds or reserves it: `"right"` makes
   the shell give up the rail's width, so the page's layout gets narrower
   (`annotation-theme.css`). Otherwise only the left resident and sidenotes move the
   column, through prepaint.js `residency`.
   Checks: `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch
-  ("Stability"). Owners: the default package's `margin-placement.js` for where a margin
+  ("Stability"). Owners: `runtime/annotation-overlay/margin-placement.js` for where a margin
   row sits and when a pin folds.
 - **Auxiliary surfaces open over the page and never change its geometry.** The
   Questions panel, the thread panel and the Pages drawer take no room from the page;
@@ -132,7 +131,7 @@ representative desktop viewport.
   card news would take out of the panel's view; `reading-continuity.js` for a hidden
   tab.
 - **A turn of the user's own takes them with it.** A turn that takes its card out of
-  the Threads panel's view, as a reply under "Waiting on you" or a rewrite or Reopen
+  the Threads panel's view, as a reply under "Waiting on me" or a rewrite or Reopen
   under Resolved does, widens the view to one that holds the thread and takes the user
   with it; a refusal puts the view back only while they have not acted since. Owners:
   `thread/thread-card.js` (`#speak`), `thread/folding.js`.
@@ -232,7 +231,7 @@ page only, before any resource the page loads. It marks the page live
 (`data-lf-live`), so the theme reserves the chrome's room; it shows a startup failure
 and waits for a server that can start the page, even if the module graph never loads,
 or says the page has a problem where the fault is the page's own, as words a module
-staged where the page cannot read them; and it holds page keys pressed before presentation. Content modules import only
+staged where the page cannot read them; and it holds page keys until their declared inputs are available. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities
 and cross-owner reads happen in their mounts. Pure projection, thread, and
@@ -248,7 +247,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Composition and semantic publication | `application.js`, `semantic-state.js`, `context.js` |
 | Delivery, accepted state, and wakeups | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js` |
 | Undo and withdrawal | `undo.js` |
-| State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `questions/model.js`, `queues.js` |
+| State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js`, `queues.js` |
 | Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
@@ -258,7 +257,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
 | Focus and navigation | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js` |
-| Asks | `questions/` |
+| Asks | `asks/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
@@ -388,11 +387,18 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 
 | Question | Owner |
 | --- | --- |
-| Where the user stands: focus inside open shadow trees, or a label press holding them | `focus.js` `focused` |
+| Where the user stands: focus inside open shadow trees, or a label press holding them; asked in one tree, the node standing for it there | `focus.js` `focused`, `focused(tree)` (*lint*) |
+| Whether the user stands in a scope, across shadow trees and slots | `focus.js` `standingIn` (*lint*) |
+| The user's working place, read before something borrows it and handed back after | `history.js` `readPlace`, `returnPlace` |
+| Where a page walk starts, and which item it steps to from there | `standing-target.js` `walkOrigin`, `stepFrom` |
+| Which of two nodes the reader reaches first, across shadow trees | `shadow-tree.js` `renderedOrder`, `byRenderedOrder` |
+| Whether a node stands inside another across shadow trees, by composed parents or as rendered | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode` |
 | Put the user on an element, saying what moved them | `focus.js` `focusDestination(node, cause)` (*lint*) |
 | Place a node that may already stand somewhere, keeping the user's place in it | `dom-move.js` `move(parent, node, before)` (*lint*) |
 | Make a list of nodes, some already placed, a parent's children | `dom-children.js` `setChildren` |
 | Whether a control takes typed letters | `focus.js` `typesText`, `takesLetters` |
+| Which keys move a caret, and whether a key is Select All | `control-selectors.js` `CARET_KEYS`, `selectsAll` |
+| A hint map's walk and choose rows | `keyboard/hints.js` `createHintSession`, its session's walkRows |
 | Which focused control counts as the user's place: shown, and not under a stuck box | `user-place.js` `focusedInView` |
 | Whether a click came from the keyboard | `pointer.js` `pressIsKeyboardActivation` |
 | Whether a press is the plain one a control claims: primary button, no modifier | `pointer.js` `plainPress` |
@@ -421,7 +427,7 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Paint on the next frame, or watch a size | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (*lint*) |
 | Write a DOM value only when it changed | `keeps.js` `keeps` |
 | Threads, workflow, attention, asks, settlement | the server's folds, under "One writer for each fact" |
-| Which asks a region of the page holds | `questions/place.js` `asksIn` |
+| Which asks a region of the page holds | `asks/place.js` `asksIn` |
 
 ### Facts both runtimes know
 
@@ -451,21 +457,27 @@ not generated.
 8. Run the dressing passes and wait for the coordinator publication.
 9. Join the page-interface owners' reconciliation (`PAGE_INTERFACE`), separate from
    this document's semantic proof.
-10. Land a fresh URL's fragment, then stamp `data-lf-upgraded="1"`.
-11. Start the state feed; its first answer presents the page, or after a bounded
-    wait the page presents offline and applies the answer when it lands.
+10. Land a fresh URL's fragment, prepare anchor-dependent chrome, then stamp
+    `data-lf-upgraded="1"` and open comment capture against the shown document.
+11. Start the state feed; its first answer presents the page. A failed or expired
+    read presents offline; an unanswered request keeps its loading status.
 
 Authored HTML paints immediately, and the render-blocking theme reserves the
 banner and bottom bar so mounting the runtime moves nothing. Prose, links, and
-scrolling work while widgets upgrade. Page keys wait, because a command reads
-state the first answer brings: the bootstrap holds printed keys pressed before
-presentation and the keyboard controller replays them in order once the page
-presents, while any other key or a pointer press drops the held run. Durable
-controls wait for `data-lf-presented` (`../references/module-authoring.md`, "Startup and presentation"). An async
+scrolling work while widgets upgrade. New comments, anchors, drawing and their
+keys work at upgrade, while private thread history still says it is loading.
+The bootstrap holds printed keys before upgrade; the controller replays them
+in order as each command's declared input becomes ready. A history-dependent
+key keeps its ordered run until presentation, while any other key or a pointer
+press drops the held run. Ordinary UI commands use the shown document immediately;
+commands that need saved readings declare that dependency. Offline presentation
+discards pending keys and ends startup capture. Decision commands await the canonical
+saved reading
+(`../references/module-authoring.md`, "Startup and presentation"). An async
 producer joins settlement before `data-lf-upgraded`, or stays off the
 presentation path through `afterPresentation`, which declares the deferred
-arrival so `pageReadiness` still answers for it. `presentPage` owns the one
-transition to stateful interaction; its synchronous `PRESENTATION` signal lets
+arrival so `pageReadiness` still answers for it. `presentPage` owns initial
+authoritative presentation; its synchronous `PRESENTATION` signal lets
 box-derived apparatus replace provisional geometry before the presented state
 paints. A reader outside the page waits on `pageReadiness`, through
 `wait_until_ready` in Python, rather than combining these stamps.
@@ -483,10 +495,9 @@ contains its source, prompt, typed answer, status and next actor. The browser
 selects each widget answer from the same local-inclusive state its controls draw,
 without folding its `x-awaits.answered` completion rule again. A required-version
 approval is another ask source: its local approval or undo updates its contained
-answer and status immediately, with refusal restoring the admitted reading. While a
-reply, rewrite, settlement or settling reaction is unresolved, its thread's attention and the asks
-in it the user owes are what the server read that gesture leaving them (each served
-thread's `after`); a refusal restores the admitted reading. Asks derive their queue rows directly, while to-dos hold
+answer and status immediately, with refusal restoring the admitted reading. A thread
+gesture changes no served thread's attention and no ask until the server's reading of it
+arrives (root `AGENTS.md`, "Responsiveness"). Asks derive their queue rows directly, while to-dos hold
 explicit committed work. Every state read has
 one `through_seq`, and version comparison asks `/api/view` at the sequence
 already applied. A page widget's projection stops at the current revision; a

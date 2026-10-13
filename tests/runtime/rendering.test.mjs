@@ -34,6 +34,7 @@ const {
   sizeObserver,
   renderingState,
   holdRendering,
+  observePreparations,
 } = await import("/runtime/rendering.js");
 
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
@@ -111,6 +112,36 @@ test("finite preparation retires once and owes its final quiet update", async ()
     updatesSettled: true,
     preparationsSettled: true,
   });
+});
+
+test("preparation observers follow one hold through exactly one terminal", async () => {
+  const first = [];
+  const stopFirst = observePreparations((...event) => first.push(event));
+  const cancel = holdRendering();
+  stopFirst();
+  const second = [];
+  const stopSecond = observePreparations((...event) => second.push(event));
+  cancel("cancel");
+  cancel();
+  const settle = holdRendering();
+  settle();
+  settle("cancel");
+  stopSecond();
+  assert.deepEqual(
+    first.map(([phase]) => phase),
+    ["begin", "cancel"],
+  );
+  assert.deepEqual(
+    second.map(([phase]) => phase),
+    ["begin", "settle"],
+  );
+  assert.equal(first[0][1], first[1][1]);
+  assert.equal(second[0][1], second[1][1]);
+  assert.notEqual(first[0][1], second[0][1]);
+  assert.ok(Object.isFrozen(first[0][1]));
+  assert.ok(Object.isFrozen(second[0][1]));
+  await update();
+  assert.equal(Object.values(renderingState()).every(Boolean), true);
 });
 
 test("work a callback queues runs before the same update paints", async () => {

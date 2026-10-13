@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import click
+from leaf.findings import Finding
 from leaf.render_checks import PageNotReady
 from leaf.render_gate.scheme import collect_page_errors
 from playwright.sync_api import Error as PlaywrightError
@@ -275,12 +276,14 @@ def probe(
                     message = str(error).split("\n", 1)[0] or type(error).__name__
                     reading["failed"] = f"{doing}: {message}"
                 failed |= "failed" in reading
+                if "errors" in reading:
+                    reading["errors"] = list(map(str, reading["errors"]))
                 click.echo(json.dumps({"arm": arm, "ran": ran, **reading}))
     if failed:
         raise click.ClickException("probe failed; see the arm's reading and recording")
 
 
-def console_errors(page) -> list[str]:
+def console_errors(page) -> list[Finding]:
     """The page's console errors and uncaught exceptions, collected from here on."""
     errors = []
     collect_page_errors(page, errors)

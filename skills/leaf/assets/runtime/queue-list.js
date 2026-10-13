@@ -6,19 +6,20 @@
    already derived: the two queues, each a heading with its count over its rows, then
    what is done, folded behind a native disclosure at the foot. This retained face keys
    the rows by item and keeps their light-DOM buttons stable across presentations. A row
-   standing at an element, a Question's or a widget's the user must act on, names it in
+   standing at an element, an ask's or a widget's the user must act on, names it in
    `data-lf-at`, so the row stands at that element (`declareSide`, queue-panel.js) and
-   mirrors the ring of the Question the user stands in (questions/view.js, `markHere`). The fold's
+   mirrors the ring of the ask the user stands in (asks/view.js, `markHere`). The fold's
    open state is the disclosure's own, a browser fact the reading never holds.
 
-   A row whose task the user ends with Done carries a Done button beside it, which Tab
+   A row whose to-do the user ends with Done carries a Done button beside it, which Tab
    reaches from the row and a finger taps, and `x` on the row presses it. Pressing it
    puts focus on its row first, so focus follows the list as the row leaves for Done. */
 import { html, nothing, repeat } from "../vendor/browser-runtime.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { commandsOn } from "./keyboard/scopes.js";
 import { RetainedFace } from "./retained-face.js";
-import { focusDestination, holdFocus } from "./focus.js";
+import { focusDestination, holdFocus, focused } from "./focus.js";
+import { closestAcross } from "./passages.js";
 
 const QUEUE_AT = "data-lf-at";
 const QUEUE_ROW = "data-lf-row";
@@ -53,7 +54,7 @@ const rowTemplate = (row, activate, finish, end) =>
           id: "queue.row.done",
           keys: ["x"],
           title: "done",
-          description: "Mark this to-do waiting on you done",
+          description: "Mark this to-do done",
           when: () => Boolean(row.done),
           run: () => end(row.key),
         },
@@ -116,7 +117,7 @@ class QueueList extends RetainedFace {
     if (
       this.model.open &&
       !this.committed.open &&
-      document.activeElement === this.parentElement &&
+      focused() === this.parentElement &&
       first !== undefined
     ) {
       this.#landOn = first;
@@ -185,7 +186,7 @@ export function createQueueList() {
 }
 
 // The row standing at the element `id` names in an open list, or null: the row an
-// Question's ring is mirrored on and an arrival at that Question reveals.
+// ask's ring is mirrored on and an arrival at that ask reveals.
 export const rowAt = (list, id) =>
   [...list.querySelectorAll(`${ROW}[${QUEUE_AT}]`)].find(
     (row) => row.getAttribute(QUEUE_AT) === id,
@@ -193,7 +194,7 @@ export const rowAt = (list, id) =>
 
 // The id of the element the row holding `node` stands at, or null.
 export const standsAt = (node) =>
-  node.closest(`${ROW}[${QUEUE_AT}]`)?.getAttribute(QUEUE_AT) ?? null;
+  closestAcross(node, `${ROW}[${QUEUE_AT}]`)?.getAttribute(QUEUE_AT) ?? null;
 
 // The items an open list shows, in order: the rows of either queue, and Done's while it
 // is open.

@@ -833,7 +833,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     expect(visible).to_have_count(5)
     expect(pick("status", "open")).to_have_text("Open (5)")
     expect(pick("status", "resolved")).to_have_text("Resolved (1)")
-    expect(pick("waiting", "user")).to_have_text("You (1)")
+    expect(pick("waiting", "user")).to_have_text("Me (1)")
     expect(pick("waiting", "agent")).to_have_text("Agent (3)")
     expect(pick("scope", "page")).to_have_text("Page (2)")
     expect(pick("scope", "local")).to_have_text("Anchored (3)")
@@ -854,7 +854,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     pick("status", "resolved").click()
     expect(waiting_group).to_be_visible()
     expect(pick("waiting", "user")).to_have_attribute("aria-pressed", "false")
-    expect(pick("waiting", "user")).to_have_text("You (1)")
+    expect(pick("waiting", "user")).to_have_text("Me (1)")
     expect(pick("waiting", "agent")).to_have_text("Agent (3)")
     expect(pick("unplaced", "unplaced")).to_be_visible()
     expect(pick("unplaced", "unplaced")).to_be_disabled()
@@ -930,7 +930,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     expect(pick("unplaced", "unplaced")).to_have_text("Not located (1)")
     page.locator(".lf-thread-filter-toggle").click()
     expect(page.locator(".lf-thread-view-summary")).to_have_text(
-        "1 of 5 open threads · On agent · Anchored · Content · Not located"
+        "1 of 5 open threads · On Agent · Anchored · Content · Not located"
     )
     page.get_by_role("button", name="Reset thread filters").click()
     expect(visible).to_have_count(5)
@@ -1584,7 +1584,7 @@ def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):
     b.keyboard.type("Saved in B.")
     b.keyboard.press("Enter")
     round_trip(b)
-    consume_browser_errors(b, "/api/event")
+    consume_browser_errors(b, {"code": "failed-load", "status": 400})
     # Refused, B's words wait as its rewrite.
     expect(in_b.locator(".lf-msg-editor")).to_have_count(0)
     expect(in_b.locator(".lf-msg-kept")).to_have_text("unsaved edit")

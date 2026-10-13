@@ -144,16 +144,33 @@
   let recordStartupFault = () => {};
   let stopHoldingKeys = () => {};
 
-  // A page key pressed before the page presents would otherwise reach a runtime that has
-  // not loaded, or one that has not yet read the log: `t` walks the threads the first
-  // state answer brings, so until then it walks nothing. The keys wait here instead, in
-  // the order pressed, until the presented page takes them. What is held is a run of
-  // printed keys: one pressed on the page starts it, and every printed key after it
+  // A page key pressed before upgrade would reach a runtime that has not loaded.
+  // Upgrade hands the queue to the dispatcher, whose command readiness may retain
+  // keys that need private history. What is held is a run of printed keys: one
+  // pressed on the page starts it, and every printed key after it
   // joins. Any other key ends the run, and so does a pointer press, which puts the user
   // somewhere the keys were not aimed at: what was held is dropped and the new press
   // keeps its own meaning. A chord never starts a run, and a modifier alone is half a
-  // press, which neither starts nor ends one. After a beat the held keys are shown, so a press visibly landed; a page that
-  // presents within the beat shows nothing.
+  // press, which neither starts nor ends one. After a beat the held keys are shown, so a
+  // press visibly landed; a runtime that takes the run within the beat shows nothing.
+  const TYPED_TYPES = new Set([
+    "text",
+    "search",
+    "url",
+    "tel",
+    "email",
+    "password",
+    "number",
+    "date",
+    "time",
+    "datetime-local",
+    "month",
+    "week",
+  ]);
+  const takesLetters = (node) =>
+    node.isContentEditable ||
+    node.matches('textarea, leaf-text, select, [role="option"]') ||
+    (node.localName === "input" && TYPED_TYPES.has(node.type));
   const HALF_PRESSES = new Set([
     "Shift",
     "Control",
@@ -165,6 +182,8 @@
   function holdEarlyKeys() {
     const held = [];
     let taken = false;
+    let ready = null;
+    let keep = null;
     let beat = 0;
     const echo = document.createElement("p");
     echo.className = "lf-held-keys";
@@ -216,33 +235,50 @@
         queue(event);
       } else {
         // Only a printed page key starts a run. One typed into a field is the field's,
-        // and Space on its own scrolls. `leaf-text` is the runtime's text field, named
-        // here rather than read from `TEXT_BOX` (focus.js) because this script runs
-        // before any module; its closed root makes the host the event's origin.
+        // and Space on its own scrolls. Which fields take one is focus.js's
+        // `takesLetters`, spelled again here because this script runs before any
+        // module, so a checkbox or radio the user stands on, which takes no letters,
+        // holds the key as the presented page would act on it. `leaf-text` is the
+        // runtime's text field; its closed root makes the host the event's origin.
         const origin = event.composedPath()[0];
-        const typing =
-          origin instanceof Element &&
-          (origin.isContentEditable ||
-            origin.matches("input, textarea, leaf-text, select"));
+        const typing = origin instanceof Element && takesLetters(origin);
         if (typing || !printed || event.key === " ") return;
+        // Once the document upgrades, the dispatcher supplies readiness from
+        // command declarations. Useful page keys pass immediately; only a key
+        // whose input is still loading starts another ordered run.
+        if (ready?.(event)) return;
         queue(event);
       }
       event.preventDefault();
       event.stopImmediatePropagation();
     };
     const pointed = () => letGo();
-    // The page is ready, so the notice comes down, but the hold stands until the keyboard
+    // The controller takes a run, so the notice comes down, but the hold stands until its
     // owner has pressed the last key in it: a printed key pressed meanwhile joins the
     // same run rather than running ahead of the keys pressed before it.
     const take = (event) => {
-      taken = true;
+      ready = event.detail.ready;
+      keep = event.detail.keep;
       clearTimeout(limit);
+      if (!held.length) {
+        if (!keep?.()) stopHoldingKeys();
+        return;
+      }
+      taken = true;
       clearTimeout(beat);
       echo.remove();
       event.detail.keys = held;
-      event.detail.release = () => stopHoldingKeys();
+      event.detail.pause = () => {
+        taken = false;
+        if (!keep?.()) return stopHoldingKeys();
+        if (held.length) show();
+      };
+      event.detail.release = () => {
+        taken = false;
+        if (!keep?.()) stopHoldingKeys();
+      };
     };
-    // A page that has not presented by now is not loading but faulted, and a key held
+    // A page that has not upgraded by now is not loading but faulted, and a key held
     // this long is one the user has given up on: the hold ends, what it held is
     // dropped, and keys reach the runtime as they come.
     const limit = setTimeout(() => stopHoldingKeys(), 10_000);
@@ -255,7 +291,7 @@
     };
     window.addEventListener("keydown", hold, true);
     window.addEventListener("pointerdown", pointed, true);
-    // The keyboard owner takes the held keys once the page presents and runs them through
+    // The keyboard owner takes the held keys as the document upgrades and runs them through
     // its own handler (runtime/keyboard/controller.js).
     document.addEventListener("lf-held-keys", take);
   }
@@ -356,7 +392,12 @@
       once: true,
     });
     window.addEventListener("pagehide", () => report("abandoned"), { once: true });
-    setTimeout(() => report("timeout"), 15000);
+    setTimeout(() => {
+      readMilestones();
+      // A usable interface may still be waiting on a healthy state read. Its
+      // eventual answer or departure closes the authoritative profile.
+      if (upgradedMs === null) report("timeout");
+    }, 15000);
     recordStartupFault = (reason) => {
       fault ??= reason;
     };
@@ -366,7 +407,7 @@
   // where the page is incomplete (prepaint.js): it lacks something it needs however
   // far it gets, so the notice stands until a server that can start the page replaces
   // this one. An uncaught error in code that did load leaves nothing to wait for: the
-  // same server would serve the same bytes, so if the page presents it has started
+  // same server would serve the same bytes, so if the page upgrades it has started
   // with everything it is going to get. A fault that is the page's own (`page`) is
   // answered by no server: the page holds what its author wrote, so the notice says
   // the page has a problem and waits for nothing.
@@ -390,26 +431,26 @@
     else document.addEventListener("DOMContentLoaded", show, { once: true });
     if (page) return;
 
-    // The notice says the page has not started, and a page that presents has started,
+    // The notice says the page has not started, and a page that upgrades has started,
     // so a user who is using the page would otherwise be reading that Leaf could not
     // start, over a request a second that no answer ends.
     if (!awaits) {
-      const presentation = new MutationObserver(() => {
-        if (!document.body?.hasAttribute("data-lf-presented")) return;
-        presentation.disconnect();
+      const upgrade = new MutationObserver(() => {
+        if (!document.body?.hasAttribute("data-lf-upgraded")) return;
+        upgrade.disconnect();
         started = true;
         status.remove();
       });
-      presentation.observe(document, {
+      upgrade.observe(document, {
         attributes: true,
-        attributeFilter: ["data-lf-presented"],
+        attributeFilter: ["data-lf-upgraded"],
         childList: true,
         subtree: true,
       });
     }
 
     // A round carries what it learned to the end rather than acting where it learned
-    // it. The round in flight when the page presents resolves after it, and the user
+    // it. The round in flight when the page upgrades resolves after it, and the user
     // is then using a page this would otherwise navigate out from under them, so the
     // one place that acts is the one place that has to ask whether the page started.
     const check = async () => {

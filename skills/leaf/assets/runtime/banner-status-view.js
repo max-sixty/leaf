@@ -17,8 +17,8 @@
  * are counted.
  *
  * A passing notice shares the words' box (`presentNotice`), and on a phone stands over
- * them while it lasts; elsewhere the bottom status shows it (chrome.css,
- * `--lf-notice-seat`).
+ * them while it lasts; elsewhere the bottom status shows it, or in the floating panel
+ * its empty field does (chrome.css and floating-panel.css, `--lf-notice-seat`).
  */
 import {
   html,
@@ -30,22 +30,11 @@ import {
 } from "../vendor/browser-runtime.js";
 import { el, reserve } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
-import { focusDestination } from "./focus.js";
-import { WEBSITE_DELIVERY } from "./context.js";
+import { focusDestination, focused } from "./focus.js";
+import { agentName } from "./semantic-state.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
-const connecting = WEBSITE_DELIVERY ? "Connecting to the Leaf website…" : "Connecting…";
-const INITIAL = Object.freeze({
-  tone: "",
-  summary: connecting,
-  queues: "",
-  queuesWidest: "",
-  explanation: WEBSITE_DELIVERY
-    ? "Loading this website page. Website examples can take longer to connect than a usual Leaf page."
-    : connecting,
-  publication: null,
-});
 
 class BannerStatusView extends HTMLElement {
   #button = createRef();
@@ -61,20 +50,19 @@ class BannerStatusView extends HTMLElement {
   constructor() {
     super();
     this.#queues.type = "button";
-    this.#queues.title = "Show or hide the agent's tasks and your questions";
     this.#queues.setAttribute("aria-controls", "lf-queue");
   }
 
   #toggled = (event) => {
     // Focus the scrollable explanation so keyboard users can reach long details.
-    if (event.newState === "open" && document.activeElement === this.#button.value)
+    if (event.newState === "open" && focused() === this.#button.value)
       focusDestination(this.#detail.value, "move");
     this.#onToggle?.();
   };
 
-  configure({ onToggle }) {
+  configure({ onToggle, initial }) {
     this.#onToggle = onToggle;
-    this.present(INITIAL);
+    this.present(initial);
   }
 
   get dot() {
@@ -93,14 +81,14 @@ class BannerStatusView extends HTMLElement {
   }
 
   present(model) {
-    if (
-      !Object.isFrozen(model) ||
-      (model.publication && !Object.isFrozen(model.publication))
-    )
-      throw new Error("Banner status presentation models must be immutable");
     this.#model = model;
     this.#paint();
     render(model.queues, this.#queues);
+    keeps(
+      this.#queues,
+      "title",
+      `Show or hide my questions and ${agentName()}'s tasks`,
+    );
     this.#queues.toggleAttribute("hidden", !model.queues);
     // The reservation only grows: its digits are tabular, so the longest counts yet
     // shown are the widest, and a box that shrank back would move them on the next.
@@ -179,9 +167,9 @@ class BannerStatusView extends HTMLElement {
 
 if (!customElements.get(TAG)) customElements.define(TAG, BannerStatusView);
 
-export function createBannerStatusView(onToggle) {
+export function createBannerStatusView(onToggle, initial) {
   const view = document.createElement(TAG);
   view.className = "lf-banner-status";
-  view.configure({ onToggle });
+  view.configure({ onToggle, initial });
   return view;
 }

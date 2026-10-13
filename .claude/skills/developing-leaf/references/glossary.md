@@ -20,7 +20,7 @@ and implementation terms retain their exact spelling when the reader needs them.
 | Term | Meaning and visible use |
 |---|---|
 | **Page** | The document the user reads and acts on; *page instance* below names its durable directory |
-| **Update** | One input the user sends the agent, of any kind, or a mixed collection of them: “Your updates are saved” |
+| **Update** | One input the user sends the agent, of any kind, or a mixed collection of them: “Updates are saved” |
 | **Response** | Work owed to user input whose kind is not known: “2 responses owed” |
 | **Answer** | The current value within an ask, or the response that satisfies a user update. An ask contains its answer; no separate Answer record exists |
 | **Reply** | A message in a conversation, including an answer or a proactive message |
@@ -30,6 +30,14 @@ and implementation terms retain their exact spelling when the reader needs them.
 | **Undo** | Taking back the latest eligible user update |
 | **Threads** | The control and panel listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
+
+Visible copy speaks in the user's voice, since the page is their own space. What is
+theirs is named in the first person: **Me** as an author, **Waiting on me**, **My turn
+to answer**, **my change**, and commands such as **Edit my last message**. What Leaf
+reports to them drops the pronoun rather than saying *you* or *my*: “The draft is
+kept”, “retrying the change”, “not in the version shown”. Text addressed to the agent,
+such as `x-instructions` and event handling, stays in the second person, as does the
+website's prose to a visitor.
 
 Name an update's kind where it is known: a **comment**, **reply**, **choice**,
 **reaction** or **approval**; in protocol text a widget's is an **action**, after its
@@ -146,7 +154,7 @@ two ways: the compact **margin projection** beside the page, and the searchable 
 | **Rail** | The strip right of `main` where margin rows sit beside their targets. Seated where the room beside `main` holds it, it never moves the column; only `data-rail="right"` on `body` makes the shell give up the rail's width, so the page's layout gets narrower (`annotation-theme.css`). `page-authoring.md`, "The rail and the margin", says when a page has one |
 | **Margin resident** | Something the page's margin holds: the rail, the contents map, a column's first sidebar, its sidenotes. One measurement, prepaint.js `residency`, admits each where the room beside `main` holds it |
 | **Margin row** | One target-anchored row whose placement is `rail`, `pin`, or `withheld` |
-| **Pin** | A margin row drawn over the page by its target, used where the row cannot sit in the rail (`rowPosture`). It sits at the end of its target's text or inside its target's top-right corner, or, where that would cover words, a control, another block or another pin, at the nearest free spot that still reads as its target's (`pinSpot` in `margin-placement.js`). Where no such spot exists, it folds, or stays at the end of the text or in the corner and covers what lies under it (`seatRows`) |
+| **Pin** | A margin row drawn over the page by its target, used where the row cannot sit in the rail (`rowPosture`). It sits at the end of its target's text or inside its target's top-right corner, or, where that would cover words, a control, another block or another pin, at the nearest free spot that still reads as its target's (`pinSpot` in `margin-placement.js`). Where no such spot exists, it folds or tries clear space outside its containing boundary. Without a clear seat it is withheld, and Page Map retains its thread and actions (`seatRows`, `margin-layout.js`) |
 | **Folded pin** | A pin drawn as its options' toggle alone (`data-lf-folded`) because its whole face found no room (`seatRows` in `margin-placement.js`) |
 | **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, and one lane per bounded reading region, clipped to what that region shows |
 | **Margin cluster** | The visible group attached to one target |
@@ -178,7 +186,7 @@ the document's height.
 | **Target picker** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
 | **Walk** | Ordered semantic movement among one category of destination: open threads (`t`), the user's Questions (`q`), a list's rows |
-| **Questions** | The user's list, everything waiting on the user (`queues.questions`): open asks, to-dos the agent put on the user, and resends. The banner's Questions control opens the Questions panel, and the `q` walk steps through the same list; the panel's Done fold holds completed asks and to-dos |
+| **Questions** | The user's list, everything waiting on the user (`queues.questions`): open asks, to-dos the agent put on the user, and resends. An open ask the user has commented on leaves it until the agent replies, since the comment's answer is then on Tasks. The banner's Questions control opens the Questions panel, and the `q` walk steps through the same list; the panel's Done fold holds completed asks and to-dos |
 | **Tasks** | The agent's list, everything waiting on the agent (`queues.tasks`): answers it owes, work in hand, and its own to-dos. The banner ends with its count, and the Questions panel shows it as its Tasks section. A message the user sends counts among Tasks as an answer the agent owes before any to-do exists |
 | **Ask** | One core record of a request for the user's input, with its typed answer and its lifecycle. A widget ask has identity `widget:<source-id>`; a prose ask, from a reply sent with `--ask`, has `reply:<agent-message-id>`; an approval ask, `approval:v<version>`, tracks a stamped version's sign-off. Widget state owns a widget ask's values, and the conversation owns a prose ask's settlement. An optional `lf-ask` frames one or more asks with prompt context without changing their identity. An ask is distinct from a to-do and from a resend |
 | **To-do** | Explicit work owed until it ends (`todo` in the protocol), by the agent or by the user. An ask is a separate record, not a to-do |

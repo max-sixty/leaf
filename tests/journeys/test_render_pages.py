@@ -16,6 +16,7 @@ from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import wait_until_ready
 from leaf.render_gate import version as render_gate_model
+from leaf.render_gate.scheme import console_finding
 from playwright.sync_api import expect
 from render_cases_interaction import (
     live_url,
@@ -678,8 +679,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         )
         == "Agent"
     )
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
 
     expect(page.locator(".lf-msg.agent .lf-msg-body")).to_have_count(0)
     expect(page.locator(".lf-msg.user .lf-msg-body")).to_have_text(
@@ -877,15 +877,20 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     assert [
         f
         for f in failures
-        if "<lf-board id=sprint> is drawn over <div id=own-rail>" in f
+        if f.code == "over-margin"
+        and f.at == "<lf-board id=sprint>"
+        and f.values["resident"] == "<div id=own-rail>"
     ], (
         f"the gate said nothing about a board drawn over the page's own margin: {failures}"
     )
-    assert not [f for f in failures if "own-rail" in f and "past the column" in f], (
-        "the furniture itself was named for standing where it was put"
-    )
+    assert not [
+        f for f in failures if f.code == "past-column" and "own-rail" in f.at
+    ], "the furniture itself was named for standing where it was put"
     assert [
-        f for f in failures if "<lf-board id=framed>" in f and "<div id=own-frame>" in f
+        f
+        for f in failures
+        if f.at == "<lf-board id=framed>"
+        and f.values.get("frame") == "<div id=own-frame>"
     ], (
         "the gate said nothing about a wide widget escaping a frame that scrolls: "
         f"{failures}"

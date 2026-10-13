@@ -3,14 +3,14 @@
 from leaf.schema import ELEMENT_ID
 
 from .contract import (
-    RegistryError,
     deciding_outcomes,
     deciding_verbs,
     declares_string,
+    registry_error,
     state_specs,
     verb_writer,
 )
-from .schema import json_validator, json_value, schema_error_message
+from .schema import json_validator, schema_reading
 
 
 def validate_widget_state_relations(
@@ -25,11 +25,7 @@ def validate_widget_state_relations(
             detail = spec["detail"]
             unit, words = spec["unit"], creates["words"]
             if unit == "widget" or spec.get("record"):
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` creates a child, so its "
-                    "fold unit must name the detail field carrying the child's id "
-                    "and it declares no record form"
-                )
+                raise registry_error("creates-unit", path, tag, verb=verb)
             expected_fields = {
                 unit: {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
                 words: {"type": "string", "minLength": 1},
@@ -39,41 +35,34 @@ def validate_widget_state_relations(
                 or set(detail.get("required", [])) != set(expected_fields)
                 or detail.get("additionalProperties") is not False
             ):
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` creates a child, so its "
-                    f"detail must be exactly the required element id `{unit}` and "
-                    f"the required non-empty words `{words}`"
+                raise registry_error(
+                    "creates-detail", path, tag, verb=verb, unit=unit, words=words
                 )
             child_tag = creates["child"]
             child = declarations.get(child_tag)
             if child is None:
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` creates unknown child "
-                    f"<{child_tag}>"
+                raise registry_error(
+                    "creates-unknown", path, tag, verb=verb, child=child_tag
                 )
             if tag not in child.get("x-owners", []):
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` creates <{child_tag}>, "
-                    "whose x-owners does not admit the sender"
+                raise registry_error(
+                    "creates-owner", path, tag, verb=verb, child=child_tag
                 )
             if child.get("x-content") != "markup":
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` creates <{child_tag}>, "
-                    "which must declare x-content markup"
+                raise registry_error(
+                    "creates-content", path, tag, verb=verb, child=child_tag
                 )
             if set(child.get("required", [])) != {"id"}:
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` creates <{child_tag}>, "
-                    "which must require id and no other authored attributes"
+                raise registry_error(
+                    "creates-required", path, tag, verb=verb, child=child_tag
                 )
             expected_id = {
                 "type": "string",
                 "pattern": f"^{ELEMENT_ID}$",
             }
             if child.get("properties", {}).get("id") != expected_id:
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` creates <{child_tag}>, "
-                    "whose required id must use the canonical element-id schema"
+                raise registry_error(
+                    "creates-id", path, tag, verb=verb, child=child_tag
                 )
 
     # Each verb's record writes a physical slot of its own. Body and position have
@@ -89,11 +78,14 @@ def validate_widget_state_relations(
         previous_verb = physical_slots.setdefault(key, verb)
         if previous_verb == verb:
             continue
-        slot = kind + (f" `{attr}`" if attr else "")
-        raise RegistryError(
-            f"{path}: <{tag}> x-state verbs `{verb}` and "
-            f"`{previous_verb}` claim the same physical record slot (unit "
-            f"`{spec['unit']}`, {slot}); distinct verbs must record independently"
+        raise registry_error(
+            "shared-slot",
+            path,
+            tag,
+            verbs=[verb, previous_verb],
+            unit=spec["unit"],
+            kind=kind,
+            attr=attr,
         )
 
 
@@ -107,14 +99,11 @@ def validate_widget_record_contracts(
     path,
 ) -> None:
     # `resolves` is a reserved attribute: the comment thread an answer to this
-    # widget's own Question closes, which admission reads off the sending document into
-    # the answering action's meaning. On a widget with no local Question nothing would
+    # widget's own ask closes, which admission reads off the sending document into
+    # the answering action's meaning. On a widget with no local ask nothing would
     # ever read it, so the name means that or is refused here.
     if "resolves" in properties and not (entry.get("x-awaits") or {}).get("answered"):
-        raise RegistryError(
-            f"{path}: <{tag}> declares attribute `resolves`, a reserved name (the "
-            "thread an answer to its Question closes), but originates no local Question"
-        )
+        raise registry_error("reserved-resolves", path, tag)
     # One rule set for both writers: they differ in who sends the state, not in
     # how a verb, its unit, and record hang together.
     for verb, spec in state_specs(entry):
@@ -127,58 +116,40 @@ def validate_widget_record_contracts(
             if unit not in detail.get("properties", {}) or unit not in detail.get(
                 "required", []
             ):
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` must declare and require "
-                    f"its fold unit `{unit}` in detail"
-                )
+                raise registry_error("unit-undeclared", path, tag, verb=verb, unit=unit)
             if not declares_string(detail["properties"][unit]):
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` fold unit `{unit}` must be a string"
-                )
+                raise registry_error("unit-type", path, tag, verb=verb, unit=unit)
             continue
         kind = record["kind"]
         expected_unit = "unit" if kind == "position" else "widget"
         if unit != expected_unit:
-            raise RegistryError(
-                f"{path}: <{tag}> x-state verb `{verb}` record `{kind}` "
-                f"requires unit: {expected_unit!r}"
+            raise registry_error(
+                "record-unit", path, tag, verb=verb, kind=kind, unit=expected_unit
             )
         if kind == "position" and record["within"] not in declarations:
-            raise RegistryError(
-                f"{path}: <{tag}> x-state verb `{verb}` records a "
-                f"position within unknown widget <{record['within']}>"
+            raise registry_error(
+                "record-within", path, tag, verb=verb, within=record["within"]
             )
         if kind == "body":
             if entry.get("x-content") != "data":
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` records "
-                    "its body, so x-content must be data; projection "
-                    "states text rather than a prose subtree"
-                )
+                raise registry_error("body-content", path, tag, verb=verb)
             nested = sorted(
                 child
                 for child, child_entry in declarations.items()
                 if tag in child_entry.get("x-owners", [])
             )
             if nested:
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` records "
-                    f"its body but admits nested widgets {json_value(nested)}; a "
-                    "text statement cannot reconstruct their state"
+                raise registry_error(
+                    "body-nested", path, tag, verb=verb, widgets=nested
                 )
         if kind == "value":
             attr = record["attr"]
             if attr not in properties:
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` records "
-                    f"undeclared attribute `{attr}`"
+                raise registry_error(
+                    "record-undeclared", path, tag, verb=verb, attr=attr
                 )
             if attr in said:
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` records "
-                    f"x-says attribute `{attr}`, whose value is words "
-                    "the user sees — declared state may not move the page's words"
-                )
+                raise registry_error("record-says", path, tag, verb=verb, attr=attr)
             schema = properties[attr]
             string_enum = (
                 isinstance(schema, dict)
@@ -187,11 +158,7 @@ def validate_widget_record_contracts(
                 and all(isinstance(value, str) for value in schema["enum"])
             )
             if not (declares_string(schema) or string_enum):
-                raise RegistryError(
-                    f"{path}: <{tag}> x-state verb `{verb}` record attribute "
-                    f"`{attr}` must be a string or string enum; "
-                    "HTML attributes cannot restore another JSON type"
-                )
+                raise registry_error("record-type", path, tag, verb=verb, attr=attr)
 
 
 def validate_widget_retirement(tag: str, entry: dict, declarations: dict, path) -> None:
@@ -199,9 +166,7 @@ def validate_widget_retirement(tag: str, entry: dict, declarations: dict, path) 
     # whose historical ids a future revision must retain.
     withdrawn = entry.get("x-withdrawn-as")
     if withdrawn is not None and withdrawn not in deciding_outcomes(entry):
-        raise RegistryError(
-            f"{path}: <{tag}> x-withdrawn-as `{withdrawn}` is not a deciding outcome"
-        )
+        raise registry_error("withdrawn-as", path, tag, outcome=withdrawn)
     retired = entry.get("x-retired-when")
     if retired is None:
         return
@@ -210,9 +175,8 @@ def validate_widget_retirement(tag: str, entry: dict, declarations: dict, path) 
     # and undecidable under another.
     for owner in entry["x-owners"]:
         if retired not in deciding_outcomes(declarations[owner]):
-            raise RegistryError(
-                f"{path}: <{tag}> x-retired-when `{retired}` is invalid: <{owner}> "
-                "declares no deciding x-state verb with that outcome"
+            raise registry_error(
+                "retired-when", path, tag, outcome=retired, owner=owner
             )
 
 
@@ -222,10 +186,7 @@ def validate_deciding_verb(tag: str, entry: dict, path) -> None:
     # verb per tag decides, for the whole widget, over a closed set of words.
     deciding = deciding_verbs(entry)
     if len(deciding) > 1:
-        raise RegistryError(
-            f"{path}: <{tag}> x-state verbs {json_value(deciding)} all declare detail field "
-            "`outcome`, a reserved name only one deciding verb may carry"
-        )
+        raise registry_error("deciding-verbs", path, tag, verbs=deciding)
     if not deciding:
         return
     spec = entry["x-state"][deciding[0]]
@@ -239,11 +200,7 @@ def validate_deciding_verb(tag: str, entry: dict, path) -> None:
         or not all(isinstance(word, str) for word in words)
         or "outcome" not in spec["detail"].get("required", [])
     ):
-        raise RegistryError(
-            f"{path}: <{tag}> x-state verb `{deciding[0]}` declares detail field "
-            "`outcome`, a reserved name: the deciding verb folds by widget, is "
-            "written by the user, and requires `outcome` as a string enum"
-        )
+        raise registry_error("deciding-verb", path, tag, verb=deciding[0])
 
 
 def validate_answered_conditions(declarations: dict, path) -> None:
@@ -260,28 +217,19 @@ def validate_answered_conditions(declarations: dict, path) -> None:
             record = spec.get("record") or {}
             if empty is None:
                 if spec["unit"] != "widget":
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-awaits answering verb `{verb}` folds on "
-                        "a part rather than the widget, so its condition needs "
-                        "`empty`"
-                    )
+                    raise registry_error("answering-part", path, tag, verb=verb)
                 continue
             if record.get("kind") != "position":
-                raise RegistryError(
-                    f"{path}: <{tag}> x-awaits answering verb `{verb}` tests an "
-                    "empty container but records no position"
-                )
+                raise registry_error("answering-position", path, tag, verb=verb)
             within = empty["within"]
             container = declarations.get(within)
             if container is None:
-                raise RegistryError(
-                    f"{path}: <{tag}> x-awaits answering verb `{verb}` names "
-                    f"unknown container <{within}>"
+                raise registry_error(
+                    "answering-container", path, tag, verb=verb, within=within
                 )
             if container.get("x-content") != "members":
-                raise RegistryError(
-                    f"{path}: <{tag}> x-awaits answering verb `{verb}` names "
-                    f"<{within}>, whose x-content is not members"
+                raise registry_error(
+                    "answering-members", path, tag, verb=verb, within=within
                 )
             properties = container.get("properties", {})
             mutable = {
@@ -292,21 +240,34 @@ def validate_answered_conditions(declarations: dict, path) -> None:
             for attr, values in empty["when"].items():
                 schema = properties.get(attr)
                 if schema is None:
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-awaits answering verb `{verb}` tests "
-                        f"undeclared <{within}> attribute `{attr}`"
+                    raise registry_error(
+                        "answering-undeclared",
+                        path,
+                        tag,
+                        verb=verb,
+                        within=within,
+                        attr=attr,
                     )
                 if attr in mutable:
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-awaits answering verb `{verb}` tests "
-                        f"mutable <{within}> attribute `{attr}`"
+                    raise registry_error(
+                        "answering-mutable",
+                        path,
+                        tag,
+                        verb=verb,
+                        within=within,
+                        attr=attr,
                     )
                 for value in values:
                     if errors := sorted(
                         json_validator(schema).iter_errors(value), key=str
                     ):
-                        raise RegistryError(
-                            f"{path}: <{tag}> x-awaits answering verb `{verb}` tests "
-                            f"<{within}> `{attr}` at {json_value(value)}, which its schema "
-                            f"does not admit: {schema_error_message(errors[0])}"
+                        raise registry_error(
+                            "answering-schema",
+                            path,
+                            tag,
+                            verb=verb,
+                            within=within,
+                            attr=attr,
+                            value=value,
+                            **schema_reading(errors[0]),
                         )

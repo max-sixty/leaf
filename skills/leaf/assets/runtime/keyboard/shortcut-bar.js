@@ -58,6 +58,7 @@ import {
   commandEntries,
   commandPresentations,
   commandRoutes,
+  commandReady,
   lineOf,
   titleOf,
   spell,
@@ -91,7 +92,7 @@ import {
 import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
 import { declareBottomBar } from "../geometry.js";
-import { pagePresented } from "../page-paint.js";
+import { pageUpgraded } from "../page-paint.js";
 import { closeLayer, focusDestination } from "../focus.js";
 import {
   BANNER_CONTROL_RANK,
@@ -223,7 +224,7 @@ declareBottomBar(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
 // keeps only bindings no nearer scope has named, so an inner meaning wins while a grouped
-// row's other presses remain visible — for example, a Question's numbered pick replaces the
+// row's other presses remain visible — for example, an ask's numbered pick replaces the
 // page's ordinary digit meaning without hiding the option row's other keys.
 const sourceRows = new WeakMap();
 const sourceRow = (row) => sourceRows.get(row) ?? row;
@@ -241,6 +242,7 @@ const effectiveRow = (row, declared, active) => {
   const route = routes.length === 1 ? routes[0] : null;
   const projected = {
     ...row,
+    ready: () => commandReady(row),
     keys: active,
     routes,
     // A custom group label cannot describe a binding removed by a nearer scope. A route
@@ -283,7 +285,7 @@ function lineRows(scopes) {
     for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
       if (!lineOf(row)) continue;
       const active = bindings(row).filter(
-        (binding) => commandEntries(row, [binding]).length,
+        (binding) => !named.has(binding) && commandEntries(row, [binding]).length,
       );
       if (!active.length) continue;
       const source = sourceRow(row);
@@ -348,7 +350,7 @@ registerBannerControl({
   control: keyboardSettings,
   rank: BANNER_CONTROL_RANK.keyboard,
   seat: "menu",
-  row: { label: "Keyboard shortcuts", value: "?", group: "page" },
+  row: { label: "Keyboard shortcuts", shortcut: "?", group: "page" },
 });
 function advanceShortcutHelp() {
   if (!shortcutHelpAvailable() || shortcutBarIsExpanded) return openCompleteReference();
@@ -369,11 +371,9 @@ export function collapseShortcutBar({ silent = false } = {}) {
   if (!silent) announce("Shortcut bar collapsed.");
 }
 export function renderShortcutBar(goToStatus) {
-  // The line says what the page's keys do, and until the page presents none of them does
-  // anything: the bootstrap holds every press for the presented page (controller.js). A
-  // line drawn from the commands live before then named a different pair, and More moved
-  // when presentation replaced it, so the band stands empty until its first true reading.
-  if (!pagePresented()) return;
+  // The document's line starts at upgrade and names commands available now.
+  // Keys whose input is still loading have their own held-key feedback.
+  if (!pageUpgraded()) return;
   // One walk, read twice: `at` and `when` are the page's own state and a second walk would
   // ask every one of them again for the same frame.
   const scopes = stack();

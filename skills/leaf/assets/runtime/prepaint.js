@@ -83,7 +83,7 @@
         target.matches("[rel=stylesheet][data-lf-runtime]")
       )
         fault("theme stylesheet did not load", true);
-      else if (target === window && !document.body?.hasAttribute("data-lf-presented"))
+      else if (target === window && !document.body?.hasAttribute("data-lf-upgraded"))
         // A browser that treats the script as another origin gives "Script error." and
         // nothing else, so the file and line ride along: between them they are enough
         // to find the fault in a build nobody here can run.
@@ -205,21 +205,19 @@
   };
 
   // Which chrome the user reads the page with: the banner and bottom bar (`classic`,
-  // the default) or the floating panel (`floating`, floating-panel.js), with how much
-  // the panel shows (`minimal` or `moderate`) and its form at rest (`row`, the comment
-  // field and its counts, or `mark`, the leaf alone). One preference for every page on
+  // the default) or the floating panel (`floating`, floating-panel.js), with the size the
+  // panel was left at (`row`, the comment field and its counts, or `mark`, the leaf
+  // alone in the window's corner). One preference for every page on
   // the origin, read here because the classic bars' room is reserved before the
   // first paint (theme.css). `?lf-chrome=floating` or `?lf-chrome=classic` sets it. A
   // sample child takes its parent's choice, or its element's, in its settings
   // (sample.js), since its store is its own.
   const chromeKeys = {
     mode: "lf-chrome",
-    display: "lf-chrome-display",
     rest: "lf-chrome-rest",
   };
   const chromeValues = {
     mode: ["classic", "floating"],
-    display: ["minimal", "moderate"],
     rest: ["row", "mark"],
   };
   const chrome = {};
@@ -231,8 +229,6 @@
         else root.setAttribute(name, value);
     };
     write("data-lf-floating-chrome", floating ? "" : null);
-    write("data-lf-chrome-display", floating ? chrome.display : null);
-    write("data-lf-chrome-rest", floating ? chrome.rest : null);
   };
   for (const [name, key] of Object.entries(chromeKeys)) {
     const value = userStore.get(key);
@@ -248,9 +244,6 @@
   root.lfChrome = {
     get mode() {
       return chrome.mode;
-    },
-    get display() {
-      return chrome.display;
     },
     get rest() {
       return chrome.rest;
@@ -656,6 +649,7 @@
     let holder = breakout;
     let display;
     do {
+      // `renderedParent` spelled out: this classic script runs before any module loads.
       holder = holder.assignedSlot ?? holder.parentElement ?? holder.getRootNode().host;
       if (holder === main) break;
       display = getComputedStyle(holder).display;

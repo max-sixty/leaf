@@ -3,7 +3,9 @@
     "contracts": {
       "unified-diff": {
         "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
-        "instructions": {"producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, into the source as one JSON string; the widget parses and validates it:\n\n```bash\ngit diff <base>...<head> | jq -Rs . | leaf data set \"$PAGE\" <source-id>\n```\n\n`lf-diff` accepts textual entries with `@@` hunks and exact path-only renames. If the comparison includes binary, mode-only, copy, or empty added/deleted files, describe those changes in prose and supply only supported entries to the widget. The raw form transfers and renders the whole supported patch. For a large supported patch whose files should load only when opened, optionally use this package's file-manifest producer:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script writes the file manifest, whose `patch` fields Leaf sends only when their files open, and refuses what `lf-diff` cannot present \u2014 binary, mode-only, copy, and empty added or deleted files \u2014 naming the entry on stderr. State those changes in prose rather than setting a patch that omits them silently."},
+        "instructions": {
+          "producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script records native file operations, including copies, mode changes, binary changes and empty files, and preserves their Git evidence. It leaves judgment to `lf-diff`: each file’s patch is delivered and checked before its row appears, and textual hunks render when their file opens. A file the widget cannot present shows its refusal and reports it to you as the page's error."
+        },
         "records": {
           "items": "files",
           "key": "path",
@@ -20,21 +22,36 @@
                 "properties": {
                   "path": { "type": "string", "minLength": 1 },
                   "previousPath": { "type": "string", "minLength": 1 },
-                  "kind": { "enum": ["patch", "rename"] },
                   "additions": { "type": "integer", "minimum": 0 },
                   "deletions": { "type": "integer", "minimum": 0 },
-                  "patch": { "type": "string", "minLength": 1 }
+                  "patch": { "type": "string", "minLength": 1 },
+                  "operation": {
+                    "enum": ["modify", "add", "delete", "rename", "copy"]
+                  },
+                  "hunkCount": { "type": "integer", "minimum": 0 },
+                  "binary": { "type": "boolean" },
+                  "oldMode": { "type": "string", "pattern": "^[0-7]{6}$" },
+                  "newMode": { "type": "string", "pattern": "^[0-7]{6}$" }
                 },
                 "required": [
                   "path",
-                  "kind",
+                  "operation",
+                  "hunkCount",
+                  "binary",
                   "additions",
                   "deletions",
                   "patch"
                 ],
-                "if": { "properties": { "kind": { "const": "rename" } } },
-                "then": { "required": ["previousPath"] },
-                "additionalProperties": false
+                "additionalProperties": false,
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": { "operation": { "enum": ["rename", "copy"] } }
+                    },
+                    "then": { "required": ["previousPath"] },
+                    "else": { "not": { "required": ["previousPath"] } }
+                  }
+                ]
               }
             }
           },
@@ -46,7 +63,7 @@
   },
   "lf-diff": {
     "description": "A unified patch with per-file navigation and commentable source lines.",
-    "x-instructions": "Add collapsed when every file should start closed. Bind source to a page-owned patch feed or files manifest; the bound form keeps an empty pre. With no source, write the exact patch in pre at column 0. Keep file headers so languages and line targets can be identified. Each changed file needs an @@ header whose old and new counts match its lines. A hunkless path-only rename uses exactly diff --git, similarity index 100%, rename from, and rename to, with matching nonempty paths; a rename with edits needs ordinary hunks. State binary, mode-only, empty added/deleted, and copy entries separately in prose. For an edited copy destination, omit copy metadata and include its textual hunks. Preserve context-line leading spaces; encode a space-only context line as &#32; so HTML parsing keeps it. HTML-escape an inline patch, & before < and >, or entity text in the source will change silently.",
+    "x-instructions": "Add collapsed when every file should start closed. Bind source to a page-owned patch feed or files manifest; the bound form keeps an empty pre. With no source, write the exact Git patch in pre at column 0. Keep native file headers and metadata; text hunks need @@ counts matching their lines. Preserve context-line leading spaces; encode a space-only context line as &#32; so HTML parsing keeps it. HTML-escape an inline patch, & before < and >, or entity text in the source will change silently.",
     "type": "object",
     "properties": {
       "id": {
@@ -61,9 +78,7 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
     "x-data": {
@@ -103,11 +118,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id",
-      "source",
-      "diff"
-    ],
+    "required": ["id", "source", "diff"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-data": {

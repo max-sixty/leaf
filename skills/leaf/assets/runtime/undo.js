@@ -20,6 +20,7 @@ import {
   whenDocumentPresented,
 } from "./semantic-state.js";
 import { pageCommand } from "./keyboard/register.js";
+import { savedReadingSettled } from "./keyboard/bindings.js";
 import { undoSentence } from "./reactions.js";
 import { PENDING } from "./thread/identity.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -32,9 +33,9 @@ const WAIT = "Wait for the current change to finish before undoing";
 const words = {
   resolve: "Reopened the thread",
   unresolve: "Resolved the thread again",
-  action: "Undid your latest update",
-  done: "Undid your approval",
-  todo_end: "Put the to-do back on you",
+  action: "Undid the latest update",
+  done: "Undid the approval",
+  todo_end: "Put the to-do back on me",
 };
 
 export function createUndo({ post, stateApplying, unaccountedGesture }) {
@@ -90,7 +91,7 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
     const answer = post({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted)
         notice(
-          `${event.token ? `Undid your ${event.token} reaction` : words[event.kind]} — sent`,
+          `${event.token ? `Undid the ${event.token} reaction` : words[event.kind]} — sent`,
         );
       return accepted;
     });
@@ -127,6 +128,7 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
   // line that said it would be naming a member where the mechanism is what holds.
   pageCommand({
     id: "history.undo",
+    ready: savedReadingSettled,
     keys: ["z"],
     description: () => undoSentence(undoable),
     title: "undo",

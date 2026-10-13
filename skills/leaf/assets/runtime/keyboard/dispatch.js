@@ -88,6 +88,8 @@ import {
   descriptionOf,
   commandEntries,
   commandRoutes,
+  commandReady,
+  scopeAvailable,
   live,
   routedCommand,
   referencedCommandEntry,
@@ -104,13 +106,13 @@ import { EVERYTHING, nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import { takesLetters, focused, recoveredLabelFocus } from "../focus.js";
 import { scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
-import { shadowHost, renderedUnder, excludedByInert } from "../shadow.js";
+import { composedParentNode, renderedUnder, excludedByInert } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
 // is standing in it, while the dispatcher and the line want both at once. Spelled `!x || x()`
 // in three places before, which is a rule written three times and named nowhere.
-const pageHas = (scope) => !scope.when || scope.when();
+const pageHas = scopeAvailable;
 export const userIn = (scope) => {
   // Native modality excludes everything below its layer floor. An explicitly inert
   // subtree can also stand inside that floor (the suspended bottom bar in Threads),
@@ -153,7 +155,7 @@ const innerEscape = (scope, active) => scope.escape === "inner" || scope.el === 
 // document is above every user, at the top of the walk.
 const above = (node, active) => {
   let depth = 0;
-  for (let up = active; up; up = up.parentNode ?? shadowHost(up)) {
+  for (let up = active; up; up = composedParentNode(up)) {
     if (up === node) return depth;
     depth += 1;
   }
@@ -321,7 +323,7 @@ export const shadow = () => {
 // callback. Resolve that reference at invocation time so replacement, disconnection,
 // scope liveness, row liveness, and dynamic routes have the same meaning as they do for
 // an intrinsic key press. The source scope need not be where focus stands: that is the
-// point of an ancestor projection such as Question.
+// point of an ancestor projection such as an ask.
 function referencedInvocation(reference) {
   if (!reference) return null;
   const current = referencedCommandEntry(reference);
@@ -438,25 +440,23 @@ function unclaimedScopes(binding) {
 }
 
 // ---------- the dispatcher ----------
-// One listener. Scoping is still the DOM's — an element scope holds while focus is inside
-// it — but the walk is the stack's rather than the bubble's, so which scope wins is a
-// statement here instead of an ordering between nine listeners. `isComposing` is the one
-// guard that stays an event's rather than a scope's: an IME's own Escape is not the
-// runtime's to take.
-export function dispatchKey(ev, { beforeCommand }) {
+// One resolver decides the invocation, a command still waiting for its input, or
+// an ordinary declined key. Startup capture and real dispatch share every scope,
+// claim, contribution, and native-control check.
+const INPUT_PENDING = Symbol("command input pending");
+function resolveKey(ev) {
   const recovered = recoveredLabelFocus(ev);
   const nearer = shadow();
   for (const scope of stack(answers("Escape", ev) ? "Escape" : null)) {
     let matched = null;
+    let pending = false;
     for (const row of scope.rows) {
-      // The key first, then the claim, then the liveness: a `when` may be the whole event
-      // log folded (`a` asks what the page is still waiting on), and asking it of every row
-      // the press is not for makes the cost of a keystroke the size of the table rather
-      // than the size of the match. A dead matching row contributes no invocation here;
-      // `nearer.past(scope)` still records its ordinary declarations before the walk
-      // reaches an outer scope, while Escape continues to the next live unwind.
+      // Match the key before reading availability: its predicate may fold the whole
+      // event log. A sibling route cannot make this contribution ready or live.
       const binding = bindings(row).find((b) => answers(b, ev));
-      if (!binding || nearer.takes(binding, row, scope) || !live(row)) continue;
+      if (!binding || nearer.takes(binding, row, scope)) continue;
+      const entries = commandEntries(row, [binding], { includeUnavailable: true });
+      pending ||= entries.some(({ route }) => !commandReady(row, route));
       const entry = commandEntries(row, [binding])[0];
       const invocation = invocationFor(row, binding, entry, recovered);
       if (!invocation) continue;
@@ -467,28 +467,27 @@ export function dispatchKey(ev, { beforeCommand }) {
         );
       matched = invocation;
     }
-    if (matched) {
-      // A held key repeats keydown where a real button fires once, so a row says whether
-      // it repeats: a held `]` was a page navigation per repeat and a held pick a `choose`
-      // per repeat, where a walk wants the repeat and is the reason the flag exists. The
-      // repeat is still consumed — a non-repeatable command must not be fired again merely
-      // because its key remains held after the first press.
-      //
-      // A `native` row is the narrow converse: Leaf has a result to perform before the
-      // platform completes the same press. The versions menu closes at its Tab boundary,
-      // for example, and the browser then carries focus forward from its stable door. It
-      // remains a registered press — and therefore visible, scoped and shadowed like every
-      // other one — but does not claim the platform's half of it.
-      if (!matched.native) ev.preventDefault();
-      if (ev.repeat && !matched.row.repeat) return true;
-      beforeCommand?.(matched.row);
-      announceInvocation(matched);
-      matched.run();
-      return true;
-    }
+    if (matched) return matched;
+    if (pending) return INPUT_PENDING;
     nearer.past(scope);
   }
-  return false;
+  return null;
+}
+export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
+
+// Scoping is the DOM's, but the resolver's stack, rather than listener order, says
+// which command wins. The controller leaves composing input to the IME.
+export function dispatchKey(ev, { beforeCommand }) {
+  const matched = resolveKey(ev);
+  if (!matched || matched === INPUT_PENDING) return false;
+  // Repeats are consumed even for a command that runs once. A native row performs
+  // its own half before leaving the browser's half of the same press intact.
+  if (!matched.native) ev.preventDefault();
+  if (ev.repeat && !matched.row.repeat) return true;
+  beforeCommand?.(matched.row);
+  announceInvocation(matched);
+  matched.run();
+  return true;
 }
 
 // An action chosen from the reference has no keydown to match, but it still belongs to
@@ -540,7 +539,7 @@ export function activeCommandLabel(ids) {
   return command?.binding != null ? spell(command.binding) : "";
 }
 // Snapshot executable bindings by row while focus is still on the page. A widget's
-// intrinsic key and a Question alias can share a command id while only one is shadowed.
+// intrinsic key and an ask alias can share a command id while only one is shadowed.
 // The reference is a modal scope and shadows the page once it opens, so callers take
 // this snapshot before opening it.
 export function availableCommandRoutes({ commands = false } = {}) {

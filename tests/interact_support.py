@@ -62,7 +62,9 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
 from leaf import vendoring as vendoring_model
+from leaf.findings import Finding
 from leaf.refusals import Refused
+from leaf.registry.contract import RegistryError
 from leaf.registry.storage import load_registry
 from leaf.revision_artifact import active_enclosing
 from leaf.served_state import page as served_page
@@ -436,6 +438,18 @@ def pytest_configure(config):
         )
 
 
+def js_facts(command: str, files) -> str:
+    """What `tests/js_facts.mjs` reads with `command` out of the parsed modules `files`:
+    JSON for every command but `keydown`, whose lines are returned as printed."""
+    return subprocess.run(
+        ["node", str(ROOT / "tests" / "js_facts.mjs"), command, *map(str, files)],
+        capture_output=True,
+        text=True,
+        check=True,
+        cwd=ROOT,
+    ).stdout
+
+
 def shipped_payload():
     """Tracked and unignored candidate files a completed change would ship."""
     listed = subprocess.run(
@@ -487,6 +501,24 @@ def vendored_at_another_protocol(page_dir: Path) -> int:
     registry["$events"]["protocol"] = foreign
     cleanup_model.write_json(stamp, registry)
     return foreign
+
+
+def vendored_before_the_ask_rename(page_dir: Path) -> None:
+    """Spell `x-ask-context` as `x-question-context`, its name before the rename, in
+    the page's layer and in every registry its revisions captured: in `$keys` and in
+    each entry that declares it, `lf-ask`'s among them. The state an older Leaf leaves
+    a page in, at the same protocol; files are replaced rather than written through."""
+    for path in [
+        page_dir / "registry.json",
+        *page_dir.glob("revisions/*/resources/registry.json"),
+    ]:
+        registry = json.loads(path.read_text(encoding="utf-8"))
+        assert "x-ask-context" in registry["$keys"]
+        for entry in [registry["$keys"], *registry.values()]:
+            if isinstance(entry, dict) and "x-ask-context" in entry:
+                entry["x-question-context"] = entry.pop("x-ask-context")
+        path.unlink()
+        cleanup_model.write_json(path, registry)
 
 
 PAGE = """<!doctype html>
@@ -557,6 +589,54 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
 def check(d):
     """`page check`, in-process."""
     return CliRunner().invoke(cli_model.cli, ["page", "check", str(d)])
+
+
+def refused_on(answer) -> Finding:
+    """The one finding a refusal rests on: an exception's (`Refused.findings`), or the
+    one an event door's answer carries, as a dict or its raw JSON body."""
+    if isinstance(answer, Exception):
+        (finding,) = answer.findings
+        return finding
+    if isinstance(answer, (str, bytes)):
+        answer = json.loads(answer)
+    (finding,) = answer["findings"]
+    return Finding.loads(finding)
+
+
+def check_findings(d) -> tuple[int, list[Finding]]:
+    """`page check --json`, in-process: its exit status and what it found, as records."""
+    report = json.loads(
+        CliRunner().invoke(cli_model.cli, ["page", "check", "--json", str(d)]).stdout
+    )
+    return report["status"], [Finding.loads(found) for found in report["findings"]]
+
+
+def found(findings, code: str, at: str | None = None, **values) -> list[Finding]:
+    """The findings of `code`, about the element `at` names where given, whose values
+    include each of `values`."""
+    return [
+        finding
+        for finding in findings
+        if finding.code == code
+        and at in (None, finding.at)
+        and all(finding.values.get(key) == value for key, value in values.items())
+    ]
+
+
+def registry_refusal(read: Callable) -> Finding:
+    """The one finding the registry refusal raised by calling `read` carries."""
+    with pytest.raises(RegistryError) as refused:
+        read()
+    [finding] = refused.value.findings
+    return finding
+
+
+def command_refusal(*args) -> Finding:
+    """The one finding the refusal of the leaf command `args`, run in process,
+    carries."""
+    result = CliRunner().invoke(cli_model.cli, [*map(str, args)], standalone_mode=False)
+    [finding] = result.exception.__cause__.findings
+    return finding
 
 
 def read_page_data(page_dir) -> dict:
@@ -1493,14 +1573,14 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
     the page has none, dated `ts` (now by default) and spoken in `voice` (`agent`,
     `session`, `turn`). Raw, so a test can date it in the past; `working` is the
     command an agent runs."""
-    from leaf.tasks import owed_tasks
+    from leaf.todos import owed_todos
 
     if item is None:
         item = (
             next(
                 (
                     task["id"]
-                    for task in owed_tasks(events_model.read_events(page_dir))
+                    for task in owed_todos(events_model.read_events(page_dir))
                     if task["subject"] == {"kind": "page"}
                 ),
                 None,
@@ -1533,9 +1613,9 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
 def end_work(page_dir):
     """End every open task on the page as a whole, `declare_work`'s and `working`'s,
     so nothing the agent opened for itself is in hand any more."""
-    from leaf.tasks import owed_tasks
+    from leaf.todos import owed_todos
 
-    for task in owed_tasks(events_model.read_events(page_dir)):
+    for task in owed_todos(events_model.read_events(page_dir)):
         if task["subject"] == {"kind": "page"}:
             append_carried_log_record(
                 page_dir,
@@ -1550,11 +1630,11 @@ def end_work(page_dir):
 
 def end_work_on(page_dir, subject):
     """End the open tasks on the thread or widget `subject` names, done."""
-    from leaf.tasks import owed_tasks
+    from leaf.todos import owed_todos
     from leaf.work import page_subject
 
     named = page_subject(page_dir, events_model.read_events(page_dir), subject)
-    for task in owed_tasks(events_model.read_events(page_dir)):
+    for task in owed_todos(events_model.read_events(page_dir)):
         if task["subject"] == named:
             ended = CliRunner().invoke(
                 cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
@@ -1586,7 +1666,7 @@ def working(page_dir, line, subject="page"):
     page's open task on that subject, so a test can say what it does next. Returns the
     start's record."""
     from leaf import event_log as log_model
-    from leaf.tasks import owed_tasks
+    from leaf.todos import owed_todos
     from leaf.work import page_subject
 
     named = (
@@ -1597,7 +1677,7 @@ def working(page_dir, line, subject="page"):
     task = next(
         (
             task
-            for task in owed_tasks(log_model.read_events(page_dir))
+            for task in owed_todos(log_model.read_events(page_dir))
             if task["subject"] == named
         ),
         None,

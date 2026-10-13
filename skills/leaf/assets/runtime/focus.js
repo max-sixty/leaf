@@ -63,7 +63,12 @@
 import { afterScript, nextRender } from "./rendering.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
-import { renderedParent, isNativeLayer } from "./shadow-tree.js";
+import {
+  isNativeLayer,
+  renderedParent,
+  renderedUnder,
+  shadowHost,
+} from "./shadow-tree.js";
 
 // The elements under `node` in the tree as rendered: a host's shadow tree in place of
 // its children, and a slot's assigned elements, or its fallback, in its place. A host
@@ -290,7 +295,7 @@ function landLabelPress() {
     if (labelPress) return;
     const at = deepFocus();
     if (at && at !== document.body) return reconcile(null, pressedPath);
-    if (!published || !drawn(published)) return;
+    if (!drawn(published?.deref())) return;
     placements += 1;
     stood = null;
     publish(null, cause(null));
@@ -298,8 +303,16 @@ function landLabelPress() {
 }
 
 // Where the user stands: the element holding focus, inside any open shadow tree, or the
-// element a press on a label holds them on.
-export const focused = () => heldByLabel() ?? deepFocus();
+// element a press on a label holds them on. Asked in `tree`, a document or shadow root,
+// it is the node standing for that place there, as `tree.activeElement` retargets focus:
+// the host of the shadow tree the user stands in, for a reader comparing or containing
+// nodes of that tree. Every reading of focus outside this module asks here, so none
+// misses a label press or a shadow tree (eslint's `architecture/standing-reads`).
+export const focused = (tree = null) => {
+  let at = heldByLabel() ?? deepFocus();
+  if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
+  return at;
+};
 
 // The selection the user drew in the tree `node` stands in, where the browser keeps it.
 const selectionOf = (node) => {
@@ -388,7 +401,7 @@ let placements = 0;
 // Where the user last stood. A change that removes or hides the node they stand on puts
 // focus on the body and fires no `focusin`, so this still names that node afterwards.
 // A move between two nodes of one shadow tree reaches the document as neither event, so
-// every stage reads its own `focusin` (`watchStandingIn`), and the node focus leaves for
+// each entered root reads its own `focusin` (`watchStandingIn`), and the node focus leaves for
 // nowhere is read off the path of the `focusout` that says so. Every later placement
 // writes it again, so it names a place nothing has placed the user away from.
 //
@@ -396,11 +409,12 @@ let placements = 0;
 // going on from there, so the dropped place is forgotten: a later owner putting them
 // back in it would take them from whatever they went on to. While they still stand
 // somewhere, the same inputs are them working there, and change nothing.
+// A removed place remains available to its replacement, but owns no node lifetime.
 let stood = null;
 // Every change to where the user stands goes to each reader `onStanding` names, as
 // `read(node, cause, left)`: the node they now stand on, null where they stand nowhere;
 // what moved them there; and the node the readers last heard they stood on, null where
-// that was nowhere. The causes:
+// that was nowhere or the removed node has been collected. The causes:
 //
 // - `return`: the runtime putting them back or handing them across: a placement that
 //   says so (`focusDestination`), a hold restoring its place (`holdFocus`,
@@ -476,8 +490,11 @@ function paintFocus(node) {
 // Retained moves preserve native focus without emitting a focus event. Recompute
 // only its derived ancestry when the rendered tree changes, including slot moves.
 // Attribute paint is outside this observation, so it cannot schedule itself.
-const refreshFocusPaint = () =>
-  paintFocus(paintDestination?.isConnected ? paintDestination : null);
+const refreshFocusPaint = () => {
+  const node = paintDestination?.deref();
+  if (node?.isConnected) watchStandingAround(node);
+  paintFocus(node?.isConnected ? node : null);
+};
 let returnPaintPending = false;
 const paintAfterScript = () => {
   if (!returnPaintPending) refreshFocusPaint();
@@ -492,16 +509,19 @@ const queueReturnFocusPaint = () => {
     refreshFocusPaint();
   });
 };
+const paintRoots = new WeakSet();
 function watchFocusPaintIn(root) {
+  if (paintRoots.has(root)) return;
+  paintRoots.add(root);
   new MutationObserver(queueFocusPaint).observe(root, {
     childList: true,
     subtree: true,
   });
   root.addEventListener("slotchange", queueFocusPaint);
 }
-watchFocusPaintIn(document);
 function publish(node, cause) {
-  paintDestination = node;
+  watchStandingAround(node);
+  paintDestination = node && new WeakRef(node);
   // A command-reference return may precede the command's own focus move in this
   // gesture. Its ring waits for the frame; a forward move supersedes that return
   // and still paints after the current script, before the next frame is shown.
@@ -510,14 +530,14 @@ function publish(node, cause) {
     returnPaintPending = false;
     queueFocusPaint();
   }
-  if (node === published && !departed) return;
+  if (node === (published?.deref() ?? null) && !departed) return;
   departed = false;
-  const left = published;
+  const left = published?.deref() ?? null;
   const reading = ++readings;
   // A drop leaves the place where readers last heard the user stood, so the next
   // reading, the owner putting them back there included, is told against it.
   if (cause === "drop") departed = true;
-  else published = node;
+  else published = node && new WeakRef(node);
   if (node) placeInput = "focus";
   // What a reader places is its own act: it names its own cause, and it is a newer word
   // to a hold even inside a hold's restore.
@@ -537,14 +557,17 @@ function publish(node, cause) {
     [placing, restoring] = was;
   }
 }
-// The press the user last made, as the nodes under it, until a key follows it.
+// The press the user last made, as weak readings of the nodes under it, until a
+// key follows it. Remembering the input modality does not own the old markup.
 let pressedPath = null;
 // Whether a node is what that press asked for: a node under it, or the control of a
 // label under it, which the platform focuses at the press's click.
 const pressedOn = (node) =>
   Boolean(pressedPath) &&
-  (pressedPath.has(node) ||
-    [...pressedPath].some((at) => at?.localName === "label" && at.control === node));
+  pressedPath.some((ref) => {
+    const at = ref.deref();
+    return at === node || (at?.localName === "label" && at.control === node);
+  });
 // Whether the user's latest input was a press rather than a key, so that a `move` is a
 // route a press began: what the platform's `:focus-visible` guesses from, read here
 // from the inputs themselves. No input yet reads as no press.
@@ -583,15 +606,32 @@ function stand(event) {
   }
   if (!restoring && !(placing === null && leftClosedLayer(event.relatedTarget)))
     placements += 1;
-  stood = deepFocus();
-  publish(stood, cause(stood, event.relatedTarget));
+  const at = deepFocus();
+  stood = at && new WeakRef(at);
+  publish(at, cause(at, event.relatedTarget));
 }
-document.addEventListener("focusin", stand, true);
-// A shadow stage reads the moves inside it, which reach the document as no event.
+// Entering a component subscribes this owner to its subsequent internal moves.
+// Those moves do not reach the document; guessing them at the next input would
+// make their cause depend on the old node's later ancestry and lifetime.
+function watchStandingAround(node) {
+  for (let at = node; at; at = renderedParent(at)) watchStandingIn(at.getRootNode());
+}
+// A shadow root reads the moves inside it, which reach the document as no event.
+// Subscribe on captured focus, before a component's handler forwards first entry
+// within its root and suppresses the original focusin. Stages can subscribe earlier;
+// retained moves without an event subscribe through the paint ancestry reading.
+function enter(event) {
+  if (read.has(event)) return;
+  read.add(event);
+  watchStandingAround(deepFocus());
+}
 export function watchStandingIn(root) {
+  root.addEventListener("focus", enter, true);
   root.addEventListener("focusin", stand, true);
   watchFocusPaintIn(root);
 }
+watchStandingIn(document);
+watchStandingAround(deepFocus());
 // Leaving for nowhere from a node still drawn is the user's own move, and so a
 // placement: body holds no stop, so a press on the page's words takes focus off the
 // control and puts it nowhere with no `focusin` to count, and a hold still waiting
@@ -608,7 +648,7 @@ document.addEventListener(
       return;
     }
     const left = event.composedPath()[0];
-    stood = left;
+    stood = new WeakRef(left);
     if (restoring) return;
     queueMicrotask(() => {
       const at = document.activeElement;
@@ -618,7 +658,7 @@ document.addEventListener(
       // A borrowed body stop leaving for nowhere is the release itself, not
       // another placement after the caller began waiting for its return.
       if (left !== document.body) placements += 1;
-      if (stood === left) stood = null;
+      if (stood?.deref() === left) stood = null;
       publish(null, cause(null));
     });
   },
@@ -631,20 +671,18 @@ const sequential = (event) =>
   event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
 // Where the user stands, read again once a key's or a press's task ends, and once a
 // click's does, since a tap focuses at the click that follows it rather than at its
-// press. A move between two nodes of a shadow tree no stage watches, as a component's
-// own root makes, reaches no root this module listens on, so the reading the input left
-// is told then, with the cause that input gave it, a Tab's step included, and a return
-// where it came out of a layer that closed.
+// press. A component's roots join standing observation when focus first enters them;
+// the final input reading also covers a label's held intermediate move.
 function reconcile(step, pressed) {
   if (heldByLabel()) return;
   const at = deepFocus();
-  if (!at || at === document.body || at === published) return;
+  if (!at || at === document.body || at === published?.deref()) return;
   placements += 1;
-  stood = at;
+  stood = new WeakRef(at);
   const was = [stepping, pressedPath];
   [stepping, pressedPath] = [step, pressed];
   try {
-    publish(at, cause(at, published));
+    publish(at, cause(at));
   } finally {
     [stepping, pressedPath] = was;
   }
@@ -795,7 +833,8 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
   addEventListener(
     type,
     (event) => {
-      if (type === "pointerdown") pressedPath = new Set(event.composedPath());
+      if (type === "pointerdown")
+        pressedPath = event.composedPath().map((node) => new WeakRef(node));
       else if (type === "keydown") pressedPath = null;
       stepping = null;
       if (type === "keydown" || type === "pointerdown") {
@@ -823,24 +862,9 @@ export const drawn = (node) =>
 const dropped = () => {
   const at = deepFocus();
   if (at && at !== document.body) return null;
-  return stood && !drawn(stood) ? stood : null;
+  const node = stood?.deref();
+  return node && !drawn(node) ? node : null;
 };
-// The host of a shadow root, and nothing for any other node: a document names a form
-// called `host` as `document.host`, so a climb reading `.host` off the document walks
-// back into the page and around again. shadow.js's `shadowHost` answers the same, but
-// this module is a runtime primitive, which may import no other owner (eslint's
-// `runtimePrimitives`), and shadow.js reaches the registry.
-// It asks the node type rather than `instanceof ShadowRoot`, as `shadowHost` does, since
-// a frame's runtime climbs its parent document's nodes.
-const shadowHostOf = (node) =>
-  node?.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? (node.host ?? null) : null;
-// Whether `node` stands in `scope`, across every shadow tree between them.
-const within = (scope, node) => {
-  for (let at = node; at; at = at.assignedSlot ?? at.parentNode ?? shadowHostOf(at))
-    if (at === scope) return true;
-  return false;
-};
-//
 // A list of keyed items names its place by `key`, the attribute each item carries. The
 // hold then reads the item the user stands in and the order of every item at the hold,
 // and its restore, after the held node, tries the item now carrying the same key, then
@@ -853,23 +877,24 @@ export function holdFocus(scope, { key = null } = {}) {
   const restore = holdOn(node);
   if (!key) return restore;
   let item = node;
-  while (item && !item.matches?.(`[${key}]`))
-    item = item.assignedSlot ?? item.parentNode ?? shadowHostOf(item);
-  if (!item || item === scope || !within(scope, item)) return restore;
+  while (item && !item.matches?.(`[${key}]`)) item = renderedParent(item);
+  if (!item || item === scope || !renderedUnder(item, scope)) return restore;
   // The items are read in the tree the held one stands in, which is the scope's own or a
   // shadow tree inside it.
   const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
   const items = () =>
-    [...tree.querySelectorAll(`[${key}]`)].filter((item) => within(scope, item));
+    [...tree.querySelectorAll(`[${key}]`)].filter((item) => renderedUnder(item, scope));
   // A key marking several nodes of one place counts once, where it first stands.
   const keys = [...new Set(items().map((each) => each.getAttribute(key)))];
   const at = keys.indexOf(item.getAttribute(key));
   const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
   // In an item, the control like the one the user stood on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
+  // Not shadow.js's `hostIn`, which answers null where the climb leaves the item's tree:
+  // this keeps the outermost host it reached.
   let control = node;
   while (control.getRootNode() !== item.getRootNode()) {
-    const host = shadowHostOf(control.getRootNode());
+    const host = shadowHost(control.getRootNode());
     if (!host) break; // Slotted document controls already name their native kind.
     control = host;
   }
@@ -927,20 +952,21 @@ export function holdFocus(scope, { key = null } = {}) {
 }
 const heldIn = (scope) => {
   const held = heldByLabel();
-  if (held) return within(scope, held) ? held : null;
+  if (held) return renderedUnder(held, scope) ? held : null;
   const standing = deepFocus(
     scope.getRootNode().activeElement ?? scope.ownerDocument.activeElement,
   );
-  if (standing && standing !== document.body && within(scope, standing))
+  if (standing && standing !== document.body && renderedUnder(standing, scope))
     return standing;
   // Asked of every node `move` inserts, so the cheap containment reading comes first.
-  return stood && within(scope, stood) ? dropped() : null;
+  const node = stood?.deref();
+  return node && renderedUnder(node, scope) ? dropped() : null;
 };
 
 // Whether the user stands in `scope`, across every shadow tree between them.
 export const standingIn = (scope) => {
   const at = focused();
-  return Boolean(at) && at !== document.body && within(scope, at);
+  return Boolean(at) && at !== document.body && renderedUnder(at, scope);
 };
 
 // The roving stop of a group: `stop` is the one item Tab reaches, and every other item
@@ -1020,8 +1046,8 @@ export function closeLayer(close, land = null) {
     }
   }
   const at = deepFocus();
-  if (!at || at === document.body || at === published) return;
-  stood = at;
+  if (!at || at === document.body || at === published?.deref()) return;
+  stood = new WeakRef(at);
   publish(at, "return");
 }
 
@@ -1101,6 +1127,8 @@ const land = (landing) => {
   }
 };
 
+// bootstrap.js spells `takesLetters` again, for keys pressed before any
+// module loads; a type added here goes there too.
 const TYPED_TYPES = new Set([
   "text",
   "search",
@@ -1141,6 +1169,7 @@ export function controlNavigationKeys(node) {
   if (node?.matches('input[type="radio"], [role="radio"]'))
     return ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"];
   if (node?.matches('input[type="range"], [role="slider"]'))
+    // A slider's value steps, not control-selectors.js's CARET_KEYS: the same keys today.
     return [
       "ArrowLeft",
       "ArrowRight",
@@ -1156,10 +1185,10 @@ export function controlNavigationKeys(node) {
 
 // Landing the user in the document. One act at both ends of the ladder, and for every
 // step that would otherwise leave them on Leaf's own apparatus, because standing on an
-// Question out on the page and standing on a banner button are the same state — the user
+// ask out on the page and standing on a banner button are the same state — the user
 // holding something — reached from either side of the chrome. What those rungs do not
 // share is the word, and neither word is the other's: leaving the chrome names where the
-// user lands, since that is the whole of what the rung is for, and letting go of a Question
+// user lands, since that is the whole of what the rung is for, and letting go of an ask
 // names the act, since they were on the page all along.
 //
 // Where they land is the block they are reading in the page region they last acted in
@@ -1207,6 +1236,9 @@ export function declareCovering({ surface, landing }) {
   coveringSurface = surface;
   coveringLanding = landing;
 }
+// The modality's declared destination, or null while the page is available. A
+// displaced editor uses this same landing rather than guessing from the surface root.
+export const coveringFocus = () => coveringLanding();
 //
 // It is the same pair on the body, which carries no tab stop of its own. A standing
 // `tabindex` on body was once how the let-go worked on a page too short to scroll, but it
@@ -1245,7 +1277,7 @@ export function letGo() {
     // the tree holding focus, so the two meet: a user standing inside a widget's shadow
     // tree reads as inside the surface holding that widget, which is what is being asked.
     if (!covering.contains(document.activeElement))
-      focusDestination(coveringLanding(), "move");
+      focusDestination(coveringFocus(), "move");
     return;
   }
   const block = readingBlock();

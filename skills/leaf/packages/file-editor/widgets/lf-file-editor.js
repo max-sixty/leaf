@@ -158,14 +158,14 @@ customElements.define(
                 role="alert"
                 .textContent=${
                   failure
-                    ? `${failure.message}${base && dirty() ? " Your draft is kept." : ""}`
+                    ? `${failure.message}${base && dirty() ? " The draft is kept." : ""}`
                     : latest
-                      ? "The file changed on disk. Use the file version to discard your draft, or save your draft over the version shown below."
+                      ? "The file changed on disk. Use the file version to discard the draft, or save it over the version shown below."
                       : ""
                 }
               ></p>
               <p ${offered("lf-file-editor-legend")} ?hidden=${!latest}>
-                Removed text is on disk. Added text is your draft.
+                Removed text is on disk. Added text is the draft.
               </p>
               <div ${offered("lf-file-editor-actions")}>
                 ${[
@@ -205,7 +205,7 @@ customElements.define(
               readOnly: true,
               label: "Compare versions",
               description:
-                "Read only. Removed text is on disk. Added text is your draft.",
+                "Read only. Removed text is on disk. Added text is the draft.",
             });
           comparison.value = editor.value;
           comparison.setLabel(label);

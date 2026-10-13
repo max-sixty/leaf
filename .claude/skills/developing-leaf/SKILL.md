@@ -71,32 +71,34 @@ call to the agent.
 Checks follow the same line. `page check` and its render checks hold Leaf's contracts
 on every page: each widget upgrades, nothing a user needs is clipped out of reach, every
 control can be pressed. Don't add a check that anticipates one particular authoring
-mistake, such as one attribute misapplied to one tag. Each such check costs code, tests
-and gate time on every page from then on, while a mistake agents rarely make costs one
-fix on the page where it happened, or a clearer line in the instruction it misread. Add
-a narrow check only where agents get what it reports wrong on real pages and fix it when
+mistake, such as one attribute misapplied to one tag (root `AGENTS.md`, "Leaf's role",
+weighs what a check costs). A mistake agents rarely make costs one fix on the page where
+it happened, or a clearer line in the instruction it misread. Add a narrow check only where agents get what it reports wrong on real pages and fix it when
 told. A check that fires mostly on pages that already work, because delivery or the
 page's own CSS handles what it looks for, costs more than it catches. Prefer widening a
 general reading to adding a narrow one beside it.
 
-## Let the agent correct its own input
+## Be a helpful linter, not a nanny nor a complicated partial checker
 
-The agent that writes a page or sets its data reads what comes back: a `page check`
-finding, a widget's failure box, a command's error. It fixes a mistake it can see, so
-code handles the input its contract describes, such as a patch as `git diff` writes
-it, and lets anything else fail through the parser or check already in its path.
-Detecting, repairing or explaining each malformed variant adds code to every reader of
-that input and buys nothing the agent's next attempt would not. Handle a malformed
-case only where it would otherwise pass silently into state the user relies on, such
-as an admitted event or a stored decision.
+Root `AGENTS.md`, "Leaf's role", says what a check is worth. A nanny refuses or
+explains input the agent's next attempt would fix anyway. A partial checker judges an
+input that a component in its path already judges, such as a parser, a widget or uv:
+the second judgment disagrees with the first at the edges, and each disagreement found
+becomes another check.
+Leave the judging to that component and make sure its refusal reaches the agent:
+`patch_manifest.py` stores a patch as given, and `lf-diff` refuses a file it cannot
+draw and reports it with `reportFailure`.
 
-What one Leaf module writes for another is not input: the browser reading the
-server's answer, the Worker reading the manifest its build wrote, a caller reading what
-admission accepted. The reader uses it directly, and the producer's own tests hold its
-shape. The exception is a record an older Leaf left in the state home, which root
-`AGENTS.md`, "Stage", has the reader tolerate. Recovery from a state no Leaf writer
-produces goes the same way: delete it with the test that manufactures the state to
-reach it.
+What one Leaf module writes for another, over a channel only Leaf code writes, is not
+input: the browser reading the server's answer, the Worker reading the manifest its
+build wrote, a caller reading what admission accepted. The reader uses it directly, and
+the producer's own tests hold its shape. What a person or an agent can write on the way
+is input even when Leaf code sent it: a request the browser posts, a file an agent
+edits, the answer of leaf.page's container, whose agent a visitor steers (root
+`AGENTS.md`, "Validate once and share readings"). The exception is a record an older
+Leaf left in the state home, which root `AGENTS.md`, "Stage", has the reader tolerate.
+Recovery from a state no Leaf writer produces goes the same way: delete it with the test
+that manufactures the state to reach it.
 
 ## Explore an open design
 

@@ -73,15 +73,15 @@ has tried; settle that before building it.
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
 - **#28 — Overhaul the floating panel's appearance.** The opt-in floating panel
-  (`?lf-chrome=floating`, off by default) works, but the user doesn't like its
-  aesthetic. It landed so work can continue from `main`. Redesign how it looks
-  before offering it to anyone; [its goal](notes/floating-panel/GOAL.md) holds the
-  spec, the approved prototype, and the departures taken so far.
+  (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
+  user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Once
+  the user accepts it, the panel becomes the only chrome: the banner, the bottom bar
+  and the preference go.
 
 ### Agent and author experience
 
 - **Decide whether `page check` should still refuse an `lf-ask` without a leading
-  heading.** The heading is the Question's title in the Questions panel, the banner
+  heading.** The heading is the ask's title in the Questions panel, the banner
   and the `q` announcement, which all show an empty title without one, and the
   `lf-ask` instructions already ask for it. Wait until the other narrow checks
   removed in October 2026 have been gone a while; if pages written since still
@@ -321,6 +321,12 @@ height and where a switch lands wait on the workspace decision under Layout.
 Keep the optional Leaf timeline alongside Playwright's viewer, as Max chose
 on 2026-10-07.
 
+- **Start videos without a flash or oversized play animation.** Provide shared,
+  quiet video controls with compact play/pause and a timeline, keeping the image
+  stable during startup. Firefox's native controls expand the initial play button
+  to three times its size while fading it out over 400 ms; rewinding and replaying
+  skips that effect. Verify first play and replay, including keyboard and touch
+  access ([Firefox implementation](https://github.com/mozilla-firefox/firefox/blob/main/toolkit/content/widgets/videocontrols.js)).
 - **Explore DOM selection in the imported timeline.** The optional `playwright`
   package imports native actions, checkpoint images, captured frames and saved
   accessibility elements; following their comments restores the moment. Reuse
@@ -597,6 +603,19 @@ Revisit these when their stated trigger becomes real; they are not an active que
   container's Durable Object, and nothing recovers a dispatch whose container
   disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that
   way.
+- **Start each release's containers on its own image.** The Worker goes live on a
+  release before Cloudflare rolls its image out, so for up to ten minutes after a
+  deploy a session's new container can start on the previous image. The Worker
+  holds requests behind `503 Retry-After` (`rollingOut` in `worker/src/index.ts`),
+  and only event sends retry it, so a sample opened then fails until a reload.
+  Cloudflare's `durable_object` scheduling policy uploads the image map with the
+  Worker version and lets the session pick its image at start
+  ([docs](https://developers.cloudflare.com/containers/configuration/scheduling-policy/)),
+  which removes the window, `rollingOut`, the retry, and `verify-site`'s rollout
+  wait. Moving costs a new container application, a port off the `Container` class
+  (pings, sleep, outbound interception) and `standard-1` in place of `basic`.
+  Trigger: the policy leaves beta, or leaf.page gains visitors a deploy would
+  interrupt.
 - **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

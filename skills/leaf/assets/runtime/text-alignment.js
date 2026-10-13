@@ -1,13 +1,6 @@
-/* Lossless, language-aware alignment of whole-text states, and the one rendering of an
- * alignment.
- *
- * Two surfaces explain how a text came to say what it says: a draft's own history, and
- * a block's inline version comparison. A user who meets one has to recognise the
- * other, so the runs and the elements they become are stated together
- * here rather than once per surface. Only the paint stays with each surface's sheet,
- * because that is the part that has to differ — a widget's rendering is reached by its
- * package's theme and shadow sheet, the comparison's by the comment layer's own
- * stylesheet. */
+/* Lossless, language-aware alignment of whole-text states, which a block's inline
+ * version comparison and any widget explaining how a text came to say what it says
+ * share. Each caller renders the runs in its own surface. */
 
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
@@ -117,17 +110,4 @@ export function alignInlineText(before, after) {
     }
   }
   return runs;
-}
-
-// The alignment as elements: `same` is plain text, what the later text dropped is a
-// <del>, what it gained an <ins>. Semantic rather than classed, so a user hearing it
-// keeps the two apart with no stylesheet.
-export function alignedNodes(runs) {
-  return runs.map((run) => {
-    const node = document.createElement(
-      run.kind === "delete" ? "del" : run.kind === "insert" ? "ins" : "span",
-    );
-    node.textContent = run.text;
-    return node;
-  });
 }

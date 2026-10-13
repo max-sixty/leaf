@@ -1,6 +1,6 @@
 """Shared semantic reading of one document and its standing event log.
 
-Browser state and agent inspection use the same retirement and Question assembly.
+Browser state and agent inspection use the same retirement and ask assembly.
 Callers supply the document's reading and events from their page transaction; this
 reading stores no derived state. Registration history is read lazily through the
 transaction-owned revision reader supplied by the caller. The retired passage view is
@@ -9,10 +9,10 @@ the document reading's own (`SourceReading.decided_passages`).
 
 from typing import NamedTuple
 
-from .events import retractions, seats_with_agent
+from .asks import approval_ask, collection, page_ask_readings
+from .events import retractions
 from .passages import Passages
 from .projection import PageReading, StateProjection, retirement_outcomes
-from .questions import approval_question, collection, page_question_readings
 from .structure import SourceDocument
 
 
@@ -21,13 +21,13 @@ class DocumentReading(NamedTuple):
     projection: StateProjection
     spoken: dict
     passages: Passages
-    questions: dict
+    asks: dict
     within: dict
     floors: dict
 
 
 def read_document(page: PageReading, threads: dict) -> DocumentReading:
-    """Resolve a document's durable state and its user's outstanding Questions.
+    """Resolve a document's durable state and its user's outstanding asks.
 
     `spoken` retains authored words because retractions and action ownership are
     based on construction. `passages` removes retired slots; exact replacement
@@ -42,27 +42,28 @@ def read_document(page: PageReading, threads: dict) -> DocumentReading:
     spk = page.spoken
     passages = page.reading.decided_passages(retirement_outcomes(projection.actions))
     dropped = set(passages.retired) | set(passages.gone)
-    questions = page_question_readings(
+    asks = page_ask_readings(
         parser,
         projection,
         parser.by_id,
         spk,
         registry,
         dropped,
-        seats_with_agent(threads),
+        threads,
+        page.within,
         settled_away=set(passages.gone),
         prior=page.prior,
         revision=revision,
         events=events,
     )
-    if approval := approval_question(document, revision, events):
-        questions = collection([*questions["all"], approval])
+    if approval := approval_ask(document, revision, events):
+        asks = collection([*asks["all"], approval])
     return DocumentReading(
         document=document,
         projection=projection,
         spoken=spk,
         passages=passages,
-        questions=questions,
+        asks=asks,
         within=page.within,
         floors=retractions(events, revision),
     )

@@ -23,7 +23,12 @@ from .file_changes import (
 )
 from .files import file_stamp, read_json
 from .harness import Harness, claim_harness, session_harness
-from .leases import release_lease, take_lease, waiter_lease_path
+from .leases import (
+    end_if_terminated,
+    release_lease,
+    take_lease,
+    waiter_lease_path,
+)
 from .locations import path_location, paths_same
 from .machine import state_home
 from .presence import nudge_unwatched
@@ -57,11 +62,11 @@ STOP_HOOK_S = 20
 
 def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
     """Declare the page waiting on its user, putting down every start that stands
-    (`tasks.put_down`), and return the declaration, with the updates still owed an
+    (`todos.put_down`), and return the declaration, with the updates still owed an
     answer, which the page goes on showing over it."""
     from .revisioning import activate_source
     from .served_state.context import read_page
-    from .tasks import put_down
+    from .todos import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
@@ -80,12 +85,12 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     provisional state forever either. The answers it holds the page for are
     `activity.blocking_obligations`, a started update's included: the Stop hook lets
     the turn that started one end over it, but closing the page answers nothing. It
-    holds the page for every open task too, which only its ending discharges.
+    holds the page for every open to-do too, which only its ending discharges.
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
     from .served_state.context import read_page
-    from .tasks import put_down
+    from .todos import put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
@@ -114,12 +119,12 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
                 f"{unanswered(owed, page_dir, 'acknowledged')}; answer before idling. "
                 + ANSWER_ASK_INSTRUCTION
             )
-        # A task is work the agent still owes, which closing the page would leave
+        # A to-do is work the agent still owes, which closing the page would leave
         # standing on a page nobody holds.
-        if tasks := work.durable.log.owed:
-            named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
+        if todos := work.durable.log.owed:
+            named = "; ".join(f"{todo['id']} ({todo['title']})" for todo in todos)
             raise Refused(
-                f"{len(tasks)} open to-do{'s' if len(tasks) != 1 else ''}: {named}. "
+                f"{len(todos)} open to-do{'s' if len(todos) != 1 else ''}: {named}. "
                 "End each before idling with "
                 '`leaf task end <page> <id> done "<where the result is>"`, or '
                 '`dropped "<why>"`.'
@@ -278,6 +283,9 @@ class Watch:
             if self.reading() != before:
                 return True
             remaining = deadline - time.monotonic()
+            # A stop whose raise a finalizer discarded ends the watch here, since
+            # nothing would interrupt the wait (`release_on_termination`).
+            end_if_terminated()
             if remaining <= 0 or not self.changes.wait(generation, remaining):
                 return False
             # Native APIs may coalesce diagnostics with their parent directory,

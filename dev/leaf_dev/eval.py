@@ -4,15 +4,17 @@ This command does only what Promptfoo cannot: it builds each Leaf arm (the worki
 tree, and with `--base` a ref), gives each provider a home of its own seeded with the
 harness's login, and expands the catalog's task/context addresses into Promptfoo tests.
 Native probes install the complete arm as a plugin and read it in fresh sessions;
+short authoring cases use isolated tool-capable children and grade the saved page;
 Codex shares one server per provider home while starting fresh ephemeral, read-only
 threads for each test.
 Promptfoo owns the rest: repetition, concurrency, assertions, the console table, and
 the result database its viewer reads. Arguments after the cases go to `promptfoo eval`.
 
 A provider is one column of the results: a harness on one arm (`claude-code/candidate`),
-suffixed `/workflow` for the Python provider that runs complete tasks, and on arm `html`
-for the plain HTML control. A workflow column names the Leaf transport its harness
-session takes where the harness has more than one (`codex:app-server/base/workflow`),
+suffixed `/authoring` for tool-capable short cases or `/workflow` for complete
+tasks, and on arm `html` for the plain HTML control. A workflow column names the
+Leaf transport its harness session takes where the harness has more than one
+(`codex:app-server/base/workflow`),
 since a workflow scores only that transport. A test is one catalog address under one
 condition.
 """
@@ -47,12 +49,14 @@ from leaf_dev.arms import (
     codex_program,
     environment,
     install_codex_plugin,
+    instruction_context,
 )
+from leaf_dev.eval_cases import definition
 from leaf_dev.leaf_assets import pinned_copy
 
 PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
 RUNS = ROOT / ".tmp/eval"
-SKILL_PREFIX = "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
+SKILL_PREFIX = definition("eval")["skill_prefix"]
 
 
 def context_case(source: dict, address: str) -> dict:
@@ -78,7 +82,18 @@ def catalog() -> dict[str, dict]:
             task,
             *(f"{task}/{name}" for name in source.get("variants", {})),
         ]:
-            cases[address] = context_case(source, address)
+            case = context_case(source, address)
+            metadata = case.get("metadata", {})
+            if metadata.get("authoring") and metadata.get("executor"):
+                raise click.ClickException(
+                    f"eval case {address}: metadata.authoring and metadata.executor "
+                    "select different execution modes; declare only one"
+                )
+            if executor := metadata.get("executor"):
+                case["assert"] = definition(executor.rsplit(".", 1)[1])["cases"][
+                    case["metadata"]["scenario"]
+                ]["assert"]
+            cases[address] = case
     return cases
 
 
@@ -190,11 +205,13 @@ def workflow_provider(
 
 
 def screenshot_judge(screenshots: Path | None, home: Path) -> dict:
-    """The Codex grader for an executor's `agent-rubric`s, run under a home of its own.
+    """The Codex visual grader for `agent-rubric`s, run under a home of its own.
 
     Its permission profile lets it read the run's screenshot tree and nothing else,
-    so neither a page's source, the author's transcript, nor a path naming the arm
-    reaches it. Passing None leaves evidence access to each call's isolated profile,
+    so only copied images are available as filesystem evidence. An assertion may
+    supply authored HTML to identify image references; transcripts and paths naming
+    the arm remain outside the judge's input. Passing None leaves evidence access
+    to each call's isolated profile,
     so an assertion can grant exactly one sample instead of the run's whole tree.
     `:minimal` is the runtime paths tools need, which include the temp
     directories but not the repository. Codex starts its sandbox helper by executing
@@ -248,6 +265,7 @@ def prepare(
         test = definitions[address]
         metadata = test.get("metadata", {})
         executor = metadata.get("executor")
+        authoring = metadata.get("authoring", False)
         instructions = metadata.get("instructions")
         for condition in conditions:
             if condition not in metadata.get("conditions", ["leaf"]):
@@ -261,11 +279,13 @@ def prepare(
                     label = (
                         f"{workflow_harness(harness)}/{arm}/workflow"
                         if executor
+                        else f"{workflow_harness(harness)}/{arm}/authoring"
+                        if authoring
                         else f"{harness}/{arm}"
                         + (f"/instructions:{instructions}" if instructions else "")
                     )
                     if label not in providers:
-                        if executor:
+                        if executor or authoring:
                             configured = workflow_provider(
                                 harness, condition, payload, samples, screenshots
                             )
@@ -279,10 +299,8 @@ def prepare(
                                     if harness == ClaudeCodeHarness.name
                                     else "developer_instructions"
                                 )
-                                source = payload / instructions
-                                configured["config"][field] = (
-                                    f"Instructions from {source}:\n\n"
-                                    + source.read_text()
+                                configured["config"][field] = instruction_context(
+                                    payload, instructions
                                 )
                         providers[label] = {**configured, "label": label}
                     labels.append(label)
@@ -292,10 +310,14 @@ def prepare(
             task = address.split("/", 1)[0]
             if executor:
                 module = import_module(executor)
-                checks = module.expected_checks(
-                    metadata["scenario"], condition=condition
+                checks = (
+                    []
+                    if "providerOutput" in test
+                    else module.expected_checks(
+                        metadata["scenario"], condition=condition
+                    )
                 )
-                rubrics = getattr(module, "rubrics", lambda _: [])(metadata["scenario"])
+                rubrics = test["assert"]
                 if (
                     any(r["type"].endswith("agent-rubric") for r in rubrics)
                     and judge is None
@@ -330,7 +352,24 @@ def prepare(
                     "prompt": ("" if instructions else SKILL_PREFIX)
                     + sample["vars"]["prompt"],
                 }
-                images = pinned_copy(ROOT / "evals" / task)
+                if authoring:
+                    for assertion in sample["assert"]:
+                        if assertion["type"].endswith("agent-rubric"):
+                            if judge is None:
+                                judge = screenshot_judge(screenshots, scratch / "judge")
+                            assertion["provider"] = judge
+                    sample["assert"] = [
+                        *(
+                            {
+                                "type": "javascript",
+                                "value": f"context.providerResponse.metadata?.checks?.[{json.dumps(check)}] === true",
+                                "metric": check,
+                            }
+                            for check in ("completed", "page-valid")
+                        ),
+                        *sample["assert"],
+                    ]
+                images = None if authoring else pinned_copy(ROOT / "evals" / task)
                 if images is not None and images.is_dir():
                     for label in labels:
                         shutil.copytree(

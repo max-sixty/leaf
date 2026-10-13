@@ -12,6 +12,9 @@
    the same register as `commands(el, title, rows)` in `connectedCallback`. A module
    loaded on a page with no instance must contribute no scope or reference section. Runtime
    scopes live in `SCOPES`; `merge` is the only function that gathers scope sections.
+   A scope may declare `ready` for incomplete inputs shared by its rows; a row or
+   route may override that reading. Decision commands queue until the first saved read
+   answers; their owning actions supply availability, including after a failed read.
    Normal element and page command declarations share native button activation. A
    sequence's `control` is a travel destination and arrival seat, not an activation
    declaration; native editing scopes may likewise name only the input's key route.
@@ -50,8 +53,8 @@ import {
   word,
 } from "./bindings.js";
 import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
-import { focused, onStanding } from "../focus.js";
-import { hostIn, renderedParent, under } from "../shadow.js";
+import { onStanding } from "../focus.js";
+import { renderedParent, under } from "../shadow.js";
 import { repaint } from "../repaint.js";
 import { keeps } from "../keeps.js";
 
@@ -282,7 +285,7 @@ function wireDeclaredButtons(scope) {
 const either = (a, b) => (a && b ? () => a() || b() : undefined);
 export const elementScopes = new WeakMap();
 // The scopes other owners project onto an element, keyed by the owner, so one control can
-// carry several: a margin entry holds its widget's scope and a Question's digit route at once.
+// carry several: a margin entry holds its widget's scope and an ask's digit route at once.
 const projectedScopes = new WeakMap();
 const commandScopeCapabilities = new WeakSet();
 export const scopeIdentity = (scope) => scope.identity ?? scope;
@@ -303,6 +306,7 @@ function localContext(source, scope) {
       contextual: true,
       el: source,
       when: scope.when,
+      ready: scope.ready,
       get rows() {
         return contextRows([{ source, scope }]);
       },
@@ -493,8 +497,8 @@ export function merge(sections, { title, when, at, liveInCommandReference, rows 
  *
  * `where` is the element focus must be inside, `title` names the scope in the command reference dialog
  * (null for one the reference has no room to name), `rows` are its bindings, and the
- * optional configuration carries `when` (whether the page has this scope at all) and
- * `escape: "inner"` when this scope owns a cancellation step ahead of every step the
+ * optional configuration carries `when` (whether the page has this scope at all),
+ * `ready` (whether its shared input is complete), and `escape: "inner"` when this scope owns a cancellation step ahead of every step the
  * ladder offers. A function in the fourth position is shorthand for `{when: function}`.
  * A link, button or other native control inside `where` keeps its own activation
  * press (`nativeActivationAt`).
@@ -568,7 +572,7 @@ function detachScope(element, scope) {
 // Both element-bound keys and a reusable command capability declare the same scope.
 // Attachment decides when its scene is validated, not what a declaration may contain.
 function declaredScope(title, rows, options) {
-  const { when, escape } =
+  const { when, escape, ready } =
     typeof options === "function" ? { when: options } : (options ?? {});
   if (escape !== undefined && escape !== "inner")
     throw new TypeError(
@@ -576,9 +580,10 @@ function declaredScope(title, rows, options) {
     );
   return {
     title,
-    rows: checked(rows, title ?? "a scope"),
+    rows: checked(rows, title ?? "a scope", ready),
     when,
     escape,
+    ready,
   };
 }
 
@@ -712,7 +717,7 @@ export function commandsWithin(root) {
 // Every declaration on one element is painted as one native shortcut attribute. A local
 // declaration and any number of projected ones can coexist, so none may erase another's
 // bindings. Each scope's live rows are read and refused on their own; the attribute is
-// their union, since two scopes on one control may name one press: a Question's route names
+// their union, since two scopes on one control may name one press: an ask's route names
 // the intrinsic key of the command it routes to, which that command's own scope names.
 function reflectElementShortcuts(element) {
   const available = scopesAt(element).filter((scope) => !scope.when || scope.when());
@@ -941,11 +946,6 @@ const spoken = (row) => {
     return active.map(spokenBinding).join(" or ");
   return word(row.label) ?? active.map(spokenBinding).join(" or ");
 };
-
-// Document readings want the host of a control staged in a shadow tree. Retarget the
-// logical reading every time, so a label transaction and an ordinary shadow focus take
-// the same path and no painted surface invents its own exception.
-export const documentFocused = () => hostIn(focused(), document);
 
 // The element scopes covering a node, innermost first — the climb crosses a shadow
 // boundary the way `closest` climbs inside one, so a widget staging its controls in a

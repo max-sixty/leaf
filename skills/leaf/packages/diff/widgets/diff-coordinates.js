@@ -2,8 +2,9 @@
  * File identities are [destinationPath, "file"]; changed lines are
  * [destinationPath, "old"|"new", line]; context lines retain the exact pair
  * [destinationPath, "both", oldLine, newLine]. Paired identities require both numbers.
- * Source links use [sourcePath, "source", "old"|"new", line]. A rename's old source
- * path names its preimage, even when that path also names another file's destination.
+ * Source links use [sourcePath, "source", "old"|"new", line]. A rename or copy's old source
+ * path names its preimage. A rename owns that original identity; a copy shares it,
+ * so copies and an edited original leave an old-source request ambiguous.
  * Source requests never enter the projection: commenting on their destination records
  * its durable datum identity. Either address matches only its named side's number.
  * Ambiguous addresses detach rather than choose a file by order. Decoding validates
@@ -60,7 +61,8 @@ export function findDiffFile(entries, coordinate) {
   if (!coordinate || !entries) return null;
   if (coordinate.source && coordinate.side === "old") {
     const renamed = entries.filter(
-      ({ record }) => record.previousPath === coordinate.path,
+      ({ record }) =>
+        record.operation === "rename" && record.previousPath === coordinate.path,
     );
     if (renamed.length) return renamed.length === 1 ? renamed[0] : null;
   }

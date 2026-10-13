@@ -15,8 +15,9 @@
    `queues.questions` and `queues.tasks` (the server's `served_state.queues`, with this
    tab's sends placed against it), the same lists the `q` walk steps through and the
    banner counts; what is done is `done`, served beside them from ended to-dos and
-   answered or withdrawn asks. So a reply the user sends leaves Questions and joins
-   Tasks in the turn it is sent, as it leaves the banner's count.
+   answered or withdrawn asks. So a reply the user sends joins Tasks in the turn it
+   is sent, and leaves Questions when the server's reading of it arrives, as the
+   banner's counts do.
 
    Each row says what kind of item it is, the item's title or opening words, and where it
    is: the passage or section it stands at, and its age, stage or outcome. A press or
@@ -53,7 +54,7 @@ import { clocked, shortAgo } from "./presence.js";
 import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
-import { taskNoun } from "./queues.js";
+import { itemNoun } from "./queues.js";
 import { registry } from "./registry.js";
 import { repaint } from "./repaint.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
@@ -64,13 +65,13 @@ import {
   PRESENTATION_ORDER,
   PresentationRetentionError,
 } from "./semantic-state.js";
-import { under } from "./shadow.js";
-import { questionEnding } from "./questions/answer.js";
-import { readQuestions } from "./questions/model.js";
-import { questionPlace } from "./questions/place.js";
+import { renderedOrder, under } from "./shadow.js";
+import { askEnding } from "./asks/answer.js";
+import { readAsks } from "./asks/model.js";
+import { askPlace } from "./asks/place.js";
 import { readThreads } from "./thread/state.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
-import { questionHolding, declareSide } from "./standing-target.js";
+import { askHolding, declareSide } from "./standing-target.js";
 import { anchorLabel } from "./thread/messages.js";
 import { queueTitle } from "./queue-title.js";
 import { threadSummary } from "./thread/model.js";
@@ -92,12 +93,11 @@ const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropp
 const HEADINGS = "h1, h2, h3, h4, h5, h6";
 
 function askWord(item) {
-  const question = item.ask;
-  if (question.source.kind === "reply") return "Thread";
-  if (question.source.kind === "approval") return "Approval";
+  const ask = item.ask;
+  if (ask.source.kind === "reply") return "Thread";
+  if (ask.source.kind === "approval") return "Approval";
   const word =
-    registry[question.source.tag]?.["x-word"] &&
-    addressableWord(questionPlace(question).source);
+    registry[ask.source.tag]?.["x-word"] && addressableWord(askPlace(ask).source);
   return word ? word.charAt(0).toUpperCase() + word.slice(1) : "Ask";
 }
 
@@ -112,7 +112,7 @@ function sectionWords(element) {
       candidate.parentElement &&
       under(element, candidate.parentElement) &&
       !under(candidate, element) &&
-      candidate.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING,
+      renderedOrder(candidate, element) < 0,
   );
   const words = heading ? addressableLabel(heading) : "";
   return words ? `§ ${words}` : "";
@@ -134,12 +134,12 @@ export function createQueuePanel({ actions, next, announce }) {
     keeps(
       queueBtn,
       "aria-label",
-      count === null ? "Questions" : `Questions: ${count} waiting on you`,
+      count === null ? "Questions" : `Questions: ${count} waiting on me`,
     );
     keeps(
       queueBtn,
       "data-lf-key-title",
-      `Show or hide your questions and ${agent()}'s tasks`,
+      `Show or hide my questions and ${agent()}'s tasks`,
     );
   }
 
@@ -151,15 +151,15 @@ export function createQueuePanel({ actions, next, announce }) {
     // A to-do on an element that names itself, as a section does by its heading, is
     // there.
     const itself =
-      !thread && taskNoun(item) === "todo"
+      !thread && itemNoun(item) === "todo"
         ? addressableName(elementById(item.subject.id))
         : "";
     if (itself) return `§ ${itself}`;
     if (!thread) {
       // A widget answering an ask is where that ask is.
       const own = elementById(item.subject.id);
-      const question = own && questionHolding(readQuestions().all, own);
-      return sectionWords(question ? questionPlace(question).context : own);
+      const ask = own && askHolding(readAsks().all, own);
+      return sectionWords(ask ? askPlace(ask).context : own);
     }
     if (!thread.anchor?.section) return "Whole page";
     const about = elementById(thread.anchor.section);
@@ -169,7 +169,7 @@ export function createQueuePanel({ actions, next, announce }) {
   // The rest of where: how long it has stood or how far a reply has got, after the
   // place; and before it, how a finished item ended, which is what a Done row is for.
   function when(item, thread) {
-    if (taskNoun(item) === "ask")
+    if (itemNoun(item) === "ask")
       return thread && shortAgo(threadSummary(thread).latest);
     if (item.kind === "answer") return workflowLabel(item.workflow);
     if (item.kind === "work")
@@ -183,14 +183,14 @@ export function createQueuePanel({ actions, next, announce }) {
   }
   // An ask names how it ended; a to-do names its outcome.
   function ended(item) {
-    if (item.kind === "ask") return questionEnding(item.ask);
+    if (item.kind === "ask") return askEnding(item.ask);
     return [OUTCOMES[item.state] ?? item.state, shortAgo(item.ended)]
       .filter(Boolean)
       .join(" ");
   }
   function row(item, list) {
     const thread = threadOf(item.thread);
-    const noun = taskNoun(item);
+    const noun = itemNoun(item);
     const word = noun === "ask" ? askWord(item) : wordOf(item, noun);
     const where = (
       list === "done"
@@ -255,7 +255,7 @@ export function createQueuePanel({ actions, next, announce }) {
           id: "you",
           label: known ? `Questions · ${you.length}` : "Questions",
           rows: Object.freeze(you),
-          empty: known ? "No questions for you." : "Loading current questions…",
+          empty: known ? "No questions." : "Loading current questions…",
         }),
         Object.freeze({
           id: "agent",
@@ -335,7 +335,7 @@ export function createQueuePanel({ actions, next, announce }) {
         entry.list === "done"
           ? "done"
           : entry.list === "you"
-            ? "waiting on you"
+            ? "waiting on me"
             : `waiting on ${agent()}`;
       announce(
         walkPositionLabel(entry.word, list.indexOf(entry) + 1, list.length, qualifier),
@@ -354,8 +354,8 @@ export function createQueuePanel({ actions, next, announce }) {
   // A row stands at the element it names rather than in the panel.
   declareSide((node) => {
     const at = standsAt(node);
-    const question = readQuestions().all.find((question) => question.id === at);
-    return question ? questionPlace(question).node : at ? elementById(at) : null;
+    const ask = readAsks().all.find((ask) => ask.id === at);
+    return ask ? askPlace(ask).node : at ? elementById(at) : null;
   });
 
   function mount() {

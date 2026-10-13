@@ -37,7 +37,7 @@
  * chip explicitly releases that hold. The chip remains available while activation waits.
  *
  * Retained nodes keep their mechanical state. Replaced nodes use `carry.js`'s authored-id
- * contract, and the Question view restores the selected Question by id. Both installs restore these
+ * contract, and the ask view restores the selected ask by id. Both installs restore these
  * readings; the patch passes its retained nodes so restoration skips them. Unnamed
  * replaced controls receive no guessed focus. Authored controls and registered draft
  * editors carry native editing under their existing replacement identity; arbitrary
@@ -45,10 +45,10 @@
  * use their own stores.
  *
  * A fresh-document install stores a page-scoped, one-use handoff: reading position,
- * comparison, pointer, margin standing, mechanical carry, and Question standing. A newer
+ * comparison, pointer, margin standing, mechanical carry, and ask standing. A newer
  * revision may consume it, but ordinary reloads and history travel cannot replay it.
  * Explicit historical travel carries reading position and the decision landmark, without
- * mechanical carry or Question standing. State application serializes responses and remains
+ * mechanical carry or ask standing. State application serializes responses and remains
  * pending after navigation starts until the old document is discarded.
  *
  * `captureView` records a place (reading-place.js) for the page and each reading
@@ -104,7 +104,7 @@ import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { focusedInView } from "./user-place.js";
 import { patchTree, patchRetains } from "./dom-children.js";
 import { move } from "./dom-move.js";
-import { labelOf, PRESS } from "./keyboard/bindings.js";
+import { labelOf, PRESS, savedReadingSettled } from "./keyboard/bindings.js";
 import { commandShortcut } from "./keyboard/control-keys.js";
 import { keys, paintKeys, pruneScopedElements } from "./keyboard/scopes.js";
 import { repaint } from "./repaint.js";
@@ -164,7 +164,7 @@ import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resoluti
 import { scrollToFragment } from "./anchor-travel.js";
 import { rowWalk } from "./walk-position.js";
 import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
-import { foldWidgetStates, questionValue } from "./projection/model.js";
+import { foldWidgetStates, askValue } from "./projection/model.js";
 import { runtimeRootState } from "./root-state.js";
 import {
   commitWidgetDescriptors,
@@ -671,11 +671,8 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
         }
         continue;
       }
-      const { value } = questionValue(now, verb, true);
-      if (
-        JSON.stringify(value) ===
-        JSON.stringify(questionValue(before, verb, true).value)
-      )
+      const { value } = askValue(now, verb, true);
+      if (JSON.stringify(value) === JSON.stringify(askValue(before, verb, true).value))
         continue;
       // The option now picked is where a pick reads; anything else reads on its
       // widget.
@@ -1006,8 +1003,8 @@ export function createVersionController({
   syncLayout,
   captureRetainedStanding = () => null,
   restoreRetainedStanding = () => false,
-  captureQuestionStanding = () => null,
-  restoreQuestionStanding = () => {},
+  captureAskStanding = () => null,
+  restoreAskStanding = () => {},
 }) {
   let {
     authoredBodyAttributes,
@@ -1103,7 +1100,7 @@ export function createVersionController({
   });
   const VERSION_WALK = {
     ...walk,
-    description: "Walk the versions, marking what changed since the one you are on",
+    description: "Walk the versions, marking what changed since the one shown",
     title: "walk — marking changes",
     when: versionsToWalk,
   };
@@ -1115,6 +1112,7 @@ export function createVersionController({
   // menu's own row (`version.close`), which closes it and returns the user to More.
   const VERSIONS = {
     title: "In the versions menu",
+    ready: savedReadingSettled,
     root: () => versionMenu,
     when: versionsOffered,
     at: versionMenuIsOpen,
@@ -1200,6 +1198,7 @@ export function createVersionController({
   // pressing it does.
   const PICKER = {
     id: "version.open",
+    ready: savedReadingSettled,
     keys: ["Shift+v"],
     description: "The versions, and what each one changed",
     title: "versions",
@@ -1402,7 +1401,7 @@ export function createVersionController({
   }
 
   // Patch against the authored baselines. Retained nodes keep their live state;
-  // replacement nodes recover eligible state through carry and Question restoration.
+  // replacement nodes recover eligible state through carry and ask restoration.
   function captureEditingContinuity() {
     const draftEditing = captureDraftEditing();
     return {
@@ -1411,9 +1410,9 @@ export function createVersionController({
       // A replaced reply box takes focus back either way, but is brought into view only
       // where it marked the user's place (user-place.js, `focusedInView`).
       replyInView: focusedInView() !== null,
-      // Question standing is the fallback for unnamed controls. An exact editor already
-      // has a replacement identity, so its parent Question does not also own focus.
-      questionStanding: draftEditing ? null : captureQuestionStanding(),
+      // Ask standing is the fallback for unnamed controls. An exact editor already
+      // has a replacement identity, so its parent ask does not also own focus.
+      askStanding: draftEditing ? null : captureAskStanding(),
     };
   }
 
@@ -1430,8 +1429,8 @@ export function createVersionController({
 
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
-    const { draftEditing, replyThread, replyInView, questionStanding } = continuity;
-    restoreQuestionStanding(questionStanding);
+    const { draftEditing, replyThread, replyInView, askStanding } = continuity;
+    restoreAskStanding(askStanding);
     const mayRestore = restrictUserIntent(currentIntent, () =>
       draftEditingStands(draftEditing),
     );
@@ -2477,7 +2476,7 @@ export function createVersionController({
         },
         NEWEST,
       ],
-      versionsToWalk,
+      { when: versionsToWalk, ready: savedReadingSettled },
     );
     renderVersions(null);
   }

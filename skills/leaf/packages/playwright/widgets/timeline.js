@@ -29,6 +29,7 @@ import {
   keeps,
   keepsHidden,
   keepsText,
+  pressIsKeyboardActivation,
 } from "/runtime/widget-api.js";
 
 const LABEL_GAP = 6;
@@ -831,7 +832,7 @@ export class RecordingTimeline {
       return;
     }
     // A mouse press already scrubbed; a tap seeks once.
-    if (event.pointerType === "touch" || event.detail === 0)
+    if (event.pointerType === "touch" || pressIsKeyboardActivation(event))
       this.#options.onSeek(this.#eventTime(event), true);
   }
 

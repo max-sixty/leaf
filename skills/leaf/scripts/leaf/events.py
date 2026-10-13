@@ -4,6 +4,7 @@ from collections import OrderedDict
 from itertools import groupby
 from typing import NamedTuple
 
+from leaf.findings import Finding
 from leaf.schema import MESSAGE_KINDS, UNDOABLE_KINDS
 
 
@@ -161,41 +162,34 @@ class UndoReading:
         self.answered_reactions = answered_reactions
         self.resolved_reactions = resolved_reactions
 
-    def error(self, event: dict) -> str | None:
-        """Return the existing rejection for one proposed ``undo`` event."""
-        target_id = event["undoes"]
-        target = self.events_by_id.get(target_id)
+    def error(self, event: dict) -> Finding | None:
+        """The finding the append door refuses one proposed ``undo`` event on."""
+        named = {"undoes": event["undoes"]}
+        target = self.events_by_id.get(event["undoes"])
         if target is None:
-            return f"unknown undoes {target_id!r}"
+            return Finding("unknown-undo", values=named)
+        named["target"] = target["kind"]
         if target["author"] != "user":
-            return f"{target['kind']} {target['id']} is not the user's own gesture"
+            return Finding("foreign-gesture", values=named)
         if target["id"] in self.withdrawn:
-            return f"{target['id']} has already been taken back"
+            return Finding("withdrawn-gesture", values=named)
         if target["kind"] in MESSAGE_KINDS:
             if not is_reaction(target):
-                return (
-                    f"{target['kind']} {target['id']} is not a reaction; a message "
-                    "with words in it is said rather than unsaid"
-                )
+                return Finding("said-message", values=named)
             if target["id"] in self.answered_reactions:
-                return (
-                    f"reaction {target['id']} has been answered; withdraw it in the "
-                    "thread the answer opened"
-                )
+                return Finding("answered-reaction", values=named)
             if target["id"] in self.resolved_reactions:
-                return f"reaction {target['id']} stands on a resolved thread"
+                return Finding("resolved-reaction", values=named)
         elif target["kind"] not in UNDOABLE_KINDS:
-            return (
-                f"{target['kind']} events cannot be taken back (the kinds that can "
-                f"are {', '.join(sorted(UNDOABLE_KINDS))} and a reaction)"
+            return Finding(
+                "unundoable", values={**named, "undoable": sorted(UNDOABLE_KINDS)}
             )
         elif target["kind"] == "action" and target["id"] in self.absorbed:
             # The newest revision's markup places the unit
             # (`StateProjection.absorbed`), so taking the move back would restore
             # nothing; a new move changes where the unit stands.
-            return (
-                f"move {target['id']} was made on r{target['revision']}, and a "
-                "later revision's markup now places its unit; move it again instead"
+            return Finding(
+                "absorbed-move", values={**named, "revision": target["revision"]}
             )
         return None
 
@@ -205,7 +199,7 @@ def undo_error(
     events: list,
     within: dict,
     absorbed: frozenset,
-) -> str | None:
+) -> Finding | None:
     """Why this undo may not take back the event it names, or None.
 
     Checked once here, at the door the browser writes through, so nothing
@@ -247,9 +241,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     turn of its own (`exchange`), so it resumes the thread as a reply does.
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
-    opened it, its ``root``: the name every Question, workflow, summary, and title
+    opened it, its ``root``: the name every ask, workflow, summary, and title
     uses for it. Admission keeps every standing message's parent standing
-    (`event_contracts._parent_error`), so each reply lands in a thread.
+    (`event_contracts._parent_error`), so each reply it admits lands in a thread.
     """
     if withdrawn is None:
         withdrawn = taken_back(events)
@@ -323,8 +317,12 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 message["text"] = e["text"]
             continue
         if e["kind"] == "reply":
+            # Admission keeps a reply's parent standing, but a Leaf older than that
+            # rule could answer a withdrawn message; the reply then stands on nothing
+            # (root `AGENTS.md`, "Stage").
+            if (thread := thread_for.get(e["parent"])) is None:
+                continue
             message = dict(e)
-            thread = thread_for[e["parent"]]
             messages[e["id"]] = message
             thread["msgs"].append(message)
             if thread["title"] is None and "title" in e:
@@ -520,9 +518,9 @@ def awaits_agent(thread: dict) -> bool:
 
     This reading says nothing about whether the user owes a word: an ordinary agent
     reply may leave the open thread awaiting nobody, while an agent comment, an
-    explicit prose question, or a structured widget Question awaits the user. The browser
+    explicit prose ask, or a structured widget ask awaits the user. The browser
     does not receive it: each browser Thread's `attention` aggregates this turn with
-    the workflows and Questions standing on the thread, so the panel, its filters and the
+    the workflows and asks standing on the thread, so the panel, its filters and the
     margin read one answer to whose turn it is."""
     return bool(not thread["resolved"] and unanswered_turns(thread))
 
@@ -541,28 +539,6 @@ def seat_root(thread: dict) -> str | None:
     if root.get("about") or not anchor or len(anchor) != 1:
         return None
     return anchor.get("section")
-
-
-def seats_with_agent(threads: dict) -> set[str]:
-    """Widget ids whose own seat holds a thread now waiting on the agent.
-
-    An Question whose own thread is with the agent is not one the user has to
-    deal with, so a Question projection reading their list subtracts these. It is not an
-    answer — the widget's state is untouched — which is why the reading that asks
-    whether a Question is answered passes an empty set instead. The browser receives
-    the Questions this subtraction leaves rather than subtracting again, so the banner's
-    count and `page state` cannot disagree about whose turn it is.
-
-    Whose thread it is does not enter into it: the agent may open one in the seat too,
-    and once the user has answered there the question is with the agent either way.
-
-    Takes the built fold rather than the log, because every caller already holds one:
-    `build_threads` walks the whole log and tests each action against the retraction
-    floors, and a second fold of the same events in the same function is that walk
-    done twice for one answer."""
-    return {
-        seat for t in threads.values() if awaits_agent(t) and (seat := seat_root(t))
-    }
 
 
 def note_settlements(event: dict, kind: str) -> set[str]:

@@ -24,7 +24,7 @@ from urllib.parse import urlsplit
 from .detached import Handshake, StartRefused, starting_detached
 from .files import read_json
 from .harness import Harness, claim_harness, harness_argument, session_harness
-from .leases import page_locked, release_lease, take_lease
+from .leases import end_if_terminated, page_locked, release_lease, take_lease
 from .refusals import Refused
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -166,10 +166,10 @@ class LeafHTTPServer:
     cooldown; a stop waits behind that private preparation before disabling it.
 
     `server_id` names the serving process on every answer. Startup recovery uses it
-    to detect a replacement after failure. An ordinary page's durable record survives
-    that replacement; only an active private website session loses its record and
-    needs an already-presented document to reload. Uvicorn owns signal handling and
-    the order of a stop; every page response completes, so no held-open response
+    to detect a replacement after failure. Page records survive process replacement,
+    including website records restored from the Durable Object; an already-presented
+    document keeps its state and drafts across that replacement. Uvicorn owns signal
+    handling and the order of a stop; every page response completes, so no held-open response
     needs a second stop flag or an application signal wrapper. The stop's timing is
     this server's own (`_page_uvicorn`).
     """
@@ -212,6 +212,9 @@ class LeafHTTPServer:
         """Serve on the current thread until `shutdown` or a handled signal."""
         if self._uvicorn.should_exit:
             return
+        # uvicorn answers a stop once it is serving; one whose raise a finalizer
+        # discarded before then ends the process here (`release_on_termination`).
+        end_if_terminated()
         listener = self.socket.dup()
         try:
             self._uvicorn.run(sockets=[listener])

@@ -360,6 +360,38 @@ export function createHintSession({
     return true;
   }
 
+  // The walk's own rows, so both vocabularies offer Tab, Shift+Tab and Enter as one
+  // declaration: each caller names them under `id`, says what taking a member does in
+  // `choose`, and decides `when` the walk is offered.
+  function walkRows({ id, when = () => candidates.length > 0, choose }) {
+    return [
+      {
+        id: `${id}.walk`,
+        keys: ["Tab", "Shift+Tab"],
+        routes: [
+          { id: `${id}.next`, binding: "Tab", title: "Hear the next visible target" },
+          {
+            id: `${id}.previous`,
+            binding: "Shift+Tab",
+            title: "Hear the previous visible target",
+          },
+        ],
+        title: "browse hints",
+        repeat: true,
+        when,
+        run: (binding) => walk(binding === "Tab" ? 1 : -1),
+      },
+      {
+        id: `${id}.choose`,
+        keys: ["Enter"],
+        description: choose.description,
+        title: choose.title,
+        when: () => at >= 0,
+        run: () => take(hinted()[at]),
+      },
+    ];
+  }
+
   function draw(extraPlans, codedPlans) {
     codedPlans = codedPlans.filter(shown);
     const plans = [...extraPlans, ...codedPlans];
@@ -456,7 +488,6 @@ export function createHintSession({
     armed: () => armed,
     backOneLetter,
     candidates: () => candidates,
-    choose: () => take(hinted()[at]),
     disarm,
     invalidate,
     mount,
@@ -464,7 +495,6 @@ export function createHintSession({
     prefix: () => prefix,
     refresh,
     type,
-    walk,
-    walking: () => at >= 0,
+    walkRows,
   };
 }

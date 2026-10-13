@@ -36,6 +36,7 @@ import {
   textNodesUnder,
   notice,
   widgetController,
+  standingIn,
 } from "/runtime/widget-api.js";
 
 const WORDS = { accept: "Accept", reject: "Reject" };
@@ -120,7 +121,7 @@ function toRanges(segments, spans) {
 customElements.define(
   "lf-suggestion",
   class extends HTMLElement {
-    // What the Question was answered with: the decision.
+    // What the ask was answered with: the decision.
     static answerWords(value) {
       return value.outcome === "accept" ? "Accepted" : "Rejected";
     }
@@ -169,7 +170,7 @@ customElements.define(
       this.#controller.subscribe((reading) => {
         if (quoted(this) || !this.#margin) return;
         if (
-          this.#margin.contains(document.activeElement) &&
+          standingIn(this.#margin) &&
           outcomeOf(reading.state) !== this.#presentedOutcome
         ) {
           // Signals publish before the projection adapter. Keep the currently focused
@@ -327,7 +328,7 @@ customElements.define(
 
     #refreshMargin({ immediate = false, focus = null } = {}) {
       if (!this.#margin) return;
-      const held = this.#margin.contains(document.activeElement);
+      const held = standingIn(this.#margin);
       this.#margin.update({
         immediate,
         focus: focus ?? (held ? this.#focusKey() : null),

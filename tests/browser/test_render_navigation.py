@@ -16,8 +16,9 @@ from render_cases_interaction import (
     PANEL_PAGE,
     QUEUE_ROW_SAYS,
     SEATED_ASK_LAYER,
+    SEATED_ASK_PAGE,
     SEATED_ASK_WIDGETS,
-    SEATED_QUESTION_PAGE,
+    answered_comment,
     executable_revision,
     live_url,
     panel_comment,
@@ -81,6 +82,7 @@ from render_harness import (
     expect_comment_notes,
     hold_selection,
     holding,
+    is_problem,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -94,10 +96,12 @@ from render_harness import (
     regions_side_by_side,
     resized,
     round_trip,
+    said,
     scroll_settled,
     select,
     sending,
     shortcut_bar_text,
+    shown,
     stamp_page,
     suggestion_control,
     take_browser_errors,
@@ -1877,7 +1881,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
     change.get_by_role("button", name="Cancel", exact=True).click()
     expect(retry).to_have_count(0)
 
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_render_that_keeps_an_external_link_gives_back_the_mark_it_dropped(
@@ -2334,6 +2338,43 @@ customElements.define("lf-shadow-reading", class extends HTMLElement {
     )
 
     page.keyboard.press("t")
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[1]}"]')
+    ).to_be_focused()
+
+
+@pytest.mark.parametrize("key", ["t", "Shift+t"])
+def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
+    browser, serve, key
+):
+    """A caret in a passage a thread is on is at that thread without standing on it, so
+    either direction of the walk opens it, as `q` arrives at an item holding the caret."""
+    url = serve(
+        leaf_page(
+            "a caret on a thread",
+            """
+<h1>Caret walk</h1>
+<p id="before">The earlier discussion comes first.</p>
+<p id="here">The caret stands in this discussion.</p>
+<p id="after">The later discussion comes last.</p>
+""",
+        ),
+        anchored=[
+            ("before", "earlier discussion"),
+            ("here", "caret stands"),
+            ("after", "later discussion"),
+        ],
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    page = open_page(browser, url)
+    page.evaluate(
+        "() => getSelection().collapse(document.querySelector('#here').firstChild, 30)"
+    )
+    page.keyboard.press(key)
     expect(
         page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{roots[1]}"]')
     ).to_be_focused()
@@ -3017,7 +3058,7 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
     assert focus["width"] > 0 and focus["style"] != "none", focus
 
 
-def test_keys_answer_a_question_from_its_marks(browser, serve):
+def test_keys_answer_an_ask_from_its_marks(browser, serve):
     """The Ask's digits stay live while a mark adds only its control-local keys.
 
     One Tab enters the marks, where ↑/↓ walk the options and clamp at the ends, and
@@ -3030,7 +3071,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
 
     page.keyboard.press("q")
     position = page.locator(".lf-walk-position")
-    expect(position).to_have_text("1 of 4 waiting on you · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Ask")
     expect(position).to_have_attribute("aria-hidden", "true")
     expect(position.locator("xpath=parent::*")).to_have_class(
         re.compile("lf-bottom-status")
@@ -3061,7 +3102,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
-    expect(position).to_have_text("1 of 4 waiting on you · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Ask")
     expect(
         page.locator(
             "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
@@ -3120,7 +3161,7 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
     expect(page.locator(".lf-banner-menu > .lf-queue")).to_have_count(1)
 
     page.keyboard.press("q")
-    expect(position).to_have_text("1 of 4 waiting on you · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Ask")
     expect(position).to_be_visible()
     resized(page, 1200, 780)
     expect(position).to_be_visible()
@@ -3179,12 +3220,12 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
 
     for index in range(2, 5):
         page.keyboard.press("q")
-        expect(position).to_have_text(f"{index} of 4 waiting on you · Ask")
+        expect(position).to_have_text(f"{index} of 4 waiting on me · Ask")
     expect(position).not_to_have_attribute("data-lf-boundary", "")
     status = page.locator(".lf-bottom-status")
     ordinary = status.evaluate("node => getComputedStyle(node).color")
     page.keyboard.press("q")
-    expect(position).to_have_text("1 of 4 waiting on you · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Ask")
     expect(position).to_have_attribute("data-lf-boundary", "")
     assert (
         status.evaluate("node => node.getBoundingClientRect().left")
@@ -3207,7 +3248,7 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     position = page.locator(".lf-walk-position")
     page.keyboard.press("q")
-    expect(position).to_have_text("1 of 4 waiting on you · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Ask")
     page.evaluate(
         """async () => {
           const {attachApplicationPresentation} = await window.__lfRuntimeImport(
@@ -3230,10 +3271,10 @@ def test_a_failed_ask_reveal_does_not_register_an_arrival(browser, serve):
         page.evaluate("() => { rejectAskReveal(new Error('ask reveal probe')); }")
         page.wait_for_function("window.askRevealRejected === true")
         shortcut_bar_text(page)
-        assert position.text_content() == "1 of 4 waiting on you · Ask"
+        assert position.text_content() == "1 of 4 waiting on me · Ask"
         assert position.get_attribute("data-lf-boundary") is None
         expect(page.locator("#live-question-decision")).to_be_focused()
-        assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+        assert [said(error) for error in take_browser_errors(page)] == [
             "leaf: Presentation failed: ask reveal probe"
         ]
     finally:
@@ -3247,7 +3288,7 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     position = page.locator(".lf-walk-position")
     page.keyboard.press("q")
     expect(page.locator("#live-question-decision")).to_be_focused()
-    expect(position).to_have_text("1 of 4 waiting on you · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Ask")
     page.evaluate(
         """() => {
           const held = new Promise(resolve => { window.releaseAskReveal = resolve; });
@@ -3270,7 +3311,7 @@ def test_a_delayed_ask_reveal_yields_to_programmatic_user_focus(browser, serve):
     rendered(page)
 
     expect(page.locator(".lf-threads-toggle")).to_be_focused()
-    assert position.text_content() == "1 of 4 waiting on you · Ask"
+    assert position.text_content() == "1 of 4 waiting on me · Ask"
     assert position.get_attribute("data-lf-boundary") is None
 
 
@@ -3288,8 +3329,9 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     """`q` stops, in page order, at a thread whose question waits on the user as well
     as at an open Ask, and passes a thread waiting on the agent; `t` still walks both
     threads. The banner counts what waits on each side, the user's Questions on their
-    door beside Threads and the agent's Tasks beside the status, and a reply the user
-    sends moves its thread from their count to the agent's and off the walk."""
+    door beside Threads and the agent's Tasks beside the status. A reply the user sends
+    joins the agent's count as it is sent, and its thread leaves the user's count and
+    the walk once the server has read the reply."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
     asked = append_carried_log_record(
@@ -3332,44 +3374,44 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     def counts(you, agent):
         expect(questions).to_have_text(f"Questions: {you}")
         expect(questions).to_have_attribute(
-            "aria-label", f"Questions: {you} waiting on you"
+            "aria-label", f"Questions: {you} waiting on me"
         )
         expect(status).to_have_text(f"Tasks: {agent}")
 
     counts(2, 1)
     expect(page.locator(".lf-status-button")).to_have_attribute(
-        "title", re.compile(r" Waiting on you: 2 asks\. .*: 1 reply\.$")
+        "title", re.compile(r" Waiting on me: 2 asks\. .*: 1 reply\.$")
     )
 
     position = page.locator(".lf-walk-position")
     thread = page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
     page.keyboard.press("q")
-    expect(position).to_have_text("1 of 2 waiting on you · Thread")
+    expect(position).to_have_text("1 of 2 waiting on me · Thread")
     expect(thread).to_be_focused()
     page.keyboard.press("q")
-    expect(position).to_have_text("2 of 2 waiting on you · Ask")
+    expect(position).to_have_text("2 of 2 waiting on me · Ask")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("q")
-    expect(position).to_have_text("1 of 2 waiting on you · Thread")
+    expect(position).to_have_text("1 of 2 waiting on me · Thread")
     expect(position).to_have_attribute("data-lf-boundary", "")
     expect(thread).to_be_focused()
     page.keyboard.press("Shift+q")
-    expect(position).to_have_text("2 of 2 waiting on you · Ask")
+    expect(position).to_have_text("2 of 2 waiting on me · Ask")
     expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("Shift+q")
-    expect(position).to_have_text("1 of 2 waiting on you · Thread")
+    expect(position).to_have_text("1 of 2 waiting on me · Thread")
     expect(thread).to_be_focused()
 
     page.keyboard.press("Enter")
     box = thread.locator("leaf-text")
     write(box, "Weekly.")
-    # The reply moves from one count to the other in the turn it is sent, before the
-    # server has answered for it.
+    # The reply is the agent's to answer in the turn it is sent; which question it
+    # answers is the server's reading, which takes the thread off the user's count.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the reply")
-    counts(1, 2)
+    counts(2, 2)
     page.unroute("**/api/event")
     for route in held:
         route.continue_()
@@ -3377,7 +3419,7 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     counts(1, 2)
     page.locator("#h").click()
     page.keyboard.press("q")
-    expect(position).to_have_text("1 of 1 waiting on you · Ask")
+    expect(position).to_have_text("1 of 1 waiting on me · Ask")
     page.locator("#h").click()
     page.keyboard.press("t")
     expect(position).to_have_text("Thread 1 of 2")
@@ -3407,8 +3449,9 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
     """The Questions panel lists the queues the `q` walk and the banner's counts read,
     the user's first and then the agent's, and folds what is done at the foot: here a
     task the agent ended. The prose question is an agent opening comment, which
-    asks implicitly. A row arrives where `q` would, and a reply the user sends moves its
-    thread from the user's list to the agent's in the turn it is sent."""
+    asks implicitly. A row arrives where `q` would. A reply the user sends joins the
+    agent's list as it is sent, and its thread leaves the user's once the server has
+    read the reply."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
 
@@ -3521,8 +3564,8 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the reply")
     you = panel.locator("[data-lf-queue='you'] .lf-queue-row")
-    expect(you).to_have_count(1)
     expect(panel.locator("[data-lf-queue='agent'] .lf-queue-row")).to_have_count(3)
+    expect(you).to_have_count(2)
     page.unroute("**/api/event")
     for route in held:
         route.continue_()
@@ -3573,12 +3616,12 @@ def test_the_questions_panels_next_question_walks_as_q_does(browser, serve):
         == "Close questions"
     )
     expect(button).to_have_attribute(
-        "title", "Go to the next question waiting on you (q)"
+        "title", "Go to the next question waiting on me (q)"
     )
 
     button.click()
     expect(page.locator("#first-decision")).to_be_focused()
-    expect(position).to_have_text("1 of 2 waiting on you · Ask")
+    expect(position).to_have_text("1 of 2 waiting on me · Ask")
     # The control: `q` from the first question steps to the second, and back.
     page.keyboard.press("q")
     expect(page.locator("#second-decision")).to_be_focused()
@@ -3587,7 +3630,7 @@ def test_the_questions_panels_next_question_walks_as_q_does(browser, serve):
     # The button steps on from where the user stands, as `q` did.
     button.click()
     expect(page.locator("#second-decision")).to_be_focused()
-    expect(position).to_have_text("2 of 2 waiting on you · Ask")
+    expect(position).to_have_text("2 of 2 waiting on me · Ask")
 
     # Answer both; the button leaves with the last question, and the panel stands on.
     for decision in ("#second-decision", "#first-decision"):
@@ -3649,10 +3692,10 @@ def test_a_tally_counts_its_regions_asks_and_walks_them(browser, serve):
 
     button.click()
     expect(first).to_be_focused()
-    expect(position).to_have_text("1 of 2 waiting on you here · Ask")
+    expect(position).to_have_text("1 of 2 waiting on me here · Ask")
     button.click()
     expect(second).to_be_focused()
-    expect(position).to_have_text("2 of 2 waiting on you here · Ask")
+    expect(position).to_have_text("2 of 2 waiting on me here · Ask")
     back_to_the_tally()
     page.keyboard.press("Enter")
     expect(first).to_be_focused()
@@ -3715,7 +3758,7 @@ def test_the_arrows_walk_the_thread_titles_in_the_threads_panel(browser, serve):
     expect(message).to_be_focused()
 
 
-def test_a_task_on_you_ends_at_its_done_where_q_lands_and_in_the_panel(browser, serve):
+def test_a_todo_on_you_ends_at_its_done_where_q_lands_and_in_the_panel(browser, serve):
     """A task the agent put on the user ends at their Done. Where `q` lands on it, `x`
     is Done; its Questions panel row carries a Done button. Either leaves the user's queue
     in the turn it is pressed, and writes the user's `todo_end`; the Ask beside them
@@ -3748,13 +3791,13 @@ def test_a_task_on_you_ends_at_its_done_where_q_lands_and_in_the_panel(browser, 
     # The page as a whole is arrived at its head, which comes first.
     page.locator("#cadence").click()
     page.keyboard.press("Shift+q")
-    expect(position).to_have_text("1 of 3 waiting on you · To-do")
+    expect(position).to_have_text("1 of 3 waiting on me · To-do")
     expect(page.locator("#h")).to_be_focused()
     page.keyboard.press("q")
-    expect(position).to_have_text("2 of 3 waiting on you · Ask")
+    expect(position).to_have_text("2 of 3 waiting on me · Ask")
     assert "x\ndone" not in shortcut_bar_text(page)
     page.keyboard.press("q")
-    expect(position).to_have_text("3 of 3 waiting on you · To-do")
+    expect(position).to_have_text("3 of 3 waiting on me · To-do")
     expect(page.locator("#notes")).to_be_focused()
     assert "x\ndone" in shortcut_bar_text(page)
 
@@ -3806,7 +3849,7 @@ def test_a_task_on_you_ends_at_its_done_where_q_lands_and_in_the_panel(browser, 
     assert events_model.read_events(d)[-1]["todo"] == whole["id"]
 
 
-def test_a_finger_ends_a_task_on_you_from_the_banner_row(browser, serve):
+def test_a_finger_ends_a_todo_on_you_from_the_banner_row(browser, serve):
     """Under a finger, `x` is a step on the banner's row while the user stands on a
     task Done ends, as a Questions panel row's tap leaves them."""
     url = serve(QUEUE_PAGE)
@@ -3846,7 +3889,7 @@ def test_a_keyboard_reaches_the_banners_done_step_under_a_finger(browser, serve)
     """A tablet with a keyboard has the banner's Done step and Tab both. Tab onto the
     step takes focus into Leaf's chrome, where the user stands on nothing, and the step
     stays for the task `q` landed on; Enter on it ends that task."""
-    url = serve(NESTED_TASKS_PAGE)
+    url = serve(NESTED_TODOS_PAGE)
     task = append_carried_log_record(
         serve.page_dir,
         {
@@ -3881,7 +3924,7 @@ def test_a_keyboard_reaches_the_banners_done_step_under_a_finger(browser, serve)
     expect(done).to_have_count(0)
 
 
-NESTED_TASKS_PAGE = leaf_page(
+NESTED_TODOS_PAGE = leaf_page(
     "Nested tasks",
     '<section id="plan"><h2>Plan</h2>'
     '<p id="step">Ship it on Tuesday, after the backfill.</p></section>'
@@ -3889,11 +3932,11 @@ NESTED_TASKS_PAGE = leaf_page(
 )
 
 
-def test_x_ends_the_innermost_task_the_user_stands_on(browser, serve):
+def test_x_ends_the_innermost_todo_the_user_stands_on(browser, serve):
     """Standing on a task inside another, `x` ends the inner one: a task on a section
     inside the page, with no heading for the page's own task to stand at, and a task
     on a paragraph inside that section."""
-    url = serve(NESTED_TASKS_PAGE)
+    url = serve(NESTED_TODOS_PAGE)
     d = serve.page_dir
 
     def put_on_user(subject, title):
@@ -3936,7 +3979,7 @@ def test_x_ends_the_innermost_task_the_user_stands_on(browser, serve):
     page.locator("#tail").click()
     assert "x\ndone" not in shortcut_bar_text(page)
     page.keyboard.press("Shift+q")
-    expect(position).to_have_text("1 of 1 waiting on you · To-do")
+    expect(position).to_have_text("1 of 1 waiting on me · To-do")
     assert "x\ndone" in shortcut_bar_text(page)
 
 
@@ -3994,7 +4037,7 @@ def test_a_q_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, ser
     # The control: the same press left alone arrives and says where.
     page.locator("#h").click()
     page.keyboard.press("q")
-    expect(position).to_have_text("1 of 2 waiting on you · Thread")
+    expect(position).to_have_text("1 of 2 waiting on me · Thread")
     expect(
         page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
     ).to_be_focused()
@@ -4053,7 +4096,7 @@ def test_a_delayed_thread_reveal_reports_that_new_user_focus_cancelled_it(
     )
 
 
-def test_a_questions_digits_are_drawn_whole(browser, serve):
+def test_an_asks_digits_are_drawn_whole(browser, serve):
     """A binding badge arrives into room its option already holds, and lands on nothing.
 
     Every earlier placement borrowed that room instead, and each borrow showed. On the
@@ -5120,10 +5163,10 @@ def test_an_ask_navigation_keeps_its_intent_while_materializing_threads(
     if intervene:
         expect(find).to_be_focused()
     else:
-        expect(page.locator(".lf-thread lf-ask[data-lf-question]")).to_be_focused()
+        expect(page.locator(".lf-thread lf-ask[data-lf-ask]")).to_be_focused()
 
 
-def test_frozen_widget_question_walk_orders_by_its_threads_page_passage(browser, serve):
+def test_frozen_widget_ask_walk_orders_by_its_threads_page_passage(browser, serve):
     """A materialized frozen source in chrome keeps its thread's authored page order."""
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     page.keyboard.press("g")
@@ -5131,7 +5174,7 @@ def test_frozen_widget_question_walk_orders_by_its_threads_page_passage(browser,
     panel_settled(page, True)
     page.locator("h1").focus()
     page.keyboard.press("q")
-    expect(page.locator(".lf-thread lf-ask[data-lf-question]")).to_be_focused()
+    expect(page.locator(".lf-thread lf-ask[data-lf-ask]")).to_be_focused()
 
 
 def test_an_ask_walk_leaves_the_panel_it_reached_through(browser, serve):
@@ -5142,7 +5185,7 @@ def test_an_ask_walk_leaves_the_panel_it_reached_through(browser, serve):
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     page.keyboard.press("q")
-    ask = page.locator(".lf-thread lf-ask[data-lf-question]")
+    ask = page.locator(".lf-thread lf-ask[data-lf-ask]")
     expect(ask).to_be_focused()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("close threads")
@@ -5247,7 +5290,7 @@ def test_an_inline_thread_rings_its_card_for_pointer_and_keyboard_focus(browser,
 
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
     """The system focus outline replaces the surface paint high contrast removes."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
@@ -5279,7 +5322,7 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
 
 def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
     """Thread controls and complete messages keep their room when the reply is focused."""
-    url = serve(SEATED_QUESTION_PAGE)
+    url = serve(SEATED_ASK_PAGE)
     panel_comment(serve.page_dir, "First job note", {"section": "jobs"})
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
@@ -6776,13 +6819,13 @@ def test_a_completed_ask_keeps_its_answer_in_questions(browser, serve):
     holding(page, held, 1, "the option answer")
     pending = page.evaluate(
         """async () => {
-          const {readQuestions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const reading = readQuestions();
-          const question = reading.all.find(q => q.id === 'widget:only');
+          const {readAsks} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const reading = readAsks();
+          const ask = reading.all.find(q => q.id === 'widget:only');
           return {
-            value: question.answer.value,
-            status: question.status,
-            unanswered: reading.unanswered.some(q => q.id === question.id),
+            value: ask.answer.value,
+            status: ask.status,
+            unanswered: reading.unanswered.some(q => q.id === ask.id),
           };
         }"""
     )
@@ -6799,14 +6842,14 @@ def test_a_completed_ask_keeps_its_answer_in_questions(browser, serve):
 
     reading = page.evaluate(
         """async () => {
-          const {readQuestions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const question = readQuestions().all.find(q => q.id === 'widget:only');
+          const {readAsks} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const ask = readAsks().all.find(q => q.id === 'widget:only');
           return {
-            id: question.id,
-            source: question.source,
-            prompt: question.prompt,
-            value: question.answer.value,
-            status: question.status,
+            id: ask.id,
+            source: ask.source,
+            prompt: ask.prompt,
+            value: ask.answer.value,
+            status: ask.status,
           };
         }"""
     )
@@ -6820,14 +6863,14 @@ def test_a_completed_ask_keeps_its_answer_in_questions(browser, serve):
     page.locator("h1").focus()
     assert page.evaluate(
         """async () => {
-          const {questionActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          return questionActions.open('widget:only');
+          const {askActions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          return askActions.open('widget:only');
         }"""
     )
     expect(page.locator("#only-decision")).to_be_focused()
 
 
-def test_questions_sharing_context_keep_their_source_identity(browser, serve):
+def test_asks_sharing_context_keep_their_source_identity(browser, serve):
     """Shared prompt context keeps each widget's travel, digits and answer distinct."""
     page = open_page(
         browser,
@@ -6850,7 +6893,7 @@ def test_questions_sharing_context_keep_their_source_identity(browser, serve):
     def questions():
         return page.evaluate(
             """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
-              .readQuestions().all"""
+              .readAsks().all"""
         )
 
     initial = questions()
@@ -6869,8 +6912,8 @@ def test_questions_sharing_context_keep_their_source_identity(browser, serve):
     rendered(page)
     assert (
         page.evaluate("""async () => {
-      const {heldQuestion} = await window.__lfRuntimeImport('/runtime/standing-target.js');
-      return heldQuestion()?.id;
+      const {heldAsk} = await window.__lfRuntimeImport('/runtime/standing-target.js');
+      return heldAsk()?.id;
     }""")
         == "second"
     )
@@ -6884,8 +6927,8 @@ def test_questions_sharing_context_keep_their_source_identity(browser, serve):
         + page.locator("#second").bounding_box()["height"]
         <= page.viewport_size["height"]
     )
-    expect(page.locator("#second")).to_have_attribute("data-lf-question", "1")
-    expect(page.locator("#shared")).not_to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#second")).to_have_attribute("data-lf-ask", "1")
+    expect(page.locator("#shared")).not_to_have_attribute("data-lf-ask", "1")
     page.keyboard.press("Shift+q")
     expect(page.locator("#first")).to_be_focused()
     page.keyboard.press("1")
@@ -6907,13 +6950,13 @@ def test_questions_sharing_context_keep_their_source_identity(browser, serve):
         expect(row).to_be_visible()
         row.focus()
         rendered(page)
-        expect(row).to_have_attribute("data-lf-question", "1")
-        expect(page.locator(f"#{source}")).to_have_attribute("data-lf-question", "1")
+        expect(row).to_have_attribute("data-lf-ask", "1")
+        expect(page.locator(f"#{source}")).to_have_attribute("data-lf-ask", "1")
     page.keyboard.press("Escape")
     for source in ("first", "second"):
         assert page.evaluate(
             """async id => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
-              .questionActions.open('widget:' + id)""",
+              .askActions.open('widget:' + id)""",
             source,
         )
         expect(page.locator(f"#{source}")).to_be_focused()
@@ -6945,7 +6988,7 @@ def test_questions_says_when_a_revision_removes_its_last_ask(browser, serve):
     expect(page.locator("button.lf-queue-row")).to_have_count(0)
     expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(note).to_be_visible()
-    expect(note).to_have_text("No questions for you.")
+    expect(note).to_have_text("No questions.")
     expect(
         page.locator(".lf-queue-panel [data-lf-queue='agent'] .lf-queue-empty")
     ).to_have_text(re.compile(r"^\S+ has no tasks\.$"))
@@ -7897,13 +7940,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Next ask, thread, to-do or resend waiting on you",
+            has_text="Next ask, thread, to-do or resend waiting on me",
         ).locator("kbd")
     ).to_have_text("q")
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Previous ask, thread, to-do or resend waiting on you",
+            has_text="Previous ask, thread, to-do or resend waiting on me",
         ).locator("kbd")
     ).to_have_text("Q")
     page.keyboard.press("Escape")
@@ -8100,7 +8143,7 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     page.keyboard.press(prefix)
     assert address_codes(page) == branched, {
         "codes": address_codes(page),
-        "errors": page.lf_errors,
+        "errors": shown(page.lf_errors),
         "line": shortcut_bar_text(page),
         "live": page.locator(".lf-live").text_content(),
     }
@@ -9350,7 +9393,9 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
         }, answers
     refusals = consume_browser_errors(page, "two live meanings for")
     for binding in ("F2", "F4", "1"):
-        assert any(f"meanings for {binding}" in error for error in refusals), refusals
+        assert any(
+            is_problem(error, f"meanings for {binding}") for error in refusals
+        ), refusals
     assert answers["exclusive"] == {
         "declaration": "declared",
         "declared": None,
@@ -9986,9 +10031,9 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(page.locator(".lf-thread-summary").nth(1)).to_be_focused()
 
     page.keyboard.press("q")
-    expect(page.locator("#live-question-decision[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
     page.evaluate(press, ["q", True])  # the same grammar repeats for asks
-    expect(page.locator("#sug-refill[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
 
     drawer = page.locator(".lf-others-panel")
     page.keyboard.press("g")
@@ -11029,7 +11074,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     line = page.locator(".lf-shortcut-bar")
     expect(line).to_be_hidden()
     position = page.locator(".lf-walk-position")
-    expect(position).to_have_text("1 of 4 waiting on you · Ask")
+    expect(position).to_have_text("1 of 4 waiting on me · Ask")
     expect(position).to_be_visible()
     active_room = page.evaluate(
         """() => {
@@ -11610,7 +11655,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     first.focus()
     standing = shortcut_bar_text(page)
     assert "let go" in standing
-    expect(page.locator("#first-question-decision[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#first-question-decision[data-lf-ask]")).to_have_count(1)
 
     # A secondary contact does not drive native label activation, so it must not
     # start the logical transaction either.
@@ -11654,9 +11699,9 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
         }"""
     )
     assert shortcut_bar_text(page) == standing
-    held_ask = page.locator("#first-question-decision[data-lf-question]")
+    held_ask = page.locator("#first-question-decision[data-lf-ask]")
     expect(held_ask).to_have_count(1)
-    expect(held_ask).to_have_css("--lf-focus-ring", "question")
+    expect(held_ask).to_have_css("--lf-focus-ring", "ask")
     # Native label activation temporarily blurs the radio. Its logical input
     # destination, and therefore the fallback ring on this plain authored control,
     # remain in place until the label's click transfers focus.
@@ -11678,7 +11723,7 @@ def test_a_label_press_keeps_the_controls_keyboard_standing(browser, serve):
     page.mouse.up()
     expect(control).to_be_checked()
     expect(control).to_be_focused()
-    expect(page.locator("#frame-question-decision[data-lf-question]")).to_have_count(1)
+    expect(page.locator("#frame-question-decision[data-lf-ask]")).to_have_count(1)
 
     # The press has its own frame and the drag comes after it, so the line's only route
     # to the word is the selection the drag makes: the user is taking words out of a
@@ -12026,6 +12071,41 @@ def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, 
     control.tap()
     _expect_aligned(page, "#align-heading")
     expect(page.locator("#align-heading")).to_be_focused()
+
+
+def test_more_keeps_its_place_when_a_revision_shortens_the_words_it_held(
+    browser, serve
+):
+    """More holds the reader's caret while it is open, and a live revision can shorten
+    the very text node that caret stands in meanwhile. A place-keeping command then
+    hands back what is left of that place and acts, rather than throwing on an offset
+    past the node's new length."""
+    source = leaf_page(
+        "A shortened passage",
+        '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
+        '<p id="remembered">The amber passage keeps <strong>its own identity</strong>.</p>'
+        '<div style="height:1400px"></div>',
+    )
+    page = open_page(browser, live_url(serve(source)))
+    point = _word_point(page.locator("#remembered"), "keeps")
+    page.mouse.click(point["x"], point["y"])
+    held = page.evaluate(
+        "() => { window.held = getSelection().focusNode; return getSelection().focusOffset; }"
+    )
+    page.locator(".lf-banner-more").click()
+    control = page.get_by_role("button", name="Align current item at top", exact=True)
+    expect(control).to_be_visible()
+
+    stamp = stamp_page(
+        serve.page_dir,
+        source.replace("The amber passage keeps ", "Amber "),
+        "Shorten the passage",
+    )
+    wait_for_revision(page, stamp["revision"])
+    # The revision rewrote the held node in place, leaving the caret's offset past it.
+    assert page.evaluate("() => window.held.isConnected && window.held.length") < held
+    control.click()
+    _expect_aligned(page, "#remembered")
 
 
 def test_align_current_thread_stays_in_its_panel_without_travel(browser, serve):
@@ -12549,14 +12629,14 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("Escape")
     page.locator("lf-diff summary").click()
+    # Evidence admission precedes listing; delay the textual preparation that
+    # selection travel needs after the new closed file has been presented.
     page.evaluate("""() => {
-      const fetch = window.fetch.bind(window);
-      window.fetch = (input, init) => {
-        const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-        if (url.pathname === '/api/deferred') return new Promise(resolve => {
-          window.releaseSelectionDatum = () => resolve(fetch(input, init));
-        });
-        return fetch(input, init);
+      const host = document.querySelector('#patch');
+      const prepare = host.prepareEntry;
+      host.prepareEntry = async function(...args) {
+        await new Promise(resolve => { window.releaseSelectionDatum = resolve; });
+        return prepare.apply(this, args);
       };
     }""")
     data_model.cmd_data_set(
@@ -12566,7 +12646,9 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
             "files": [
                 {
                     "path": "app.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 1,
                     "deletions": 1,
                     "patch": patch.replace("amber", "violet"),
@@ -13414,11 +13496,10 @@ def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve)
 def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve):
     """One press is one action: the rung is the innermost scope in reach that binds
     Escape, and the dispatcher runs that one and no other. The draft editor's Esc used
-    to be two — the edit cancelled and the runtime's ladder closed the panel behind it
-    — and the cancel discarded the user's words against the never-lose-text norm. Each
-    control kept that by hand once and the stack keeps it now, so this is the test that
-    says the structure holds. The editor closes keeping the edit, the panel stands, and
-    a grabbed card's Esc cancels the move and nothing else."""
+    to be two — the edit cancelled and the runtime's ladder closed the panel behind it.
+    Each control kept that by hand once and the stack keeps it now, so this is the test
+    that says the structure holds. The editor's Esc cancels the edit and the panel
+    stands, and a grabbed card's Esc cancels the move and nothing else."""
     html = BOARD_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -13441,12 +13522,7 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
     page.keyboard.press("Escape")
     expect(ta).to_have_count(0)  # the editor closed…
     expect(page.locator(".lf-thread-panel")).to_be_visible()  # …and only the editor
-    # The edit was set aside, not discarded: reopening resumes it.
-    draft_control(page, "edit", "plan").click()
-    expect(page.locator("lf-draft leaf-text")).to_have_js_property(
-        "value", "Ship it — but louder."
-    )
-    page.keyboard.press("Escape")
+    expect(page.locator("lf-draft .lf-draft-body")).to_have_text("Ship it.")
 
     # A grabbed card: Esc cancels the move, and the panel it would have closed stands.
     grip = page.locator("#card-heater .lf-grip")
@@ -13543,7 +13619,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     # A decision: the composer opens on the question rather than on the option the
     # walk happens to stand the user on, and rather than on the page.
     page.keyboard.press("q")
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
     expect(line).to_contain_text("comment on the question")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
@@ -13567,7 +13643,7 @@ def test_c_comments_on_what_the_user_is_standing_in(browser, serve):
     rewrite_action = suggestion_control(page, "sug-window", "accept")
     rewrite_action.focus()
     expect(rewrite_action).to_be_focused()
-    expect(page.locator("#sug-window")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#sug-window")).to_have_attribute("data-lf-ask", "1")
     expect(line).to_contain_text("comment on the rewrite")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
@@ -13631,8 +13707,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     not about reopening what a pick has closed.
 
     The seat and the ask are the project widget SEATED_ASK_ENTRY declares, for the reason
-    test_a_seat_thread_leaves_the_pick_it_is_about_live gives: the split is between
-    two declarations, and since 292de9c no shipped entry carries both."""
+    test_a_seat_thread_leaves_the_pick_it_is_about_live gives."""
     url = serve(
         leaf_page(
             "mid-sentence",
@@ -13687,13 +13762,13 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     # The user is standing in it all the same, first with the panel still open.
     page.locator("#shape .lf-settle").focus()
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
     page.evaluate("() => document.activeElement?.blur()")
     banner_control(page, ".lf-queue").click()
 
     # And with it shut, which is every other reading below.
     page.locator("#shape .lf-settle").focus()
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
     expect(line).to_contain_text("comment on the thread")
     # The count is completion, not the open walk's position, so focus leaves it stable.
     expect_asks_answered(page, "1/3")
@@ -13722,7 +13797,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # completion count remains stable.
     expect_asks_answered(page, "1/3")
     expect(page.locator("#shape .lf-settle")).to_be_focused()
-    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-ask", "1")
     expect(line).to_contain_text("comment on the thread")
 
     # And the press means that thread, so the next line joins the one the first line
@@ -13749,7 +13824,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # through to the innermost item, which from a pick is the option and not the question.
     page.locator("#picked .lf-pick").first.focus()
     expect(line).to_contain_text(re.compile(r"comment on the option(?!s)"))
-    assert page.locator("[data-lf-question]").count() == 0, (
+    assert page.locator("[data-lf-ask]").count() == 0, (
         "an answered group wears the ring the switch was not about"
     )
 
@@ -14172,7 +14247,7 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     # The missing list takes away its waiting filter, but not the panel's own search:
     # a search over nothing still belongs to the scope in front of the page.
     line = page.locator(".lf-shortcut-bar")
-    expect(line).not_to_contain_text("waiting on you")
+    expect(line).not_to_contain_text("waiting on me")
     expect(line).to_contain_text("find")
     page.keyboard.press("c")
     expect(page.locator(".lf-page-comment-card leaf-text")).to_be_focused()
@@ -14326,7 +14401,7 @@ def test_ask_work_keeps_its_discussion_closed_until_requested(
         + "<p>Compare the memory and disk constraints carefully.</p>" * 14,
     )
     url = serve(source)
-    root = panel_comment(
+    root = answered_comment(
         serve.page_dir, "The disk cache costs more.", {"section": "cache-ask"}
     )
     page = open_page(browser, url)
@@ -14367,7 +14442,7 @@ def test_ask_controls_do_not_automatically_open_discussion(browser, serve, famil
     passive = panel_comment(
         serve.page_dir, "Remember the background.", {"section": "passage"}
     )
-    root = panel_comment(
+    root = answered_comment(
         serve.page_dir, "Please compare the alternatives.", {"section": "work"}
     )
     page = open_page(browser, url)
@@ -14386,7 +14461,7 @@ def test_ask_controls_do_not_automatically_open_discussion(browser, serve, famil
         suggestion_control(page, "work", "accept").focus()
     assert (
         page.evaluate(
-            'async () => (await window.__lfRuntimeImport("/runtime/standing-target.js")).heldQuestion()?.id'
+            'async () => (await window.__lfRuntimeImport("/runtime/standing-target.js")).heldAsk()?.id'
         )
         == "work"
     )
@@ -14406,7 +14481,7 @@ def test_ask_controls_do_not_automatically_open_discussion(browser, serve, famil
     expect(control).to_be_focused()
     assert (
         page.evaluate(
-            'async () => (await window.__lfRuntimeImport("/runtime/standing-target.js")).heldQuestion()?.id'
+            'async () => (await window.__lfRuntimeImport("/runtime/standing-target.js")).heldAsk()?.id'
         )
         == "work"
     )
@@ -14427,7 +14502,9 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     panel_comment(
         d, "Budgets are tight.", {"section": "lead", "quote": "latency budgets"}
     )
-    about_ask = panel_comment(d, "The disk cache costs more.", {"section": "cache-ask"})
+    about_ask = answered_comment(
+        d, "The disk cache costs more.", {"section": "cache-ask"}
+    )
     about_task = panel_comment(
         d,
         "Doubling is a lot.",
@@ -14461,7 +14538,7 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     expect(card.locator(f'.lf-page-thread[data-thread="{about_task}"]')).to_be_focused()
     page.keyboard.press("Shift+t")
     expect(ask_thread).to_be_focused()
-    expect(ask).to_have_attribute("data-lf-question", "1")
+    expect(ask).to_have_attribute("data-lf-ask", "1")
     expect(line).to_contain_text("Keep the disk cache")
 
     # Working the nested Ask leaves its enclosing task's discussion closed.
@@ -14484,7 +14561,7 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     expect(
         page.locator(f'.lf-thread[data-id="{about_ask}"] > .lf-thread-summary')
     ).to_be_focused()
-    expect(ask).to_have_attribute("data-lf-question", "1")
+    expect(ask).to_have_attribute("data-lf-ask", "1")
     page.keyboard.press("1")
     expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
 
@@ -14510,7 +14587,7 @@ def test_a_resolved_thread_still_stands_at_its_ask(browser, serve):
     expect(summary).to_be_visible()
     summary.focus()
     expect(summary).to_be_focused()
-    expect(page.locator("#ship-ask")).to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#ship-ask")).to_have_attribute("data-lf-ask", "1")
     page.keyboard.press("2")
     expect(page.locator("#ship-wait")).to_have_attribute("chosen", "")
 
@@ -14574,13 +14651,13 @@ def test_an_ask_in_a_reply_is_where_the_user_stands_once_answered(browser, serve
     # focus to the message, which is inside no Ask and so does stand at the page Ask.
     round_trip(page)
     option.locator(".lf-pick").focus()
-    expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-question", "1")
+    expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-ask", "1")
     page.keyboard.press("1")
     round_trip(page)
     expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
 
 
-# A Question's digits beside a page-scoped command with a context key of its own,
+# An ask's digits beside a page-scoped command with a context key of its own,
 # registered the way an authored module does.
 QUICK_KEYS_PAGE = leaf_page(
     "quick keys",
@@ -14713,7 +14790,7 @@ def test_an_ask_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, serve):
     page.keyboard.press("q")
     ask = page.locator("#pane-decision")
     expect(ask).to_be_focused()
-    expect(ask).to_have_attribute("data-lf-question", "1")
+    expect(ask).to_have_attribute("data-lf-ask", "1")
     scroll_settled(page, "#ask-detail > :not(header, footer)")
     reading = ask.evaluate(
         """ask => {
@@ -14907,15 +14984,13 @@ def test_native_layer_transitions_change_state_without_rewriting_reflected_attri
       guard([document.querySelector('#unrelated'), popover], () => popover.showPopover());
     }""")
     page.evaluate("() => guard([popover], () => popover.showPopover())")
-    failures = consume_browser_errors(page, "unchanged write:")
-    assert len(failures) == 6, failures
-    for target in [
-        "open on dialog#native-transition-probe",
-        "inert on dialog#native-transition-probe",
-        "inert on dialog#shadow-modal in shadow of div#shadow-host",
-        "inert on html",
-        "inert on div#unrelated",
-        "inert on div#native-popover",
-    ]:
-        assert any(target in error for error in failures), failures
+    failures = consume_browser_errors(page, {"code": "unchanged-write"})
+    assert {(error.values["what"], error.values["node"]) for error in failures} == {
+        ("open", "dialog#native-transition-probe"),
+        ("inert", "dialog#native-transition-probe"),
+        ("inert", "dialog#shadow-modal in shadow of div#shadow-host"),
+        ("inert", "html"),
+        ("inert", "div#unrelated"),
+        ("inert", "div#native-popover"),
+    }, failures
     page.evaluate("() => { popover.hidePopover(); dialog.close(); }")

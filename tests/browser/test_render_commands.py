@@ -362,7 +362,9 @@ def test_a_shot_compares_pixels_inside_an_opaque_live_sample(browser, serve):
     shot = child.locator("#sample-shot")
     reading = shot.evaluate("async shot => await shot.difference")
     assert reading["regions"]
-    expect(shot.locator(".lf-shotdelta")).to_have_text("1 changed area")
+    expect(shot.get_by_role("button", name="Changes", exact=True)).to_have_attribute(
+        "aria-description", "1 changed area"
+    )
     expect(shot.locator(".lf-shotdiff > span").first).to_be_visible()
 
 
@@ -635,10 +637,9 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     where a pair differs, or that it differs nowhere: a handoff once shipped a pair
     whose sides matched in every part its prose described. So the widget outlines what
     changed where each frame holds it, and nothing where a frame holds nothing, and
-    says on the rail what they add up to, including a difference too slight to point
-    at. The outlines and their count are the author's to ask for, with `outlines`; the
-    rest of the reading shows on every pair. With `pixels`, the reading opens a view
-    over the comparison that paints each changed pixel."""
+    offers Changes to toggle the outlines, with their count on hover. A difference
+    too slight to point at still reads on the rail. The author opts into outlines
+    with `outlines` and the separate pixel-inspection action with `pixels`."""
     plain = solid_png(600, 300, (210, 220, 235))
     patched = solid_png(
         600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30))
@@ -668,12 +669,21 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
                  before="{sources[plain]}" after="{sources[tinted]}"></lf-shot>
                <lf-shot id="shot-pixels" pixels alt="a dark square appears"
                  before="{sources[plain]}" after="{sources[patched]}"></lf-shot>
+               <lf-shot id="shot-both" outlines pixels alt="a dark square appears"
+                 before="{sources[plain]}" after="{sources[patched]}"></lf-shot>
                </main>""",
         ),
         media={source: data for data, source in sources.items()},
     )
     page = open_page(browser, url)
-    expect(page.locator("#shot-patch .lf-shotdelta")).to_have_text("1 changed area")
+    changes = page.locator("#shot-patch").get_by_role(
+        "button", name="Changes", exact=True
+    )
+    expect(changes).to_have_attribute("aria-description", "1 changed area")
+    expect(changes).to_have_attribute("aria-pressed", "true")
+    expect(
+        page.locator("#shot-patch").get_by_role("button", name="Pixels", exact=True)
+    ).to_have_count(0)
     expect(page.locator("#shot-same .lf-shotdelta")).to_have_text("identical")
     assert page.locator("#shot-same .lf-shotdiff > span").count() == 0
     expect(page.locator("#shot-tint .lf-shotdelta")).to_have_text("only slight changes")
@@ -699,26 +709,65 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     assert left < 420 and right > 480 and top < 200 and bottom > 240
     assert right - left < 80 and bottom - top < 60
 
-    # Without `outlines` a pair hides its outlines and their count, but not the word
-    # that it has nothing to point at.
+    # Changes hides and restores every outline; without `outlines`, neither that
+    # control nor the marks appear. Warnings still explain pairs with no region.
     quiet = page.locator("#shot-quiet")
     expect(quiet.locator(".lf-shotdiff > span")).to_have_count(1)
     expect(quiet.locator(".lf-shotdiff").first).to_be_hidden()
-    expect(quiet.locator(".lf-shotdelta")).to_have_text("1 changed area")
-    expect(quiet.locator(".lf-shotdelta")).to_be_hidden()
+    expect(quiet.get_by_role("button", name="Changes", exact=True)).to_have_count(0)
+    # The count stays out of the resting rail, but keyboard arrival and a held
+    # pointer show the full reading. Releasing off the control cancels the toggle;
+    # releasing on it commits once, including the browser's subsequent click.
+    changes.scroll_into_view_if_needed()
+    page.mouse.move(0, 0)
+    changes.press("Shift+Tab")
+    assert (
+        changes.evaluate("node => getComputedStyle(node, '::after').content") == "none"
+    )
+    page.keyboard.press("Tab")
+    expect(changes).to_be_focused()
+    expect(changes).to_have_attribute("data-lf-focus", "")
+    assert (
+        changes.evaluate("node => getComputedStyle(node, '::after').content")
+        == '"1 changed area"'
+    )
+    page.keyboard.press("Shift+Tab")
+    box = changes.bounding_box()
+    point = {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
+    page.mouse.move(**point)
+    page.mouse.down()
+    expect(changes).to_have_attribute("data-lf-held-word", "")
+    assert (
+        changes.evaluate("node => getComputedStyle(node, '::after').content")
+        == '"1 changed area"'
+    )
+    expect(changes).to_have_attribute("aria-pressed", "true")
+    page.mouse.move(0, 0)
+    page.mouse.up()
+    expect(changes).not_to_have_attribute("data-lf-held-word", "")
+    expect(changes).to_have_attribute("aria-pressed", "true")
+    page.mouse.move(**point)
+    page.mouse.down()
+    expect(changes).to_have_attribute("data-lf-held-word", "")
+    page.mouse.up()
+    expect(changes).not_to_have_attribute("data-lf-held-word", "")
+    expect(changes).to_have_attribute("aria-pressed", "false")
+    expect(page.locator("#shot-patch .lf-shotdiff").last).to_be_hidden()
+    changes.press("Space")
+    expect(changes).to_have_attribute("aria-pressed", "true")
+    expect(page.locator("#shot-patch .lf-shotdiff > span").first).to_be_visible()
     for shot, reading in (("same", "identical"), ("tint", "only slight changes")):
         delta = page.locator(f"#shot-quiet-{shot} .lf-shotdelta")
         expect(delta).to_have_text(reading)
         expect(delta).to_be_visible()
 
-    # With `pixels`, the reading is the press that opens a view standing exactly over
-    # the comparison; without outlines it names that view rather than a count. Clicking
-    # the view returns to the comparison as it stood, and an endpoint leaves it too.
-    expect(page.locator('#shot-patch .lf-shotdelta[role="button"]')).to_have_count(0)
+    # Pixels is an inspection action, not an outline selection. It opens over the
+    # comparison and leaves the divider where it stood when the reader returns.
     shot = page.locator("#shot-pixels")
-    press = shot.locator(".lf-shotdelta")
-    expect(press).to_have_text("changed pixels")
-    expect(press).to_have_attribute("role", "button")
+    expect(shot.get_by_role("button", name="Changes", exact=True)).to_have_count(0)
+    press = shot.get_by_role("button", name="Pixels", exact=True)
+    expect(press).to_have_attribute("title", "Show changed pixels")
+    assert press.get_attribute("aria-pressed") is None
     view = shot.locator(".lf-shotpixels")
     expect(view).to_have_count(0)
     comparison = shot.locator(".lf-shotcomparison")
@@ -726,23 +775,43 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     standing = comparison.get_attribute("position")
     press.click()
     expect(view).to_be_visible()
-    expect(press).to_have_attribute("aria-pressed", "true")
+    expect(press).to_have_attribute("title", "Hide changed pixels")
+    assert press.get_attribute("aria-pressed") is None
     for state in ("before", "after"):
         expect(shot.locator(f'.lf-shotcap[data-lf-state="{state}"]')).to_have_attribute(
             "aria-pressed", "false"
         )
     assert view.bounding_box() == pytest.approx(comparison.bounding_box(), abs=1)
+    press.click()
+    expect(view).to_be_hidden()
+    expect(press).to_have_attribute("title", "Show changed pixels")
+    assert comparison.get_attribute("position") == standing
+    press.press("Enter")
+    expect(view).to_be_visible()
     view.click()
     expect(view).to_be_hidden()
-    expect(press).to_have_attribute("aria-pressed", "false")
     assert comparison.get_attribute("position") == standing
-    press.focus()
-    page.keyboard.press("Enter")
-    expect(view).to_be_visible()
+    press.press("Enter")
     after = shot.locator('.lf-shotcap[data-lf-state="after"]')
     after.click()
     expect(view).to_be_hidden()
     expect(after).to_have_attribute("aria-pressed", "true")
+
+    # Both controls remain independent: entering Pixels preserves the hidden
+    # outlines, and Changes returns to the comparison with its outlines restored.
+    both = page.locator("#shot-both")
+    outlines = both.get_by_role("button", name="Changes", exact=True)
+    pixels = both.get_by_role("button", name="Pixels", exact=True)
+    expect(outlines).to_have_attribute("aria-description", "1 changed area")
+    outlines.click()
+    expect(outlines).to_have_attribute("aria-pressed", "false")
+    pixels.click()
+    expect(both.locator(".lf-shotpixels")).to_be_visible()
+    expect(outlines).to_have_attribute("aria-pressed", "false")
+    outlines.press("Enter")
+    expect(both.locator(".lf-shotpixels")).to_be_hidden()
+    expect(outlines).to_have_attribute("aria-pressed", "true")
+    expect(both.locator(".lf-shotdiff > span").first).to_be_visible()
 
 
 def stage_reach_cases(page):
@@ -900,12 +969,13 @@ def test_render_reads_widget_chrome_where_it_stands(
     assert [
         said
         for said in render_checks_model.evaluate_probe(page, "wordsInFormControls")
-        if "c-lax" in said
+        if said["at"] == "<lf-option id=c-lax>"
     ] == [
-        (
-            '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where '
-            "no selection can reach it"
-        )
+        {
+            "code": "form-control-words",
+            "at": "<lf-option id=c-lax>",
+            "words": "Lax, host-only",
+        }
     ]
     # The two-width pair fails soft, as the gate below is to hear.
     consume_browser_errors(page, '<lf-shot id="shot-pair"> failed')
@@ -914,34 +984,24 @@ def test_render_reads_widget_chrome_where_it_stands(
     failures = render_gate_model.render_version(
         primed(browser.unwatched, stage_reach_cases), url
     ).failures
-    assert [f for f in failures if "600px" in f and "400px" in f], failures
-    clipped = [f for f in failures if "(#clipped-offer)" in f]
-    assert len(clipped) == 2, failures
-    assert all(
-        "outside the <div id=clipped-holder> that clips it" in f for f in clipped
+    pair = [f for f in failures if f.code == "console-error"]
+    assert pair and all(
+        "shot-pair" in f.values["text"]
+        and "600px" in f.values["text"]
+        and "400px" in f.values["text"]
+        for f in pair
+    ), failures
+    clipped = [f for f in failures if f.code == "clipped-control"]
+    assert [f.values["id"] for f in clipped] == ["clipped-offer"] * 2, failures
+    assert all(f.values["by"] == "<div id=clipped-holder>" for f in clipped), clipped
+    words = sorted(
+        {(f.code, f.at, f.values["words"]) for f in failures if f not in pair + clipped}
     )
-    assert not [f for f in failures if "(#shown-offer)" in f], failures
-    found = sorted(
-        {
-            f.split("] ", 1)[1]
-            for f in failures
-            if "shot-pair" not in f and f not in clipped
-        }
-    )
-    assert found == [
-        (
-            '<lf-badge id=rp-badge> puts "Sent by the reviewer" under .lf-ui, where no '
-            "comment can reach it"
-        ),
-        (
-            '<lf-option id=c-lax> puts "Session cookies" under .lf-ui, where no comment '
-            "can reach it"
-        ),
-        (
-            '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
-            "comment can reach it"
-        ),
-    ], found
+    assert words == [
+        ("chrome-words", "<lf-badge id=rp-badge>", "Sent by the reviewer"),
+        ("chrome-words", "<lf-option id=c-lax>", "Session cookies"),
+        ("chrome-words", "<lf-option id=c-lax>", "opens in a new tab"),
+    ], failures
 
 
 FILM_DECLARATION = {
@@ -986,7 +1046,7 @@ def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread-panel #t-bad .lf-error")).to_contain_text(
-        "does not parse"
+        "Unexpected token"
     )
     report = '<lf-chart id="t-bad"> failed: '
     consume_browser_errors(page, report)

@@ -63,6 +63,25 @@ def panel_comment(d, text, anchor=None, author="user"):
     return append_carried_log_record(d, event)["id"]
 
 
+def answered_comment(d, text, anchor):
+    """A user's thread the agent has replied to, so an ask it is about waits on the
+    user again rather than on that reply (`asks.sections_with_agent`)."""
+    root = panel_comment(d, text, anchor)
+    append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "text": "Noted.",
+        },
+    )
+    return root
+
+
 # What the list is holding, from the one query that answers both halves of the
 # question a departing thread raises: what stands where, and what the keys can still
 # reach. The two lists differ by exactly the thread on its way out.
@@ -212,7 +231,7 @@ mornings last winter.</p></section>
 # cell in the page and the row in the panel — which is the whole of what those tests
 # compare. `jobs` names the seat, so the `say:jobs` draft key and a comment anchored to
 # `{section: "jobs"}` are the one coordinate the panel and the page share.
-SEATED_QUESTION_PAGE = leaf_page(
+SEATED_ASK_PAGE = leaf_page(
     "seated question",
     """
 <h1 id="h">Three jobs</h1>
@@ -649,7 +668,7 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
 # main because the Questions panel's row mirrors the same fact in the chrome.
-STANDING_ASK = "main [data-lf-question]:not([data-lf-question] [data-lf-question])"
+STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
 # The shipped board measures its grip from a live box. Author it into the page and
 # send it in a reply with the same words, so the two readings can be compared.
 ROOM_WIDGETS = """<lf-board id="{id}-b">
@@ -1329,15 +1348,14 @@ THREAD_ASKS = [
 ]
 
 # A widget the shipped packages no longer have: one the user owes an answer on that
-# also seats a thread of its own. Those two facts together are what produce the
-# layer's one split between the user's list and the unanswered decisions — a thread
-# standing in the seat while the agent has the next word takes the widget off the list
-# without answering it (`seat_with_agent`, `seatWithAgent`). `lf-options` supplied the
-# pair until 292de9c made the user's cell an add form and dropped `x-thread-seat`, and
-# both halves of the split are still implemented, still described, and reachable by any
-# package that declares both. So the guard is declared here rather than borrowed from
-# whichever shipped entry happens to carry it: the reading under test is the layer's, and
-# the tag it runs on is the layer's business rather than the test's.
+# also seats a thread of its own. A thread anchored on any ask splits the user's list
+# from the unanswered decisions while the agent has the next word, taking the ask off
+# the list without answering it (`asks.sections_with_agent`); a seat is where a
+# user most often starts one. `lf-options` supplied the pair until 292de9c made the
+# user's cell an add form and dropped `x-thread-seat`, so the pair is declared here
+# rather than borrowed from whichever shipped entry happens to carry it: the reading
+# under test is the layer's, and the tag it runs on is the layer's business rather than
+# the test's.
 SEATED_ASK_TAG = "lf-verdict"
 SEATED_ASK_ENTRY = {
     "description": (
@@ -1379,21 +1397,12 @@ SEATED_ASK_ENTRY = {
 # reason the browser door matters as much as the POST one: with the wrong list read here
 # the answer is already on the page, so a refusal is not a refusal the user can see —
 # the control flips, nothing is logged, and the next poll puts it back saying nothing.
-def seated_ask_module(*, seat_attribute=None):
-    """Build a seated Ask with the optional attribute its case's registry requires."""
-    configuration = {"seatAttribute": seat_attribute}
-    return (
-        browser_source("widgets/seated-ask.js")
-        + f"\ndefineSeatedAsk({json.dumps(configuration)});\n"
-    )
-
-
-SEATED_ASK_MODULE = seated_ask_module()
+SEATED_ASK_MODULE = browser_source("widgets/seated-ask.js") + "\ndefineSeatedAsk();\n"
 SEATED_ASK_LAYER = {SEATED_ASK_TAG: SEATED_ASK_ENTRY}
 SEATED_ASK_WIDGETS = {f"{SEATED_ASK_TAG}.js": SEATED_ASK_MODULE}
 
 
-# A block proposal whose new text holds a Question of its own.
+# A block proposal whose new text holds an ask of its own.
 NESTED_PROPOSAL_PAGE = leaf_page(
     "nested proposal",
     """

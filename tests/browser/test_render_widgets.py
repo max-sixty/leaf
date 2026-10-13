@@ -9317,10 +9317,13 @@ def test_a_diff_recovers_from_each_failure_on_the_next_good_source(browser, serv
         page, "failed: empty diff", "failed: unified diff repeats file path"
     )
     assert sum("failed: empty diff" in (said(error) or "") for error in errors) == 1
-    assert sum(
-        "failed: unified diff repeats file path" in (said(error) or "")
-        for error in errors
-    ) == 2
+    assert (
+        sum(
+            "failed: unified diff repeats file path" in (said(error) or "")
+            for error in errors
+        )
+        == 2
+    )
 
 
 def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(browser, serve):

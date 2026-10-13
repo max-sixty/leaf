@@ -46,11 +46,28 @@ COMPILER_INPUTS = (
 
 
 def prepare(output: Path) -> None:
-    """Build a new installation tree from this checkout's tracked working files."""
+    """Build a new installation tree from this checkout or an extracted payload."""
     if output.exists():
         raise click.ClickException(f"installation destination already exists: {output}")
-    extract_payload(output)
+    if (ROOT / ".git").exists():
+        extract_payload(output)
+    else:
+        output.mkdir(parents=True)
+        copy_payload(ROOT, output)
     compile_installation(output)
+
+
+def copy_payload(runtime: Path, output: Path) -> None:
+    """Copy an extracted installation's payload without requiring Git metadata."""
+    for name in PAYLOAD:
+        source, target = runtime / name, output / name
+        if source.is_dir():
+            shutil.copytree(
+                source, target, ignore=shutil.ignore_patterns("__pycache__", "*.pyc")
+            )
+        elif source.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
 
 
 def compile_installation(output: Path) -> None:
@@ -194,19 +211,7 @@ def cached_installation(runtime: Path = ROOT) -> Path:
                         prepare(staged)
                     else:
                         staged.mkdir()
-                        for name in PAYLOAD:
-                            source, target = runtime / name, staged / name
-                            if source.is_dir():
-                                shutil.copytree(
-                                    source,
-                                    target,
-                                    ignore=shutil.ignore_patterns(
-                                        "__pycache__", "*.pyc"
-                                    ),
-                                )
-                            elif source.is_file():
-                                target.parent.mkdir(parents=True, exist_ok=True)
-                                shutil.copy2(source, target)
+                        copy_payload(runtime, staged)
                         subprocess.run(
                             [
                                 "uv",

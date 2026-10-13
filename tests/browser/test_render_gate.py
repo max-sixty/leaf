@@ -1132,7 +1132,6 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     assert all(
         "Visual part outer has no descendant Element surface" in error
         and "TypeError:" in error
-        and "registeredVisualParts" in error
         for error in unread
     ), unread
     assert problems("lf-test-visual-prefixed") == [

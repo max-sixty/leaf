@@ -148,7 +148,7 @@ export const THREAD_CARD = "lf-margin-preview";
 // card open, as that entry's disclosure relation says (margin-projection.js,
 // `syncReadingRelation`). Opening options can move focus before the next layout pass;
 // the open face itself keeps its controls reachable. The card stands relative to its
-// row (thread-preview.js), so a standing row whose target moves into it would
+// row (thread-preview.js), so a seated row whose target moves into it would
 // otherwise push the row down and the card the user is reading with it.
 // `optionsOpen` includes ordinary inline peers; only a requested expansion holds a seat.
 const HELD = `:hover, :focus-within, [data-lf-options-expanded], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
@@ -372,8 +372,8 @@ export function marginSpot(target, point = null) {
   return { left, right: left + restingRail().row };
 }
 
-// Said on the chrome root where the margin's standing is decided: where the markers are
-// pins, the banner offers the Page Map in their place (chrome.css). Until the standing
+// Said on the chrome root where the margin's residency is decided: where the markers are
+// pins, the banner offers the Page Map in their place (chrome.css). Until the residency
 // is decided it says nothing, rather than one answer the decision then takes back.
 export function syncMarginResidency(changed) {
   paintPins();
@@ -812,7 +812,7 @@ function standFolded(row, fold, on) {
 // which are worked out rather than read, since only the one it stands at is drawn:
 // unfolded its face is two controls, folded one, and opened `fold.controls()`, each a
 // square the row's height, beside the gaps and the focus ring's room the row keeps.
-function pinSeating(standing, { bands, shell, pinInset }) {
+function pinSeating(rows, { bands, shell, pinInset }) {
   const main = marginColumn();
   // A scrollable document can reveal seats beyond the viewport. A root whose
   // overflow prevents user scrolling cannot, so its window bounds the search.
@@ -821,7 +821,7 @@ function pinSeating(standing, { bands, shell, pinInset }) {
     : null;
   const pins = [];
   const outsideSites = new Map();
-  for (const entry of standing) {
+  for (const entry of rows) {
     const { read } = entry;
     if (read.place !== "pin") {
       seats.delete(read.row);
@@ -1132,7 +1132,7 @@ function targetShown(target, extent, stands, bands, attachment = target) {
 const pushes = new Map();
 // The layout pass each row came at (`arrivals`). One shared order seats held rows
 // first, then earlier arrivals, across both postures. Each row takes the room left
-// by final rectangles already seated: news moves nothing already standing.
+// by final rectangles already seated: news moves nothing already seated.
 let pass = 0;
 let came = new Map();
 const clips = new WeakMap();
@@ -1410,7 +1410,7 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
     }
     if (entry.held) occupied.push(...heldLabelBoxes(entry.read.row));
   }
-  const standing = placed.filter((entry) => !entry.unseated);
+  const seated = placed.filter((entry) => !entry.unseated);
   for (const read of reads) {
     if (!read.target) continue;
     const subject = read.attachment ?? read.point ?? read.target;
@@ -1530,11 +1530,11 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
       layer.sizes.unobserve(scroller);
     }
 
-  // A push says where a standing row stands, so a row that no longer stands has none.
+  // A push says where a seated row stands, so a row that no longer stands has none.
   for (const row of pushes.keys()) if (!packed.has(row)) pushes.delete(row);
   for (const [scroller, lane] of layer.lanes)
     carryScroll(lane, laneMotions.get(scroller) ?? []);
-  for (const { key: row, rect, read, visualLeft, step = 0 } of standing) {
+  for (const { key: row, rect, read, visualLeft, step = 0 } of seated) {
     const push = packed.get(row) ?? 0;
     pushes.set(row, push);
     // A pin seated beside its target can stand outside what its pane shows though the

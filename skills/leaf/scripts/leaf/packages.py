@@ -105,8 +105,8 @@ def rollback_package_files(created: list) -> None:
     """Remove only members that are still the exact files this transaction created."""
     for path, device, inode in reversed(created):
         try:
-            standing = path.stat(follow_symlinks=False)
-            if (standing.st_dev, standing.st_ino) == (device, inode):
+            current = path.stat(follow_symlinks=False)
+            if (current.st_dev, current.st_ino) == (device, inode):
                 path.unlink()
         except FileNotFoundError:
             pass

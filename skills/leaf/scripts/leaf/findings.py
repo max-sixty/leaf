@@ -1208,7 +1208,7 @@ _TEXT = {
         lambda v: (
             "declares agent-written x-state verbs"
             f" {_json(v['verbs'])} but not the boolean `overruled` attribute a"
-            " version overrules a standing report with"
+            " version overrules a report in force with"
         )
     ),
     "unrestated": _declared(
@@ -1630,7 +1630,7 @@ _TEXT = {
     "not-a-widget": lambda at, v: f"{v['widget']!r} is not a widget on this page",
     "not-an-element": lambda at, v: f"{v['element']!r} is not an element on this page",
     "hidden-widget": lambda at, v: (
-        f"{v['widget']} is not visible under the page's standing outcomes"
+        f"{v['widget']} is not visible under the page's outcomes in force"
     ),
     "quoted-seat": lambda at, v: (
         f"{v['widget']} is quoted exhibit content, not a live page widget"

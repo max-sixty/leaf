@@ -22,6 +22,28 @@ from .schema import (
 from .service import PageTransaction, claim_is_active, page_claim
 from .state import json_bytes
 
+# What a service record needs for this version to act on it, and the lifetimes it serves.
+SERVICE_KEYS = ("host", "bind", "port", "enabled", "lifetime")
+LIFETIMES = ("session", "persistent")
+
+
+def read_service(page_dir: Path) -> dict | None:
+    """The page's desired service (`service.json`), or None where there is none this
+    version can read.
+
+    A record lacking a field above, or naming a lifetime this version does not serve
+    (an older Leaf wrote `"standing"` for `"persistent"`), describes nothing this
+    version could keep, so it reads as absent rather than as some other lifetime
+    (root AGENTS.md, "Stage"). Every reader of the record goes through here."""
+    service = read_json(page_dir / SERVICE_FILE)
+    if (
+        not isinstance(service, dict)
+        or not all(key in service for key in SERVICE_KEYS)
+        or service["lifetime"] not in LIFETIMES
+    ):
+        return None
+    return service
+
 
 def running_server(page_dir: Path):
     """The desired service, while its exact serving incarnation holds the lease.
@@ -32,7 +54,7 @@ def running_server(page_dir: Path):
     """
     if not lock_is_held(page_dir / SERVER_LOCK):
         return None
-    service = read_json(page_dir / SERVICE_FILE)
+    service = read_service(page_dir)
     if not service or not service["enabled"]:
         return None
     incarnation = service.get("server_id")
@@ -69,10 +91,10 @@ def lifetime_note(page_dir: Path) -> str:
     Read from service.json, the one place a lifetime is written down. The record
     lands before the URL is printed and survives an explicit stop, so a restart
     restores the same lifetime as well as the same URL."""
-    if (read_json(page_dir / SERVICE_FILE) or {}).get("lifetime") == "standing":
+    if (read_service(page_dir) or {}).get("lifetime") == "persistent":
         return "\n".join(
             (
-                "server   standing",
+                "server   persistent",
                 f"stop     leaf server stop {page_dir}",
             )
         )
@@ -94,7 +116,7 @@ def loopback_note(page_dir: Path) -> str | None:
     record is what the server bound: a restart re-serving a loopback record says
     the same thing in an environment that would derive something else. A stated
     host binds the wildcard, which is not loopback, and says nothing."""
-    bind = (read_json(page_dir / SERVICE_FILE) or {}).get("bind")
+    bind = (read_service(page_dir) or {}).get("bind")
     try:
         local = ipaddress.ip_address(bind).is_loopback
     except ValueError:
@@ -119,10 +141,10 @@ def stop_when_service_ends(page_dir: Path) -> None:
     while True:
         changes = page_changes(page_dir)
         mark = changes.mark()
-        service = read_json(page_dir / SERVICE_FILE)
+        service = read_service(page_dir)
         if not service or not service["enabled"]:
             os._exit(0)
-        if service["lifetime"] == "standing":
+        if service["lifetime"] == "persistent":
             changes.wait(mark, 2.0)
             continue
         claim = page_claim(page_dir)
@@ -136,10 +158,10 @@ def stop_when_service_ends(page_dir: Path) -> None:
             # cannot inherit a server already committed to retiring.
             try:
                 with PageTransaction(page_dir) as page:
-                    service = read_json(page_dir / SERVICE_FILE)
+                    service = read_service(page_dir)
                     if not service or not service["enabled"]:
                         os._exit(0)
-                    if service["lifetime"] == "standing" or page.active_claim:
+                    if service["lifetime"] == "persistent" or page.active_claim:
                         orphaned_at = None
                         continue
                     os._exit(0)
@@ -176,7 +198,7 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
     `server run` bare, and a fresh address there would leave the user's open page
     polling a URL that no longer answers — which is why a stated host is recorded
     here rather than passed per run."""
-    access = read_json(page_dir / SERVICE_FILE)
+    access = read_service(page_dir)
     if access and host is None:
         return access
     if host:
@@ -193,7 +215,7 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
                 )
         # Over the record, not in place of it: a --host restates where the page
         # is reached, and the record's other facts — the exact port an open tab
-        # polls, the standing lifetime — restate nothing and must survive, or
+        # polls, the persistent lifetime — restate nothing and must survive, or
         # the recovery this flag exists for demotes the dashboard it recovers.
         access = {**(access or {}), "host": host, "bind": "::"}
     else:

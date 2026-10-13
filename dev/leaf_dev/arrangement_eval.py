@@ -736,7 +736,7 @@ def listing(captures: dict[str, list[str]]) -> list[str]:
 def later_messages(subject: str, first: str = "version 1") -> list[str]:
     """The user's messages after the first version, as both judges read them."""
     scenario = CASES[subject]
-    lines = [f'After {first}, the user added a standing preference: "{PREFERENCE}"']
+    lines = [f'After {first}, the user added a lasting preference: "{PREFERENCE}"']
     if comment := scenario.comment:
         lines += ["", f'Then the user commented: "{comment_message(comment)}"']
     if decision := scenario.decision:

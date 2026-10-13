@@ -297,7 +297,7 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     browser, serve
 ):
     """A click on words focuses nothing, and Chrome then starts Space, PageDown and the
-    arrows from the node last pressed. A standing `tabindex` on body made the body the
+    arrows from the node last pressed. A permanent `tabindex` on body made the body the
     focusable ancestor of every word, so the click focused it and those keys scrolled the
     root, which a full-height workspace keeps still: both panes stayed at 0. Leaf's own `d` and
     `j` read only focus and did the same."""
@@ -5108,7 +5108,7 @@ def test_what_the_user_put_on_after_the_panel_comes_off_before_it(browser, serve
 
     # That narrowing is still on the list when the panel comes back, and it is a layer
     # of the panel whoever put it there: the way out is read off what stands rather than
-    # off which press left it standing, so it comes off first and the panel follows.
+    # off which press left it open, so it comes off first and the panel follows.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page, True)
@@ -6524,7 +6524,7 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
           const targetTop = () =>
             document.querySelector('#' + code).getBoundingClientRect().top;
           const before = {chip: chipTop(), target: targetTop()};
-          const standing = [];
+          const moving = [];
           // Keep this target above the viewport's top clamp throughout the sweep.
           document.scrollingElement.scrollTo({top: 180, behavior: 'smooth'});
           for (let frame = 0; frame < 8; frame++) {
@@ -6535,22 +6535,22 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
             await new Promise(painted =>
               requestAnimationFrame(() => setTimeout(painted, 0)));
             if (frame >= 3)
-              standing.push({
+              moving.push({
                 chips: document.querySelectorAll(sel).length,
                 gap: chipTop() === null ? null : targetTop() - chipTop(),
                 scroll: document.scrollingElement.scrollTop,
               });
           }
-          return {before, standing};
+          return {before, moving};
         }"""
     )
 
     assert travel["before"]["chip"] is not None, travel
-    blank = [seen for seen in travel["standing"] if not seen["chips"]]
+    blank = [seen for seen in travel["moving"] if not seen["chips"]]
     assert not blank, f"the map blanked while the page was still moving: {travel}"
     # The chip keeps the offset it had at rest, to the pixel, every frame of the way.
     resting = travel["before"]["target"] - travel["before"]["chip"]
-    assert all(abs(seen["gap"] - resting) < 2 for seen in travel["standing"]), (
+    assert all(abs(seen["gap"] - resting) < 2 for seen in travel["moving"]), (
         f"a chip came off the target it names while the page moved: {travel}"
     )
 
@@ -6768,10 +6768,10 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
     # bar is where the page's own scene is all of it.
     page.keyboard.press("?")
     rendered(page)
-    standing = page.evaluate(KEY_LINE_HINTS)
+    at_rest = page.evaluate(KEY_LINE_HINTS)
     assert {"comment.create", "thread.next thread.previous"} <= {
-        hint["commands"] for hint in standing
-    }, f"the line no longer offers both the comments and the thread walk: {standing}"
+        hint["commands"] for hint in at_rest
+    }, f"the line no longer offers both the comments and the thread walk: {at_rest}"
 
     # Neither door out takes the line: the return frame and the menu's own close both
     # decline promotion, so the shortlist is the walk beside exact numbered travel.
@@ -6783,7 +6783,7 @@ def test_no_two_hints_on_the_key_line_say_the_same_word(browser, serve):
         hint["commands"] for hint in versions
     }, f"the versions menu no longer offers its two unfamiliar actions: {versions}"
 
-    for scene, hints in (("the page", standing), ("the versions menu", versions)):
+    for scene, hints in (("the page", at_rest), ("the versions menu", versions)):
         said = {}
         for hint in hints:
             said.setdefault(hint["word"], []).append(hint["commands"])
@@ -8344,7 +8344,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     # The line is one of two surfaces naming this row's keys, and the other is read by
     # somebody who cannot see the first. A row whose bindings answer from its own state
     # has to repaint both when the state moves, and only the line had a watch: the
-    # attribute kept whichever way the row was standing when the scope was declared, so
+    # attribute kept whichever way the row was set when the scope was declared, so
     # it went on promising the arrow that no longer moves this section and withholding
     # the one that does.
     #
@@ -8364,7 +8364,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     # is a second document beside the version, and the arrows are the page's. A diff,
     # because what is being asked is what a widget's own row names — a widget re-wording
     # this press reads its bindings from DISCLOSE, which answers for where the element
-    # stands as well as which way it is standing, so the row cannot offer a key that
+    # stands as well as which way it is set, so the row cannot offer a key that
     # nothing there runs. The platform's pair still works it, so what differs is the
     # offer rather than the capability.
     append_carried_log_record(
@@ -8462,7 +8462,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
     rendered(page)
     version_hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
     # The phone-width line has room for the scope's first hint only; its presence is what
-    # says the covering surface left the versions scope standing.
+    # says the covering surface left the versions scope in place.
     assert "version.later version.earlier" in version_hints, (
         f"the covering auxiliary surface displaced the versions scope: {version_hints}"
     )
@@ -8629,7 +8629,7 @@ def test_the_key_line_says_what_a_press_will_do(browser, serve):
     page.wait_for_function("() => document.querySelectorAll('.lf-thread').length === 1")
     line = page.locator(".lf-shortcut-bar")
 
-    # Page scope: the standing verbs, thread rows only over threads, and no esc
+    # Page scope: the permanent verbs, thread rows only over threads, and no esc
     # chip — there is nothing to back out of.
     expect(line).to_contain_text("threads")
     expect(line).to_contain_text("more")
@@ -8886,7 +8886,7 @@ def test_a_comments_quoted_passage_is_in_the_keyboard_journey(browser, serve):
     wait_for_revision(page, 2)
     # Narrowing is interaction-local heap state, and nothing executable changed, so the
     # user keeps this document and the Resolved narrowing they chose stands in it.
-    # The status narrowing is a group of toggles, so the standing member wears its own
+    # The status narrowing is a group of toggles, so the active member wears its own
     # pressed state.
     expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
         "aria-pressed", "true"
@@ -9061,7 +9061,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     expect(popover).to_be_hidden()
 
     # Reopened over the same modal, so the stack order below is read on the scene that
-    # rule describes rather than on what the reference left standing.
+    # rule describes rather than on what the reference left behind.
     page.locator("#nested-modal button").click()
     expect(popover).to_be_visible()
 
@@ -9241,10 +9241,10 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             }
             const declared = button.getAttribute('aria-keyshortcuts');
             const first = await painted(button);
-            const standing = Boolean(elementScopes.get(button));
+            const registered = Boolean(elementScopes.get(button));
             const second = await painted(button);
             button.remove();
-            return {declaration, declared, first, standing, second};
+            return {declaration, declared, first, registered, second};
           };
           const atTheFrame = async (id, rows) => {
             const button = document.createElement('button');
@@ -9268,10 +9268,10 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             commands(button, id, second);
             await settled();
             const framed = button.getAttribute('aria-keyshortcuts');
-            const standing = Boolean(
+            const registered = Boolean(
               (await window.__lfRuntimeImport('/runtime/keyboard/scopes.js')).elementScopes.get(button));
             button.remove();
-            return {framed, standing};
+            return {framed, registered};
           };
           return {
             ambiguous: await firstPaint('ambiguous', [
@@ -9391,7 +9391,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             "declaration": "declared",
             "declared": None,
             "first": None,
-            "standing": False,
+            "registered": False,
             "second": None,
         }, answers
     refusals = consume_browser_errors(page, "two live meanings for")
@@ -9403,7 +9403,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
         "declaration": "declared",
         "declared": None,
         "first": "F2",
-        "standing": True,
+        "registered": True,
         "second": "F2",
     }, answers
     assert "not a stable command id" in answers["missingIdentity"], answers
@@ -9434,7 +9434,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     assert answers["atFrame"] == {"declared": None, "framed": "F7"}, answers
     # The superseded declaration is owed no reading: read at the frame, its refusal
     # would have retracted the one that replaced it.
-    assert answers["redeclared"] == {"framed": "F9", "standing": True}, answers
+    assert answers["redeclared"] == {"framed": "F9", "registered": True}, answers
 
     # Help merges instances with the same title for presentation. Repeated keys there
     # belong to separate focus locations, so they are not a conflict in either scope.
@@ -10837,7 +10837,7 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     expect(visible_hints.nth(1)).to_contain_text("back to thread")
 
     # The line shows only what works from where the user is. This text box owns `?`, so
-    # More stands down with its key rather than standing bare; it returns, key and all,
+    # More stands down with its key rather than showing bare; it returns, key and all,
     # when the user steps back out to the thread it was replying in.
     more_node = page.locator(".lf-shortcut-more")
     more_node.evaluate("button => window.__lfShortcutMore = button")
@@ -11091,7 +11091,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
               };
             }"""
     )
-    # A touch screen draws no band, so the standing status overlays the page like a
+    # A touch screen draws no band, so the fixed status overlays the page like a
     # passing notice: showing it changes nothing about where the page ends, and the
     # whole chip stands inside the window, clear of its foot.
     assert active_room["height"] > 0, active_room
@@ -11205,7 +11205,7 @@ def test_the_key_line_stands_in_the_bottom_bar(browser, serve):
         f"the covering sheet moved the viewport-fixed line: {ended}, {covered}"
     )
     assert covered["reserved"] == pytest.approx(covered["footprint"], abs=1), (
-        f"the document lost the band's standing reservation: {covered}"
+        f"the document lost the band's fixed reservation: {covered}"
     )
     page.keyboard.press("Escape")
 
@@ -11538,7 +11538,7 @@ def test_an_asks_pick_stays_a_place_to_stand_after_the_answer(browser, serve):
 
 
 def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
-    """A scope claims the keys it uses and leaves the rest standing. This one used to
+    """A scope claims the keys it uses and leaves the rest in place. This one used to
     claim the lot: the typing scope stood wherever focus was in a form control, on the
     reading that a letter is a keystroke there — true of a text box, false of a radio, a
     checkbox and a slider, none of which the platform ever hands a letter. So a user
@@ -13207,15 +13207,15 @@ KEYBOARD_REGISTER = """async () => {
         ...[...scopeRefs].map((ref) => ref.deref())
             .filter((node) => node?.isConnected).flatMap(scopesAt),
     ];
-    const standing = stack();
-    const filtered = new Set([...standing, ...scopes.filter(
+    const open = stack();
+    const filtered = new Set([...open, ...scopes.filter(
         (scope) => has(scope) && scope.liveInCommandReference)].map(scopeIdentity));
     const runs = running(), runsAny = running({commands: true});
     const elsewhere = new Set(declared(scopes.filter(
         (scope) => has(scope) && !filtered.has(scopeIdentity(scope))
     ).flatMap((scope) => scope.rows)));
     const present = new Set(declared(scopes.filter(has).flatMap((scope) => scope.rows)));
-    const dead = declared([...standing, ...scopes].filter(
+    const dead = declared([...open, ...scopes].filter(
         (scope) => filtered.has(scopeIdentity(scope))
     ).flatMap((scope) => scope.rows).filter((row) =>
         !(row.commandReferenceWhen ? row.commandReferenceWhen() : live(row))));
@@ -14350,7 +14350,7 @@ def test_the_reference_hands_the_user_back_to_the_page_they_were_reading(
         f"{reading:.0f}px"
     )
     # And nothing of the borrow is left on the author's paragraph: `tabindex` is not in
-    # PAGE_PAINT_ATTRIBUTES, so a stop left standing would be runtime paint the replay
+    # PAGE_PAINT_ATTRIBUTES, so a stop left in place would be runtime paint the replay
     # signature has no vocabulary for.
     assert (
         page.evaluate("() => document.querySelectorAll('main [tabindex]').length") == 0

@@ -31,7 +31,7 @@ import { computed, signal } from "./signals-core.js";
 
 
 // Object.freeze says nothing about descendants or Map/Set entries. Only values this
-// owner has secured can skip traversal when a publication reuses a standing subtree.
+// owner has secured can skip traversal when a publication reuses an existing subtree.
 const secured = new WeakSet        ();
 
 function immutable   (value   , normalized = new WeakMap                ())               {

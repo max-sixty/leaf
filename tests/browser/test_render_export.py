@@ -109,10 +109,10 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
     restart at the recorded port waits out TCP cooldown.
     """
     _, runtime, directory, _, url, _ = watched_preview
-    standing = open_page(browser, url)
-    with sending(standing, "the standing user option pick"):
-        standing.locator("#opt-shim .lf-pick").click()
-    expect(standing.locator("#opt-shim")).to_have_attribute("chosen", "")
+    open_tab = open_page(browser, url)
+    with sending(open_tab, "the user option pick in force"):
+        open_tab.locator("#opt-shim .lf-pick").click()
+    expect(open_tab.locator("#opt-shim")).to_have_attribute("chosen", "")
     feedback = (directory / "events.jsonl").read_bytes()
     inode = (directory / "events.jsonl").stat().st_ino
     generation = json.loads((directory / "registry.json").read_text())["$layer"][
@@ -133,7 +133,7 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
     # decoding that stopped halfway. The span is bracketed rather than the wordings
     # listed (tests/AGENTS.md, "Test-made noise").
     with ExitStack() as restarts:
-        restarts.enter_context(restarting(standing))
+        restarts.enter_context(restarting(open_tab))
         for resource in resources:
             page = browser.new_page()
             failures = []
@@ -174,7 +174,7 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
         theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: navy; }\n")
-        expect(standing.locator("h1")).to_have_css(
+        expect(open_tab.locator("h1")).to_have_css(
             "color", "rgb(0, 0, 128)", timeout=HANDOVER_DEADLINE_MS
         )
         for page, status, _ in pages.values():
@@ -186,7 +186,7 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
     for resource, (page, _, documents) in pages.items():
         assert len(documents) >= 2, resource
         expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    expect(standing.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(open_tab.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
     assert (
@@ -293,7 +293,7 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
 
 
 def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tmp_path):
-    """A text box paints in the standing paint, which an export mounts without page controls.
+    """A text box paints in the repaint frame, which an export mounts without page controls.
 
     A choosable group builds its addition field offline too. Its placeholder, disabled
     Add and empty-field flag are that paint's; focus alone repaints the placeholder with

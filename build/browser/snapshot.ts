@@ -31,7 +31,7 @@ interface SnapshotReading<T> {
 }
 
 // Object.freeze says nothing about descendants or Map/Set entries. Only values this
-// owner has secured can skip traversal when a publication reuses a standing subtree.
+// owner has secured can skip traversal when a publication reuses an existing subtree.
 const secured = new WeakSet<object>();
 
 function immutable<T>(value: T, normalized = new WeakMap<object, object>()): Immutable<T> {

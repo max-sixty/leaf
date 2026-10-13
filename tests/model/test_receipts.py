@@ -330,7 +330,7 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(
 
 
 def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
-    """A standing watcher ends the re-arm the way it ends a bare `leaf wait`, on
+    """A persistent watcher ends the re-arm the way it ends a bare `leaf wait`, on
     2. The acknowledgement still landed: 1 is the code that says it did not, and
     the cursor names the event the batch reached."""
     service_model.claim_page(page_dir)

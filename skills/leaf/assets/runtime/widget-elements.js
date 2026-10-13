@@ -212,8 +212,8 @@ export function measure(el, take) {
   // of its own and never will, and its contents are what the measurement is about. Asked
   // the narrow way it would wait forever, holding the take and the observation with it.
   if (drawn(el)) {
-    // A wait already standing for this element is over: it was waiting for the box
-    // this reading just found. Left standing it would deliver a second reading of
+    // A wait already pending for this element is over: it was waiting for the box
+    // this reading just found. Left pending it would deliver a second reading of
     // the same number, which is harmless and still a claim that nothing was read.
     if (measurements.delete(el)) unmeasured.unobserve(el);
     return take();

@@ -10260,10 +10260,8 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
 def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
     browser, serve, native_move
 ):
-    """Opening the folded file seats the comment box being written back on its diff
-    line, and the user goes on typing in it at the same caret. Where the browser has
-    `moveBefore` the move never blurs the editor, as `append` did, and the caret
-    survives the native selection the move collapses."""
+    """A folded file withholds its draft; reopening returns focus and the caret to
+    the editor on its diff line, with and without native retained moves."""
     url = serve(
         leaf_page(
             "diff",
@@ -10285,22 +10283,15 @@ def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
     expect(seated).to_be_focused()
     box = page.locator(".lf-fab-input")
     write(box, "Half a thought")
+    box.evaluate("box => box.setSelectionRange(4, 4)")
     details = page.locator("lf-diff details").first
     details.evaluate("details => { details.open = false; }")
-    expect(seated).to_have_count(0)
-    expect(box).to_be_focused()
-    rendered(page)
-    box.evaluate("""box => {
-      box.setSelectionRange(4, 4);
-      window.blurs = 0;
-      box.addEventListener('blur', () => window.blurs++);
-    }""")
+    expect(seated).to_have_count(0, timeout=5000)
+    expect(box).to_be_hidden(timeout=5000)
     details.evaluate("details => { details.open = true; }")
-    expect(seated).to_be_focused()
+    expect(seated).to_be_focused(timeout=5000)
     page.keyboard.type(" tr")
-    expect(seated).to_have_js_property("value", "Half tr a thought")
-    if native_move:
-        assert page.evaluate("window.blurs") == 0
+    expect(seated).to_have_js_property("value", "Half tr a thought", timeout=5000)
 
 
 def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser, serve):

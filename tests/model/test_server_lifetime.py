@@ -591,6 +591,33 @@ def test_a_service_record_this_version_cannot_read_is_no_service(page_dir, spawn
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
 
+PREPARING_START = """
+import sys, time
+from pathlib import Path
+from leaf.leases import take_lease
+page = Path(sys.argv[1])
+lease = take_lease(page / "server.lock")
+print("held" if lease else "refused", flush=True)
+time.sleep(0.5)
+"""
+
+
+def test_a_re_vendor_leaves_a_start_still_preparing_alone(page_dir, spawn, capsys):
+    """A start holds the lease while it prepares and writes its record only when it
+    commits, so a lease with no record is no server a re-vendor stops: only a lease
+    over a record, readable or not, is one."""
+    process = spawn(
+        [sys.executable, "-c", PREPARING_START, str(page_dir)],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    assert process.stdout.readline().strip() == "held"
+    with hosting_model.restarting_server(page_dir):
+        pass
+    assert "stays stopped" not in capsys.readouterr().err
+    assert process.wait(timeout=STATED_TIMEOUT) == 0
+
+
 def test_a_re_vendor_stops_a_server_whose_record_it_cannot_read(
     page_dir, spawn, capsys
 ):

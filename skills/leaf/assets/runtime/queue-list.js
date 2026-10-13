@@ -48,7 +48,7 @@ const rowTemplate = (row, activate, finish, end) =>
       data-lf-live=${row.live ? "" : nothing}
       title=${row.account}
       @click=${activate}
-      ${commandsOn("In On", [
+      ${commandsOn("In the On panel", [
         { id: "queue.row.open", keys: PRESS, title: "go to this item" },
         {
           id: "queue.row.done",

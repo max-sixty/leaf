@@ -6991,10 +6991,10 @@ def test_questions_says_when_a_revision_removes_its_last_ask(browser, serve):
     expect(page.locator("button.lf-queue-row")).to_have_count(0)
     expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(note).to_be_visible()
-    expect(note).to_have_text("Nothing on me.")
+    expect(note).to_have_text("Nothing waiting on me.")
     expect(
         page.locator(".lf-queue-panel [data-lf-queue='agent'] .lf-queue-empty")
-    ).to_have_text(re.compile(r"^Nothing on \S+\.$"))
+    ).to_have_text(re.compile(r"^Nothing waiting on \S+\.$"))
 
 
 def test_the_g_chord_opens_an_empty_page_map(browser, serve):

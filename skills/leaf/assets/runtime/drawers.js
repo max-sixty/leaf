@@ -248,7 +248,7 @@ export function createDrawers({
     }
     keys(
       queuePanel,
-      "In On",
+      "In the On panel",
       rowWalk({
         id: "queue.panel",
         noun: "Item",

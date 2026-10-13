@@ -1722,7 +1722,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     page.keyboard.press("?")
     page.keyboard.press("?")
-    queue_help = command_reference_rows(page, "In On")
+    queue_help = command_reference_rows(page, "In the On panel")
     expect(queue_help.get_by_text("Previous item", exact=True)).to_have_count(1)
     expect(queue_help.get_by_text("Next item", exact=True)).to_have_count(1)
     expect(

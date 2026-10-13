@@ -250,13 +250,13 @@ export function createQueuePanel({ actions, next, announce }) {
           id: "you",
           label: known ? `On me · ${you.length}` : "On me",
           rows: Object.freeze(you),
-          empty: known ? "Nothing on me." : "Loading…",
+          empty: known ? "Nothing waiting on me." : "Loading…",
         }),
         Object.freeze({
           id: "agent",
           label: known ? `On ${agent()} · ${them.length}` : `On ${agent()}`,
           rows: Object.freeze(them),
-          empty: known ? `Nothing on ${agent()}.` : "Loading…",
+          empty: known ? `Nothing waiting on ${agent()}.` : "Loading…",
         }),
       ]),
       done: Object.freeze({

@@ -349,16 +349,19 @@ function queueKinds(items) {
 function queueWords() {
   const { questions, tasks } = readQueues();
   const agent = agentName();
+  // The count stands in the banner's row, whose room theme.css states before the name is
+  // known, so a long name is cut there; the explanation keeps it whole.
+  const short = agent.length > 12 ? `${agent.slice(0, 11)}…` : agent;
   const named = (items, whom) =>
     items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
   return {
-    summary: tasks.length ? `On ${agent}: ${tasks.length}` : "",
+    summary: tasks.length ? `On ${short}: ${tasks.length}` : "",
     explanation: [named(questions, "me"), named(tasks, agent)]
       .filter(Boolean)
       .join(" "),
     // The widest the count usually reaches, under ten, which its box keeps; more
     // widens it once (banner-status-view.js).
-    widest: `On ${agent}: 9`,
+    widest: `On ${short}: 9`,
   };
 }
 const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);

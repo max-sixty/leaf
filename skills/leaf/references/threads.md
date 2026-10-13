@@ -173,6 +173,10 @@ leaf response reply <answer.ref> --ask --text "Which store should own it?"
 leaf response reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
 ```
 
+The user sees the declaration on the answer itself: its head reads **Waiting on me** while
+its prose ask is theirs to answer, and **To-do open** until you end the to-do. A
+promise declared `--done` reads as finished work, so declare what each answer leaves.
+
 To add an agent-initiated turn to a thread that currently owes no reply, use
 `leaf thread reply <page> <message-id>`. This proactive command takes the same
 content and anchor options, and `--ask` or `--todo` where the turn asks or
@@ -190,12 +194,17 @@ leaf response reply <answer.ref> --ephemeral --text "Checking the keyboard route
 
 This posts progress without answering the update. Progress on an update you owe also
 takes that update in hand, as `leaf task start` does, with the progress text as its
-**Working** line beside the thread and in the banner, so it is one line.
+**Working** line in the banner and at the foot of the thread, so it is one line.
 [Conversation loop](conversation-loop.md#when-to-write), "When to write", makes
 the first one your first command after a delivery. A proactive progress message
-names a thread with no response due. When your next ordinary reply in the thread
-arrives, the progress messages before it fold behind a disclosure beside it, where
-the user can still expand them.
+names a thread with no response due.
+
+Until an answer comes, the thread draws progress as one dim working message above its
+reply box, never as a reply, and progress never counts as unread; each new progress
+message replaces its words. When your next ordinary reply in the thread arrives, it
+takes the working message's place and the progress messages before it fold behind a
+disclosure beside it, where the user can still expand them. So the user reads
+progress as status and only your replies as words addressed to them.
 
 A progress message is progress text, so it cannot carry `--ask`, `--todo`,
 markup, failure or an anchor move. Put questions and results in ordinary replies.

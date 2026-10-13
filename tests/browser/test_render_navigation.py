@@ -1707,7 +1707,13 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         assert topic.evaluate("element => element.getBoundingClientRect().width") > 40
         if view == "progress":
             card = frame.locator(f'.lf-thread[data-id="{thread}"]')
-            checkpoint = card.locator(".lf-thread-checkpoint")
+            # The answered checks' fold; the later check still stands as the line.
+            checkpoint = card.locator(
+                '.lf-thread-checkpoint[data-summary-id^="ephemeral:"]'
+            )
+            expect(card.locator(".lf-thread-working-words")).to_have_text(
+                "Checking whether the room stays free after five"
+            )
             expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
             expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
             earlier = checkpoint.locator(".lf-summary-originals")
@@ -1729,6 +1735,13 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
             expect(
                 card.locator(".lf-thread-transcript > .lf-msg").last
             ).to_contain_text("The workshop fits, including a fifteen-minute break.")
+            later = card.get_by_text(
+                "Checking whether the room stays free after five.", exact=True
+            )
+            expect(later).to_be_hidden()
+            expect(
+                card.locator(".lf-thread-working").get_by_role("button")
+            ).to_have_count(0)
 
     page.locator('#bg-panel-presets [data-view="you"]').click()
     expect(frame.locator(".lf-thread:not([hidden])")).to_have_count(2)

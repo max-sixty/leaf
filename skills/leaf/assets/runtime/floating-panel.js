@@ -15,9 +15,12 @@
  *   it was left across pages (`rest`).
  * - **The row**: the leaf, the comment field, and marks with counts for Questions and
  *   Threads, and on a desk a pen for annotating. The empty field says what the agent is
- *   doing or wants, or what a passing notice says, where a placeholder would say
- *   "Comment"; in a thread it says whose turn it is. Clicking in opens one quiet line
- *   above it naming where the words go.
+ *   doing or wants, in the banner's own words (`watchStatus`), or what a passing notice
+ *   says, where a placeholder would say "Comment"; in a thread it says whose turn it is.
+ *   A status reads dimmer than anything written, and while the agent works it carries
+ *   the one sheen that marks work under way. Clicking in gives the placeholder to where
+ *   the words go, and opens one quiet line above it naming who they go to; once words
+ *   hide the placeholder, the line names where as well.
  * - **Opened**: a view above the same row (Questions, Threads, a thread, Versions, or a
  *   group of the page's controls) with where the user is at its top edge. It lasts while
  *   it is used: Escape or a press on the page puts it away. It is as tall as what it
@@ -234,23 +237,31 @@ export function createFloatingPanel({
     const top = trail.at(-1);
     return top?.view === "thread" ? `reply:${top.thread}` : "general";
   };
-  // What the empty field says: a passing notice while one stands, else in a thread
-  // whose turn it is, else what the agent is doing or wants.
-  function hintFor(key) {
+  // What the empty field says, and whose reading it is (`says`): a passing notice while
+  // one stands; a resolved thread's way back; once the caret is in the field, where
+  // the words go; else on the page what the agent is doing or wants, in the banner's
+  // words, and in a thread whose turn it is.
+  function fieldReading(key, input) {
     const notice = noticeReading();
-    if (notice.visible) return notice.message;
-    if (!key) return status.summary;
-    const thread = threadByKey(key);
-    if (!thread) return "Reply…";
-    if (thread.resolved) return "Resolved · reopen to reply";
+    if (notice.visible) return { says: "notice", words: notice.message };
+    const thread = key ? threadByKey(key) : null;
+    if (thread?.resolved) return { says: "turn", words: "Resolved · reopen to reply" };
+    if (input === focused()) return { says: "destination", words: whereTo(key) };
+    if (!key) return { says: "status", words: status.summary };
+    if (!thread) return { says: "turn", words: "Reply…" };
     const agent = agentOf(thread);
     const attention = threadAttention(thread);
-    if (attention?.kind === "needs_user")
-      return `${attention.label} · reply to ${agent}`;
-    if (attention)
-      return [attention.label, attention.secondary].filter(Boolean).join(" · ");
-    return `Reply to ${agent}`;
+    const words =
+      attention?.kind === "needs_user"
+        ? `${attention.label} · reply to ${agent}`
+        : attention
+          ? [attention.label, attention.secondary].filter(Boolean).join(" · ")
+          : `Reply to ${agent}`;
+    return { says: "turn", words };
   }
+  // Where the words go, as the focused field's placeholder says it; the thread's own
+  // name already heads its view.
+  const whereTo = (key) => (key ? "Reply in this thread" : "Comment on the page");
   function editor(ctx) {
     let held = editors.get(ctx);
     if (held) return held;
@@ -263,7 +274,7 @@ export function createFloatingPanel({
     const key = ctx === "general" ? null : ctx.slice("reply:".length);
     input.value = loadDraft(ctx) ?? "";
     const sync = wireInput(input, {
-      hint: () => hintFor(key),
+      hint: () => fieldReading(key, input).words,
       accessibleName: () =>
         key ? `Reply to ${threadTitle(key)}` : "Comment on the page",
       sends: "send",
@@ -1249,7 +1260,6 @@ export function createFloatingPanel({
     keeps(host, "data-rest", folded ? "mark" : "row");
     keeps(host, "data-open", top ? top.view : null);
     keeps(host, "data-menu", menuOpen ? "" : null);
-    keeps(host, "data-notice", noticeReading().visible ? "" : null);
     keeps(mark, "class", `lf-dot${status.tone ? ` ${status.tone}` : ""}`);
     keeps(
       leaf,
@@ -1307,7 +1317,7 @@ export function createFloatingPanel({
     current.sync();
     const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
     const holds = Boolean(loadDraft(destination())?.trim());
-    // Clicking in names where the words go, on one quiet line above the field; it
+    // Clicking in opens one quiet line above the field naming who the words go to; it
     // stays while the field holds words, and while a thread is open, whose field is
     // always its reply, so nothing moves when the caret leaves.
     const engaged = Boolean(thread) || writing || holds;
@@ -1315,19 +1325,31 @@ export function createFloatingPanel({
     // While the user types, Send stands in the counts' place.
     typing = writing && Boolean(draftOf(current.input).trim());
     keeps(host, "data-typing", typing ? "" : null);
+    // Whose reading the empty field says, which its face follows: a status dims, and
+    // carries the sheen while the agent works.
+    const reading = fieldReading(
+      top?.view === "thread" ? top.thread : null,
+      current.input,
+    );
+    keeps(host, "data-says", reading.says);
+    keeps(host, "data-tone", status.tone || null);
     // A passing notice is said where the field's placeholder would be; once the field
     // holds words, which hide that, it stands on this line instead, as a refused send's
-    // reason does over the words it returned.
-    const notice = noticeReading();
-    const covered = notice.visible && draftOf(current.input) !== "";
+    // reason does over the words it returned. Where the words go is said once: by the
+    // empty focused field's placeholder, and once words hide that, here, the way a
+    // field's label rises above what is written in it.
+    const empty = draftOf(current.input) === "";
+    const covered = reading.says === "notice" && !empty;
+    const recipient = thread ? agentOf(thread) : agentName();
+    const where = thread ? `Reply in ${threadSummary(thread).topic}` : whereTo(null);
     keeps(contextDest, "data-notice", covered ? "" : null);
     keepsText(
       contextDest,
       covered
-        ? notice.message
-        : thread
-          ? `Reply in ${threadSummary(thread).topic} · to ${agentOf(thread)}`
-          : `New comment on the page · to ${agentName()}`,
+        ? reading.words
+        : reading.says === "destination" && empty
+          ? `To ${recipient}`
+          : `${where} · to ${recipient}`,
     );
     keepsText(
       contextKeys,

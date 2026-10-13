@@ -3,8 +3,8 @@
  * owns progress, assignments, report age and stopped-work meaning independently
  * of how a dashboard composes those facts. */
 import { declarationFor, layerFact, registry } from "./registry.js";
-import { readQuestions } from "./questions/model.js";
-import { asksIn } from "./questions/place.js";
+import { readAsks } from "./asks/model.js";
+import { asksIn } from "./asks/place.js";
 import { elementById } from "./passages.js";
 import { quietSince } from "./presence.js";
 import { quoted } from "./widget-descriptors.js";
@@ -185,10 +185,8 @@ export function readWork(scope) {
     return readings.get(element);
   };
   // An ask stops work only while it waits on the user; one they left with the agent
-  // does not (questions/place.js).
-  const open = readQuestions().user.filter(
-    (question) => question.source.kind === "widget",
-  );
+  // does not (asks/place.js).
+  const open = readAsks().user.filter((ask) => ask.source.kind === "widget");
   const goals = workElements(scope, "goal").map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workElements(scope, "worker").map((worker) =>

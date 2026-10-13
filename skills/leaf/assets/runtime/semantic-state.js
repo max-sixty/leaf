@@ -44,14 +44,14 @@ export const attachWidgetPresentation = (widget, kind, renderer) =>
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
-// thread resolves its passages over the nodes that leaves, the Question view resolves
+// thread resolves its passages over the nodes that leaves, the ask view resolves
 // the widget nodes those passages placed, and the Questions panel formats the canonical
 // answers against those source nodes. Declaring the order here is what lets
 // every publisher simply publish.
 export const PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
-  questions: 2,
+  asks: 2,
   queue: 3,
 });
 

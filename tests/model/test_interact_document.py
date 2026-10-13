@@ -2810,7 +2810,7 @@ def test_a_value_an_earlier_leaf_wrote_reads_as_that_sources_error(page_dir):
 
 
 def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir):
-    """A Question retains its source identity under an authored context wrapper.
+    """An ask retains its source identity under an authored context wrapper.
     The nested widget remains the canonical answer owner."""
     opts = """<lf-options id="g1" choose>
       <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
@@ -3743,9 +3743,7 @@ def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkey
         assert artifact_model.read_revision(page_dir, revisions[0]) is not readings[0]
 
 
-def test_question_history_survives_parse_eviction_and_new_revisions(
-    page_dir, monkeypatch
-):
+def test_ask_history_survives_parse_eviction_and_new_revisions(page_dir, monkeypatch):
     """A retry or new version reuses completed historical registration work.
 
     A history larger than the parse cache used to parse every predecessor on every
@@ -3786,7 +3784,7 @@ def test_question_history_survives_parse_eviction_and_new_revisions(
                 page_dir, revision
             ),
         )
-        return WorkReading(events, reading.registry, page).document.questions
+        return WorkReading(events, reading.registry, page).document.asks
 
     with fresh_process():
         initial = read()
@@ -4200,7 +4198,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
 
 
 def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
-    """An action admitted by an earlier Leaf keeps standing, and keeps its Question
+    """An action admitted by an earlier Leaf keeps standing, and keeps its ask
     answered, under a Leaf that records the same operation's definition with other
     fields. Before #2329 the definition carried `update`, the verb flag now
     named `text`; matching every recorded field dropped each decision on a page

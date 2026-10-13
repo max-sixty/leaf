@@ -59,6 +59,18 @@ def leaf_versions(page_dir: Path) -> list[Finding]:
 
 
 def _check(page_dir: Path, render: bool, as_json: bool) -> int:
+    from leaf.event_contracts import write_refusal
+
+    # A page this Leaf can neither serve nor write passes no check of its source: the
+    # re-vendor that repairs it comes first (`layer.incompatible_layer`).
+    if refusal := write_refusal(page_dir):
+        if as_json:
+            found = Finding("invalid-registry", values={"error": refusal})
+            report = {"status": 1, "findings": [found.json()], "browser": None}
+            print(json.dumps(report, ensure_ascii=False))
+        else:
+            print(f"Error: {refusal}", file=sys.stderr)
+        return 1
     events = read_events(page_dir)
     result = check_source(page_dir, events)
     errors = result.errors

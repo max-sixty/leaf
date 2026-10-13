@@ -1,13 +1,13 @@
 /* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says
- * are one Question. */
+ * are one ask. */
 :scope:is(lf-ask) { display: block; }
 /* An Ask whose evidence includes a figure (its heading first, a chart, image, table
  * or shot after it, and one option list last) outruns a window when its options stack:
  * the cards land below the figure they turn on, one under another. It asks its option
  * list to lay them across instead (`--lf-options-across`, said on the Ask and read by
- * its own children; options.css), so as many cards as the Question's width holds stand
+ * its own children; options.css), so as many cards as the ask's width holds stand
  * side by side under the evidence, and they stack where only one fits.
  * The content decides, so there is no attribute for it: an Ask of words alone keeps its
  * cards reading down, since there the cards are most of what the reader weighs.

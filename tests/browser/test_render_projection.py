@@ -7310,7 +7310,7 @@ def test_atlas_input_is_trimmed_before_it_enters_the_record(browser, serve):
     assert edit["detail"]["value"].count("[redacted]") == 2
     page.locator("#atlas-record .lf-activity-news").click()
     saved = page.locator("#atlas-record .lf-activity-row").first
-    expect(saved).to_contain_text("You edited")
+    expect(saved).to_contain_text("Me edited")
     expect(saved.locator('a[href="#ledger-cargo"]')).to_have_count(1)
     expect(page.locator('[data-atlas-count="stopped"]')).to_have_text("4")
     expect(page.locator("#ledger-variance")).to_have_attribute("status", "planned")
@@ -7496,7 +7496,7 @@ def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve):
     assert line.bounding_box()["y"] == pytest.approx(before["y"], abs=0.5)
     control.click()
     expect(
-        page.locator("#feed .lf-activity-row", has_text="You resolved")
+        page.locator("#feed .lf-activity-row", has_text="Me resolved")
     ).to_have_attribute("data-lf-undone", "")
     assert control.bounding_box() == trigger
     before_revision = line.bounding_box()

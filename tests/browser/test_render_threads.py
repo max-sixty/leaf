@@ -867,6 +867,22 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     )
     expect(line).to_have_attribute("data-lf-live", "")
     expect(line.get_by_role("button")).to_have_count(0)
+    # A step is a line: a long one keeps the working message's box, so nothing below
+    # it moves while the reader is there.
+    height = line.evaluate("node => node.getBoundingClientRect().height")
+    steps.append(
+        thread_model.post_reply(
+            serve.page_dir,
+            {"to": root, "for": root},
+            "Comparing the lighter weight against every banner the gallery shows, "
+            "at each width the panel takes, before and after the change.",
+            ephemeral=True,
+            identity=codex,
+        )
+    )
+    told(page)
+    expect(line.locator(".lf-thread-working-words")).to_contain_text("Comparing")
+    assert line.evaluate("node => node.getBoundingClientRect().height") == height
     for step in steps:
         expect(thread.locator(f'.lf-msg[data-mid="{step["id"]}"]')).to_be_hidden()
 
@@ -880,7 +896,7 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     expect(line).to_have_count(0)
     expect(thread.locator(f'.lf-msg[data-mid="{answer["id"]}"]')).to_be_visible()
     expect(
-        thread.get_by_role("button", name="Show 2 progress messages", exact=True)
+        thread.get_by_role("button", name="Show 3 progress messages", exact=True)
     ).to_be_visible()
 
 

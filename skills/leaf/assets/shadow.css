@@ -430,7 +430,9 @@ summary {
   max-inline-size: 100%;
   font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
   color: var(--lf-working-dim);
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
   color: transparent;

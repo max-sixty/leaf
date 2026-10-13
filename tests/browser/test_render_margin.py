@@ -10007,9 +10007,7 @@ def test_a_touch_sample_with_no_clear_pin_seat_keeps_its_receipt_in_page_map(
     )
     page = open_page(browser, serve(source), context=context)
     frame = page.frame_locator("#practice iframe")
-    status = frame.locator(
-        '.lf-margin-entry[data-lf-kinds="sent"]'
-    )
+    status = frame.locator('.lf-margin-entry[data-lf-kinds="sent"]')
     expect(status).to_be_hidden()
     frame.locator(".lf-banner-more").tap()
     frame.locator(".lf-page-map-toggle").tap()

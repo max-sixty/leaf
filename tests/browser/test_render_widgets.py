@@ -5423,9 +5423,9 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     # changed words, but it must travel with the card and remain actionable.
     card = page.locator("#card-heater").evaluate(box)
     stands = row.evaluate(box)
-    assert card["top"] - 5 <= stands["top"] and stands["bottom"] <= card["bottom"] + 5, (
-        "the row must travel with the moved card"
-    )
+    assert (
+        card["top"] - 5 <= stands["top"] and stands["bottom"] <= card["bottom"] + 5
+    ), "the row must travel with the moved card"
     assert card["left"] < stands["right"] <= card["right"] + 40, (stands, card)
     row.locator(".lf-sug-accept").click()
     expect(page.locator("#sug-in-card lf-old")).to_be_hidden()

@@ -115,15 +115,6 @@ following are the baseline, not proposed additions.
   sends empty user input and a structured `leaf_delivery` tool result. Desktop
   access and rendering remain unverified. Prove agent wake-up and exact
   input/reply identity while keeping automatic user-message text out of chat.
-- **#3 — Prevent superseded executions from closing continued work.** Leaf
-  already preserves the task when a session ends, and `task start` records a
-  later execution's session on the same task, plus its turn when it holds the
-  page claim. Reuse those starts rather
-  than adding a Pause state or a second attempt record. The missing guard is at
-  completion: [todos.py](../skills/leaf/scripts/leaf/todos.py) admits an end from
-  an older session after a newer start. A direct fold/admission probe confirmed
-  this case. Test competing continuations and prevent an obsolete execution's
-  delayed result from silently closing the continued work.
 - **#4 — Make finished task results easy to read.** The Queue panel already
   lists ended tasks under Done with their outcome. Their detail is in the row's
   native tooltip; show it as visible text or a disclosure usable by a finger.

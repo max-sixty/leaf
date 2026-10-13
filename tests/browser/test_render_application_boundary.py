@@ -1592,6 +1592,13 @@ def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve)
         """async () => {
           const list = document.querySelector('leaf-thread-list');
           const available = window.availableThreadReading;
+          const partial = {...available,
+            rows: [available.rows.find(row => row.kind === 'thread'),
+              {kind: 'empty', key: 'unavailable', text: 'Threads unavailable.'}],
+            count: null,
+          };
+          await list.present(partial);
+          list.commit(partial);
           await list.present(available);
           list.commit(available);
         }"""

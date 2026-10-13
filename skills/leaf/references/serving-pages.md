@@ -69,9 +69,11 @@ file.
 ## Re-vendoring and layer epochs
 
 A Leaf update leaves open pages served and writable until it changes the page
-protocol; then serving or writing the page refuses and tells the agent to update
-the page's Leaf runtime. Re-vendor the page from its owning session then, or to adopt
-a newer runtime, theme or package:
+protocol or retires a registry key the page's layer declares; then serving or
+writing the page refuses, and `leaf page state` reports the refusal as
+`source.error`, each naming the `leaf page init` that updates the page's Leaf
+runtime. Re-vendor the page from its owning session then, or to adopt a newer
+runtime, theme or package:
 
 ```bash
 leaf page init <page>

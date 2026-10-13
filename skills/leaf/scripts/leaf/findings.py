@@ -1664,6 +1664,16 @@ _TEXT = {
         " when it no longer applies"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
+    "todo-execution": lambda at, v: (
+        f"to-do {v['todo']!r} was last started by "
+        + (
+            f"session {v['session']!r}"
+            if v["session"] is not None
+            else "a sessionless command"
+        )
+        + f" (start {v['start']!r}); take it in hand with `leaf task start`"
+        " before ending it from another session"
+    ),
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
     "agents-todo": lambda at, v: (
         f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"

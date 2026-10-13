@@ -10,10 +10,12 @@ widget's tag in the page's `registry.json` when needed.
 
 When `source.live` is false, the candidate in `index.html` differs from the live
 revision and `source.error` says why; reconcile the candidate by stable id and content
-before editing. `data_bindings` names each external source and the widgets that read
-it, and `data/<source>.json` holds its publication; change its value with
-`leaf data set`. `leaf page state <page> <id>` narrows the reading to what the id
-names: a page widget's element, actions in force, asks and workflows, or a thread's
+before editing. Where `source.error` names `leaf page init`, this Leaf cannot serve or
+write the page as vendored, and the rest of the reading may misread it: run that
+command, then read the state again. `data_bindings` names each external source and
+the widgets that read it, and `data/<source>.json` holds its publication; change its
+value with `leaf data set`. `leaf page state <page> <id>` narrows the reading to what
+the id names: a page widget's element, actions in force, asks and workflows, or a thread's
 messages with their frozen HTML content, which changes only through that thread.
 
 ## Publish several authored files together

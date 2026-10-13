@@ -116,20 +116,20 @@ that manufactures the state to reach it.
 
 Whenever the user is to choose among designs for a visual or interaction
 question, whether options for a new interface, alternatives to a shipped one, or
-sketches they asked for, put the candidates in one playground, where the user
-compares them, tries the interactions needed to decide, comments, and submits a
-choice. The submitted configuration or feedback chooses the one implementation
-the change keeps. First look in the shipped examples and `notes/` for an
-exploration of the same surface, and extend its playground when it owns the same
-decision.
+sketches they asked for, show the candidates side by side in one ask, where the
+user compares them, tries the interactions needed to decide, comments, and
+selects the one to build. That selection, or the configuration a playground
+submits, chooses the one implementation the change keeps. First look in the
+shipped examples and `notes/` for an exploration of the same surface, and extend
+it when it owns the same decision.
 
-A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
+The exploration is one HTML file, like a standalone sketch. Write it under `.tmp/`
 and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
 page"), which builds the page from that file alone. Its CSS reads the live
 theme's tokens. Follow
 `<root>/skills/leaf/packages/playground/instructions/author.md` to choose the
-selection and exploration elements, present the candidates, and submit a task
-saying what to build.
+selection and exploration elements, present the candidates, and say what to
+build.
 
 For an existing-interface comparison, the property the user named defines which
 controls and states the survey covers. Find it in its defining code; it can

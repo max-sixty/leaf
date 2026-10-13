@@ -850,11 +850,7 @@ def restarting_server(page_dir: Path):
     next start or stop writes a record without it.
     """
     service = read_service(page_dir)
-    if (
-        service is None
-        and (page_dir / SERVICE_FILE).exists()
-        and lock_is_held(page_dir / SERVER_LOCK)
-    ):
+    if service is None and lock_is_held(page_dir / SERVER_LOCK):
         # A server runs over a record this version cannot read, as one an older Leaf
         # started does. It has no lifetime this version could bring back, so it
         # stops and stays stopped.

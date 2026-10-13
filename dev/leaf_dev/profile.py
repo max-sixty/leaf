@@ -28,7 +28,7 @@ import click
 from leaf_dev import ROOT
 from leaf_dev.arms import run_directory
 from leaf_dev.bench_latency import SOURCES, TRANSITIONS, served
-from leaf_dev.browser import chrome
+from leaf_dev.browser import headless_shell
 
 OUT = ROOT / ".tmp" / "profile"
 RUNS = 3
@@ -293,7 +293,7 @@ def profile(source: str, transition: str) -> None:
     runs = []
     with (
         tempfile.TemporaryDirectory(prefix="leaf-profile-") as scratch,
-        chrome() as browser,
+        headless_shell() as browser,
         served(browser, "head", ROOT, source, Path(scratch)) as session,
     ):
         for run in range(RUNS):

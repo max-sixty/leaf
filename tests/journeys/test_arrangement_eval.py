@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 import turbohtml
 from leaf.event_log import read_events
-from leaf.render_gate.browser import ending, launch_browser
+from leaf.render_gate.browser import ending
 from leaf.service import PageTransaction
 from leaf_dev import ROOT, arrangement_eval, arrangement_plain
 from leaf_dev import browser as browser_module
@@ -26,14 +26,13 @@ def arrangement_browser(_playwright, monkeypatch):
     """Use the worker's driver when another browser test has already started it."""
 
     @contextmanager
-    def chrome(**options):
-        browser, _ = launch_browser(_playwright, **options)
-        with ending(browser):
+    def headless_shell(**options):
+        with ending(_playwright.chromium.launch(**options)) as browser:
             yield browser
 
-    monkeypatch.setattr(arrangement_plain, "chrome", chrome)
-    monkeypatch.setattr(arrangement_eval, "chrome", chrome)
-    monkeypatch.setattr(browser_module, "chrome", chrome)
+    monkeypatch.setattr(arrangement_plain, "headless_shell", headless_shell)
+    monkeypatch.setattr(arrangement_eval, "headless_shell", headless_shell)
+    monkeypatch.setattr(browser_module, "headless_shell", headless_shell)
 
 
 def test_html_control_uses_browser_without_leaf_payload(tmp_path):
@@ -358,7 +357,7 @@ def test_reader_calibration_shows_the_judge_its_page_at_every_width(tmp_path):
 def test_reveal_opens_the_named_item_though_its_words_show_elsewhere(tmp_path):
     """A summary naming the comment's fact does not stand for the commented item:
     the capture opens the item, and leaves one already open as it is."""
-    from leaf_dev.browser import chrome, tab
+    from leaf_dev.browser import headless_shell, tab
     from leaf_dev.eval_user import reveal, shows
 
     (tmp_path / "index.html").write_text(
@@ -369,7 +368,7 @@ def test_reveal_opens_the_named_item_though_its_words_show_elsewhere(tmp_path):
     )
     with (
         arrangement_plain.serving(tmp_path) as url,
-        chrome() as browser,
+        headless_shell() as browser,
         tab(browser) as view,
     ):
         arrangement_plain.load(view, url)

@@ -23,7 +23,7 @@ from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
-from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts
+from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts, shell_executable
 from leaf_dev.page_fixtures import package_selection_args
 from playwright.sync_api import sync_playwright
 
@@ -708,60 +708,12 @@ def headless_shell():
 
     The run is a host, and names its browser the way one does, through
     LEAF_BROWSER_EXECUTABLE, so every leaf it runs draws with the build the `_browser`
-    fixture drives. Left unnamed, each `page check` that runs a page's code or takes
-    `--render` would launch the installed Google Chrome afresh: about three seconds
-    apiece, and on macOS about a second of the keychain daemon's CPU for each new
-    process, where the shell costs neither. A test whose subject is how a host that
-    named no browser gets one clears every variable (`test_render_commands`,
-    `unnamed_browser`).
-
-    Playwright reports where its full Chromium build would be whether or not that
-    build is installed, and the documented setup installs the shell alone
-    (tests/AGENTS.md, "Run what the change needs"). Both sit under one
-    registry root at one build number, so the shell's path follows from Chromium's;
-    where a developer installed the full build instead, that is the browser to hand
-    over and the same tests hold on it. The `chromium-<build>` directory is found by
-    name rather than by depth, because macOS nests the executable inside an app
-    bundle and Linux does not.
-
-    Asked in a subprocess because the answer is a path and the question is not free
-    here: a second `sync_playwright()` inside this process raises where the
-    session's `browser` fixture already holds one open, so which tests had run
-    first would decide whether the fixture worked."""
+    fixture drives (`leaf_dev.browser.shell_executable`). A test whose subject is how
+    a host that named no browser gets one clears every variable
+    (`test_render_commands`, `unnamed_browser`)."""
     if sys.platform == "linux":
         require_linux_fonts()
         os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
-    read = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            (
-                "from playwright.sync_api import sync_playwright\n"
-                "with sync_playwright() as p: print(p.chromium.executable_path)"
-            ),
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    chromium = Path(read.stdout.strip())
-    versioned = next(
-        (p for p in chromium.parents if p.name.startswith("chromium-")), None
-    )
-    if versioned is None:
-        raise AssertionError(f"{chromium} is not under a Playwright chromium build")
-    root, build = versioned.parent, versioned.name.rsplit("-", 1)[1]
-    shell = root / f"chromium_headless_shell-{build}"
-    shell_executables = sorted(shell.glob("*/chrome-headless-shell*")) + sorted(
-        shell.glob("*/headless_shell")
-    )
-    executable = next(
-        (str(c) for c in (*shell_executables, chromium) if c.is_file()), None
-    )
-    if executable is None:
-        raise AssertionError(
-            f"no Playwright Chromium under {root}; run `uv run playwright install "
-            "chromium --only-shell` (tests/AGENTS.md)"
-        )
+    executable = shell_executable()
     os.environ[browser_model.VARIABLE] = executable
     return executable

@@ -46,10 +46,12 @@ from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.hook_transport import DELIVERY_FIELD
+from leaf.render_gate import browser as browser_model
 from leaf.thread import successful_replies
 from leaf.todos import start_reading
 
 from leaf_dev import ROOT
+from leaf_dev.browser import shell_executable
 from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 # The uv project names this package's `pyproject.toml` as a workspace member, so uv
@@ -104,13 +106,18 @@ def environment(**extra: str) -> dict[str, str]:
     identity: its id, job directory, effort level and App Server endpoint. A `leaf`
     command would sign events as that session, and a child would use its transport
     and settings. An inherited LEAF_HOST_LAUNCHER would override the arm's launcher.
-    `CLAUDE_CONFIG_DIR` stays, since it names where the login lives."""
+    `CLAUDE_CONFIG_DIR` stays, since it names where the login lives.
+
+    A child names the pinned headless shell as its browser, as the suite does
+    (`shell_executable`), unless this process already named one."""
     env = {
         key: value
         for key, value in os.environ.items()
         if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV, "LEAF_HOST_LAUNCHER")
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
+    if browser_model.VARIABLE not in env:
+        env[browser_model.VARIABLE] = shell_executable()
     return {**env, **extra}
 
 

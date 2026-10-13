@@ -191,15 +191,21 @@ or a diagram declares its width, and `data-width` asks for one on any other bloc
 as a table, a trace or a playground ("Bounds and widths"). The
 prose keeps its axis around it.
 
-On a sidebar page or a workspace, every block, the title included, starts at one left
-edge and takes its region's width, while text keeps the reading measure, as does a
-widget read as text, such as an option list or a draft. A sidebar page is capped at the
-widest page and sets its title larger; a workspace takes the whole window and leaves its
-title to the theme.
+On a sidebar page, every block, the title included, starts at one left edge and takes
+its region's width, while text keeps the reading measure, as does a widget read as
+text, such as an option list or a draft. A sidebar page is capped at the widest page
+and sets its title larger.
 
-An `lf-ask` and a callout keep the reading measure in every Layout. Give the chart,
-table, playground or other surface inside one that needs more room its own
+On a column or sidebar page, an `lf-ask` and a callout keep the reading measure. Give
+the chart, table, playground or other surface inside one that needs more room its own
 `data-width`.
+
+A workspace takes the whole window and leaves its title to the theme. It sets no
+reading measure and no `wide` width, so every block, text included, fills the region it
+stands in, and `data-width` changes nothing. The page's grid sizes the regions: where
+one would hold prose wider than it reads well, narrow its track, or cap its blocks in
+the page's `<style>`, such as `#queue > lf-tab > * { max-inline-size: var(--wide); }`
+for a queue whose items each read top to bottom.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
 an ordinary rule adjusts it — a different track share, a gap, an order — and a page
@@ -338,9 +344,9 @@ in a scroller it did not make.
 
 An individual block or section may request a responsive allocation with
 `data-width="wide"` or `data-width="available"`, which overrides a widget's or idiom's
-default. `wide` uses the shared evidence width, `--wide`, in every Layout: past a
-column it grows to that width, and in a wider body or pane it holds to it at its
-start. A narrower frame still bounds it. `available` uses all room left by the page
+default. On a column or sidebar page, `wide` uses the shared evidence width, `--wide`:
+past a column it grows to that width, and in a wider body it holds to it at its start.
+A narrower frame still bounds it. `available` uses all room left by the page
 shell, frames, chrome, and a margin resident that takes its side, such as a sidebar
 standing in the margin or the contents map's spine; the markers beside it then stand as
 pins on it, and it moves below a note hanging level with it. A native `table` given

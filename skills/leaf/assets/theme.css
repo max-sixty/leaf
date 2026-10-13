@@ -397,10 +397,10 @@ main {
   }
   :where([data-lf-space=column]) {
     box-sizing: border-box;
-    --lf-reach: min(var(--lf-measure), var(--lf-room, 0px));
+    --lf-reach: min(var(--lf-measure, var(--lf-room, 0px)), var(--lf-room, 0px));
   }
   :where([data-lf-space=column]:has(> [data-lf-space=wide])) {
-    max-inline-size: max(var(--lf-measure), var(--wide));
+    max-inline-size: max(var(--lf-measure), var(--lf-wide-measure));
   }
   :where([data-lf-space=column]:has(> [data-lf-space=available])) {
     max-inline-size: none;

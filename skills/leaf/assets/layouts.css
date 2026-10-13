@@ -22,9 +22,12 @@
    * before the parser reaches `main`, so its rules read the Layout delivery repeats on
    * the root (`data-lf-layout`, revision_delivery.py) rather than `main`'s class, which
    * would hold the body at the browser's margin until then. On `main` it sets its gutter,
-   * its room above and below its blocks, whether its first and last blocks' margins
-   * trim, and the measure its text keeps (`--lf-measure`), which theme.css reads at the
-   * base layer, where a widget's own rule outranks it. */
+   * its room above and below its blocks, and whether its first and last blocks' margins
+   * trim. A document's Layout also sets the measure its text keeps (`--lf-measure`),
+   * which theme.css reads at the base layer, where a widget's own rule outranks it, and
+   * the width a `wide` block keeps (`--lf-wide-measure`, below). A workspace sets
+   * neither: the page's grid sizes its regions, and a block fills the region it stands
+   * in. */
   /* The pane role's grammar (theme.css, where its look and the rest of its contract
    * are): which row each child stands in, and a body held to the pane's width with no
    * margin of its own. It is not a Layout a page pulls on, but it resets what a widget
@@ -72,6 +75,7 @@
     padding-block: var(--page-pad-start) var(--page-pad-end);
     --lf-block-frame: trim;
     --lf-measure: var(--col);
+    --lf-wide-measure: var(--wide);
     --lf-width: min(var(--col), max(0px, 100cqi - 2 * var(--col-pad)));
     --lf-beside: calc((100cqi - var(--lf-width)) / 2);
     --lf-shift: var(--lf-column-shift, 0px);
@@ -280,14 +284,18 @@
        * its padding and border past it. */
       box-sizing: border-box;
     }
-    /* `wide` is one width wherever the block stands. The breakout above only grows a
-     * block past its holder, so in a holder already wider than `--wide`, such as a
-     * sidebar page's body or a workspace's pane, the block would take the holder's width; the
-     * cap holds it to the evidence width there, at the holder's start. A holder narrower
-     * than `--wide` still bounds it, and `available` is the width that takes everything. */
+    /* `wide` is one width wherever the block stands in a document, the one its Layout
+     * states (`--lf-wide-measure`). The breakout above only grows a block past its holder,
+     * so in a holder already wider than that, such as a sidebar page's body, the block
+     * would take the holder's width; the cap holds it to the evidence width there, at the
+     * holder's start. A holder narrower still bounds it, and `available` is the width
+     * that takes everything. Where no measure is stated, as in a workspace, there is no
+     * evidence width to align with, and a `wide` block reaches and fills its holder as
+     * `available` does: a board that is a workspace's body takes the window, not 1080px
+     * of it, and one in a grid cell keeps to the cell. */
     [data-lf-space="wide"] {
-      --lf-reach: min(var(--wide), var(--lf-room, 0px));
-      max-width: var(--wide);
+      --lf-reach: min(var(--lf-wide-measure, var(--lf-room, 0px)), var(--lf-room, 0px));
+      max-width: var(--lf-wide-measure, none);
     }
     [data-lf-space="available"] {
       --lf-reach: var(--lf-room, 0px);
@@ -358,7 +366,7 @@
       }
       main.layout-column table[data-lf-space="wide"]:not(
         :is([data-lf-space="wide"], [data-lf-space="available"]) table, [data-lf-arranged]) {
-        --lf-table-span: min(var(--wide),
+        --lf-table-span: min(var(--lf-wide-measure),
           var(--lf-width) + 2 * min(var(--lf-free-l), var(--lf-free-r)));
       }
       :is(main.layout-column, main.layout-column *):dir(rtl)
@@ -383,7 +391,7 @@
       main.layout-column[data-lf-margin~="sidebar"]
         table[data-lf-space="wide"]:not(
         :is([data-lf-space="wide"], [data-lf-space="available"]) table, [data-lf-arranged]) {
-        --lf-table-span: min(var(--wide), var(--lf-width) + var(--lf-free-r));
+        --lf-table-span: min(var(--lf-wide-measure), var(--lf-width) + var(--lf-free-r));
       }
       :is(main.layout-column[data-lf-margin~="sidebar"],
         main.layout-column[data-lf-margin~="sidebar"] *):dir(rtl)
@@ -501,6 +509,7 @@
     padding-block: var(--page-pad-start) var(--page-pad-end);
     --lf-block-frame: trim;
     --lf-measure: var(--col);
+    --lf-wide-measure: var(--wide);
     max-width: var(--wide-page-max);
     margin-inline: auto;
     --lf-room: 100%;
@@ -586,7 +595,6 @@
     padding-inline: 12px;
     padding-block: var(--sp-2) var(--page-pad-end);
     --lf-block-frame: trim;
-    --lf-measure: var(--col);
     --lf-room: 100%;
   }
   /* The header takes the window's height before the panes do, so it is one row: the

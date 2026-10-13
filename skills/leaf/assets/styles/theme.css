@@ -933,9 +933,10 @@ main {
 @property --map { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --note { syntax: "<length>"; inherits: true; initial-value: 0px; }
-/* The column: the reading measure, and the one rule that applies it. A page Layout
- * states its measure (`--lf-measure`, layouts.css); a page with no Layout states none,
- * and its lines run as the browser runs them. Where a measure is stated, text keeps it
+/* The column: the reading measure, and the one rule that applies it. A document's
+ * Layout states its measure (`--lf-measure`, layouts.css); a workspace, whose regions
+ * the page's grid sizes, and a page with no Layout state none, and there a line runs to
+ * the edge of the box it stands in. Where a measure is stated, text keeps it
  * wherever it stands: a paragraph, a list item or a heading is never set wider than the
  * column, however wide the box around it. So does a block allocated the column
  * (`data-lf-space="column"`): a widget whose content is read as lines of text, or a box
@@ -957,7 +958,7 @@ main {
    * to the column and scrolls inside it. */
   :where([data-lf-space="column"]) {
     box-sizing: border-box;
-    --lf-reach: min(var(--lf-measure), var(--lf-room, 0px));
+    --lf-reach: min(var(--lf-measure, var(--lf-room, 0px)), var(--lf-room, 0px));
   }
   /* A box allocated the column widens to the widest allocation among its own blocks, so
    * an Ask or a callout around a chart or table that declares `wide` or `available`
@@ -967,7 +968,7 @@ main {
    * a table in an option or a folded disclosure, is held to that child's width, so an
    * option list keeps the measure whatever one option holds. */
   :where([data-lf-space="column"]:has(> [data-lf-space="wide"])) {
-    max-inline-size: max(var(--lf-measure), var(--wide));
+    max-inline-size: max(var(--lf-measure), var(--lf-wide-measure));
   }
   :where([data-lf-space="column"]:has(> [data-lf-space="available"])) {
     max-inline-size: none;

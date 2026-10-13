@@ -1456,6 +1456,14 @@
         }
       }
 </style>
+<!-- alert-review.html authored styles -->
+<style>
+      /* Each alert is one decision read top to bottom, so it keeps the evidence width
+         rather than spreading its lines across a wide window. */
+      #ar-queue > lf-tab > * {
+        max-inline-size: var(--wide);
+      }
+</style>
 <!-- pr-walkthrough.html authored styles -->
 <style>
       @import url("/page/theme.css");
@@ -4297,7 +4305,7 @@ export const summarize = checks =>
           group="Mostly noise"
           summary="0 of 47 pages real"
         >
-          <lf-ask id="ar-canary-decision" data-width="wide">
+          <lf-ask id="ar-canary-decision">
             <h4>How should the canary probe page?</h4>
             <dl class="facts">
               <dt>Rule</dt>
@@ -4450,7 +4458,7 @@ export const summarize = checks =>
           group="Mostly noise"
           summary="0 of 18 pages real"
         >
-          <lf-ask id="ar-export-decision" data-width="wide">
+          <lf-ask id="ar-export-decision">
             <h4>What should happen during the nightly batch?</h4>
             <p>Finance reads the export at 07:00 UTC.</p>
             <dl class="facts">
@@ -4591,7 +4599,7 @@ export const summarize = checks =>
           group="Mostly noise"
           summary="1 of 3 pages real"
         >
-          <lf-ask id="ar-3ds-decision" data-width="wide">
+          <lf-ask id="ar-3ds-decision">
             <h4>Should one issuer's outage page us?</h4>
             <p>Per-issuer failure rates are already on the payments dashboard.</p>
             <dl class="facts">

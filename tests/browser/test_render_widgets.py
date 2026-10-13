@@ -1180,7 +1180,8 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
         page.unroute_all(behavior="wait")
     expect(page.locator("#root-tabs")).to_have_attribute("data-lf-tabs-flow", "page")
     assert twins("desktop") == first
-    assert first["in-wide"]["width"] > first["prose"]["width"], first
+    # Wider than the reading column, which a workspace's prose does not keep.
+    assert first["in-wide"]["width"] > 720, first
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     twins("panel open")

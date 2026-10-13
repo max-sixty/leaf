@@ -557,16 +557,22 @@ export function createMarginProjection({
         targetFor(candidate) === target &&
         candidate.offers.some((offered) => offered.key === owner),
     );
-    if (!entry || !entryHasMarginHost(entry)) return false;
-    if (expandedOptionsKey === entry.key && expandedOptionsOwner === owner) {
-      renderAnnotations.refresh();
-      const options = hosts.get(entry.key)?.options;
-      if (options?.isConnected && !options.hidden) return true;
-      expandedOptionsKey = null;
-      expandedOptionsOwner = null;
-    }
+    if (!entry || !entryHasMarginHost(entry)) return null;
+    // A preview can own this entry's disclosure. Closing it may retire that fold,
+    // so read the state to restore only after the preview has let it go.
+    if (card.selection()?.entry) closePreview();
+    const alreadyOpen = expandedOptionsKey === entry.key;
+    const previousOwner = alreadyOpen ? expandedOptionsOwner : null;
     setOptionsOpen(entry, true, { owner });
-    return true;
+    // The caller borrows this disclosure. Its release restores a fold already open
+    // on this entry, or closes the fold it opened. A later gesture can take ownership
+    // or move to another entry; releasing this borrow must leave that gesture alone.
+    return () => {
+      if (expandedOptionsKey !== entry.key || expandedOptionsOwner !== owner) return;
+      setOptionsOpen(alreadyOpen ? entry : null, alreadyOpen, {
+        owner: previousOwner,
+      });
+    };
   }
 
   function visibleMarginEntries() {
@@ -1690,9 +1696,6 @@ export function createMarginProjection({
       : null;
 
   const marginEntryChoices = (target) => clusterMarginEntries(marginEntryHost(target));
-  const unfoldedMarginEntries = () =>
-    expandedOptionsKey ? (hosts.get(expandedOptionsKey) ?? null) : null;
-  const foldMarginEntryOptions = () => setOptionsOpen(null, false);
   // The conversation accompanying a page target while no Thread holds focus.
   // Core reads held identity first, including inside widget shadow roots.
   const accompaniedThreadHere = () => {
@@ -1858,8 +1861,6 @@ export function createMarginProjection({
     },
     paintSelectedMarginEntries,
     marginEntryChoices,
-    unfoldedMarginEntries,
-    foldMarginEntryOptions,
     captureStanding,
     restoreStanding,
     mount,

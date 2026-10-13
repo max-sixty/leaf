@@ -6120,9 +6120,10 @@ def _each_aim_surface(page, page_dir):
     yield
     page.keyboard.press("Escape")
 
-    # Twice: the first press expands the shortcut bar, the second opens the reference.
+    # The first press can open the reference or expand the shortcut bar.
     page.keyboard.press("?")
-    page.keyboard.press("?")
+    if not page.locator(".lf-command-reference").is_visible():
+        page.keyboard.press("?")
     expect(page.locator(".lf-command-reference-command").first).to_be_visible()
     yield
 

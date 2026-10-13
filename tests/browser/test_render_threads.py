@@ -856,7 +856,7 @@ def test_pending_progress_is_the_threads_progress_line_and_never_unread(
     thread.locator(":scope > .lf-thread-summary").click()
     line = thread.locator(".lf-thread-progress")
     expect(line.locator(".lf-thread-progress-words")).to_have_text(
-        "Codex Trying a lighter weight"
+        "Codex · Trying a lighter weight"
     )
     expect(line).to_have_attribute("data-lf-live", "")
     for step in steps:

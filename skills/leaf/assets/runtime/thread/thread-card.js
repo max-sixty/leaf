@@ -265,15 +265,11 @@ export function threadReading(thread, surface, commands, options) {
 // progress messages it stands for. The line itself is the transcript's last child, so
 // it stands at the conversation's inset on every surface and scrolls with it.
 function progressView(progress, toggle) {
+  // Who, any stopped condition, and the step, run together as a message head's
+  // metadata is, with middle dots between.
+  const words = [progress.who, progress.condition, progress.words];
   return html`<span class="lf-thread-progress-words" aria-live="polite"
-      ><span class="lf-thread-progress-who">${progress.who}</span> ${
-        progress.condition
-          ? html`<span class="lf-thread-progress-condition"
-              >${progress.condition} ·</span
-            >`
-          : nothing
-      }
-      ${progress.words}</span
+      >${words.filter(Boolean).join(" · ")}</span
     >
     ${toggle}`;
 }

@@ -117,7 +117,8 @@ Broad discovery skips both later tiers; `--run-main` adds `browser/` and
 or `--lf` runs what it names.
 Both landing gates pass `--changed-since`, which adds the tests of either later tier
 whose own source the change edits; a test moved to another module or directory
-unchanged is no edit.
+unchanged is no edit. Tests marked `network` require an explicit selection or
+`--run-nightly`; broad discovery and `--changed-since` never add them.
 
 ### Without external network access
 

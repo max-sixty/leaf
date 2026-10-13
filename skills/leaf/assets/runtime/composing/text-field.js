@@ -42,8 +42,8 @@
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
  * a box wants more than one run of text there, such as a label and the key that sends.
- * It is drawn in `--lf-field-placeholder-ink`, the theme's muted ink unless the host
- * says otherwise, and a slotted child takes that ink too.
+ * It is drawn in the theme's muted ink; a box that wants another face for it styles
+ * `::part(placeholder)`, which a slotted child inherits.
  *
  * The editor lives while the element is in a document. A field removed and not put
  * back in the same task keeps its state and destroys its view, which releases the
@@ -130,7 +130,7 @@ sheet.replaceSync(`
      height whether it shows the plain words or a keyed hint. */
   .lf-field-placeholder { pointer-events: none; white-space: nowrap;
     contain: inline-size; overflow-x: clip; text-overflow: ellipsis;
-    color: var(--lf-field-placeholder-ink, var(--muted)); }
+    color: var(--muted); }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
   /* The trailing action's room, after the last word. A box too narrow for it on the
      word's line takes it on a line of its own, so the field grows rather than run a
@@ -408,6 +408,7 @@ class LeafText extends HTMLElement {
     this.#frame.className = "lf-field";
     this.#placeholderLayer.className = "lf-field-placeholder";
     this.#placeholderLayer.setAttribute("aria-hidden", "true");
+    this.#placeholderLayer.setAttribute("part", "placeholder");
     const hint = document.createElement("slot");
     hint.name = "placeholder";
     hint.append(this.#placeholderText);

@@ -150,18 +150,18 @@
     box-sizing: border-box;
     font: 14px / 22px var(--sans);
     --lf-field-end-room: 0px;
-    --lf-field-placeholder-ink: var(--lf-fp-quiet);
   }
   .lf-fp-box leaf-text[data-lf-focus] {
     outline: none;
   }
-  .lf-floating-panel[data-says=notice] .lf-fp-box leaf-text {
-    --lf-field-placeholder-ink: var(--lf-fp-muted);
+  .lf-fp-box leaf-text::part(placeholder) {
+    color: var(--lf-fp-quiet);
   }
-  .lf-floating-panel[data-says=notice] .lf-fp-box .lf-compose-placeholder {
+  .lf-floating-panel[data-says=notice] .lf-fp-box leaf-text::part(placeholder) {
+    color: var(--lf-fp-muted);
     font-weight: 500;
   }
-  .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-box .lf-compose-placeholder > span {
+  .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-box leaf-text::part(placeholder) {
     color: transparent;
     background:
       linear-gradient(
@@ -769,7 +769,7 @@
     .lf-floating-panel[data-rest=mark] :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
       animation: none;
     }
-    .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-box .lf-compose-placeholder > span {
+    .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-box leaf-text::part(placeholder) {
       animation: none;
       background: none;
       color: var(--lf-fp-quiet);
@@ -790,7 +790,7 @@
     .lf-fp-peek {
       border: 1px solid CanvasText;
     }
-    .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-box .lf-compose-placeholder > span {
+    .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-box leaf-text::part(placeholder) {
       animation: none;
       background: none;
       color: GrayText;

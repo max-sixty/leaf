@@ -293,26 +293,38 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     page = floating(browser, url)
     status = re.compile(r"^Agent working — Drafting the rollout")
     expect(field(page)).to_have_attribute("placeholder", status)
+    # The sheen runs on the field's placeholder, inside the field's closed tree, where
+    # no animation list reaches: the words it paints over turn to their gradient, and
+    # the field reads differently from one moment to the next.
     words = page.locator(".lf-fp-field .lf-compose-placeholder > span")
-    expect(words).to_have_text(status)
-    alpha = """node => {
-      const color = getComputedStyle(node).color;
-      const slash = color.match(/\\/\\s*([\\d.]+)\\)$/);
-      return slash ? Number(slash[1]) : 1;
-    }"""
-    expect(words).to_have_css("animation-name", re.compile("sheen"))
+    ink = """node => getComputedStyle(node).color"""
+
+    def sheen(running):
+        page.wait_for_function(
+            """running => (getComputedStyle(document.querySelector(
+              '.lf-fp-field .lf-compose-placeholder > span')).color
+              === 'rgba(0, 0, 0, 0)') === running""",
+            arg=running,
+        )
+
+    sheen(True)
+    box = page.locator(".lf-fp-field").bounding_box()
+    first = page.screenshot(clip=box)
+    page.wait_for_timeout(400)
+    assert page.screenshot(clip=box) != first, "the working status stands still"
     # Still under reduced motion, in a face well short of the ink words are written in.
     page.emulate_media(reduced_motion="reduce")
-    expect(words).to_have_css("animation-name", "none")
-    assert words.evaluate(alpha) < 0.5
+    sheen(False)
+    alpha = float(re.search(r"/\s*([\d.]+)\)$", words.evaluate(ink)).group(1))
+    assert alpha < 0.5, f"the resting status reads at {alpha:.0%} of ink"
     page.emulate_media(reduced_motion="no-preference")
-    expect(words).to_have_css("animation-name", re.compile("sheen"))
+    sheen(True)
 
     field(page).click()
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile("^Comment on the page")
     )
-    expect(words).to_have_css("animation-name", "none")
+    sheen(False)
     destination = page.locator(".lf-fp-dest")
     expect(destination).to_have_text("To Agent")
     page.keyboard.type("Could")
@@ -323,11 +335,11 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
 
     page.mouse.click(5, 5)
     expect(field(page)).to_have_attribute("placeholder", status)
-    expect(words).to_have_css("animation-name", re.compile("sheen"))
+    sheen(True)
     declare_idle(serve.page_dir)
     told(page)
     expect(field(page)).not_to_have_attribute("placeholder", status)
-    expect(words).to_have_css("animation-name", "none")
+    sheen(False)
 
 
 def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):

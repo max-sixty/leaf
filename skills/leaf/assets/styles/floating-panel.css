@@ -181,7 +181,6 @@
     /* Send and the microphone stand beside the words rather than over their end, so
        neither the words nor the status saying what the agent does keep room for them. */
     --lf-field-end-room: 0px;
-    --lf-field-placeholder-ink: var(--lf-fp-quiet);
   }
   .lf-fp-box leaf-text[data-lf-focus] {
     outline: none;
@@ -190,17 +189,18 @@
      status, a thread's turn, and, once the caret is in, where the words go. A passing
      notice is news, so it reads a step brighter until it passes. While the agent works,
      its status carries the sheen that marks work under way (chrome.css), from its own
-     dim face to ink and back, and stands still under reduced motion. */
-  .lf-floating-panel[data-says="notice"] .lf-fp-box leaf-text {
-    --lf-field-placeholder-ink: var(--lf-fp-muted);
+     dim face to ink and back. The face is the field's placeholder part, so it holds
+     whether the words come with a key drawn beside them or alone. */
+  .lf-fp-box leaf-text::part(placeholder) {
+    color: var(--lf-fp-quiet);
   }
-  .lf-floating-panel[data-says="notice"] .lf-fp-box .lf-compose-placeholder {
+  .lf-floating-panel[data-says="notice"] .lf-fp-box leaf-text::part(placeholder) {
+    color: var(--lf-fp-muted);
     font-weight: 500;
   }
   .lf-floating-panel[data-says="status"][data-tone="working"]
     .lf-fp-box
-    .lf-compose-placeholder
-    > span {
+    leaf-text::part(placeholder) {
     color: transparent;
     background: linear-gradient(
       110deg,
@@ -856,8 +856,7 @@
     }
     .lf-floating-panel[data-says="status"][data-tone="working"]
       .lf-fp-box
-      .lf-compose-placeholder
-      > span {
+      leaf-text::part(placeholder) {
       animation: none;
       background: none;
       color: var(--lf-fp-quiet);
@@ -880,8 +879,7 @@
     }
     .lf-floating-panel[data-says="status"][data-tone="working"]
       .lf-fp-box
-      .lf-compose-placeholder
-      > span {
+      leaf-text::part(placeholder) {
       animation: none;
       background: none;
       color: GrayText;

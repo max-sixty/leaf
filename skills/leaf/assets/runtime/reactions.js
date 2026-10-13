@@ -76,6 +76,7 @@ import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
 import { allThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
+import { annotationSelection } from "./annotation-inventory.js";
 
 const reactionVocabulary = () => registry.$reactions?.tokens ?? {};
 // The layer's reaction vocabulary, in declared order. The bar, a reply's strip, the
@@ -560,7 +561,13 @@ export function createReactionController({
     document.addEventListener("lf-margin-entry-options-closed", () => {
       if (reactArmed && reactSurface === marginSurface) setReact(false);
     });
-    watchProjection(document.body, () => {
+    // The margin's entries are drawn from the threads and the annotation inventory, so
+    // a change to either may retire or move the offer's target.
+    const marginSelection = (root) => ({
+      threads: root.effective.thread.all,
+      annotations: annotationSelection(root),
+    });
+    watchProjection(document.body, marginSelection, () => {
       if (
         reactArmed &&
         reactSurface === marginSurface &&

@@ -22,7 +22,7 @@ import { createProjectionPresentation } from "./projection/presentation.js";
 import { createUndo } from "./undo.js";
 import { createDataProjection } from "./projection/data.js";
 import { createThreadPresentation } from "./thread/presentation.js";
-import { createAnnotationInventory } from "./annotation-inventory.js";
+import { annotationSelection, createAnnotationInventory } from "./annotation-inventory.js";
 import { createAnnotationView } from "./annotation-view.js";
 import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
@@ -276,7 +276,7 @@ export function mountApplication(dependencies) {
     }
   });
   const mountAnnotations = () => {
-    watchProjection(document.body, renderAnnotations);
+    watchProjection(document.body, annotationSelection, () => renderAnnotations());
     document.addEventListener("lf-comparison", renderAnnotations);
     onPaper.addEventListener("change", () => {
       if (!onPaper.matches) renderAnnotations.refresh();

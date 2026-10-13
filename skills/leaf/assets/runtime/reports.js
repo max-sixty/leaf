@@ -54,7 +54,7 @@
    Raw report and history readings remain direct semantic selections. */
 import { watchProjection } from "./projection-watch.js";
 import { currentProjection } from "./projection/state.js";
-import { readApplication, projectionRegionsPresented } from "./semantic-state.js";
+import { projectionRegionsPresented } from "./semantic-state.js";
 
 import { runtime } from "./context.js";
 import { closestAcross } from "./passages.js";
@@ -95,10 +95,13 @@ export const saidAt = (el) =>
 // whether this is the complete ready application, so a retained mechanical reading
 // is never replaced by the empty preparation reading.
 export const watchHistory = (owner, callback) =>
-  watchProjection(owner, () =>
-    callback(structuredClone(runtime.browser?.history ?? []), {
-      ready: readApplication().phase === "ready",
+  watchProjection(
+    owner,
+    (root) => ({
+      history: root.authoritative?.browser.history ?? null,
+      ready: root.phase === "ready",
     }),
+    ({ history, ready }) => callback(structuredClone(history ?? []), { ready }),
   );
 
 // A report can speak only once the renderer of its widget and coordinate chrome
@@ -117,6 +120,10 @@ export const watchReports = (target, callback) => {
   };
   return watchProjection(
     target instanceof Element ? target : document.body,
+    (root) =>
+      (root.effective.view?.reports ?? []).filter(
+        (report) => key === null || targetKey(report.target) === key,
+      ),
     () => callback(reportSequence(target)),
     () => projectionRegionsPresented(reportWidgets()),
   );

@@ -15,7 +15,7 @@ export const queueItemKey = (item) => JSON.stringify([item.kind, item.id]);
 export const readQueues = () => readApplication().effective.queues;
 
 export function watchQueues(owner, callback) {
-  return watchProjection(owner, () => callback(readQueues()));
+  return watchProjection(owner, (root) => root.effective.queues, callback);
 }
 
 export function createQueueActions({ post, arrive }) {

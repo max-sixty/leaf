@@ -24,6 +24,15 @@ export function approvalBlockingQuestions() {
   return questions.all.filter((question) => blocking.has(question.id));
 }
 
+// What approval's control reads: the Questions, the ones holding approval, and the
+// shown document's stamp against the active revision.
+export const approvalSelection = (root) => ({
+  asks: root.effective.asks,
+  blocking: root.effective.view?.approval_blocking ?? null,
+  document: root.document,
+  active: root.authoritative?.active ?? null,
+});
+
 export function watchQuestions(owner, callback) {
-  return watchProjection(owner, () => callback(readQuestions()));
+  return watchProjection(owner, (root) => root.effective.asks, callback);
 }

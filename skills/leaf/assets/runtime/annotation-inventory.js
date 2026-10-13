@@ -44,6 +44,16 @@ import {
   toggleInlineComparison,
 } from "./version.js";
 
+// What the inventory reads from the semantic root: the Questions, the workflows its
+// entries report, the shown revision and the agent's to-dos. Threads reach it through
+// their presentation, which renders the annotations once it commits.
+export const annotationSelection = (root) => ({
+  asks: root.effective.asks,
+  workflows: root.effective.workflows,
+  revision: root.document.revision,
+  todos: root.authoritative?.browser.todos ?? null,
+});
+
 export function createAnnotationInventory({
   readQuestions,
   placedAt,

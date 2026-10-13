@@ -69,9 +69,9 @@ file.
 ## Re-vendoring and layer epochs
 
 A Leaf update leaves open pages served and writable until it changes the page
-protocol; then serving or writing the page refuses, naming the command that
-re-vendors it. Re-vendor the page from its owning session then, or to adopt a
-newer runtime, theme or package:
+protocol; then serving or writing the page refuses and tells the agent to update
+the page's Leaf runtime. Re-vendor the page from its owning session then, or to adopt
+a newer runtime, theme or package:
 
 ```bash
 leaf page init <page>

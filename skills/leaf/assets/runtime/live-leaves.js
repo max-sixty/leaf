@@ -3,7 +3,7 @@ import { clocked } from "./presence.js";
 import { pagePresented } from "./page-paint.js";
 import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { activityFacts } from "./banner.js";
+import { activityFacts, leafRow } from "./activity-words.js";
 import { rowWalk } from "./walk-position.js";
 
 let others = [];
@@ -42,42 +42,6 @@ export function declareLeavesKeys() {
     rowWalk({ id: "leaf", noun: "Page", plural: "pages", rows: othersLinks }),
     () => othersLinks().length > 0,
   );
-}
-
-// A row's whole account of a page: the dot's tone and one line of words, from an
-// canonical activity computed by each serving page. The wording is the seat's.
-function rowPresence(entry) {
-  const { kind, counts, detail } = entry.activity;
-  const facts = activityFacts(entry);
-  // The same join for both kinds that have words of their own. The user opens this
-  // panel to find which page needs them, so a bare `Awaits` beside a neighbour's
-  // `Working — recording the demo` said least about the one row they are here to act
-  // on: three pages waiting rendered as three identical rows, and which to go to
-  // first is the whole question the panel was opened to answer.
-  const stated = (word) => word + (detail ? " — " + detail : "");
-  // The banner's two silences, dated the same way and worded for a row.
-  const silence = `${facts.left ? "Left" : "Quiet"}${facts.silentSince ? ` (${facts.silentSince})` : ""}`;
-  const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
-  const primary =
-    kind === "working"
-      ? stated(work)
-      : kind === "listening"
-        ? facts.listening
-          ? stated("Listening")
-          : stated("Awaits")
-        : kind === "stalled"
-          ? stated(silence)
-          : kind === "away"
-            ? counts.overdue
-              ? silence
-              : "Away"
-            : kind === "unheld"
-              ? "No session"
-              : "Closed";
-  const line = facts.waiting.length
-    ? `${primary} · ${facts.waiting.join(" · ")}`
-    : primary;
-  return { tone: facts.tone, line };
 }
 
 // The whole of what the drawer knows about one page, for its hover. Everything drawn
@@ -128,7 +92,7 @@ function renderOthersNow(state) {
     : [];
   rows = Object.freeze(
     wanted.map(({ key, href, title, entry }) => {
-      const { tone, line } = rowPresence(entry);
+      const { tone, line } = leafRow(entry);
       return Object.freeze({
         key,
         self: key === "self",

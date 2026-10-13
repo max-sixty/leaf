@@ -26,7 +26,6 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import user_views as user_views_model
@@ -3826,8 +3825,8 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 def test_a_thread_says_what_the_agent_is_doing_about_it(
     browser, serve, tmp_path, dead_pid
 ):
-    """The banner says what the agent is doing; an exact message workflow says
-    which user question it is doing it about. A start updates both readings.
+    """An exact message workflow says which user question the agent is working on,
+    beside the banner's account of the page as a whole.
 
     A user with three questions open and no replies under any of them cannot tell a
     question being worked from a question nobody has looked at, and the page holds the
@@ -3883,14 +3882,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(other_workflow).to_have_text("Sent")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up my comment and hasn't said what it's doing yet"
-        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 to-do"
-        " (Work on the page)."
-    )
-    expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-        "Working · 1 response owed on updates awaiting delivery"
-    )
 
     # The agent finishes the earlier task and waits on the user.
     end_work(d)
@@ -3900,10 +3891,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert latent_waiting.exit_code == 0, latent_waiting.output
     told(page)
     expect(held_workflow).to_have_text("Picked up")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up my comment and hasn't said what it's doing yet"
-        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies."
-    )
 
     cleanup_model.close_session_turn("s")
     told(page)
@@ -3912,13 +3899,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "data-lf-agent-workflow", re.compile(".+")
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
-    # The turn ended with both updates still the agent's to answer, so they are overdue
-    # and the remedy is the user's.
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude last checked in just now. Updates are saved. "
-        "Nothing is answering them, so nudge it in the terminal."
-        " Waiting on Claude: 2 replies."
-    )
     cleanup_model.open_session_turn("s")
 
     def start(item, line):
@@ -3992,12 +3972,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
     # A later start on the page's own task is not an answer to the thread, so the
-    # thread's line stands while the banner takes the newer one.
+    # thread's line stands.
     working(d, "drafting v2")
     told(page)
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^\s*Claude is working — drafting v2")
-    )
     expect(held_workflow).to_have_count(1)
     expect(held_workflow).to_have_attribute(
         "title", "Working · reading the reconnect traces"
@@ -4071,98 +4048,29 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(workflows).to_have_count(1)
     record_claim(d, id="s", pid=dead_pid)
     told(page)
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^\s*No session holds this page\.")
-    )
     expect(held_thread.locator(".lf-thread-status")).to_have_text("To-do open")
     expect(workflows).to_have_count(1)
 
 
-def test_a_workflow_and_the_banner_share_agent_activity(browser, serve):
-    """Exact delivery keeps its workflow while page work retains the independently
-    declared overall state, then falls back to generic work when that declaration
-    waits. The page's open Ask ends the banner's disclosure, after the activity it
-    shares."""
-    source = LONG_PAGE.replace(
-        "</main>",
-        "<lf-ask id='ship-ask'><h2>Ship now?</h2><lf-options id='ship' choose>"
-        "<lf-option id='ship-now'>Now</lf-option>"
-        "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-ask></main>",
-    )
-    page = open_page(browser, serve(source))
-    page_dir = serve.page_dir
-    comment = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Does the banner agree with this workflow?",
-        },
-    )
-    record_claim(page_dir, id="workflow", pid=os.getpid(), agent="Claude")
-    declare_work(page_dir, "Writing the page")
-    with service_model.PageTransaction(page_dir) as transaction:
-        delivery_model.record_pickup(transaction, [comment])
+def test_the_banner_and_the_leaves_row_say_the_served_activity(browser, serve):
+    """The served activity reaches the banner's row, its disclosure and dot, and this
+    page's row in the leaves drawer. What each says for every reading is
+    `tests/runtime/activity-words.test.mjs`'s, and which reading a log and claim come
+    to is `tests/model/test_activity.py`'s."""
+    page = open_page(browser, serve(LONG_PAGE))
+    record_claim(serve.page_dir, id="s", pid=os.getpid(), agent="Claude")
+    declare_work(serve.page_dir, "Writing the page")
     told(page)
-
-    page.keyboard.press("c")
-    workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] .lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
+    expect(page.locator(".lf-status-text")).to_have_text(
+        "Claude working — Writing the page"
     )
-    expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(
-            r"^\s*Claude is working — Writing the page \(just now\)\. Waiting on me"
-        )
+        re.compile(r"^\s*Claude is working — Writing the page \(just now\)\.")
     )
-
-    end_work(page_dir)
-    session_model.cmd_waiting(page_dir, "review the page")
-    told(page)
-    expect(workflow).to_have_text("Picked up")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(
-            r"^\s*Claude picked up my comment and hasn't said what it's doing yet"
-            r" \(just now\)\. Waiting on me"
-        )
+    expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"\bworking\b"))
+    expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
+        "Working — Writing the page"
     )
-
-
-def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
-    browser, serve
-):
-    page = open_page(browser, serve(LONG_PAGE, comments=1))
-    page_dir = serve.page_dir
-    [comment] = [
-        event
-        for event in events_model.read_events(page_dir)
-        if event["kind"] == "comment"
-    ]
-    claim = record_claim(page_dir, id="s", pid=os.getpid(), agent="Claude")
-
-    with live_watcher(page_dir, page):
-        with service_model.PageTransaction(page_dir) as transaction:
-            delivery_model.record_pickup(transaction, [comment])
-            cleanup_model.close_session_turn(claim["id"])
-        result = CliRunner().invoke(
-            cli_model.cli,
-            ["status", str(page_dir), "waiting", "pick a storage engine"],
-        )
-        assert result.exit_code == 0, result.output
-        told(page)
-
-        # The picked-up comment still owes its reply, which the row counts.
-        expect(page.locator(".lf-status-text")).to_have_text(
-            "Claude awaits — pick a storage engine"
-        )
-        expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
-        expect(page.locator(".lf-status-detail")).to_have_text(
-            "Claude awaits — pick a storage engine. Waiting on Claude: 1 reply."
-        )
-        expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-            "Awaits — pick a storage engine"
-        )
 
 
 def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serve):

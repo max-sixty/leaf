@@ -282,7 +282,8 @@ export default class extends HTMLElement {
   // on a control.
   #standsInPreview() {
     let at = focused(document);
-    if (!this.#preview.contains(at) || at.closest("lf-playground-control")) return false;
+    if (!this.#preview.contains(at) || at.closest("lf-playground-control"))
+      return false;
     // A sample's frame holds focus for its child page, which may stand on nothing.
     while (at?.contentDocument) at = at.contentDocument.activeElement;
     if (at?.localName === "iframe")

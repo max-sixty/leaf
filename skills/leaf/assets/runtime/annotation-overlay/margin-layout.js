@@ -623,6 +623,21 @@ function partsOf(target) {
 // pin counts whole, so the pane's scroll never moves the pin's seat.
 const OPAQUE = "img, svg, canvas, video, iframe, object, embed";
 
+// Every control in a shadow host's composed subtree: its own children, slotted or not,
+// and every shadow tree beneath it.
+function controlsIn(host) {
+  const found = [];
+  const visit = (root) => {
+    for (const el of root.querySelectorAll("*")) {
+      if (el.matches(TAB_STOP)) found.push(el);
+      if (el.shadowRoot) visit(el.shadowRoot);
+    }
+  };
+  visit(host.shadowRoot);
+  visit(host);
+  return found;
+}
+
 function coverIn(root, band, target, bands, stop) {
   const cover = [];
   const controls = [];
@@ -656,8 +671,9 @@ function coverIn(root, band, target, bands, stop) {
         const shown = clippedBand(node, box, bands, stop);
         if (shown) cover.push(shown);
         if (shown && control) controls.push(shown);
-        // A widget's own buttons stand in its shadow tree, out of the walk's reach.
-        for (const inner of node.shadowRoot?.querySelectorAll(TAB_STOP) ?? []) {
+        // A widget's own buttons stand in its shadow tree, or are slotted into it, out
+        // of the walk's reach.
+        for (const inner of node.shadowRoot ? controlsIn(node) : []) {
           if (!inner.checkVisibility()) continue;
           const part = clippedBand(inner, inner.getBoundingClientRect(), bands, stop);
           if (part) controls.push(part);

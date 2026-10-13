@@ -169,6 +169,14 @@ test("with no clear seat, a pin stands over words but keeps off a control", () =
     seatOf(pin({ cover: buttons, controls: buttons })).get("card").rect,
     box(252, 100, 296, 144),
   );
+  // A corner past the bounds' foot is brought inside them before it slides.
+  const low = [box(300, 86, 386, 130)];
+  assert.deepEqual(
+    seatOf(pin({ cover: low, controls: low, bounds: box(4, -Infinity, 386, 130) })).get(
+      "card",
+    ).rect,
+    box(252, 86, 296, 130),
+  );
   // With no room left of them either, the pin keeps its corner, over the controls.
   const across = [box(4, 40, 386, 150)];
   assert.deepEqual(

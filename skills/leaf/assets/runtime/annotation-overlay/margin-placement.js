@@ -175,12 +175,12 @@ export function seatRows(pins, { gap, occupied = [] }) {
     const seatsNow = folded ? fold.seats : pin.seats;
     const boundsNow = folded ? foldBounds : pin.bounds;
     const pressed = [...pin.controls, ...seated];
-    const aside = slid(seatsNow[pin.corner], pressed, gap, "left", boundsNow.left);
+    const corner = boundedHome(seatsNow[pin.corner], boundsNow);
+    const aside = slid(corner, pressed, gap, "left", boundsNow.left);
     rect ??=
       leastCovering(seatsNow, pin.cover, pressed, boundsNow) ??
       (aside && inside(aside, boundsNow) ? aside : null);
     if (!rect) {
-      const corner = boundedHome(seatsNow[pin.corner], boundsNow);
       const push = packRows([{ key: pin.key, rect: corner }], gap, seated).get(pin.key);
       const below = { ...corner, top: corner.top + push, bottom: corner.bottom + push };
       rect = inside(below, boundsNow) ? below : corner;

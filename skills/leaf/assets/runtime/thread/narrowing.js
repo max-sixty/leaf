@@ -32,7 +32,7 @@
    presentation only while no newer user gesture has chosen another reading place. */
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsUser } from "./model.js";
-import { agentName } from "../semantic-state.js";
+import { agentLabel, agentName } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
 
@@ -50,9 +50,7 @@ const FACETS = Object.freeze([
   ]),
   group("waiting", "Waiting on", [
     choice("waiting", "user", "Me", "lf-needs"),
-    choice("waiting", "agent", () =>
-      agentName().replace(/^./, (first) => first.toUpperCase()),
-    ),
+    choice("waiting", "agent", agentLabel),
   ]),
   group("scope", "Location", [
     choice("scope", "page", "Page"),

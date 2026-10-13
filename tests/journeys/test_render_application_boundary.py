@@ -1281,7 +1281,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     # One reply answers both prose Questions. Counts include them, while the
     # compact answer summary names only widget choices instead of repeating prose.
     expect(workspace.locator(".counts")).to_have_text(
-        "0 asks on you · 3 answered · Email"
+        "0 asks on me · 3 answered · Email"
     )
     with sending(page, "create a real conversation from a package"):
         workspace.get_by_role("textbox", name="New conversation").fill(

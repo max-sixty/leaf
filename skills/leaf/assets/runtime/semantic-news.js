@@ -11,6 +11,7 @@
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it. */
+import { agentLabel } from "./semantic-state.js";
 import { moved } from "./thread/model.js";
 
 const identity = (record) => record.attempt ?? record.id;
@@ -230,6 +231,6 @@ export function semanticNewsNotice(news) {
         ? "Input needed"
         : `${plural(obligations.length, "item")} waiting on me`,
     );
-  if (availability.length) clauses.push("Agent active on this page");
+  if (availability.length) clauses.push(`${agentLabel()} active on this page`);
   return clauses.join("; ");
 }

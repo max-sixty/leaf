@@ -836,6 +836,22 @@ def annotation_mode(document: SourceDocument) -> str:
     return element_attrs(body).get("data-annotations", "overlay") if body else "overlay"
 
 
+def page_layout(document: SourceDocument):
+    """The `layout-` names the document's `main` carries (`layout-column` is `column`),
+    space-separated, or None.
+
+    A Layout's class is on `main`, which the parser reaches after it has begun painting
+    the body, so delivery repeats it on the root for the Layout's own body rules
+    (layouts.css) to read before the first paint. Every name goes across, since a
+    block's own (`layout-tiles`) can stand on `main` beside the page's."""
+    main = document.tree.select_one("body > main")
+    tokens = main.attrs.get("class", []) if main else []
+    names = [
+        name for token in tokens if (name := token.removeprefix("layout-")) != token
+    ]
+    return " ".join(names) or None
+
+
 def review_mode(document: SourceDocument):
     """The review decision one document declares, or None."""
     return next(

@@ -321,11 +321,7 @@ export function floatingPlacement({ floating, update }) {
           lengthX,
           edges.x === "left" ? at.x : block.width - at.x,
         ),
-        [edges.y]: from(
-          "top",
-          lengthY,
-          edges.y === "top" ? at.y : block.height - at.y,
-        ),
+        [edges.y]: from("top", lengthY, edges.y === "top" ? at.y : block.height - at.y),
       });
       lastAnchorStand = {
         frame,

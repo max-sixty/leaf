@@ -1801,7 +1801,7 @@ def test_export_prints_threads_and_versions(page_dir):
         FLOW_PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
         .replace(
             '<lf-diagram id="flow">',
-            '<lf-diagram id="flow" parts="node:A node:B">',
+            '<lf-diagram id="flow" parts="all">',
         )
         .replace("<lf-options>", '<lf-options id="plan-options">')
     )

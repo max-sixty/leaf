@@ -32,8 +32,9 @@ actually changed; identical saves leave the browser and server alone. A source o
 (a vendored file, the runtime's Python, its lock)
 re-vendors through `page init`, which mints a new layer generation the browser follows
 into a fresh document. A refused update is printed and retried after the next edit.
-User previews install fixture history and data only when their slot is created;
-choose another slot to try a different fictional seed.
+Fixture history, data and earlier versions initialize a fresh slot. Live updates
+follow current markup, page-owned files, media and the runtime; restarting a user
+preview preserves the history and data its page already holds.
 
     uv run leaf-dev preview [EXAMPLE] [--source FILE] [--runtime CHECKOUT]
         [--slot NAME] [--user] [--export]
@@ -66,14 +67,13 @@ from leaf.refusals import Refused
 from leaf.schema import BROWSER_DIRS, VENDORED_FILES
 
 from leaf_dev import ROOT
-from leaf_dev.example_data import named_source, page_files, prior_version_files
+from leaf_dev.example_data import named_source, page_files
 from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
 from leaf_dev.leaf_assets import assets_lock
 from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
     authored_markup,
     composition_inputs,
-    fixture_history,
     import_referenced_media,
     media_source,
     package_selection_args,
@@ -178,22 +178,14 @@ def mark_preview(
     """
     from leaf.state import write_json
 
-    layer = json.loads((page / "registry.json").read_text(encoding="utf-8"))["$layer"]
-    producer = layer.get("producer", {})
     write_json(
         page / "preview.json",
         {
-            "kind": "example",
             "example": source.stem,
             "checkout": runtime.name,
             "interaction": "user" if user else "author",
             "started": datetime.now(UTC).isoformat(),
             "input": {"source": fixture_identity(source), "authored": authored},
-            **{
-                key: producer[key]
-                for key in ("commit", "dirty", "committed", "installed")
-                if key in producer
-            },
         },
     )
 
@@ -257,15 +249,6 @@ def refresh_media(source: Path, page: Path, run_leaf) -> None:
         run_leaf,
         source=source,
     )
-
-
-def digest(path: Path) -> str | None:
-    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
-
-
-def fixture_seed(source: Path) -> dict:
-    """Seed history is installed once, never replayed over user feedback."""
-    return {str(path): digest(path) for path in fixture_history(source)}
 
 
 def refused(reason) -> bool:
@@ -438,10 +421,6 @@ def refresh_preview(
     source edit over competing authored inputs is refused rather than replacing
     them. A refused stamp restores the previous mutable inputs as well.
     """
-    if not service.user and fixture_seed(source) != state["seed"]:
-        return refused(
-            "seeded history changed; restart this claimless preview to rebuild its fixture"
-        )
     try:
         incoming = incoming_files(source)
         incoming_digest = authored_digest(incoming)
@@ -535,7 +514,7 @@ class Watched(NamedTuple):
         return not self.trees.isdisjoint((candidate, *candidate.parents))
 
 
-def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> Watched:
+def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     """The inputs one preview follows (`paths`).
 
     Every path is resolved: `input_paths` answers in resolved paths, so a package
@@ -570,8 +549,6 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
             *companions.rglob("*"),
             *source_manifest_candidates(source),
             manifest or DEFAULT_PACKAGES,
-            *(Path(path) for path in seed),
-            *prior_version_files(source),
             # A pinned copy's bytes change only with its pin, which is followed
             # instead, and it sits under `.tmp`, which no subscription may cover.
             *(() if media.is_relative_to(ASSETS_CACHE) else media.rglob("*")),
@@ -584,7 +561,6 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
     }
     discovering = {
         companions,
-        source.parent / "versions",
         source.parent / "media",
         *([manifest.parent / "media"] if manifest is not None else []),
     }
@@ -714,7 +690,6 @@ def serve_preview(
     # Fixture progress is distinct from the page's own authored inputs: an agent
     # may have revised those while this watcher was absent.
     state = {
-        "seed": fixture_seed(source),
         "authored": authored_digest(incoming_files(source)),
     }
     resumed = user and page.exists()
@@ -760,7 +735,7 @@ def serve_preview(
         roots = layer_inputs(
             tuple(read_json(page / "registry.json")["$layer"]["packages"])
         )
-        watched = watch_paths(source, runtime, roots, state["seed"])
+        watched = watch_paths(source, runtime, roots)
         changes = watch_changes(watched)
         if handshake is not None and not handshake.announce({"url": url}):
             return
@@ -796,7 +771,7 @@ def serve_preview(
                 # An added input is only in the reading taken after it arrived, and a
                 # deleted one only in the reading taken while it was still there.
                 if not reported & watched.paths:
-                    current = watch_paths(source, runtime, roots, state["seed"])
+                    current = watch_paths(source, runtime, roots)
                     if not reported & current.paths:
                         continue
             refreshed = refresh_preview(source, page, launcher, runtime, state, service)
@@ -806,7 +781,7 @@ def serve_preview(
             roots = layer_inputs(
                 tuple(read_json(page / "registry.json")["$layer"]["packages"])
             )
-            rebuilt = watch_paths(source, runtime, roots, state["seed"])
+            rebuilt = watch_paths(source, runtime, roots)
             if not changes.matches(watch_roots(rebuilt)):
                 # A refresh can change which packages the page vendors, and a
                 # subscription is fixed for its lifetime. Holding the old one

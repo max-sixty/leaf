@@ -943,12 +943,12 @@ def test_the_browser_media_door_refuses_untrusted_or_unbounded_bytes(server, pag
     assert not any((page_dir / "media").iterdir())
 
 
-def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
-    parted = FLOW_PAGE.replace(
-        '<lf-diagram id="flow">',
-        '<lf-diagram id="flow" parts="node:A node:B">',
+def test_a_visual_comment_requires_its_sections_inventory(server, page_dir):
+    (page_dir / "index.html").write_text(
+        FLOW_PAGE.replace(
+            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
+        )
     )
-    (page_dir / "index.html").write_text(parted)
     publish(page_dir)
 
     valid = {
@@ -969,16 +969,14 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
         assert status == 400
         assert refused_on(body).code == "visual-with-passage"
 
-    invalid = {
-        **valid,
-        "text": "unknown target",
-        "anchor": {"section": "flow", "visual": "node:Missing"},
-    }
+    (page_dir / "index.html").write_text(FLOW_PAGE)
+    publish(page_dir)
+    invalid = {**valid, "revision": 2, "text": "no opted-in inventory"}
     status, body = fetch(f"{server}/api/event", data=json.dumps(invalid).encode())
     assert status == 400
     undeclared = refused_on(body)
     assert undeclared.code == "undeclared-visual"
-    assert undeclared.values["declared"]["tokens"] == ["node:A", "node:B"]
+    assert undeclared.values["declared"] == {"prefixes": [], "all": False}
 
 
 def test_a_datum_comment_names_the_source_revision_its_section_displayed(

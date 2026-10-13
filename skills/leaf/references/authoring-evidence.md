@@ -57,9 +57,9 @@ vocabulary". An `lf-code` block's `lines` attribute quotes an excerpt
 of a longer file under the file's own line numbers, with elided rows where it skips;
 a note placed at a skipped line captions that row with what was left out.
 
-A user can comment on a drawing as a whole and quote the words in it, but a part
-of it takes a comment of its own only when the author named that part. In an
-`lf-diagram`, the entry says which boxes `parts` opens to a comment of their own.
+A user can comment on a drawing as a whole and quote the words in it. A drawing
+that exposes stable named targets also accepts comments on those parts. In an
+`lf-diagram`, the entry says which boxes `parts="all"` opens to a comment of their own.
 In an inline `<svg>`, give an `id` to each element the user may want to point at,
 usually a `<g>` that holds one shape and its label. The user can then aim at that
 part alone, and the thread's anchor reports its `id` to you, so choose ids that

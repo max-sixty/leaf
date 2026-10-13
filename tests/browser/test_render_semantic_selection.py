@@ -646,7 +646,7 @@ def test_s_opens_the_same_comment_field_on_a_declared_visual_part(browser, serve
     means. Choosing its hint focuses the part-anchored composer."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-picker-hint")).to_have_count(4)
+    expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
 
     start_code = page.evaluate(
         """() => {

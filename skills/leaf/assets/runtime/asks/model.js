@@ -7,12 +7,12 @@
    focus, or geometry; it cannot change which asks exist or whether they await the
    user. */
 import { readApplication } from "../semantic-state.js";
-import { widgetDeclaration } from "../registry.js";
+import { registry } from "../registry.js";
 import { watchProjection } from "../projection-watch.js";
 
 export const readAsks = () => readApplication().effective.asks;
 
-export const askEntry = (ask) => widgetDeclaration(ask?.source.id, "x-awaits");
+export const askEntry = (ask) => registry[ask?.source.tag]?.["x-awaits"];
 // The asks approving the shown version waits on, which the server names
 // (`asks.approval_blocking`, the rule its append door refuses a sign-off by).
 // Approval needs an admitted inventory, so its gate never reads unknown as empty: with

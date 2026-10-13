@@ -1047,7 +1047,7 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
         "x-example": '<lf-probe id="probe"></lf-probe>',
     }
     widget = """import {once, shadowStage} from '/runtime/widget-api.js';
-export default class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}};"""
+customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}});"""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.set_default_timeout(10_000)
     held = []

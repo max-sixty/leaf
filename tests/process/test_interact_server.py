@@ -318,7 +318,6 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert fetch(child + "/api/news", token=None)[0] == 200
     assert fetch(child + "/theme.css", token=None) == (200, captured_theme)
     assert trace.read_bytes() == before_housekeeping
-
     status, raw = fetch(child + "/api/state")
     assert status == 200, raw
     assert json.loads(raw)["events"] == []
@@ -383,10 +382,10 @@ def test_sample_allocations_share_no_parent_lock_and_keep_one_log_reading(
     release = threading.Event()
     original = samples_model.Samples.create
 
-    def held_allocation(self, *args, **kwargs):
+    def held_allocation(self, *args):
         allocating.wait(timeout=STATED_TIMEOUT)
         assert release.wait(STATED_TIMEOUT)
-        return original(self, *args, **kwargs)
+        return original(self, *args)
 
     monkeypatch.setattr(samples_model.Samples, "create", held_allocation)
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -731,17 +730,6 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
             "text": "Frozen seed",
         },
     )
-    reply = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "aabb0011",
-            "text": "Frozen widget",
-            "markup": '<lf-code id="frozen-sample-code" language="python"><pre>held</pre></lf-code>',
-        },
-    )
     data_model.cmd_data_set(page_dir, "builds", ["checked"])
     template = '<template id="practice" data-sample data-sample-threads="aabb0011"><h1>Frozen child</h1></template>'
     document = structure_model.SourceDocument(
@@ -749,12 +737,6 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
     )
     # The checked candidate is r2, absent from the mutable page's revision files.
     snapshot = page_snapshot_model.capture_page_snapshot(page_dir, document, 2, url="/")
-    marker = files_model.revision_path(page_dir, 1)
-    # The preview already holds the revision inventory and bundle. Removing only
-    # the mutable directory's marker makes a fresh disk inventory omit r1 while
-    # leaving the captured resources readable for the child allocation.
-    marker.unlink()
-    assert files_model.list_revisions(page_dir) == []
     append_carried_log_record(
         page_dir,
         {
@@ -795,16 +777,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
             == snapshot.context.stored_data()["sources"]["builds"]
         )
         assert state["data"]["sources"]["builds"]["value"] == ["checked"]
-        assert [event["text"] for event in state["events"]] == [
-            "Frozen seed",
-            "Frozen widget",
-        ]
-        assert (
-            next(event for event in state["events"] if event["id"] == reply["id"])[
-                "markup"
-            ]
-            == reply["markup"]
-        )
+        assert [event["text"] for event in state["events"]] == ["Frozen seed"]
         for path in ("/api/event", "/api/media"):
             assert fetch(preview.origin + path, data=b"{}")[0] == 403
         assert (
@@ -816,7 +789,7 @@ def test_frozen_preview_samples_use_snapshot_inputs_without_parent_writes(
         )
     assert event_model.read_events(page_dir) == parent_events
     assert read_page_data(page_dir)["sources"]["builds"]["value"] == ["later"]
-    assert files_model.list_revisions(page_dir) == []
+    assert files_model.list_revisions(page_dir) == [1]
 
 
 def test_an_event_from_another_layer_is_not_interpreted_or_appended(server, page_dir):
@@ -1277,7 +1250,7 @@ def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, pa
     assert f"no longer holds revision {held!r}" in json.loads(body)["error"]
 
 
-def test_historical_deferred_reads_keep_the_document_contract_with_current_kernel(
+def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     server, page_dir
 ):
     """A pinned document reads current data through its captured data contract."""
@@ -1325,11 +1298,7 @@ def test_historical_deferred_reads_keep_the_document_contract_with_current_kerne
     )
     historical = json.loads(body)
     assert status == 200
-    assert historical["layer"]["generation"] == second_layer
-    assert (
-        historical["browser"]["views"][str(first.revision)]["basis"]["revision"]
-        == first.revision
-    )
+    assert historical["layer"]["generation"] == first_layer
     assert (
         "patch"
         not in historical["data"]["sources"]["review-patch"]["value"]["files"][0]
@@ -1346,37 +1315,11 @@ def test_historical_deferred_reads_keep_the_document_contract_with_current_kerne
     )
     response = connection.getresponse()
     deferred = json.loads(response.read())
-    deferred_status = response.status
-    deferred_layer = response.getheader("Leaf-Layer")
-    comment = {
-        "kind": "comment",
-        "revision": first.revision,
-        "text": "Historical passage, current transport.",
-        "anchor": {"section": "flow"},
-    }
-    status, raw = fetch(
-        f"{server}/api/event",
-        data=json.dumps(comment).encode(),
-        layer=second_layer,
-        headers={"Leaf-View-Revision": str(first.revision)},
-    )
-    assert status == 200
-    assert json.loads(raw)["state"]["events"][-1]["text"] == comment["text"]
-    connection.request(
-        "GET",
-        f"/api/view?revision={first.revision}&through_seq={historical['events'][-1]['seq']}&t="
-        + TOKEN,
-    )
-    response = connection.getresponse()
-    comparison = json.loads(response.read())
     connection.close()
 
-    assert deferred_status == 200
-    assert deferred_layer == second_layer
-    assert deferred["value"] == patch
     assert response.status == 200
-    assert response.getheader("Leaf-Layer") == second_layer
-    assert set(comparison["browser"]["views"]) == {str(first.revision)}
+    assert response.getheader("Leaf-Layer") == first_layer
+    assert deferred["value"] == patch
 
 
 def test_a_bad_source_save_keeps_the_last_revision_live_and_reports_the_error(
@@ -4177,7 +4120,7 @@ def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
     checked = check_source(page_dir, event_model.read_events(page_dir))
     assert checked.errors == []
     module.write_text('document.title = "Changed after checking";')
-    revision = checked.revision.candidate
+    revision = (files_model.latest_revision(page_dir) or 0) + 1
     snapshot = page_snapshot_model.capture_page_snapshot(
         page_dir,
         checked.document,
@@ -4476,40 +4419,10 @@ def test_a_revision_saved_before_a_key_was_renamed_neither_opens_nor_takes_input
     page = PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>\n" + framed)
     (page_dir / "index.html").write_text(page)
     revisioning_model.activate_source(page_dir)
-    parent = append_command(
-        page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "text": "Another route?"},
-    )
-    frozen = append_command(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Agent",
-            "revision": 1,
-            "parent": parent["id"],
-            "responds": parent["id"],
-            "text": "The earlier choice remains here.",
-            "markup": framed.replace("route", "frozen-route"),
-        },
-    )
     vendored_before_the_ask_rename(page_dir)
     # Read as the next process does, which holds nothing of the revision saved above.
     with fresh_process():
         _serve_after_the_ask_rename(page_dir, page)
-        state = page_state(page_dir)
-        view = state["browser"]["views"][str(state["active"]["revision"])]
-        [old_ask] = view["thread"]["asks"]["all"]
-        assert old_ask["source"]["id"] == "frozen-route"
-        thread = next(
-            thread
-            for thread in view["thread"]["threads"]
-            if thread["id"] == parent["id"]
-        )
-        [reply] = [
-            message for message in thread["msgs"] if message["id"] == frozen["id"]
-        ]
-        assert reply["markup"] == frozen["markup"]
 
 
 def _serve_after_the_ask_rename(page_dir, page):

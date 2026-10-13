@@ -2300,14 +2300,14 @@ def test_the_thread_walk_starts_at_a_fresh_fragment_reading(browser, serve, shad
         layer_widgets = {
             "lf-shadow-reading.js": """
 import { once } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
+customElements.define("lf-shadow-reading", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const paragraph = document.createElement("p");
     paragraph.textContent = this.textContent.trim();
     this.attachShadow({mode: "open"}).append(paragraph);
   }
-};
+});
 """
         }
     url = serve(
@@ -12662,11 +12662,6 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
             "files": [
                 {
                     "path": "app.py",
-                    "operation": "modify",
-                    "hunkCount": 1,
-                    "binary": False,
-                    "additions": 1,
-                    "deletions": 1,
                     "patch": patch.replace("amber", "violet"),
                 }
             ]

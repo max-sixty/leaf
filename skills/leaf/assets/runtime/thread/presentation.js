@@ -47,6 +47,7 @@ function renderHolds(threads) {
 }
 
 export function createThreadPresentation({
+  available = true,
   inlineView,
   surfaceView,
   anchorPlacement,
@@ -69,9 +70,10 @@ export function createThreadPresentation({
   const presenter = applicationPresenter({
     region: "thread",
     order: PRESENTATION_ORDER.thread,
-    // Local threads are a complete reading of known gestures even while the saved
-    // inventory loads. Every phase owes the same cohort's current presentation.
-    current: () => readApplication().effective.thread,
+    // Every phase owes a reading, the ones before the log has been read included: what
+    // the panel says while it waits is this region's to draw, and a user who opens it
+    // then is asking for exactly that.
+    current: () => (available ? readApplication().effective.thread : null),
     paint: async (value, current) => {
       const phase = readApplication().phase;
       // A pass reads the latest root. Clock changes claim another pass through the

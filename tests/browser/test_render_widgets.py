@@ -150,7 +150,7 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
         layer_registry={"lf-source-view": source, "lf-source-stage": stage},
         layer_widgets={
             "lf-source-view.js": """
-export default class extends HTMLElement {
+customElements.define('lf-source-view', class extends HTMLElement {
   connectedCallback() {
     if (this.querySelector('button')) return;
     const button = document.createElement('button');
@@ -163,15 +163,15 @@ export default class extends HTMLElement {
     });
     this.querySelector('pre').append(button);
   }
-}
+});
 """,
             "lf-source-stage.js": """
 import {shadowStage} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-source-stage', class extends HTMLElement {
   connectedCallback() {
     if (!this.shadowRoot) shadowStage(this, [...this.childNodes]);
   }
-}
+});
 """,
         },
     )
@@ -11282,11 +11282,11 @@ POINTER_REGISTRY = {
     }
 }
 POINTER_MODULE = """import { indicate } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
+customElements.define("lf-pointer", class extends HTMLElement {
   connectedCallback() { indicate(this, "for", "3-4"); }
   disconnectedCallback() { indicate(this, "for", null); }
   point(key) { return indicate(this, "for", key); }
-};
+});
 """
 
 

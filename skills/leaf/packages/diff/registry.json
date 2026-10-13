@@ -4,7 +4,7 @@
       "unified-diff": {
         "description": "A unified patch, either as one text value or as a file manifest whose patch fields Leaf delivers separately on demand.",
         "instructions": {
-          "producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script records native file operations, including copies, mode changes, binary changes and empty files, and preserves their Git evidence. It leaves judgment to `lf-diff`: each file’s patch is delivered and checked before its row appears, and textual hunks render when their file opens. A file the widget cannot present shows its refusal and reports it to you as the page's error."
+          "producer": "Pipe the exact Git patch, with Git's default `a/` and `b/` prefixes, through this package's producer script into the source:\n\n```bash\ngit diff <base>...<head> | leaf package run diff patch_manifest.py | leaf data set \"$PAGE\" <source-id>\n```\n\nThe script preserves native Git evidence keyed by destination path. It leaves judgment to `lf-diff`: each file’s patch is delivered and checked before its row appears, and textual hunks render when their file opens. A file the widget cannot present shows its refusal and reports it to you as the page's error."
         },
         "records": {
           "items": "files",
@@ -21,37 +21,10 @@
                 "type": "object",
                 "properties": {
                   "path": { "type": "string", "minLength": 1 },
-                  "previousPath": { "type": "string", "minLength": 1 },
-                  "additions": { "type": "integer", "minimum": 0 },
-                  "deletions": { "type": "integer", "minimum": 0 },
-                  "patch": { "type": "string", "minLength": 1 },
-                  "operation": {
-                    "enum": ["modify", "add", "delete", "rename", "copy"]
-                  },
-                  "hunkCount": { "type": "integer", "minimum": 0 },
-                  "binary": { "type": "boolean" },
-                  "oldMode": { "type": "string", "pattern": "^[0-7]{6}$" },
-                  "newMode": { "type": "string", "pattern": "^[0-7]{6}$" }
+                  "patch": { "type": "string", "minLength": 1 }
                 },
-                "required": [
-                  "path",
-                  "operation",
-                  "hunkCount",
-                  "binary",
-                  "additions",
-                  "deletions",
-                  "patch"
-                ],
-                "additionalProperties": false,
-                "allOf": [
-                  {
-                    "if": {
-                      "properties": { "operation": { "enum": ["rename", "copy"] } }
-                    },
-                    "then": { "required": ["previousPath"] },
-                    "else": { "not": { "required": ["previousPath"] } }
-                  }
-                ]
+                "required": ["path", "patch"],
+                "additionalProperties": false
               }
             }
           },

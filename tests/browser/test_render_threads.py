@@ -63,7 +63,6 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
-    ROOT,
     CutOff,
     admit_before_presenting_comment,
     any_owner_entry,
@@ -1104,12 +1103,10 @@ def test_refresh_arrival_returns_to_the_thread_fill(browser, serve):
   </template>
 </lf-sample>
 <script type="module">
-  import {afterPresentation} from '/runtime/widget-api.js';
-  afterPresentation(async () => {
-    const sample = document.querySelector('#sample');
-    await sample.ready;
-    await sample.showThread('question', {surface: 'panel'});
-  });
+  await customElements.whenDefined('lf-sample');
+  const sample = document.querySelector('#sample');
+  await sample.ready;
+  await sample.showThread('question', {surface: 'panel'});
 </script>""",
         )
     )
@@ -3593,7 +3590,6 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     board = append_carried_log_record(
         serve.page_dir,
         {
-            "revision": 1,
             "kind": "reply",
             "author": "agent",
             "parent": root,
@@ -5667,21 +5663,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     answer stays available for follow-up without entering the waiting list; a reply
     carrying an explicit prose ask enters it until the user answers. A widget ask
     needs no duplicate flag: its own current projection enters and leaves the list."""
-    options = (ROOT / "skills/leaf/packages/default/widgets/lf-options.js").read_text()
-    options = options.replace(
-        "connectedCallback() {",
-        """connectedCallback() {
-          if (this.id === "backend") {
-            const message = this.closest(".lf-msg");
-            window.__backendContext ??= {
-              message: Boolean(message),
-              thread: this.closest(".lf-thread")?.dataset.id ?? null,
-              saidAt: message?.querySelector("time")?.dateTime ?? null,
-            };
-          }""",
-        1,
-    )
-    url = serve(PANEL_PAGE, layer_widgets={"lf-options.js": options})
+    url = serve(PANEL_PAGE)
     answered = panel_comment(serve.page_dir, "Why forty?", {"section": "how-cap"})
     asked = panel_comment(serve.page_dir, "What remains?", {"section": "how-store"})
     thread_model.post_reply(
@@ -5704,6 +5686,24 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
           Document.prototype.addEventListener = function(type, ...args) {
             if (this === document && type === "lf-drafts") counts.drafts += 1;
             return add.call(this, type, ...args);
+          };
+          const define = customElements.define.bind(customElements);
+          customElements.define = (name, ctor, options) => {
+            if (name === "lf-options") {
+              const connected = ctor.prototype.connectedCallback;
+              ctor.prototype.connectedCallback = function() {
+                if (this.id === "backend") {
+                  const message = this.closest(".lf-msg");
+                  window.__backendContext ??= {
+                    message: Boolean(message),
+                    thread: this.closest(".lf-thread")?.dataset.id ?? null,
+                    saidAt: message?.querySelector("time")?.dateTime ?? null,
+                  };
+                }
+                return connected?.call(this);
+              };
+            }
+            return define(name, ctor, options);
           };
         })()""",
     )
@@ -7059,14 +7059,14 @@ def _shadow_tree_widget(tag):
     }
     module = f"""
 import {{shadowStage}} from '/runtime/widget-api.js';
-export default class extends HTMLElement {{
+customElements.define('{tag}', class extends HTMLElement {{
   connectedCallback() {{
     if (this.shadowRoot) return;
     const word = document.createElement('span');
     word.textContent = '{tag}';
     shadowStage(this, [word]);
   }}
-}};
+}});
 """
     return declaration, module
 
@@ -10305,11 +10305,6 @@ def _seat_manifest(patch):
         "files": [
             {
                 "path": "app.py",
-                "operation": "modify",
-                "hunkCount": 1,
-                "binary": False,
-                "additions": 1,
-                "deletions": 1,
                 "patch": patch,
             }
         ]
@@ -12611,7 +12606,7 @@ def capture_page(browser, serve, *, touch=False):
     declaration, _ = _shadow_tree_widget("lf-capture-art")
     module = """
 import {shadowStage} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-capture-art', class extends HTMLElement {
   connectedCallback() {
     if (this.shadowRoot) return;
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -12624,7 +12619,7 @@ export default class extends HTMLElement {
     svg.append(rect);
     shadowStage(this, [svg]);
   }
-};
+});
 """
     context = browser.new_context(
         viewport={"width": 390 if touch else 1200, "height": 844 if touch else 900},
@@ -13061,14 +13056,14 @@ def test_a_changed_datum_keeps_its_old_words_open_when_its_label_changes(
     old = "The original requirement keeps a human review before release. " * 12
     module = """
 import {projectData, html, render} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-quote-subject', class extends HTMLElement {
   connectedCallback() { window.quoteSubject = this; this.show('Old plan', this.dataset.words); }
   show(label, words) {
     render(html`<p>${words}</p>`, this);
     projectData(this, [{key: 'plan', node: this.querySelector('p'), label,
       identity: 'plan', origin: {derived: [{widget: 'subject'}]}}]);
   }
-};
+});
 """
     url = serve(
         leaf_page(

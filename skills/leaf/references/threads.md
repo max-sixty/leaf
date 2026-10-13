@@ -54,12 +54,9 @@ template in markup gives the user a live practice page in the thread
 leaf response reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
 ```
 
-Thread markup is frozen with the revision in which it was posted. Its widgets keep
-that revision's declarations, behavior and package styles wherever the discussion
-appears, including on a historical page. Markup is checked as it
-is posted but not drawn, so a data widget, such as a chart, whose body does not draw
-reaches you as an `error` event when the user opens its thread; answer with a corrected
-reply.
+Markup is checked as it is posted but not drawn, so a data widget, such as a chart,
+whose body does not draw reaches you as an `error` event when the user opens its
+thread; answer with a corrected reply.
 
 The thread panel is a narrow column over the right of the page, so a paragraph that
 reads fine in chat is a wall there. A reply says what changed or where to look: a sentence or
@@ -158,8 +155,7 @@ version** and a later reply may still move it to a replacement.
 
 An answer says what it leaves the thread with, one of three:
 
-- `--done`: it delivers what the message asked for. Its prose adds no question or
-  promise; widgets in its markup still declare their own asks.
+- `--done`: it delivers what the message asked for.
 - `--ask`: its prose asks the user something back. The reply is then an ask
   under `reply:<message-id>` in `page state`'s `asks` collection, until they
   answer in the thread or you end it

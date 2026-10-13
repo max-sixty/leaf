@@ -63,7 +63,6 @@ from leaf.registry import widgets as registry_widgets
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
-from leaf.validation.source import check_source
 from model_folds import leaf_page
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
@@ -303,20 +302,6 @@ def test_response_reply_names_a_page_vendored_at_another_protocol(claimed, serve
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
     assert f"leaf page init {claimed}" in replied.stderr
-    checked = subprocess.run(
-        [*LEAF_COMMAND, "page", "check", str(claimed)],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert checked.returncode != 0, checked.stdout
-    assert f"leaf page init {claimed}" in checked.stderr
-    assert interact_files.list_revisions(claimed) == [1]
-    [refusal] = check_source(claimed, events_model.read_events(claimed)).errors
-    record = json.loads(json.dumps(refusal.json()))
-    assert record["code"] == "foreign-layer"
-    assert record["values"]["page"] == str(claimed)
 
 
 def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir):
@@ -352,13 +337,6 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
     assert report["status"] == 1 and report["browser"] is None
     [finding] = report["findings"]
     assert finding["code"] == "retired-layer" and revendor in finding["text"]
-    # Full source composition first rejects this retired key inventory; the
-    # layer-only transport gate above reports the retired-layer refusal.
-    [refusal] = check_source(page_dir, events_model.read_events(page_dir)).errors
-    source_finding = json.loads(json.dumps(refusal.json()))
-    assert source_finding["code"] == "keys-documentation"
-    assert source_finding["values"]["missing"] == ["x-ask-context"]
-    assert source_finding["values"]["unadmitted"] == ["x-question-context"]
 
     vendored(lambda keys: keys.pop("x-question-context"))
     assert write_refusal(page_dir) is None
@@ -3216,7 +3194,7 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
     assert registry["$layer"]["packages"] == ["./first", "./second"]
     assert registry["lf-shared"]["description"] == "second"
     assert (page / "widgets" / "shared.js").read_text() == "// second\n"
-    theme = (page / "widget-theme.css").read_text()
+    theme = (page / "theme.css").read_text()
     assert theme.index("package first") < theme.index("package second")
 
 
@@ -4221,11 +4199,10 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
         ":scope:is(lf-solo) { --lf-block-frame: 1; }\n"
     )
     (widget_package / "widgets" / "lf-solo.js").write_text(
-        """import { ready } from "./ready.js";
-export default class extends HTMLElement {
-  connectedCallback() { ready(this); }
-};
-"""
+        'import { ready } from "./ready.js";\n'
+        'customElements.define("lf-solo", class extends HTMLElement {\n'
+        "  connectedCallback() { ready(this); }\n"
+        "});\n"
     )
     (widget_package / "widgets" / "ready.js").write_text(
         "export const ready = (el) => { el.dataset.ready = '1'; };\n"
@@ -4264,14 +4241,11 @@ export default class extends HTMLElement {
     assert (page / "widgets" / "ready.js").is_file()
     assert (page / "vendor" / "solo.json").is_file()
     theme = (page / "theme.css").read_text()
-    widgets = (page / "widget-theme.css").read_text()
     # A package with a widget reaches only inside it; a package without one is a
-    # theme, and its rules reach the page as written. Their separate sheets let a
-    # publication retain its widget rules while current chrome keeps its theme.
-    assert ":scope:is(lf-solo) { --lf-block-frame: 1; }" in widgets
-    assert ":scope:is(lf-solo) { --lf-block-frame: 1; }" not in theme
-    assert ":root { --solo-night: 1; }" in theme
-    assert "--solo-night" not in widgets
+    # theme, and its rules reach the page as written.
+    assert theme.index(":scope:is(lf-solo) { --lf-block-frame: 1; }") < theme.index(
+        ":root { --solo-night: 1; }"
+    )
     instructions = (page / "instructions" / "author.md").read_text()
     assert instructions == (
         "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"

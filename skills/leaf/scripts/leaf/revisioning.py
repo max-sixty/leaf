@@ -142,7 +142,7 @@ def finish_publications(page: PageTransaction, publications: list[dict]) -> None
         revision = event["revision"]
         reading = staged_reading(page.page_dir, event["publication"])
         previous = max(
-            (order for order in list_revisions(page.page_dir) if order < revision),
+            (value for value in list_revisions(page.page_dir) if value < revision),
             default=0,
         )
         predecessor = PredecessorReading(

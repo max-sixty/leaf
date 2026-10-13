@@ -421,9 +421,10 @@ KEYBOARD_HINT_REGISTRY = {
     }
 }
 
-KEYBOARD_HINT_MODULE = """import {commandScope, commands, keeps, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
+KEYBOARD_HINT_MODULE = """\
+import {commandScope, commands, keeps, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     this.count = 0;
     this.allowed = true;
@@ -486,7 +487,7 @@ export default class extends HTMLElement {
     this.badge.style.cssText = 'right: calc(100% + 4px); top: 0';
     this.seat.append(this.badge, this.control);
   }
-};
+});
 """
 
 
@@ -715,9 +716,10 @@ def test_widget_context_keys_work_without_an_ask(browser, serve, annotation_mode
     expect(badge).to_be_hidden()
 
 
-KEYBOARD_ROUTE_MODULE = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
+KEYBOARD_ROUTE_MODULE = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     const first = offer('button', '', 'First action');
     const second = offer('button', '', 'Second action');
@@ -751,7 +753,7 @@ export default class extends HTMLElement {
       run: () => keepsText(result, 'Outer applied'),
     }]);
   }
-};
+});
 """
 
 
@@ -826,9 +828,10 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
     ).to_have_count(0)
 
 
-CONTEXT_COMMAND_MODULE = """import {commands, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
+CONTEXT_COMMAND_MODULE = """\
+import {commands, keepsText, offer, paintKeys} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     const result = offer('output', '', 'No action');
     const rows = [];
@@ -850,7 +853,7 @@ export default class extends HTMLElement {
     };
     this.append(replace);
   }
-};
+});
 """
 
 
@@ -957,9 +960,10 @@ def test_restoring_ask_focus_can_execute_its_command_in_the_same_turn(browser, s
 
 def test_contextual_escape_agrees_across_dispatch_hints_and_reference(browser, serve):
     """Escape forwarding stays live when its context scope is read more than once."""
-    module = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
+    module = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     const control = offer('button', '', 'Apply operation');
     const result = offer('output', '', 'No action');
@@ -969,7 +973,7 @@ export default class extends HTMLElement {
       keys: ['x'], contextKeys: ['Escape'], control, bindingBadge: null,
       run: () => keepsText(result, `Applied ${++count}`)}]);
   }
-};
+});
 """
     page = open_page(
         browser,
@@ -1027,9 +1031,10 @@ export default class extends HTMLElement {
 
 def test_context_aliases_do_not_collide_with_authored_command_ids(browser, serve):
     """A contextual projection keeps both commands when an authored id ends in .context."""
-    module = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
+    module = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     const control = offer('button', '', 'Apply operation');
     const neighbour = offer('button', '', 'Neighbour operation');
@@ -1043,7 +1048,7 @@ export default class extends HTMLElement {
         control: neighbour, run: () => keepsText(result, 'Neighbour applied')},
     ]);
   }
-};
+});
 """
     page = open_page(
         browser,
@@ -1097,9 +1102,10 @@ export default class extends HTMLElement {
 
 def test_context_forwarding_preserves_reference_activation_opt_out(browser, serve):
     """A contextual alias cannot turn a reading-only reference row into an action."""
-    module = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
+    module = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     const result = offer('output', '', 'No action');
     let count = 0;
@@ -1108,7 +1114,7 @@ export default class extends HTMLElement {
       contextKeys: ['F8'], runFromCommandReference: false,
       run: () => keepsText(result, `Applied ${++count}`)}]);
   }
-};
+});
 """
     page = open_page(
         browser,
@@ -1211,9 +1217,10 @@ def test_context_keys_follow_an_ask_into_its_associated_thread(
         expect(result).to_have_text("Action 10 applied")
 
 
-ROUTE_HINT_OVERRIDE_MODULE = """import {commands, keepsText, offer} from '/runtime/widget-api.js';
+ROUTE_HINT_OVERRIDE_MODULE = """\
+import {commands, keepsText, offer} from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-verdict', class extends HTMLElement {
   connectedCallback() {
     const control = offer('button', '', 'Inspect');
     const inheritedHint = offer('kbd', 'lf-key-badge');
@@ -1231,7 +1238,7 @@ export default class extends HTMLElement {
       run: binding => keepsText(result, `${binding}:${++count}`),
     }]);
   }
-};
+});
 """
 
 
@@ -1641,7 +1648,7 @@ def test_controls_share_pointer_and_keyboard_focus_rings(browser, serve):
                 "lf-shadow-focus.js": """
 import {once, shadowStage} from '/runtime/widget-api.js';
 import '/vendor/webawesome.esm.js';
-export default class extends HTMLElement {
+customElements.define('lf-shadow-focus', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const select = document.createElement('wa-select');
@@ -1656,7 +1663,7 @@ export default class extends HTMLElement {
     }
     shadowStage(this, [...this.childNodes, select]);
   }
-}
+});
 """
             },
         ),
@@ -6472,46 +6479,6 @@ def test_retained_moves_keep_native_editor_and_frame_state(
             )
         else:
             assert page.evaluate("window.blurs") > 0
-
-
-def test_scoped_native_moves_keep_the_registered_lifecycle(browser, serve):
-    page = open_page(browser, serve(leaf_page("Scoped moves", "<h1>Scoped moves</h1>")))
-    phases = page.evaluate("""() => {
-      const heard = [];
-      const registry = new CustomElementRegistry();
-      class Moving extends HTMLElement {
-        connectedCallback() { heard.push('moving connected'); }
-        disconnectedCallback() { heard.push('moving disconnected'); }
-        connectedMoveCallback() { heard.push('moving moved'); }
-      }
-      class Ordinary extends HTMLElement {
-        connectedCallback() { heard.push('ordinary connected'); }
-        disconnectedCallback() { heard.push('ordinary disconnected'); }
-      }
-      registry.define('lf-moving', Moving);
-      registry.define('lf-ordinary', Ordinary);
-      // Registration captures callbacks, just as the native registry does.
-      Moving.prototype.connectedMoveCallback = () => heard.push('late callback');
-      const host = document.createElement('div');
-      const root = host.attachShadow({mode:'open', customElements:registry});
-      root.innerHTML = '<div id="first"><lf-moving></lf-moving><lf-ordinary></lf-ordinary></div><div id="second"></div>';
-      document.body.append(host);
-      const phases = {connected: heard.splice(0)};
-      const first = root.querySelector('#first');
-      root.querySelector('#second').moveBefore(first, null);
-      phases.moved = heard.splice(0);
-      first.remove();
-      phases.disconnected = heard.splice(0);
-      root.append(first);
-      phases.reconnected = heard.splice(0);
-      return phases;
-    }""")
-    assert phases == {
-        "connected": ["moving connected", "ordinary connected"],
-        "moved": ["moving moved", "ordinary disconnected", "ordinary connected"],
-        "disconnected": ["moving disconnected", "ordinary disconnected"],
-        "reconnected": ["moving connected", "ordinary connected"],
-    }
 
 
 def test_unfocused_editor_move_leaves_later_selection_alone(browser, serve):

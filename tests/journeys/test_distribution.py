@@ -109,6 +109,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         tab.goto(target)
         expect(tab.locator("body")).to_have_attribute("data-lf-presented", "1")
         expect(tab.locator("lf-risk-note")).to_have_text("Custom package works.")
+        assert tab.evaluate("customElements.get('lf-risk-note') !== undefined")
         playground = tab.locator("#prepared-playground")
         expect(playground.locator("input[type=text]")).to_have_value("Prepared")
         expect(playground.locator("lf-playground-output")).to_contain_text(
@@ -119,7 +120,8 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
             "const { initialRender } = await import(document.querySelector('[data-lf-offline]') "
             "? 'leaf:/runtime/widget-api.js' : '/runtime/widget-api.js'); "
             "const drawing = initialRender(host); "
-            "return drawing.output === host.querySelector('lf-playground-output') && "
+            "return document.documentElement.lfInitial.has(host.localName) && "
+            "drawing.output === host.querySelector('lf-playground-output') && "
             "drawing.inputs.get('label') === host.querySelector('input[type=text]'); }"
         )
         choice = tab.locator("#flag-first .lf-pick")

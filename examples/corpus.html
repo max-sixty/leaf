@@ -213,7 +213,6 @@
 <!-- notification-playground.html authored script -->
 <script type="module">
       import {
-        afterPresentation,
         keeps,
         keepsText,
         layoutChanged,
@@ -346,23 +345,22 @@
             this.append(candidates);
           }
 
-          #connect(signal) {
-            return afterPresentation(() => {
-              if (signal.aborted) return;
-              const playground = this.closest("lf-playground");
-              if (!playground) return;
-              playground.addEventListener(
-                "lf-playground-change",
-                (event) => {
-                  if (event.target !== playground) return;
-                  this.#values = event.detail.values;
-                  this.#render();
-                },
-                { signal },
-              );
-              this.#values = playground.values;
-              this.#render();
-            });
+          async #connect(signal) {
+            await customElements.whenDefined("lf-playground");
+            if (signal.aborted) return;
+            const playground = this.closest("lf-playground");
+            if (!playground) return;
+            playground.addEventListener(
+              "lf-playground-change",
+              (event) => {
+                if (event.target !== playground) return;
+                this.#values = event.detail.values;
+                this.#render();
+              },
+              { signal },
+            );
+            this.#values = playground.values;
+            this.#render();
           }
 
           #render() {
@@ -486,8 +484,6 @@
 </style>
 <!-- data-explorer.html authored script -->
 <script type="module">
-      import { afterPresentation } from "/runtime/widget-api.js";
-
       import { keepsText, layoutChanged, offer, once } from "/runtime/widget-api.js";
 
       const RELEASES = [
@@ -590,40 +586,39 @@
             this.append(toolbar, this.#rows, this.#count, tableFrame);
           }
 
-          #connect() {
-            return afterPresentation(() => {
-              if (!this.isConnected || this.#notify) return;
-              this.#playground = this.closest("lf-playground");
-              this.#notify = this.#playground.registerContributor(
-                "filters",
-                DEFAULT_FILTERS,
-                {
-                  read: () => clone(this.#state),
-                  apply: (state) => {
-                    this.#state = clone(state);
-                    this.#next =
-                      Math.max(
-                        0,
-                        ...this.#state.rows.map((row) =>
-                          Number(row.id.split("-").at(-1)),
-                        ),
-                      ) + 1;
-                    this.#render();
-                  },
+          async #connect() {
+            await customElements.whenDefined("lf-playground");
+            if (!this.isConnected || this.#notify) return;
+            this.#playground = this.closest("lf-playground");
+            this.#notify = this.#playground.registerContributor(
+              "filters",
+              DEFAULT_FILTERS,
+              {
+                read: () => clone(this.#state),
+                apply: (state) => {
+                  this.#state = clone(state);
+                  this.#next =
+                    Math.max(
+                      0,
+                      ...this.#state.rows.map((row) =>
+                        Number(row.id.split("-").at(-1)),
+                      ),
+                    ) + 1;
+                  this.#render();
                 },
+              },
+            );
+            this.#playground.registerInstructionProvider((values) => {
+              const rows = values.filters.order.map((id) =>
+                values.filters.rows.find((row) => row.id === id),
               );
-              this.#playground.registerInstructionProvider((values) => {
-                const rows = values.filters.order.map((id) =>
-                  values.filters.rows.find((row) => row.id === id),
-                );
-                const conditions = rows
-                  .map((row) => `${row.field} ${row.operator} ${row.value}`)
-                  .join(" and ");
-                const filterTask = conditions
-                  ? `Require ${conditions}`
-                  : "Apply no filters";
-                return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
-              });
+              const conditions = rows
+                .map((row) => `${row.field} ${row.operator} ${row.value}`)
+                .join(" and ");
+              const filterTask = conditions
+                ? `Require ${conditions}`
+                : "Apply no filters";
+              return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
             });
           }
 
@@ -875,8 +870,6 @@
 </style>
 <!-- code-comparison.html authored script -->
 <script type="module">
-      import { afterPresentation } from "/runtime/widget-api.js";
-
       import {
         frameFor,
         keeps,
@@ -929,21 +922,23 @@
             this.prepend(toolbar);
           }
 
-          #connect(signal) {
-            return afterPresentation(() => {
-              if (signal.aborted) return;
-              if (!this.#notify) this.#initialize();
-              this.#playground.addEventListener("lf-playground-change", this.#change, {
-                signal,
-              });
-              this.addEventListener("lf-layout", this.#readerLayout, { signal });
-              const watching = sizeObserver(this.#scheduleMeasurement);
-              signal.addEventListener("abort", () => watching.disconnect());
-              for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
-                watching.observe(reader);
-              }
-              this.#render();
+          async #connect(signal) {
+            await Promise.all([
+              customElements.whenDefined("lf-playground"),
+              customElements.whenDefined("lf-code"),
+            ]);
+            if (signal.aborted) return;
+            if (!this.#notify) this.#initialize();
+            this.#playground.addEventListener("lf-playground-change", this.#change, {
+              signal,
             });
+            this.addEventListener("lf-layout", this.#readerLayout, { signal });
+            const watching = sizeObserver(this.#scheduleMeasurement);
+            signal.addEventListener("abort", () => watching.disconnect());
+            for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
+              watching.observe(reader);
+            }
+            this.#render();
           }
 
           #initialize() {
@@ -2419,58 +2414,56 @@
           output.hidden = false;
         });
 
-      void afterPresentation(() => {
-        const titleSample = document.querySelector("#bg-title-sheen-sample");
-        let titleRequested = false;
-        let shownTitleRevision = null;
-        const showPendingTitle = () => {
-          const ready = titleSample.ready;
-          if (!titleRequested || !ready || shownTitleRevision === ready) return;
-          shownTitleRevision = ready;
-          void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
-        };
-        document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
-          titleRequested = true;
-          shownTitleRevision = null;
-          showPendingTitle();
-        });
-        titleSample.addEventListener("lf-sample-ready", showPendingTitle);
-        void titleSample.ready.then(showPendingTitle);
+      await customElements.whenDefined("lf-sample");
 
-        const sample = document.querySelector("#bg-panel-sample");
-        let selected = null;
-        function selectPanelView(view) {
-          selected = view;
-          for (const button of document.querySelectorAll("#bg-panel-presets button")) {
-            const pressed = String(button.dataset.view === view);
-            if (button.getAttribute("aria-pressed") !== pressed)
-              button.setAttribute("aria-pressed", pressed);
-          }
-          const thread = {
-            overview: "72e031c5bf0d485ba9054628e09869d4",
-            you: "2be2443f0bb6cc49fc86b52f340e6073",
-            resolved: "bab3cdfcfb8c02aacbb27da731de947a",
-            summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
-            progress: "bg-progress-question",
-          }[view];
-          void sample.showThread(thread, {
-            surface: "panel",
-            status: view === "resolved" ? "resolved" : "open",
-            waiting: view === "you" ? "user" : "all",
-          });
-        }
+      const titleSample = document.querySelector("#bg-title-sheen-sample");
+      let titleRequested = false;
+      let shownTitleRevision = null;
+      const showPendingTitle = () => {
+        const ready = titleSample.ready;
+        if (!titleRequested || !ready || shownTitleRevision === ready) return;
+        shownTitleRevision = ready;
+        void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
+      };
+      document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
+        titleRequested = true;
+        shownTitleRevision = null;
+        showPendingTitle();
+      });
+      titleSample.addEventListener("lf-sample-ready", showPendingTitle);
+      void titleSample.ready.then(showPendingTitle);
 
+      const sample = document.querySelector("#bg-panel-sample");
+      let selected = null;
+      function selectPanelView(view) {
+        selected = view;
         for (const button of document.querySelectorAll("#bg-panel-presets button")) {
-          button.addEventListener("click", () => selectPanelView(button.dataset.view));
+          const pressed = String(button.dataset.view === view);
+          if (button.getAttribute("aria-pressed") !== pressed)
+            button.setAttribute("aria-pressed", pressed);
         }
-        document
-          .querySelector("#bg-panel-width")
-          .addEventListener("change", (event) => {
-            sample.style.maxWidth = event.target.value;
-          });
-        sample.addEventListener("lf-sample-ready", () => {
-          if (selected) selectPanelView(selected);
+        const thread = {
+          overview: "72e031c5bf0d485ba9054628e09869d4",
+          you: "2be2443f0bb6cc49fc86b52f340e6073",
+          resolved: "bab3cdfcfb8c02aacbb27da731de947a",
+          summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
+          progress: "bg-progress-question",
+        }[view];
+        void sample.showThread(thread, {
+          surface: "panel",
+          status: view === "resolved" ? "resolved" : "open",
+          waiting: view === "you" ? "user" : "all",
         });
+      }
+
+      for (const button of document.querySelectorAll("#bg-panel-presets button")) {
+        button.addEventListener("click", () => selectPanelView(button.dataset.view));
+      }
+      document.querySelector("#bg-panel-width").addEventListener("change", (event) => {
+        sample.style.maxWidth = event.target.value;
+      });
+      sample.addEventListener("lf-sample-ready", () => {
+        if (selected) selectPanelView(selected);
       });
     </script>
 </head>

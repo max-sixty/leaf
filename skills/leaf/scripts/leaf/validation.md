@@ -70,15 +70,16 @@ report.
 
 An ordinary document's thread namespace is the thread ids its log holds,
 including a thread whose opening comment the log lost. A sample template's
-namespace comes from its initial history. `sample_content.initial_sample_history`
-constructs effective events and reserved widget identities once for static validation,
-message admission and allocation. Unavailable captured islands contribute no markup;
-carried actions still reserve their raw widget identities. A template is declared
-in the page document or frozen message markup. `data-sample-events` names an inert
-JSON script in that declaring markup, whose ordinary commands pass through child
-admission, file-side anchor capture and the message-markup gate. The resulting
-history defines the child namespace before presentation and never writes the
-parent log.
+namespace comes from its initial history. `sample_content.initial_sample_events`
+constructs it once for static validation, message admission and allocation. A
+template is declared in the page's document or in a message's frozen markup, and
+`validation.source.sample_errors` checks its child as a page wherever it is declared:
+`check_source` for the page's templates, the shared message-markup gate for a
+message's. `data-sample-events` names an inline inert JSON script in the markup
+declaring the template: its ordinary event
+commands are admitted against the child, including file-side anchor capture and the
+shared message-markup gate. The resulting history defines the child's thread namespace
+before presentation and never writes the parent's log.
 
 Alternatively, `data-sample-threads` selects from the parent page's available history,
 for a message's template as for the page's.

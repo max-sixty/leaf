@@ -119,7 +119,7 @@ def start_reading(event: dict) -> dict | None:
 
 
 def item_starts(events: list) -> dict[str, dict]:
-    """The start standing on each item, by the item's id: the newest naming it, unless
+    """The start in force on each item, by the item's id: the newest naming it, unless
     a `put_down` came after it."""
     starts: dict[str, dict] = {}
     for event in events:
@@ -226,7 +226,7 @@ class TodoReading:
         return None
 
 
-def _todos(events: list, withdrawn: set, standing: dict) -> list[dict]:
+def _todos(events: list, withdrawn: set, starts: dict) -> list[dict]:
     todos: dict[str, dict] = {}
 
     def end(todo: dict, state: str, event: dict, detail: str | None) -> None:
@@ -263,8 +263,8 @@ def _todos(events: list, withdrawn: set, standing: dict) -> list[dict]:
                 if todo is not None and todo["state"] == "open":
                     end(todo, "done", event, f"v{event['version']}")
     for todo in todos.values():
-        if todo["state"] == "open" and todo["id"] in standing:
-            todo["running"] = running(standing[todo["id"]])
+        if todo["state"] == "open" and todo["id"] in starts:
+            todo["running"] = running(starts[todo["id"]])
     return list(todos.values())
 
 
@@ -462,7 +462,7 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
 
 
 def put_down(page) -> dict | None:
-    """Put down every start standing on the page `page`, an open
+    """Put down every start in force on the page `page`, an open
     `service.PageTransaction`, as `leaf status waiting` and `idle` do; the record, or
     None when no start stands and the log has nothing to add."""
     from .event_contracts import append_admitted

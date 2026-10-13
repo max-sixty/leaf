@@ -35,7 +35,7 @@ export const USER_VIEW_RESTORE_CASES = [
     value: "260",
   },
   ...["leaves", "queue"].map((drawer) => ({
-    name: `the ${drawer} drawer standing`,
+    name: `the ${drawer} drawer open`,
     ...userStore.where(AUXILIARY_SURFACE_KEY),
     value: drawer,
   })),

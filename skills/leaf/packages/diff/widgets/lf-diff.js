@@ -1525,7 +1525,7 @@ export default class extends HTMLElement {
     return restore;
   }
 
-  // Core can place a standing line thread at its file disclosure before that file's
+  // Core can place an existing line thread at its file disclosure before that file's
   // patch exists in the DOM. Navigation asks the second method to make the exact line
   // real, then the ordinary datum resolver and anchor painter take over.
   lfDataDatum(key, { outdated = false } = {}) {

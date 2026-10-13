@@ -100,7 +100,7 @@ def _execute_event(
 
     Every decision whose validity depends on the log stays under the append lock
     through the write. In particular, two tabs cannot both validate an undo against
-    the same standing target and append after either lock is gone.
+    the same gesture in force and append after either lock is gone.
     """
     spoken = None
     with PageTransaction(page_dir) as page:

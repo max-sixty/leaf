@@ -22,7 +22,7 @@ A browser at the live root follows new revisions; a browser pinned to
 To finish, handle every event in the complete delivered batch and write the answer
 each acknowledged update's `answer` names (`references/event-batches.md`). A
 finished record, including a quick page that became one, ends on a stamped final
-revision that honors standing asks and reports. An unstamped quick page can go idle directly.
+revision that honors open asks and the reports in force. An unstamped quick page can go idle directly.
 Idling ends the interaction but does not delete the page directory.
 
 Then run:
@@ -35,4 +35,4 @@ leaf status <page> idle
 acknowledged update still owed its answer. It removes the page from the watch, and
 idling the last watched page ends the watcher. It is not a server stop:
 `references/serving-pages.md`, "Page lifetime", says which servers end with the
-session, and a standing page is not idled because one session's work on it is over.
+session, and a persistent page is not idled because one session's work on it is over.

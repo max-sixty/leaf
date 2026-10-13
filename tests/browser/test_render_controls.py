@@ -2735,7 +2735,7 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     page.evaluate("""async () => {
       window.toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
       for (const [key, rank, offered] of [
-        ['retiring', -30, true], ['arriving', -25, false], ['standing', -20, true],
+        ['retiring', -30, true], ['arriving', -25, false], ['staying', -20, true],
         ['returning', -15, false],
       ]) {
         const control = document.createElement('button');
@@ -2748,11 +2748,11 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     more.focus()
     page.keyboard.press("Enter")
     retiring = page.locator(".test-retiring")
-    standing = page.locator(".test-standing")
+    staying = page.locator(".test-staying")
     arriving = page.locator(".test-arriving")
     retiring.focus()
     expect(retiring).to_be_focused()
-    before = standing.bounding_box()
+    before = staying.bounding_box()
     page.evaluate("""() => {
       toolbar.showNews(document.querySelector('.test-retiring'), false);
       toolbar.showNews(document.querySelector('.test-arriving'), true);
@@ -2760,9 +2760,9 @@ def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
     }""")
     expect(retiring).to_be_hidden()
     assert arriving.is_hidden()
-    expect(standing).to_be_focused()
+    expect(staying).to_be_focused()
     expect(more).to_have_attribute("aria-label", re.compile("new action"))
-    assert standing.bounding_box() == before
+    assert staying.bounding_box() == before
     assert retiring.evaluate("node => node.offsetHeight") > 0
     page.keyboard.press("Tab")
     expect(arriving).not_to_be_focused()
@@ -3589,7 +3589,7 @@ def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve
     row, and the agent's Tasks count leads the second, under the sentence's start, where
     the run leaves it room whole. A finger's search steps share that row: the count
     stands whole beside them where the font leaves it room, or gives way to them, never
-    cutting a step or standing cut itself, and comes back where it stood once the search
+    cutting a step or being cut itself, and comes back where it stood once the search
     closes."""
     context = browser.new_context(
         viewport={"width": 490, "height": 800}, has_touch=True, is_mobile=True
@@ -3823,7 +3823,7 @@ def test_a_panel_row_follows_its_pages_status_live(
 
 def test_a_closed_leaf_clears_itself_off_the_drawer(browser, serve, other_leaf):
     """A closed leaf leaves the drawer on the poll that says so. Its server stays
-    up — a standing one for good — so the row would otherwise stand forever and the
+    up — a persistent one for good — so the row would otherwise stand forever and the
     count a user glances at to find who needs them would become a tally of
     everything that has ever run here. This page's own row never drops — a user
     looking at a closed page is still looking at it — so a drawer with nothing live
@@ -6309,7 +6309,7 @@ def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
     append_carried_log_record(
         serve.page_dir,
         {
-            "id": "standing-reaction",
+            "id": "reaction-in-force",
             "kind": "comment",
             "author": "user",
             "revision": 1,
@@ -6343,7 +6343,7 @@ def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
     withdrawn = events_model.read_events(serve.page_dir)[-1]
     assert (withdrawn["kind"], withdrawn["undoes"]) == (
         "undo",
-        "standing-reaction",
+        "reaction-in-force",
     )
 
 

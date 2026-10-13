@@ -1098,7 +1098,7 @@ def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
     replay cannot reproduce and which must not act ahead of the keys before it, so after
     `c h i` it drops the run rather than waiting behind it: no comment box opens and
     nothing is sent. `test_held_keys_after_one_that_opens_a_box_are_typed_into_it` is
-    the same run without the ending key; Shift alone leaves the run standing."""
+    the same run without the ending key; Shift alone leaves the run in place."""
     url = serve(HELD_KEYS_PAGE)
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
@@ -1830,7 +1830,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     The authored document is useful while the first state response is held: its text,
     link, structure, and generated interface in light and shadow DOM all paint after
     upgrade. A durable choice based on that not-yet-reconciled document cannot mutate or
-    post. Releasing the response applies the standing decision and opens semantic
+    post. Releasing the response applies the decision in force and opens semantic
     interaction once."""
     url = serve(
         SHORT_SUGGESTION.replace(
@@ -2023,7 +2023,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
     Opening Threads during that interval replaces the remembered drawer. Replay leaves
-    that Thread panel standing while it paints the accepted state and exposes the completed
+    that Thread panel open while it paints the accepted state and exposes the completed
     Ask as a closed route for review.
     """
     url = serve(SHORT_SUGGESTION)
@@ -2660,9 +2660,9 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
 
     Then the same rule read the other way: `z` takes the reject back, the accept it
     superseded is the widget's answer once more, and the thread closes under it. The
-    two ways an answer stops standing compose, and nothing is written down to say so:
+    two ways an answer stops being in force compose, and nothing is written down to say so:
     an `unresolve` posted where the thread reopened would be a second record of the
-    same fact, and taking the reject back would leave it standing against the accept."""
+    same fact, and taking the reject back would leave it in force against the accept."""
     url = serve(
         JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">'),
         events=(
@@ -2682,7 +2682,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
     # What the other tab's press leaves in the log, made against the same version:
-    # its own accept and reject controls are still standing, because it has not
+    # its own accept and reject controls are still shown, because it has not
     # heard about this one's decision yet.
     append_command(
         d,
@@ -3393,7 +3393,7 @@ def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, ser
     """Two reads, two deadlines, because they are answerable to different things.
 
     `publish-site` deployed release `5b6be522…`, ran a hosted agent turn on it, and
-    then read the reloaded page standing on the revision from before the turn. A
+    then read the reloaded page still on the revision from before the turn. A
     container that has just run a turn answers its next state read in seconds rather
     than milliseconds — measured against a live deployment at 123 ms before a turn and
     2252-3918 ms after one. A bound inside that spread does not delay such a read, it
@@ -6314,7 +6314,7 @@ def test_data_written_during_fresh_revision_startup_waits_for_activation(
     """A source update cannot paint until the new revision document has activated.
 
     The revision published below changes the page's own code, which is the one thing
-    the standing document cannot take on, so it is followed into a fresh document and
+    the current document cannot take on, so it is followed into a fresh document and
     there is a startup to write data during.
     """
     activation_probe = """

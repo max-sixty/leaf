@@ -11,7 +11,7 @@ prompt: |-
   Compare A and B on:
   - evidence: the request's substantive facts are present and readable
   - decisions: the user can see and take the decisions or navigation the request asks for
-  - width: at the 900px windows, the page follows the standing preference
+  - width: at the 900px windows, the page follows the lasting preference
   - phone: the page is usable at 390px
   - comment: the final page carries the change the comment asked for where a reader
     of that passage would find it

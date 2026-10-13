@@ -879,7 +879,7 @@ def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     [served] = state_json(page_dir)["todos"]
     assert served["running"]["text"] == "Checking the fallback"
 
-    # An unrelated version and one that drops its card both leave the to-do standing.
+    # An unrelated version and one that drops its card both leave the to-do open.
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v2</title>")
     )
@@ -992,7 +992,7 @@ def test_a_start_reopens_a_page_its_agent_closed(page_dir):
 def test_a_waiting_declaration_puts_down_every_start_before_it(page_dir):
     """`status waiting` says what the agent wants back, and the banner shows it: every
     start written before it is put down, by a `put_down` in the log that a declaration
-    with no start standing does not repeat. A started move goes back to its delivery
+    with no start in force does not repeat. A started move goes back to its delivery
     stage, and a started to-do stays open with nothing running on it. A start after
     the declaration is in hand again."""
     publish(page_dir)
@@ -1468,7 +1468,7 @@ def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
 ):
     """`leaf task start` writes one record, in the log rather than the status file:
     the page's banner reads its line, and so does the receipt on the move it names,
-    under the user's own words. A pickup leaves it standing, a `waiting` declaration
+    under the user's own words. A pickup leaves it running, a `waiting` declaration
     puts it down, and the move's answer ends it."""
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}

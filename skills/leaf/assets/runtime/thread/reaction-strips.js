@@ -58,8 +58,8 @@ export class ReactionStripView {
                 data-token=${choice.name}
                 title=${choice.label}
                 aria-label=${choice.label}
-                aria-pressed=${String(Boolean(choice.standing))}
-                aria-busy=${String(Boolean(choice.standing?.pending))}
+                aria-pressed=${String(Boolean(choice.inForce))}
+                aria-busy=${String(Boolean(choice.inForce?.pending))}
                 @click=${() => this.#press(choice.name)}
               >
                 <span class="lf-react-glyph">${choice.glyph}</span>

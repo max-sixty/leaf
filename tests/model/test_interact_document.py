@@ -811,7 +811,7 @@ def test_rank_rules_match_the_browser_cases():
 )
 def test_the_position_fold_matches_the_browser_cases(case):
     """`tests/runtime/board-order.test.mjs` folds the same authored containers and
-    standing moves through `foldWidgetStates`, so the two runtimes leave every
+    moves in force through `foldWidgetStates`, so the two runtimes leave every
     container in one order."""
     registry = model_layer()
     columns = "".join(
@@ -849,7 +849,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
         report_settlements={},
         classified={},
         absorbed=frozenset(),
-        standing=frozenset(),
+        in_force=frozenset(),
     )
     order = projection_model.folded_positions(
         "board",
@@ -963,7 +963,7 @@ def test_page_init_reports_malformed_current_source_after_revendoring(page_dir):
 
 
 def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
-    """`page state` names the active revision's HTML and lists every standing move
+    """`page state` names the active revision's HTML and lists every move in force
     over it with the words, choice or place it carries, so a successor reads the page
     as the user sees it without a second copy of the document."""
     markup = PAGE.replace(
@@ -2216,8 +2216,8 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
 
 def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     """`page state` is /api/state folded for the agent: the banner's decision list,
-    the standing state replay paints, as one queryable
-    object — the position a session picking up a standing page would otherwise
+    the current state replay paints, as one queryable
+    object — the position a session picking up a persistent page would otherwise
     re-derive from the raw log."""
     opts = OPTIONS.format(
         a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
@@ -2323,7 +2323,7 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
     )
 
     assert written.exit_code == 0, written.output
-    standing = state_json(page_dir)
+    served = state_json(page_dir)
     first = read_page_data(page_dir)
     stored = data_model.source_file(page_dir, "deployments")
     assert first["sources"]["deployments"] == {
@@ -2336,8 +2336,8 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
         "value": ["api", "worker"],
     }
     assert data_model.read_contracts(page_dir) == {"deployments": "deployment-rows"}
-    assert standing["data"] == {"file": "data.json", "dir": "data", "errors": []}
-    assert standing["data_bindings"] == {
+    assert served["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    assert served["data_bindings"] == {
         "deployments": {
             "contract": "deployment-rows",
             "consumers": [
@@ -2605,11 +2605,11 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
     assert reply["revision"] == 1
 
     data_model.cmd_data_set(page_dir, "reply-feed", [])
-    standing = state_json(page_dir)
-    assert standing["data"] == {"file": "data.json", "dir": "data", "errors": []}
+    served = state_json(page_dir)
+    assert served["data"] == {"file": "data.json", "dir": "data", "errors": []}
     reading = read_page_data(page_dir)["sources"]["reply-feed"]
     assert (reading["contract"], reading["value"]) == ("rows", [])
-    assert standing["data_bindings"]["reply-feed"]["consumers"] == [
+    assert served["data_bindings"]["reply-feed"]["consumers"] == [
         {
             "widget": "reply-data",
             "input": "data",
@@ -2999,8 +2999,8 @@ def test_events_follow_prints_each_admitted_event_as_it_lands(page_dir, spawn):
     _tasks_version(page_dir, "active")
     publish(page_dir)
     follower = Follower(spawn, page_dir)
-    standing = events_model.read_events(page_dir)
-    assert [follower.next() for _ in standing] == standing
+    before = events_model.read_events(page_dir)
+    assert [follower.next() for _ in before] == before
 
     reported = _report(page_dir, "t-parser", "status", "value=review")
     assert reported.exit_code == 0, reported.output
@@ -3008,7 +3008,7 @@ def test_events_follow_prints_each_admitted_event_as_it_lands(page_dir, spawn):
     assert opened.exit_code == 0, opened.output
 
     followed = [follower.next(), follower.next()]
-    assert followed == events_model.read_events(page_dir)[len(standing) :]
+    assert followed == events_model.read_events(page_dir)[len(before) :]
     assert followed[0]["id"] == json.loads(reported.output)["id"]
     assert followed[0]["meaning"]["unit"] == "t-parser"
     assert followed[1]["id"] == json.loads(opened.output)["id"]
@@ -4031,14 +4031,14 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "seq": 2,
         },
         action("page-draft", "Page future.", 3),
-        action("frozen-draft", "Frozen standing.", 4),
+        action("frozen-draft", "Frozen current.", 4),
     ]
 
     expected = render_gate_readings._expected_verbatim(page, events, registry, here=1)
 
     assert expected == {
         ("page", None, 0): [{"text": "Page authored."}],
-        ("event", "r-scope", 0): [{"text": "Frozen standing."}],
+        ("event", "r-scope", 0): [{"text": "Frozen current."}],
     }
 
 
@@ -4185,10 +4185,10 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     ).replace('id="o-stage"', 'id="o-stage" chosen')
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + edited))
     assert stamp(page_dir, "revise recommendation").exit_code == 0
-    [standing] = [
+    [current] = [
         item for item in state_json(page_dir)["state"] if item["action"] == "choose"
     ]
-    assert standing["detail"] == {"value": ["o-shim"]}
+    assert current["detail"] == {"value": ["o-shim"]}
     source.write_text(PAGE)
     assert stamp(page_dir, "retire answered ask").exit_code == 0
     assert picked in events_model.read_events(page_dir)
@@ -4198,7 +4198,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
 
 
 def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
-    """An action admitted by an earlier Leaf keeps standing, and keeps its ask
+    """An action admitted by an earlier Leaf stays in force, and keeps its ask
     answered, under a Leaf that records the same operation's definition with other
     fields. Before #2329 the definition carried `update`, the verb flag now
     named `text`; matching every recorded field dropped each decision on a page
@@ -4234,8 +4234,8 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     log.write_text("\n".join(earlier) + "\n")
 
     reading = state_json(page_dir)
-    [standing] = [item for item in reading["state"] if item["action"] == "choose"]
-    assert standing["detail"] == {"value": ["o-shim"]}
+    [current] = [item for item in reading["state"] if item["action"] == "choose"]
+    assert current["detail"] == {"value": ["o-shim"]}
     [question] = reading["asks"]
     assert question["status"] == "answered"
     assert question["answer"]["event"]["id"] == picked["id"]

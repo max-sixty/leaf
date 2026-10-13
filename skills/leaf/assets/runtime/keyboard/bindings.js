@@ -62,7 +62,7 @@
      a control, and the row's own `touch` can only be `false`. Every page command
      answers it, `false` where a finger reaches the result directly.
    - A command that enters a layer declares no way back out of it. The layer's own
-     owner declares that step, against the layer standing rather than against the press
+     owner declares that step, against the open layer rather than against the press
      that opened it, so one state has one way out however the user reached it.
    - `native: true` performs `run` without preventing the platform default. Use it when
      Leaf must change state before the browser completes the same press, not to leave an

@@ -14,7 +14,7 @@
    and `t` name filters; `i` resumes writing, `v` restores selection and `z` aligns the current item at the top; these are excluded from the generated alphabet. `g g` and
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
    an edge of the list; `g p` returns focus to the page while leaving open surfaces
-   standing. Uppercase mnemonics remain named
+   in place. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g Q` Questions, `g L` All pages, `g M` the searchable
    Page Map and `g V` Versions. A named
    panel destination toggles that panel, matching its visible control. Completing one that
@@ -52,7 +52,7 @@
    including panel narrowing. A surface covering the document cannot make that promise,
    so its ordinary Escape rung remains the route back.
 
-   A destination declares no way back. `g T`, `g Q` and `g L` may exchange a standing
+   A destination declares no way back. `g T`, `g Q` and `g L` may exchange an open
    panel or drawer for another, and the surface the user ends in owns the one step that
    takes it off again — the same step whichever door opened it, and the same for a
    surface they already had. Exchanging one for another is lateral, so the one replaced
@@ -163,7 +163,7 @@ export function createGoToSequence({
   }
 
   // One-off direct travel is one vocabulary too. The mnemonic completes the trip or closes
-  // the named panel already standing, and every destination owns the liveness, landing, and
+  // the named panel already open, and every destination owns the liveness, landing, and
   // close that make its surface useful rather than leaving the dispatcher to know which
   // furniture it enters. Other owners' destinations rank ahead of the fixed doors, so a
   // narrow line keeps the step a notice just named, such as Resume writing.
@@ -541,9 +541,9 @@ export function createGoToSequence({
     // stands beside, and a line too narrow for every door keeps that one.
     get rows() {
       goRows ??= build();
-      const standing = goRows.filter((row) => DOOR_STANDS.get(row.id)?.());
-      return standing.length
-        ? [...standing, ...goRows.filter((row) => !standing.includes(row))]
+      const open = goRows.filter((row) => DOOR_STANDS.get(row.id)?.());
+      return open.length
+        ? [...open, ...goRows.filter((row) => !open.includes(row))]
         : goRows;
     },
   };
@@ -556,7 +556,7 @@ export function createGoToSequence({
         // without naming a list or taking a digit. This is the thread-local counterpart
         // to the page edges below: k/j place the card inside its panel rather than moving
         // the document to the passage the card is about. It leads while live, after
-        // only the door to the standing surface, because it is the one offer specific to
+        // only the door to the open surface, because it is the one offer specific to
         // where the user stands; list members wear their Go-to hints directly when the
         // sequence starts.
         keys: THREAD_EDGE_KEYS,
@@ -646,7 +646,7 @@ export function createGoToSequence({
       // owner that can keep them true.
       ...destinations.map((destination) => ({
         ...destination,
-        // A direct destination's finger route is its standing page command in
+        // A direct destination's finger route is its permanent page command in
         // More. Arming this keyboard sequence doesn't seat another gesture control.
         touch: false,
         when: () => atGoToTargets() && live(destination),

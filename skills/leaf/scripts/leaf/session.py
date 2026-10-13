@@ -81,7 +81,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
 
     Idling over an event nobody has answered ends the leaf on a user still
     owed one — unread, or read and left. The watcher's whole batch, not the
-    user-facing count, so a worker's report cannot be left standing as
+    user-facing count, so a worker's report cannot be left in place as
     provisional state forever either. The answers it holds the page for are
     `activity.blocking_obligations`, a started update's included: the Stop hook lets
     the turn that started one end over it, but closing the page answers nothing. It
@@ -120,7 +120,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
                 + ANSWER_ASK_INSTRUCTION
             )
         # A to-do is work the agent still owes, which closing the page would leave
-        # standing on a page nobody holds.
+        # open on a page nobody holds.
         if todos := work.durable.log.owed:
             named = "; ".join(f"{todo['id']} ({todo['title']})" for todo in todos)
             raise Refused(

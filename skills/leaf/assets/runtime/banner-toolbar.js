@@ -17,7 +17,7 @@
  * Three seats partition the run, and measured geometry never changes the partition:
  *
  * - `row`: Threads, and on a desk Approval, Comment on the page and Questions, the
- *   page's standing reading loop: reading it, starting a conversation about it,
+ *   page's own reading loop: reading it, starting a conversation about it,
  *   deciding it.
  * - `menu`: every secondary action, in one stable seat behind More. On a phone
  *   Approval, Comment on the page and Questions join them, so the banner keeps one row:
@@ -155,7 +155,7 @@ function paintDoor() {
   keeps(overflowBtn, "aria-label", name);
   keeps(overflowBtn, "title", name);
   overflowBtn.toggleAttribute("data-lf-news", news.length > 0);
-  // Keep the native invoker standing until its open popover has closed. A semantic
+  // Keep the native invoker in place until its open popover has closed. A semantic
   // update can retire the last visible item while the user is inside it; closing then
   // lets paint remove the empty door.
   keepsHidden(overflowBtn, !open && !menu.some(visible));
@@ -184,7 +184,7 @@ const rowOf = (entry) => {
     press: entry.row.press ?? (() => entry.focusTarget.click()),
   });
 };
-/** The run's rows standing now, in the run's order, each read as it reads now. */
+/** The run's rows present now, in the run's order, each read as it reads now. */
 export const bannerRows = () => ordered().filter(onOffer).map(rowOf);
 /** Call `listener` after each change to the run; returns the way to stop. */
 export function watchBannerRows(listener) {

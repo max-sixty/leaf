@@ -1,4 +1,4 @@
-"""A page server's lifetime: `server start`, `stop` and `run`, standing, session and
+"""A page server's lifetime: `server start`, `stop` and `run`, persistent, session and
 background-job lifetimes, the reaper that retires a server, and restarts across a
 re-vendor."""
 
@@ -107,7 +107,7 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
             "bind": "127.0.0.1",
             "port": available_loopback_port(),
             "enabled": True,
-            "lifetime": "standing",
+            "lifetime": "persistent",
         },
     )
     starts = []
@@ -146,7 +146,7 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
         assert service["enabled"]
         assert starts == [
             {
-                "standing": True,
+                "persistent": True,
                 "revive": True,
                 "harness": harness_model.session_harness(),
             }
@@ -342,10 +342,10 @@ def test_server_start_forwards_flags_and_returns_service_output(page_dir):
     to the service it spawns and the account comes back from there, so the
     lifetime a flag declared and the refusal a running server earns are both that
     process's own words, carried out with its exit status."""
-    standing = start_server_command(page_dir, "--standing")
-    assert standing.returncode == 0, standing.stderr
-    assert "server   standing" in standing.stderr
-    assert files_model.read_json(page_dir / "service.json")["lifetime"] == "standing"
+    persistent = start_server_command(page_dir, "--persistent")
+    assert persistent.returncode == 0, persistent.stderr
+    assert "server   persistent" in persistent.stderr
+    assert files_model.read_json(page_dir / "service.json")["lifetime"] == "persistent"
     assert service_model.page_claim(page_dir) is None
 
     refused = start_server_command(page_dir, "--host", "devbox.corp.example")
@@ -367,7 +367,7 @@ def test_server_stop_disables_desired_state_without_signalling_a_pid(
             "bind": "127.0.0.1",
             "port": 41000,
             "enabled": True,
-            "lifetime": "standing",
+            "lifetime": "persistent",
         },
     )
     (page_dir / "server.lock").write_bytes(b"")
@@ -382,9 +382,9 @@ def test_server_stop_disables_desired_state_without_signalling_a_pid(
 
 
 def test_server_stop_reports_a_server_that_exits_as_soon_as_it_is_disabled(
-    page_dir, standing_server, monkeypatch
+    page_dir, persistent_server, monkeypatch
 ):
-    server = standing_server(page_dir)
+    server = persistent_server(page_dir)
     write_json = hosting_model.write_json
 
     def write_and_wait_for_exit(path, value):
@@ -402,9 +402,9 @@ def test_server_stop_reports_a_server_that_exits_as_soon_as_it_is_disabled(
 
 
 def test_server_stop_waits_for_the_live_server_to_release_its_lease(
-    page_dir, standing_server
+    page_dir, persistent_server
 ):
-    server = standing_server(page_dir)
+    server = persistent_server(page_dir)
     # The ready lines are printed inside the server's startup page lock. Let that
     # transaction finish before pausing the process, so this checks the live lease
     # barrier rather than freezing startup while it still owns the page lock.
@@ -441,8 +441,10 @@ def test_server_stop_waits_for_the_live_server_to_release_its_lease(
     assert not leases_model.lock_is_held(page_dir / "server.lock")
 
 
-def test_server_stop_closes_accepted_keep_alive_connections(page_dir, standing_server):
-    server = standing_server(page_dir)
+def test_server_stop_closes_accepted_keep_alive_connections(
+    page_dir, persistent_server
+):
+    server = persistent_server(page_dir)
     service = files_model.read_json(page_dir / "service.json")
     connection = http.client.HTTPConnection(service["host"], service["port"])
     connection.request("GET", f"/api/state?t={server_model.host_key()}")
@@ -470,22 +472,22 @@ def test_server_stop_closes_accepted_keep_alive_connections(page_dir, standing_s
 
 
 def test_a_sessionless_server_ignores_a_stale_claim_and_requires_explicit_stop(
-    page_dir, dead_pid, standing_server, monkeypatch
+    page_dir, dead_pid, persistent_server, monkeypatch
 ):
     record_claim(page_dir, id="old-session", pid=dead_pid, agent="Codex")
-    server = standing_server(page_dir)
+    server = persistent_server(page_dir)
     assert not reaper_retires(page_dir, monkeypatch)
     assert server.poll() is None, "a manual server inherited the stale session claim"
     assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=STATED_TIMEOUT)
 
 
-def test_server_run_standing_declines_the_claim_a_harness_session_offers(
+def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
     page_dir, spawn
 ):
-    """`--standing` from inside a harness is the bare-shell statement made
+    """`--persistent` from inside a harness is the bare-shell statement made
     explicit: the launch declines the claim it could have made, so the server
-    records the standing lifetime and the page stays nobody's — no watcher
+    records the persistent lifetime and the page stays nobody's — no watcher
     thread to stop it when the harness pid goes, no SessionEnd reaper. The harness is
     the suite's own session, which every command here already runs under."""
     process = spawn(
@@ -493,7 +495,7 @@ def test_server_run_standing_declines_the_claim_a_harness_session_offers(
             *LEAF_COMMAND,
             "server",
             "run",
-            "--standing",
+            "--persistent",
             str(page_dir),
         ],
         stdout=subprocess.PIPE,
@@ -501,8 +503,8 @@ def test_server_run_standing_declines_the_claim_a_harness_session_offers(
         text=True,
     )
     assert json.loads(process.stdout.readline())["url"].startswith("http://127.0.0.1:")
-    assert process.stderr.readline().strip() == "server   standing"
-    assert files_model.read_json(page_dir / "service.json")["lifetime"] == "standing"
+    assert process.stderr.readline().strip() == "server   persistent"
+    assert files_model.read_json(page_dir / "service.json")["lifetime"] == "persistent"
     assert service_model.page_claim(page_dir) is None
 
 
@@ -534,27 +536,27 @@ def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn)
     assert error.endswith("Aborted!\n")
 
 
-def test_server_run_standing_refuses_to_adopt_a_session_server(page_dir):
+def test_server_run_persistent_refuses_to_adopt_a_session_server(page_dir):
     """A stated lifetime contradicted by the running server is refused with the
     way out named, exactly as a stated `--host` is — not silently ignored."""
     serving(page_dir, 1, "session")
     result = CliRunner().invoke(
-        cli_model.cli, ["server", "run", "--standing", str(page_dir)]
+        cli_model.cli, ["server", "run", "--persistent", str(page_dir)]
     )
     assert result.exit_code != 0
     assert "server stop" in result.output
 
 
-def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
-    page_dir, standing_server, monkeypatch, capsys
+def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
+    page_dir, persistent_server, monkeypatch, capsys
 ):
-    """The standing serve, the whole way round: a page kept up across sessions, and a
+    """The persistent serve, the whole way round: a page kept up across sessions, and a
     session that works on it for an afternoon and goes. Picking a page up earns the
     watch obligation and nothing else, so the session's end must take down neither the
     process it didn't start nor a leaf that outlives it."""
-    server = standing_server(page_dir)
+    server = persistent_server(page_dir)
     launched = server_model.running_server(page_dir)
-    assert files_model.read_json(page_dir / "service.json")["lifetime"] == "standing"
+    assert files_model.read_json(page_dir / "service.json")["lifetime"] == "persistent"
 
     # A session picks the page up, the way `leaf wait` does.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
@@ -562,7 +564,7 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
     assert service_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir, "")
     # Without this the hook would skip the page for the wrong reason and the test
-    # would pass with the bug in: the standing check has to be what spares it.
+    # would pass with the bug in: the persistent check has to be what spares it.
     assert page_dir in service_model.owned_pages("later")
 
     # A `server run` of its own finds this one up and reports the lifetime the
@@ -570,13 +572,13 @@ def test_a_standing_server_outlives_a_session_that_picks_the_page_up(
     hosting_model.cmd_serve(page_dir, harness=harness_model.session_harness())
     served = capsys.readouterr()
     assert json.loads(served.out) == {"url": launched["url"]}
-    assert "server   standing" in served.err
+    assert "server   persistent" in served.err
 
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "later"}
     )
 
-    # The synchronous hook left the standing service enabled and live.
+    # The synchronous hook left the persistent service enabled and live.
     assert server_model.running_server(page_dir) == launched
     assert files_model.read_json(page_dir / "status.json")["state"] == "waiting"
     assert not service_model.claim_is_active(service_model.page_claim(page_dir))

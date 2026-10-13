@@ -19,7 +19,7 @@ changes without naming them (`thread_context.thread_memberships`): a later decis
 on a suggestion that had answered a thread, or the `undo` of an answer. Neither
 shows the user what the thread says, so neither is evidence here. An update the user
 took back is no evidence either, as it is none for every other fold over the
-standing log.
+current log.
 
 The next ordinary agent reply supersedes preceding progress (`progress_completions`),
 so completed progress leaves unread even when its body was never exposed. The reply

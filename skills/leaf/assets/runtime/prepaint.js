@@ -530,13 +530,13 @@
       currentInputs.every((input, at) => input === priorFailure[at]);
     const allocate = (room, movable) => {
       const taken = { left: 0, right: 0 };
-      const standing = [];
+      const granted = [];
       if (
         (document.body.dataset.annotations ?? "overlay") === "overlay" &&
         document.body.getAttribute("data-rail") !== "none" &&
         room.right >= need("--rail")
       ) {
-        standing.push("rail");
+        granted.push("rail");
         taken.right = need("--rail");
       }
       for (const postures of preferences)
@@ -546,7 +546,7 @@
           if (wants.left + wants.right > room.left + room.right + 0.5) continue;
           if (!movable && (wants.left > room.left || wants.right > room.right))
             continue;
-          standing.push(posture);
+          granted.push(posture);
           Object.assign(taken, wants);
           break;
         }
@@ -560,7 +560,7 @@
       // Auto margins can centre the column only while its track still holds it.
       const reach = Math.max(0, (shell.width - column.width) / 2);
       const shift = movable ? Math.max(-reach, Math.min(reach, requested)) : 0;
-      return { taken, standing, shift };
+      return { taken, granted, shift };
     };
     let allocation = allocate(
       sameFailure
@@ -595,8 +595,8 @@
     } else if (!sameFailure) {
       failedPlacements.delete(main);
     }
-    const { shift, standing } = allocation;
-    const tokens = standing.join(" ");
+    const { shift, granted } = allocation;
+    const tokens = granted.join(" ");
     const seated = (main.getAttribute("data-lf-margin") ?? "") !== tokens;
     if (!seated && shift === shellWritten) return shellChanged;
     // Source copies keep the authored shell before initial geometry writes to it;

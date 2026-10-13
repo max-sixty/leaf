@@ -69,10 +69,10 @@ def lifetime_note(page_dir: Path) -> str:
     Read from service.json, the one place a lifetime is written down. The record
     lands before the URL is printed and survives an explicit stop, so a restart
     restores the same lifetime as well as the same URL."""
-    if (read_json(page_dir / SERVICE_FILE) or {}).get("lifetime") == "standing":
+    if (read_json(page_dir / SERVICE_FILE) or {}).get("lifetime") == "persistent":
         return "\n".join(
             (
-                "server   standing",
+                "server   persistent",
                 f"stop     leaf server stop {page_dir}",
             )
         )
@@ -122,7 +122,7 @@ def stop_when_service_ends(page_dir: Path) -> None:
         service = read_json(page_dir / SERVICE_FILE)
         if not service or not service["enabled"]:
             os._exit(0)
-        if service["lifetime"] == "standing":
+        if service["lifetime"] == "persistent":
             changes.wait(mark, 2.0)
             continue
         claim = page_claim(page_dir)
@@ -139,7 +139,7 @@ def stop_when_service_ends(page_dir: Path) -> None:
                     service = read_json(page_dir / SERVICE_FILE)
                     if not service or not service["enabled"]:
                         os._exit(0)
-                    if service["lifetime"] == "standing" or page.active_claim:
+                    if service["lifetime"] == "persistent" or page.active_claim:
                         orphaned_at = None
                         continue
                     os._exit(0)
@@ -193,7 +193,7 @@ def page_access(page_dir: Path, host: str | None = None) -> dict:
                 )
         # Over the record, not in place of it: a --host restates where the page
         # is reached, and the record's other facts — the exact port an open tab
-        # polls, the standing lifetime — restate nothing and must survive, or
+        # polls, the persistent lifetime — restate nothing and must survive, or
         # the recovery this flag exists for demotes the dashboard it recovers.
         access = {**(access or {}), "host": host, "bind": "::"}
     else:

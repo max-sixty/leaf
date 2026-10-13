@@ -804,7 +804,7 @@ def score_constructs(run: Run) -> dict:
     if len(state["versions"]) < 2:
         return {"stamped": False}
     draft = document.by_id.get("release-note")
-    standing = next(
+    edited = next(
         (s["detail"]["value"] for s in state["state"] if s["widget"] == "release-note"),
         None,
     )
@@ -814,8 +814,8 @@ def score_constructs(run: Run) -> dict:
         "texts": {
             # What the user now reads: their edit where it still stands, else the
             # markup.
-            "release-note": standing
-            if standing is not None
+            "release-note": edited
+            if edited is not None
             else (draft["body"] if draft else ""),
             "chart": chart["body"] if chart else "",
         },
@@ -868,7 +868,7 @@ def score_resume(run: Run) -> dict:
         "batch_200": batch is not None and "200" in batch,
         "batch_in_place": batch is not None,
         "pick_taken_in": not pick_owed(state, pick),
-        "pick_standing": any(
+        "pick_in_force": any(
             s["widget"] == "rollout" and s["detail"]["value"] == ["opt-per-tenant"]
             for s in state["state"]
         ),
@@ -1301,7 +1301,7 @@ CHECKS = {
         "batch_200",
         "batch_in_place",
         "pick_taken_in",
-        "pick_standing",
+        "pick_in_force",
         "no_restated",
         "replied",
     ),

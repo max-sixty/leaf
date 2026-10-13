@@ -1,7 +1,7 @@
 /* Where putting a reply's reaction choices away hands the user back.
 
    The close names its candidates, the bar's field, the control the press stood the user
-   on, and the list's trigger, and hands the user to the first the close leaves standing.
+   on, and the list's trigger, and hands the user to the first the close leaves in place.
    Asked over happy-dom's focus and inline `display`, since it lays nothing out, gives
    `hidden` no style and draws no popover. */
 

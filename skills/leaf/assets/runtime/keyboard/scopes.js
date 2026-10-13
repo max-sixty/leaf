@@ -601,7 +601,7 @@ export function commandScope(title, rows, options) {
 }
 
 // `projector` is whatever the projecting owner keys its projection by; projecting again
-// under the same key replaces that owner's scope and leaves every other owner's standing,
+// under the same key replaces that owner's scope and leaves every other owner's scope in place,
 // and a null capability withdraws it.
 export function projectCommandScope(control, projector, capability = null) {
   const projections = projectedScopes.get(control) ?? new Map();
@@ -709,7 +709,7 @@ function reflectElementShortcuts(element) {
   ].join(" ");
   keeps(element, "aria-keyshortcuts", shortcuts || null);
 }
-// Ahead of standing content, so an ambiguous declaration is refused under its own title
+// Ahead of the page's content, so an ambiguous declaration is refused under its own title
 // rather than under whichever surface reads its rows first.
 export function reflectFirstScopes() {
   claimButtons();
@@ -720,7 +720,7 @@ export function reflectFirstScopes() {
     reflectElementShortcuts(scope.el);
   }
 }
-// Reflect after standing content has projected all of its scopes in the current
+// Reflect after the page's content has projected all of its scopes in the current
 // repaint frame. A focus move and a replacement can each ask for a paint, but the
 // shortcut attribute should represent only the final standing of that frame.
 // A scope refused here is reported, and the elements after it still paint.

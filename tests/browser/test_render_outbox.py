@@ -1346,7 +1346,7 @@ def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
 ):
     """An optimistic record-less decision still yields to the first complete read.
     If that read contains both the decision and its undo, replay leaves authored markup
-    standing. The send continuation must not repaint the withdrawn decision after that
+    in place. The send continuation must not repaint the withdrawn decision after that
     authoritative read has released it."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
@@ -2312,7 +2312,7 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
     page.wait_for_selector(".lf-fab-input", state="visible")
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
-    standing = page.evaluate("""() => {
+    placed = page.evaluate("""() => {
         const box = document.querySelector('.lf-fab-bar').getBoundingClientRect();
         const touching = [...document.querySelectorAll('main p, main h1')]
             .filter(el => el.checkVisibility())
@@ -2330,8 +2330,8 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
             .map(el => el.id || el.tagName);
         return { touching };
     }""")
-    assert standing["touching"] == [], (
-        f"the box stands on the page's own text: {standing['touching']}"
+    assert placed["touching"] == [], (
+        f"the box stands on the page's own text: {placed['touching']}"
     )
 
 
@@ -2343,7 +2343,7 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     the passage's draft and return when the user selects that passage again."""
     page = open_page(browser, serve(LONG_PAGE))
     # Start with enough room for the field beside the passage; opening the panel then
-    # changes the body's available right edge around that standing float.
+    # changes the body's available right edge around that float.
     resized(page, 1600, 900)
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)

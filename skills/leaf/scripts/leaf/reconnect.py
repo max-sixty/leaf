@@ -6,7 +6,7 @@ older generations that the hook transport's owned-page reading no longer covers.
 Either lost ownership or a dead serving incarnation needs reconnecting; the old
 server may still answer during its orphan grace period.
 
-Explicit releases, stops, standing services, previews, and successor claims are not
+Explicit releases, stops, persistent services, previews, and successor claims are not
 outages this session should repair. Inspection holds the service and page locks, then
 the session lock, so a notice cannot race a transfer or explicit stop. Notification
 state lives outside the page log, persists across SessionEnd, and resets only after

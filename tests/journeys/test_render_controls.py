@@ -1784,7 +1784,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     page.close()
 
     # A control that settles its own decisions disappears while it still owns focus. Hand
-    # the user to the next standing control instead of silently dropping them on body.
+    # the user to the next remaining control instead of silently dropping them on body.
     page = open_page(browser, url.replace("/v1.html", "/v2.html"), pin=True)
     resized(page, 1200, 900)
     stamp_page(serve.page_dir, html, "three")
@@ -2325,7 +2325,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
 def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
     """Each row mechanism holds its other controls still across its causal transition."""
     # The synthetic page composes every mechanism a page can author, and carries the
-    # standing comment the margin entry's row is made of. An archetype naming another
+    # existing comment the margin entry's row is made of. An archetype naming another
     # source is one whose causal state cannot coexist with that composed page, or whose
     # mechanism lives only in a shipped gallery or under a page-wide opt-in.
     source = archetype.get("source")
@@ -2496,7 +2496,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     marked, unlinked row, each neighbour is a link named by its title and saying what
     that page is doing — the same judgment its own banner would show, from the same facts — and a
     link opens that page in a tab of its own, leaving this one where it was, panel
-    standing. Esc is the panel's rung on the ladder. On a machine serving nothing
+    open. Esc is the panel's rung on the ladder. On a machine serving nothing
     else the button never appears, which every other test here shows for free."""
     other_url, _ = other_leaf
     url = serve(LONG_PAGE)
@@ -2549,7 +2549,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # The arrival leaves the key in the cookie and the bare address in the tab.
     expect(tab).to_have_url(f"{other_url}/")
     tab.close()
-    # The press left this tab alone, drawer still standing.
+    # The press left this tab alone, drawer still open.
     expect(others_panel).to_be_visible()
     page.keyboard.press("Escape")
     expect(others_panel).not_to_be_visible()
@@ -2734,7 +2734,7 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
     (other_dir / SERVICE_FILE).unlink()
     with socket.create_server(("127.0.0.1", urlsplit(old_url).port)):
         new_url = hosting_model.start_server(
-            other_dir, standing=True, harness=None
+            other_dir, persistent=True, harness=None
         ).url.split("?")[0]
     assert urlsplit(new_url).port != urlsplit(old_url).port
     wait_for(
@@ -3467,13 +3467,13 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     through it, green every time.
 
     One page because the chrome is the same on every document. What varies here is which
-    of the chrome's own surfaces is standing — and the scheme and the
+    of the chrome's own surfaces is open — and the scheme and the
     width, which are the two axes that sweep carries and this one has to carry too. Dropped,
     they cost this test the dark palette entirely: the token these very sweeps caught was
     left failing on the dark half, because nothing here ever rendered it.
 
     Each surface is opened by its own key, which is also the assertion that it can be, and
-    each is proved standing before axe reads it — a sweep over a surface that never opened
+    each is proved open before axe reads it — a sweep over a surface that never opened
     is a green that means nothing, which is the shape `tests/AGENTS.md` names."""
     url = serve(ADDRESSED_PAGE, comments=1)
     stamp_page(serve.page_dir, ADDRESSED_PAGE, "two")
@@ -3796,7 +3796,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                         source.locator(":scope > summary").click()
             page.evaluate(RING_FOCUS_START)
             # Threads and a target's own Thread card are one surface offered two ways:
-            # with the panel standing, a thread margin entry sends the user there instead of
+            # with the panel open, a thread margin entry sends the user there instead of
             # building the card. The scopes listed above need the panel shut either to expose
             # their own page surface or to exercise the panel's entry route itself.
             if scope in RING_SCOPES_STARTING_WITHOUT_PANEL:
@@ -3914,7 +3914,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 lit = [ring for ring in drawn if ring["here"]]
                 unnamed.update(ring["who"] for ring in lit if not ring["ring"])
                 found = expected & {ring["ring"] for ring in lit if ring["sample"]}
-                # One standing defect is one finding, not one per stop: a ring worn by
+                # One lasting defect is one finding, not one per stop: a ring worn by
                 # something the sample is not moving — a decision's mark, a thread's element
                 # mark — is read again at every stop it survives.
                 for fault in ring_faults(drawn, where):

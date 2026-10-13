@@ -311,7 +311,7 @@ customElements.define(
     }
 
     // The one statement a live channel can't derive: the set is whole. Done is a
-    // reversible gesture; its pressed state is the standing answer action. Its digit
+    // reversible gesture; its pressed state is the answer action in force. Its digit
     // is inside the button, as an option's is inside the option, so a press on it is a
     // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
@@ -328,8 +328,8 @@ customElements.define(
 
     #doneUndo() {
       const answer = this.reading?.actions.answer;
-      const standing = answer?.standing[0]?.event;
-      return answer?.undo.find((event) => event.id === standing?.id) ?? null;
+      const inForce = answer?.inForce[0]?.event;
+      return answer?.undo.find((event) => event.id === inForce?.id) ?? null;
     }
 
     #doneAvailable() {
@@ -580,9 +580,9 @@ customElements.define(
       // including accepted replay.
       const detail = state.choose?.detail ?? this.#authoredChoice();
       const added = Object.fromEntries(
-        Object.entries(state.add?.units ?? {}).map(([id, standing]) => [
+        Object.entries(state.add?.units ?? {}).map(([id, record]) => [
           id,
-          standing.detail.text,
+          record.detail.text,
         ]),
       );
       const created = this.#addition.reconcile(added, this.#done);

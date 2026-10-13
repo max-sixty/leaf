@@ -152,12 +152,9 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
             "token": "mark",
         },
     )
-    standing_reaction_range = summarize(third["id"], reaction["id"])
-    assert standing_reaction_range.exit_code != 0
-    assert (
-        "endpoints must name spoken turns in one thread"
-        in standing_reaction_range.output
-    )
+    reaction_range = summarize(third["id"], reaction["id"])
+    assert reaction_range.exit_code != 0
+    assert "endpoints must name spoken turns in one thread" in reaction_range.output
 
     append_carried_log_record(
         page_dir,

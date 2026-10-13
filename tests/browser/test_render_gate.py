@@ -1800,10 +1800,10 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     it is not a color.
 
     And the replay check reaches a decision made in the panel. `RELATIVE_REPLAYS`
-    applies every standing winner again and asks whether anything moved; a widget an
+    applies every winner in force again and asks whether anything moved; a widget an
     agent sent in a reply is folded by a projection of its own and replayed into a tree
     the panel built, and the probe reads the validation state adapter, which returns
-    early when nothing is standing. No page the gate was ever run over held such an
+    early when nothing is in force. No page the gate was ever run over held such an
     action, so it was reporting clean on an empty list, and the population is asserted
     before the gate is asked anything. Both of the group's verbs stand: `choose`
     declares a record, so a second application that moved anything is a finding;
@@ -1961,15 +1961,15 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     # The population first: the probe returns clean for an empty list.
     page = open_page(browser, url)
     resized(page, 1280, 900)
-    standing = page.evaluate(
+    current = page.evaluate(
         "async () => (await window.__lfRuntimeImport('/runtime/validation.js'))"
         ".validationWidgetStates().flatMap(({widget, state}) =>"
-        " Object.values(state).map(standing => [widget.id, standing.action]))"
+        " Object.values(state).map(current => [widget.id, current.action]))"
     )
     page.close()
-    assert ["an-set", "choose"] in standing and ["an-set", "answer"] in standing, (
+    assert ["an-set", "choose"] in current and ["an-set", "answer"] in current, (
         f"the user's decisions are not among what the runtime hands the gate: "
-        f"{standing} — the replay would be handed nothing and report clean"
+        f"{current} — the replay would be handed nothing and report clean"
     )
 
     failures = render_gate_model.render_version(browser, url).failures
@@ -2071,7 +2071,7 @@ def test_widget_state_excuses_only_the_verbatim_prose_it_projects(
     own state projects and nothing else: a widget whose state rewrites its unrelated
     prose is reported, and so is a child whose action rewrites its preserving
     wrapper's prose. Beside them, the changes projections honestly make (a draft's
-    standing rewrite, a suggestion accepted and so retired, and one accepted then
+    rewrite in force, a suggestion accepted and so retired, and one accepted then
     withdrawn) are not."""
     monkeypatch.chdir(tmp_path)
     _author_stateful_verbatim_widget(tmp_path)
@@ -2113,7 +2113,7 @@ def test_widget_state_excuses_only_the_verbatim_prose_it_projects(
             "detail": {"value": "corrupt"},
         },
     )
-    edit = {"action": "edit", "detail": {"value": "User's standing draft."}}
+    edit = {"action": "edit", "detail": {"value": "User's current draft."}}
     append_command(serve.page_dir, user | edit | {"widget": "edited"})
     accept = {"action": "decide", "detail": {"outcome": "accept"}}
     append_command(serve.page_dir, user | accept | {"widget": "retired"})
@@ -4178,7 +4178,7 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, pointer):
                     {"type": event, "touchPoints": [{"x": at, "y": y}]},
                 )
         if pointer == "mouse":
-            # A pointer drag leaves the existing keyboard focus standing.
+            # A pointer drag leaves the existing keyboard focus in place.
             assert handle.evaluate(
                 "e => e.matches(':focus') && e.hasAttribute('data-lf-focus')"
             )
@@ -4331,7 +4331,7 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     past what the user chose is a window, not a retraction: the user said 580 once, and a
     laptop lid opened narrower is not them saying 500 instead.
 
-    So the choice and the standing width are two facts. Clamping the stored one would read
+    So the choice and the current width are two facts. Clamping the stored one would read
     identically on the narrow window and lose the user's answer for good on the wide one
     they came back to, which is the failure this reading is here to catch — the third
     geometry below is the whole of it."""

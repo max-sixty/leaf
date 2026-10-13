@@ -175,7 +175,7 @@ export function keyBadgePlacement() {
       !box ||
       box.right <= box.left ||
       box.bottom <= box.top ||
-      kept.some((standing) => overlaps(box, standing))
+      kept.some((other) => overlaps(box, other))
     )
       return false;
     kept.push(box);
@@ -217,7 +217,7 @@ export function keyBadgePlacement() {
     const free = (box) =>
       box.right > box.left &&
       box.bottom > box.top &&
-      !kept.some((standing) => overlaps(box, standing));
+      !kept.some((other) => overlaps(box, other));
     const seated = [];
     for (const { chip, seat, owner, corner, start } of measured) {
       const places = [

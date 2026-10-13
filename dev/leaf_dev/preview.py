@@ -433,7 +433,7 @@ def refresh_preview(
     retry also adopts layer edits a previous refusal held back. Only a changed
     layer takes a process-owned server down. A
     source edit replaces the authored HTML and companion files and stamps them,
-    the way an agent revises a page, so it arrives in the tab the user is standing
+    the way an agent revises a page, so it arrives in the tab the user is reading
     in. An agent's own revision of a `--user` preview survives a runtime edit; a
     source edit over competing authored inputs is refused rather than replacing
     them. A refused stamp restores the previous mutable inputs as well.

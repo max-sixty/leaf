@@ -168,7 +168,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     The anchor in that log is the part that can rot quietly. It is captured from
     the mapped revision, and it has to name the same passage once the browser has
     built the page; a rewritten sentence leaves the quote resolving to nothing and
-    the thread standing there detached, which is a broken demo and no error
+    the thread left there detached, which is a broken demo and no error
     anywhere. A sample can instead explicitly retain a historical quote after a
     reply detaches it from a section the current page removed. The corpus's own
     anchor sweep does not cover shipped anchors, because that sweep writes its own.
@@ -194,7 +194,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
     drawn = []
     decided = []
     replied = []
-    read_as = {}  # widget id -> how it reads with the log's decision standing
+    read_as = {}  # widget id -> how it reads with the log's decision in force
 
     for example in seeded:
         url = serve(example)
@@ -225,7 +225,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             )
             previous.add(event["id"])
         assert {event["id"] for event in events} <= previous
-        # Read standing roots through the same fold as the page. A resolved root keeps
+        # Read the roots in force through the same fold as the page. A resolved root keeps
         # its thread and attachment but owes no paint; a withdrawn reaction owes neither.
         page_ids = enclosing_ids(structure_model.SourceDocument(example.read_text()))
         threads = thread_model.build_threads(logged, page_ids)
@@ -318,7 +318,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 sheet = page.get_by_role("dialog", name="Page Map", exact=True)
                 expect(
                     sheet.locator(
-                        '[data-lf-margin-entry-owner="standing-reactions"]'
+                        '[data-lf-margin-entry-owner="reactions"]'
                         f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]'
                     )
                 ).to_be_visible()
@@ -472,7 +472,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         # markup rather than from the version, through a projection of its own
         # (`frozen_thread_reading`), and replayed into a tree the panel built — so
         # a corpus that seeds the question and not the answer reads the untouched
-        # half of every such widget and leaves the whole standing-decision route
+        # half of every such widget and leaves the whole decision-in-force route
         # to unit-style fixtures. The seed is what puts it under the sweeps.
         decided_here = [
             e["widget"]
@@ -480,21 +480,21 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             if e["kind"] == "action" and e["widget"] in carried_ids
         ]
         # Named by each carried widget's public semantic reading, which is where a
-        # standing winner has to appear for the gate to reapply it at all.
-        standing = page.evaluate(
+        # winner in force has to appear for the gate to reapply it at all.
+        in_force = page.evaluate(
             """async ids => {
               const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
               return ids.filter(id => Object.values(
                 widgetController(document.getElementById(id)).read().actions,
-              ).some(action => action.standing.length));
+              ).some(action => action.inForce.length));
             }""",
             decided_here,
         )
         for wid in decided_here:
             decided.append(wid)
-            assert wid in standing, (
-                f"{example.stem}: the log decides #{wid} and the runtime's standing "
-                f"state names only {standing} — the panel's fold reached the gate for "
+            assert wid in in_force, (
+                f"{example.stem}: the log decides #{wid} and the runtime's current "
+                f"state names only {in_force} — the panel's fold reached the gate for "
                 "nothing the user did"
             )
             read_as[wid] = page.locator(f"#{wid}").inner_text()

@@ -179,7 +179,7 @@ def other_leaves(page_dir: Path) -> list:
     """Live neighboring pages, from their own compact canonical publications.
 
     A closed page is not one of them. Its server stays up so the page stays
-    readable, a standing one for good, so nothing else would ever drop its row, and
+    readable, a persistent one for good, so nothing else would ever drop its row, and
     a count the user glances at to find who needs them would become a tally of
     everything that has run here. This page's own row is never in the list, so a
     user looking at a closed page still sees it.

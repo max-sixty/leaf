@@ -94,7 +94,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // The list's place through every change to its content (user-place.js). A card is
   // rendered under its thread's root id, so a card the render rebuilt hands the place to
   // its successor node, and a folding card, renamed out of `.lf-thread`, hands it to the
-  // next card still standing.
+  // next card still present.
   let place = null;
   const listPlace = (panelIsOpen) =>
     (place ??= placeKeeper(threadsBox, {

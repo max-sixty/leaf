@@ -53,6 +53,7 @@ session currently holds the page, on both the banner and neighboring-page rows.
 | **Package** | One composable source directory of declarations and their payload |
 | **Leaf layer** | One checked, vendored composition of packages |
 | **User session** | One browser tab's temporary interaction with a page instance |
+| **In force** | An action, report, reaction or decision that no undo withdrew and no version note retracted; at each owner-unit-verb coordinate the latest in force wins (`events.InForce`, `StateProjection.in_force`; the served event field keeps its name, `stands`) |
 
 Core Leaf owns revision activation, scoped serving, the executable and inert-input
 boundaries, target identity, event admission, comments, and export. A package owns
@@ -120,7 +121,7 @@ stylesheet decides whether their bodies scroll.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
-| **Banner** | The persistent chrome row at the window's top: page status ending with the agent's Tasks count, the primary Approval, Comment on the page, Questions and Threads controls, and an overflow disclosure of secondary controls (`banner-toolbar.js` says where each control sits) |
+| **Banner** | The fixed chrome row at the window's top: page status ending with the agent's Tasks count, the primary Approval, Comment on the page, Questions and Threads controls, and an overflow disclosure of secondary controls (`banner-toolbar.js` says where each control sits) |
 | **Page comment card** | The card hung from the banner's Comment on the page control, holding the page's general comment box, the one place a page thread starts (`thread/page-comment.js`) |
 | **Bottom bar** | The row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
@@ -225,7 +226,10 @@ These terms name Leaf concepts that no standard term covers, so they stay:
 
 - **Standing**, not *focus*: a user stands at a target from its margin cluster, its
   thread card, or its note on the details shelf as well as from the element, while DOM
-  focus is on one node. Where the two coincide, say *focus*.
+  focus is on one node. Where the two coincide, say *focus*. *Standing* means only
+  where the user is: say *in force* for an event not withdrawn, *current* for the
+  latest value, *open* for something still owed or on screen, and *persistent* for a
+  serve that outlives sessions.
 - **Trip** and **Journey**, not *navigation*: a trip decides whether to leave a history
   entry (it stays when the user already has the destination), and a journey shares one
   entry across trips. Web navigation always adds an entry, or replaces one.

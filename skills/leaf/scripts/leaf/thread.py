@@ -129,7 +129,7 @@ def delivery_reply_reserved(session_id: str, delivery_id: str, target: dict) -> 
     """Whether this delivery's reservation of its reply address still stands."""
     try:
         with PageTransaction(Path(target["page"])) as page:
-            reservation = page.standing_reply_reservation(target["responds"])
+            reservation = page.open_reply_reservation(target["responds"])
             return bool(
                 reservation is not None
                 and reservation["session"] == session_id
@@ -540,9 +540,9 @@ def _resolve_obligation(
                 )
         elif ephemeral:
             in_hand = for_event
-        # The standing reply reservation decides who may write, whatever the
+        # The open reply reservation decides who may write, whatever the
         # captured `writer` hint or a caller-supplied retry key says.
-        reserved = page.standing_reply_reservation(for_event)
+        reserved = page.open_reply_reservation(for_event)
         if reserved is not None:
             if isinstance(settlement, ProviderFinal):
                 if (session, settlement.reservation) != (
@@ -565,11 +565,11 @@ def _resolve_obligation(
                     refusal += f"use {command} to commit an explicit answer"
                 raise Refused(refusal)
     else:
-        standing = thread_obligation(events, responses, thread_id)
-        if standing is not None:
+        owed = thread_obligation(events, responses, thread_id)
+        if owed is not None:
             raise Refused(
                 f"thread {thread_id!r} currently requires a response; "
-                f"{answer_command(standing, page_dir)} answers it"
+                f"{answer_command(owed, page_dir)} answers it"
             )
     if (
         isinstance(settlement, Receipt)
@@ -832,7 +832,7 @@ def fail_answer(
     never left owed with nobody to answer it:
 
     - a `reply` answer takes a reply carrying `failure` in its thread, which
-      the user resends into; a standing reply reservation refuses it until its
+      the user resends into; an open reply reservation refuses it until its
       turn gives the reply up;
     - a `markup` answer takes a failed pickup: the user's answer to the ask stands in the
       log, and answering again sends a new answer.

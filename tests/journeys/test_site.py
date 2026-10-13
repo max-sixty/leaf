@@ -1606,7 +1606,7 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     the runtime's first state answer, so the panel never renders empty and then fills in.
 
     The anchor is the half that rots quietly: the quote is captured against the file, and
-    a rewritten sentence leaves it resolving to nothing and the thread standing detached,
+    a rewritten sentence leaves it resolving to nothing and the thread left detached,
     with no error anywhere."""
     _, url = served_example("ship-review")
     page = open_page(browser, url)

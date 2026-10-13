@@ -239,7 +239,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     A board card declares a local work seat and receives its page-edge margin entry without
     inventing a comment thread. An options group deliberately has no such seat: adding
     an option changes decision state, and any discussion starts as a separate thread
-    once that option exists. Unrelated versions leave the board claim standing, while
+    once that option exists. Unrelated versions leave the board claim in force, while
     a claim made on v2 does not leak backward into a pinned v1 tab.
     """
     work_page = ASK_PAGE.replace(
@@ -285,7 +285,7 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     expect(card_button).to_have_class(re.compile(r"\blf-margin-entry\b"))
     card_button.evaluate("node => { node.dataset.identityProbe = 'kept' }")
 
-    # An unrelated version leaves the card coordinate standing.
+    # An unrelated version leaves the card coordinate in force.
     stamp_page(d, work_page, "Elsewhere")
     wait_for_revision(page, 2)
     expect(card_button).to_have_attribute("data-identity-probe", "kept")

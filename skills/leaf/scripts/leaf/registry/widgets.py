@@ -448,7 +448,7 @@ def _validate_widget_interactions(
             f"{path}: <{tag}> declares {', '.join(needs_upgrade)} "
             "but has no upgraded handler"
         )
-    # A version overrules a standing report with `overruled` on the element,
+    # A version overrules a report in force with `overruled` on the element,
     # so a widget with an agent-written verb that doesn't declare the attribute
     # is one whose every report contradiction is unpublishable.
     agent_verbs = [verb for verb, _spec in state_specs(entry, writer="agent")]
@@ -459,7 +459,7 @@ def _validate_widget_interactions(
         raise RegistryError(
             f"{path}: <{tag}> declares agent-written x-state verbs {json_value(agent_verbs)} but "
             "not the boolean `overruled` "
-            "attribute a version overrules a standing report with"
+            "attribute a version overrules a report in force with"
         )
     # A user decision folded on the widget needs an explicit withdrawal route:
     # `restated` names that intent; ordinary source edits leave the decision in

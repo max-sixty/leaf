@@ -65,7 +65,7 @@ def test_check_accepts_authored_module_scripts(page_dir):
 
 
 def test_the_captured_executable_digest_separates_code_from_content(page_dir):
-    """What a standing document cannot take on in place, and nothing else.
+    """What the current document cannot take on in place, and nothing else.
 
     A user's open document keeps its module graph and its defined elements for as
     long as it lives, so the capture states which revisions can be given to that
@@ -269,7 +269,7 @@ def test_a_reorder_the_next_version_wrote_survives_a_later_one(page_dir):
     assert result.exit_code == 0, result.output
 
 
-def test_a_later_authored_reorder_is_allowed_with_a_move_standing(page_dir):
+def test_a_later_authored_reorder_is_allowed_with_a_move_in_force(page_dir):
     """A card moved up its own column changes no container, so a reading of the
     column alone would take a version that ignores the move as recording it. At the
     top, no card both versions list precedes it."""
@@ -438,7 +438,7 @@ def test_the_live_source_can_honor_the_latest_revision_decision(page_dir):
     )
 
     # Once staged as index.html, these bytes are a new live revision after r3;
-    # the standing decision on r3 therefore licenses the honoring rewrite.
+    # the decision in force on r3 therefore licenses the honoring rewrite.
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<lf-options>",
@@ -604,7 +604,7 @@ def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
     assert found(findings, "dropped-ids", revision=1, ids=["backfill-first", "plan"])
 
 
-def test_an_answered_ask_moves_into_a_collapsed_section_with_its_pick_standing(
+def test_an_answered_ask_moves_into_a_collapsed_section_with_its_pick_in_force(
     page_dir,
 ):
     """The route `authoring-revisions.md` gives finished work: the answered Ask goes

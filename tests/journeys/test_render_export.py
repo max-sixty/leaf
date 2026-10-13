@@ -62,7 +62,7 @@ def preview_slot_fixture(tmp_path, monkeypatch):
 
     `LEAF_PREVIEWS_ROOT` puts the slots under `tmp_path` instead of the checkout's
     `.tmp/previews`, which every run in this checkout shares: a run leaves nothing
-    behind there, and a preview a developer has standing is not a page these tests
+    behind there, and a preview a developer has running is not a page these tests
     find. A preview is a foreground process, so the `spawn` that started it ends it.
     """
     monkeypatch.setenv("LEAF_PREVIEWS_ROOT", str(tmp_path / "previews"))
@@ -1217,11 +1217,11 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
 
 
 def test_exporting_an_example_leaves_the_live_preview_untouched(
-    monkeypatch, page_dir, standing_server
+    monkeypatch, page_dir, persistent_server
 ):
     """An offline handoff can be made while its live preview keeps serving."""
     live_source = (page_dir / "index.html").read_bytes()
-    live_server = standing_server(page_dir)
+    live_server = persistent_server(page_dir)
     monkeypatch.setattr(preview_model, "TMP", page_dir.parent)
 
     try:

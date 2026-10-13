@@ -205,7 +205,7 @@ const phrased = (counts, kinds) =>
 //   silence by the reading's own `ts`, which the server already sets to that ending
 //   for a dropped claim.
 // - `listening` is whether input is still on its way to the agent (pending or queued),
-//   which turns a listening page's standing request into "listening".
+//   which turns a listening page's open request into "listening".
 // - `waiting` phrases the queued and pending updates, in that order, and `owed` the
 //   other counts, for a seat with room to say them beside `waiting`.
 export function activityFacts({ activity }) {
@@ -868,7 +868,7 @@ function renderStatusNow(state) {
 
 export const renderStatus = clocked(document.body, renderStatusNow);
 
-// Sign-off is the page's decision, not standing chrome: the approve button is offered only
+// Sign-off is the page's decision, not fixed chrome: the approve button is offered only
 // when the version declares <meta name="lf-review" content="sign-off"> — a plan or
 // proposed change seeking assent. An informational page takes comments only, and
 // nothing stands in the button's place there. A neutral "End leaf" did once, and it

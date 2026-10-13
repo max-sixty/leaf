@@ -3,7 +3,7 @@
    One ordered list holds every popover and modal dialog standing over the page, oldest at
    the bottom. Each pushes an entry as it opens, so their order against each other is
    recorded when it happens rather than inferred from focus ancestry and open state at
-   every read. `kind` reads the standing native mode (`popover` or `modal`); the dispatcher tiers the scopes over them
+   every read. `kind` reads each open layer's native mode (`popover` or `modal`); the dispatcher tiers the scopes over them
    and makes a modal a floor.
 
    A layer may open through a prototype method or through declarative popover activation,
@@ -75,14 +75,14 @@ function prune() {
   }
 }
 
-// A standing entry is left alone wherever it sits, and not merely where it is already on
+// An open entry is left alone wherever it sits, and not merely where it is already on
 // top: `toggle` is queued rather than synchronous, so moving a layer on that last
 // declaration would make it the newest thing on the stack after something else opened over
 // it. A closed entry is pruned and an actual reopening joins at the top.
 function pushNativeLayer(node, source = null) {
   const at = entries.findIndex((entry) => entry.root === node);
-  const standing = at < 0 ? null : entries[at];
-  if (standing?.active()) return;
+  const existing = at < 0 ? null : entries[at];
+  if (existing?.active()) return;
   prune();
   const holding = focused();
   entries.push({
@@ -225,7 +225,7 @@ export function nativeLayers() {
 
 // Same-origin embedded pages consult the native owner of the document holding their
 // frame. The bridge exposes the owner's reading, never a second stack. An ordinary
-// host without Leaf cannot supply opening order: require containment in every standing
+// host without Leaf cannot supply opening order: require containment in every open
 // modal there, so an unobserved layer never becomes evidence that a child was shown.
 const NATIVE_LAYERS = Symbol.for("leaf.nativeLayers");
 Object.defineProperty(document, NATIVE_LAYERS, { value: nativeLayers });
@@ -241,7 +241,7 @@ export function nativeModalAdmits(node) {
     .every((modal) => renderedUnder(node, modal));
 }
 
-// Raising a native ancestor appends it above its standing descendants. Re-seat those
+// Raising a native ancestor appends it above its open descendants. Re-seat those
 // same layers after its transition, in their native order and from the sources they
 // opened from; their owners and retained nodes keep the reading and the eventual return.
 // The browser state changes in one turn, before any queued close event can see a

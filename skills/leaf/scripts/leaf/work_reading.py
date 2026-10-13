@@ -12,7 +12,7 @@ from functools import cached_property
 
 from .asks import collection, thread_ask_readings, thread_asks
 from .document_reading import read_document
-from .events import build_threads, standing_approvals
+from .events import approvals_in_force, build_threads
 from .projection import frozen_thread_reading
 from .todos import TodoReading
 
@@ -115,7 +115,7 @@ class WorkReading:
 
     @cached_property
     def approvals(self) -> list[dict]:
-        return standing_approvals(self.events, withdrawn=self.log.withdrawn)
+        return approvals_in_force(self.events, withdrawn=self.log.withdrawn)
 
     @cached_property
     def document(self):

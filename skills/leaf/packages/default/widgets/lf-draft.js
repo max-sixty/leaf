@@ -93,7 +93,7 @@ function caretAt(body, x, y) {
 customElements.define(
   "lf-draft",
   class extends HTMLElement {
-    // What the ask was answered with: the standing words.
+    // What the ask was answered with: the current words.
     static answerWords(value) {
       return markdownWords(value).trim() || "Empty";
     }
@@ -196,7 +196,7 @@ customElements.define(
       // startup hands the focus to the page after this runs either way.
       //
       // The store holds words only while an editor stands open on them, so any it
-      // holds reopen that editor. They are not compared with the standing text: this
+      // holds reopen that editor. They are not compared with the current text: this
       // first reading can precede the log's, and words walking a saved edit back to the
       // authored text are an edit all the same.
       const pending = loadEdit(this.id);
@@ -335,7 +335,7 @@ customElements.define(
       if (this.#available()) this.#resumeProjection ??= this.#controller.defer();
       const editor = offer(TEXT_FIELD, "lf-draft-edit");
       editor.dataset.lfRuntime = "";
-      // Words another tab's open editor holds outrank the standing text: they are the
+      // Words another tab's open editor holds outrank the current text: they are the
       // same unsent edit.
       const effective = this.#controller.read().state.edit.value;
       editor.value = seed ?? loadEdit(this.id) ?? effective;
@@ -420,17 +420,17 @@ customElements.define(
       if (ok) {
         notice(`Edited “${this.id}” — sent`);
       } else {
-        const standing = loadEdit(this.id);
+        const stored = loadEdit(this.id);
         // Null means the same shared generation was settled by the other tab while
         // this one waited to send. Its action will replay this body, so do
-        // not resurrect the editor as if a network failure had occurred. A standing
+        // not resurrect the editor as if a network failure had occurred. A stored
         // generation is either the failed send itself or newer shared text; both stay
         // editable. The outbox has already projected the authoritative body before
         // resolving this call, so opening the saved generation must not overwrite it
         // with the stale pre-send snapshot.
-        if (standing !== null) {
+        if (stored !== null) {
           this.#failed = true;
-          this.#open(standing);
+          this.#open(stored);
         }
       }
     }

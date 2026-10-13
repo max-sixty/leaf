@@ -200,7 +200,7 @@ def start_with_pre_upgrade_proof(page, url: str) -> list[Finding]:
 
     def hold_entry(route):
         # Only the first is held. A later one is passed through rather than left
-        # standing, because this handler has to outlive the entry it holds and a
+        # held, because this handler has to outlive the entry it holds and a
         # second hold nothing releases would be a wait with no end.
         if held:
             route.continue_()

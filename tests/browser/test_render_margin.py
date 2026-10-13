@@ -1308,7 +1308,7 @@ def _unfold_suggestion_undo(page, target):
 
 # Margin action rows on a page of their own: three suggestions sharing one paragraph, so
 # a decision on one reflows the words the others stand by; a draft; and a suggestion
-# whose thread and standing reaction crowd its row.
+# whose thread and reaction in force crowd its row.
 MARGIN_ACTIONS_PAGE = leaf_page(
     "Margin actions",
     """
@@ -2882,15 +2882,15 @@ def test_a_print_preview_leaves_the_clusters_as_it_found_them(browser, serve):
     page = open_page(browser, serve(ACTION_PAGE, events=[COMMENT_ON_SUGGESTION]))
     resized(page, 1440, 900)
     margins_laid_out(page)
-    standing = page.evaluate(CLUSTER_SHAPE)
-    assert [host for host in standing if host[1] > 1], (
-        f"no cluster here holds the margin entries a paper reading would fold away: {standing}"
+    shape = page.evaluate(CLUSTER_SHAPE)
+    assert [host for host in shape if host[1] > 1], (
+        f"no cluster here holds the margin entries a paper reading would fold away: {shape}"
     )
 
     page.emulate_media(media="print")
     append_carried_log_record(serve.page_dir, COMMENT_ON_SECOND_SUGGESTION)
     told(page)
-    assert page.evaluate(CLUSTER_SHAPE) == standing
+    assert page.evaluate(CLUSTER_SHAPE) == shape
 
     page.emulate_media(media="screen")
     thistle = page.locator('[data-lf-margin-for="sug-thistle"]')
@@ -4848,7 +4848,7 @@ WORDS_RIGHT = """() => {
 # Two threaded passages with room above and below to scroll them: one paragraph in the
 # right cell of a two-up pair, as a before-and-after comparison sets it, so its words end
 # short of the column and leave room on their left; and a suggestion whose cluster a
-# thread and two standing reactions crowd.
+# thread and two reactions in force crowd.
 THREAD_CARD_PAGE = leaf_page(
     "Thread cards",
     """
@@ -5129,7 +5129,7 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
     page.keyboard.press("e")
-    # The choices stay with the captured selection. The standing reaction that replaces
+    # The choices stay with the captured selection. The reaction in force that replaces
     # them must keep that same visual coordinate even though the durable section
     # coordinate belongs to the surrounding id-bearing section.
     reactions = bar.locator(":scope > .lf-response-options")
@@ -6642,7 +6642,7 @@ def test_a_comment_sent_from_a_control_is_left_by_the_levels_it_opened(
     composer = page.locator(".lf-fab-input")
     expect(composer).to_be_focused()
     page.keyboard.type("Worth checking before the frost.")
-    with sending(page, "the comment on the standing option"):
+    with sending(page, "the comment on the chosen option"):
         page.keyboard.press("ControlOrMeta+Enter")
     sent = events_model.read_events(serve.page_dir)[-1]
     preview = page.locator(".lf-margin-preview")
@@ -6939,7 +6939,7 @@ def test_a_card_walked_off_the_unfolded_cluster_lands_on_the_page(browser, serve
     card.focus()
     shown = card.get_attribute("data-thread")
 
-    # The walk carries the card to a thread whose own margin entry is already standing,
+    # The walk carries the card to a thread whose own margin entry is already shown,
     # so nothing unfolds to hang it from and nothing folds the cluster: the card holds
     # the margin's context, so the user's cluster is still open behind it.
     page.keyboard.press("t")
@@ -6992,13 +6992,13 @@ def test_going_to_a_side_surface_folds_the_cluster_the_user_left(browser, serve)
 
 
 @pytest.mark.parametrize("second", ["note", "marker"])
-def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
+def test_a_second_press_into_an_open_card_leaves_one_level_to_take_off(
     browser, serve, second
 ):
     """A press from outside replaces what the card shows rather than stacking a level.
 
     The card shows one thread, so the second note or marker changes its contents and
-    leaves one card standing. Its way out is the target it is anchored to and then the
+    leaves one card open. Its way out is the target it is anchored to and then the
     page: neither note nor marker is a place the user was standing.
     """
     page = open_page(browser, serve(ASK_PAGE))
@@ -7023,7 +7023,7 @@ def test_a_second_press_into_a_standing_card_leaves_one_level_to_take_off(
     expect(card).not_to_have_attribute("data-thread", shown)
     expect(card).to_be_focused()
 
-    # One card is standing whichever press put this thread in it, so there is one way
+    # One card is open whichever press put this thread in it, so there is one way
     # out of it: the target it is anchored to.
     leave_card_by_its_target(page)
 
@@ -7474,9 +7474,7 @@ def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serv
         margins_laid_out(page)
 
 
-def test_a_row_arriving_takes_the_room_below_the_markers_already_standing(
-    browser, serve
-):
+def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser, serve):
     """A pick's receipt is news to the thread marker beside the options: it lands in the
     room below that marker rather than seating itself first, from the top, and pushing
     the marker out from beside the option the user may press next."""

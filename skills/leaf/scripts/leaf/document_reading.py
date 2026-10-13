@@ -1,4 +1,4 @@
-"""Shared semantic reading of one document and its standing event log.
+"""Shared semantic reading of one document and its current event log.
 
 Browser state and agent inspection use the same retirement and ask assembly.
 Callers supply the document's reading and events from their page transaction; this

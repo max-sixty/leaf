@@ -91,13 +91,13 @@ export function createThreadActions({
   // reading. A concurrent change that already achieved it sends nothing.
   const setReaction = (key, messageKey, token, active) => {
     if (typeof active !== "boolean")
-      throw new TypeError("A reaction needs its desired standing state");
+      throw new TypeError("A reaction needs its desired state");
     const thread = find(key);
     const message = thread?.msgs.find((item) => item.key === messageKey);
     const choice =
       message && message.reactions?.choices.find((item) => item.name === token);
-    if (!choice || active === Boolean(choice.standing)) return null;
-    if (choice.standing) return withdraw(choice.standing);
+    if (!choice || active === Boolean(choice.inForce)) return null;
+    if (choice.inForce) return withdraw(choice.inForce);
     return sendReaction(
       {
         kind: "reply",

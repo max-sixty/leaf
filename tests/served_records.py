@@ -343,7 +343,7 @@ def ask_value_cases():
     """Shared typed-value fixtures: Python's projection reader supplies expected output.
 
     These isolate the state boundary from event admission, pairing authored markup
-    with its browser initial state and standing value actions. Both runtimes fold
+    with its browser initial state and value actions in force. Both runtimes fold
     the same operation specs; no ask-specific store participates.
     """
     cases = []

@@ -333,10 +333,10 @@
             });
             for (const id of this.#rowEls.keys())
               if (!byId.has(id)) this.#rowEls.delete(id);
-            const standing = this.#rows.children;
+            const current = this.#rows.children;
             if (
-              shown.length !== standing.length ||
-              shown.some((element, index) => element !== standing[index])
+              shown.length !== current.length ||
+              shown.some((element, index) => element !== current[index])
             )
               this.#rows.replaceChildren(...shown);
             const values = this.#playground?.values;

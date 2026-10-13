@@ -9,12 +9,12 @@ import { at } from "./locate.js";
 // reconciler, whose committed-state checkpoint would skip an unchanged value.
 // Compare both id-bearing structure and body records: text is absent from shallowSigs.
 export function relativeReplays() {
-  const standing = validationWidgetStates().filter((s) => s.widget?.renderState);
-  if (!standing.length) return [];
+  const rendered = validationWidgetStates().filter((s) => s.widget?.renderState);
+  if (!rendered.length) return [];
   const found = [];
   const before = shallowSigs(document.body);
-  const bodies = standing.map((s) => JSON.stringify(s.read()));
-  for (const { widget, state } of standing) {
+  const bodies = rendered.map((s) => JSON.stringify(s.read()));
+  for (const { widget, state } of rendered) {
     try {
       widget.renderState(state);
     } catch (error) {
@@ -33,7 +33,7 @@ export function relativeReplays() {
     while (widget && !widget.renderState) widget = widget.parentElement;
     note(widget ? at(widget) : `id=${id}`, id);
   }
-  standing.forEach((s, i) => {
+  rendered.forEach((s, i) => {
     if (JSON.stringify(s.read()) !== bodies[i]) note(at(s.widget), "body text");
   });
   return [

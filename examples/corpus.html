@@ -379,7 +379,7 @@
               this.#values.format === "status strip",
             );
             // The cards read only the event count, the first title and the owner line;
-            // a colour or a radius leaves them standing.
+            // a colour or a radius leaves them unchanged.
             const cards = JSON.stringify([
               this.#values.events,
               this.#values.title,
@@ -740,10 +740,10 @@
             });
             for (const id of this.#rowEls.keys())
               if (!byId.has(id)) this.#rowEls.delete(id);
-            const standing = this.#rows.children;
+            const current = this.#rows.children;
             if (
-              shown.length !== standing.length ||
-              shown.some((element, index) => element !== standing[index])
+              shown.length !== current.length ||
+              shown.some((element, index) => element !== current[index])
             )
               this.#rows.replaceChildren(...shown);
             const values = this.#playground?.values;
@@ -5976,8 +5976,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                   </lf-option>
                   <lf-option id="api-land-as-is">
                     <strong>Land as-is — discard revision</strong> Merge tree-w-3
-                    (atlas/public-api) over a standing change request and reap its
-                    reviser.
+                    (atlas/public-api) over an open change request and reap its reviser.
                   </lf-option>
                 </lf-options>
               </lf-ask>

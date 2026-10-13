@@ -197,7 +197,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     url = serve(example)
     if case_name == "ship-review":
         # The native section replaced the task widget that used to carry this mark.
-        # Seed one on a remaining widget so the aim still crosses a standing mark.
+        # Seed one on a remaining widget so the aim still crosses an existing mark.
         append_carried_log_record(
             serve.page_dir,
             {
@@ -212,7 +212,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     # What the log already held. A shipped seed can carry a decision the user made
     # before this page was opened, and what an aim may not do is add one of its own —
     # so the reading below is against this rather than against nothing.
-    standing = [
+    seeded = [
         e["id"]
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
@@ -271,7 +271,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             f"holding ⌥ over {label} in {case_name} promised {promised} and pointed "
             f"a {page.evaluate(AIM_CURSOR)} cursor at it"
         )
-        # An element a standing thread already marks, read before the press marks it
+        # An element an existing thread already marks, read before the press marks it
         # as the draft's too.
         already_marked = bool(
             promised and page.locator(f"#{promised}.lf-mark-el").count()
@@ -297,10 +297,10 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             # The sequence promised Comment, so the press focuses its compact field.
             open_compact_comment(page)
             mark = page.evaluate(DRAFT_MARK)
-            # A standing thread draws nothing on its element at rest, so a draft on an
+            # An existing thread draws nothing on its element at rest, so a draft on an
             # element the log already marks wears the pending contour like any other.
             if already_marked:
-                reached_paths.add("standing mark")
+                reached_paths.add("existing mark")
             assert mark == promised, (
                 f"⌥-clicking {label} in {case_name} promised {promised} and "
                 f"commented on {mark}"
@@ -354,7 +354,7 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         e["id"]
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
-    ] == standing, (
+    ] == seeded, (
         f"⌥-clicking through {case_name} left a decision in the log that the aim "
         "never promised"
     )

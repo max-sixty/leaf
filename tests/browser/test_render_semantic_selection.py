@@ -172,7 +172,7 @@ def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, 
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "release-notes"))
     )
-    standing = len(events_model.read_events(serve.page_dir))
+    before = len(events_model.read_events(serve.page_dir))
     accept = page.locator(".lf-margin-cluster .lf-sug-accept").first
     accept.scroll_into_view_if_needed()
     accept.hover()
@@ -184,7 +184,7 @@ def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, 
     assert page.evaluate(DRAFT_MARK) == promised
     assert not [
         e
-        for e in events_model.read_events(serve.page_dir)[standing:]
+        for e in events_model.read_events(serve.page_dir)[before:]
         if e["kind"] == "action"
     ], "the picker's press accepted the suggestion"
 

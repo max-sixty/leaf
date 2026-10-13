@@ -1,4 +1,4 @@
-preference: 'A standing preference for all my pages from now on: I read them in a window about
+preference: 'A lasting preference for all my pages from now on: I read them in a window about
   900px wide, beside my editor. At that width, keep the page''s summary, status, contents or
   queue beside the main content rather than stacked above or below it.'
 reachable: A labeled control whose content is out of view, such as a collapsed section, an unselected
@@ -157,7 +157,7 @@ cases:
         an unselected item or a scroll region's remainder, counts as reachable but costs the
         user a step; content cut off with no visible way to reach it does not count. Judge only
         what a user sees; don't infer interaction behavior from an unoperated screenshot. Pass
-        only if version 2 follows the standing width preference the output quotes.
+        only if version 2 follows the lasting width preference the output quotes.
     - &comment_answered
       type: agent-rubric
       metric: comment-answered

@@ -383,8 +383,8 @@ coordinate. At each coordinate the latest surviving action stands, and different
 coordinates stand side by side. Moving a card again therefore replaces that card's
 earlier position, while positions of different cards coexist. Recorded body, attribute,
 and value verbs use `unit: "widget"`; position verbs use `unit: "unit"`, naming the
-canonical detail field for the moved element. `record` says how the standing state reads in markup: here, the
-card's position inside a column. Standing decisions supply the current state;
+canonical detail field for the moved element. `record` says how the current state reads in markup: here, the
+card's position inside a column. Decisions in force supply the current state;
 `restated` explicitly retracts a decision, and revisions may change their authored
 baseline without a historical-state veto. The `$keys`
 entries in `assets/registry.json` define each key exactly.

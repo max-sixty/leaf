@@ -22,7 +22,7 @@
    The selected surface is seated in one native dialog, nonmodal beside the page and
    modal where it covers. Its actual nodes and the chrome foreground permitted above
    the scrim have permanent homes in that dialog: changing posture never disconnects
-   editors, disclosures, embedded documents or standing native layers. The browser excludes
+   editors, disclosures, embedded documents or open native layers. The browser excludes
    every background subtree, including one a page revision adds. The retained visual
    scrim stays inside the dialog so page and chrome targeting keep their paint planes.
 
@@ -99,7 +99,7 @@ export function createAuxiliarySurfaces({
   envelope.setAttribute("role", "presentation");
   envelope.append(scrim);
   let active = null;
-  let standing = null;
+  let seated = null;
   let mounted = false;
   let arriving = null;
 
@@ -107,7 +107,7 @@ export function createAuxiliarySurfaces({
   const landingIn = (controller) => controller.landing() ?? controller.surface;
   function seat(selected) {
     const next = selected?.covers() ? selected : null;
-    if (standing === selected && active === next) return;
+    if (seated === selected && active === next) return;
     const previous = active;
     const changedPosture = Boolean(active) !== Boolean(next);
     if (next) dismissPopoversOutside(next.surface);
@@ -116,7 +116,7 @@ export function createAuxiliarySurfaces({
       () => {
         if (previous) previous.surface.removeAttribute("data-lf-covered");
         active = next;
-        standing = selected;
+        seated = selected;
         keeps(band, "inert", next && !next.underBand ? "" : null);
         if (next) keeps(next.surface, "data-lf-covered", "");
         if (changedPosture || !envelope.open) {

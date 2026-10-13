@@ -438,7 +438,7 @@ def incompatible_revision(revision: int, registry: dict) -> str | None:
     refusals `incompatible_layer` makes of the page's layer. None when it may.
 
     Each revision captures the runtime and registry it was saved with, and a
-    re-vendor leaves standing revisions as they were, so a page re-vendored across a
+    re-vendor leaves existing revisions as they were, so a page re-vendored across a
     bump still holds revisions saved before it. Served, one would run its own runtime
     against this Leaf's server, which is the break the protocol announces. The
     document server and the append door ask this of the revision they would serve or

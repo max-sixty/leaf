@@ -134,7 +134,7 @@ AIM_PRESS_CASES = (
     (
         "ship-review",
         next(p for p in EXAMPLES if p.stem == "ship-review"),
-        frozenset({"option click", "standing mark"}),
+        frozenset({"option click", "existing mark"}),
     ),
 )
 
@@ -1638,7 +1638,7 @@ def test_a_covering_auxiliary_surface_holds_design_paint_beneath_it(browser, ser
     """A covering auxiliary surface owns its pixels, and in Design mode stays Leaf's.
 
     Covered page content is inert, so neither the aim nor a design comment reaches it
-    through the visible remainder, and the page's standing design legend paints beneath
+    through the visible remainder, and the page's fixed design legend paints beneath
     the sheet. The sheet itself is Leaf's chrome, which the mode leaves working: nothing
     on it is a design target, and a press on its scrim puts it away as it would outside
     the mode, which is how a phone the sheet covers gets back to its page.
@@ -2055,9 +2055,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         "draw",
     ],
 )
-def test_target_picker_selects_in_the_standing_comment_mode(
-    browser, serve, mode, route
-):
+def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode, route):
     """Target selection nests inside Design; Draw retains the page for ink."""
     page = open_page(
         browser,
@@ -2489,11 +2487,11 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
     expect(panel).to_be_visible()
     expect(composer).to_be_hidden()
 
-    standing = geometry(page, edge)
+    resting = geometry(page, edge)
     draw_edge(page, edge, 160)
     held = geometry(page, edge)
-    assert held["width"] > standing["width"] and held["chosen"], (
-        f"the mode took the edge rather than drawing it: {standing} then {held}"
+    assert held["width"] > resting["width"] and held["chosen"], (
+        f"the mode took the edge rather than drawing it: {resting} then {held}"
     )
     expect(composer).to_be_hidden()
 

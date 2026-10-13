@@ -410,7 +410,7 @@ def _serve_claim(
     page_dir: Path,
     page: PageTransaction,
     service: dict | None,
-    standing: bool,
+    persistent: bool,
     revive: bool,
     harness: Harness | None,
 ) -> bool:
@@ -420,11 +420,11 @@ def _serve_claim(
         raise Refused("service was stopped; not reviving")
 
     claimed = bool(
-        not standing
+        not persistent
         and harness is not None
         and claimant_matches(page.active_claim, harness)
     )
-    if not standing and harness is not None and not claimed:
+    if not persistent and harness is not None and not claimed:
         raise Refused(
             f"this harness session no longer owns {page_dir}; the server was not started"
         )
@@ -440,7 +440,7 @@ def _announce_server(page_dir: Path, url: str) -> bool:
     return True
 
 
-def _reuse_server(page_dir: Path, host: str | None, standing: bool) -> str | None:
+def _reuse_server(page_dir: Path, host: str | None, persistent: bool) -> str | None:
     """Read a compatible running server's URL, or say a fresh bind is needed."""
     existing = running_server(page_dir)
     if not existing:
@@ -450,10 +450,10 @@ def _reuse_server(page_dir: Path, host: str | None, standing: bool) -> str | Non
             f"already serving at {existing['url']}; "
             "leaf server stop first, then re-run with --host"
         )
-    if standing and existing["lifetime"] != "standing":
+    if persistent and existing["lifetime"] != "persistent":
         raise Refused(
             f"already serving as a session server at {existing['url']}; "
-            "leaf server stop first, then re-run with --standing"
+            "leaf server stop first, then re-run with --persistent"
         )
     return existing["url"]
 
@@ -472,12 +472,12 @@ def _take_server_lease(page_dir: Path):
 
 
 def _service_record(
-    access: dict, httpd, standing: bool, claimed: bool, runtime: dict
+    access: dict, httpd, persistent: bool, claimed: bool, runtime: dict
 ) -> dict:
     """The durable desired state for a newly bound server."""
     lifetime = (
-        "standing"
-        if standing or access.get("lifetime") == "standing" or not claimed
+        "persistent"
+        if persistent or access.get("lifetime") == "persistent" or not claimed
         else "session"
     )
     return {
@@ -494,7 +494,7 @@ def _service_record(
 def cmd_serve(
     page_dir: Path,
     host: str | None = None,
-    standing: bool = False,
+    persistent: bool = False,
     revive: bool = False,
     *,
     harness: Harness | None,
@@ -522,23 +522,23 @@ def cmd_serve(
     httpd = None
     delivery = (
         harness.preparing_delivery()
-        if acquire and not standing and harness is not None and handshake is None
+        if acquire and not persistent and harness is not None and handshake is None
         else contextlib.nullcontext()
     )
     try:
         with delivery, page_locked(page_dir):
-            if acquire and not standing and harness is not None:
+            if acquire and not persistent and harness is not None:
                 prepared_claim = prepared_claim or prepare_claim(harness, page_dir)
             previous_service = service = read_json(page_dir / SERVICE_FILE)
             with PageTransaction(page_dir) as page:
                 claimed = (
-                    bool(not standing and harness is not None)
+                    bool(not persistent and harness is not None)
                     if acquire
                     else _serve_claim(
-                        page_dir, page, service, standing, revive, harness
+                        page_dir, page, service, persistent, revive, harness
                     )
                 )
-            url = _reuse_server(page_dir, host, standing)
+            url = _reuse_server(page_dir, host, persistent)
             if url is None:
                 access = page_access(page_dir, host)
                 token = host_key()
@@ -556,7 +556,7 @@ def cmd_serve(
                 service = _service_record(
                     access,
                     httpd,
-                    standing,
+                    persistent,
                     claimed,
                     payload_provenance(include_path=True),
                 )
@@ -571,7 +571,7 @@ def cmd_serve(
                                     write_json(page_dir / SERVICE_FILE, service)
                         else:
                             _serve_claim(
-                                page_dir, page, service, standing, revive, harness
+                                page_dir, page, service, persistent, revive, harness
                             )
                             claim = page.claim if claimed else None
                             if httpd is not None:
@@ -640,7 +640,7 @@ class PageStart:
 def _starting_server(
     page_dir: Path,
     host: str | None = None,
-    standing: bool = False,
+    persistent: bool = False,
     revive: bool = False,
     *,
     harness: Harness | None,
@@ -654,7 +654,7 @@ def _starting_server(
             "_serve",
             str(page_dir),
             *(["--host", host] if host else []),
-            *(["--standing"] if standing else []),
+            *(["--persistent"] if persistent else []),
             *(["--revive"] if revive else []),
             *(["--acquire"] if acquire else []),
             *(["--claim", json.dumps(claim)] if claim is not None else []),
@@ -670,7 +670,7 @@ def _starting_server(
 def start_server(
     page_dir: Path,
     host: str | None = None,
-    standing: bool = False,
+    persistent: bool = False,
     revive: bool = False,
     *,
     harness: Harness | None,
@@ -682,7 +682,9 @@ def start_server(
     while holding
     the page transition lock. Every revival retains the recorded address.
     """
-    with _starting_server(page_dir, host, standing, revive, harness=harness) as started:
+    with _starting_server(
+        page_dir, host, persistent, revive, harness=harness
+    ) as started:
         pass
     return started
 
@@ -691,7 +693,7 @@ def start_server(
 def claim_and_start(
     page_dir: Path,
     host: str | None = None,
-    standing: bool = False,
+    persistent: bool = False,
     *,
     prepared_claim: dict | None = None,
 ):
@@ -709,16 +711,16 @@ def claim_and_start(
     harness = claim_harness(prepared_claim) if prepared_claim else session_harness()
     delivery = (
         harness.preparing_delivery()
-        if not standing and harness is not None and prepared_claim is None
+        if not persistent and harness is not None and prepared_claim is None
         else contextlib.nullcontext()
     )
     with delivery:
         claim = prepared_claim or (
-            prepare_claim(harness, page_dir) if not standing and harness else None
+            prepare_claim(harness, page_dir) if not persistent and harness else None
         )
         try:
             with _starting_server(
-                page_dir, host, standing, harness=harness, acquire=True, claim=claim
+                page_dir, host, persistent, harness=harness, acquire=True, claim=claim
             ) as ready:
                 yield ready
         except BaseException:
@@ -828,8 +830,8 @@ def restarting_server(page_dir: Path):
     if not service or not service["enabled"]:
         yield
         return
-    standing = service["lifetime"] == "standing"
-    comes_back = standing or _restarts_for_this_session(page_dir)
+    persistent = service["lifetime"] == "persistent"
+    comes_back = persistent or _restarts_for_this_session(page_dir)
     mark = secrets.token_hex(8) if comes_back else None
     cmd_stop(page_dir, restart=mark)
     if not comes_back:
@@ -864,7 +866,7 @@ def restarting_server(page_dir: Path):
         return
     try:
         start_server(
-            page_dir, standing=standing, revive=True, harness=session_harness()
+            page_dir, persistent=persistent, revive=True, harness=session_harness()
         )
     except StartRefused as error:
         raise Refused(f"{page_dir}'s server did not start again: {error}")

@@ -903,7 +903,7 @@ export function holdFocus(scope, { key = null } = {}) {
     [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
   const [same, ...rest] = order;
   return (...standIns) => {
-    // The items now standing, by key, read once for the whole restore: a list whose keys
+    // The items now present, by key, read once for the whole restore: a list whose keys
     // all changed tries every held key against it.
     let byKey = null;
     const keyed = (value) => {
@@ -1237,7 +1237,7 @@ export function declareCovering({ surface, landing }) {
   coveringLanding = landing;
 }
 //
-// It is the same pair on the body, which carries no tab stop of its own. A standing
+// It is the same pair on the body, which carries no tab stop of its own. A permanent
 // `tabindex` on body was once how the let-go worked on a page too short to scroll, but it
 // also made the body the focusable ancestor of every word: a click on a pane's text
 // focused the body, and Chrome starts Space, PageDown and the arrows from the focused

@@ -218,7 +218,7 @@ digest is available; `../../assets/runtime/version.js` owns the resulting instal
 `leaf page events --after`; it is distinct from the acknowledgement cursor.
 
 The page's document is not repeated in the reading: an agent reads the HTML at
-`active.file` beside `state`, which lists each standing user action by widget, unit and
+`active.file` beside `state`, which lists each user action in force by widget, unit and
 verb with the detail it carries, so where the two differ the page shows the action.
 `data_bindings` names each bound source and the widgets that read it, and
 `data/<source>.json` holds its publication.
@@ -229,13 +229,13 @@ messages, with bounded history selected by `--after` and `--limit`, and each
 message's frozen markup under
 `content` (`construction.py`), since that markup has no file of its own. An authored
 node keeps its `tag`, effective `attrs` and `content`, and `source` line and column; a
-standing event supplies its exact `state` and origin, and `authored` preserves the
+event in force supplies its exact `state` and origin, and `authored` preserves the
 input it replaced. Widget `inputs` join each binding to its source's current value,
 contract, source id and revision, or to the `error` a failing value reads as;
 contracts with a deferred record field expose the manifest plus the value file and
 its revision for their payload. The reading's `content_source` names the thread and
 vocabulary file. A widget on the page names itself: the reading is its `widget`
-element, the `state` and `reports` standing on it, the open `todos` on it,
+element, the `state` and `reports` in force on it, the open `todos` on it,
 the canonical `asks` sourced by it, and the `workflows` it is the subject of, with
 their `activity` obligations. Page ids
 and event ids share one address space, which is why `page check` refuses an authored

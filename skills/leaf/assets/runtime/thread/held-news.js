@@ -102,7 +102,7 @@
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
    clock decides, such as a command's lists of stopped goals and live workers. The first
    ready reading draws whole. After that, a reading that would change the region's size
-   waits, the region standing as it was, while its growth would be seen, and a control
+   waits, the region staying as it was, while its growth would be seen, and a control
    of fixed size the widget already draws says so and shows it.
 
    No first paint can size such a region, so a widget keeps its rows closed until the
@@ -140,12 +140,12 @@ const gestured = (key) => {
   return Boolean(thread) && gesturedOn(thread);
 };
 
-// The standing reactions a strip draws, by token, since a reaction keeps its token but
+// The reactions in force a strip draws, by token, since a reaction keeps its token but
 // not its id when the log answers it.
 const tokens = (reactions) =>
-  new Set(reactions.choices.filter(({ standing }) => standing).map(({ name }) => name));
+  new Set(reactions.choices.filter(({ inForce }) => inForce).map(({ name }) => name));
 
-// The tokens standing in one of two strips and not the other.
+// The tokens in force in one of two strips and not the other.
 const symmetric = (a, b) => [...a, ...b].filter((name) => !a.has(name) || !b.has(name));
 
 // A summary as a card draws it: the messages of `drawn`, the ids of the turns the card
@@ -281,7 +281,7 @@ function difference(was, now) {
 
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held
 // back: what the log's news changed, as drawn. That is its settlement; its messages, the
-// new ones left out, a reaction taken off or a streaming reply gone still standing, and
+// new ones left out, a reaction taken off or a streaming reply gone still present, and
 // each one's words as drawn, which only an edit or a stream changes; and its summaries
 // as drawn. A held thread is read from this as from any other, so what the reading
 // derives from those, such as its title, its reaction strips or its controls, agrees
@@ -291,9 +291,9 @@ function difference(was, now) {
 // in a thread that holds nothing, so a resolution held from the card already takes its
 // turn off the title.
 function withheld(was, now) {
-  const standing = new Map(now.msgs.map((message) => [messageKey(message), message]));
+  const current = new Map(now.msgs.map((message) => [messageKey(message), message]));
   const msgs = was.msgs.flatMap((prior) => {
-    const message = standing.get(messageKey(prior));
+    const message = current.get(messageKey(prior));
     if (!message) return isReaction(prior) || prior.provisional ? [prior] : [];
     // A streaming reply held as drawn is still the reply arriving, whatever completed it.
     // Its content version is the one its drawn words are, so the words a rewrite holds

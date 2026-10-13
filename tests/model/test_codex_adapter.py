@@ -883,8 +883,8 @@ def test_a_codex_receipt_holds_while_the_claim_still_names_its_session(
 
 def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
     replaced = tmp_path / "a-replaced-page"
-    standing = tmp_path / "z-standing-page"
-    for page, event_id in ((replaced, "old"), (standing, "standing")):
+    kept = tmp_path / "z-kept-page"
+    for page, event_id in ((replaced, "old"), (kept, "kept")):
         vendoring_model.cmd_init(page)
         record_claim(page, id="codex-thread", harness="codex", agent="Codex")
         append_carried_log_record(
@@ -935,13 +935,11 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
 
     history = epoch_path.parent / "history" / epoch_path.name
     assert files_model.read_json(history)["pending"] == []
-    assert files_model.read_json(standing / "cursor.json") == {"seq": 1}
+    assert files_model.read_json(kept / "cursor.json") == {"seq": 1}
     pickups = [
-        event
-        for event in events_model.read_events(standing)
-        if event["kind"] == "pickup"
+        event for event in events_model.read_events(kept) if event["kind"] == "pickup"
     ]
-    assert [pickup["events"] for pickup in pickups] == [["standing"]]
+    assert [pickup["events"] for pickup in pickups] == [["kept"]]
 
 
 def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
@@ -1106,7 +1104,7 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
     monkeypatch, tmp_path
 ):
     """Retiring removes readable records whose pages are gone and its own log.
-    A standing page's records survive, and stable coordination files stay unheld
+    A persistent page's records survive, and stable coordination files stay unheld
     for the next holder."""
     # The suite's hook marks (`isolated_session`) are not records this test makes.
     for session in HOOKED_SESSIONS:
@@ -1116,11 +1114,11 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
     monkeypatch.setattr(codex_adapter_model, "owned_pages", lambda _session: [])
     monkeypatch.setattr(codex_adapter_model, "check_queue_command", lambda _path: None)
-    standing = tmp_path / "standing"
-    standing.mkdir()
+    persistent = tmp_path / "persistent"
+    persistent.mkdir()
     for task, page, identity in (
         ("ended-task", tmp_path / "gone", "dddddddd"),
-        ("codex-thread", standing, "eeeeeeee"),
+        ("codex-thread", persistent, "eeeeeeee"),
     ):
         delivery_model.delivery_path(identity).parent.mkdir(parents=True, exist_ok=True)
         cleanup_model.write_json(
@@ -2463,7 +2461,7 @@ def test_a_later_codex_start_names_the_running_transport(
         "FAKE_CODEX_EXPECT_CWD": str(machine_model.state_home()),
     }
 
-    # All three tool calls belong to one standing harness process. Three separate
+    # All three tool calls belong to one persistent harness process. Three separate
     # under_codex calls would introduce three genuine task lifetimes, rather than
     # asking whether another command in this task joins its existing adapter.
     # This transport test uses CLI lifetime; desktop persisted-chat ownership is
@@ -2493,7 +2491,7 @@ def test_a_later_codex_start_names_the_running_transport(
         [(status, first, err), (refused, _, refusal), (joined, again, _)] = wait_for(
             lambda: files_model.read_json(results),
             lambda reading: reading is not None,
-            failure="the standing Codex harness did not finish its three start commands",
+            failure="the persistent Codex harness did not finish its three start commands",
         )
         assert status == 0, err
         assert json.loads(first) == {
@@ -2915,13 +2913,13 @@ def test_codex_adapter_keeps_transferred_input_unreceived(
     assert pickups == []
 
 
-def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_standing(
+def test_a_queued_codex_delivery_leaves_the_turn_ended_stamp_in_place(
     codex_claimed_page, under_codex, codex_env, tmp_path
 ):
     """A direct wait's reader confirms the complete batch in its already-open turn.
     This adapter instead hands a pointer
     to Codex's durable same-task queue, which the loaded client starts and an unloaded
-    task leaves standing until someone reopens it — and the adapter never reopens one.
+    task leaves waiting until someone reopens it — and the adapter never reopens one.
 
     So the stamp the Stop hook left is still true after acceptance, and clearing it
     would put "Codex is working" over a task nobody has read the delivery in. The

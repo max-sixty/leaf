@@ -671,7 +671,7 @@ export function createFloatingPanel({
   // its answer and offering Undo, until the view closes, so answering one question never
   // carries the next under the pointer.
   let queueTab = "you";
-  let seated = null; // queue item keys standing in the open Questions view
+  let seated = null; // queue item keys present in the open Questions view
   // The height each seated card first stood at, which it keeps while seated, so an
   // answer that shortens it moves nothing below.
   const seatHeights = new Map();

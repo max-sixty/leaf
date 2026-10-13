@@ -638,10 +638,10 @@ def registry_refusal(read: Callable) -> Finding:
     return finding
 
 
-def command_refusal(*args: str) -> Finding:
+def command_refusal(*args) -> Finding:
     """The one finding the refusal of the leaf command `args`, run in process,
     carries."""
-    result = CliRunner().invoke(cli_model.cli, list(args), standalone_mode=False)
+    result = CliRunner().invoke(cli_model.cli, [*map(str, args)], standalone_mode=False)
     [finding] = result.exception.__cause__.findings
     return finding
 

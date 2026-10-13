@@ -38,6 +38,7 @@ from interact_support import (
     before_choice,
     check,
     check_findings,
+    command_refusal,
     comment,
     declare_data_input,
     found,
@@ -751,9 +752,10 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
     assert event["revision"] == revision
     assert "anchor" not in event
 
-    anchored = comment(page_dir, "--quote", "Plan", "--text", "Change this")
-    assert anchored.exit_code != 0
-    assert "cannot use invalid index.html" in anchored.output
+    anchored = command_refusal(
+        "thread", "open", page_dir, "--quote", "Plan", "--text", "Change this"
+    )
+    assert (anchored.code, anchored.values["operation"]) == ("invalid-source", "anchor")
 
 
 def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries():
@@ -1801,11 +1803,12 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
             response_reference(page_dir, "c1"),
             "--text",
             "Updated.",
+            "--json",
         ],
     )
 
     assert result.exit_code != 0
-    assert "cannot reply while index.html is invalid" in result.output
+    assert refused_on(result.stdout).values["operation"] == "reply"
     assert not any(
         event["kind"] == "reply" for event in events_model.read_events(page_dir)
     )
@@ -1892,13 +1895,10 @@ def test_response_never_settles_a_newer_undelivered_correction(page_dir):
         },
     )
 
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["response", "reply", "--done", reference, "--text", "Made it blue."],
+    refused = command_refusal(
+        "response", "reply", "--done", reference, "--text", "Made it blue."
     )
-
-    assert result.exit_code != 0
-    assert "no longer requires a reply" in result.output
+    assert refused.code == "superseded-reply"
     assert not any(
         event["kind"] == "reply" and event["author"] == "agent"
         for event in events_model.read_events(page_dir)
@@ -2060,11 +2060,12 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
             "distinct-retry-attempt",
             "--text",
             "Again.",
+            "--json",
         ],
     )
 
     assert result.exit_code != 0
-    assert "no longer requires a reply" in result.output
+    assert refused_on(result.stdout).code == "superseded-reply"
 
 
 @pytest.mark.parametrize(
@@ -2296,9 +2297,9 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         {"kind": "thread", "id": opened["id"]},
     )
 
-    not_a_thread = run("thread", "resolve", "g1")
+    not_a_thread = run("thread", "resolve", "g1", "--json")
     assert not_a_thread.exit_code != 0
-    assert "g1 is a widget on the page, not a thread" in not_a_thread.output
+    assert refused_on(not_a_thread.stdout).code == "widget-not-thread"
     [closed] = [
         json.loads(line)
         for line in run("thread", "resolve", "t-ask").output.splitlines()

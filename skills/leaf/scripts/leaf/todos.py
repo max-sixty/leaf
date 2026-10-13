@@ -73,8 +73,7 @@ from functools import cached_property
 from pathlib import Path
 
 from .events import note_settlements, taken_back
-from .findings import Finding
-from .refusals import Refused
+from .findings import Finding, Rejected
 from .thread_context import thread_names
 
 # What `task open` takes for the page as a whole; any other id names a widget or an
@@ -346,9 +345,13 @@ def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
                 or page_element(page_dir, subject)
             )
             if named is None:
-                raise Refused(
-                    f"{subject!r} names no widget or element on this page; "
-                    f"`{PAGE_SUBJECT}` names the page as a whole"
+                raise Rejected(
+                    [
+                        Finding(
+                            "unknown-subject",
+                            values={"subject": subject, "page": PAGE_SUBJECT},
+                        )
+                    ]
                 )
             record, _ = append_admitted(
                 page,

@@ -1217,6 +1217,7 @@ def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
                 "</lf-options></lf-ask>"
             ),
             "--ask",
+            "--json",
         ],
     )
     aggregate = CliRunner().invoke(
@@ -1239,7 +1240,7 @@ def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
     assert answered.exit_code == 0, answered.output
     assert asking.exit_code == 0, asking.output
     assert duplicate.exit_code == 1
-    assert "reply markup already declares" in duplicate.output
+    assert refused_on(duplicate.stdout).values["tags"] == ["lf-options"]
     assert aggregate.exit_code == 0, aggregate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
     assert "ask" not in replies[0]
@@ -1866,9 +1867,11 @@ def test_new_replies_require_a_complete_candidate_publication(
     diagram = '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>'
     before = events_model.read_events(page_dir)
     for arguments in (answer, [*answer, "--markup", diagram]):
-        refused = CliRunner().invoke(cli_model.cli, arguments)
+        refused = CliRunner().invoke(cli_model.cli, [*arguments, "--json"])
         assert refused.exit_code == 1, refused.output
-        assert "registry.json missing" in refused.output
+        refusal = refused_on(refused.stdout)
+        assert refusal.code == "invalid-source"
+        assert refusal.values["operation"] == "reply"
         assert events_model.read_events(page_dir) == before
         assert files_model.list_revisions(page_dir) == [1]
     registry.write_bytes(declarations)
@@ -1881,6 +1884,7 @@ def test_new_replies_require_a_complete_candidate_publication(
         "</lf-options></lf-ask>"
     )
     before = events_model.read_events(page_dir)
+    revisions = files_model.list_revisions(page_dir)
     duplicate = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1893,11 +1897,15 @@ def test_new_replies_require_a_complete_candidate_publication(
             "--markup",
             markup,
             "--ask",
+            "--json",
         ],
     )
     assert duplicate.exit_code == 1, duplicate.output
-    assert "reply markup already declares" in duplicate.output
+    refusal = refused_on(duplicate.stdout)
+    assert refusal.code == "widget-ask-markup"
+    assert refusal.values == {"tags": ["lf-options"]}
     assert events_model.read_events(page_dir) == before
+    assert files_model.list_revisions(page_dir) == revisions
     with_markup = CliRunner().invoke(
         cli_model.cli,
         [

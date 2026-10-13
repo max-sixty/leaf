@@ -896,7 +896,7 @@ BANNER_ORDER = r"""() => {
       // The version's age ticks with the clock between two readings; the order does not.
       .replace(/ · \S+ ago$/, '')
       // The queue's population does not change the control's place in that order.
-      .replace(/^Questions: \d+ waiting on you$/, 'Questions'));
+      .replace(/^Questions: \d+ waiting on me$/, 'Questions'));
 }"""
 
 
@@ -1299,7 +1299,7 @@ MANY_ASKS_PAGE = leaf_page(
 """
     + "\n".join(
         f'<lf-test-task id="t-{i}" status="review" owner="wren">'
-        f"<strong>Waiting on you, item {i}</strong>"
+        f"<strong>Waiting on me, item {i}</strong>"
         f'<lf-ask id="t-{i}-decision"><h2>Decision {i}</h2>'
         f'<lf-options id="t-{i}-choice" choose>'
         f'<lf-option id="t-{i}-yes"><strong>Approve</strong></lf-option>'

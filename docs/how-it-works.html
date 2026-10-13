@@ -1030,7 +1030,7 @@ leaf task end ./review &lt;todo-id&gt; done "The load check is recorded on the p
                 <strong>Picked up</strong> Leaf's hook puts the comment in the agent's
                 turn and confirms receipt. The comment reads Picked up, and until the
                 agent writes its own words the banner reads
-                <em>Claude working — picked up your comment</em>.
+                <em>Claude working — picked up my comment</em>.
               </li>
               <li id="progress-reply">
                 <time>5s</time> <small>intervention</small>
@@ -1297,7 +1297,7 @@ flowchart LR
                 for the user, which stays open until they reply or settle it with a
                 reaction, or the agent ends it with <code>leaf task end</code>: as
                 answered elsewhere when the user answered in chat, or as withdrawn. The
-                thread reads <em>On you to answer</em>, and the ask joins the user's
+                thread reads <em>My turn to answer</em>, and the ask joins the user's
                 Questions, in the Questions panel.
               </li>
               <li id="updates-written-on-you">
@@ -1441,14 +1441,14 @@ flowchart TD
               </thead>
               <tbody>
                 <tr id="updates-reading-held">
-                  <td>Claude working — picked up your comment</td>
+                  <td>Claude working — picked up my comment</td>
                   <td>
                     The agent's running turn picked up the user's comment, or their
                     answer to an ask, and the agent has not yet said what it is doing.
                   </td>
                 </tr>
                 <tr id="updates-reading-steps">
-                  <td>Codex thinking, Codex using a tool, Claude waiting for you</td>
+                  <td>Codex thinking, Codex using a tool, Claude waiting for me</td>
                   <td>
                     The harness reports the session's current activity. Waiting for the
                     user, for input, or for approval refers to a dialog in the harness's
@@ -1534,7 +1534,7 @@ flowchart TD
                   </td>
                 </tr>
                 <tr id="updates-notice-input">
-                  <td>Input needed, 2 items need your input</td>
+                  <td>Input needed, 2 items waiting on me</td>
                   <td>
                     A new ask requests a decision on the page or in a thread, or an
                     agent reply asks the user a question.

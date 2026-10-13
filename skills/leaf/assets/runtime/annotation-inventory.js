@@ -307,7 +307,7 @@ export function createAnnotationInventory({
         id: `question:${id}`,
         // The group this row stands in already names the ask; the row says why it is
         // there, since these are the asks the user owes.
-        text: "Waiting on you",
+        text: "Waiting on me",
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows.
         label: addressableLabel(target) || null,

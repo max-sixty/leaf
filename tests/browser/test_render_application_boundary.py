@@ -1756,7 +1756,7 @@ def test_compact_reader_opens_the_native_interactive_message(browser, serve, sur
     page = open_page(browser, url)
     if surface == "margin":
         page.get_by_role(
-            "button", name=re.compile("Thread, On you to answer")
+            "button", name=re.compile("Thread, My turn to answer")
         ).first.click()
         compact = page.locator(".lf-margin-thread")
     else:

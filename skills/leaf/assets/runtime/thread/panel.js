@@ -89,8 +89,8 @@ export function createThreadPanelKeys({
         description: () =>
           narrowing.needsYou()
             ? "Clear waiting filter"
-            : "Show only the threads waiting on you",
-        title: () => (narrowing.needsYou() ? "clear waiting filter" : "waiting on you"),
+            : "Show only the threads waiting on me",
+        title: () => (narrowing.needsYou() ? "clear waiting filter" : "waiting on me"),
         control: () => narrowingView.userControl,
         when: () => runtime.statePhase === "ready" && narrowingView.canToggleUser,
         run: () => narrowingView.toggleUser(),

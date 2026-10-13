@@ -181,7 +181,7 @@ const WORK_WORDS = {
   tool: "using a tool",
   awaiting_approval: "waiting for approval",
   awaiting_input: "waiting for input",
-  awaiting_user: "waiting for you",
+  awaiting_user: "waiting for me",
   replying: "replying",
 };
 const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
@@ -340,7 +340,7 @@ function queueWords() {
     items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
   return {
     summary: tasks.length ? `Tasks: ${tasks.length}` : "",
-    explanation: [named(questions, "you"), named(tasks, agent)]
+    explanation: [named(questions, "me"), named(tasks, agent)]
       .filter(Boolean)
       .join(" "),
     // The widest the count usually reaches, under ten, which its box keeps; more
@@ -671,7 +671,7 @@ const publicationWords = (published) => [
 // The updates an open turn picked up, by kind: a comment in a thread, or an answer to a
 // ask. A lone update is the user's own; several are counted.
 function pickedUpWords({ comments, answers }) {
-  if (comments + answers === 1) return comments ? "your comment" : "your answer";
+  if (comments + answers === 1) return comments ? "my comment" : "my answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   return [
     comments && counted(comments, "comment"),
@@ -828,7 +828,7 @@ function renderStatusNow(state) {
   const { agent } = state;
   // What the user's words do meanwhile. The log takes them with nobody on the other
   // end; the only thing attendance changes is when they are read.
-  const saved = "Your updates are saved.";
+  const saved = "Updates are saved.";
   const checkedIn = facts.silentSince
     ? `${agent} last checked in ${facts.silentSince}`
     : `No check-in from ${agent} is recorded`;
@@ -974,7 +974,7 @@ export function paintApproval(blockingQuestions) {
   // Why a press is refused now, or null where it approves. A press already in flight
   // is refused silently: its aria-busy says so.
   const reason = approved
-    ? "Approved. Press z to undo while approval is still your latest update"
+    ? "Approved. Press z to undo while approval is still the latest update"
     : runtime.currentStamp === null
       ? "There is no stamped version to approve yet"
       : !signoff || !pagePresented() || blockingQuestions === null

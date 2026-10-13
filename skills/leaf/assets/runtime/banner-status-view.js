@@ -61,7 +61,7 @@ class BannerStatusView extends HTMLElement {
   constructor() {
     super();
     this.#queues.type = "button";
-    this.#queues.title = "Show or hide the agent's tasks and your questions";
+    this.#queues.title = "Show or hide the agent's tasks and my questions";
     this.#queues.setAttribute("aria-controls", "lf-queue");
   }
 

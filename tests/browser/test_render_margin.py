@@ -1730,7 +1730,7 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
     expect(
-        child.get_by_role("button", name="Questions: 0 waiting on you")
+        child.get_by_role("button", name="Questions: 0 waiting on me")
     ).to_be_visible()
     expect(child.get_by_role("button", name="Open threads: 0")).to_be_visible()
     for width in (720, 390):
@@ -2537,7 +2537,7 @@ def test_the_chrome_names_an_ask_by_its_question(browser, serve):
         )
     )
     expect(group).to_have_count(1)
-    expect(group.locator(".lf-page-map-action")).to_have_text(["Waiting on you"])
+    expect(group.locator(".lf-page-map-action")).to_have_text(["Waiting on me"])
 
 
 def test_a_finger_opens_the_page_map_on_its_first_row(browser, serve):
@@ -3908,9 +3908,9 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     told(page)
     expect(marker).to_have_attribute("data-lf-turn", "user")
     expect(marker).to_have_attribute("data-identity-probe", "retained")
-    expect(marker.locator(".lf-margin-entry-context")).to_have_text("On you to answer")
+    expect(marker.locator(".lf-margin-entry-context")).to_have_text("My turn to answer")
     expect(marker).to_have_attribute(
-        "aria-label", re.compile(r"^Threads \(2\), On you to answer,")
+        "aria-label", re.compile(r"^Threads \(2\), My turn to answer,")
     )
     on_user = _margin_entry_paint(marker)
     assert on_user == {
@@ -3964,7 +3964,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
           node.dataset.lfTurn ?? null,
           node.querySelector('.lf-page-map-action-context')?.textContent ?? null,
         ])"""
-    ) == [[None, None], ["user", "On you to answer"]]
+    ) == [[None, None], ["user", "My turn to answer"]]
     page.keyboard.press("Escape")
     expect(dialog).to_be_hidden()
 
@@ -8107,7 +8107,7 @@ def test_the_complete_page_map_survives_a_crossing_to_the_wide_screen(browser, s
         )
     ).to_have_count(1)
     expect(
-        dialog.get_by_role("button", name=re.compile(r"^Open your change"))
+        dialog.get_by_role("button", name=re.compile(r"^Open my change"))
     ).to_have_count(0)
 
 

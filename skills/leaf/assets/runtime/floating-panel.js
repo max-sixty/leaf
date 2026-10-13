@@ -460,7 +460,7 @@ export function createFloatingPanel({
         data-tone=${status.tone}
         title=${status.explanation || status.summary}
       >
-        ${status.summary}${asks ? ` · ${asks} ${asks === 1 ? "question" : "questions"} on you` : ""}
+        ${status.summary}${asks ? ` · ${asks} ${asks === 1 ? "question" : "questions"} on me` : ""}
       </p>
       ${page.map(rowFor)}
       ${groups.map((group) =>
@@ -676,7 +676,7 @@ export function createFloatingPanel({
   // answer that shortens it moves nothing below.
   const seatHeights = new Map();
   const QUEUE_TABS = Object.freeze({
-    you: "On you",
+    you: "On me",
     agent: "On the agent",
     done: "Done",
   });
@@ -865,7 +865,7 @@ export function createFloatingPanel({
           : html`<p class="lf-fp-empty">
               ${
                 {
-                  you: "Nothing waits on you.",
+                  you: "Nothing waits on me.",
                   agent: `${agentName()} owes nothing here.`,
                   done: "Nothing is done yet.",
                 }[queueTab]

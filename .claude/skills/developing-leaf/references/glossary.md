@@ -20,7 +20,7 @@ and implementation terms retain their exact spelling when the reader needs them.
 | Term | Meaning and visible use |
 |---|---|
 | **Page** | The document the user reads and acts on; *page instance* below names its durable directory |
-| **Update** | One input the user sends the agent, of any kind, or a mixed collection of them: “Your updates are saved” |
+| **Update** | One input the user sends the agent, of any kind, or a mixed collection of them: “Updates are saved” |
 | **Response** | Work owed to user input whose kind is not known: “2 responses owed” |
 | **Answer** | The current value within an ask, or the response that satisfies a user update. An ask contains its answer; no separate Answer record exists |
 | **Reply** | A message in a conversation, including an answer or a proactive message |
@@ -30,6 +30,14 @@ and implementation terms retain their exact spelling when the reader needs them.
 | **Undo** | Taking back the latest eligible user update |
 | **Threads** | The control and panel listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
 | **Version** | A stamped page the user can revisit: **Showing v4** in the version picker, or **Showing Draft** for the live unstamped source |
+
+Visible copy speaks in the user's voice, since the page is their own space. What is
+theirs is named in the first person: **Me** as an author, **Waiting on me**, **My turn
+to answer**, **my change**, and commands such as **Edit my last message**. What Leaf
+reports to them drops the pronoun rather than saying *you* or *my*: “The draft is
+kept”, “retrying the change”, “not in the version shown”. Text addressed to the agent,
+such as `x-instructions` and event handling, stays in the second person, as does the
+website's prose to a visitor.
 
 Name an update's kind where it is known: a **comment**, **reply**, **choice**,
 **reaction** or **approval**; in protocol text a widget's is an **action**, after its

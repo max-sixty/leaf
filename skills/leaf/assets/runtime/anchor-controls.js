@@ -336,7 +336,7 @@ export function createAnchorControls({
       keeps(
         anchor,
         "title",
-        alive ? `Jump to § ${id}` : `§ ${id} isn't in the version you're viewing`,
+        alive ? `Jump to § ${id}` : `§ ${id} isn't in the version shown`,
       );
     }
   }

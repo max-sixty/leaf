@@ -1104,7 +1104,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
         page.keyboard.press("Tab")
     expect(line).to_contain_text("clear waiting filter")
     page.keyboard.press("Escape")
-    expect(line).to_contain_text("waiting on you")
+    expect(line).to_contain_text("waiting on me")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()

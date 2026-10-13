@@ -137,12 +137,12 @@ export function createQueuePanel({ actions, next, announce }) {
     keeps(
       queueBtn,
       "aria-label",
-      count === null ? "Questions" : `Questions: ${count} waiting on you`,
+      count === null ? "Questions" : `Questions: ${count} waiting on me`,
     );
     keeps(
       queueBtn,
       "data-lf-key-title",
-      `Show or hide your questions and ${agent()}'s tasks`,
+      `Show or hide my questions and ${agent()}'s tasks`,
     );
   }
 
@@ -258,7 +258,7 @@ export function createQueuePanel({ actions, next, announce }) {
           id: "you",
           label: known ? `Questions · ${you.length}` : "Questions",
           rows: Object.freeze(you),
-          empty: known ? "No questions for you." : "Loading current questions…",
+          empty: known ? "No questions." : "Loading current questions…",
         }),
         Object.freeze({
           id: "agent",
@@ -328,7 +328,7 @@ export function createQueuePanel({ actions, next, announce }) {
         entry.list === "done"
           ? "done"
           : entry.list === "you"
-            ? "waiting on you"
+            ? "waiting on me"
             : `waiting on ${agent()}`;
       announce(
         walkPositionLabel(entry.word, list.indexOf(entry) + 1, list.length, qualifier),

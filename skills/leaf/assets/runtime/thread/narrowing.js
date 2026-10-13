@@ -47,7 +47,7 @@ const FACETS = Object.freeze([
     choice("status", "resolved", "Resolved"),
   ]),
   group("waiting", "Waiting on", [
-    choice("waiting", "user", "You", "lf-needs"),
+    choice("waiting", "user", "Me", "lf-needs"),
     choice("waiting", "agent", "Agent"),
   ]),
   group("scope", "Location", [
@@ -173,7 +173,7 @@ function presentationReading(reading, threads, shown, places) {
     `${amount} ${lifecycle}${baseline === 1 ? "thread" : "threads"}`,
     reading.waiting === "all"
       ? null
-      : `On ${reading.waiting === "user" ? "you" : "agent"}`,
+      : `On ${reading.waiting === "user" ? "me" : "agent"}`,
     reading.scope !== "all" ? labelFor("scope", reading.scope) : null,
     reading.subject !== "all" ? labelFor("subject", reading.subject) : null,
     reading.onlyUnplaced ? labelFor("unplaced", "unplaced") : null,
@@ -244,8 +244,8 @@ function presentationReading(reading, threads, shown, places) {
       reading.waiting === "user"
         ? "Clear waiting filter"
         : userAvailable
-          ? "Show threads waiting on you"
-          : "Nothing shown is waiting on you",
+          ? "Show threads waiting on me"
+          : "Nothing shown is waiting on me",
   });
 }
 
@@ -255,7 +255,7 @@ function emptyReading(reading) {
     : reading.scope !== "all" || reading.subject !== "all" || reading.onlyUnplaced
       ? "No threads match these filters."
       : reading.waiting === "user"
-        ? "Nothing is waiting on you."
+        ? "Nothing is waiting on me."
         : reading.waiting === "agent"
           ? "Nothing is waiting on the agent."
           : reading.status === "resolved"

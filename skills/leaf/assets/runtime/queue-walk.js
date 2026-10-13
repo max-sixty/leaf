@@ -72,8 +72,8 @@ import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 import { approvalTarget } from "./banner.js";
 
-const QUALIFIER = "waiting on you";
-const WITHIN = "waiting on you here";
+const QUALIFIER = "waiting on me";
+const WITHIN = "waiting on me here";
 const NOUNS = Object.freeze({
   ask: "Ask",
   thread: "Thread",
@@ -346,13 +346,13 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "q",
         title: "Next question",
-        description: "Next ask, thread, to-do or resend waiting on you",
+        description: "Next ask, thread, to-do or resend waiting on me",
       },
       {
         id: "queue.previous",
         binding: "Shift+q",
         title: "Previous question",
-        description: "Previous ask, thread, to-do or resend waiting on you",
+        description: "Previous ask, thread, to-do or resend waiting on me",
       },
     ],
     title: "Questions",
@@ -369,14 +369,14 @@ export function createQueueWalk({
   // Where `q` lands on a to-do the user ends with Done, Done is a key, and a step on the
   // banner's row under a finger. Its row in the Questions panel carries the same Done.
   pageScope("task", {
-    title: "On a to-do waiting on you",
+    title: "On a to-do waiting on me",
     at: () => Boolean(doneTask()),
     rows: [
       {
         id: "queue.task.done",
         keys: ["x"],
         title: "done",
-        description: "Mark the to-do waiting on you done",
+        description: "Mark this to-do done",
         touch: "Done",
         when: () => Boolean(doneTask()),
         run: () => {

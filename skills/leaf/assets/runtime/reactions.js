@@ -587,7 +587,7 @@ export function createReactionController({
         .map(([name, entry]) => `${entry.glyph} ${name}`)
         .join(
           ", ",
-        )} — for the selection, the item you are standing on, or the reply you are reading`,
+        )} — for the selection, the item I'm standing on, or the reply I'm reading`,
     title: "reactions",
     // Reachable from a reply in a Threads panel covering the page, as `c` is; under a
     // covering surface the page's own targets are out of reach.
@@ -635,5 +635,5 @@ export const undoSentence = (undoable) => {
   const event = undoable();
   return event?.token
     ? `Undo: ${event.token} reaction on ${reactionPlace(event)}`
-    : "Undo your latest update";
+    : "Undo my latest update";
 };

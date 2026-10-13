@@ -1103,7 +1103,7 @@ export function createVersionController({
   });
   const VERSION_WALK = {
     ...walk,
-    description: "Walk the versions, marking what changed since the one you are on",
+    description: "Walk the versions, marking what changed since the one shown",
     title: "walk — marking changes",
     when: versionsToWalk,
   };

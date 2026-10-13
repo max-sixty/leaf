@@ -2895,7 +2895,7 @@ def test_a_live_revision_updates_the_closed_questions_door(browser, serve, subje
     (serve.page_dir / "index.html").write_text(second)
     expect(page.locator("lf-ask")).to_have_count(3)
     expect(door).to_have_text("Questions: 3")
-    expect(door).to_have_attribute("aria-label", "Questions: 3 waiting on you")
+    expect(door).to_have_attribute("aria-label", "Questions: 3 waiting on me")
     if subject == "selection":
         assert (
             page.evaluate("getSelection().toString().trim()")
@@ -4769,7 +4769,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Let go of what you are standing on"
+        "Let go of what I'm standing on"
     )
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))

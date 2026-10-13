@@ -53,7 +53,7 @@ export function createQuestionBannerControls(activateBulk) {
         busy: false,
         offered: false,
         text: `${label} all (0)`,
-        title: `${label} every one still waiting on you`,
+        title: `${label} every one still waiting on me`,
         outcome,
       }),
     );

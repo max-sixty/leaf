@@ -287,7 +287,7 @@ customElements.define(
       keepsText(
         this.counts,
         [
-          `${questions.user.length} asks on you`,
+          `${questions.user.length} asks on me`,
           ...(answered.length ? [`${answered.length} answered`] : []),
           ...labels,
         ].join(" · "),

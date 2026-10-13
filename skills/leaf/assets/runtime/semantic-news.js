@@ -228,7 +228,7 @@ export function semanticNewsNotice(news) {
     clauses.push(
       obligations.length === 1
         ? "Input needed"
-        : `${plural(obligations.length, "item")} need your input`,
+        : `${plural(obligations.length, "item")} waiting on me`,
     );
   if (availability.length) clauses.push("Agent active on this page");
   return clauses.join("; ");

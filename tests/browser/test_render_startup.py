@@ -2044,7 +2044,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
         page.locator("#draft-ops").evaluate("el => getComputedStyle(el).outlineStyle")
         == "none"
     )
-    assert "rewritten since your decision" in page.locator("#draft-ops").aria_snapshot()
+    assert "rewritten since I decided" in page.locator("#draft-ops").aria_snapshot()
 
 
 def test_user_overrides_identify_state_that_differs_from_authored_inputs(
@@ -3307,7 +3307,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up your comment and hasn't said what it's doing yet"
+        "Claude picked up my comment and hasn't said what it's doing yet"
         " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 to-do"
         " (Work on the page)."
     )
@@ -3324,7 +3324,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     told(page)
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up your comment and hasn't said what it's doing yet"
+        "Claude picked up my comment and hasn't said what it's doing yet"
         " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies."
     )
 
@@ -3338,7 +3338,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # The turn ended with both updates still the agent's to answer, so they are overdue
     # and the remedy is the user's.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude last checked in just now. Your updates are saved. "
+        "Claude last checked in just now. Updates are saved. "
         "Nothing is answering them, so nudge it in the terminal."
         " Waiting on Claude: 2 replies."
     )
@@ -3536,7 +3536,7 @@ def test_a_workflow_and_the_banner_share_agent_activity(browser, serve):
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(
-            r"^\s*Claude is working — Writing the page \(just now\)\. Waiting on you"
+            r"^\s*Claude is working — Writing the page \(just now\)\. Waiting on me"
         )
     )
 
@@ -3546,8 +3546,8 @@ def test_a_workflow_and_the_banner_share_agent_activity(browser, serve):
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(
-            r"^\s*Claude picked up your comment and hasn't said what it's doing yet"
-            r" \(just now\)\. Waiting on you"
+            r"^\s*Claude picked up my comment and hasn't said what it's doing yet"
+            r" \(just now\)\. Waiting on me"
         )
     )
 
@@ -6016,7 +6016,7 @@ def test_page_annotation_view_seats_questions_and_contributed_controls(browser, 
     }""")
     review = page.locator("#review")
     question = review.get_by_role(
-        "button", name="Which route? · Waiting on you", exact=True
+        "button", name="Which route? · Waiting on me", exact=True
     )
     expect(question).to_be_visible()
     question.click()

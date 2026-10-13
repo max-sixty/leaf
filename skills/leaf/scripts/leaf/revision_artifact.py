@@ -431,8 +431,18 @@ def _read_css(source: str, declarations: bool) -> _CssReading:
     return _CssReading(references, tuple(parts[0::2]), order)
 
 
-def _css_dependencies(source: str, declarations: bool = False) -> tuple[str, ...]:
-    return tuple(value for value, _, _ in _read_css(source, declarations).references)
+def _css_dependencies(
+    source: str, path: str, declarations: bool = False
+) -> tuple[str, ...]:
+    """The URLs the CSS in the file at `path` loads. The parse is shared by every
+    file with the same text (`_read_css`), so a refusal of the text is told its file
+    here."""
+    try:
+        reading = _read_css(source, declarations)
+    except ArtifactError as error:
+        [finding] = error.findings
+        raise ArtifactError(finding.but(values={"file": path})) from None
+    return tuple(value for value, _, _ in reading.references)
 
 
 def rewrite_css(source: str, address, *, declarations: bool = False) -> str:
@@ -617,7 +627,7 @@ def _resource_dependencies(path: str, data: bytes, mime: str) -> tuple[str, ...]
             css = data.decode("utf-8")
         except UnicodeDecodeError as error:
             raise artifact_error("css-not-utf8", path) from error
-        for specifier in _css_dependencies(css):
+        for specifier in _css_dependencies(css, path):
             edges.append(resolve_dependency(specifier, path))
     return tuple(dict.fromkeys(edge for edge in edges if edge is not None))
 
@@ -722,10 +732,12 @@ def _capture_artifact(
             if Path(path).suffix != ".css":
                 raise artifact_error("stylesheet-type", path)
             entries.append(path)
-        for specifier in _css_dependencies(authored.css):
+        for specifier in _css_dependencies(authored.css, "/index.html"):
             entries.append(resolve_dependency(specifier, "/index.html"))
         for inline in authored.inline_styles:
-            for specifier in _css_dependencies(inline["style"], declarations=True):
+            for specifier in _css_dependencies(
+                inline["style"], "/index.html", declarations=True
+            ):
                 entries.append(resolve_dependency(specifier, "/index.html"))
         entries.extend(authored.media_refs)
         entries.extend(

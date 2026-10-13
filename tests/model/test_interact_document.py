@@ -461,19 +461,30 @@ def test_stylesheet_dependencies_obey_the_same_capture_boundary(page_dir):
         PAGE.replace("</head>", '<link rel="stylesheet" href="/page/style.css"></head>')
     )
     previous = files_model.latest_revision(page_dir)
-    for css, code in [
-        ('@import "ftp://outside.example/style.css";', "dependency-not-local"),
-        ('@import "./data.json";', "css-import"),
-        ('@import url("./data.json");', "css-import"),
-        ('main { background: url("../../private.svg"); }', "dependency-outside-page"),
-        ('main { background: url("./missing.svg"); }', "dependency-unreadable"),
+    # Each refusal names the file to repair: the sheet, or the file it loads.
+    sheet = "/page/style.css"
+    for css, code, file in [
+        ('@import "ftp://outside.example/style.css";', "dependency-not-local", sheet),
+        ('@import "./data.json";', "css-import", sheet),
+        ('@import url("./data.json");', "css-import", sheet),
+        ("main { background: url(a b); }", "css-invalid", sheet),
+        (
+            'main { background: url("../../private.svg"); }',
+            "dependency-outside-page",
+            sheet,
+        ),
+        (
+            'main { background: url("./missing.svg"); }',
+            "dependency-unreadable",
+            "/page/missing.svg",
+        ),
     ]:
         (authored / "style.css").write_text(css)
         refused = revisioning_model.activate_source(page_dir)
         assert refused.error, css
         assert refused.revision == previous and not refused.created
         _, findings = check_findings(page_dir)
-        assert [finding.code for finding in findings] == [code], css
+        assert [(f.code, f.values["file"]) for f in findings] == [(code, file)], css
 
 
 def test_an_image_loads_from_any_server(page_dir):

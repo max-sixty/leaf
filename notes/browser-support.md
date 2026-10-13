@@ -231,11 +231,15 @@ what fails and what still works.
   authored paragraph at the frame's edge. Leaf's shared rules keep the same edge
   policy in those cases. The [CSS Box draft](https://drafts.csswg.org/css-box-4/#margin-trim)
   defines native trimming for block containers.
-- **Recheck:** the installed Chrome reading is available through:
+- **Recheck:** `leaf-dev probe` reads the pinned headless shell; installed Chrome's
+  reading is:
 
   ```sh
-  uv run leaf-dev probe developer/feature-gallery \
-    --js '({browser:navigator.userAgent, marginTrim:CSS.supports("margin-trim", "block")})'
+  uv run python -c 'from playwright.sync_api import sync_playwright
+  with sync_playwright() as p:
+      b = p.chromium.launch(channel="chrome")
+      print(b.version, b.new_page().evaluate("CSS.supports(\"margin-trim\", \"block\")"))
+      b.close()'
   ```
 
   The browser tests `test_frame_edges_pass_through_whatever_stands_at_them` and

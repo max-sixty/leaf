@@ -471,6 +471,8 @@ summary { align-content: center; }
 .lf-thread-progress { display: grid; grid-template-columns: minmax(0, 1fr) auto;
   align-items: baseline; column-gap: var(--sp-2); margin-top: 10px; color: var(--muted);
   font: var(--t-6)/1.45 var(--sans); overflow-wrap: anywhere; }
+.lf-thread-progress-who { margin-inline-end: 2px; color: var(--ink); font-size: 13px;
+  font-weight: 600; }
 .lf-thread-progress[data-lf-live] .lf-thread-progress-words::after { content: "…";
   display: inline-block; inline-size: 1.1em; overflow: hidden; vertical-align: bottom;
   animation: lf-progress-ellipsis 1.6s steps(4, end) infinite; }

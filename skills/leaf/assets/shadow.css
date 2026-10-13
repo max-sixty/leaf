@@ -430,6 +430,12 @@ summary {
   font: var(--t-6)/1.45 var(--sans);
   overflow-wrap: anywhere;
 }
+.lf-thread-progress-who {
+  margin-inline-end: 2px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
 .lf-thread-progress[data-lf-live] .lf-thread-progress-words::after {
   content: "…";
   display: inline-block;

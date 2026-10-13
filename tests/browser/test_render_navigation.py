@@ -1712,7 +1712,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
                 '.lf-thread-checkpoint[data-summary-id^="ephemeral:"]'
             )
             expect(card.locator(".lf-thread-progress-words")).to_have_text(
-                "Codex · Checking whether the room stays free after five"
+                "Codex Checking whether the room stays free after five"
             )
             expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
             expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)

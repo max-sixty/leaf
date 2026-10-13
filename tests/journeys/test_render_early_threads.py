@@ -308,7 +308,7 @@ COLD_ASK = leaf_page(
 def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     browser, serve, key
 ):
-    """Ask walking, Decisions, and Undo wait for their own standing history."""
+    """Ask walking, Decisions, and Undo wait for their own saved history."""
     url = serve(COLD_ASK)
     if key != "q":
         append_command(

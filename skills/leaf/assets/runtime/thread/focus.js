@@ -99,11 +99,11 @@ onPress((start) => {
 
 export const standingThreadId = () => heldThreadId() ?? pressed;
 
-// The intent restricted to the thread `id` still standing with a reply to write.
+// The intent restricted to the thread `id` still present with a reply to write.
 const mayReplyTo = (id, intent) =>
   restrictUserIntent(intent, () => {
-    const standing = allThreads().find((candidate) => candidate.id === id);
-    return Boolean(standing && replyAvailable(standing));
+    const thread = allThreads().find((candidate) => candidate.id === id);
+    return Boolean(thread && replyAvailable(thread));
   });
 
 // A pass that redraws threads hands the user writing a reply across itself, under the

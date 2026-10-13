@@ -328,8 +328,8 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     ]
 
 
-def test_offline_reaction_waits_for_its_saved_standing(browser, serve):
-    """Unknown standing cannot invent an add; recovery toggles the actual saved event."""
+def test_offline_reaction_waits_for_its_saved_state(browser, serve):
+    """An unknown saved state cannot invent an add; recovery toggles the actual saved event."""
     source = leaf_page(
         "Saved reaction", '<h1>Saved reaction</h1><button id="target">A target</button>'
     )
@@ -422,7 +422,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     otherwise the user's only way to tell them apart is to ask.
 
     And a page nothing is behind must read differently from either, without reading as
-    a fault: a standing page spends the night that way, so the words are the plain
+    a fault: a persistent page spends the night that way, so the words are the plain
     computed fact and the dot is not the amber it wears for a session falling behind."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))
     d = serve.page_dir

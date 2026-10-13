@@ -1,4 +1,4 @@
-"""Assemble browser state from requested documents and the standing log."""
+"""Assemble browser state from requested documents and the current log."""
 
 from typing import NamedTuple
 
@@ -244,7 +244,7 @@ def browser_state(
         "basis": {"through_seq": through_seq},
         **page_history,
         "views": views,
-        # Standing approvals across every stamp, for Threads' event timeline.
+        # Approvals in force across every stamp, for Threads' event timeline.
         # Current-version approval state lives only in its ask.
         "approval_history": durable.approvals,
         "activity": activity,

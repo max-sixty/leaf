@@ -30,16 +30,16 @@ from leaf.render_gate.preview import preview_server
 from leaf.render_gate.readings import DevtoolsIssues
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    ACTIONS_IN_FORCE,
     COMMAND_HUB_EXAMPLE,
     COMMAND_HUB_PAGE,
+    IN_FORCE_PAGE,
     LIVE_V1,
     LIVE_V2,
     LIVE_V3,
     REF_PAGE,
     RELATIVE_WIDGET_MODULE,
     RELATIVE_WIDGET_PAGE,
-    STANDING_ACTIONS,
-    STANDING_PAGE,
     THREAD_ASKS,
     TWO_HOLDER_PAGE,
     TWO_HOLDER_SPARE_PAGE,
@@ -902,7 +902,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
     write(general, "Do not replace the page under these words.")
 
     # Let the page learn that the second revision exists before holding a read. The
-    # standing draft keeps the first revision shown and leaves the direct activation
+    # open draft keeps the first revision shown and leaves the direct activation
     # route available through the latest-version chip.
     (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
     told(page)
@@ -1085,20 +1085,20 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
     expect(page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
 
 
-def test_the_render_gate_applies_every_standing_action_a_second_time(
+def test_the_render_gate_applies_every_action_in_force_a_second_time(
     browser, serve, tmp_path, monkeypatch
 ):
     """Absoluteness is what makes a fold a fold, and it is the one thing about a widget
     module no reading of a rendered page can see: a relative implementation renders
     perfectly and costs the user their gesture later, on the poll that replays it. So
-    the gate applies each standing action again and asks what moved, and the page's
+    the gate applies each action in force again and asks what moved, and the page's
     composed vocabulary has nothing to do — a card placed where it already is, a pick set to
     what it already holds, a body assigned the words it already reads.
 
     The corpus cannot say this on its own: `test_page_fixture_renders` serves every page
     under a log holding one note, so the fold is empty there and the reading passes
     without applying anything. This page is the log the examples haven't got, and the
-    floor is that the standing state covers every verb the registry declares — a verb
+    floor is that the state in force covers every verb the registry declares — a verb
     added without an event here fails rather than going unexercised.
 
     Beside that clean vocabulary stands the bug-back for the module contract's first
@@ -1143,14 +1143,14 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(
         ) : RELATIVE_WIDGET_PAGE.rindex("</lf-tally>") + len("</lf-tally>")
     ]
     url = serve(
-        STANDING_PAGE.replace("</main>", tallies + "</main>"),
+        IN_FORCE_PAGE.replace("</main>", tallies + "</main>"),
         packages=(*EXAMPLE_PACKAGES, ROOT / "tests/fixtures/packages/work", "./.leaf"),
     )
     relative_actions = [
         ("tally-fitted", "step", {"value": "3"}),
         ("tally-fitted", "caption", {"value": "Two greys at the north feeder."}),
     ]
-    for widget, action, detail in [*STANDING_ACTIONS, *relative_actions]:
+    for widget, action, detail in [*ACTIONS_IN_FORCE, *relative_actions]:
         append_command(
             serve.page_dir,
             {
@@ -1178,11 +1178,11 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(
         assert sent.exit_code == 0, sent.output
 
     page = open_page(browser, url)
-    standing_ids = sorted(
-        {widget for widget, _action, _detail in [*STANDING_ACTIONS, *relative_actions]}
+    in_force_ids = sorted(
+        {widget for widget, _action, _detail in [*ACTIONS_IN_FORCE, *relative_actions]}
         | {"ab-baffles", "ab-wren"}
     )
-    standing = page.evaluate(
+    in_force = page.evaluate(
         """async ids => {
           const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return ids.flatMap(id => {
@@ -1194,7 +1194,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(
                 .map(({action}) => [widget.id, widget.localName, verb, action]));
           });
         }""",
-        standing_ids,
+        in_force_ids,
     )
     page.close()
     registry = registry_storage.load_registry(serve.page_dir)
@@ -1204,13 +1204,13 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(
         if tag.startswith("lf-")
         for verb in entry.get("x-state", {})
     }
-    assert {(tag, verb) for _id, tag, _key, verb in standing} == declared, (
-        "the gate applies the standing state, so a declared verb missing from it is a "
-        f"verb nothing here re-applies: page holds {standing}, registry declares "
+    assert {(tag, verb) for _id, tag, _key, verb in in_force} == declared, (
+        "the gate applies the state in force, so a declared verb missing from it is a "
+        f"verb nothing here re-applies: page holds {in_force}, registry declares "
         f"{sorted(declared)}"
     )
     assert {
-        (key, action) for widget, _tag, key, action in standing if widget == "ab-pick"
+        (key, action) for widget, _tag, key, action in in_force if widget == "ab-pick"
     } == {("choose", "choose"), ("answer", "answer"), ("add", "add")}
     failures = render_gate_model.render_version(browser, url).failures
     assert [
@@ -1222,7 +1222,7 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(
         ("light", "<lf-tally id=tally-seen>", ["body text"]),
     ], failures
     # The relative widget's appended caption is its own fault in other readings too;
-    # the standing vocabulary beside it leaves the gate nothing to say.
+    # the current vocabulary beside it leaves the gate nothing to say.
     assert all(names(f, "lf-tally") for f in failures), failures
 
 
@@ -1490,9 +1490,9 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     )
     page.close()
 
-    # The mark follows the fold out as well as in: the file's standing state is the
+    # The mark follows the fold out as well as in: the file's current state is the
     # last surviving action per verb and unit, so a decision on an outcome that
-    # settles nothing displaces the one before it, and a mark left standing would
+    # settles nothing displaces the one before it, and a mark left in place would
     # silence a slot the log has handed back.
     append_command(
         serve.page_dir,
@@ -1916,7 +1916,7 @@ def test_a_thread_ask_waits_until_answered(browser, serve):
     # another verb, so it survives that rebuild. Whether the decision is open again is
     # the log's reading, so the count moves when the withdrawal reaches it and not while
     # it is held at the wire. In particular, the surviving `choose` action cannot answer
-    # a `multiple` set, whose x-awaits.answered condition is a standing `answer`.
+    # a `multiple` set, whose x-awaits.answered condition is an `answer` in force.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
@@ -2032,7 +2032,7 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     page.locator("#atlas-record .lf-activity-news").click()
     paused = page.locator("#atlas-record .lf-activity-row").first
     # The goal is named by its leading <strong>, not the words under it.
-    expect(paused).to_contain_text("You paused")
+    expect(paused).to_contain_text("Me paused")
     expect(paused.locator(".lf-activity-target")).to_have_text("Replace the XML parser")
     expect(paused).to_contain_text("Finish the current hunk, then park here.")
     root = next(
@@ -2074,7 +2074,7 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     expect(goal).not_to_have_attribute("data-lf-held")
     released = page.locator("#atlas-record .lf-activity-row").first
     expect(released).to_contain_text(
-        "You resolved “Finish the current hunk, then park here.”"
+        "Me resolved “Finish the current hunk, then park here.”"
     )
 
     undo(page)

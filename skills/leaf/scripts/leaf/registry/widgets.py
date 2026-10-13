@@ -110,6 +110,7 @@ def _validate_widget_structure(
     for key, named in (
         ("x-owners", entry.get("x-owners", [])),
         ("x-unique", entry.get("x-unique", {}).values()),
+        ("x-within", entry.get("x-within", [])),
     ):
         if unknown := sorted(set(named) - set(declarations)):
             raise registry_error(
@@ -365,7 +366,7 @@ def _validate_widget_interactions(
     ]
     if needs_upgrade:
         raise registry_error("needs-upgrade", path, tag, keys=needs_upgrade)
-    # A version overrules a standing report with `overruled` on the element,
+    # A version overrules a report in force with `overruled` on the element,
     # so a widget with an agent-written verb that doesn't declare the attribute
     # is one whose every report contradiction is unpublishable.
     agent_verbs = [verb for verb, _spec in state_specs(entry, writer="agent")]

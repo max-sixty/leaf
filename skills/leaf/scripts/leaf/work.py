@@ -23,7 +23,7 @@ def widget_seat_error(
     """Why `widget` cannot seat a to-do on `page`, or None.
 
     A to-do on a widget stands beside that widget at the page edge, so the widget must
-    be live on the page: present under the page's standing outcomes and not quoted
+    be live on the page: present under the page's outcomes in force and not quoted
     exhibit content. And it must be a seat for work: its tag declares `x-work`, or it
     holds an unsettled action, among `workflows` (`workflows.canonical_workflows`)."""
     named = {"widget": widget}

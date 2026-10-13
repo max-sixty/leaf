@@ -563,11 +563,11 @@ def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
         )
     changed = (claimed / "status.json").read_bytes()
     assert changed != unchanged
-    standing = files_model.read_json(claimed / "status.json")["stream"]["activity"]
-    assert standing["detail"] == "Reviewing the result"
+    observed = files_model.read_json(claimed / "status.json")["stream"]["activity"]
+    assert observed["detail"] == "Reviewing the result"
 
     renewed_at = (
-        datetime.fromisoformat(standing["ts"]) + timedelta(minutes=6)
+        datetime.fromisoformat(observed["ts"]) + timedelta(minutes=6)
     ).isoformat()
     with monkeypatch.context() as patch:
         patch.setattr(service_model, "now_iso", lambda: renewed_at)

@@ -744,6 +744,11 @@ _TEXT = {
     "not-member": lambda at, v: (
         f"{_line(at, v)}: must be a direct member of "
         + " or ".join(f"<{owner}>" for owner in v["owners"])
+        + " or stand inside its "
+        + " or ".join(f"<{region}>" for region in v["within"])
+        if v["within"]
+        else f"{_line(at, v)}: must be a direct member of "
+        + " or ".join(f"<{owner}>" for owner in v["owners"])
         + (f", found <{v['parent']}>" if v["parent"] else "")
     ),
     "content-empty": lambda at, v: (
@@ -1203,7 +1208,7 @@ _TEXT = {
         lambda v: (
             "declares agent-written x-state verbs"
             f" {_json(v['verbs'])} but not the boolean `overruled` attribute a"
-            " version overrules a standing report with"
+            " version overrules a report in force with"
         )
     ),
     "unrestated": _declared(
@@ -1621,7 +1626,7 @@ _TEXT = {
     "not-a-widget": lambda at, v: f"{v['widget']!r} is not a widget on this page",
     "not-an-element": lambda at, v: f"{v['element']!r} is not an element on this page",
     "hidden-widget": lambda at, v: (
-        f"{v['widget']} is not visible under the page's standing outcomes"
+        f"{v['widget']} is not visible under the page's outcomes in force"
     ),
     "quoted-seat": lambda at, v: (
         f"{v['widget']} is quoted exhibit content, not a live page widget"
@@ -1655,6 +1660,16 @@ _TEXT = {
         " when it no longer applies"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
+    "todo-execution": lambda at, v: (
+        f"to-do {v['todo']!r} was last started by "
+        + (
+            f"session {v['session']!r}"
+            if v["session"] is not None
+            else "a sessionless command"
+        )
+        + f" (start {v['start']!r}); take it in hand with `leaf task start`"
+        " before ending it from another session"
+    ),
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
     "agents-todo": lambda at, v: (
         f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"

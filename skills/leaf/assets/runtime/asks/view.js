@@ -91,7 +91,7 @@ export function createAskView({
   // node, so materialize the existing thread projection there rather than
   // narrowing the semantic inventory to what happens to be in the DOM.
   //
-  // Bulk answers reuse standing nodes and materialize only those not built yet.
+  // Bulk answers reuse existing nodes and materialize only those not built yet.
   // Explicit arrivals reveal the addressed frozen turn, then use the canonical
   // destination policy to select and present its current reader.
   //
@@ -390,7 +390,7 @@ export function createAskView({
   // The user's standing on an ask, said in terms a replaced document can still answer.
   // Focus by shape does not cross a document replacement — version.js says why — but an
   // ask is not a shape. Its id is a declared identity that the inventory, the Questions
-  // panel's rows, and the walk already resolve against whichever document is standing,
+  // panel's rows, and the walk already resolve against whichever document is current,
   // so a user working an ask when a revision lands is put back on the same ask rather
   // than dropped to `body`.
   //

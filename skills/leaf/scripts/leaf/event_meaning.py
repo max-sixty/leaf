@@ -111,7 +111,7 @@ def answer_meaning(
     """Whether this admitted action answers its widget's ask, and the thread it closes.
 
     The answering action is the one whose admission makes the ask's declared state
-    condition hold, so it is read with the candidate standing in the fold of its own
+    condition hold, so it is read with the candidate in force in the fold of its own
     document. The thread it closes is the widget's authored `resolves`, read from the
     immutable document that sent it rather than carried in the command. A decision
     whose outcome is the widget's `x-withdrawn-as` leaves the page as if nothing had

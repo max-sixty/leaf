@@ -1,10 +1,10 @@
-/* The response bar's reaction row and the standing tokens a strip or circle wears.
+/* The response bar's reaction row and the tokens in force a strip or circle wears.
 
    An open anchored composer owns its general response disclosure: reactions only
    contribute declared actions to it, and `e` opens that local group focused on its
    first reaction. With no composer open, `e` contributes the reaction margin entries to the
    selected element's existing margin cluster. While that explicit mode stands, its
-   contribution owns all six margin entries; standing readings and unrelated actions remain
+   contribution owns all six margin entries; readings in force and unrelated actions remain
    in Page Map and return when the mode closes. Those temporary margin entries unfold the
    cluster where it stands, in the rail or as a pin, and claim no permanent rail width. A thread-local `e` opens
    the thread-owned row on the latest agent message. `REACT` claims the keyboard
@@ -25,7 +25,7 @@
    Thread reactions remain in their thread-owned strip. The event still
    carries its durable authored anchor, while
    the temporary addressable resolves selected text to the first rendered block, matching the
-   target where replay later seats its standing reaction.
+   target where replay later seats its reaction in force.
 
    Putting a reaction on or taking it back ends the response gesture synchronously,
    after admission to the local ledger. Its durable answer never closes a newer composer
@@ -84,7 +84,7 @@ const reactionVocabulary = () => registry.$reactions?.tokens ?? {};
 // a token's name. Empty until the registry has arrived: the register checks every core
 // row's bindings as the module evaluates, before the vocabulary is known.
 export const reactionTokens = () => Object.entries(reactionVocabulary());
-// A toggle needs the saved standing reaction, including proof that none stands.
+// A toggle needs the saved reaction in force, including proof that none stands.
 export const reactionAvailable = () => readThreads().phase === "ready";
 // The choices on one anchor, from the threads' current reading.
 const anchorChoices = (anchor) =>
@@ -119,15 +119,15 @@ function reactionChip({ name, glyph, label }, pressed) {
   return chip;
 }
 
-// The bar's chips wear the reactions standing on its anchor, as a reply's strip does:
+// The bar's chips wear the reactions in force on its anchor, as a reply's strip does:
 // pressed where one stands, busy while it is still being sent. A press on a pressed chip
 // takes that reaction back (reactHere).
 export function paintBarReactions(anchor) {
   const by = new Map(anchorChoices(anchor).map((choice) => [choice.name, choice]));
   for (const chip of fabBar.querySelectorAll(".lf-react-palette > .lf-react")) {
-    const standing = by.get(chip.dataset.token)?.standing;
-    keeps(chip, "aria-pressed", String(Boolean(standing)));
-    keeps(chip, "aria-busy", String(Boolean(standing?.pending)));
+    const inForce = by.get(chip.dataset.token)?.inForce;
+    keeps(chip, "aria-pressed", String(Boolean(inForce)));
+    keeps(chip, "aria-busy", String(Boolean(inForce?.pending)));
   }
 }
 
@@ -191,15 +191,15 @@ export function createReactionController({
   async function reactHere(name, commands, anchor = fabAnchorAt()) {
     const choice = anchorChoices(anchor).find((choice) => choice.name === name);
     if (!choice) return;
-    const { standing } = choice;
-    // Read before the bar goes, because the reading is about the bar that is standing.
+    const { inForce } = choice;
+    // Read before the bar goes, because the reading is about the bar that is open.
     // The bar owns what that answer is. `setReact(false)` runs after the bar goes and the
     // palette makes a return of its own, so the user lands once, when everything has
     // settled, rather than once as the bar goes and again after the palette.
     const returnTo = fabReturnPlaces();
     if (!anchor) return;
     let sent;
-    if (standing) sent = commands.withdrawReaction(standing);
+    if (inForce) sent = commands.withdrawReaction(inForce);
     else {
       const event = {
         kind: "comment",
@@ -263,7 +263,7 @@ export function createReactionController({
     // `e` is an explicit reaction mode. Comment remains on `c`, so this temporary
     // contribution contains reactions alone.
     fabBar.dataset.lfMarginRaised = "1";
-    const standing = unfoldedMarginEntries?.()?.lfTarget === target;
+    const unfolded = unfoldedMarginEntries?.()?.lfTarget === target;
     marginAnchor = structuredClone(anchor);
     marginOffer = registerContribution({
       key: "responses",
@@ -277,7 +277,7 @@ export function createReactionController({
           label: choice.label,
           rank: "secondary",
           className: `lf-react ${HOLDS_WORD}`,
-          pressed: Boolean(choice.standing),
+          pressed: Boolean(choice.inForce),
         })),
         readings: [],
       }),
@@ -285,7 +285,7 @@ export function createReactionController({
     });
     marginTarget = target;
     if (openMarginEntryOptions(target, "responses")) {
-      marginUnfolded = !standing;
+      marginUnfolded = !unfolded;
       return true;
     }
     marginOffer.unregister();

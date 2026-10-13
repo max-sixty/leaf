@@ -1,10 +1,10 @@
-/* lf-options: a question the user answers. The theme draws both of its forms and
+/* lf-options: an ask the user answers. The theme draws both of its forms and
  * this module makes them answerable — without it the markup still reads as a decision,
  * and nothing here is load-bearing on the look.
  *
  * Which form a group takes is a fact about its options, decided in CSS and never here:
  * an option leading with a <strong> title argues its own case and is a card on a row of
- * its own, and a group whose options are bare labels is a question *about* the page,
+ * its own, and a group whose options are bare labels is an ask *about* the page,
  * drawn as compact rows.
  * The difference this module sees is only what a row adds — `for`, the id of the block
  * the row names, rendered as a reference the user can follow. It points and never
@@ -70,7 +70,7 @@
  * The keyboard path: every mark is a checkbox, so Tab reaches it and Space toggles. From a
  * mark, the runtime's row walk moves among the options: ↑/↓ clamp at the ends, and Home and
  * End land on them. This widget owns 1–9; the ask view forwards those declarations across the
- * whole question. The column is held whether or not a key is in it, which is the theme's
+ * whole ask. The column is held whether or not a key is in it, which is the theme's
  * half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
  * own argument too, and a scope over the whole subtree would promise to work an option with
@@ -132,7 +132,7 @@ const label = (option) => wrote(option.querySelector(":scope > strong") ?? optio
 // while the control states arity in the two registers it has: corner shape for the eye and
 // this word in the aria-label below. The open word stays visually silent in every form. A
 // user who hears "choose any" knows the next press adds where "choose one" would have
-// replaced, and knows it while the question is still open rather than after answering it.
+// replaced, and knows it while the ask is still open rather than after answering it.
 const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
 
@@ -242,7 +242,7 @@ customElements.define(
         // A click something in the option has a use for is not a pick: the user was
         // working the case — flipping a shot, opening a disclosure, following a link —
         // rather than choosing between the options. `worksInside` is the whole of that
-        // question, and what it cannot answer is which of the controls in here this
+        // ask, and what it cannot answer is which of the controls in here this
         // module put there: the mark is the pick's own control, and the digit stands in
         // the column beside it, so a press on either is aimed at this option after all.
         const inner = worksInside(e.target, option);
@@ -304,14 +304,14 @@ customElements.define(
         : [];
     }
 
-    // A page question owns the ordinary add form below its options. A question already
+    // A page ask owns the ordinary add form below its options. A ask already
     // inside a thread has no second form; its surrounding thread owns the reply.
     #reply() {
       return this.#addition.input ? null : threadInput(this);
     }
 
     // The one statement a live channel can't derive: the set is whole. Done is a
-    // reversible gesture; its pressed state is the standing answer action. Its digit
+    // reversible gesture; its pressed state is the answer action in force. Its digit
     // is inside the button, as an option's is inside the option, so a press on it is a
     // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
@@ -328,8 +328,8 @@ customElements.define(
 
     #doneUndo() {
       const answer = this.reading?.actions.answer;
-      const standing = answer?.standing[0]?.event;
-      return answer?.undo.find((event) => event.id === standing?.id) ?? null;
+      const inForce = answer?.inForce[0]?.event;
+      return answer?.undo.find((event) => event.id === inForce?.id) ?? null;
     }
 
     #doneAvailable() {
@@ -375,7 +375,7 @@ customElements.define(
         this.#done.control,
         "aria-label",
         answered
-          ? "Take back Done: reopen this question"
+          ? "Take back Done: reopen this ask"
           : "Done: my picks here are complete",
       );
       keeps(this.#done.control, "aria-pressed", String(answered));
@@ -445,7 +445,7 @@ customElements.define(
             run: () =>
               landInThread(this.#reply(), {
                 target: mark,
-                line: "back to question",
+                line: "back to ask",
               }),
           },
           // Numbered choices own the shortcut bar; arrow navigation stays in the reference.
@@ -580,9 +580,9 @@ customElements.define(
       // including accepted replay.
       const detail = state.choose?.detail ?? this.#authoredChoice();
       const added = Object.fromEntries(
-        Object.entries(state.add?.units ?? {}).map(([id, standing]) => [
+        Object.entries(state.add?.units ?? {}).map(([id, record]) => [
           id,
-          standing.detail.text,
+          record.detail.text,
         ]),
       );
       const created = this.#addition.reconcile(added, this.#done);

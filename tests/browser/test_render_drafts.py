@@ -1439,7 +1439,7 @@ def test_page_round_trip(browser, serve):
     # element, so there is no selector for it.
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Put the new comment's card away before reaching for the board. A sent comment
-    # leaves its thread standing in the page margin, and the board is a wide widget
+    # leaves its thread shown in the page margin, and the board is a wide widget
     # whose columns run out into that same band, so the card lands over the column this
     # drag is aimed at and takes the pointer. A user sees the card and dismisses it;
     # a test that skipped the dismissal would be dragging under a sheet, which is a
@@ -1553,7 +1553,7 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     expect(
         page.locator(
             '[data-lf-margin-for="draft-ops"] '
-            '[data-lf-margin-entry-owner="standing-reactions"]'
+            '[data-lf-margin-entry-owner="reactions"]'
             '[data-lf-margin-entry-key^="reaction:"]:visible'
         )
     ).to_have_count(1)
@@ -2498,7 +2498,7 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
 def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     held_events, serve
 ):
-    """A refusal leaves nothing standing and the words back where they were written.
+    """A refusal leaves nothing behind and the words back where they were written.
 
     The user has moved on to the pending thread in Threads by the time the refusal
     lands, so the card's box does not take their keys back: the words wait in it, and
@@ -2553,7 +2553,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
 def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
     """A send whose result the user cannot see still reaches them.
 
-    The message standing in the thread is the whole acknowledgement for a user
+    The message shown in the thread is the whole acknowledgement for a user
     looking at it, which is why no box writes a success notice for it. But neither the
     seat nor the Threads list is a live region, so for a user listening to the page
     that send would pass in silence. `post` says it once, where a gesture is first known
@@ -2582,7 +2582,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
 
     A send empties the box it was written in and masks that generation, so this
     document stops showing words it is now showing in the thread. The answer lifts that
-    mask — and lifting whichever mask happens to be standing, rather than the one this
+    mask — and lifting whichever mask happens to be current, rather than the one this
     send put there, lifts a later send's: words the user is already watching as a
     pending reply go back on offer while that reply is still in flight. The outbox
     delivers in order, so the first answer always lands while the second send is
@@ -2629,14 +2629,14 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     # What a widget asks of a draft box, through the public helper surface. The boxes
     # alone would not say this: nothing repaints one when a mask is lifted, so the
     # offer stands unseen until some view of this thread is next built and reads it.
-    standing = page.evaluate(
+    offered = page.evaluate(
         """async (ctx) => {
           const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
           return api.loadDraft(ctx);
         }""",
         f"reply:{root['id']}",
     )
-    assert standing is None, "the second send's words were offered back while in flight"
+    assert offered is None, "the second send's words were offered back while in flight"
     expect(reply).to_have_js_property("value", "")
     expect(page.locator("#jobs .lf-page-thread leaf-text")).to_have_js_property(
         "value", ""
@@ -2981,7 +2981,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
 
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the comment send")
-    # Every machine reaches the next gesture with the card standing, as a user would.
+    # Every machine reaches the next gesture with the card open, as a user would.
     expect(page.locator(".lf-margin-preview[data-lf-thread-placement]")).to_be_visible()
 
     # The user picks out their next passage while the first send is still in the wire.
@@ -3693,7 +3693,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
         },
     )
     # Settlement reconciles before it claims, so this poll adopts the newer generation
-    # and leaves it standing. `held_stale`'s refusal is lifted here rather than earlier,
+    # and leaves it in place. `held_stale`'s refusal is lifted here rather than earlier,
     # with the older attempt in the log and the older generation still cached, which is
     # the only arrangement that asks anything.
     accepted_words = {
@@ -3758,7 +3758,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(browser, serve, one
     until_draft_settled(first, "say:jobs")
 
     again = open_page(browser, url, context=one_user)
-    # The composer is still standing — a seat that can hold keeps it — so the claim is
+    # The composer is still open — a seat that can hold keeps it — so the claim is
     # about what it opens with: a settled draft is words the next tab must not be handed.
     expect(
         again.locator("#jobs > .lf-thread-seat > .lf-say leaf-text")
@@ -3824,7 +3824,7 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     lost, whatever localStorage still holds.
 
     So the moment says what became of them and names the address that answers — and the
-    address is offered only while there is a draft standing to go to, which is the half
+    address is offered only while there is a draft still there to go to, which is the half
     that keeps the sentence honest."""
     page = open_page(browser, serve(LONG_PAGE))
     kept = "Half a sentence, and then the banner."
@@ -5755,7 +5755,7 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
 
     # Into the panel, standing on its open thread's title rather than in a box — `g T`'s
     # landing, which travels nothing, so the baseline below is the one the control left.
-    # The address toggles the panel it names, so from the standing one the first
+    # The address toggles the panel it names, so from the open one the first
     # completion closes it and the second is the arrival.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -5952,7 +5952,7 @@ def test_the_draft_box_is_its_own_door(browser, serve):
 def editing_revision_source(mode, body=None):
     body = (
         body
-        or '<h1 id="subject">Editor continuity</h1><p id="passage">A stable passage stays exact across the revision.</p><textarea id="authored-draft" aria-label="Authored draft" style="height:80px"></textarea><lf-draft id="draft-root"><pre>Standing editable text.</pre></lf-draft><lf-ask id="choice-root"><h2>Which choice?</h2><lf-options id="options-root" choose><lf-option id="initial">Initial choice</lf-option></lf-options></lf-ask><lf-test-plan id="command-root" label="Tasks"><lf-test-task id="seat-root" status="active" talk>What should we do?</lf-test-task></lf-test-plan>'
+        or '<h1 id="subject">Editor continuity</h1><p id="passage">A stable passage stays exact across the revision.</p><textarea id="authored-draft" aria-label="Authored draft" style="height:80px"></textarea><lf-draft id="draft-root"><pre>Current editable text.</pre></lf-draft><lf-ask id="choice-root"><h2>Which choice?</h2><lf-options id="options-root" choose><lf-option id="initial">Initial choice</lf-option></lf-options></lf-ask><lf-test-plan id="command-root" label="Tasks"><lf-test-task id="seat-root" status="active" talk>What should we do?</lf-test-task></lf-test-plan>'
     )
     module = """<script type="module">
 window.__rendererLifetime={birth:performance.timeOrigin,hits:0,version:'MODE'};
@@ -6146,7 +6146,7 @@ def test_in_place_revision_restores_the_current_generated_editor(browser, serve,
         page.locator("#draft-root .lf-draft-body").click()
         editor = page.locator("#draft-root leaf-text")
         revised = original.replace(
-            "Standing editable text.", "A revised authored draft body."
+            "Current editable text.", "A revised authored draft body."
         )
     elif kind == "first-message":
         editor = page.locator("#seat-root > .lf-thread-seat > .lf-say leaf-text")
@@ -6196,7 +6196,7 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
     )
     stamp_page(
         serve.page_dir,
-        original.replace("Standing editable text.", "New authored body."),
+        original.replace("Current editable text.", "New authored body."),
         "Install while generated editor has a failing caret",
     )
     told(page)
@@ -6370,7 +6370,7 @@ def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, 
 
 def test_an_open_edit_back_to_the_authored_text_survives_reload(browser, serve):
     """An open editor's words come back on reload whenever they differ from the
-    standing text, words that walk a saved edit back to the authored text included."""
+    current text, words that walk a saved edit back to the authored text included."""
     url = serve(
         leaf_page(
             "Walk back",
@@ -6615,7 +6615,7 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
     assert [e["detail"]["value"] for e in edits] == [exact]
 
 
-def test_draft_comparison_detects_format_changes_but_not_the_same_standing_edit(
+def test_draft_comparison_detects_format_changes_but_not_the_same_current_edit(
     browser, serve
 ):
     first = leaf_page(
@@ -6639,7 +6639,7 @@ def test_draft_comparison_detects_format_changes_but_not_the_same_standing_edit(
             "revision": 2,
             "widget": "source",
             "action": "edit",
-            "detail": {"value": "Standing **edit**."},
+            "detail": {"value": "Current **edit**."},
         },
     )
     _publish(

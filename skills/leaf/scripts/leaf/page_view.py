@@ -1,6 +1,6 @@
 """What the append door is allowed to read about a page.
 
-Admission folds three things: the page, the standing log, and the event being
+Admission folds three things: the page, the current log, and the event being
 appended. The log and the event are already arguments the door is handed. This
 is the third, so that no gate reaches past it to a file of its own.
 

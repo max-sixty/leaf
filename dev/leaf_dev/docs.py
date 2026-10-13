@@ -91,7 +91,7 @@ def site_nav(current: str) -> list[str]:
 
 
 def markup_record(verb_state: dict) -> str:
-    """What a verb's standing state reads as in markup."""
+    """What a verb's current state reads as in markup."""
     if "creates" in verb_state:
         return f"creates an <code>{verb_state['creates']['child']}</code>"
     shape = verb_state.get("record")

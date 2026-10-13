@@ -73,7 +73,7 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
     """Prepare discovery, then commit ownership in the canonical payload.
 
     Discovery validates the payload's owner against the partition. A transfer's
-    old locator therefore stops standing at the canonical commit, which also
+    old locator therefore stops being current at the canonical commit, which also
     admits the prepared new locator. Failed preparation leaves ownership intact.
     Resident writers retain the same flat payload path, so their atomic updates
     cannot destroy discovery.
@@ -299,7 +299,7 @@ class PageTransaction:
         claim = self.claim
         return claim if claim_is_active(claim) else None
 
-    def standing_reply_reservation(self, responds: str) -> dict | None:
+    def open_reply_reservation(self, responds: str) -> dict | None:
         """The reply reservation on `responds` while the claim turn it names is open
         (`delivery` header)."""
         from leaf.activity import reply_reservation_stands
@@ -427,7 +427,7 @@ class PageTransaction:
         stream = dict(status.get("stream") or {})
         now = now_iso()
         after = self.events[-1]["seq"] if self.events else 0
-        standing = stream.get("activity")
+        previous = stream.get("activity")
         observed = {
             "session": session_id,
             "turn": turn_id,
@@ -437,13 +437,13 @@ class PageTransaction:
             "after": after,
         }
         if (
-            standing
+            previous
             and (
-                standing["session"],
-                standing["turn"],
-                standing.get("kind"),
-                standing.get("detail"),
-                standing["after"],
+                previous["session"],
+                previous["turn"],
+                previous.get("kind"),
+                previous.get("detail"),
+                previous["after"],
             )
             == (
                 observed["session"],
@@ -452,7 +452,7 @@ class PageTransaction:
                 observed.get("detail"),
                 observed["after"],
             )
-            and datetime.fromisoformat(now) - datetime.fromisoformat(standing["ts"])
+            and datetime.fromisoformat(now) - datetime.fromisoformat(previous["ts"])
             < STREAM_ACTIVITY_RENEWAL
         ):
             return
@@ -494,10 +494,10 @@ class PageTransaction:
         """Replace the provisional reply owned by one delivered response."""
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
-        standing = stream.get("reply") or {}
+        previous = stream.get("reply") or {}
         timestamp = (
-            standing.get("ts")
-            if standing.get("session") == session_id and standing.get("turn") == turn_id
+            previous.get("ts")
+            if previous.get("session") == session_id and previous.get("turn") == turn_id
             else None
         )
         updated_at = now_iso()
@@ -516,7 +516,7 @@ class PageTransaction:
             "updated_at": updated_at,
         }
         reservations = self._reserved(stream, session_id, responds, attempt, turn_id)
-        if standing == reply and reservations == stream.get("reply_reservations"):
+        if previous == reply and reservations == stream.get("reply_reservations"):
             return
         stream["reply"] = reply
         stream["reply_reservations"] = reservations
@@ -558,8 +558,8 @@ class PageTransaction:
         in `turn_id`, refusing an address another delivery's reservation holds while
         it stands (`activity.reply_reservation_stands`)."""
         reservations = dict(stream.get("reply_reservations") or {})
-        standing = self.standing_reply_reservation(responds)
-        if standing is not None and not _held_by(standing, session_id, attempt):
+        reserved = self.open_reply_reservation(responds)
+        if reserved is not None and not _held_by(reserved, session_id, attempt):
             raise RuntimeError(
                 f"response {responds!r} is already reserved by another delivery"
             )
@@ -715,7 +715,7 @@ def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
     """Make the harness session the page's watcher, if a harness supplied one.
 
     `server start` and `page claim` claim; waiting and authoring commands do not.
-    A bare-shell serve makes no claim and therefore starts as standing.
+    A bare-shell serve makes no claim and therefore starts as persistent.
     """
     from leaf.harness import session_harness
 

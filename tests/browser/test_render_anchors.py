@@ -309,7 +309,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         # The field is one element for the page's whole life, so "it is on screen"
         # says only that some composer is open. This release states the passage the
         # field took, and the field describes itself by it, so a release the field
-        # never answered fails here naming the passage left standing.
+        # never answered fails here naming the passage left selected.
         expect(page.locator("#lf-composer-quote")).to_have_text(f"“{quote}”")
         page.locator(".lf-fab-input").click()
         write(page.locator(".lf-composer leaf-text"), f"fence {index}")
@@ -644,7 +644,7 @@ def test_the_comment_button_stands_on_no_control(browser, serve):
     assert page.evaluate("getSelection().isCollapsed")
 
 
-def test_a_suggestion_decided_by_its_address_dismisses_a_standing_selection(
+def test_a_suggestion_decided_by_its_address_dismisses_a_current_selection(
     browser, serve
 ):
     """A decision replaces the selection instead of reopening its Comment field. A
@@ -754,7 +754,7 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
 
 
 # One rendered key face: the geometry a physical press claims wherever Leaf draws it, and
-# the emphasis it wears there. A standing paint can replace a whole layer between browser
+# the emphasis it wears there. A repaint can replace a whole layer between browser
 # round trips, so every face named in one call is read in one task: a handle resolved in an
 # earlier round trip can be detached by the time it is measured, and a detached element has
 # no computed style at all.
@@ -826,7 +826,7 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     selection_key = '.lf-target-picker-hints .lf-target-picker-hint kbd[data-lf-sequence-step-state="neutral"]'
     hint = page.locator(selection_key).first
     expect(hint).to_be_visible()
-    # The standing paint can replace the hint layer between browser round trips. Read
+    # A repaint can replace the hint layer between browser round trips. Read
     # the one rendered face in one task so geometry and emphasis cannot come from two
     # successive hint elements.
     hint_face = faces(page, selection_key)[0]
@@ -939,7 +939,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
     assert captured() == "inside it"
 
     # The same words dragged right to left are captured the same. The click first is
-    # the user's own move — a press inside the standing selection would drag its
+    # the user's own move — a press inside the current selection would drag its
     # text, not start a new one.
     page.locator("#t").click()
     select(page, spot("#p", "it,", 1), spot("#p", "inside", 2))
@@ -1041,7 +1041,7 @@ def test_a_drag_that_overshoots_the_layer_is_not_a_passage(browser, serve):
     page.mouse.move(into["x"] + 40, into["y"] + into["height"] / 2, steps=20)
     page.mouse.up()
     # The release restores the remembered range and raises the composer on it, so the box
-    # standing and its passage painted are the two facts the three readings below are
+    # shown and its passage painted are the two facts the three readings below are
     # taken from. Waiting out `deferSelectionUpdate`'s timer instead would read a composer
     # that may not be there yet and report it as a missing box.
     expect(page.locator(".lf-fab-input")).to_be_visible()
@@ -2944,21 +2944,21 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     user a focus round trip through the reply box and no movement of the reading column
     at all, and refusing it would mean holding every press on a mark for the length of the
     double-click interval — the ordinary gesture made sluggish for the rarer one. So each
-    arm asserts the standing result, and the press below asserts that the mark still opens.
+    arm asserts the settled result, and the press below asserts that the mark still opens.
 
     A click ends a gesture that took words as surely as it ends a press, and the mark's
     door read every one of them as a press. With Threads open the thread it opened landed
     the user in the panel's reply box, and focusing a text box collapses the document's
     selection — so the words went, the 💬 with them, and marked passages became the one
     part of a page a user could not quote. The panel is why it shows here and not on a
-    closed one, where the same travel focuses a card and leaves the selection standing;
+    closed one, where the same travel focuses a card and leaves the selection in place;
     both doors are the one misreading, so this asserts the open panel, where it is visible.
 
     All three gestures, because the first reading written for this covered only the drag:
     it asked how far the pointer had travelled, and a double-click's second press and a
     shift-click's extension both take words without moving it. Each arm then makes the
     press the mark is for, where the gesture's own words still stand selected — a reading
-    taken off the standing selection rather than off what the press changed refuses that
+    taken off the current selection rather than off what the press changed refuses that
     press as a gesture of its own, and the mark stops opening at all."""
     page = mark_the_first_sentence(browser, serve)
     # Wide enough that the open panel stands clear of the sentence a gesture extends into.
@@ -4177,7 +4177,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     # second version is the first that has a list to walk. The expanded shortcut bar
     # stands beside the menu; the reference is a modal and global chrome, so entering it
     # dismisses the menu the way the platform dismisses any auto popover, and leaves it
-    # dismissed. The rows are read off the declaration rather than off the standing mode,
+    # dismissed. The rows are read off the declaration rather than off the current mode,
     # which is why they are there to read at all once the menu has gone.
     page.keyboard.press("?")
     expect(menu).to_be_visible()
@@ -4259,7 +4259,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve):
     expect(btn).to_have_class(re.compile(r"\bon\b"))
     expect(btn).to_have_attribute("title", re.compile(r"\(g V\)$"))
     # And walking back up to the version being read is the way off it, which is the row
-    # an open lands on with nothing standing.
+    # an open lands on with no comparison active.
     page.keyboard.press("ArrowUp")
     expect(btn).to_have_text("Showing v2")
     expect(btn).not_to_have_class(re.compile(r"\bon\b"))
@@ -4674,7 +4674,7 @@ def test_comparison_selection_moves_before_its_documents_finish_loading(browser,
     expect(v2_compare).to_have_attribute("aria-busy", "true")
     expect(page.locator(".lf-ins-block")).to_have_count(0)
 
-    # The selection, not only the settled marks, is the menu's standing. Reopening
+    # The selection, not only the settled marks, is the menu's state. Reopening
     # while its documents are held returns to the row the user just selected.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-version-menu")).to_be_hidden()
@@ -4748,14 +4748,14 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     older than this one offers itself.
 
     The rest is what the user can tell afterwards: the closed control says a
-    comparison is standing, and reopening says which one, on the rows it spans.
+    comparison is active, and reopening says which one, on the rows it spans.
 
     From the keyboard the base is the row the walk stands on, so the marks follow the
     walk: the note says in words what a version changed and the page says it in the
     passages, without the user leaving the list to find out. That is also the whole of
     the way off, the page having no key for a comparison. It costs nothing to find,
     because the two ends of the walk are the two versions the user already has in mind:
-    an open lands on the standing base, and stepping toward the latest ends on the version being read,
+    an open lands on the current base, and stepping toward the latest ends on the version being read,
     which is comparable with nothing."""
     v2 = INLINE_PAGE.replace("A neighbouring block", "A neighbouring passage")
     v3 = v2.replace("The setup is in the runbook", "The setup is in the handbook")
@@ -4796,7 +4796,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
         ".map(r => r.dataset.lfVersion)"
     ) == ["3", "2", "1"]
 
-    # Pressing the standing base again is the way off, and clears the marks and state.
+    # Pressing the current base again is the way off, and clears the marks and state.
     page.locator('.lf-version-diff[data-lf-version="1"]').click()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
     expect(picker).to_have_text("Showing v3")
@@ -4851,7 +4851,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
 
     # And up onto the version being read, which is no comparison — the way off, on the
-    # row an open lands on when nothing is standing.
+    # row an open lands on when no comparison is active.
     page.keyboard.press("ArrowUp")
     expect(page.locator(".lf-ins-block")).to_have_count(0)
     expect(page.locator(".lf-version")).to_have_text("Showing v3")
@@ -5262,7 +5262,7 @@ def test_a_deferred_diff_renders_only_opened_files_and_hydrates_comment_travel(
 ):
     """A collapsed manifest is the startup surface, not a hidden fully-rendered patch.
 
-    All file evidence is checked first; opening one file renders only that file. A standing line thread on a
+    All file evidence is checked first; opening one file renders only that file. An existing line thread on a
     different unopened file remains attached at its disclosure; pressing its quote
     renders that file before ordinary exact-line navigation resumes.
     """
@@ -5740,7 +5740,7 @@ def _line_under(page, box, paper):
     """How much of the strip under a passage the layer draws at 3:1, and at what ratio.
 
     Returns `(coverage, ratio)` for the row that covers most of the strip: the share of
-    columns standing at 3:1 or better against the page's own ground, and the weakest ratio
+    columns at 3:1 or better against the page's own ground, and the weakest ratio
     among them. A wash is read here too, which is the point — a wash the user cannot
     tell from the paper comes back as the coverage it actually has, nought, rather than as
     an absence with no number attached.

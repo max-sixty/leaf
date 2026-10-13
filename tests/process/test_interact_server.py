@@ -431,7 +431,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
         PAGE.replace("</main>", template + unseeded + "</main>")
     )
     publish(page_dir)
-    # The declaration selects from the standing log rather than requiring it, so a
+    # The declaration selects from the current log rather than requiring it, so a
     # page whose log holds none of it yet — a first version, or a copy made from the
     # source alone — still opens its samples. What a child may not do is name a
     # thread it does not have, and the ordinary child-document check says so
@@ -2123,7 +2123,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
         }
 
 
-def test_undo_candidates_keep_only_standing_user_gestures():
+def test_undo_candidates_keep_only_user_gestures_in_force():
     """The browser undo list follows the event fold for speech, marks, and closures."""
     events = [
         {"id": "c1", "kind": "comment", "author": "user", "text": "question"},
@@ -2201,7 +2201,7 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
         )
         return [(item["event"]["id"], item.get("newest", False)) for item in candidates]
 
-    # c2 was said after r1 and r2 is withdrawn: the newest standing gesture is c2.
+    # c2 was said after r1 and r2 is withdrawn: the newest gesture in force is c2.
     assert walk(events) == [("r1", False)]
     # Without c2, the read and the withdrawn r2 leave r1 the newest gesture.
     assert walk([e for e in events if e["id"] != "c2"]) == [("r1", True)]
@@ -2840,7 +2840,7 @@ def test_event_ids_are_unique_within_the_log_whatever_the_mint_returns(
 def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
     """--host is the recovery for an unroutable name, and the record's other
     facts restate nothing: dropping them re-derived the exact port an open tab
-    polls and demoted the standing lifetime to the recovering session's."""
+    polls and demoted the persistent lifetime to the recovering session's."""
     cleanup_model.write_json(
         page_dir / "service.json",
         {
@@ -2848,13 +2848,13 @@ def test_a_stated_host_restates_the_address_and_nothing_else(page_dir):
             "bind": "10.0.0.5",
             "port": 41234,
             "enabled": False,
-            "lifetime": "standing",
+            "lifetime": "persistent",
         },
     )
     access = server_model.page_access(page_dir, "box.tailnet.example")
     assert access["host"] == "box.tailnet.example" and access["bind"] == "::"
     assert access["port"] == 41234
-    assert access["lifetime"] == "standing"
+    assert access["lifetime"] == "persistent"
 
 
 def test_the_page_reports_its_own_errors_to_the_watcher(server, page_dir, sessionless):
@@ -3156,7 +3156,7 @@ class AnnouncedTransaction(service.PageTransaction):
         return super().__enter__()
 
 service.PageTransaction = AnnouncedTransaction
-hosting.cmd_serve(Path(os.environ["PAGE"]), standing=True, harness=None)
+hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
 """,
         ENTERED=entered,
     )
@@ -3195,7 +3195,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
     """
     neighbor = machine_model.state_home() / "pages" / "broken-row"
     neighbour_page(neighbor, title="Repairable", dead=True, port=0)
-    hosting_model.start_server(neighbor, standing=True, harness=None)
+    hosting_model.start_server(neighbor, persistent=True, harness=None)
     wait_for(
         lambda: server_rows_model.read_row(
             neighbor, server_model.running_server(neighbor)
@@ -3217,7 +3217,7 @@ def test_a_failed_row_producer_retires_and_revives_with_its_service(page_dir):
         {"state": "waiting", "detail": "", "ts": cleanup_model.now_iso()},
     )
     declare_work(neighbor, "repaired", ts=cleanup_model.now_iso())
-    hosting_model.start_server(neighbor, standing=True, revive=True, harness=None)
+    hosting_model.start_server(neighbor, persistent=True, revive=True, harness=None)
     renewed = server_model.running_server(neighbor)["server_id"]
     assert renewed != original
     [row] = wait_for(
@@ -4208,7 +4208,7 @@ def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
     runner = CliRunner()
     started = runner.invoke(
-        cli_model.cli, ["server", "start", "--standing", str(page_dir)]
+        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
     )
     try:
         assert started.exit_code == 0, started.output
@@ -4224,7 +4224,7 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
     runner = CliRunner()
     started = runner.invoke(
         cli_model.cli,
-        ["server", "start", "--standing", "--host", "localhost", str(page_dir)],
+        ["server", "start", "--persistent", "--host", "localhost", str(page_dir)],
     )
     try:
         assert started.exit_code == 0, started.output
@@ -4244,14 +4244,14 @@ def test_the_loopback_line_follows_the_lifetime_line(page_dir):
             "bind": "::1",
             "port": 41234,
             "enabled": False,
-            "lifetime": "standing",
+            "lifetime": "persistent",
         },
     )
 
     lines = hosting_model.startup_note(page_dir).splitlines()
 
     assert lines[:3] == [
-        "server   standing",
+        "server   persistent",
         f"stop     leaf server stop {page_dir}",
         "access   loopback only (re-serve with --host NAME for remote users)",
     ]
@@ -4260,7 +4260,7 @@ def test_the_loopback_line_follows_the_lifetime_line(page_dir):
 def test_server_start_names_the_page_layer_and_running_payload(page_dir):
     runner = CliRunner()
     started = runner.invoke(
-        cli_model.cli, ["server", "start", "--standing", str(page_dir)]
+        cli_model.cli, ["server", "start", "--persistent", str(page_dir)]
     )
     try:
         assert started.exit_code == 0, started.output
@@ -4311,7 +4311,7 @@ def test_a_server_refuses_a_page_another_leaf_vendored_until_it_is_re_vendored(
 
 def test_a_revision_saved_before_a_re_vendor_neither_opens_nor_takes_input(page_dir):
     """A re-vendor across a protocol bump leaves the revisions the page saved before
-    it standing, each with the runtime it was saved with. Served, that runtime would
+    it in place, each with the runtime it was saved with. Served, that runtime would
     talk to this Leaf's server across the bump, so its address refuses, as does an
     event made against it, a widget to-do opened on it as the newest included, while
     the revision saved since serves and admits. An event made against no document,
@@ -4464,7 +4464,7 @@ def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_
             "bind": "127.0.0.1",
             "port": 41234,
             "enabled": False,
-            "lifetime": "standing",
+            "lifetime": "persistent",
         },
     )
 
@@ -4494,7 +4494,7 @@ def test_a_stated_host_binds_every_interface_without_recording_before_serve(
         **stated,
         "port": 41234,
         "enabled": False,
-        "lifetime": "standing",
+        "lifetime": "persistent",
     }
     cleanup_model.write_json(page_dir / "service.json", service)
     assert server_model.page_access(page_dir) == service
@@ -4509,7 +4509,7 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
             "server",
             "_serve",
             str(page_dir),
-            "--standing",
+            "--persistent",
             "--harness",
             "null",
             "--handshake",
@@ -4527,7 +4527,7 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
     def start():
         attempting.set()
         successor.append(
-            hosting_model.start_server(page_dir, standing=True, harness=None)
+            hosting_model.start_server(page_dir, persistent=True, harness=None)
         )
 
     starting = threading.Thread(target=start, daemon=True)
@@ -4567,7 +4567,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
     neighbor = machine_model.state_home() / "pages" / "private-revival"
     neighbour_page(neighbor, title="Private revival", dead=True, port=0)
     record_claim(neighbor, id="private-revival")
-    hosting_model.start_server(neighbor, standing=True, harness=None)
+    hosting_model.start_server(neighbor, persistent=True, harness=None)
     previous = server_model.running_server(neighbor)
     wait_for(
         lambda: server_rows_model.read_row(neighbor, previous),
@@ -4586,7 +4586,7 @@ def test_private_revival_cannot_advertise_the_previous_serving_row(
             "server",
             "_serve",
             str(neighbor),
-            "--standing",
+            "--persistent",
             "--revive",
             "--harness",
             "null",
@@ -4640,7 +4640,7 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
     page_dir, monkeypatch
 ):
     """A producer constructor failure publishes neither service nor acquisition."""
-    hosting_model.start_server(page_dir, standing=True, harness=None)
+    hosting_model.start_server(page_dir, persistent=True, harness=None)
     previous = server_model.running_server(page_dir)
     wait_for(
         lambda: server_rows_model.read_row(page_dir, previous),
@@ -4658,7 +4658,7 @@ def test_failed_row_preparation_preserves_the_previous_desired_service(
 
     monkeypatch.setattr(server_rows_model, "RowPublisher", failed_constructor)
     with pytest.raises(RuntimeError, match="row producer cannot be prepared"):
-        hosting_model.cmd_serve(page_dir, standing=True, revive=True, harness=None)
+        hosting_model.cmd_serve(page_dir, persistent=True, revive=True, harness=None)
     assert files_model.read_json(page_dir / "service.json") == desired
     assert server_rows_model.row_path(page_dir).read_bytes() == row_before
     assert not leases_model.lock_is_held(page_dir / "server.lock")
@@ -4673,7 +4673,7 @@ def test_a_stop_waits_for_private_preparation_before_disabling(page_dir, spawn):
             "server",
             "_serve",
             str(page_dir),
-            "--standing",
+            "--persistent",
             "--harness",
             "null",
             "--handshake",
@@ -4740,7 +4740,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
     """Explicit stops retire a later start; owner cleanup yields to a successor."""
     assert service_model.claim_page(page_dir)
     owner = service_model.page_claim(page_dir) if owned else None
-    assert hosting_model.start_server(page_dir, standing=True, harness=None)
+    assert hosting_model.start_server(page_dir, persistent=True, harness=None)
     transitioned = threading.Event()
     resume = threading.Event()
     original_page_locked = hosting_model.page_locked
@@ -4777,7 +4777,7 @@ def test_stop_does_not_wait_forever_on_a_server_started_after_its_transition(
                     if same_session
                     else harness_model.ClaudeCodeHarness("successor", "Claude")
                 )
-        assert hosting_model.start_server(page_dir, standing=True, harness=None)
+        assert hosting_model.start_server(page_dir, persistent=True, harness=None)
         resume.set()
         stopping.join(timeout=STATED_TIMEOUT)
         assert not stopping.is_alive(), "the stop never returned once resumed"
@@ -5069,7 +5069,7 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
     started = hosting_model.start_server(
         page_dir,
         host="page.example",
-        standing=True,
+        persistent=True,
         revive=True,
         harness=None,
     )
@@ -5082,7 +5082,7 @@ def test_start_server_forwards_its_flags_to_the_serving_child(page_dir, monkeypa
             str(page_dir),
             "--host",
             "page.example",
-            "--standing",
+            "--persistent",
             "--revive",
             "--harness",
             "null",
@@ -5114,8 +5114,8 @@ while json.loads((page / "service.json").read_text())["enabled"]:
 """
 
 
-def hold_standing(page: Path, start) -> subprocess.Popen:
-    """A standing page with its lease held, as `server run --standing` leaves one."""
+def hold_persistent(page: Path, start) -> subprocess.Popen:
+    """A persistent page with its lease held, as `server run --persistent` leaves one."""
     page.mkdir(parents=True)
     cleanup_model.write_json(
         page / "service.json",
@@ -5124,8 +5124,8 @@ def hold_standing(page: Path, start) -> subprocess.Popen:
             "bind": "127.0.0.1",
             "port": 1,
             "enabled": True,
-            "lifetime": "standing",
-            "server_id": "fixture-standing",
+            "lifetime": "persistent",
+            "server_id": "fixture-persistent",
         },
     )
     holder = start(
@@ -5135,19 +5135,19 @@ def hold_standing(page: Path, start) -> subprocess.Popen:
     return holder
 
 
-def test_a_page_left_standing_is_the_sweeps_to_stop():
-    """The forgotten server, on purpose: a standing page under the run's state
+def test_a_page_left_running_is_the_sweeps_to_stop():
+    """The forgotten server, on purpose: a persistent page under the run's state
     home, its lease held, and nothing here to stop it. `_no_page_outlives_its_test`
     ends it, and `test_a_run_ends_only_the_servers_it_started` runs this test to
     watch that happen. Not `spawn`, whose teardown would end the holder before
     the sweep reached it."""
-    hold_standing(machine_model.state_home() / "pages" / "left", subprocess.Popen)
+    hold_persistent(machine_model.state_home() / "pages" / "left", subprocess.Popen)
 
 
 def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
     """The sweep reads the run's own state home, and does read it.
 
-    A standing server under the machine's `~/.local/state/leaf/pages` looks to
+    A persistent server under the machine's `~/.local/state/leaf/pages` looks to
     the sweep exactly like a page a test forgot: a held lease under an enabled
     service. The sweep once took its root from the environment before
     `isolated_session` had moved it, and stopped every such server on the
@@ -5159,7 +5159,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
     its own home must have been stopped — or the sweep proves nothing."""
     home = tmp_path / "state"
     review = home / "leaf" / "pages" / "review"
-    holder = hold_standing(review, spawn)
+    holder = hold_persistent(review, spawn)
     planted = sorted(path.relative_to(home) for path in home.rglob("*"))
     nested = tmp_path / "nested"
 
@@ -5173,7 +5173,7 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
             f"--basetemp={nested}",
             "-o",
             f"cache_dir={tmp_path / 'cache'}",
-            f"{__file__}::test_a_page_left_standing_is_the_sweeps_to_stop",
+            f"{__file__}::test_a_page_left_running_is_the_sweeps_to_stop",
         ],
         env=os.environ | {"XDG_STATE_HOME": str(home)},
         capture_output=True,

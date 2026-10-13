@@ -197,7 +197,7 @@ pageScope("text entry", {
       description: "Leave the box, keeping what is typed",
       title: () => backFromBox()?.line ?? "back to list",
       // The thread the box belongs to, or the panel's list from its own find box. A
-      // page text box that is neither leaves the row dead and the page's rung standing,
+      // page text box that is neither leaves the row dead and the page's rung in place,
       // which is the honest answer: nothing there to go back to.
       when: leavesBox,
       run: () => {
@@ -417,7 +417,7 @@ export function wireThreadLanding(threadsBox) {
   });
 }
 
-// Shown, not merely standing: a card the narrowing hid keeps its node (thread-list.js),
+// Shown, not merely present: a card the narrowing hid keeps its node (thread-list.js),
 // and a destination in one is as unreachable as a destination with no node at all.
 const listNode = (id, threadsBox, preferMessage = false) => {
   const threadId = threadNames(allThreads()).get(id)?.id ?? id;

@@ -748,7 +748,7 @@ function widgetReading(
             ? null
             : "no agent or server is available",
           history: classified.filter(({ e }) => e.action === verb).map(({ e }) => e),
-          standing: desired
+          inForce: desired
             .filter(({ e }) => e.action === verb)
             .map(({ e, unit, value }) => ({ event: e, unit, value })),
           undo: root.effective.hostAvailable
@@ -1330,8 +1330,8 @@ export function createSemanticApplication({
       );
       // A capture can add message bodies without changing the shown document.
       // Retain its explicit identity and share fields the publisher already owns.
-      const capture =    (value   , standing         )    =>
-        value === standing ? value : structuredClone(value);
+      const capture =    (value   , previous         )    =>
+        value === previous ? value : structuredClone(value);
       publish({
         document: document
           ? {

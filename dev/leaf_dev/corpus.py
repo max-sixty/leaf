@@ -44,6 +44,7 @@ PUBLIC_TABS = [
     ("notification-playground", "Notification"),
     ("data-explorer", "Data explorer"),
     ("code-comparison", "Code comparison"),
+    ("alert-thresholds", "Thresholds"),
     ("live-progress", "Live"),
     ("alert-review", "Alerts"),
     ("pr-walkthrough", "PR"),

@@ -390,7 +390,7 @@ interface AuthoritativeState {
         approval_blocking: string[];
       }
     >;
-    /** Standing approvals across every stamp, for Threads' event timeline. */
+    /** Approvals in force across every stamp, for Threads' event timeline. */
     approval_history: Event[];
     receipts: Event[];
     /** Every thread whose history each logged event changes
@@ -748,7 +748,7 @@ function widgetReading(
             ? null
             : "no agent or server is available",
           history: classified.filter(({ e }) => e.action === verb).map(({ e }) => e),
-          standing: desired
+          inForce: desired
             .filter(({ e }) => e.action === verb)
             .map(({ e, unit, value }) => ({ event: e, unit, value })),
           undo: root.effective.hostAvailable
@@ -1330,8 +1330,8 @@ export function createSemanticApplication({
       );
       // A capture can add message bodies without changing the shown document.
       // Retain its explicit identity and share fields the publisher already owns.
-      const capture = <T>(value: T, standing: unknown): T =>
-        value === standing ? value : structuredClone(value);
+      const capture = <T>(value: T, previous: unknown): T =>
+        value === previous ? value : structuredClone(value);
       publish({
         document: document
           ? {

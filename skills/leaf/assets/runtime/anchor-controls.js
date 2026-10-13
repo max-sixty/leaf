@@ -1,12 +1,12 @@
 /* Retained controls derived from the canonical current anchor reading.
  *
- * This view owns visual comment proxies, standing reaction controls, and message
+ * This view owns visual comment proxies, controls for reactions in force, and message
  * fragment state. The dedicated anchor-note projection owns accessible comment notes.
  * Visual proxies are keyed Lit controls, one group per drawing's seat, standing on the
  * details shelf with the seat naming the group as its details (details-shelf.js). A
  * screen reader reaches them from the drawing; a keyboard reaches the drawing and each
  * declared part through the target picker (`s`). A failed thread presentation withdraws
- * visual proxies until a valid reading replaces them. A standing reaction first reveals
+ * visual proxies until a valid reading replaces them. A reaction in force first reveals
  * its dedicated removal action; only that action withdraws the reaction. Commands enter
  * only through the constructor.
  */
@@ -216,7 +216,7 @@ export function createAnchorControls({
     reconcileVisualActions(pendingVisualActions);
   }
 
-  // Each target contributes its complete standing reaction reading. Only the selected
+  // Each target contributes its complete reading of its reactions in force. Only the selected
   // removal disclosure is local state; both rendered surfaces read the same entry keys.
   function seatReactions(seats) {
     const kept = new Set();
@@ -234,7 +234,7 @@ export function createAnchorControls({
       if (!record) {
         record = { roots, expanded: null, margin: null, surface: null };
         record.scope = commandScope(
-          "On a standing reaction",
+          "On a reaction",
           [
             {
               id: "reaction.removal.close",
@@ -265,7 +265,7 @@ export function createAnchorControls({
       if (!roots.some((root) => root.id === record.expanded)) record.expanded = null;
       if (!record.margin)
         record.margin = registerContribution({
-          key: "standing-reactions",
+          key: "reactions",
           target: at,
           read: () => ({
             side: "after",

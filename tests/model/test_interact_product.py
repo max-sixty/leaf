@@ -123,7 +123,7 @@ def test_later_events_do_not_veto_source_readings(page_dir):
     assert live.error is None and live.revision == 1
     live = revisioning_model.activate_source(page_dir)
 
-    # The source is the active revision, so an append leaves the answer standing.
+    # The source is the active revision, so an append leaves the answer in force.
     append_carried_log_record(
         page_dir,
         {
@@ -720,6 +720,70 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
     assert found(
         findings, "repeated-key", "<lf-playground-control>", key="name", value="tone"
     )
+
+
+def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
+    """A control may stand at any depth in the preview beside the item it changes
+    (x-within) and still belongs to its playground: its name is unique there and a
+    preset's setting names it. One outside every playground, or inside the
+    instruction it would be read into, is refused, naming where it may stand."""
+    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    tone = (
+        '<lf-playground-control name="{name}" label="Tone" kind="choice" value="quiet">'
+        '<lf-playground-choice value="quiet" label="Quiet"></lf-playground-choice>'
+        '<lf-playground-choice value="bold" label="Bold"></lf-playground-choice>'
+        "</lf-playground-control>"
+    )
+
+    def errors(rail, beside_item, before="", in_output=""):
+        return fragment_errors(
+            f'<lf-ask id="placed-ask"><h2>Which tone?</h2>{before}'
+            f'<lf-playground id="placed-playground">{rail}'
+            '<lf-playground-preset label="Bold">'
+            '<lf-playground-setting for="item-tone" value="bold">'
+            "</lf-playground-setting></lf-playground-preset>"
+            '<lf-playground-preview><div class="item"><p>Item</p>'
+            f'<section class="item-settings">{beside_item}</section></div>'
+            "</lf-playground-preview>"
+            f"<lf-playground-output>Use these tones.{in_output}</lf-playground-output>"
+            "</lf-playground></lf-ask>",
+            registry,
+        )
+
+    assert not errors(tone.format(name="page-tone"), tone.format(name="item-tone"))
+    assert not errors("", tone.format(name="item-tone"))
+    assert [
+        (e.code, e.values["key"])
+        for e in errors(tone.format(name="item-tone"), tone.format(name="item-tone"))
+    ] == [("repeated-key", "name")]
+    (stray,) = errors(
+        tone.format(name="page-tone"),
+        tone.format(name="item-tone"),
+        before=tone.format(name="stray"),
+    )
+    assert (stray.code, stray.values["within"]) == (
+        "not-member",
+        ["lf-playground-preview"],
+    )
+    (read_out,) = errors(
+        tone.format(name="page-tone"),
+        tone.format(name="item-tone"),
+        in_output=tone.format(name="output-tone"),
+    )
+    assert read_out.code == "not-member"
+    # Inside a nested playground's instruction, the outer preview around it is not
+    # the control's own: its nearest playground is the inner one.
+    inner = (
+        '<lf-playground id="inner-playground">'
+        '<lf-playground-control name="inner-tone" label="Tone" kind="toggle" '
+        'value="false"></lf-playground-control>'
+        "<lf-playground-preview><p>Inner</p></lf-playground-preview>"
+        "<lf-playground-output>Use it."
+        + tone.format(name="lost-tone")
+        + "</lf-playground-output></lf-playground>"
+    )
+    (nested,) = errors(tone.format(name="page-tone"), inner)
+    assert nested.code == "not-member"
 
 
 def test_corpus_is_generated_from_the_examples():
@@ -1441,11 +1505,11 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
 
     def owed_answers():
         state = state_json(page_dir)
-        standing = set(state["activity"]["obligations"])
+        owed = set(state["activity"]["obligations"])
         return [
             (item["input"], item["message"], item["answer"])
             for item in state["workflows"]
-            if item["id"] in standing
+            if item["id"] in owed
         ]
 
     asked = append_command(
@@ -2005,7 +2069,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
 
 
 def test_page_state_and_the_transcript_read_reactions_as_marks(page_dir):
-    """`page state` lists every standing reaction, beside threads that
+    """`page state` lists every reaction in force, beside threads that
     leave a bare one out — paint on the page is not a thread — and takes a
     reaction back in once someone answers it, as the panel does. The transcript
     prints one as the user's mark rather than a turn. Its durable token is enough;

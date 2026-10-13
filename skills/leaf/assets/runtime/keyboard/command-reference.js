@@ -846,7 +846,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
     dismissPopoversOutside(commandReferenceDialog);
-    // The origin is read off the scene the reference leaves standing: hiding a popover
+    // The origin is read off the scene the reference leaves behind: hiding a popover
     // hands focus back to where the user stood when it opened, and that is the place
     // the reference owes them. A control, or nothing: a user working from the page
     // stands on `body`, which is not a place to be given back — focusing it resets the
@@ -1004,7 +1004,7 @@ pageScope("command reference", {
       repeat: true,
       runFromCommandReference: false,
       // The list is built before search receives focus, so physical liveness is false at
-      // that instant even though this is one of the reference's standing instructions.
+      // that instant even though the reference always lists this instruction.
       commandReferenceWhen: () => true,
       when: () => commandReferenceCommandActive(),
       run: () => moveCommandReferenceSelection(1),

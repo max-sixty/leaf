@@ -134,9 +134,7 @@ export function paintBarReactions(anchor) {
 export function createReactionController({
   marginEntryChoices,
   marginEntryContextContains,
-  foldMarginEntryOptions,
   openMarginEntryOptions,
-  unfoldedMarginEntries,
   designModeActive,
   hideComposer,
   syncResponseOptions,
@@ -228,10 +226,9 @@ export function createReactionController({
   // command exists, so dispatch cannot advertise a reaction before its target.
   let reactArmed = false;
   let reactRaised = false;
-  // Whether this raise is what unfolded the target's cluster, and so whether putting the
-  // choices away has a fold of its own to put back. A user who pressed `…` themselves
-  // and then `e` opened that layer before the raise found it, and it is theirs to keep.
-  let marginUnfolded = false;
+  // The margin lends reaction mode its disclosure and returns a release that restores
+  // the user's previous fold only while this mode still owns it.
+  let releaseMarginOptions = null;
   // React mode's opener (focus.js, `openLayer`): the control the user stood on as the
   // press armed it, which the close hands them back to.
   const reactLayer = {};
@@ -263,7 +260,6 @@ export function createReactionController({
     // `e` is an explicit reaction mode. Comment remains on `c`, so this temporary
     // contribution contains reactions alone.
     fabBar.dataset.lfMarginRaised = "1";
-    const unfolded = unfoldedMarginEntries?.()?.lfTarget === target;
     marginAnchor = structuredClone(anchor);
     marginOffer = registerContribution({
       key: "responses",
@@ -284,8 +280,9 @@ export function createReactionController({
       activate: (name) => reactHere(name, pageCommands, marginAnchor),
     });
     marginTarget = target;
-    if (openMarginEntryOptions(target, "responses")) {
-      marginUnfolded = !unfolded;
+    const release = openMarginEntryOptions(target, "responses");
+    if (release) {
+      releaseMarginOptions = release;
       return true;
     }
     marginOffer.unregister();
@@ -296,19 +293,14 @@ export function createReactionController({
   }
 
   function lowerMarginSurface() {
+    // Release before removing the choices so the repaint sees the restored fold.
+    releaseMarginOptions?.();
+    releaseMarginOptions = null;
     marginOffer?.unregister();
     marginOffer = null;
     marginTarget = null;
     marginAnchor = null;
     delete fabBar.dataset.lfMarginRaised;
-    // A raise that unfolded the target's margin entries to stand these choices in puts that fold
-    // back, so cancelling leaves the cluster as the press found it rather than an empty
-    // fold the user has to close themselves. Only that raise: this runs on every
-    // disarm, including one whose surface was a reply strip and which never raised the
-    // margin at all, and including one over a fold the user had already opened for
-    // themselves — folding either takes away a layer the gesture never put on.
-    if (marginUnfolded) foldMarginEntryOptions();
-    marginUnfolded = false;
   }
 
   function closeSurface(surface) {

@@ -408,6 +408,11 @@ EXTENSION_SCHEMA = {
         },
         "x-views": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "x-within": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+            "minItems": 1,
+        },
         "x-word": {"enum": ["module"]},
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-work": {"const": True},
@@ -415,6 +420,7 @@ EXTENSION_SCHEMA = {
     "required": ["x-content", "x-upgrade"],
     "dependentRequired": {
         "x-retired-when": ["x-owners"],
+        "x-within": ["x-owners"],
         "x-measured": ["x-data"],
     },
     # Only an upgraded container has members its module could leave in place.

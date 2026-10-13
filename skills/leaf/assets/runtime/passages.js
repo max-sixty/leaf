@@ -88,7 +88,8 @@
    until it finds the actual control.
 
    Hit testing asks two different questions. `elementFromPointAcross` and `markAt`
-   (anchor-resolution.js) may descend into a shadow root when the exact marked text matters.
+   (anchor-resolution.js) may descend into a declared shadow root when the exact marked
+   text matters.
    `aimedTarget` (composing/aim.js) may keep document retargeting when the host is the
    addressable element. Choose the reading by the question, not by convenience.
 
@@ -116,7 +117,7 @@ import {
   upFrom,
 } from "./shadow.js";
 import { decisionFor, registry } from "./registry.js";
-import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./page-paint.js";
+import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
 import { readApplication } from "./semantic-state.js";
 import { COLLAPSE, TEXT_BLOCK } from "./passage-facts.js";
@@ -321,11 +322,11 @@ export const elementOver = (n) => {
 // refuses the text once, here, whichever reader reaches it first, and no reader meets it
 // again. Thrown out of each reader instead, it was refused again on every repaint frame,
 // key and selection, each an uncaught error and each a report. The one refusal is
-// reported to the agent here, and before the page presents it is also the page's
+// reported to the agent here, and before the page upgrades it is also the page's
 // startup failure, its own fault, which no server update fixes: it is declared
 // (`lf-startup-failed`, `page`), so the readable fallback shows at once, the notice says
 // the page has a problem, and the page never presents (leaf.js). A page already
-// presented keeps running without those words, and without the root: a mark or a
+// upgraded keeps running without those words, and without the root: a mark or a
 // projection painted into it is never cleared, and an id inside it stops resolving,
 // since every sweep of declared roots (`shadowRootsIn`) has dropped it.
 function refusesBareText(root) {
@@ -335,7 +336,7 @@ function refusesBareText(root) {
   refuseShadowRoot(root);
   const refusal = bareTextRefusal(bare);
   reportPageError(refusal);
-  if (!pagePresented())
+  if (!pageUpgraded())
     window.dispatchEvent(
       new CustomEvent("lf-startup-failed", {
         detail: { reason: refusal.message, error: refusal, page: true },
@@ -658,10 +659,12 @@ export const authoredScope = (node) =>
 // elementFromPoint retargets to the host for a point over a shadow tree, so it names the
 // widget rather than the thing in it, and each root answers for its own. Mark hit testing
 // and item aim both use this exact reading, so a projected datum inside a declared shadow
-// tree can outrank its host.
+// tree can outrank its host. Only a declared root is entered: another library's tree is
+// its control's insides, whose ids (Web Awesome Copy's `#copy-button`) the page never
+// authored, so the hit stays at the control.
 export const elementFromPointAcross = (x, y) => {
   let el = document.elementFromPoint(x, y);
-  while (el?.shadowRoot) {
+  while (el && declaredRoot(el)) {
     const inner = el.shadowRoot.elementFromPoint(x, y);
     if (!inner || inner === el) break;
     el = inner;

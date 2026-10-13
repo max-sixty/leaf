@@ -10,8 +10,10 @@ import test from "node:test";
 
 const { createReactionController } = await import("/runtime/reactions.js");
 const { focusDestination, focused } = await import("/runtime/focus.js");
+const { applicationState } = await import("/runtime/semantic-state.js");
 
 test("closing the choices hands the user to a trigger the close itself shows", () => {
+  applicationState.setPhase("ready");
   document.body.replaceChildren();
   const opener = document.createElement("button");
   const trigger = document.createElement("button");

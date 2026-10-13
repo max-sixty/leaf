@@ -111,7 +111,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     response = denied.goto(f"{base_target.origin}/versions/v1.html")
     assert response and response.status == 401
     # The refusal is the point of this page: the reviewer has no capture credential.
-    consume_browser_errors(denied, "401")
+    consume_browser_errors(denied, {"code": "failed-load", "status": 401})
     denied.close()
 
     context = browser.new_context(
@@ -308,11 +308,11 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(second).to_be_focused()
     user.keyboard.press("g")
     user.keyboard.press("Shift+t")
-    expect(user.get_by_role("dialog")).to_be_visible()
+    expect(user.get_by_role("region", name="Threads")).to_be_visible()
     expect(user.locator(".lf-threads")).to_be_focused()
     expect(user.locator(".lf-auxiliary-envelope:modal")).to_have_count(1)
     user.keyboard.press("Escape")
-    expect(user.get_by_role("dialog")).to_be_hidden()
+    expect(user.get_by_role("region", name="Threads")).to_be_hidden()
     assert user.evaluate("() => document.activeElement === document.body")
     user.keyboard.press("g")
     user.keyboard.press("i")
@@ -331,11 +331,11 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(second).to_be_focused()
     user.keyboard.press("g")
     user.keyboard.press("Shift+t")
-    expect(user.get_by_role("dialog")).to_be_visible()
+    expect(user.get_by_role("region", name="Threads")).to_be_visible()
     expect(user.locator(".lf-threads")).to_be_focused()
     expect(user.locator(".lf-auxiliary-envelope:modal")).to_have_count(0)
     user.keyboard.press("Escape")
-    expect(user.get_by_role("dialog")).to_be_hidden()
+    expect(user.get_by_role("region", name="Threads")).to_be_hidden()
     assert user.evaluate("() => document.activeElement === document.body"), (
         user.evaluate("() => document.activeElement.outerHTML.slice(0, 300)")
     )

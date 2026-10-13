@@ -103,6 +103,7 @@ import { move } from "../dom-move.js";
 import { declarationFor } from "../registry.js";
 import { LAYOUT } from "../widget-elements.js";
 import { inChrome } from "../passages.js";
+import { visibleTargetParts } from "../visible-target-parts.js";
 import {
   anchorReading,
   carriedAnchor,
@@ -143,11 +144,13 @@ const GAP = 4;
 // The id of the thread card a margin row opens (thread-preview.js).
 export const THREAD_CARD = "lf-margin-preview";
 // A row the user holds, which packing seats before every other (`packRows`): one under
-// the pointer, with focus in it, or whose entry has the thread card open, as that entry's
-// disclosure relation says (margin-projection.js, `syncReadingRelation`). The card stands
-// relative to its row (thread-preview.js), so a seated row whose target moves into
-// it would otherwise push the row down and the card the user is reading with it.
-const HELD = `:hover, :focus-within, :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
+// the pointer, with focus in it, with its options open, or whose entry has the thread
+// card open, as that entry's disclosure relation says (margin-projection.js,
+// `syncReadingRelation`). Opening options can move focus before the next layout pass;
+// the open face itself keeps its controls reachable. The card stands relative to its
+// row (thread-preview.js), so a seated row whose target moves into it would
+// otherwise push the row down and the card the user is reading with it.
+const HELD = `:hover, :focus-within, [data-lf-options-open], :has([aria-controls="${THREAD_CARD}"][aria-expanded="true"])`;
 let pending = 0;
 let observer = null;
 let observedColumn = null;
@@ -1115,7 +1118,7 @@ function setStyle(row, property, value) {
 function targetShown(target, extent, stands, bands, attachment = target) {
   const shown = (part) =>
     part.checkVisibility() && clippedBand(part, part.getBoundingClientRect(), bands);
-  if (!shownParts(target).some(shown)) return false;
+  if (!visibleTargetParts(target).some(shown)) return false;
   if (!clippedBand(target, extent, bands)) return false;
   if (!stands) return true;
   const view = clippedBand(attachment, EVERYWHERE, bands);

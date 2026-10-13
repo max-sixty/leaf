@@ -97,6 +97,7 @@ from render_harness import (
     scroll_settled,
     select,
     sending,
+    shown,
     stamp_page,
     take_browser_errors,
     told,
@@ -4068,7 +4069,8 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
             # The console with it: the press can move nothing because the runtime
             # threw, and this names what it said.
             pytest.fail(
-                f"{key} moved nothing on a page nobody had clicked in: {page.lf_errors}"
+                f"{key} moved nothing on a page nobody had clicked in:\n"
+                + shown(page.lf_errors)
             )
         # And then the rest of the glide, so the next key's reset lands on a scroll
         # that is over rather than on one still on its way somewhere.

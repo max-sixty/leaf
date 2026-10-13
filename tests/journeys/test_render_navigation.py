@@ -199,7 +199,9 @@ def test_a_comment_box_moves_home_when_a_panel_comes_to_cover_its_seat(browser, 
     box = page.locator("leaf-text.lf-fab-input")
     expect(page.locator("#pr-exact-patch leaf-text.lf-fab-input")).to_be_focused()
     page.locator(".lf-threads-toggle").click()
-    expect(panel).to_be_visible()
+    # The dialog envelope draws nothing (#2613); its Threads panel is what shows.
+    expect(panel).to_have_attribute("open", "")
+    expect(panel.locator(".lf-thread-panel")).to_be_visible()
     page_at_rest(page)
     edge = page.locator(".lf-thread-panel > .lf-edge").bounding_box()
     middle = edge["y"] + edge["height"] / 2

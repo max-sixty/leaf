@@ -27,6 +27,7 @@ from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
+    is_problem,
     leaf_page,
     open_page,
     restarting,
@@ -247,7 +248,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
         # The reach: an interrupted start is a fetch the runtime made itself, which no
         # transport error names, and the words are the interrupted fetch's own.
         vanished = "leaf: page failed to start: Failed to fetch"
-        assert [error for error in errors if vanished in error], errors
+        assert [error for error in errors if is_problem(error, vanished)], errors
         paused.close()
         # The page's own recovery is bounded; the re-vendor ahead of it is not.
         wait_for(

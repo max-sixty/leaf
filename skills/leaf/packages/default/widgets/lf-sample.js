@@ -8,7 +8,8 @@
  * into a native modal dialog, keeping its document, gestures, and drafts alive. The
  * sample retains its embedded allocation while the dialog fills the viewport; Return
  * to page and the child's final Escape restore the Full view button. Each child announces
- * lf-sample-ready with its sample element, on first mount, Reset and reload. Reset stays focusable
+ * lf-sample-ready with its sample element after upgrade, on first mount, Reset and
+ * reload. Its loading saved state does not hold the parent. Reset stays focusable
  * while loading but accepts no new press, preserving the parent's keyboard position.
  * Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
@@ -128,7 +129,7 @@ customElements.define(
       );
       // A failed child is drawn by this widget's status and Reset. That is a
       // completed parent rendering; the public sample.ready still rejects. A first
-      // document that departs before presenting holds it until the next document,
+      // document that departs before upgrading holds it until the next document,
       // which a reload brings, or Reset: the parent cannot tell a reload from an
       // external destination.
       widgetController(this).present(this.#track(ready).catch(() => {}));
@@ -253,7 +254,7 @@ customElements.define(
       return this.#follow(promise);
     }
 
-    // One `ready` per presentation the host promises, so a departure and the reload
+    // One `ready` per usable document the host promises, so a departure and the reload
     // that follows it are one wait for a selection or a page module.
     #follow(promise) {
       if (promise === this.#following) return this.#ready;

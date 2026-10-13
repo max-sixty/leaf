@@ -133,17 +133,25 @@ cancellation: `Promise.race([work, aborted(signal)])`.
 
 ## Startup and presentation
 
-`body[data-lf-presented]` means the page's first authoritative state, or its deliberate
-offline fallback, is safe for recorded interaction. Authored content is visible before
-then, and Leaf disables its arrival transitions and durable widget actions until the
-stamp. Printed keys pressed earlier are held and reach the page's key handlers after
-the stamp, in order, so neither a package's keys nor its styles need an arrival guard.
+`body[data-lf-presented]` means the page's first authoritative presentation, or its
+deliberate offline fallback, has rendered. Authored content is visible before then,
+and Leaf disables its arrival transitions until the stamp. New comments and drawings
+become available at `body[data-lf-upgraded]`, when the shown document and its anchors
+are ready. Printed keys pressed earlier are held and handed to the command dispatcher
+at upgrade. Ordinary UI commands use the shown document immediately. A scope, row,
+or route that needs an incomplete reading declares `ready()`; rows and routes
+override their scope. A false reading retains a printed key while startup waits
+for saved state. Decision commands queue while saved state is loading; their owner's
+availability still requires a complete reading. Offline presentation discards pending
+keys and ends startup capture; it does not supply saved state. The shortcut bar names commands
+available now; held keys have their own loading feedback. Packages need no arrival guard.
 A package opens a dialog or popover only after the stamp or in response to a user
 gesture; Leaf does not defer top-layer UI during startup. A declared `x-shadow` widget
 gets the same arrival protection when it builds its shadow root with `shadowStage`
 ("Shadow stages and styles").
 
-Startup dispatches two events on `document`. `PRESENTATION` fires once, in the turn the
+Startup dispatches events on `document`. `UPGRADE` fires when comment capture
+is ready. `PRESENTATION` fires once, in the turn the
 page's complete authoritative layout first stands: UI drawn from element geometry reads
 it there synchronously for its first paint, then follows ordinary layout signals.
 `PAGE_INTERFACE` fires at startup and at each in-place revision activation; UI derived
@@ -691,6 +699,7 @@ Leaf checks each row as it enters the register and throws for a malformed one.
 | `keys` | Bindings in canonical spelling (`"a"`, `"Shift+a"`, `"Mod+Enter"`), or a function returning them. |
 | `contextKeys` | Aliases that may also be forwarded to the enclosing ask's opening and its margin controls and threads ("Decisions and forwarded keys"). A row with `routes` declares them on each route instead. |
 | `routes` | Subcommands, each with its own `id`, `title`, and `binding` or `contextKeys`, where one row's keys mean different things. |
+| `ready` | Whether the command's input is complete ("Startup and presentation"). A route may declare its own. |
 | `when` | Whether the command is available. A route may declare its own. |
 | `run(binding, context)` | Performs the command. A row without `run` presents a native behavior or a shared outer handler and does not shadow it. |
 | `control` | The visible element that activates the command. |
@@ -1548,9 +1557,10 @@ as one target.
 
 `readThreads()` returns the same immutable `{phase, threads}` collection the Threads panel
 reads, and `watchThreads(owner, callback)` calls the callback with it ("Page readings").
-`threads` holds conversations; a bare reaction without a spoken turn is not a listed
-Thread. Each widget keeps its own search, filter and order state and derives its displayed
-rows from the collection. `threadTurns(thread)` selects a Thread's displayed turns, and
+`threads` holds conversations, including local sends while `phase` is `waiting` or
+`offline`; only `ready` means the saved inventory is complete. A bare reaction without
+a spoken turn is not a listed Thread. Each widget keeps its own search, filter and order
+state and derives its displayed rows from the collection. `threadTurns(thread)` selects a Thread's displayed turns, and
 `threadSummary(thread)` gives its `topic` and `latest` activity. An agent-written message
 or closing event carries `agent`, the name it is shown under.
 
@@ -1613,9 +1623,9 @@ token must be in the current layer's vocabulary on an addressable agent message.
 `create` accepts `text`, an optional `anchor`, `attempt`, `holds`, `about`, `drawing` and
 `suggestion`; empty text needs a drawing. It returns `{key, delivery}` synchronously, where
 `key` is its minted or supplied attempt and `delivery` is the admission promise, and in a
-ready reading its pending Thread appears at once. Creation needs no Thread reading; its key
-selects the Thread when the collection becomes ready. Leaf's reply editors keep one durable
-draft per Thread, and a package's own input keeps its own ("Text entry and drafts").
+reading its pending Thread appears at once, including while saved history is loading.
+Creation needs no Thread reading; its key selects the local Thread immediately. Leaf's
+reply editors keep one durable draft per Thread, and a package's own input keeps its own ("Text entry and drafts").
 
 ### Starting a thread from a widget
 

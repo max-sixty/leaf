@@ -849,7 +849,12 @@ def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, b
     # The failed-release probe keeps requesting while the page is open. End that
     # source of deliberate 404s before accounting for its browser reports.
     page.close()
-    consume_browser_errors(page, "404", "Failed to load resource", "error loading")
+    consume_browser_errors(
+        page,
+        {"code": "failed-load", "status": 404},
+        "Failed to load resource",
+        "error loading",
+    )
 
 
 def test_a_page_that_starts_after_a_fault_takes_its_notice_back(

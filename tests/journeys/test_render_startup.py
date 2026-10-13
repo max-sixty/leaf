@@ -20,7 +20,6 @@ from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import hosting as hosting_model
-from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf import user_views as user_views_model
@@ -45,6 +44,9 @@ from render_harness import (
     open_page,
     page_comment,
     panel_settled,
+    refuse,
+    round_trip,
+    select_words,
     sending,
     ticked,
     told,
@@ -236,44 +238,147 @@ def test_more_than_six_live_documents_share_an_origin_without_stalling(browser, 
             expect(page.locator("#t")).to_have_text("Updated across tabs")
 
 
-def test_a_first_read_still_out_does_not_decide_when_the_page_arrives(browser, serve):
-    """The user's page arrives on the runtime's wait, not on the container's answer.
-
-    Presentation is where durable controls, the heartbeat and freshness checks open, so a
-    container that accepts the connection and says nothing would otherwise decide whether
-    the user gets a usable page at all — and the read's own bound is set outside what a
-    live container takes, which is far past anyone's patience for a page. The wait ends
-    without ending the read: the request stays in flight, no second one opens beside it,
-    and the answer that lands after the page has presented offline is applied where it
-    stands.
-    """
+@pytest.mark.parametrize("answer", ["ready", "offline"])
+def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, answer):
+    """Presentation is not a state answer; every Decision route needs the same reading."""
+    source = leaf_page(
+        "Slow decision",
+        '<h1>Slow decision</h1><lf-ask id="decision"><h2>Proceed?</h2>'
+        '<lf-options id="pick" choose><lf-option id="yes">Proceed</lf-option>'
+        '<lf-option id="no">Wait</lf-option></lf-options></lf-ask>',
+    )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     held = []
+    posts = []
     page.route("**/api/state*", lambda route: held.append(route))
-    page.goto(live_url(serve(LONG_PAGE)), wait_until="load")
-    # The page presents offline once the runtime's own wait for the read
-    # (PRESENTATION_WAIT_MS, state-feed.js) runs out, so the hang bound starts there.
-    expect(page.locator("body[data-lf-presented]")).to_have_count(
-        1, timeout=render_checks_model.SERVED_TIMEOUT_MS + 10_000
+    page.on(
+        "request",
+        lambda request: (
+            posts.append(request.post_data_json)
+            if request.url.endswith("/api/event")
+            and request.post_data_json["kind"] == "action"
+            else None
+        ),
     )
-    expect(page.locator(".lf-status-detail")).to_contain_text(
-        "Server offline — reconnecting"
-    )
+    page.goto(serve(source), wait_until="load")
+    holding(page, held, 1, "the unanswered private-state read")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    # Cross the former ten-second presentation deadline with a read still in flight.
+    # This is the interval that used to invent an offline answer and release choices.
+    page.wait_for_function("performance.now() > 11_000", timeout=15_000)
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
+    assert len(held) == 1
+    if answer == "ready":
+        # An ordinary error in a usable page must not start recovery that could
+        # reload the document and discard an early comment while history waits.
+        page.evaluate("setTimeout(() => { throw new Error('post-upgrade fault'); })")
+        page.wait_for_timeout(50)
+        expect(page.locator("html")).not_to_have_attribute("data-lf-startup-error")
+        expect(page.get_by_text("Leaf couldn't start", exact=False)).to_have_count(0)
+        consume_browser_errors(page, "post-upgrade fault")
+    first = page.locator("#pick .lf-pick").first
+    second = page.locator("#pick .lf-pick").nth(1)
+    expect(first).to_have_attribute("aria-disabled", "true")
+    first.focus()
+    page.keyboard.press("Space")
+    second.dispatch_event("click")
+    page.keyboard.press("1")
+    expect(page.locator(".lf-held-keys kbd")).to_have_text("1")
+    expect(page.locator("#yes")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#no")).not_to_have_attribute("chosen", "")
+    assert posts == []
+    page.unroute("**/api/state*")
+    if answer == "offline":
+        page.route("**/api/state*", refuse)
+        for route in held:
+            refuse(route)
+        expect(page.locator(".lf-status-text")).to_contain_text("Server offline")
+        expect(page.locator(".lf-held-keys")).to_have_count(0)
+        expect(first).to_have_attribute("aria-disabled", "true")
+        expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("Proceed")
+        first.focus()
+        page.keyboard.press("1")
+        page.keyboard.press("Space")
+        second.dispatch_event("click")
+        expect(page.locator("#yes")).not_to_have_attribute("chosen", "")
+        expect(page.locator("#no")).not_to_have_attribute("chosen", "")
+        assert posts == []
+        page.unroute("**/api/state*")
+        wait_until_ready(page, timeout_ms=15_000)
+        first.focus()
+        page.keyboard.press("1")
+    else:
+        for route in held:
+            route.continue_()
+        wait_until_ready(page, timeout_ms=15_000)
+    expect(page.locator("#yes")).to_have_attribute("chosen", "")
+    round_trip(page)
+    assert len(posts) == 1, "the held or fresh digit should send exactly once"
+    first.focus()
+    page.keyboard.press("Space")
+    round_trip(page)
+    second.click()
+    round_trip(page)
+    assert [post["detail"] for post in posts] == [
+        {"value": ["yes"]},
+        {"value": []},
+        {"value": ["no"]},
+    ]
 
-    # The read the page presented without is still the one it is waiting on. Ticks of
-    # the shared clock pass with the slot held, and none of them opens a second read.
-    page.wait_for_timeout(4000)
-    assert len(held) == 1, held
-    assert not page.locator("body[data-lf-presented]").evaluate(
-        "body => body.dataset.lfReading ?? ''"
-    )
 
-    held[0].fulfill(json=held[0].fetch().json())
-    told(page)
-    expect(page.locator(".lf-status-detail")).not_to_contain_text(
-        "Server offline — reconnecting"
+def test_offline_reaction_waits_for_its_saved_state(browser, serve):
+    """An unknown saved state cannot invent an add; recovery toggles the actual saved event."""
+    source = leaf_page(
+        "Saved reaction", '<h1>Saved reaction</h1><button id="target">A target</button>'
     )
+    saved = {
+        "id": "saved-reaction",
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "token": "keep",
+        "anchor": {"section": "target"},
+    }
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    posts = []
+    page.on(
+        "request",
+        lambda request: (
+            posts.append(request.post_data_json)
+            if request.url.endswith("/api/event")
+            else None
+        ),
+    )
+    page.route("**/api/state*", refuse)
+    page.goto(serve(source, events=[saved]), wait_until="load")
+    expect(page.locator(".lf-status-text")).to_contain_text("Server offline")
+    page.locator("#target").click()
+    page.keyboard.press("e")
+    page.keyboard.press("1")
+    assert posts == []
+    select_words(page, "#target")
+    page.keyboard.press("c")
+    page.keyboard.press("Tab")
+    chip = page.locator('.lf-response-options .lf-react[data-token="keep"]')
+    expect(chip).to_have_attribute("aria-disabled", "true")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("react")
+    chip.dispatch_event("click")
+    chip.focus()
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("choose")
+    page.keyboard.press("Space")
+    assert posts == []
+    page.keyboard.press("Escape")
+    page.unroute("**/api/state*")
+    wait_until_ready(page, timeout_ms=15_000)
+    page.locator("#target").click()
+    page.keyboard.press("e")
+    page.keyboard.press("1")
+    round_trip(page)
+    assert [(post["kind"], post.get("undoes")) for post in posts] == [
+        ("undo", "saved-reaction")
+    ]
 
 
 def test_a_page_hears_again_when_its_server_comes_back(browser, serve):
@@ -927,3 +1032,164 @@ def test_user_view_context_follows_real_tabs_without_changing_the_page(browser, 
     current = next(r for r in seen if r["session"] != identity)
     assert old["revision"] == 1 and not old["matches_active_revision"]
     assert current["revision"] == 2 and current["matches_active_revision"]
+
+
+def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
+    entry = {
+        "description": "Late shadow words.",
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+        "x-shadow": True,
+        "x-example": '<lf-probe id="probe"></lf-probe>',
+    }
+    widget = """import {once, shadowStage} from '/runtime/widget-api.js';
+customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}});"""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.set_default_timeout(10_000)
+    held = []
+    page.route("**/api/state*", lambda r: held.append(r))
+    page.goto(
+        serve(
+            leaf_page(
+                "Late shadow", '<h1>Late shadow</h1><lf-probe id="probe"></lf-probe>'
+            ),
+            layer_registry={"lf-probe": entry},
+            layer_widgets={"lf-probe.js": widget},
+        ),
+        wait_until="load",
+    )
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-upgraded", "1", timeout=5_000
+    )
+    page.evaluate(
+        """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await __lfRuntimeImport('/runtime/passages.js');[...textNodesUnder(document.body)];}"""
+    )
+    assert page.evaluate("document.documentElement.hasAttribute('data-lf-interactive')")
+    expect(
+        page.get_by_role("status").filter(has_text="Leaf couldn't start")
+    ).to_have_count(0)
+    consume_browser_errors(page, "staged bare text")
+    page.unroute("**/api/state*")
+    for r in held:
+        r.continue_()
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    select_words(page, "h1")
+    page.keyboard.press("c")
+    write(page_comment(page), "Still usable.")
+    expect(page_comment(page)).to_have_js_property("value", "Still usable.")
+    page.close()
+
+
+@pytest.mark.parametrize("answer", ["ready", "offline"])
+@pytest.mark.parametrize("focus", ["sample", "chrome"])
+def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, focus):
+    """Presentation applies saved facts without re-deciding the user's open composer."""
+    source = leaf_page(
+        "Uninterrupted draft",
+        '<h1>Uninterrupted draft</h1><p id="passage">The prototype needs a mobile check.</p>'
+        '<lf-sample id="practice" label="Practice" window>'
+        '<template id="practice-source" data-sample>'
+        '<h1>Practice</h1><button id="inspect">Inspect</button>'
+        "</template></lf-sample>",
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.set_default_timeout(8_000)
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    page.goto(serve(source), wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    select_words(page, "#passage")
+    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused(timeout=3_000)
+    write(field, "Keep these words.")
+    field.evaluate("field => field.setSelectionRange(7, 7)")
+    if focus == "sample":
+        child = page.locator("#practice iframe").element_handle().content_frame()
+        child.locator("#inspect").click()
+    else:
+        page.locator(".lf-status-button").focus()
+        page.evaluate("getSelection().removeAllRanges()")
+    expect(field).to_be_visible(timeout=3_000)
+    page.unroute("**/api/state*")
+    for route in held:
+        if answer == "ready":
+            route.continue_()
+        else:
+            route.abort("internetdisconnected")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(field).to_be_visible(timeout=3_000)
+    expect(field).to_have_js_property("value", "Keep these words.")
+    assert field.evaluate("field => [field.selectionStart, field.selectionEnd]") == [
+        7,
+        7,
+    ]
+    expect(page.get_by_role("status").filter(has_text="Draft kept")).to_have_count(0)
+    if answer == "offline":
+        consume_browser_errors(page, "net::ERR_INTERNET_DISCONNECTED")
+    page.close()
+
+
+@pytest.mark.parametrize("started", [False, True], ids=["untouched", "commenting"])
+def test_saved_pages_arrival_yields_to_newer_input(browser, serve, live_leaf, started):
+    """Saved chrome restores a visit, but cannot cover a comment begun meanwhile."""
+    live_leaf("second", "A second leaf")
+    url = serve(
+        leaf_page(
+            "Saved Pages",
+            '<h1>Saved Pages</h1><p id="passage">The prototype needs a mobile check.</p>',
+        )
+    )
+    context = browser.new_context(viewport={"width": 480, "height": 900})
+    try:
+        prior = context.new_page()
+        prior.goto(url, wait_until="load")
+        wait_until_ready(prior)
+        prior.keyboard.press("g")
+        prior.keyboard.press("Shift+l")
+        expect(prior.locator("#lf-leaves")).to_be_visible()
+        prior.close()
+
+        held = []
+        page = context.new_page()
+        watched(page)
+        page.route("**/api/state*", lambda route: held.append(route))
+        page.goto(url, wait_until="load")
+        expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+        assert held
+        expect(page.locator("#lf-leaves")).to_be_hidden()
+        if started:
+            select_words(page, "#passage")
+            expect(page.locator(".lf-fab-bar")).to_be_visible()
+            page.keyboard.press("c")
+            field = page.locator(".lf-fab-input")
+            write(field, "Keep these words.")
+            page.keyboard.press("Home")
+            for _ in range(7):
+                page.keyboard.press("ArrowRight")
+            expect(field).to_be_focused()
+        for route in held:
+            route.continue_()
+        page.unroute("**/api/state*")
+        wait_until_ready(page)
+        if started:
+            expect(page.locator("#lf-leaves")).to_be_hidden()
+            expect(field).to_be_visible()
+            expect(field).to_be_focused()
+            expect(field).to_have_js_property("value", "Keep these words.")
+            assert field.evaluate("f => [f.selectionStart, f.selectionEnd]") == [7, 7]
+            expect(page.locator("html")).not_to_have_attribute(
+                "data-lf-covering-surface", "lf-leaves"
+            )
+        else:
+            expect(page.locator("#lf-leaves")).to_be_visible()
+            expect(page.locator("html")).to_have_attribute(
+                "data-lf-covering-surface", "lf-leaves"
+            )
+    finally:
+        context.close()

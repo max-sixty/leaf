@@ -1,5 +1,5 @@
-/* Import-free vocabulary of runtime-painted attributes, and the reader of the
-   presented stamp. Readers of a paint name do not start presentation, import widgets
+/* Import-free vocabulary of runtime-painted attributes, and the readers of the
+   readiness stamps. Readers of a paint name do not start presentation, import widgets
    or reach transport through its writers. */
 
 // Attributes the runtime may paint onto elements the page owns: the source each runtime
@@ -46,3 +46,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 // never takes back.
 export const pagePresented = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
+
+// Whether widgets and anchor preparation have finished, independently of state.
+export const pageUpgraded = () =>
+  document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgraded);

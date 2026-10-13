@@ -1025,11 +1025,11 @@ ROWS_ON = """([target]) => {
 
 
 @pytest.mark.parametrize("case", ["ask", "thread"])
-def test_a_pointed_comment_moves_only_its_own_row(browser, serve, case):
+def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
     """A comment pointed at a row deep in its target stands its own margin row there;
-    the rest of the target's margin does not follow it. An Ask's marker stays with the
-    Ask it accompanies, and a comment already on the target stays at the target's top,
-    where `t` still lands it."""
+    the rest of the target's margin does not follow it. Commenting on an Ask hands it
+    to the agent, so its ask marker leaves. A comment already on a thread target
+    stays at the target's top, where `t` still lands it."""
     if case == "ask":
         url, target = serve(TALL_ASK_PAGE), "way"
         row = f"#{target} p >> nth=25"
@@ -1070,11 +1070,20 @@ def test_a_pointed_comment_moves_only_its_own_row(browser, serve, case):
         target,
     )
     after = dict(page.evaluate(ROWS_ON, [target]))
-    for index, top in before:
-        assert abs(after.get(index, 1e9) - top) <= 8, (
-            f"row {index} of the target moved from {top} to {after.get(index)}: {after}"
-        )
-    added = [top for index, top in after.items() if index not in dict(before)]
+    if case == "ask":
+        expect(
+            page.locator(f'[data-lf-margin-for="{target}"] > .lf-margin-marker')
+        ).to_have_attribute("data-lf-kinds", "comment")
+    else:
+        for index, top in before:
+            assert abs(after.get(index, 1e9) - top) <= 8, (
+                f"row {index} of the target moved from {top} to {after.get(index)}: {after}"
+            )
+    added = (
+        list(after.values())
+        if case == "ask"
+        else [top for index, top in after.items() if index not in dict(before)]
+    )
     assert len(added) == 1 and abs(added[0] - depth) <= 30 and depth > 400, (
         f"the pointed comment has no row of its own at {depth}: {after}"
     )
@@ -3908,8 +3917,9 @@ main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {disp
 )
 
 
-def _draft_in_view(page, words):
-    field = page.locator(".lf-fab-input")
+def _draft_in_view(page, words, field=None):
+    if field is None:
+        field = page.locator(".lf-fab-input")
     box = field.bounding_box()
     viewport = page.viewport_size
     return (
@@ -4013,6 +4023,87 @@ def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, ser
     rendered(page)
     assert not page.locator(".lf-fab-input").is_visible()
     assert json.loads(stored_draft_text(page, context))["text"] == words
+
+
+@pytest.mark.parametrize("reopen", ["resume", "reload", "withheld", "comment"])
+def test_explicit_reopening_keeps_a_css_hidden_subject_draft_reachable(
+    browser, serve, reopen
+):
+    page, words = _open_attachment_draft(
+        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a"
+    )
+    if reopen not in {"withheld", "comment"}:
+        page.keyboard.press("Escape")
+        page.mouse.click(5, 600)
+    resized(page, 480, 900)
+    if reopen == "reload":
+        page.reload()
+        wait_until_ready(page)
+    elif reopen == "comment":
+        page.keyboard.press("c")
+    else:
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    assert _draft_in_view(page, words)
+    expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-plane", "window")
+
+
+@pytest.mark.parametrize("reply", [False, True])
+def test_a_withheld_draft_observes_visibility_without_a_layout_change(
+    browser, serve, reply
+):
+    page, words = _open_attachment_draft(
+        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#ordinary"
+    )
+    field = page.locator(".lf-fab-input")
+    if reply:
+        with sending(page, "the visibility target comment"):
+            page.keyboard.press("ControlOrMeta+Enter")
+        page.keyboard.press("c")
+        field = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
+        words = "A reply with the same visibility owner."
+        write(field, words)
+    page.locator("#ordinary").evaluate("el => el.style.visibility='hidden'")
+    expect(field).not_to_be_visible(timeout=10_000)
+    page.locator("#ordinary").evaluate("el => el.style.visibility='visible'")
+    expect(field).to_be_visible(timeout=10_000)
+    expect(field).to_be_focused(timeout=10_000)
+    assert _draft_in_view(page, words, field)
+
+
+def test_a_display_contents_comment_editor_observes_visibility_without_layout(
+    browser, serve
+):
+    """An aimed comment editor follows its boxless target's visible parts without
+    relying on a resize or render pass to invalidate floating placement."""
+    source = leaf_page(
+        "a display contents comment target",
+        '<h1>Comment visibility</h1><div id="pair" style="display: contents">'
+        "<p><span>The first half.</span></p><p><span>The second half.</span></p></div>",
+        layout=None,
+    )
+    page = open_page(browser, serve(source))
+    page.set_default_timeout(10_000)
+    rendered(page)
+    page.locator("#pair span").first.click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible(timeout=10_000)
+    expect(field).to_be_focused(timeout=10_000)
+    words = "An unfinished comment remains with its display contents target."
+    write(field, words)
+    expect(field).to_have_js_property("value", words, timeout=10_000)
+
+    parts = page.locator("#pair > p")
+    expect(parts).to_have_count(2)
+    parts.evaluate_all("els => els.forEach(el => el.style.visibility='hidden')")
+    expect(field).not_to_be_visible(timeout=10_000)
+    parts.evaluate_all("els => els.forEach(el => el.style.visibility='visible')")
+    expect(field).to_be_visible(timeout=10_000)
+    expect(field).to_be_focused(timeout=10_000)
+    expect(field).to_have_js_property("value", words, timeout=10_000)
 
 
 DESIGN_PANE_PAGE = leaf_page(

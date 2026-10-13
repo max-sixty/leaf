@@ -37,6 +37,7 @@ from render_harness import (
     panel_settled,
     resized,
     round_trip,
+    sending,
     stamp_page,
     told,
     write,
@@ -558,14 +559,27 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     expect(state).to_have_class(re.compile(r"\blf-mark-el\b"))
 
 
+@pytest.mark.parametrize("reply", [False, True])
 def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
-    browser, serve
+    browser, serve, reply
 ):
     url = serve(COMPOSER_ATTACHMENT_PAGE)
     for target in ("#ordinary", "#bg-contents a"):
         page, words = _open_attachment_draft(browser, url, target)
         field = page.locator(".lf-fab-input")
-        assert _draft_in_view(page, words)
+        if reply:
+            with sending(page, "the responsive-target comment"):
+                page.keyboard.press("ControlOrMeta+Enter")
+            preview = page.locator(".lf-margin-preview")
+            expect(preview).to_be_visible()
+            rendered(page)
+            page.keyboard.press("c")
+            field = preview.locator("leaf-text").first
+            expect(field).to_be_focused()
+            words = "A reply about " + target
+            write(field, words)
+            rendered(page)
+        assert _draft_in_view(page, words, field)
         for width in (480, 1200):
             resized(page, width, 900)
             rendered(page)
@@ -573,12 +587,15 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
             if target == "#bg-contents a" and width == 480:
                 # Authored CSS hides the sidebar at this width. The editor retains
                 # its native node and draft until the page gives the target room.
-                assert not _draft_in_view(page, words)
+                expect(page.locator(target).first).not_to_be_visible()
+                expect(field).not_to_be_visible()
+                assert not _draft_in_view(page, words, field)
             else:
-                expect(page.locator(".lf-fab-bar")).to_have_attribute(
-                    "data-lf-plane", "page"
-                )
-                assert _draft_in_view(page, words)
+                if not reply:
+                    expect(page.locator(".lf-fab-bar")).to_have_attribute(
+                        "data-lf-plane", "page"
+                    )
+                assert _draft_in_view(page, words, field)
 
 
 def test_resume_reveals_an_open_draft_when_its_existing_subject_hides(browser, serve):

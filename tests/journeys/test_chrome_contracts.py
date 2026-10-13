@@ -111,7 +111,7 @@ def test_refusal_notice_clears_live_reply_through_wrapping_and_expiry(
         },
     )
     round_trip(page)
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
     notice = page.locator(".lf-notice")
     expect(notice).to_contain_text("Couldn't send")
     expect(notice).to_be_visible()

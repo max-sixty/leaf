@@ -70,6 +70,7 @@ from render_harness import (
     resized,
     root_overflow,
     round_trip,
+    said,
     scroll_settled,
     sending,
     stamp_page,
@@ -2793,7 +2794,7 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
           return presentation.readApplicationPresentation().pending.includes('leaves');
         }"""
     )
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+    assert [said(error) for error in take_browser_errors(page)] == [
         (
             "leaf: Presentation failed: Leaves presentation and retention failed: "
             "deliberate leaves failure; deliberate leaves failure"

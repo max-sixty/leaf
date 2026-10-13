@@ -17,8 +17,8 @@
  * are counted.
  *
  * A passing notice shares the words' box (`presentNotice`), and on a phone stands over
- * them while it lasts; elsewhere the bottom status shows it (chrome.css,
- * `--lf-notice-seat`).
+ * them while it lasts; elsewhere the bottom status shows it, or in the floating panel
+ * its empty field does (chrome.css and floating-panel.css, `--lf-notice-seat`).
  */
 import {
   html,
@@ -31,21 +31,9 @@ import {
 import { el, reserve } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { focusDestination, focused } from "./focus.js";
-import { WEBSITE_DELIVERY } from "./context.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
-const connecting = WEBSITE_DELIVERY ? "Connecting to the Leaf website…" : "Connecting…";
-const INITIAL = Object.freeze({
-  tone: "",
-  summary: connecting,
-  queues: "",
-  queuesWidest: "",
-  explanation: WEBSITE_DELIVERY
-    ? "Loading this website page. Website examples can take longer to connect than a usual Leaf page."
-    : connecting,
-  publication: null,
-});
 
 class BannerStatusView extends HTMLElement {
   #button = createRef();
@@ -72,9 +60,9 @@ class BannerStatusView extends HTMLElement {
     this.#onToggle?.();
   };
 
-  configure({ onToggle }) {
+  configure({ onToggle, initial }) {
     this.#onToggle = onToggle;
-    this.present(INITIAL);
+    this.present(initial);
   }
 
   get dot() {
@@ -174,9 +162,9 @@ class BannerStatusView extends HTMLElement {
 
 if (!customElements.get(TAG)) customElements.define(TAG, BannerStatusView);
 
-export function createBannerStatusView(onToggle) {
+export function createBannerStatusView(onToggle, initial) {
   const view = document.createElement(TAG);
   view.className = "lf-banner-status";
-  view.configure({ onToggle });
+  view.configure({ onToggle, initial });
   return view;
 }

@@ -1236,6 +1236,9 @@ export function declareCovering({ surface, landing }) {
   coveringSurface = surface;
   coveringLanding = landing;
 }
+// The modality's declared destination, or null while the page is available. A
+// displaced editor uses this same landing rather than guessing from the surface root.
+export const coveringFocus = () => coveringLanding();
 //
 // It is the same pair on the body, which carries no tab stop of its own. A permanent
 // `tabindex` on body was once how the let-go worked on a page too short to scroll, but it
@@ -1274,7 +1277,7 @@ export function letGo() {
     // the tree holding focus, so the two meet: a user standing inside a widget's shadow
     // tree reads as inside the surface holding that widget, which is what is being asked.
     if (!covering.contains(document.activeElement))
-      focusDestination(coveringLanding(), "move");
+      focusDestination(coveringFocus(), "move");
     return;
   }
   const block = readingBlock();

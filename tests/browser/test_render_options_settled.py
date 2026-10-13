@@ -24,6 +24,7 @@ from render_harness import (
     page_registry,
     panel_settled,
     round_trip,
+    said,
     select,
     undo,
     write,
@@ -116,7 +117,7 @@ def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
     expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
     # The paint reports the failure, and nothing else does: no uncaught throw.
     errors = consume_browser_errors(page, "the marks failed once")
-    assert len(errors) == 1 and errors[0].startswith("leaf: paint failed"), errors
+    assert len(errors) == 1 and said(errors[0]).startswith("leaf: paint failed"), errors
     compare_with(page, 1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
     expect(mark).to_have_text("Δ1")

@@ -18,7 +18,13 @@ from leaf.asks import (
 )
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
-from leaf.events import build_threads, spoken_turns, taken_back, undo_error
+from leaf.events import (
+    build_threads,
+    note_settlements,
+    spoken_turns,
+    taken_back,
+    undo_error,
+)
 from leaf.files import version_descriptors, version_revisions
 from leaf.findings import Finding
 from leaf.layer import incompatible_layer, incompatible_revision
@@ -764,7 +770,8 @@ def admission_error(
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
     """A to-do stands on an open thread, a widget that seats work or an element, or the
-    page. A `todo_end` also admits an agent withdrawal of a prose ask; a
+    page. A completing note and `todo_end` share completion authority.
+    A `todo_end` also admits an agent withdrawal of a prose ask; a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
@@ -773,9 +780,12 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     )
     if start := start_reading(event):
         event = start
+    elif event["kind"] == "note":
+        if not note_settlements(event, "todo"):
+            return None
     elif event["kind"] not in {"todo", "todo_end"}:
         return None
-    workflows = readings.work.workflows if event["kind"] != "todo_end" else []
+    workflows = readings.work.workflows if event["kind"] in {"todo", "start"} else []
     if progress_parent is not None and not any(
         item["input"] == event["item"]
         and item["next_actor"] == "agent"

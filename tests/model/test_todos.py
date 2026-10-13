@@ -10,6 +10,7 @@ from click.testing import CliRunner
 from interact_support import (
     FLOW_PAGE,
     PAGE,
+    ModelPage,
     _start,
     _status,
     append_carried_log_record,
@@ -30,6 +31,7 @@ from interact_support import (
 )
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
+from leaf import event_contracts as contracts_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -691,6 +693,167 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir):
     }
 
 
+def test_an_older_session_cannot_end_a_todo_a_newer_session_started(page_dir):
+    """A continuation transfers completion authority before the old result arrives."""
+    publish(page_dir)
+    todo = written(leaf("task", "open", page_dir, "page", "Draft the plan"))
+    starts = [
+        append_command(
+            page_dir,
+            {
+                "kind": "start",
+                "author": "agent",
+                "session": session,
+                "item": todo["id"],
+                "text": "Drafting the plan",
+                "turn": "turn-1",
+            },
+        )
+        for session in ("older", "newer")
+    ]
+    before = events_model.read_events(page_dir)
+    with pytest.raises(events_model.EventRefused) as refused:
+        append_command(
+            page_dir,
+            {
+                "kind": "todo_end",
+                "author": "agent",
+                "session": "older",
+                "todo": todo["id"],
+                "outcome": "done",
+            },
+        )
+    assert refused_on(refused.value).code == "todo-execution"
+    assert refused_on(refused.value).values == {
+        "todo": todo["id"],
+        "start": starts[-1]["id"],
+        "session": "newer",
+        "kind": "todo_end",
+    }
+    assert events_model.read_events(page_dir) == before
+    assert [item["id"] for item in state_json(page_dir)["todos"]] == [todo["id"]]
+
+
+@pytest.fixture
+def task_log():
+    """Real admission on literal markup, with equal timestamps and explicit voices."""
+    page = ModelPage(PAGE)
+    log = []
+
+    def append(kind, *, session=None, **fields):
+        event = contracts_model.admitted_event(
+            page,
+            log,
+            {
+                "kind": kind,
+                "id": f"e{len(log) + 1}",
+                "seq": len(log) + 1,
+                "ts": "2026-10-12T12:00:00+00:00",
+                "author": "agent",
+                **({"session": session} if session is not None else {}),
+                **fields,
+            },
+        )
+        log.append(event)
+        return event
+
+    return append, log
+
+
+@pytest.mark.parametrize("outcome", ["done", "failed", "dropped"])
+def test_only_the_latest_starting_session_can_complete_agent_work(task_log, outcome):
+    """Log order transfers authority for every outcome, even while work is put down."""
+    append, log = task_log
+    todo = append(
+        "todo", session="opener", owner="agent", subject={"kind": "page"}, title="Plan"
+    )
+    for session in ("older", "newer"):
+        latest = append("start", session=session, item=todo["id"], text="Working")
+    append("put_down", session="newer")
+    assert todos_model.TodoReading(log).owed[0]["running"] is None
+
+    for session in ("older", "opener", "third", None):
+        with pytest.raises(events_model.EventRefused) as refused:
+            append("todo_end", session=session, todo=todo["id"], outcome=outcome)
+        finding = refused_on(refused.value)
+        assert (finding.code, finding.values) == (
+            "todo-execution",
+            {
+                "todo": todo["id"],
+                "start": latest["id"],
+                "session": "newer",
+                "kind": "todo_end",
+            },
+        )
+    completed = append("todo_end", session="newer", todo=todo["id"], outcome=outcome)
+    [ended] = todos_model.TodoReading(log).todos
+    assert ended["state"] == outcome
+    assert ended["outcome"]["id"] == completed["id"]
+
+
+def test_explicit_starts_transfer_completion_authority_back_and_between_tasks(task_log):
+    """A session can retake work; a start on another item transfers only that item."""
+    append, log = task_log
+    todos = [
+        append("todo", owner="agent", subject={"kind": "page"}, title=title)
+        for title in ("Plan", "Glossary")
+    ]
+    for session in ("older", "newer", "older"):
+        append("start", session=session, item=todos[0]["id"], text="Working")
+    append("start", session="newer", item=todos[1]["id"], text="Other work")
+    with pytest.raises(events_model.EventRefused) as refused:
+        append("todo_end", session="newer", todo=todos[0]["id"], outcome="done")
+    assert refused_on(refused.value).code == "todo-execution"
+    for todo, session in zip(todos, ("older", "newer"), strict=True):
+        append("todo_end", session=session, todo=todo["id"], outcome="done")
+    assert todos_model.TodoReading(log).owed == []
+
+
+def test_unstarted_and_anonymously_started_tasks_remain_completable(task_log):
+    """Opening creates no session ownership; an anonymous start is a real start."""
+    append, log = task_log
+    unstarted = append(
+        "todo", session="opener", owner="agent", subject={"kind": "page"}, title="Plan"
+    )
+    append("todo_end", session="another", todo=unstarted["id"], outcome="done")
+    anonymous = append(
+        "todo", owner="agent", subject={"kind": "page"}, title="Glossary"
+    )
+    latest = append("start", item=anonymous["id"], text="Working")
+    with pytest.raises(events_model.EventRefused) as refused:
+        append("todo_end", session="identified", todo=anonymous["id"], outcome="done")
+    assert refused_on(refused.value).values == {
+        "todo": anonymous["id"],
+        "start": latest["id"],
+        "session": None,
+        "kind": "todo_end",
+    }
+    append("todo_end", todo=anonymous["id"], outcome="done")
+    assert todos_model.TodoReading(log).owed == []
+
+
+def test_delayed_completion_keeps_its_session_authority_after_claim_and_turn_changes(
+    page_dir,
+):
+    """A later turn and a different watcher do not make a posting session obsolete."""
+    publish(page_dir)
+    todo = written(leaf("task", "open", page_dir, "page", "Draft the plan"))
+    record_claim(page_dir, id=todo["session"], turn="earlier-turn")
+    start = written(leaf("task", "start", page_dir, todo["id"], "Drafting the plan"))
+    assert start["turn"] == "earlier-turn"
+
+    record_claim(page_dir, id=todo["session"], turn="later-turn")
+    continued = written(
+        leaf("task", "start", page_dir, todo["id"], "Continuing the plan")
+    )
+    assert continued["turn"] == "later-turn"
+    # Claims govern who watches the page; completion comes from the poster's voice.
+    record_claim(page_dir, id="another-watcher", turn="watcher-turn")
+    completed = written(leaf("task", "end", page_dir, todo["id"], "done"))
+    assert completed["session"] == continued["session"] == start["session"]
+    assert state_json(page_dir)["todos"] == []
+
+
 WORK_PAGE = FLOW_PAGE.replace(
     '<lf-diagram id="flow">',
     '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
@@ -702,8 +865,8 @@ WORK_PAGE = FLOW_PAGE.replace(
 
 def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     """A to-do on a page widget needs a widget that declares `x-work` or holds an
-    unsettled move. A version that drops its widget without completing it is refused;
-    `page stamp --completes` ends it done, citing that version."""
+    unsettled move. Dropping its widget leaves it open; `page stamp --completes`
+    ends it done, citing that version."""
     (page_dir / "index.html").write_text(WORK_PAGE)
     publish(page_dir)
     no_seat = command_refusal("task", "open", page_dir, "flow", "Redraw the graph")
@@ -716,8 +879,7 @@ def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     [served] = state_json(page_dir)["todos"]
     assert served["running"]["text"] == "Checking the fallback"
 
-    # An unrelated version leaves the to-do open; one that drops its card is
-    # refused unless it completes it.
+    # An unrelated version and one that drops its card both leave the to-do open.
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v2</title>")
     )
@@ -743,6 +905,69 @@ def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     again = stamp(page_dir, "Again", completes=("rollout-card",))
     assert again.exit_code != 0
     assert "no open to-do on 'rollout-card'" in again.output
+
+
+def test_a_stale_completing_stamp_refuses_before_publishing_or_settling_work(page_dir):
+    """A stamp uses the same authority rule for every task it completes, atomically."""
+    source = page_dir / "index.html"
+    source.write_text(WORK_PAGE)
+    publish(page_dir)
+    todos = [
+        written(leaf("task", "open", page_dir, "rollout-card", title))
+        for title in ("Check fallback", "Check rollout")
+    ]
+    for todo in todos:
+        written(leaf("task", "start", page_dir, todo["id"], "Checking rollout"))
+    continued = append_command(
+        page_dir,
+        {
+            "kind": "start",
+            "author": "agent",
+            "session": "newer",
+            "item": todos[-1]["id"],
+            "text": "Continuing the checks",
+        },
+    )
+    source.write_text(WORK_PAGE.replace("<title>t</title>", "<title>Checked</title>"))
+    before = events_model.read_events(page_dir)
+    revisions = files_model.list_revisions(page_dir)
+    refused = command_refusal(
+        "page",
+        "stamp",
+        page_dir,
+        "--text",
+        "Checks complete",
+        "--completes",
+        "rollout-card",
+    )
+    assert refused.code == "todo-execution"
+    assert refused.values == {
+        "todo": todos[-1]["id"],
+        "start": continued["id"],
+        "session": "newer",
+        "kind": "note",
+    }
+    assert events_model.read_events(page_dir) == before
+    assert files_model.list_revisions(page_dir) == revisions
+    assert len(todos_model.TodoReading(before).owed) == 2
+
+    append_command(
+        page_dir,
+        {
+            "kind": "start",
+            "author": "agent",
+            "session": todos[-1]["session"],
+            "item": todos[-1]["id"],
+            "text": "Retaking the checks",
+        },
+    )
+    completed = stamp(page_dir, "Checks complete", completes=("rollout-card",))
+    assert completed.exit_code == 0, completed.output
+    assert state_json(page_dir)["todos"] == []
+    note = events_model.read_events(page_dir)[-1]
+    assert {settled["id"] for settled in note["settles"]} == {
+        todo["id"] for todo in todos
+    }
 
 
 def test_a_start_reopens_a_page_its_agent_closed(page_dir):

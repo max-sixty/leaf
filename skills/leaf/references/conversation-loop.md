@@ -145,8 +145,8 @@ leaf page stamp <page> --text "…" --completes <widget-id>
 `--completes` names a widget with an open to-do, and ends each to-do on it `done`,
 citing the version. `leaf task open` takes a page widget that declares `x-work` or
 holds an unsettled action, any other element of the page, or `page`; work in a thread
-is opened by the reply that promises it (`--todo`). A to-do on a widget survives unrelated versions, and a
-version cannot drop that widget while the to-do stands.
+is opened by the reply that promises it (`--todo`). A to-do on a widget survives
+unrelated versions and removal of its widget.
 
 ## Long-running work
 
@@ -192,8 +192,10 @@ resolving it and the end of your session. A turn-written reply carries no to-do,
 answer such a promise with this command. Wherever
 the result lands, the to-do ends there: `leaf task end <page> <todo> done "<where the
 result is>"`, or `failed` or `dropped` with the reason, so work that won't come back
-to you takes the page and the to-do's id in its brief. While you work on it, start it,
-so the banner and the thread show your line.
+to you takes the page and the to-do's id in its brief. Start it in the session
+continuing the work: the start transfers completion authority to that session
+and gives the banner and thread its line. That session can finish on a later
+turn; another session takes over by starting the same to-do.
 Work on an update that finishes inside the turn needs no to-do.
 
 ## Questions and Tasks

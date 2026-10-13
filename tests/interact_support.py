@@ -591,6 +591,18 @@ def check(d):
     return CliRunner().invoke(cli_model.cli, ["page", "check", str(d)])
 
 
+def refused_on(answer) -> Finding:
+    """The one finding a refusal rests on: an exception's (`Refused.findings`), or the
+    one an event door's answer carries, as a dict or its raw JSON body."""
+    if isinstance(answer, Exception):
+        (finding,) = answer.findings
+        return finding
+    if isinstance(answer, (str, bytes)):
+        answer = json.loads(answer)
+    (finding,) = answer["findings"]
+    return Finding.loads(finding)
+
+
 def check_findings(d) -> tuple[int, list[Finding]]:
     """`page check --json`, in-process: its exit status and what it found, as records."""
     report = json.loads(

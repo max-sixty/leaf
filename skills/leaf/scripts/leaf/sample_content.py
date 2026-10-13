@@ -162,7 +162,7 @@ def initial_sample_events(
             if "revision" in spec["properties"]:
                 event["revision"] = 1
             if error := command_error(event, kinds):
-                raise ValueError(error)
+                raise ValueError(str(error))
             if aware_instant(event["ts"]) is None:
                 raise ValueError("ts must be an ISO timestamp with a time zone")
             if any(logged["id"] == event["id"] for logged in events):

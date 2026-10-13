@@ -10,6 +10,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from leaf.files import file_stamp, next_reading, read_json
+from leaf.findings import Finding, Rejected
 from leaf.refusals import Refused
 from leaf.registry.kernel import kernel_event_ownership
 from leaf.schema import CURSOR_FILE
@@ -46,14 +47,18 @@ def jsonl_line(event: dict) -> str:
     return line
 
 
-class EventRefused(Refused):
-    """The append door turned one event down, with what to do about it.
+class EventRefused(Rejected):
+    """The append door turned one event down, on the one finding that says why.
 
     Raised by `event_contracts.append_admitted`, the one door every writer
-    appends through, and answered by the browser's endpoint as an event rejection."""
+    appends through, and answered by the browser's endpoint as an event rejection.
+    The finding carries the refused event's `kind` beside what it names."""
+
+    def __init__(self, finding: Finding, event: dict):
+        super().__init__([finding.but(values={"kind": event.get("kind")})])
 
 
-class AttemptConflict(Refused):
+class AttemptConflict(EventRefused):
     """One browser attempt was reused for a different event payload."""
 
 
@@ -86,7 +91,7 @@ def _matching_attempt(events: list[dict], event: dict) -> dict | None:
             continue
         if _attempt_payload(existing) != _attempt_payload(event):
             raise AttemptConflict(
-                f"attempt {attempt!r} already belongs to another event"
+                Finding("attempt-conflict", values={"attempt": attempt}), event
             )
         return deepcopy(existing)
     return None

@@ -326,8 +326,7 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
     )
     revendor = f"leaf page init {page_dir}"
     assert registry_storage.load_registry(page_dir) is not None
-    refusal = write_refusal(page_dir)
-    assert refusal and "x-question-context" in refusal and revendor in refusal
+    assert write_refusal(page_dir).values["retired"] == ["x-question-context"]
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code != 0
     assert "x-question-context" in checked.output and revendor in checked.output
@@ -337,7 +336,7 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
     report = json.loads(as_json.output)
     assert report["status"] == 1 and report["browser"] is None
     [finding] = report["findings"]
-    assert finding["code"] == "invalid-registry" and revendor in finding["text"]
+    assert finding["code"] == "retired-layer" and revendor in finding["text"]
 
     vendored(lambda keys: keys.pop("x-question-context"))
     assert write_refusal(page_dir) is None

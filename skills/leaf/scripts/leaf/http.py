@@ -37,6 +37,7 @@ from .files import (
     version_num,
     version_revisions,
 )
+from .findings import Rejected
 from .interaction_log import append_interactions, client_records
 from .layer import incompatible_layer, incompatible_revision, running_leaf, same_leaf
 from .locations import path_is_within
@@ -700,7 +701,7 @@ class PageEndpoint:
     def _refuse(self, error: str, status: int = 400) -> Response:
         """Answer a refusal in the shape spoken by the route that produced it."""
         if self._speaks_events():
-            status, body = event_rejection(self.posted, error, status)
+            status, body = event_rejection(self.posted, Refused(error), status)
             return self._json(body, status)
         return self._json({"error": error}, status)
 
@@ -867,7 +868,7 @@ class PageEndpoint:
         """Serve one immutable document under the current delivery boundary, unless
         it was saved at another protocol (`incompatible_revision`)."""
         if refusal := incompatible_revision(revision, artifact.registry):
-            return self._json({"error": refusal}, 409)
+            return self._json({"error": str(refusal)}, 409)
         self.response_layer = artifact.registry["$layer"]["generation"]
         projected = compose_document(
             artifact.html.decode("utf-8"),
@@ -1322,7 +1323,7 @@ def page_endpoint(
         else load_registry(page_dir)
     )
     if refusal := incompatible_layer(page_dir, registry):
-        raise Refused(refusal)
+        raise Rejected([refusal])
     return partial(
         endpoint,
         page_dir=page_dir,

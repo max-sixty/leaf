@@ -76,6 +76,7 @@ from .delivery import (
     record_pickup,
 )
 from .event_contracts import write_refusal
+from .findings import Finding
 from .harness import Harness, claim_harness
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
@@ -134,7 +135,7 @@ class PagePlan:
     acknowledged: list[dict]
     watched: bool
     preview: bool
-    unwritable: str | None
+    unwritable: Finding | None
 
 
 def read_plans(session_id: str) -> list[PagePlan]:
@@ -231,7 +232,7 @@ def remedies(
     reasons = []
     for plan in plans:
         if plan.unwritable:
-            reasons.append((plan.unwritable, None))
+            reasons.append((str(plan.unwritable), None))
         if plan.owed:
             reasons.append(
                 (

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from .asks import quoted_in
 from .files import latest_revision
+from .findings import Finding
 from .passages import page_passages
 from .projection import (
     PageReading,
@@ -18,16 +19,17 @@ from .thread_context import id_subject
 
 def widget_seat_error(
     page: PageReading, widget: str, workflows: list[dict]
-) -> str | None:
+) -> Finding | None:
     """Why `widget` cannot seat a to-do on `page`, or None.
 
     A to-do on a widget stands beside that widget at the page edge, so the widget must
     be live on the page: present under the page's standing outcomes and not quoted
     exhibit content. And it must be a seat for work: its tag declares `x-work`, or it
     holds an unsettled action, among `workflows` (`workflows.canonical_workflows`)."""
+    named = {"widget": widget}
     rec = page.document.by_id.get(widget)
     if rec is None or rec["tag"] not in page.registry:
-        return f"{widget!r} is not a widget on this page"
+        return Finding("not-a-widget", values=named)
     passages = page_passages(
         page.document,
         page.registry,
@@ -35,17 +37,14 @@ def widget_seat_error(
         rewritten_bodies(page.projection.actions),
     )
     if widget in passages.retired or widget in passages.gone:
-        return f"{widget} is not visible under the page's standing outcomes"
+        return Finding("hidden-widget", values=named)
     if quoted_in(rec, page.registry):
-        return f"{widget} is quoted exhibit content, not a live page widget"
+        return Finding("quoted-seat", values=named)
     held = any(
         item["subject"] == {"kind": "widget", "id": widget} for item in workflows
     )
     if not page.registry[rec["tag"]].get("x-work") and not held:
-        return (
-            f"{widget} has no work seat; its widget declares no x-work and it holds "
-            "no unsettled action"
-        )
+        return Finding("no-work-seat", values=named)
     return None
 
 

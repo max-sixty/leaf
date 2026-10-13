@@ -6296,8 +6296,22 @@ customElements.define('lf-test-seat',class extends HTMLElement{
             (2, "Source thread", {"section": "subject"}),
         ]
     ]
+    # This journey changes presentation seats, not admitted state. Keep the
+    # origin's freshness at the initial reading so a background state admission
+    # cannot acquire the intentionally held presentation proof.
+    state_readings = []
+
+    def steady_state_origin(page):
+        def state(route):
+            response = route.fetch()
+            state_readings.append(response.json()["reading"])
+            route.fulfill(response=response)
+
+        page.route("**/api/state*", state)
+        page.route("**/api/news*", lambda route: route.fulfill(body=state_readings[0]))
+
     page = open_page(
-        browser,
+        primed(browser, steady_state_origin),
         serve(
             leaf_page(
                 "Cohort ownership",
@@ -6316,8 +6330,12 @@ customElements.define('lf-test-seat',class extends HTMLElement{
     page.evaluate("""async()=>{
       const app=await window.__lfWidgetApi();window.refresh=()=>refreshSurface(pageSurface);
       const rail=document.querySelector('#rail'); const outlet=document.createElement('div');outlet.dataset.lfGen='1';rail.append(outlet);
-      window.pageSurface=app.placePageThreads(rail,async(targets)=>{
-        if(window.holdNext){window.holdNext=false;await new Promise(resolve=>window.releasePage=resolve);}
+      window.pageSurface=app.placePageThreads(rail,async(targets,{signal})=>{
+        if(window.holdNext){
+          window.holdNext=false;
+          window.heldPageSignal=signal;
+          await new Promise(resolve=>window.releasePage=resolve);
+        }
         return targets.map(()=>window.invalid?document.querySelector('#foreign'):outlet);
       });
     }""")
@@ -6415,6 +6433,7 @@ customElements.define('lf-test-seat',class extends HTMLElement{
     page.wait_for_function(
         "document.querySelector('.lf-fab-bar').parentElement.dataset.seat === 'a'"
     )
+    assert page.evaluate("() => heldPageSignal.aborted") is True
     current = editor.evaluate(
         "(field)=>({value:field.value,caret:[field.selectionStart,field.selectionEnd,field.selectionDirection]})"
     )
@@ -6463,6 +6482,7 @@ customElements.define('lf-test-seat',class extends HTMLElement{
     }""")
     news.click()
     expect(page.locator("#rail .lf-page-thread")).to_have_count(2)
+    assert len(state_readings) == 1
 
 
 def test_source_retired_during_required_reader_prepare_is_not_claimed(browser, serve):

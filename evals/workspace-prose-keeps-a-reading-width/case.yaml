@@ -1,0 +1,30 @@
+# Added when the workspace stopped setting a reading measure: a workspace's blocks fill
+# their region, so a page whose region holds paragraphs caps them itself. The change 3 of
+# 3 on Claude Code, each capping the write-up with a grid track (46rem, 68ch, 68ch). Not
+# run on the base, whose Layout capped the prose for the page.
+description: workspace-prose-keeps-a-reading-width
+metadata:
+  purpose: 'Writing a workspace whose selected item reads as paragraphs: the page keeps that prose
+    at a readable width on a large screen, by the region''s grid track or a cap in its own style.'
+  tags:
+  - layout
+vars:
+  prompt: |
+    Write a Leaf page for the user as a workspace for triaging six production incidents
+    from last week. A list of the incidents on the left; beside it, the selected
+    incident's write-up: three or four paragraphs on what happened and why, the
+    timeline as a short list, and a choice of follow-up (a postmortem, a ticket, or
+    nothing). The user works full screen on a 2560 by 1440 monitor.
+
+    The page directory is not reachable from here, so reply with the complete
+    `index.html`, rather than writing a file.
+assert:
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Read the HTML. Pass only if `main` has class `layout-workspace` and the incident
+    write-up's paragraphs cannot run wider than about 1100px on a 2560px-wide window:
+    the page's own stylesheet caps them or a box holding them (a `max-inline-size`,
+    `max-width`, `ch`-based width, or `var(--wide)`), or its grid gives the region that
+    holds them a track that cannot grow past that width. Fail if nothing in the page
+    keeps those paragraphs from spanning the window beside the list.

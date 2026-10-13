@@ -400,6 +400,14 @@ on 2026-10-07.
   broad selection is about 3,700 s of test time on a CI runner. If the rate rose,
   look at which escapes a cheap fixed set of tests would have caught, and choose
   that set by measured catches per second rather than by kind.
+- **Resume the thread appearance gate.** Since 2026-10-12 the message-delivery
+  journey and acceptance tests in `tests/*/test_render_thread_snapshots.py` are
+  skipped to save test time while development moves fast; the references had already
+  drifted twice unnoticed, since only a manual macOS run compares them. Once
+  development slows, remove the skips, then capture, review and accept current images
+  (`leaf-dev thread-snapshots`), and have landing run the comparison so it cannot
+  drift again, such as `wt merge`'s macOS pre-merge when the thread runtime or theme
+  changes.
 - **Guard thread appearance on CI again.** The thread snapshot gate compares images
   on macOS only (`dev/leaf_dev/thread_snapshots.py`), so a pull request's Linux CI
   checks the delivery journey but not how it looks. Fonts and antialiasing differ by

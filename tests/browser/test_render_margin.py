@@ -29,6 +29,7 @@ from render_cases_interaction import (
     PANEL_PAGE,
     REPORT_PAGE,
     SUGGESTION_PAGE,
+    answered_comment,
     live_url,
     panel_comment,
 )
@@ -9418,6 +9419,38 @@ PANE_PIN_PAGE = leaf_page(
     head=regions_side_by_side("pin-split"),
     layout="workspace",
 )
+
+
+def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve):
+    """`q` to an Ask below a pane's fold scrolls it into view while its row is still
+    withheld, so there is nothing yet to hang its card from. The card of the thread the
+    user leaves goes at once, and the Ask's comes once the margin shows its row, as it
+    would for an arrival whose row was already there."""
+    ask = (
+        '<lf-ask id="work"><h2>Choose</h2><lf-options id="options" choose>'
+        '<lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option>'
+        "</lf-options></lf-ask>"
+    )
+    url = serve(PANE_PIN_PAGE.replace('<p id="pane-end">The last finding.</p>', ask))
+    left = answered_comment(serve.page_dir, "First finding", {"section": "pane-top"})
+    root = answered_comment(serve.page_dir, "Ask discussion", {"section": "work"})
+    page = open_page(browser, url)
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="work"]')
+    expect(row).to_be_hidden()
+    page.keyboard.press("t")
+    leaving = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{left}"]')
+    expect(leaving).to_be_focused()
+    page.keyboard.press("q")
+    expect(page.locator("#work")).to_be_focused()
+    expect(leaving).to_have_count(0)
+    expect(row).to_be_visible()
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    ).to_be_visible()
+    expect(page.locator("#work")).to_be_focused()
 
 
 def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, serve):

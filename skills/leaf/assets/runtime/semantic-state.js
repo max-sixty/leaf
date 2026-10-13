@@ -32,6 +32,9 @@ export const readApplication = applicationState.read;
 // What the page calls its agent: the name the server's answer gives, or "the agent"
 // before one has arrived. Every surface naming the agent's side reads it here.
 export const agentName = () => readApplication().authoritative?.agent || "the agent";
+// The same name where it opens a sentence or stands alone as a label.
+export const agentLabel = () =>
+  agentName().replace(/^./, (first) => first.toUpperCase());
 export const projectView = applicationState.projectView;
 export const selectWidgets = applicationState.selectWidgets;
 export const attachApplicationPresentation = (region, renderer) =>

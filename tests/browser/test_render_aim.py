@@ -1025,11 +1025,11 @@ ROWS_ON = """([target]) => {
 
 
 @pytest.mark.parametrize("case", ["ask", "thread"])
-def test_a_pointed_comment_moves_only_its_own_row(browser, serve, case):
+def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
     """A comment pointed at a row deep in its target stands its own margin row there;
-    the rest of the target's margin does not follow it. An Ask's marker stays with the
-    Ask it accompanies, and a comment already on the target stays at the target's top,
-    where `t` still lands it."""
+    the rest of the target's margin does not follow it. Commenting on an Ask hands it
+    to the agent, so its ask marker leaves. A comment already on a thread target
+    stays at the target's top, where `t` still lands it."""
     if case == "ask":
         url, target = serve(TALL_ASK_PAGE), "way"
         row = f"#{target} p >> nth=25"
@@ -1070,11 +1070,20 @@ def test_a_pointed_comment_moves_only_its_own_row(browser, serve, case):
         target,
     )
     after = dict(page.evaluate(ROWS_ON, [target]))
-    for index, top in before:
-        assert abs(after.get(index, 1e9) - top) <= 8, (
-            f"row {index} of the target moved from {top} to {after.get(index)}: {after}"
-        )
-    added = [top for index, top in after.items() if index not in dict(before)]
+    if case == "ask":
+        expect(
+            page.locator(f'[data-lf-margin-for="{target}"] > .lf-margin-marker')
+        ).to_have_attribute("data-lf-kinds", "comment")
+    else:
+        for index, top in before:
+            assert abs(after.get(index, 1e9) - top) <= 8, (
+                f"row {index} of the target moved from {top} to {after.get(index)}: {after}"
+            )
+    added = (
+        list(after.values())
+        if case == "ask"
+        else [top for index, top in after.items() if index not in dict(before)]
+    )
     assert len(added) == 1 and abs(added[0] - depth) <= 30 and depth > 400, (
         f"the pointed comment has no row of its own at {depth}: {after}"
     )

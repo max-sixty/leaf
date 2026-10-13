@@ -433,11 +433,12 @@ def cmd_package_check(
 ) -> int:
     """Check the package, and with `render` its widgets' worked examples in the
     host's browser. With `as_json`, print one object in `page check --json`'s shape:
-    `status`, the exit status; `findings`, each finding as a record, the package
-    check's refusal (`package`) or the widget quality findings; and `browser`, what
+    `status`, the exit status; `findings`, each finding as a record: the findings a
+    refusal carries, such as a registry's, any other refusal as one `package`
+    record, or the widget quality findings; and `browser`, what
     the browser gate ran in or why none could, null where none was asked for or the
     package check refused."""
-    from .findings import Finding
+    from .findings import Finding, Rejected
 
     def reported(status, findings=(), browser=None):
         print(
@@ -457,7 +458,12 @@ def cmd_package_check(
     except Refused as error:
         if not as_json:
             raise
-        return reported(1, [Finding("package", values={"text": str(error)})])
+        found = (
+            error.findings
+            if isinstance(error, Rejected)
+            else [Finding("package", values={"text": str(error)})]
+        )
+        return reported(1, found)
     if not as_json:
         print(f"checked {package}", flush=True)
     if not render:

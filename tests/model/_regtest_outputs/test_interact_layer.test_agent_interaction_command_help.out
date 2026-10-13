@@ -71,6 +71,8 @@ Options:
   --text TEXT        summary Markdown; pass '' to fold without prose (default:
                      stdin)
   --label TEXT       disclosure label (default: Earlier discussion)
+  --json             print a refusal as one JSON object: its error and the
+                     findings it rests on
   --help             Show this message and exit.
 
 ## leaf status --help
@@ -107,6 +109,8 @@ Options:
   --markup TEXT  HTML fragment after the text, validated here
   --title TEXT   name the thread for the panel unless it has a name: a few
                  words, at most 80 characters
+  --json         print a refusal as one JSON object: its error and the findings
+                 it rests on
   --help         Show this message and exit.
 
 ## leaf thread reply --help
@@ -132,6 +136,8 @@ Options:
   --part ID      new declared visual part within --section
   --section ID   new element ID, or scope for --quote
   --quote TEXT   new passage text to move this thread onto
+  --json         print a refusal as one JSON object: its error and the findings
+                 it rests on
   --help         Show this message and exit.
 
 ## leaf response reply --help
@@ -170,6 +176,8 @@ Options:
   --part ID       new declared visual part within --section
   --section ID    new element ID, or scope for --quote
   --quote TEXT    new passage text to move this thread onto
+  --json          print a refusal as one JSON object: its error and the findings
+                  it rests on
   --help          Show this message and exit.
 
 ## leaf thread edit --help
@@ -186,6 +194,8 @@ Options:
   --text TEXT   replacement text (default: stdin, unless --title)
   --title TEXT  rename MESSAGE's thread for the panel: a few words, at most 80
                 characters
+  --json        print a refusal as one JSON object: its error and the findings
+                it rests on
   --help        Show this message and exit.
 
 ## leaf thread resolve --help
@@ -198,6 +208,8 @@ Usage: leaf thread resolve [OPTIONS] PAGE THREAD
   stamped version answers it. The panel names who resolved it.
 
 Options:
+  --json  print a refusal as one JSON object: its error and the findings it
+          rests on
   --help  Show this message and exit.
 
 ## leaf page report --help
@@ -212,6 +224,8 @@ Usage: leaf page report [OPTIONS] PAGE WIDGET VERB [NAME=VALUE]...
   it in.
 
 Options:
+  --json  print a refusal as one JSON object: its error and the findings it
+          rests on
   --help  Show this message and exit.
 
 ## leaf page check --help
@@ -252,4 +266,6 @@ Options:
                               --from-directory
   --completes WIDGET          a widget whose open to-dos this version completes
                               (repeatable)
+  --json                      print a refusal as one JSON object: its error and
+                              the findings it rests on
   --help                      Show this message and exit.

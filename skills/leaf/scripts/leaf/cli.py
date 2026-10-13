@@ -57,12 +57,37 @@ def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None
     ctx.exit()
 
 
+# Where a command's `--json` says the caller reads JSON, in the context every
+# command's context shares (`click.Context.meta`).
+JSON_REQUESTED = "leaf.json"
+
+
+def _json_requested(ctx: click.Context, _param: click.Parameter, value: bool) -> bool:
+    ctx.meta[JSON_REQUESTED] = value
+    return value
+
+
+def json_option(help: str, *, expose_value: bool = True):
+    """A command's `--json`: what it prints becomes JSON, a refusal included
+    (`LeafGroup`)."""
+    return click.option(
+        "--json",
+        "as_json",
+        is_flag=True,
+        expose_value=expose_value,
+        callback=_json_requested,
+        help=help,
+    )
+
+
 class LeafGroup(click.Group):
     """Present a domain refusal (`refusals.Refused`) as a Click error.
 
-    This is the command line's one translation of a refusal. Exit statuses
-    (including a package script's) keep their meaning and output, and any other
-    exception surfaces with its traceback.
+    This is the command line's one translation of a refusal: its words on stderr, or,
+    where the command was given `--json` (`json_option`), one JSON object on stdout,
+    `Refused.json`, whose `findings` carry each refusal's code and fields. Either way
+    the command exits 1. Exit statuses (including a package script's) keep their
+    meaning and output, and any other exception surfaces with its traceback.
     """
 
     def invoke(self, ctx: click.Context):
@@ -71,7 +96,28 @@ class LeafGroup(click.Group):
         try:
             return super().invoke(ctx)
         except Refused as error:
+            if ctx.meta.get(JSON_REQUESTED):
+                click.echo(json.dumps(error.json(), ensure_ascii=False))
+                ctx.exit(1)
             raise click.ClickException(str(error)) from error
+
+
+class RecordsCommand(click.Command):
+    """A write that prints each record it appended as one JSON line, as `page
+    events` prints it, and with `--json` its refusal as one JSON object."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        json_option(
+            "print a refusal as one JSON object: its error and the findings it rests on",
+            expose_value=False,
+        )(self)
+
+
+class RecordsGroup(click.Group):
+    """A group of `RecordsCommand` writes."""
+
+    command_class = RecordsCommand
 
 
 @click.group(cls=LeafGroup)
@@ -235,12 +281,7 @@ def package_init(package_path: Path, widget: str | None) -> None:
     is_flag=True,
     help="also report on the package's widgets as its worked examples render",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    help="print the findings as one JSON object instead of lines",
-)
+@json_option("print the findings as one JSON object instead of lines")
 def package_check(package_path: Path, render: bool, as_json: bool) -> None:
     """Check the package as one composed unit.
 
@@ -297,12 +338,7 @@ def package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
 @click.option(
     "--render", is_flag=True, help="also check the rendered page in the host's browser"
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    help="print the findings as one JSON object instead of lines",
-)
+@json_option("print the findings as one JSON object instead of lines")
 def check(dir: str, render: bool, as_json: bool) -> None:
     """Check PAGE/index.html.
 
@@ -389,7 +425,9 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     cmd_page_state(resolve_dir(dir), target, after=after, limit=limit)
 
 
-@page.command(short_help="Stamp the current source as the next version.")
+@page.command(
+    cls=RecordsCommand, short_help="Stamp the current source as the next version."
+)
 @click.argument("dir", metavar="PAGE")
 @click.option("--text", help="changelog text (default: stdin)")
 @click.option(
@@ -479,7 +517,10 @@ def picture(dir: str, message: str) -> None:
     sys.exit(cmd_picture(resolve_dir(dir), message))
 
 
-@page.command(short_help="Report a state change onto a page widget, as a worker.")
+@page.command(
+    cls=RecordsCommand,
+    short_help="Report a state change onto a page widget, as a worker.",
+)
 @click.argument("dir", metavar="PAGE")
 @click.argument("widget", metavar="WIDGET")
 @click.argument("verb", metavar="VERB")
@@ -544,12 +585,7 @@ def events(dir: str, after: int, follow: bool) -> None:
     multiple=True,
     help="Select an observation type; repeat to select several.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    help="Print complete reconstructed records as JSON lines.",
-)
+@json_option("Print complete reconstructed records as JSON lines.")
 def interactions(
     dir: str,
     session: str | None,
@@ -643,7 +679,9 @@ def delivery_ack(delivery_id: str) -> None:
     cmd_delivery_ack(delivery_id)
 
 
-@cli.group(short_help="Open, answer, edit, summarize, or resolve a thread.")
+@cli.group(
+    cls=RecordsGroup, short_help="Open, answer, edit, summarize, or resolve a thread."
+)
 def thread() -> None:
     """Open and answer threads as the agent, and maintain them.
 
@@ -1003,7 +1041,10 @@ def _reply_options(command):
     return command
 
 
-@cli.group(short_help="Reply to an update by the reference its delivery gave.")
+@cli.group(
+    cls=RecordsGroup,
+    short_help="Reply to an update by the reference its delivery gave.",
+)
 def response() -> None:
     """Reply to a user update with the reference its delivery printed as
     `answer.ref`."""
@@ -1127,7 +1168,9 @@ def thread_resolve(dir: str, thread: str) -> None:
     _print_records(cmd_resolve(resolve_dir(dir), thread))
 
 
-@cli.group(short_help="Open or end to-dos, and start work on your Tasks.")
+@cli.group(
+    cls=RecordsGroup, short_help="Open or end to-dos, and start work on your Tasks."
+)
 def task() -> None:
     """Open and end to-dos, and say which of your Tasks you are working on.
 

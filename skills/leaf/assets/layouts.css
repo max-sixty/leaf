@@ -59,9 +59,9 @@
    *
    * The free room is the shell's (100cqi), so the column is a page's shape, on `main`,
    * and arranges no other box. */
-  html[data-lf-layout="column"] body { margin: 0; }
+  html[data-lf-layout~="column"] body { margin: 0; }
   @media screen {
-    html[data-lf-live][data-lf-layout="column"]:not([data-lf-sample-block]) body {
+    html[data-lf-live][data-lf-layout~="column"]:not([data-lf-sample-block]) body {
       min-height: 100%;
     }
   }
@@ -490,9 +490,9 @@
    * board declaring the width its columns need wraps the track below it rather than
    * clipping. A header or footer takes the whole row. The items' own block margins go,
    * since flex margins don't collapse into the gap. */
-  html[data-lf-layout="sidebar"] body { margin: 0; }
+  html[data-lf-layout~="sidebar"] body { margin: 0; }
   @media screen {
-    html[data-lf-live][data-lf-layout="sidebar"]:not([data-lf-sample-block]) body {
+    html[data-lf-live][data-lf-layout~="sidebar"]:not([data-lf-sample-block]) body {
       min-height: 100%;
     }
   }
@@ -576,9 +576,9 @@
    * sidebar page's gutters held them to 1,472px of the 1,896px this leaves. The type is the
    * theme's: a workspace usually takes working density (`.density-working`, theme.css),
    * which the Layout neither sets nor reads. */
-  html[data-lf-layout="workspace"] body { margin: 0; }
+  html[data-lf-layout~="workspace"] body { margin: 0; }
   @media screen {
-    html[data-lf-live][data-lf-layout="workspace"]:not([data-lf-sample-block]) body {
+    html[data-lf-live][data-lf-layout~="workspace"]:not([data-lf-sample-block]) body {
       min-height: 100%;
     }
   }

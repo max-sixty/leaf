@@ -9,7 +9,7 @@ from typing import NamedTuple
 
 from ..activity import canonical_activity, canonical_stream_reply
 from ..projection import FrozenThreadReading, page_reading
-from ..tasks import TaskReading
+from ..todos import TodoReading
 from ..work_reading import WorkReading
 
 
@@ -106,7 +106,7 @@ def work_state(
     revision_reader=None,
 ) -> WorkState:
     """Fold exact admitted inputs, then enrich once with claim and stream evidence."""
-    log = TaskReading(events)
+    log = TodoReading(events)
     page = (
         page_reading(
             source,
@@ -130,7 +130,7 @@ def work_state(
         stream.get("activity"),
         reply,
         stream.get("reply_reservations"),
-        task_reading=log,
+        todo_reading=log,
     )
     workflows = (
         served_workflows(activity["workflows"], durable.thread)

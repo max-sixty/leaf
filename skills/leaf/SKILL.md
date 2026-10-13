@@ -133,7 +133,7 @@ by side on a sidebar page, or a workspace, a screen the user moves through rathe
 scrolls. A Layout class
 on `main` sets each of these shapes, and the page's own CSS adjusts it;
 `references/page-authoring.md`, "Composing a page", owns the concrete choices, and
-`references/authoring-questions.md` owns where each ask goes.
+`references/authoring-asks.md` owns where each ask goes.
 
 Include only controls and gestures that advance the user's task. Widget actions,
 resolutions and sign-offs can be undone; sent words remain in the log.
@@ -174,7 +174,7 @@ so a phase does not depend on discovering a chain of references.
 ### Author a version
 
 - `references/page-authoring.md`: before writing or revising any version.
-- `references/authoring-questions.md`: when the page needs an answer from the user or
+- `references/authoring-asks.md`: when the page needs an answer from the user or
   sign-off, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising standing state.

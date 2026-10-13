@@ -67,7 +67,7 @@ def test_terminal_failure_workflow_names_exact_reply_source(page_dir):
     }
 
 
-def test_user_prompt_names_the_latest_question_content_version(page_dir):
+def test_user_prompt_names_the_latest_ask_content_version(page_dir):
     publish(page_dir)
     root = append_carried_log_record(
         page_dir,

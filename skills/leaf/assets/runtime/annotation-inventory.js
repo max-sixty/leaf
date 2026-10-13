@@ -35,7 +35,7 @@ import {
 } from "./thread/workflow.js";
 import { renderedOrder, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./standing-target.js";
-import { questionPlace } from "./questions/place.js";
+import { askPlace } from "./asks/place.js";
 import { scrollBehavior } from "./motion.js";
 import {
   comparisonBase,
@@ -45,10 +45,10 @@ import {
 } from "./version.js";
 
 export function createAnnotationInventory({
-  readQuestions,
+  readAsks,
   placedAt,
   openThread,
-  goToQuestion,
+  goToAsk,
   scrollToElement,
 }) {
   const humanized = (value) =>
@@ -139,7 +139,7 @@ export function createAnnotationInventory({
   };
   // One group per target, and one more for each row inside it that pointing gestures
   // stood threads at (pointed-place.js): those threads stand there together, and
-  // everything else about the target (its other threads, a Question's marker, a widget's
+  // everything else about the target (its other threads, an ask's marker, a widget's
   // actions) keeps the target's own row. `pointed` is `{ key, element, words }`: the
   // row's key, which its first comment gave it and later ones share, the element it is,
   // and its words as the page reads them, which name it.
@@ -298,13 +298,13 @@ export function createAnnotationInventory({
     }
 
     // Only a widget ask has a place on the page; the rest have no node.
-    for (const question of readQuestions().user) {
-      const id = question.id;
-      const target = questionPlace(question).node;
+    for (const ask of readAsks().user) {
+      const id = ask.id;
+      const target = askPlace(ask).node;
       if (!target) continue;
       add(groups, target, {
         kind: "ask",
-        id: `question:${id}`,
+        id: `ask:${id}`,
         // The group this row stands in already names the ask; the row says why it is
         // there, since these are the asks the user owes.
         text: "Waiting on me",
@@ -312,11 +312,11 @@ export function createAnnotationInventory({
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const standing = readQuestions().user.filter(
-            (question) => question.source.kind === "widget",
+          const standing = readAsks().user.filter(
+            (ask) => ask.source.kind === "widget",
           );
           const next = standing.find((candidate) => candidate.id === id);
-          if (next) goToQuestion(next, standing);
+          if (next) goToAsk(next, standing);
         },
       });
     }
@@ -421,27 +421,27 @@ export function createAnnotationInventory({
     // with the line of the start running on it, or as an open to-do under its title.
     // A thread's to-do is its thread's attention (above); the page's is the banner's. A
     // to-do on the user is on their Questions instead.
-    for (const task of runtime.browser?.todos ?? []) {
+    for (const todo of runtime.browser?.todos ?? []) {
       if (
-        task.owner !== "agent" ||
-        (task.subject.kind !== "widget" && task.subject.kind !== "element") ||
-        task.revision > runtime.currentRevision
+        todo.owner !== "agent" ||
+        (todo.subject.kind !== "widget" && todo.subject.kind !== "element") ||
+        todo.revision > runtime.currentRevision
       )
         continue;
-      if (activityAlreadyShown.has(`widget:${task.subject.id}`)) continue;
-      const target = elementById(task.subject.id);
-      const { running } = task;
+      if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
+      const target = elementById(todo.subject.id);
+      const { running } = todo;
       const label = running ? "Working" : "To-do open";
-      const account = [task.agent, running?.text ?? task.title]
+      const account = [todo.agent, running?.text ?? todo.title]
         .filter(Boolean)
         .join(" · ");
       const age = running && ago(running.ts);
       add(groups, target, {
         kind: "activity",
-        id: `task:${task.id}`,
+        id: `todo:${todo.id}`,
         text: labelWords(account),
         workflowFace: Object.freeze({ ...KINDS.activity, label }),
-        context: [age && `Checked in ${age}`, running && task.title]
+        context: [age && `Checked in ${age}`, running && todo.title]
           .filter(Boolean)
           .join(" · "),
         activate: () => revealTarget(target, account, scrollToElement),

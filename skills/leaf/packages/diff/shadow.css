@@ -7,7 +7,7 @@
 
 /* skills/leaf/packages/diff/styles/shadow.css */
 :where(:scope:host(.lf-rendered)) :where(.lf-diff-file) > details,
-:where(:scope:host(.lf-rendered)) .lf-diff-rename {
+:where(:scope:host(.lf-rendered)) .lf-diff-metadata {
   margin: 0;
   padding: 0;
   overflow: clip;
@@ -16,7 +16,7 @@
   border-radius: var(--r);
 }
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary,
-:scope:host(.lf-rendered) .lf-diff-rename {
+:scope:host(.lf-rendered) .lf-diff-metadata {
   padding: 7px 10px;
   font-size: var(--t-5);
   font-family: var(--sans);
@@ -144,11 +144,11 @@
 .lf-diff-file:has(> .lf-diff-file-actions > *) > .lf-diff-fold > .lf-diff-head {
   padding-right: calc(10px + var(--lf-diff-actions) + 14px);
 }
-.lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename {
+.lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-metadata {
   box-sizing: border-box;
   min-height: calc(var(--lf-diff-action-top) + var(--lf-diff-action-h));
 }
-.lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-rename::before {
+.lf-diff-file:has(> .lf-diff-file-actions > *) .lf-diff-metadata::before {
   content: "";
   float: right;
   width: calc(var(--lf-diff-actions) + 14px);
@@ -179,7 +179,7 @@
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
   --lf-diff-head-h: max(35px, calc(var(--lf-diff-action-top) + var(--lf-diff-action-h)));
 }
-.lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-rename) {
+.lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-metadata) {
   margin-top: calc(-1 * (var(--lf-diff-action-h) + var(--lf-diff-action-top)));
 }
 .lf-diff-file-actions {
@@ -299,6 +299,15 @@
 .lf-diff-deletions {
   color: var(--danger-ink);
 }
+.lf-diff-metadata > .lf-diff-stat {
+  white-space: normal;
+}
+.lf-diff-evidence {
+  padding: 7px 10px;
+  color: var(--code-muted);
+  font: var(--t-6)/1.5 var(--sans);
+  background: var(--code-chrome);
+}
 .lf-diff-stat {
   color: var(--code-muted);
   font-weight: 400;
@@ -383,17 +392,17 @@
   .lf-diff-comment {
     display: none !important;
   }
-  .lf-diff-file > :is(.lf-diff-fold, .lf-diff-rename) {
+  .lf-diff-file > :is(.lf-diff-fold, .lf-diff-metadata) {
     margin-top: 0 !important;
   }
   :scope:host(.lf-rendered) .lf-diff-file > details > summary {
     padding-right: 10px;
   }
-  :scope:host(.lf-rendered) .lf-diff-rename {
+  :scope:host(.lf-rendered) .lf-diff-metadata {
     padding-right: 0;
   }
   .lf-diff-file > .lf-diff-fold > .lf-diff-head::before,
-  .lf-diff-file .lf-diff-rename::before {
+  .lf-diff-file .lf-diff-metadata::before {
     display: none;
   }
   :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {

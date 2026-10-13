@@ -46,7 +46,7 @@ export function addressableWord(addressable) {
     const own = addressable.lfWord?.();
     if (own) return own;
   }
-  if (registry[tag]?.["x-question-context"]) return "question";
+  if (registry[tag]?.["x-ask-context"]) return "question";
   if (tag.startsWith("lf-")) return tag.slice(3);
   if (tag === "pre")
     return addressable.querySelector(":scope > code") ? "code" : "block";
@@ -75,7 +75,7 @@ export function addressableSays(addressable) {
 // is no part of a heading's name, and generated chrome names nothing: chrome inside
 // the element, asked about the element's own insides, since a widget an agent sent in
 // a reply stands inside the thread panel's chrome and its heading is still its name.
-// An element the contract gives no name answers "". The server names a Question's
+// An element the contract gives no name answers "". The server names an ask's
 // element by the same rule off the document (`gesture_words.element_name`), and
 // `tests/name_cases.json` holds both to the same cases.
 const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";

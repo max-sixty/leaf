@@ -361,7 +361,7 @@ def _write_page_state(
     state["user_views"] = read_user_views(
         page_dir, active["revision"] if active is not None else None
     )
-    # Before a first revision there is no document, so no thread, Question, widget, or
+    # Before a first revision there is no document, so no thread, ask, widget, or
     # claim subject either: every reading below keeps its empty default.
     if reading is not None:
         browser = served["browser"]

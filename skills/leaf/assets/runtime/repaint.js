@@ -73,7 +73,7 @@ function requestFrame() {
     // The chips are where the user can go, beside the ring saying where they are and the
     // line saying what the next press does: one paint, because a chip repainted by its
     // own door alone went stale on the door it did not have, as when a poll that retires
-    // a Question moves the list under an armed window.
+    // an ask moves the list under an armed window.
     p.paintGoToHints?.();
     p.paintTargetPickerHints?.();
     p.paintCommandHints?.();

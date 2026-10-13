@@ -16,28 +16,28 @@
    with the agent still counts as undecided, while a goal's interventions (work.js) are
    the members whose next actor is the user, since only those stop work on the user.
    Which ask holds a node the user stands in is the converse question, standing rather
-   than membership (`questionHolding`, standing-target.js), and it also falls back to an
+   than membership (`askHolding`, standing-target.js), and it also falls back to an
    ask's unique context. */
 import { elementById } from "../passages.js";
 import { under } from "../shadow.js";
-import { readQuestions } from "./model.js";
+import { readAsks } from "./model.js";
 
-export function questionPlace(question, questions = readQuestions().all) {
-  if (!question || question.source.kind !== "widget")
+export function askPlace(ask, asks = readAsks().all) {
+  if (!ask || ask.source.kind !== "widget")
     return { source: null, context: null, node: null };
-  const source = elementById(question.source.id);
-  const context = elementById(question.prompt.target);
-  const shared = questions.some(
+  const source = elementById(ask.source.id);
+  const context = elementById(ask.prompt.target);
+  const shared = asks.some(
     (other) =>
-      other.id !== question.id &&
+      other.id !== ask.id &&
       other.source.kind === "widget" &&
-      other.prompt.target === question.prompt.target,
+      other.prompt.target === ask.prompt.target,
   );
   return { source, context, node: shared ? source : context };
 }
 
 // The asks `region` holds, in the order `asks` lists them.
-export function asksIn(region, asks = readQuestions().all) {
+export function asksIn(region, asks = readAsks().all) {
   return asks.filter((ask) => {
     if (ask.source.kind !== "widget" || ask.status === "withdrawn") return false;
     const source = elementById(ask.source.id);

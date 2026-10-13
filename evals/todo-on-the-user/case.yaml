@@ -5,7 +5,7 @@
 # passed 0 of 2 runs on Claude Code, handing the request over as a waiting line; the
 # change 5 of 5. It tells the arms apart by construction and guards from here on.
 # Reworded by #2506 (to-dos and asks); at 3fe3eb0af it passed 1/1 on Claude Code.
-description: task-on-the-user
+description: todo-on-the-user
 metadata:
   purpose: 'Conversation loop: work the agent needs the user to do outside the page, with no
     choice to make, goes on the user''s Questions as a to-do on them, about the section it

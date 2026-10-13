@@ -3,8 +3,8 @@
  * rendered lines support selection anchors. A source revision updates evidence
  * under stable file owners: reader controls, disclosure and code scrollports stay
  * connected. The search reserves its current source's longest count label, so
- * filtering files leaves its field and controls in place. A changed file
- * kind replaces only its inner presentation and hands
+ * filtering files leaves its field and controls in place. Changed file
+ * evidence replaces only its inner presentation and hands
  * source focus to that same file; supplied thread/composer outlets keep core focus
  * ownership across replacement. Unchanged parsed files keep their rendering; changed files
  * reconcile unchanged lines by their datum coordinate, retaining selection and line threads.
@@ -16,7 +16,11 @@
  * disclosure joins the pending source render before reading its evidence, and a closed file shows
  * none of the previous revision while it loads current evidence. Line conversations
  * follow the visible reader width while source lines may scroll horizontally. Passage reveal
- * clears this widget's file filter; addressed datum reveal also hydrates its file. */
+ * clears this widget's file filter; addressed datum reveal also hydrates its file.
+ * All file evidence is read and checked before any listing metadata appears;
+ * closed files retain that parse and defer only textual rendering. Native
+ * operations and textual hunks are independent: metadata-only files have a commentable
+ * row without an empty disclosure, and a file-type replacement keeps one file identity. */
 import {
   DISCLOSE,
   HOLDS_WORD,
@@ -79,6 +83,9 @@ import "/vendor/webawesome.esm.js";
 // module load: the page pays for the renderer when it draws a diff, and a version whose
 // diff has been taken back out stops paying on the next load. The promise is kept, so
 // every later file, every other diff on the page, and every re-render share one import.
+// Metadata must be parsed before its row commits; unopened text needs no renderer.
+let parser = null;
+const parse = () => (parser ??= import("/vendor/pierre-parser.esm.js"));
 let renderer = null;
 const pierre = () => (renderer ??= import("/vendor/pierre-diffs.esm.js"));
 
@@ -112,33 +119,21 @@ function markSyntax(root, foreground) {
 // refuses a manifest that repeats one, and this refuses a patch text that does.
 async function sourceRecords(source) {
   if (typeof source !== "string") return source.files;
-  const files = await parsedFiles(source);
-  const paths = new Set();
-  for (const { name } of files) {
-    if (paths.has(name)) throw new Error(`unified diff repeats file path ${name}`);
-    paths.add(name);
-  }
-  return files.map((file) => ({
-    path: file.name,
-    ...(file.prevName ? { previousPath: file.prevName } : {}),
-    kind: file.type === "rename-pure" ? "rename" : "patch",
-    ...file.hunks.reduce(
-      (counts, hunk) => ({
-        additions: counts.additions + hunk.additionLines,
-        deletions: counts.deletions + hunk.deletionLines,
-      }),
-      { additions: 0, deletions: 0 },
-    ),
-    parsed: file,
-  }));
+  return (await parsedFiles(source)).map((file) => ({ ...file.record, parsed: file }));
 }
 
-// A manifest record's patch, fetched for the delivery that listed it, must hold that
-// one file.
-async function deferredFile(patch, path) {
+// A manifest record's patch must describe that one logical file, including both
+// native sections of a file-type replacement, and agree with its listing.
+async function deferredFile(patch, record) {
+  const { path } = record;
   const files = await parsedFiles(patch);
   if (files.length !== 1 || files[0].name !== path)
     throw new Error(`the deferred patch for ${path} does not contain that one file`);
+  const fields = new Set([...Object.keys(files[0].record), ...Object.keys(record)]);
+  fields.delete("patch");
+  for (const key of fields)
+    if (files[0].record[key] !== record[key])
+      throw new Error(`the deferred patch metadata for ${path} disagrees at ${key}`);
   return files[0];
 }
 
@@ -359,18 +354,25 @@ function filePathTemplate({ path, previousPath }) {
 
 // Lit owns only the summary's contents. The native disclosure and Pierre's body
 // stay connected across revisions, including loading and failed evidence.
-function paintSummary(details, record) {
+function paintSummary(details, record, verified = true) {
   const { path, previousPath, additions, deletions } = record;
   const previous = pathParts(details);
   render(
-    html`${keyed(JSON.stringify([path, previousPath]), filePathTemplate(record))}<span
-        class="lf-diff-stat"
-        data-lf-gen="1"
-        ><span class="lf-diff-additions">+${additions}</span>${" "}<span
-          class="lf-diff-deletions"
-          >−${deletions}</span
-        ></span
-      >`,
+    html`${keyed(
+      JSON.stringify([path, verified && previousPath]),
+      filePathTemplate(verified ? record : { path }),
+    )}${
+      verified
+        ? html`<span class="lf-diff-stat" data-lf-gen="1"
+            ><span class="lf-diff-additions">+${additions}</span>${" "}<span
+              class="lf-diff-deletions"
+              >−${deletions}</span
+            ><span class="lf-diff-metadata-words"
+              >${operationWord(record) ? ` · ${operationWord(record)}` : ""}</span
+            ></span
+          >`
+        : null
+    }`,
     details.firstElementChild,
   );
   const current = pathParts(details);
@@ -378,14 +380,14 @@ function paintSummary(details, record) {
   for (const part of current) if (!previous.includes(part)) pathSizes.observe(part);
 }
 
-function summaryNode(record, open) {
+function summaryNode(record, open, verified = true) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
   details.open = open;
   const summary = document.createElement("summary");
   summary.className = `lf-diff-head ${HOLDS_WORD}`;
   details.append(summary);
-  paintSummary(details, record);
+  paintSummary(details, record, verified);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -393,6 +395,7 @@ function summaryNode(record, open) {
       title: () => `${details.open ? "hide" : "show"} this file`,
     },
   ]);
+  paintFileDetails(details, verified ? record : {});
   return details;
 }
 
@@ -616,28 +619,191 @@ function diffTools(host) {
   return { search, progress };
 }
 
-function renameNode(record) {
+function operationWord(record) {
+  return (
+    {
+      add: "added",
+      delete: "deleted",
+      rename: "renamed",
+      copy: "copied",
+    }[record.operation] ?? ""
+  );
+}
+
+function evidenceWords(record) {
+  const words = [];
+  if (record.binary) words.push("binary content");
+  if (record.oldMode !== record.newMode) {
+    words.push(
+      record.oldMode && record.newMode
+        ? `mode ${record.oldMode} → ${record.newMode}`
+        : `mode ${record.newMode ?? record.oldMode}`,
+    );
+  }
+  return words.join(" · ");
+}
+
+function metadataWords(record) {
+  return [operationWord(record), evidenceWords(record)].filter(Boolean).join(" · ");
+}
+
+// Header counts and the short operation keep their columns. Longer mode/binary
+// evidence belongs with the disclosed text, where it can wrap without hiding a path.
+function paintFileDetails(details, record) {
+  const words = evidenceWords(record);
+  let evidence = details.querySelector(":scope > .lf-diff-evidence");
+  if (!words) {
+    evidence?.remove();
+    return;
+  }
+  if (!evidence) {
+    evidence = document.createElement("div");
+    evidence.className = "lf-diff-evidence";
+    evidence.dataset.lfGen = "1";
+    details.firstElementChild.after(evidence);
+  }
+  keepsText(evidence, words);
+}
+
+function metadataNode(record) {
   const row = document.createElement("div");
-  row.className = "lf-diff-rename";
+  row.className = "lf-diff-metadata";
   row.dataset.lfGen = "1";
   render(
-    html`${filePathTemplate(record)}<span class="lf-diff-stat">renamed</span>`,
+    html`${filePathTemplate(record)}<span class="lf-diff-stat"
+        >${metadataWords(record)}</span
+      >`,
     row,
   );
   return row;
 }
 
-// How many hunkless renames the source states in Git's exact path-only form. Pierre also
-// reads a rename whose hunk headers are missing as hunkless, which would show its
-// changed lines as a clean rename, so it must report no more than these.
-const pathOnlyRenames = (source) =>
-  source
-    .split(/(?=^diff --git )/m)
-    .filter((section) =>
-      /^diff --git .+\nsimilarity index 100%\nrename from .+\nrename to .+\n*$/.test(
-        section,
-      ),
-    ).length;
+function headerPath(side, path) {
+  return path.startsWith('"') && path.endsWith('"')
+    ? `"${side}/${path.slice(1)}`
+    : `${side}/${path}`;
+}
+
+function gitPath(path) {
+  if (!path.startsWith('"')) return path;
+  if (!path.endsWith('"')) return null;
+  const inner = path.slice(1, -1);
+  if (!/^(?:[^\\]|\\(?:[abtnvfr"\\]|[0-3][0-7]{2}|[0-7]{1,2}(?![0-7])))*$/.test(inner))
+    return null;
+  const escapes = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13 };
+  const bytes = [];
+  const encoder = new globalThis.TextEncoder();
+  for (let i = 0; i < inner.length; i++) {
+    if (inner[i] !== "\\") {
+      const point = inner.codePointAt(i);
+      bytes.push(...encoder.encode(String.fromCodePoint(point)));
+      if (point > 0xffff) i++;
+      continue;
+    }
+    const match = /^(?:[0-3][0-7]{2}|[0-7]{1,2})/.exec(inner.slice(i + 1));
+    if (match) {
+      bytes.push(parseInt(match[0], 8));
+      i += match[0].length;
+    } else {
+      const escaped = inner[++i];
+      bytes.push(escapes[escaped] ?? escaped.charCodeAt(0));
+    }
+  }
+  if (bytes.includes(0)) return null;
+  try {
+    return new globalThis.TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      new Uint8Array(bytes),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function fileRecord(file, section) {
+  const moved = {};
+  for (const operation of ["rename", "copy"]) {
+    const from = new RegExp(`^${operation} from (.*)$`, "m").exec(section)?.[1];
+    const to = new RegExp(`^${operation} to (.*)$`, "m").exec(section)?.[1];
+    if ((from === undefined) !== (to === undefined))
+      throw new Error(`incomplete ${operation} metadata`);
+    if (from !== undefined) {
+      if (
+        !from ||
+        !to ||
+        from === '\"\"' ||
+        to === '\"\"' ||
+        section.split("\n", 1)[0] !==
+          `diff --git ${headerPath("a", from)} ${headerPath("b", to)}` ||
+        gitPath(from) !== file.prevName ||
+        gitPath(to) !== file.name
+      )
+        throw new Error(`${operation} paths disagree with its diff --git header`);
+      moved[operation] = true;
+    }
+  }
+  if (Object.keys(moved).length > 1)
+    throw new Error("diff mixes rename and copy metadata");
+  const operation =
+    Object.keys(moved)[0] ??
+    (file.type === "new" ? "add" : file.type === "deleted" ? "delete" : "modify");
+  const binary = /^(?:Binary files .+ differ|GIT binary patch)$/m.test(section);
+  if (/^old mode /m.test(section) !== /^new mode /m.test(section))
+    throw new Error("incomplete mode change");
+  for (const line of section.split("\n").slice(1)) {
+    if (line.startsWith("@@") || line === "GIT binary patch") break;
+    if (file.hunks.length && /^(?:---|\+\+\+) /.test(line)) continue;
+    if (
+      line &&
+      !/^(?:(?:old mode|new mode|new file mode|deleted file mode) [0-7]{6}|(?:dis)?similarity index [0-9]+%|(?:rename|copy) (?:from|to) .+|index [0-9a-f]+\.\.[0-9a-f]+(?: [0-7]{6})?|Binary files .+ differ)$/.test(
+        line,
+      )
+    )
+      throw new Error(`unexpected diff metadata for ${file.name}: ${line}`);
+  }
+  if (file.prevName && !Object.keys(moved).length)
+    throw new Error("diff has changed paths without rename or copy metadata");
+  if (file.hunks.length && ["add", "delete"].includes(operation)) {
+    const hunk = file.hunks[0];
+    const consuming = operation === "delete";
+    if (
+      file.hunks.length !== 1 ||
+      (consuming ? hunk.deletionStart : hunk.additionStart) !== 1 ||
+      (consuming ? hunk.additionStart : hunk.deletionStart) !== 0 ||
+      (consuming ? hunk.additionCount : hunk.deletionCount) !== 0
+    )
+      throw new Error(`${operation} must capture its complete file`);
+  }
+  if (!file.hunks.length) {
+    if (!binary && operation === "modify" && (file.prevMode ?? file.mode) === file.mode)
+      throw new Error(`diff has no content or metadata change for ${file.name}`);
+    if (
+      !binary &&
+      ["copy", "rename"].includes(operation) &&
+      !/^similarity index 100%$/m.test(section)
+    )
+      throw new Error(`${operation} with changed content needs textual hunks`);
+  }
+  const oldMode = operation === "add" ? undefined : (file.prevMode ?? file.mode);
+  const newMode = operation === "delete" ? undefined : file.mode;
+  const { additions, deletions } = file.hunks.reduce(
+    (counts, hunk) => ({
+      additions: counts.additions + hunk.additionLines,
+      deletions: counts.deletions + hunk.deletionLines,
+    }),
+    { additions: 0, deletions: 0 },
+  );
+  return {
+    path: file.name,
+    ...(file.prevName ? { previousPath: file.prevName } : {}),
+    operation,
+    hunkCount: file.hunks.length,
+    binary,
+    ...(oldMode ? { oldMode } : {}),
+    ...(newMode ? { newMode } : {}),
+    additions,
+    deletions,
+  };
+}
 
 // One file's evidence, the nodes that go under its disclosure's summary. Each kind of
 // Pierre stylesheet joins `sharedStyles` once, for the stage to hold.
@@ -687,38 +853,76 @@ async function renderFile(file, sharedStyles) {
   return { nodes: [...rendered.children], pre, lines };
 }
 
+function replacementFile(files, parseDiffFromFile) {
+  const deleted = files.find((file) => file.record.operation === "delete");
+  const added = files.find((file) => file.record.operation === "add");
+  const oldMode = deleted?.record.oldMode;
+  const newMode = added?.record.newMode;
+  if (
+    files.length !== 2 ||
+    !deleted ||
+    !added ||
+    !oldMode ||
+    !newMode ||
+    (parseInt(oldMode, 8) & 0o170000) === (parseInt(newMode, 8) & 0o170000)
+  )
+    throw new Error(`unified diff repeats file path ${files[0].name}`);
+  const hunkCount = Number(files.some((file) => file.record.hunkCount > 0));
+  // A different file type consumes the old object and produces the new one, even
+  // when both carry identical text. The maintained comparator keeps that meaning.
+  const side = (file, lines) =>
+    file.record.binary
+      ? null
+      : {
+          name: file.name,
+          contents: lines.join(""),
+        };
+  const file = hunkCount
+    ? parseDiffFromFile(
+        side(deleted, deleted.deletionLines),
+        side(added, added.additionLines),
+        { comparator: () => false },
+        true,
+      )
+    : { name: added.name, hunks: [] };
+  file.record = {
+    path: added.name,
+    operation: "modify",
+    hunkCount,
+    binary: deleted.record.binary || added.record.binary,
+    oldMode,
+    newMode,
+    additions: added.record.additions,
+    deletions: deleted.record.deletions,
+  };
+  return file;
+}
+
 // What the widget can present, which it alone judges: the diff package's
-// `patch_manifest.py` stores what it is given, and an entry refused here reports when
-// its file opens. `tests/diff_patch_cases.json` is the table of cases.
+// `patch_manifest.py` preserves the evidence, and an entry refused here reports when
+// its listing appears, even when its textual file stays closed. `tests/diff_patch_cases.json`
+// is the table of cases.
 async function parsedFiles(source) {
-  if (/^copy (?:from|to) /m.test(source))
-    throw new Error(
-      "unsupported copy diff (copy entries belong in prose; omit " +
-        "copy metadata and use textual @@ hunks for an edited destination)",
-    );
-  const { parsePatchFiles } = await pierre();
+  const { parsePatchFiles, parseDiffFromFile } = await parse();
   const files = parsePatchFiles(source, undefined, true).flatMap(
     (patch) => patch.files,
   );
+  const sections = source
+    .split(/(?=^diff --git )/m)
+    .filter((section) => section.startsWith("diff --git "));
   if (!files.length) throw new Error("empty diff");
-  if (
-    pathOnlyRenames(source) !==
-    files.filter((file) => file.type === "rename-pure").length
-  )
-    throw new Error(
-      "unsupported hunkless rename (only an exact path-only block with " +
-        "diff --git, similarity index 100%, rename from, and rename to " +
-        "lines may omit textual @@ hunks)",
-    );
-  for (const file of files)
-    if (!file.hunks.length && file.type !== "rename-pure")
-      throw new Error(
-        `unsupported hunkless diff for ${file.name || "a file"} ` +
-          "(only path-only renames may omit @@ hunks; binary, mode-only, " +
-          "and empty added/deleted entries belong in prose; changed files " +
-          "need textual @@ hunks)",
-      );
-  return files;
+  if (files.length !== sections.length)
+    throw new Error("diff needs one file per diff --git section");
+  const owners = new Map();
+  for (const [index, file] of files.entries()) {
+    file.record = fileRecord(file, sections[index]);
+    const owned = owners.get(file.name) ?? [];
+    owned.push(file);
+    owners.set(file.name, owned);
+  }
+  return [...owners.values()].map((files) =>
+    files.length === 1 ? files[0] : replacementFile(files, parseDiffFromFile),
+  );
 }
 
 // The box takes the place of the file's lines, so core's composer leaves their outlets
@@ -925,20 +1129,27 @@ customElements.define(
         );
         const sharedStyles = this.sharedStyles ?? new Map();
         const open = !this.hasAttribute("collapsed");
-        const plans = records.map((record) => ({
-          record,
-          previous: prior.get(record.path),
-          prepared: null,
-        }));
+        const plans = await Promise.all(
+          records.map(async (record) => {
+            const evidence = await this.readEntry(snapshot, record);
+            return {
+              record,
+              evidence,
+              previous: prior.get(record.path),
+              prepared: evidence.error ? evidence : null,
+            };
+          }),
+        );
+        // Every row's evidence is judged before its metadata commits. Only open files
+        // need the textual renderer; closed files retain their one parsed reading.
         // Open evidence is prepared without changing the current entries or their native
         // outlets. A disclosure opened while another file loads joins this same commit.
         for (;;) {
           if (rendering !== this.rendering || !this.isConnected) return;
           const pending = plans.filter(
             ({ record, previous, prepared }) =>
-              record.kind !== "rename" &&
               !prepared &&
-              (previous?.details?.open ?? open),
+              (record.hunkCount === 0 || (previous?.details?.open ?? open)),
           );
           if (!pending.length) break;
           await Promise.all(
@@ -948,6 +1159,7 @@ customElements.define(
                 plan.record,
                 plan.previous?.details ? plan.previous.renderKey : null,
                 sharedStyles,
+                plan.evidence,
               );
             }),
           );
@@ -956,33 +1168,45 @@ customElements.define(
         const restores = [];
         const resume = this.controller.defer();
         try {
-          const entries = plans.map(({ record, previous, prepared }) => {
+          const entries = plans.map(({ record, evidence, previous, prepared }) => {
             let entry = previous;
-            const rename = record.kind === "rename";
+            const metadata = record.hunkCount === 0 && !prepared?.error;
             if (
-              rename
+              metadata
                 ? !entry ||
                   entry.details ||
-                  entry.record.previousPath !== record.previousPath
+                  JSON.stringify(entry.record) !== JSON.stringify(record)
                 : !entry?.details
             ) {
-              const row = rename ? renameNode(record) : summaryNode(record, open);
+              const row = metadata
+                ? metadataNode(record)
+                : summaryNode(
+                    record,
+                    !!prepared?.error || record.hunkCount === 0 || open,
+                    !prepared?.error,
+                  );
               if (entry) restores.push(replaceFileRendering(entry, row));
               else fresh.push((entry = fileEntry(row)));
             }
             Object.assign(entry, {
               record,
-              loaded: rename,
+              file: evidence.file,
+              loaded: metadata,
               failed: false,
               refused: false,
               loading: null,
               prepared,
             });
             keeps(entry.node, "data-lf-gen", "1");
-            if (rename) return entry;
-            paintSummary(entry.details, record);
+            if (metadata) {
+              entry.lines = [];
+              entry.renderKey = null;
+              return entry;
+            }
+            paintSummary(entry.details, record, !prepared?.error);
             if (prepared) restores.push(this.applyEntry(entry));
             else entry.details.querySelector("pre")?.toggleAttribute("hidden", true);
+            paintFileDetails(entry.details, prepared?.error ? {} : record);
             return entry;
           });
           this.snapshot = snapshot;
@@ -1028,7 +1252,7 @@ customElements.define(
     // will, so it offers no Retry, and `applyEntry` reports it to the agent, which stored
     // it, once the current rendering shows it: the manifest's producer leaves judging a
     // patch to this widget.
-    async prepareEntry(snapshot, record, renderKey, sharedStyles) {
+    async readEntry(snapshot, record) {
       let patch;
       if (!record.parsed)
         try {
@@ -1037,11 +1261,23 @@ customElements.define(
           return { error, retry: true };
         }
       try {
-        const file = record.parsed ?? (await deferredFile(patch, record.path));
+        return { file: record.parsed ?? (await deferredFile(patch, record)) };
+      } catch (error) {
+        return { error };
+      }
+    }
+
+    async prepareEntry(snapshot, record, renderKey, sharedStyles, evidence) {
+      const reading = evidence ?? (await this.readEntry(snapshot, record));
+      if (reading.error) return reading;
+      try {
+        const { file } = reading;
         const nextKey = JSON.stringify(file);
         const rendered =
-          renderKey === nextKey ? null : await renderFile(file, sharedStyles);
-        return { renderKey: nextKey, rendered };
+          !file.hunks.length || renderKey === nextKey
+            ? null
+            : await renderFile(file, sharedStyles);
+        return { file, renderKey: nextKey, rendered };
       } catch (error) {
         return { error };
       }
@@ -1234,6 +1470,7 @@ customElements.define(
           entry.record,
           entry.renderKey,
           this.sharedStyles,
+          entry.file ? { file: entry.file } : undefined,
         );
         if (rendering !== this.rendering || !this.isConnected) return;
         entry.loading = null;
@@ -1250,10 +1487,13 @@ customElements.define(
 
     // Returns the focus restore for the caller to run once the file's evidence is staged.
     applyEntry(entry) {
-      const { error, retry, renderKey, rendered } = entry.prepared;
+      const { error, retry, file, renderKey, rendered } = entry.prepared;
       entry.prepared = null;
       if (error) {
         entry.failed = true;
+        paintSummary(entry.details, entry.record, false);
+        if (!entry.details.open) entry.details.open = true;
+        entry.disclosureOpen = true;
         // Reopening retries a load; nothing loads a patch this widget refused again.
         entry.refused = !retry;
         if (entry.refused) reportFailure(this, error);
@@ -1271,6 +1511,14 @@ customElements.define(
         );
         return null;
       }
+      entry.file = file;
+      paintSummary(entry.details, entry.record);
+      if (entry.record.hunkCount === 0) {
+        const restore = replaceFileRendering(entry, metadataNode(entry.record));
+        entry.loaded = true;
+        this.attachDisclosure(entry);
+        return restore;
+      }
       const restore =
         rendered &&
         replaceFileContent(entry, rendered, this.threadPairs, this.threadSeats);
@@ -1278,6 +1526,7 @@ customElements.define(
       entry.loaded = true;
       entry.details.querySelector("pre")?.toggleAttribute("hidden", false);
       this.attachLineComments(entry);
+      paintFileDetails(entry.details, entry.record);
       return restore;
     }
 
@@ -1319,8 +1568,12 @@ customElements.define(
       entry.disclosureNode?.removeEventListener("toggle", entry.disclose);
       entry.disclosureNode = entry.details;
       if (!entry.details) return;
+      entry.disclosureOpen = entry.details.open;
       entry.disclose ??= () => {
+        const previous = entry.disclosureOpen;
+        entry.disclosureOpen = entry.details.open;
         threadSurface(this).update();
+        if (previous === entry.disclosureOpen) return;
         if (!entry.details.open || !this.fileEntries?.includes(entry) || entry.refused)
           return;
         entry.failed = false;

@@ -104,7 +104,7 @@ def test_option_words_render_markdown_without_losing_the_user_draft(browser, ser
     expect(added.locator("strong")).to_have_text("both")
 
 
-def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_field(
+def test_a_selected_ask_keeps_one_action_context_while_tab_reaches_its_field(
     browser, serve
 ):
     """The Ask owns its numbered actions wherever focus stands inside it.

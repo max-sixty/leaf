@@ -58,7 +58,7 @@ proves a result; version checks are optional across API writes. Its
 [chief contract](https://workbench.md/chief.md) prescribes independent artifact
 and completion checks, but no supervisor run was observed. Nimbalyst's
 [recovery owner](https://github.com/nimbalyst/nimbalyst/blob/main/packages/runtime/src/ai/server/SessionStateManager.ts)
-resets missing running processes to idle. Leaf's [tasks](../skills/leaf/scripts/leaf/tasks.py)
+resets missing running processes to idle. Leaf's [tasks](../skills/leaf/scripts/leaf/todos.py)
 already outlive replies and sessions. Preserve that obligation across execution
 attempts, distinguish interrupted/resumable work from a terminal result, and
 name consequential changes to the expected result rather than resetting on every edit.
@@ -120,7 +120,7 @@ following are the baseline, not proposed additions.
   later execution's session on the same task, plus its turn when it holds the
   page claim. Reuse those starts rather
   than adding a Pause state or a second attempt record. The missing guard is at
-  completion: [tasks.py](../skills/leaf/scripts/leaf/tasks.py) admits an end from
+  completion: [todos.py](../skills/leaf/scripts/leaf/todos.py) admits an end from
   an older session after a newer start. A direct fold/admission probe confirmed
   this case. Test competing continuations and prevent an obsolete execution's
   delayed result from silently closing the continued work.

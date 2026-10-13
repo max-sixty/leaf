@@ -1,6 +1,6 @@
-/* Generated faces for the Question blanket answers in the banner ("Accept all (3)"). The
+/* Generated faces for the ask blanket answers in the banner ("Accept all (3)"). The
    banner toolbar owns the stable native buttons and their fixed overflow seats; these
-   light-DOM Lit owners paint one frozen Question presentation reading inside them. */
+   light-DOM Lit owners paint one frozen ask presentation reading inside them. */
 import { html } from "../../vendor/browser-runtime.js";
 import {
   BANNER_CONTROL_RANK,
@@ -11,9 +11,9 @@ import { RetainedFace } from "../retained-face.js";
 import { el } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 
-const FACE_TAG = "lf-question-banner-face";
+const FACE_TAG = "lf-ask-banner-face";
 
-class QuestionBannerFace extends RetainedFace {
+class AskBannerFace extends RetainedFace {
   updated() {
     const control = this.parentElement;
     if (!control) return;
@@ -28,7 +28,7 @@ class QuestionBannerFace extends RetainedFace {
   }
 }
 
-if (!customElements.get(FACE_TAG)) customElements.define(FACE_TAG, QuestionBannerFace);
+if (!customElements.get(FACE_TAG)) customElements.define(FACE_TAG, AskBannerFace);
 
 const face = (control, initial) => {
   const owner = document.createElement(FACE_TAG);
@@ -39,7 +39,7 @@ const face = (control, initial) => {
   return owner;
 };
 
-export function createQuestionBannerControls(activateBulk) {
+export function createAskBannerControls(activateBulk) {
   const bulk = new Map();
 
   function registerBulk(outcome, label) {

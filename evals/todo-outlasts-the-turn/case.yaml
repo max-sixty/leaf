@@ -3,7 +3,7 @@
 # lapses with the turn. Scores conversation-loop.md, "Long-running work". Base at
 # 5984ca1c9, which has no task, passed 0 of 2 runs on Claude Code; the change 2 of 2.
 # Reworded by #2506 (`--task` to `--todo`); at 3fe3eb0af it passed 1/1 on Claude Code.
-description: task-outlasts-the-turn
+description: todo-outlasts-the-turn
 metadata:
   purpose: 'Conversation loop: work a background worker carries past the turn gets a to-do on the
     thread it answers, beside the reply, and the to-do is ended once the result lands.'

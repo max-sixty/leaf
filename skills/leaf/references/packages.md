@@ -446,11 +446,11 @@ on the answer's truthiness: partial choices can be open, and an empty selected
 set can be complete. If the ask's `when` stops holding, a complete source
 remains answered and an incomplete one becomes withdrawn.
 
-`x-question-context` contributes the leading heading and arrival target to a
+`x-ask-context` contributes the leading heading and arrival target to a
 nested ask. It does not replace its source identity or own the answer.
 `lf-ask` is the default context adapter. The module's `static answerWords(value,
 element)` formats values for presentation ([module-authoring.md, "Declared widget
-state"](module-authoring.md#declared-widget-state)); `readQuestions()` exposes
+state"](module-authoring.md#declared-widget-state)); `readAsks()` exposes
 typed values directly ([module-authoring.md, "Reading asks and obligation
 queues"](module-authoring.md#reading-asks-and-obligation-queues)).
 

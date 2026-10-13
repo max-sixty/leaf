@@ -18,7 +18,7 @@ import {
   scrollChainOf,
   scrollersOf,
 } from "./reading-regions.js";
-import { walkOrigin, heldQuestion, placeOf, stepFrom } from "./standing-target.js";
+import { walkOrigin, heldAsk, placeOf, stepFrom } from "./standing-target.js";
 import { focused, standingIn } from "./focus.js";
 import { bannerStanding } from "./banner-toolbar.js";
 import { pageSelection } from "./composing/capture.js";
@@ -340,8 +340,8 @@ export function createNavigation({
     const at = bannerStanding()?.focus?.deref() ?? focused();
     // More's retained node is the same browser standing, read without moving focus
     // merely to paint whether its control is available.
-    const question = heldQuestion(at);
-    if (question && under(at, question)) return question;
+    const ask = heldAsk(at);
+    if (ask && under(at, ask)) return ask;
     const thread = closestAcross(at, THREAD);
     if (thread) return thread;
     const region = readingRegionFor(at) ?? userReadingRegion();
@@ -480,7 +480,7 @@ export function createNavigation({
 
   // The queue walk's way onto one thread it names by id: the t/T walk's own arrival, at
   // the thread's list card. A narrowing that hides the card is cleared first, as it is
-  // for a Question seated in a thread (questions/view.js, `materializeQuestion`), since the queue
+  // for an ask seated in a thread (asks/view.js, `materializeAsk`), since the queue
   // walk goes to what is on the user whatever the list shows.
   async function arriveAtThreadById(id) {
     const intent = retainUserIntent();

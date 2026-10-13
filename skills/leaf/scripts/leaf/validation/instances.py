@@ -1,8 +1,8 @@
 """Registry-declared markup instance validation."""
 
+from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.findings import Finding, element_at
 from leaf.projection import enclosing_widgets
-from leaf.questions import asking, local_question_entry, quoted_in
 from leaf.registry.contract import (
     is_element_name,
     registry_path,
@@ -134,7 +134,7 @@ def unasked(rec: dict, entry: dict) -> dict:
     """The `x-awaits.when` conditions a widget never met, as attribute and the values
     it would ask at, or none where it asks, was asked, or can be made to ask.
 
-    The flag `x-awaits.retired` names is how an author ends a Question already
+    The flag `x-awaits.retired` names is how an author ends an ask already
     asked, such as a settled decision kept with its context, so failing on it alone
     leaves the widget counted. A condition a recorded value writes can still be met
     by a gesture."""
@@ -154,10 +154,10 @@ def unasked(rec: dict, entry: dict) -> dict:
     }
 
 
-def question_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """A context supplies a leading title and arrival region for nested Questions.
+def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
+    """A context supplies a leading title and arrival region for nested asks.
 
-    Context never owns Question identity or registration. Any number of sources
+    Context never owns ask identity or registration. Any number of sources
     can select it, and each source retains its independent answer and lifecycle.
     A context framing no source asks nothing: the page shows a question the banner
     never counts and the user can't answer, so the error names what each framed
@@ -169,21 +169,19 @@ def question_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
             (
                 holder
                 for holder in enclosing_widgets(rec)
-                if registry.get(holder["tag"], {}).get("x-question-context")
+                if registry.get(holder["tag"], {}).get("x-ask-context")
             ),
             None,
         )
 
     regions = [
-        rec
-        for rec in lf_elements
-        if registry.get(rec["tag"], {}).get("x-question-context")
+        rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-ask-context")
     ]
     framed = {id(region): [] for region in regions}
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
         region = context_of(rec)
-        if local_question_entry(entry) and region and not quoted_in(rec, registry):
+        if local_ask_entry(entry) and region and not quoted_in(rec, registry):
             framed[id(region)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
@@ -199,21 +197,17 @@ def question_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 }
                 for rec, lacks in framed[id(region)]
             ]
-            errors.append(found_at("empty-question-context", region, widgets=widgets))
+            errors.append(found_at("empty-ask-context", region, widgets=widgets))
         headings = [
             child
             for child in region["children"]
             if child in {f"h{n}" for n in range(1, 7)}
         ]
         if len(headings) != 1:
-            errors.append(
-                found_at("question-context-headings", region, headings=headings)
-            )
+            errors.append(found_at("ask-context-headings", region, headings=headings))
         elif region["direct"][0] != headings[0]:
             errors.append(
-                found_at(
-                    "question-context-heading-first", region, first=region["direct"][0]
-                )
+                found_at("ask-context-heading-first", region, first=region["direct"][0])
             )
     return errors
 
@@ -377,7 +371,7 @@ def reference_errors(
 
 
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """Conditional Questions and thread seats need an id when they are live.
+    """Conditional asks and thread seats need an id when they are live.
 
     Requiring every instance globally would outlaw inert option groups; checking the
     declared predicate here gives the runtime exactly the addressability it consumes.
@@ -481,7 +475,7 @@ def instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
         + layout_errors(lf_elements, registry)
         + visual_part_errors(lf_elements, registry)
         + addressable_instance_errors(lf_elements, registry)
-        + question_context_errors(lf_elements, registry)
+        + ask_context_errors(lf_elements, registry)
         + declared_word_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
     )

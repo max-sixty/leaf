@@ -1309,12 +1309,16 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
         (BOARD_PAGE, "#card-heater .lf-grip"),
         (
             SUGGESTION_PAGE,
-            '[data-lf-margin-entry-owner="suggestion:sug-refill"]'
-            '[data-lf-margin-entry-key="accept"]:visible',
+            (
+                '[data-lf-margin-entry-owner="suggestion:sug-refill"]'
+                '[data-lf-margin-entry-key="accept"]:visible'
+            ),
         ),
     ],
 )
-def test_widget_actions_wait_for_the_first_complete_read(browser, serve, source, control):
+def test_widget_actions_wait_for_the_first_complete_read(
+    browser, serve, source, control
+):
     """A widget cannot decide from authored state alone while history is unavailable."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)

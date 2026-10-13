@@ -760,19 +760,28 @@ export default class extends HTMLElement {
     # The runtime's own report carries the error's stack; the check's refusal quotes
     # only the reason the page shows.
     assert any(
-        report.startswith("page failed to start:") and "TypeError" in report
-        for report in failed
-    ), failed
-    assert any(report.startswith("the runtime could not start:") for report in failed)
-    assert any(
-        "Browser request failed (Script, net::ERR_FAILED)" in report
-        and f"in {url}:" in report
-        and "/page/helper.js" in report
+        report.code == "page-report"
+        and report.values["text"].startswith("page failed to start:")
+        and "TypeError" in report.values["text"]
         for report in failed
     ), failed
     assert any(
-        "Browser request returned HTTP 404 (Image)" in report
-        and "/page/missing-image.png" in report
+        report.code == "not-ready" and report.values["stage"] == "refused"
+        for report in failed
+    ), failed
+    assert any(
+        report.code == "request-failed"
+        and report.values["kind"] == "Script"
+        and report.values["error"] == "net::ERR_FAILED"
+        and report.values["frame"] == url
+        and report.values["url"].endswith("/page/helper.js")
+        for report in failed
+    ), failed
+    assert any(
+        report.code == "request-status"
+        and report.values["status"] == 404
+        and report.values["kind"] == "Image"
+        and report.values["url"].endswith("/page/missing-image.png")
         for report in failed
     ), failed
 

@@ -7,9 +7,10 @@ import re
 import sys
 import time
 from collections.abc import Callable, Collection
+from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
-from typing import NamedTuple
 
 from .locations import path_location
 from .page_memory import Slot, memo
@@ -177,9 +178,35 @@ class _RevisionFiles(Slot):
     which would otherwise be a directory scan apiece."""
 
 
-class _RevisionInventory(NamedTuple):
-    orders: tuple[int, ...]
-    current: dict[int, tuple[str, ...]]
+@dataclass(frozen=True)
+class _RevisionInventory:
+    directory: Path
+    markers: dict[int, tuple[str, ...]]
+
+    @property
+    def orders(self) -> tuple[int, ...]:
+        return tuple(self.markers)
+
+    @cached_property
+    def current(self) -> dict[int, tuple[str, ...]]:
+        """Readable captures, loaded only when a caller needs their contents.
+
+        Identity-only readers, including a quiet harness hook recovering unfinished
+        publications, must not load the page model just to list reserved orders.
+        """
+        from .revision_artifact import current_artifact
+
+        return {
+            revision: current
+            for revision, names in self.markers.items()
+            if (
+                current := tuple(
+                    name
+                    for name in names
+                    if current_artifact((self.directory / name).with_suffix(""))
+                )
+            )
+        }
 
 
 def _revision_files(page_dir: Path) -> _RevisionInventory:
@@ -187,24 +214,19 @@ def _revision_files(page_dir: Path) -> _RevisionInventory:
     directory = page_dir / "revisions"
     stamp = file_stamp(directory)
     if stamp is None:
-        return _RevisionInventory((), {})
+        return _RevisionInventory(directory, {})
     return memo(page_dir, _RevisionFiles).get(stamp, lambda: _scan_revisions(directory))
 
 
 def _scan_revisions(directory: Path) -> _RevisionInventory:
-    from .revision_artifact import current_artifact
-
     found: dict[int, list[str]] = {}
-    orders = set()
     with os.scandir(directory) as entries:
         for entry in entries:
             if REVISION_FILE.fullmatch(entry.name) and entry.is_file():
                 revision = revision_num(entry.name)
-                orders.add(revision)
-                if current_artifact(Path(entry.path).with_suffix("")):
-                    found.setdefault(revision, []).append(entry.name)
+                found.setdefault(revision, []).append(entry.name)
     return _RevisionInventory(
-        tuple(sorted(orders)),
+        directory,
         {revision: tuple(sorted(found[revision])) for revision in sorted(found)},
     )
 

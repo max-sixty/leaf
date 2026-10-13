@@ -1843,7 +1843,7 @@ def test_export_prints_threads_and_versions(page_dir):
 def test_new_replies_require_a_complete_candidate_publication(
     page_dir,
 ):
-    """New answers capture a complete publication; markup's local Questions use
+    """New answers capture a complete publication; markup's local asks use
     those declarations and cannot also be declared by a prose flag."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
@@ -1890,7 +1890,7 @@ def test_new_replies_require_a_complete_candidate_publication(
             "Choose one.",
             "--markup",
             markup,
-            "--question",
+            "--ask",
         ],
     )
     assert duplicate.exit_code == 1, duplicate.output

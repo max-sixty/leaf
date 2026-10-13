@@ -3170,7 +3170,7 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
     assert registry["$layer"]["packages"] == ["./first", "./second"]
     assert registry["lf-shared"]["description"] == "second"
     assert (page / "widgets" / "shared.js").read_text() == "// second\n"
-    theme = (page / "theme.css").read_text()
+    theme = (page / "widget-theme.css").read_text()
     assert theme.index("package first") < theme.index("package second")
 
 
@@ -4216,11 +4216,14 @@ export default class extends HTMLElement {
     assert (page / "widgets" / "ready.js").is_file()
     assert (page / "vendor" / "solo.json").is_file()
     theme = (page / "theme.css").read_text()
+    widgets = (page / "widget-theme.css").read_text()
     # A package with a widget reaches only inside it; a package without one is a
-    # theme, and its rules reach the page as written.
-    assert theme.index(":scope:is(lf-solo) { --lf-block-frame: 1; }") < theme.index(
-        ":root { --solo-night: 1; }"
-    )
+    # theme, and its rules reach the page as written. Their separate sheets let a
+    # publication retain its widget rules while current chrome keeps its theme.
+    assert ":scope:is(lf-solo) { --lf-block-frame: 1; }" in widgets
+    assert ":scope:is(lf-solo) { --lf-block-frame: 1; }" not in theme
+    assert ":root { --solo-night: 1; }" in theme
+    assert "--solo-night" not in widgets
     instructions = (page / "instructions" / "author.md").read_text()
     assert instructions == (
         "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"

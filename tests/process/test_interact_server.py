@@ -2591,7 +2591,9 @@ def test_a_refusal_from_corrupt_page_state_is_an_answered_fault(server, page_dir
     publish(page_dir)
     revisions = page_dir / "revisions"
     [marker] = revisions.glob("r1-*.html")
-    shutil.copyfile(marker, revisions / "r1-0000000000000000.html")
+    duplicate = revisions / "r1-0000000000000000"
+    shutil.copytree(marker.with_suffix(""), duplicate)
+    duplicate.with_suffix(".html").write_bytes(marker.read_bytes())
     status, body = fetch(f"{server}/api/state")
     assert status == 500
     assert json.loads(body) == {

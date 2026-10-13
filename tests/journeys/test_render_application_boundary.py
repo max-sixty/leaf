@@ -41,6 +41,7 @@ from render_harness import (
     panel_settled,
     reported_browser_errors,
     round_trip,
+    said,
     scroll_settled,
     sending,
     stamp_page,
@@ -170,7 +171,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
         },
     )
     round_trip(page)
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
     expect(reader).not_to_contain_text("Refused words")
     expect(box).to_have_js_property("value", "Refused words")
     if while_pending == "choose-earlier":
@@ -758,7 +759,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     expected_errors = ["leaf: Presentation failed: injected complete-list failure"]
     page.evaluate("lfShiftsJudged()")
     errors = take_browser_errors(page)
-    assert [error.splitlines()[0] for error in errors] == expected_errors, errors
+    assert [said(error) for error in errors] == expected_errors, errors
 
 
 @pytest.mark.parametrize("place", ["closed", "selected", "scrolled", "scaled"])
@@ -910,9 +911,14 @@ def test_an_external_withdrawal_keeps_the_readers_allocation(browser, serve, pla
         # The subject has left the document: its editor ends, while the draft's
         # independent saved owner keeps the words for a genuine return.
         page.evaluate("lfWordsJudged()")
-        assert take_browser_errors(page) == [
-            'typed words left the screen without a key or press: "A draft for this conversation" in leaf-text.lf-ui'
-        ]
+        consume_browser_errors(
+            page,
+            {
+                "code": "words-left-screen",
+                "words": "A draft for this conversation",
+                "place": "leaf-text.lf-ui",
+            },
+        )
     # A view change or choosing another conversation releases retained news too.
     if place == "scaled":
         find = page.get_by_role("searchbox", name="Find in threads")

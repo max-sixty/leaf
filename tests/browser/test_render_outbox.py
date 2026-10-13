@@ -15,6 +15,7 @@ from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf.registry.contract import RANK
 from leaf.render_checks import rendered
+from leaf.render_gate.scheme import console_finding
 from playwright.sync_api import expect
 from render_cases_interaction import (
     HOLD_MOTION,
@@ -60,6 +61,7 @@ from render_harness import (
     resized,
     root_overflow,
     round_trip,
+    said,
     scroll_settled,
     sending,
     stamp_page,
@@ -582,12 +584,12 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # The expectation can receive the console event before the fixture's separate
     # collector receives its callback. Let that same event reach the collector.
     for _ in range(200):
-        if reported.value.text in page.lf_errors:
+        if console_finding(reported.value) in page.lf_errors:
             break
         page.wait_for_timeout(25)
     errors = take_browser_errors(page)
-    assert [error for error in errors if not error.startswith("400 ")] == [
-        reported.value.text
+    assert [error for error in errors if error.code != "failed-load"] == [
+        console_finding(reported.value)
     ], errors
 
 
@@ -653,7 +655,7 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
     assert logged_undo["undoes"] != first["id"]
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
-    assert take_browser_errors(page) == [reported.value.text]
+    assert take_browser_errors(page) == [console_finding(reported.value)]
 
 
 def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
@@ -760,7 +762,7 @@ def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
     assert page.eval_on_selector_all(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-heater", "card-baffle"]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_refused_recorded_actions_restore_from_the_log_and_surviving_outbox(
@@ -835,7 +837,7 @@ def test_refused_recorded_actions_restore_from_the_log_and_surviving_outbox(
     assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-heater"
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
@@ -899,7 +901,7 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
         "reconstruction exposed synthetic authored/log placements as gestures: "
         f"{motions}"
     )
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
@@ -970,7 +972,7 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
     assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-heater"
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
@@ -1084,7 +1086,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
     assert [
         (event["widget"], event["detail"]["unit"]) for event in actions(serve.page_dir)
     ] == [("inner", "inner-card")]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
@@ -1203,7 +1205,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     consume_browser_errors(
         page,
         "leaf: State presentation failed:",
-        "400",
+        {"code": "failed-load", "status": 400},
     )
 
 
@@ -1477,7 +1479,7 @@ def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, s
         "card-baffle"
     ]
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
-    consume_browser_errors(page, "503")
+    consume_browser_errors(page, {"code": "failed-load", "status": 503})
 
 
 def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serve):
@@ -1568,7 +1570,7 @@ def test_a_refused_action_waits_for_a_live_gesture_before_reconciling(browser, s
     page.keyboard.press("Escape")
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     assert actions(serve.page_dir) == []
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_lost_accepted_response_keeps_later_gestures_in_order(browser, serve):
@@ -1680,7 +1682,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     assert [event["detail"]["value"] for event in actions(serve.page_dir)] == [
         "Remote B"
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve):
@@ -1827,7 +1829,7 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
     expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
     values = page.evaluate("window.refusalValues")
     assert len(values) > 1 and all(value == ["opt-a"] for value in values), values
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
     cut.restore()
 
 
@@ -2034,7 +2036,7 @@ def test_a_move_on_a_version_a_newer_one_replaced_is_refused_and_restored(
     round_trip(pinned)
     expect(pinned.locator("#col-todo #card-baffle")).to_have_count(1)
     assert actions(serve.page_dir) == []
-    consume_browser_errors(pinned, "400")
+    consume_browser_errors(pinned, {"code": "failed-load", "status": 400})
 
 
 def test_a_second_tab_takes_the_decision_back_too(browser, serve):
@@ -2782,7 +2784,7 @@ def test_an_optimistic_presentation_fault_does_not_change_delivery_result(
     # promise carries the same rejection for a caller that restores a draft from it, and
     # accounts for it no second time.
     errors = take_browser_errors(page)
-    assert [error.splitlines()[0] for error in errors] == [
+    assert [said(error) for error in errors] == [
         (
             "leaf: paint failed for lf-suggestion#sug-refill: "
             "<lf-suggestion> renderState threw: "

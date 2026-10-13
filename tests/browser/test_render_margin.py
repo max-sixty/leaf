@@ -1858,7 +1858,7 @@ def test_a_margin_entry_carries_a_suggestion_through_its_whole_lifecycle(
         workflow.get_by_role("button", name=re.compile(r"^Undo accepting"))
     ).to_have_count(1)
 
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 @pytest.mark.watch_shifts
@@ -4835,6 +4835,58 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
     expect(page.locator(".lf-thread-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     page.keyboard.press("c")
     expect(thread.locator("leaf-text")).to_be_focused()
+
+
+def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser, serve):
+    """A visible SVG stroke remains a usable comment target despite its zero-height box."""
+    source = leaf_page(
+        "Horizontal line comment",
+        """
+<h1>Review this diagram</h1>
+<svg width="320" height="120" viewBox="0 0 320 120" role="img"
+     aria-label="A horizontal line">
+  <line id="hline" x1="10" y1="60" x2="310" y2="60"
+        stroke="currentColor" stroke-width="8" />
+</svg>
+""",
+    )
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Check this line.",
+        "anchor": {"section": "hline"},
+    }
+    page = open_page(browser, serve(source, events=[comment]))
+    page.set_default_timeout(10_000)
+    page.wait_for_function(
+        "() => window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js')"
+        ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",
+        timeout=10_000,
+    )
+
+    line = page.locator("#hline")
+    assert line.evaluate("node => node.getBoundingClientRect().height") == 0
+    assert line.evaluate("node => node.checkVisibility()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    expect(dialog).to_be_visible(timeout=10_000)
+    dialog.get_by_role(
+        "button", name="Open thread: Check this line.", exact=True
+    ).click(timeout=10_000)
+    rendered(page)
+
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible(timeout=10_000)
+    thread_id = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == comment["text"]
+    )
+    thread = preview.locator(f'.lf-page-thread[data-thread="{thread_id}"]')
+    expect(thread).to_be_focused(timeout=10_000)
+    expect(thread).to_contain_text("Check this line.", timeout=10_000)
 
 
 # The right edge of the column's words, inside `main`'s padding. A thread card beside
@@ -9166,11 +9218,12 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
         layout="sidebar",
     )
     page = open_page(browser, serve(source, events=[_comment_on("pair")]))
+    page.set_default_timeout(10_000)
     resized(page, 1440, 900)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="pair"]')
-    expect(row).to_have_attribute("data-lf-place", "pin")
-    expect(row).to_be_visible()
+    expect(row).to_have_attribute("data-lf-place", "pin", timeout=10_000)
+    expect(row).to_be_visible(timeout=10_000)
     row_box = row.bounding_box()
     second = page.locator("#pair > p").nth(1).bounding_box()
     assert second["x"] < row_box["x"], (row_box, second)
@@ -9178,6 +9231,45 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
         row_box,
         second,
     )
+    marker = row.get_by_role("button", name=re.compile(r"^Thread,"))
+    marker.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible(timeout=10_000)
+    thread = preview.locator(".lf-margin-thread .lf-page-thread")
+    expect(thread).to_be_focused(timeout=10_000)
+
+
+def test_a_contents_target_reply_observes_visibility_without_layout(browser, serve):
+    """A reply withheld by its display: contents subject follows descendant visibility
+    alone, without a resize or render request to wake its floating card."""
+    source = leaf_page(
+        "a contents target reply",
+        '<h1>Reply visibility</h1><div id="pair" style="display: contents">'
+        "<p><span>The first half.</span></p><p><span>The second half.</span></p></div>",
+        layout="sidebar",
+    )
+    page = open_page(browser, serve(source, events=[_comment_on("pair")]))
+    page.set_default_timeout(10_000)
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="pair"]')
+    marker = row.get_by_role("button", name=re.compile(r"^Thread,"))
+    marker.click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_be_visible(timeout=10_000)
+    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    reply.click()
+    expect(reply).to_be_focused(timeout=10_000)
+    words = "A reply stays while its display contents subject returns."
+    write(reply, words)
+    expect(reply).to_have_js_property("value", words, timeout=10_000)
+
+    page.locator("#pair").evaluate("el => el.style.visibility='hidden'")
+    expect(preview).to_be_hidden(timeout=10_000)
+    page.locator("#pair").evaluate("el => el.style.visibility='visible'")
+    expect(preview).to_be_visible(timeout=10_000)
+    expect(reply).to_be_focused(timeout=10_000)
+    expect(reply).to_have_js_property("value", words, timeout=10_000)
 
 
 def test_a_workspace_page_keeps_no_rail(browser, serve):

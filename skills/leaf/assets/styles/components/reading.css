@@ -203,7 +203,10 @@
   :is(.lf-thread-transcript, .lf-thread-reply, .lf-general) { --quote-inset: 10px; --pre-inset: 10px; }
   leaf-text.lf-fab-input, .lf-msg-body {
           font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--ink); }
-  .lf-msg-body { min-width: 0; margin: var(--lf-msg-body-gap) 0 0; overflow-wrap: anywhere; }
+  /* A message keeps the column's measure on any page, as a Layout's text does
+     (`--lf-measure`, theme.css), however wide its panel is dragged. */
+  .lf-msg-body { min-width: 0; margin: var(--lf-msg-body-gap) 0 0; overflow-wrap: anywhere;
+          --lf-measure: var(--col); }
   /* A message's words, or its rewrite where they stood (message-edit.js). */
   :is(.lf-msg-text, .lf-msg-editor) { display: block;
           padding-block: var(--lf-thread-text-pad-block, 0px); }

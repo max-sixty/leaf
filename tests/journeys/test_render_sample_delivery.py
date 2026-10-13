@@ -331,6 +331,83 @@ document.querySelector('#popup').addEventListener('click', () => {
     assert any(row.get("page") == grandchild_page for row in persisted)
 
 
+def test_reload_swap_retires_pending_sample_faults(browser, serve):
+    """A swap cancels old startup work without retiring the replacement allocation."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reload during startup",
+                '<h1>Parent</h1><lf-sample id="practice" window>'
+                '<template id="practice-source" data-sample><h1>Practice</h1></template>'
+                "</lf-sample>",
+            )
+        ),
+    )
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    document_url = child.url
+    icons = []
+    icon_pattern = re.compile(
+        re.escape(urlsplit(document_url).path) + r"revisions/[^/]+/icon.svg$"
+    )
+    page.route(icon_pattern, lambda route: icons.append(route))
+    with child.expect_navigation(wait_until="commit"):
+        child.evaluate("location.reload()")
+    holding(page, icons, 1, "the middle document's pending icon fetch")
+    page.unroute(icon_pattern)
+    destination = []
+    page.route(document_url, lambda route: destination.append(route))
+    child.evaluate("location.reload()")
+    holding(page, destination, 1, "the replacement before its document swap")
+    # The old realm remains alive while the server holds the destination. A native
+    # task checkpoint cannot be mistaken for the document's actual departure.
+    assert child.evaluate(
+        "() => new Promise(resolve => setTimeout(() => resolve(document.body.isConnected), 0))"
+    )
+    assert sample.evaluate("sample => sample.isConnected")
+    assert not [row for row in sample_records(page, serve) if row["phase"] == "failed"]
+    with child.expect_navigation(wait_until="domcontentloaded"):
+        destination[0].continue_()
+    page.unroute(document_url)
+    sample.evaluate("async sample => await sample.ready")
+    expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(child.get_by_role("heading", name="Practice", exact=True)).to_be_visible()
+    records = sample_records(page, serve)
+    assert {row["allocation"] for row in records} == {1}
+    assert not [row for row in records if row["phase"] in {"failed", "retired"}]
+    assert len([row for row in records if row["phase"] == "departed"]) == 2
+    assert len([row for row in records if row["phase"] == "connected"]) == 3
+    assert take_browser_errors(page) == []
+
+
+def test_canceled_native_departure_keeps_fault_reporting(browser, serve):
+    """Canceling beforeunload leaves genuine faults owned by the live document."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Canceled departure",
+                '<h1>Still here</h1><button id="activate">Activate</button>'
+                '<button id="fail">Report a fault</button>',
+            )
+        ),
+    )
+    page.locator("#activate").click()
+    page.evaluate("""() => {
+      window.addEventListener('beforeunload', event => { event.preventDefault(); event.returnValue = ''; });
+      document.querySelector('#fail').onclick = () => { throw new Error('live fault after canceled departure'); };
+    }""")
+    page.once("dialog", lambda dialog: dialog.dismiss())
+    with page.expect_event("dialog") as dialog:
+        page.evaluate("location.reload()")
+    assert dialog.value.type == "beforeunload"
+    expect(page.get_by_role("heading", name="Still here")).to_be_visible()
+    page.locator("#fail").click()
+    consume_browser_errors(page, "live fault after canceled departure")
+
+
 @pytest.mark.parametrize("response_type", ["json", "html"])
 def test_sample_release_failure_records_the_retired_allocation(
     browser, serve, response_type

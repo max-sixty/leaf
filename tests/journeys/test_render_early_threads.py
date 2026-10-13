@@ -292,7 +292,7 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment" and event.get("text") == words
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 COLD_ASK = leaf_page(

@@ -76,8 +76,9 @@ has tried; settle that before building it.
   (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
   user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Work
   through its remaining list (status in the field, opened sizes, one home per thread,
-  the menu's rows, waiting marks, phone, motion) before making it the default or
-  removing the banner, bottom bar, and preference.
+  the menu's rows, the Questions count, motion) before making it the default or
+  removing the banner, bottom bar, and preference. The phone waits until the desktop
+  design is firm.
 
 ### Agent and author experience
 

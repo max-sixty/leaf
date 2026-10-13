@@ -62,12 +62,12 @@ export default class extends HTMLElement {
       this.#next.addEventListener("mousedown", (event) => event.preventDefault());
       this.#next.addEventListener("click", () => {
         const region = this.#region();
-          if (region) askActions.next({ within: region });
+        if (region) askActions.next({ within: region });
       });
     } else seat.remove();
     this.querySelector(":scope > [data-lf-prepaint]")?.remove();
     this.append(face);
-      watchAsks(this, (asks) => this.#paint(asks));
+    watchAsks(this, (asks) => this.#paint(asks));
   }
 
   #region() {

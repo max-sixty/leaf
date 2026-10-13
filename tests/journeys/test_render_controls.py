@@ -3229,9 +3229,7 @@ def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, se
         assert drawer.evaluate(
             "el => document.activeElement === document.body "
             "|| el.closest('dialog').contains(document.activeElement)"
-        ), (
-            "Tab reached a control behind the covering Questions panel"
-        )
+        ), "Tab reached a control behind the covering Questions panel"
 
     list_box.evaluate("el => el.scrollTop = 0")
     rows.first.focus()

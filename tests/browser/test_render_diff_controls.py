@@ -327,7 +327,7 @@ def test_printed_diff_rows_hold_their_whole_paths(browser, serve):
 def test_closed_manifest_rows_judge_their_evidence_before_showing_metadata(
     browser, serve
 ):
-    """Closed files cannot advertise a copy, mode or count their Git evidence refuses."""
+    """Closed rows derive copy, mode and counts from checked Git evidence."""
     patch = """diff --git a/original.py b/copied.py
 similarity index 75%
 copy from original.py
@@ -341,12 +341,12 @@ new mode 100755
 +new = True
 """
     corruptions = {
-        "operation": "rename",
-        "previousPath": "wrong.py",
-        "binary": True,
-        "hunkCount": 2,
-        "newMode": "100644",
-        "additions": 9,
+        "copy": patch.replace("copy from original.py", "copy from wrong.py"),
+        "move": patch.replace("copy from original.py\n", ""),
+        "mode": patch.replace("old mode 100644\n", ""),
+        "hunk": patch.replace("@@ -1 +1 @@", "@@ -2 +2 @@").replace(
+            "+new = True", "+new = True\n+lost"
+        ),
     }
     ids = ["valid", *corruptions]
     url = serve(
@@ -362,13 +362,13 @@ new mode 100755
     for name in ids:
         manifest = patch_manifest(patch)
         if name != "valid":
-            manifest["files"][0][name] = corruptions[name]
+            manifest["files"][0]["patch"] = corruptions[name]
         data_model.cmd_data_set(serve.page_dir, f"source-{name.lower()}", manifest)
     page = open_page(browser, url)
     rendered(page)
     for name in corruptions:
         host = page.locator(f"#{name.lower()}")
-        expect(host.locator(".lf-error")).to_contain_text(f"disagrees at {name}")
+        expect(host.locator(".lf-error")).to_contain_text("cannot be shown")
         expect(host.locator(".lf-diff-stat")).to_have_count(0)
         expect(host.locator(".lf-diff-evidence")).to_have_count(0)
         expect(host.locator(".lf-diff-source-path")).to_have_count(0)

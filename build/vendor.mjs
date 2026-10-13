@@ -115,13 +115,12 @@ export function adapt(adaptations) {
   return {
     name: "leaf-adapt",
     setup(builder) {
-      adaptations.forEach(({ file, edit, loader = "js" }, index) =>
+      adaptations.forEach(({ file, edit }, index) =>
         builder.onLoad({ filter: file }, async ({ path: at }) => {
           used.add(index);
           return {
             contents: await edit(await readFile(at, "utf8"), at),
             resolveDir: path.dirname(at),
-            loader,
           };
         }),
       );
@@ -150,14 +149,6 @@ const bindTo = (filter, target) => ({
  * file as it stands instead, and may `finish` it.
  */
 const bundles = {
-  "scoped-registry": () => ({
-    out: `${assets}/vendor/scoped-registry.js`,
-    // The published stand-in drops connectedMoveCallback, turning native retained
-    // moves into disconnect/connect and bypassing editors' caret restoration.
-    entry:
-      'import "@webcomponents/scoped-custom-element-registry/src/scoped-custom-element-registry.ts";',
-    adapt: [{ ...patches("scoped-registry-native-move.patch"), loader: "ts" }],
-  }),
   // Browser-native DOM rasterization, loaded only when capturing a page region.
   //
   // After a capture, SnapDOM counts each later mutation against the target's

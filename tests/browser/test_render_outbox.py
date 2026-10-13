@@ -1008,7 +1008,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
         """import { once, widgetController } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
+customElements.define("lf-outer-board", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
@@ -1019,7 +1019,7 @@ export default class extends HTMLElement {
       for (const card of order) column.append(document.getElementById(card));
     }
   }
-};
+});
 """
     )
     nested = leaf_page(
@@ -1303,49 +1303,37 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
     page.unroute("**/api/event")
 
 
-def test_a_first_complete_read_restores_its_own_already_undone_action(browser, serve):
-    """Offline presentation has not replayed the log, but a recorded local action is
-    still optimistic DOM. If the first successful read contains both that action and an
-    undo from another tab, the startup guard must not mistake the painted action for one
-    this page never saw."""
+@pytest.mark.parametrize(
+    "source,control",
+    [
+        (BOARD_PAGE, "#card-heater .lf-grip"),
+        (
+            SUGGESTION_PAGE,
+            (
+                '[data-lf-margin-entry-owner="suggestion:sug-refill"]'
+                '[data-lf-margin-entry-key="accept"]:visible'
+            ),
+        ),
+    ],
+)
+def test_widget_actions_wait_for_the_first_complete_read(
+    browser, serve, source, control
+):
+    """A widget cannot decide from authored state alone while history is unavailable."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
     cut = CutOff().hold(page)
-    page.goto(serve(BOARD_PAGE), wait_until="load")
+    page.goto(serve(source), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     page.wait_for_function(
         "() => document.body.getAttribute('data-lf-presented') === '1'"
     )
-
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    heater = page.locator("#card-heater .lf-grip")
-    with page.expect_request("**/api/event"):
-        heater.focus()
-        for key in ["Enter", "ArrowRight", "Enter"]:
-            page.keyboard.press(key)
-    holding(page, held, 1, "the first-read action")
-    assert len(held) == 1
-    accepted_answer = held[0].fetch()
-    attempt = held[0].request.post_data_json["attempt"]
-    accepted = next(
-        event
-        for event in accepted_answer.json()["state"]["events"]
-        if event.get("attempt") == attempt
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "undo", "author": "user", "undoes": accepted["id"]},
-    )
+    action = page.locator(control)
+    expect(action).to_have_attribute("aria-disabled", "true")
 
     cut.restore()
     told(page)
-    cut.cut()
-    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
-    expect(page.locator("#col-done #card-heater")).to_have_count(0)
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
-    held[0].fulfill(response=accepted_answer)
-    page.unroute("**/api/event")
+    expect(action).not_to_have_attribute("aria-disabled", "true")
 
 
 def test_a_complete_read_does_not_repaint_an_already_undone_settlement(browser, serve):
@@ -2538,14 +2526,14 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
         layer_widgets={
             "lf-preparation.js": """
 import {once, widgetController} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-preparation', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     widgetController(this).present(fetch('/preparation-content').then(() => {
       this.dataset.ready = 'yes';
     }));
   }
-};
+});
 """
         },
     )

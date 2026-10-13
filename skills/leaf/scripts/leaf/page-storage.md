@@ -27,13 +27,10 @@ other page files and the external state listed below.
 
 - `leaf.js` — the browser entry, served at /leaf.js
 
-- `theme.css` — current chrome, tokens, element styles, class idioms, and unscoped themes
+- `theme.css` — tokens, element styles, class idioms, element-widget CSS
 
-- `widget-theme.css` — package widget rules, scoped to the declarations captured by
-  each publication so historical content keeps its own presentation
-
-- `shadow.css` — the rules declared shadow trees also need; the document's theme or
-  widget theme carries them too, ahead of each package's own rules
+- `shadow.css` — the rules declared shadow trees also need; theme.css carries them too,
+  ahead of each package's own rules
 
 - `registry.json` — effective widget schemas and layer metadata. Composition and
   identity are defined in [layer-registry.md](layer-registry.md).
@@ -211,8 +208,9 @@ document or keeps its widgets (`revision_artifact.py`).
 `layer` object, shared with `/api/state`, reports the vendored generation,
 fingerprint, server identity, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
-error. `active.file` names the immutable revision the live root actually
-shows when one exists; `data` names the contract file, the value directory, and any source whose
+error, including the refusal of a layer this Leaf cannot serve
+(`layer.incompatible_layer`). `active.file` names the immutable revision the live
+root actually shows when one exists; `data` names the contract file, the value directory, and any source whose
 value fails its contract.
 `active.executable`, shared with `/api/state`, gives the active revision's
 nullable executable digest. Delivery emits `<meta name="lf-executable">` when a

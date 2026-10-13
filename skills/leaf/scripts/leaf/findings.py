@@ -151,16 +151,9 @@ def _visual_problem(problem: dict) -> str:
     kind = problem["kind"]
     if kind == "unregistered":
         return "did not call registerVisualParts"
-    if kind in ("unreadable", "unrevealable"):
-        verb = "read" if kind == "unreadable" else "reveal"
-        return f"could not {verb} visual parts: {problem['error']}"
-    said = {
-        "unregistered-parts": "did not register declared parts",
-        "unadmitted-parts": "registered parts its prefixes do not admit",
-        "unlisted-parts": "leaves nameable parts unlisted",
-        "unrevealed-parts": "did not reveal declared parts",
-    }[kind]
-    return f"{said} {', '.join(problem['parts'])}"
+    if kind == "unreadable":
+        return f"could not read visual parts: {problem['error']}"
+    return f"registered parts its prefixes do not admit {', '.join(problem['parts'])}"
 
 
 def _verbatim(at: str, v: dict) -> str:
@@ -315,11 +308,7 @@ def _visual_parts(declared: dict) -> str:
     """The part ids a section admits, as `registry.contract.VisualParts` says them."""
     from leaf.registry.contract import VisualParts
 
-    return str(
-        VisualParts(
-            tuple(declared["tokens"]), tuple(declared["prefixes"]), declared["all"]
-        )
-    )
+    return str(VisualParts(tuple(declared["prefixes"]), declared["all"]))
 
 
 def _size(box: dict) -> str:
@@ -784,9 +773,6 @@ _TEXT = {
         + (_json(v["body"]) if v["body"] else "nothing")
         + "; wrap several blocks in one <div> or <section>"
     ),
-    "repeated-parts": lambda at, v: (
-        f"{_line(at, v)}: visual part ids must be unique, repeated {_json(v['parts'])}"
-    ),
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
@@ -1115,9 +1101,6 @@ _TEXT = {
             "has addressable visual parts but does not require a string `id`"
             " for their anchor"
         )
-    ),
-    "visual-parts-attr": _declared(
-        lambda v: f"x-visual parts attribute `{v['attr']}` must be a non-empty string"
     ),
     "visual-upgrade": _declared(
         lambda v: (
@@ -1528,10 +1511,6 @@ _TEXT = {
         f"{_invalid_record(v)}position record cannot put <{v['unit_tag']}>"
         f" {v['unit']!r} within <{v['found']}> {v['destination']!r}"
     ),
-    "thread-widget-publication": lambda at, v: (
-        f"thread widget {v['widget']!r} belongs to publication "
-        f"r{v['publication']}, not r{v['revision']}"
-    ),
     "unknown-members": lambda at, v: (
         f"{_invalid_record(v)}{', '.join(v['strangers'])} name no member of"
         f" {v['widget']!r}"
@@ -1664,6 +1643,16 @@ _TEXT = {
         " when it no longer applies"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
+    "todo-execution": lambda at, v: (
+        f"to-do {v['todo']!r} was last started by "
+        + (
+            f"session {v['session']!r}"
+            if v["session"] is not None
+            else "a sessionless command"
+        )
+        + f" (start {v['start']!r}); take it in hand with `leaf task start`"
+        " before ending it from another session"
+    ),
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
     "agents-todo": lambda at, v: (
         f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"

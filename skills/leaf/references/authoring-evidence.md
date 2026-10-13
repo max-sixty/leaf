@@ -57,9 +57,9 @@ vocabulary". An `lf-code` block's `lines` attribute quotes an excerpt
 of a longer file under the file's own line numbers, with elided rows where it skips;
 a note placed at a skipped line captions that row with what was left out.
 
-A user can comment on a drawing as a whole and quote the words in it, but a part
-of it takes a comment of its own only when the author named that part. In an
-`lf-diagram`, the entry says which boxes `parts` opens to a comment of their own.
+A user can comment on a drawing as a whole and quote the words in it. A drawing
+that exposes stable named targets also accepts comments on those parts. In an
+`lf-diagram`, the entry says which boxes `parts="all"` opens to a comment of their own.
 In an inline `<svg>`, give an `id` to each element the user may want to point at,
 usually a `<g>` that holds one shape and its label. The user can then aim at that
 part alone, and the thread's anchor reports its `id` to you, so choose ids that
@@ -187,9 +187,9 @@ the comparison itself still flips between its endpoints.
 Before writing the prose and `alt` around a pair, open both images and compare
 them where the change should be.
 Add `outlines`, and each frame outlines what changed and, dashed, what only moved,
-where it sits in that frame. The rail's Changes control hides and restores all
-outlines. Hover or focus it to read the changed and moved counts, or hold it on
-a phone; sliding off before releasing leaves the outlines as they were.
+where it sits in that frame. Where regions exist, the rail offers mutually exclusive
+Plain and Outlines views, starting in Outlines. Hover or focus Outlines to read the changed and moved
+counts, or hold it on a phone; sliding off before releasing keeps the current view.
 Leave it off where most outlines would mark what the pair is not about, such as
 live data that moved between captures you cannot retake, and say in the prose where
 to look. Either way, the rail
@@ -201,9 +201,12 @@ reader will hardly see the change, so name it in the prose, or say that nothing 
 redrawing changed.
 Add `pixels` where the reader needs to see exactly which pixels changed, as when
 the change is a shift of a few pixels or a recolour that flipping barely shows, or
-when the claim is that nothing else changed. The rail's Pixels action opens an
-inspection view, the after image greyed with every changed pixel painted over it,
-so build no difference image of your own. Returning preserves the divider and
-outline setting. It combines with `outlines`, which still say where to look. Leave
-it off where the change reflows much of the frame, since nearly every pixel there
-changes and the view says less than the outlines.
+when the claim is that nothing else changed. Pixels joins the rail's view selector,
+showing the after image greyed with every changed pixel painted over it, so build no
+difference image of your own. Without available outlines, the selector starts in Plain.
+Arrow keys select a view; selecting the current view keeps it selected. Choosing
+Plain or Outlines preserves the divider, and clicking the pixel picture or a
+Before/After endpoint returns to the previous comparison view. It combines with
+`outlines`, which still say where to look. Leave it off where the change reflows
+much of the frame, since nearly every pixel there changes and the view says less
+than the outlines.

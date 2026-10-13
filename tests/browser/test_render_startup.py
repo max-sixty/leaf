@@ -1410,7 +1410,7 @@ button.chosen { background-color: rgb(40, 50, 60); }
         )
         modules[f"{tag}.js"] = f"""
 import {{ once, shadowStage }} from '/runtime/widget-api.js';
-export default class extends HTMLElement {{
+customElements.define('{tag}', class extends HTMLElement {{
   connectedCallback() {{
     if (!once(this)) return;
     const pulse = document.createElement('span'); pulse.className = 'pulse';
@@ -1423,7 +1423,7 @@ export default class extends HTMLElement {{
     const nodes = [pulse, button];
     {stage};
   }}
-}};
+}});
 """
     url = serve(
         leaf_page(
@@ -1517,7 +1517,7 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
             layer_widgets={
                 "lf-settled-link.js": """
 import {once, widgetController} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-settled-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     widgetController(this).present(new Promise(resolve => setTimeout(() => {
@@ -1529,11 +1529,11 @@ export default class extends HTMLElement {
       resolve();
     }, 25)));
   }
-};
+});
 """,
                 "lf-shadow-link.js": """
 import {once, shadowStage} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-shadow-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const button = document.createElement('button');
@@ -1547,7 +1547,7 @@ export default class extends HTMLElement {
     };
     shadowStage(this, [button]);
   }
-};
+});
 """,
             },
         )
@@ -2057,9 +2057,8 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     # The door stands on every page, and claims no count before the log has answered.
     expect(page.locator(".lf-queue")).to_have_text("Questions")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
-    # Which blanket answers exist is the ask inventory's to say, each ask under its own
-    # widget publication, so before the first state answer none is built to offer.
-    expect(page.locator(".lf-answer-all")).to_have_count(0)
+    # The stable blanket control claims no action before the first state answer.
+    expect(page.locator(".lf-answer-all:visible")).to_have_count(0)
     # Opened by hand, the panel counts nothing yet either.
     page.locator(".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_contain_text(
@@ -2203,10 +2202,10 @@ def test_visual_comments_arrive_with_the_initialized_document(browser, serve):
 
 
 @pytest.mark.parametrize("phase", ["initial", "history", "ready", "anchored"])
-def test_failed_anchor_presentation_keeps_visual_actions_withheld(
+def test_malformed_visual_inventory_withholds_its_actions_at_each_presentation_phase(
     browser, serve, phase
 ):
-    """A malformed visual reading cannot leave comment controls on a partial page."""
+    """A malformed visual cannot offer comment controls at any startup phase."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     state_ready = phase in {"ready", "anchored"}
     held = []
@@ -2263,9 +2262,7 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(
     else:
         held.pop(0).continue_()
 
-    expect(page.locator(".lf-status-detail")).to_contain_text("reload")
-    if not state_ready:
-        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-visual-actions")).to_have_count(0)
     if phase == "initial":
         assert page.evaluate("() => window.__lfVisualActionInsertions") == []
@@ -2279,7 +2276,8 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(
         )
         expect(page.locator(".lf-visual-actions")).to_have_count(1)
         expect(page.locator(".lf-visual-action")).to_have_count(4)
-    consume_browser_errors(page, "registered part outer twice")
+    if phase == "anchored":
+        consume_browser_errors(page, "registered part outer twice")
 
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
@@ -4504,7 +4502,7 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
     }
     module = """
 import {projectData, watchData, setChildren} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-feed', class extends HTMLElement {
   connectedCallback() {
     this.stopWatching ??= watchData(this, 'rows', snapshot => {
       const datums = (snapshot?.value?.rows ?? []).map(row => {
@@ -4517,7 +4515,7 @@ export default class extends HTMLElement {
     });
   }
   disconnectedCallback() { this.stopWatching?.(); this.stopWatching = null; }
-};
+});
 """
     url = serve(
         authored,
@@ -4688,7 +4686,7 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     }
     module = """
 import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-test-surface', class extends HTMLElement {
   connectedCallback() {
     const datums = ['first', 'second'].map(key => {
       const row = document.createElement('section');
@@ -4733,7 +4731,7 @@ export default class extends HTMLElement {
     }
     else threadSurface(this).update();
   }
-};
+});
 """
     roots = [f"{index:032x}" for index in range(1, 4)]
     page = open_page(
@@ -4976,7 +4974,7 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     }
     module = """
 import {offer, projectData, setChildren} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-derived', class extends HTMLElement {
   connectedCallback() {
     window.lfDerived = this;
     this.show([{key: 'api', value: 'Ready'}, {key: 'worker', value: 'Ready'}]);
@@ -4990,7 +4988,7 @@ export default class extends HTMLElement {
     setChildren(this, datums.map(({node}) => node));
     projectData(this, datums);
   }
-};
+});
 """
     page = open_page(
         browser,
@@ -5437,9 +5435,9 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
             "x-example": f'<{tag} id="example-{contract}" source="shared"></{tag}>',
         }
 
-    def module():
+    def module(tag):
         return """import {watchData} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define(TAG, class extends HTMLElement {
   connectedCallback() {
     if (this.started) return;
     this.started = true;
@@ -5451,7 +5449,7 @@ export default class extends HTMLElement {
     });
   }
   disconnectedCallback() { this.stop?.(); }
-};"""
+});""".replace("TAG", json.dumps(tag))
 
     authored = leaf_page(
         "Different contracts",
@@ -5474,8 +5472,8 @@ export default class extends HTMLElement {
             },
         },
         layer_widgets={
-            "lf-array-feed.js": module(),
-            "lf-object-feed.js": module(),
+            "lf-array-feed.js": module("lf-array-feed"),
+            "lf-object-feed.js": module("lf-object-feed"),
         },
     )
     append_carried_log_record(
@@ -6567,7 +6565,7 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
     }
     module = """
 import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-test-seat', class extends HTMLElement {
   connectedCallback() {
     const datums = ['row'].map(key => {
       const row = document.createElement('section');
@@ -6586,7 +6584,7 @@ export default class extends HTMLElement {
     this.started = true;
     threadSurface(this).update();
   }
-};
+});
 """
     events = [
         {
@@ -6713,7 +6711,7 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
     }
     module = """
 import {projectData,setChildren} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-test-seat',class extends HTMLElement{
   connectedCallback(){
     this.style.cssText='display:block;height:360px;overflow:auto';
     const datums=['row'].map(key=>{
@@ -6728,7 +6726,7 @@ export default class extends HTMLElement {
   threadOutlets(targets){
     return targets.map(target=>this.side?target.placement.datumElement[this.side]:null);
   }
-};
+});
 """
     events = [
         {

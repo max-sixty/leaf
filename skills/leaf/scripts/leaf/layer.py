@@ -227,7 +227,7 @@ ROOT_SHEETS = ("shadow.css", "theme.css")
 
 
 def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
-    """The layer's document, widget and shadow sheets in layer precedence order.
+    """The layer's two stylesheets, each in layer precedence order.
 
     A root's shadow.css holds the rules a declared shadow tree has to see as well as
     the document: the stage copies the composed shadow.css into each tree, and the
@@ -253,7 +253,6 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
     order = f"@layer {', '.join(CASCADE_LAYERS)};\n"
     theme = [order]
     shadow = [order]
-    widgets = [order]
     for position, root in enumerate(inputs):
         where = widget_confinement(root) if position else None
         for name in ROOT_SHEETS:
@@ -265,7 +264,7 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
             if name == "shadow.css":
                 shadow_css = scoped(css, where[1]) if where else css
                 shadow.append(f"@layer lf-shadow {{\n{shadow_css}}}\n")
-            (widgets if where else theme).append(f"@layer lf-base {{\n{placed}}}\n")
+            theme.append(f"@layer lf-base {{\n{placed}}}\n")
     for name in ("layouts.css", "state.css"):
         if (source := inputs[0] / name).is_file():
             sheet = _sheet(source)
@@ -274,7 +273,6 @@ def composed_sheets(inputs: list[Path]) -> dict[str, bytes]:
                 shadow.append(sheet)
     return {
         "theme.css": "".join(theme).encode(),
-        "widget-theme.css": "".join(widgets).encode(),
         "shadow.css": "".join(shadow).encode(),
     }
 
@@ -413,8 +411,10 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     the gate's and the website's included (`http.page_endpoint`,
     `leaf_website.page_binding`), the one append door and the writers that ask it
     first (`event_contracts.write_refusal`), and `page check` refuse on this one
-    reading, each naming the re-vendor that repairs the page. A revision the page
-    saved before its last re-vendor is judged on its own registry
+    reading, each naming the re-vendor that repairs the page. So does the source
+    check (`validation.source.check_source`), so activation writes no revision under
+    the layer and `page state` reports the refusal as `source.error`. A revision the
+    page saved before its last re-vendor is judged on its own registry
     (`incompatible_revision`).
     """
     if (vendored := _foreign_protocol(registry)) is not None:

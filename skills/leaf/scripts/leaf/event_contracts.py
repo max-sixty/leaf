@@ -18,8 +18,14 @@ from leaf.asks import (
 )
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
-from leaf.events import build_threads, spoken_turns, taken_back, undo_error
-from leaf.files import version_descriptors, version_revisions
+from leaf.events import (
+    build_threads,
+    note_settlements,
+    spoken_turns,
+    taken_back,
+    undo_error,
+)
+from leaf.files import version_revisions
 from leaf.findings import Finding
 from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.page_view import CandidatePageView, PageView
@@ -44,11 +50,6 @@ from leaf.registry.schema import schema_complaint
 from leaf.registry.storage import load_registry
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
-from leaf.thread_context import (
-    effective_thread_events,
-    thread_structure,
-    widget_messages,
-)
 from leaf.todos import todo_error
 from leaf.work import widget_seat_error
 from leaf.work_reading import WorkReading
@@ -279,7 +280,6 @@ def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
                 "visual": visual,
                 "section": section,
                 "declared": {
-                    "tokens": list(available.tokens),
                     "prefixes": list(available.prefixes),
                     "all": available.all,
                 },
@@ -335,18 +335,6 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     thread_by_id = thread.by_id
     if error := declared_action_error(event, document.by_id, thread_by_id, registry):
         return error
-    if event["widget"] in thread_by_id:
-        message = widget_messages(thread.structure)[event["widget"]]
-        publication = thread.message_revisions[message]
-        if revision != publication:
-            return Finding(
-                "thread-widget-publication",
-                values={
-                    "widget": event["widget"],
-                    "publication": publication,
-                    "revision": revision,
-                },
-            )
     page_rec = document.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
@@ -479,9 +467,6 @@ def admitting_registry(view, event: dict, events: list) -> dict:
     page's layer alone (`write_refusal`), so the bookkeeping a re-vendored page
     takes before its source saves again, such as a pickup, still goes through.
 
-    Frozen widgets use their containing message's publication, independently of
-    the page beside the conversation. A command must name that same revision.
-
     Read through `PageView.registry`, which opens the one captured file rather
     than materializing the whole bundle: this runs on every append."""
     revisions = view.revisions
@@ -491,14 +476,6 @@ def admitting_registry(view, event: dict, events: list) -> dict:
         if event.get("kind") == "done"
         else event.get("revision")
     )
-    if event.get("kind") == "action" and isinstance(event.get("widget"), str):
-        owner = widget_messages(
-            thread_structure(effective_thread_events(events, revisions))
-        ).get(event["widget"])
-        if owner is not None:
-            revision = next(
-                logged["revision"] for logged in events if logged["id"] == owner
-            )
     named = type(revision) is int and revision in set(revisions)
     if not named:
         revision = revisions[-1] if revisions else None
@@ -548,27 +525,14 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     if event["kind"] != "done":
         return None
     version = {"version": event["version"]}
-    revision = next(
-        (
-            stamp["revision"]
-            for stamp in version_descriptors(events, view.revisions)
-            if stamp["version"] == event["version"]
-        ),
-        None,
-    )
+    revision = version_revisions(events).get(event["version"])
     if revision is None:
         return Finding("unstamped-version", values=version)
     document = view.document(revision)
     if review_mode(document) != "sign-off":
         return Finding("not-sign-off", values=version)
     page = AdmissionReadings(view, events, registry).page(revision)
-    work = WorkReading(
-        events,
-        registry,
-        page,
-        registry_for_revision=view.registry,
-        available_revisions=view.revisions,
-    )
+    work = WorkReading(events, registry, page)
     unanswered = approval_blocking(
         [*work.document.asks["all"], *work.widget_asks["all"]]
     )
@@ -764,7 +728,8 @@ def admission_error(
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
     """A to-do stands on an open thread, a widget that seats work or an element, or the
-    page. A `todo_end` also admits an agent withdrawal of a prose ask; a
+    page. A completing note and `todo_end` share completion authority.
+    A `todo_end` also admits an agent withdrawal of a prose ask; a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
@@ -773,9 +738,12 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     )
     if start := start_reading(event):
         event = start
+    elif event["kind"] == "note":
+        if not note_settlements(event, "todo"):
+            return None
     elif event["kind"] not in {"todo", "todo_end"}:
         return None
-    workflows = readings.work.workflows if event["kind"] != "todo_end" else []
+    workflows = readings.work.workflows if event["kind"] in {"todo", "start"} else []
     if progress_parent is not None and not any(
         item["input"] == event["item"]
         and item["next_actor"] == "agent"

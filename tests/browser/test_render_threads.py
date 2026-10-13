@@ -24,6 +24,7 @@ from leaf import media as media_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
+from leaf import todos as todos_model
 from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from PIL import Image
@@ -62,7 +63,6 @@ from render_harness import (
     EXAMPLES,
     FEATURE_GALLERY,
     LONG_PAGE,
-    ROOT,
     CutOff,
     admit_before_presenting_comment,
     any_owner_entry,
@@ -824,6 +824,154 @@ def test_an_idle_card_shows_an_answer_folding_the_progress_at_its_end(
     assert opening.bounding_box() == resting, "the fold moved what stood above it"
 
 
+def test_pending_progress_is_the_threads_working_message_and_never_unread(
+    browser, serve, request
+):
+    """While the agent works, its progress shows as one dim working message above the
+    reply box, not as replies: each step replaces the last, nothing counts unread, and
+    the earlier steps stay out of sight. The answer takes the working message's place
+    and folds the steps behind its own disclosure."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Make the banner quieter", {"section": "h-how"}
+    )
+    claim_for_codex(serve.page_dir, request)
+    codex = {"agent": "Codex", "session": "codex-thread"}
+    steps = [
+        thread_model.post_reply(
+            serve.page_dir,
+            {"to": root, "for": root},
+            text,
+            ephemeral=True,
+            identity=codex,
+        )
+        for text in ("Reading the banner's styles.", "Trying a lighter weight.")
+    ]
+    page = open_page(browser, url)
+    # The comment's Tasks row says the line the agent last gave, as the thread will.
+    page.locator(".lf-queue").click()
+    row = page.locator("[data-lf-queue='agent'] .lf-queue-row")
+    expect(row.locator(".lf-queue-where")).to_contain_text(
+        "Working · Trying a lighter weight."
+    )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(thread.locator(".lf-thread-unread")).to_have_count(0)
+    thread.locator(":scope > .lf-thread-summary").click()
+    line = thread.locator(".lf-thread-working")
+    expect(line.locator(".lf-thread-working-head b")).to_have_text("Codex")
+    expect(line.locator(".lf-thread-working-words")).to_have_text(
+        "Trying a lighter weight"
+    )
+    expect(line).to_have_attribute("data-lf-live", "")
+    expect(line.get_by_role("button")).to_have_count(0)
+    # A step is a line: a long one keeps the working message's box, so nothing below
+    # it moves while the reader is there.
+    height = line.evaluate("node => node.getBoundingClientRect().height")
+    steps.append(
+        thread_model.post_reply(
+            serve.page_dir,
+            {"to": root, "for": root},
+            "Comparing the lighter weight against every banner the gallery shows, "
+            "at each width the panel takes, before and after the change.",
+            ephemeral=True,
+            identity=codex,
+        )
+    )
+    told(page)
+    expect(line.locator(".lf-thread-working-words")).to_contain_text("Comparing")
+    assert line.evaluate("node => node.getBoundingClientRect().height") == height
+    for step in steps:
+        expect(thread.locator(f'.lf-msg[data-mid="{step["id"]}"]')).to_be_hidden()
+
+    answer = thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Done in v4: the banner is one weight lighter.",
+        identity=codex,
+    )
+    told(page)
+    expect(line).to_have_count(0)
+    expect(thread.locator(f'.lf-msg[data-mid="{answer["id"]}"]')).to_be_visible()
+    expect(
+        thread.get_by_role("button", name="Show 3 progress messages", exact=True)
+    ).to_be_visible()
+
+
+def test_a_streaming_answer_takes_the_working_messages_place_and_disclosure(
+    browser, serve, request
+):
+    """An answer streaming in is the agent's next word: the working message gives way to
+    it, and its head holds the progress disclosure the fold will hold once it lands."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
+    claim_for_codex(serve.page_dir, request)
+    step = thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Checking the board",
+        ephemeral=True,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(thread.locator(".lf-thread-working")).to_be_visible()
+
+    stream_reply(serve.page_dir, root, "Recording the release now.")
+    told(page)
+    expect(thread.locator(".lf-thread-working")).to_have_count(0)
+    streamed = thread.locator(".lf-msg.agent").last
+    expect(streamed.locator(".lf-msg-text")).to_have_text("Recording the release now.")
+    show = streamed.locator(".lf-msg-head").get_by_role(
+        "button", name="Show 1 progress message", exact=True
+    )
+    show.press("Enter")
+    expect(thread.locator(f'.lf-msg[data-mid="{step["id"]}"]')).to_be_visible()
+
+
+def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request):
+    """An answer that asks back or promises work says so in its head, beside its time,
+    for as long as the ask is the user's or the to-do stays open."""
+    url = serve(PANEL_PAGE)
+    asked = panel_comment(serve.page_dir, "Which store owns it?", {"section": "h-how"})
+    promised = panel_comment(serve.page_dir, "Rebuild the banner", {"section": "lede"})
+    claim_for_codex(serve.page_dir, request)
+    codex = {"agent": "Codex", "session": "codex-thread"}
+    question = thread_model.post_reply(
+        serve.page_dir,
+        {"to": asked, "for": asked},
+        "The session store or the page store?",
+        ask=True,
+        identity=codex,
+    )
+    promise = thread_model.post_reply(
+        serve.page_dir,
+        {"to": promised, "for": promised},
+        "Rebuilding it; it lands in v4.",
+        todo="Rebuild the banner quieter",
+        identity=codex,
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    for root, reply, words in (
+        (asked, question, "Waiting on me"),
+        (promised, promise, "To-do open"),
+    ):
+        thread = page.locator(f'.lf-thread[data-id="{root}"]')
+        thread.locator(":scope > .lf-thread-summary").click()
+        head = thread.locator(f'.lf-msg[data-mid="{reply["id"]}"] .lf-msg-head')
+        expect(head.locator(".lf-msg-leaves")).to_have_text(words)
+
+    todos_model.cmd_end(serve.page_dir, promise["id"], "done", "Rebuilt in v4")
+    told(page)
+    head = page.locator(f'.lf-msg[data-mid="{promise["id"]}"] .lf-msg-head')
+    expect(head.locator(".lf-msg-leaves")).to_have_count(0)
+
+
 def answer_folding_progress(page_dir, root):
     """The agent's answer to `root`, which folds the progress before it."""
     return thread_model.post_reply(
@@ -836,7 +984,8 @@ def answer_folding_progress(page_dir, root):
 
 
 def open_card_with_progress(browser, serve, request):
-    """An idle open card whose thread ends with the agent's progress."""
+    """An idle open card whose thread ends with the agent's progress, found by a search
+    so the progress message itself shows behind the working message."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
     claim_for_codex(serve.page_dir, request)
@@ -851,7 +1000,9 @@ def open_card_with_progress(browser, serve, request):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    page.get_by_role("searchbox", name="Find in threads").fill("release entry")
     progress = thread.locator(".lf-msg.agent .lf-msg-text")
+    expect(progress).to_be_visible()
     expect(progress).to_have_text("Checking the board for the release entry")
     return page, root, thread, progress
 
@@ -952,12 +1103,10 @@ def test_refresh_arrival_returns_to_the_thread_fill(browser, serve):
   </template>
 </lf-sample>
 <script type="module">
-  import {afterPresentation} from '/runtime/widget-api.js';
-  afterPresentation(async () => {
-    const sample = document.querySelector('#sample');
-    await sample.ready;
-    await sample.showThread('question', {surface: 'panel'});
-  });
+  await customElements.whenDefined('lf-sample');
+  const sample = document.querySelector('#sample');
+  await sample.ready;
+  await sample.showThread('question', {surface: 'panel'});
 </script>""",
         )
     )
@@ -1221,7 +1370,10 @@ def test_previous_progress_messages_can_fold_without_summary_prose(browser, serv
 def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     browser, serve, surface, interleaved
 ):
-    """The answer and its fold arrive together; originals remain a keyboard route."""
+    """The answer and its fold arrive together; originals remain a keyboard route.
+    Pending progress stands hidden behind the working message; in the panel a search
+    for it shows it, and a reader standing on it holds the answer that would fold it
+    behind its notice. The page thread has no search, so its answer lands at once."""
     url = serve(SEATED_ASK_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
@@ -1264,33 +1416,37 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     card = show(page)
     identity = "data-mid" if surface == "panel" else "data-event"
     original = card.locator(f'.lf-msg[{identity}="{progress["id"]}"]')
-    expect(original).to_be_visible()
-    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
-    original.focus()
+    expect(original).to_be_hidden()
+    runs = 2 if interleaved else 1
+    expect(card.locator(".lf-thread-checkpoint")).to_have_count(runs)
+    expect(card.locator(".lf-thread-working").get_by_role("button")).to_have_count(0)
     if surface == "panel":
+        page.get_by_role("searchbox", name="Find in threads").fill("the camera")
+        expect(original).to_be_visible()
+        original.focus()
         expect(original).to_be_focused()
 
     answer = thread_model.post_reply(
         serve.page_dir, {"to": owed, "for": owed}, "The schedule works."
     )
     told(page)
-    notice = card.get_by_role("button", name="1 new reply", exact=True)
-    expect(notice).to_be_visible()
-    expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_have_count(0)
-    expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
-    expect(original).to_be_visible()
-    assert original.evaluate(
-        "node => { const box = node.getBoundingClientRect(); "
-        "return box.top >= 0 && box.bottom <= innerHeight; }"
-    )
     if surface == "panel":
+        notice = card.get_by_role("button", name="1 new reply", exact=True)
+        expect(notice).to_be_visible()
+        expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_have_count(0)
+        expect(card.locator(".lf-thread-checkpoint")).to_have_count(runs)
+        expect(original).to_be_visible()
+        assert original.evaluate(
+            "node => { const box = node.getBoundingClientRect(); "
+            "return box.top >= 0 && box.bottom <= innerHeight; }"
+        )
         expect(original).to_be_focused()
-    notice.click()
+        notice.click()
+        expect(original).to_be_visible()
     expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_be_visible()
     checkpoint = card.locator(".lf-thread-checkpoint")
     expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
     expect(checkpoint.locator(".lf-summary-text")).to_have_count(0)
-    expect(original).to_be_visible()
 
     # A fresh reading starts folded, independent of the live reader's protected focus.
     fresh = open_page(browser, url)
@@ -3434,7 +3590,6 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
     board = append_carried_log_record(
         serve.page_dir,
         {
-            "revision": 1,
             "kind": "reply",
             "author": "agent",
             "parent": root,
@@ -5508,21 +5663,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     answer stays available for follow-up without entering the waiting list; a reply
     carrying an explicit prose ask enters it until the user answers. A widget ask
     needs no duplicate flag: its own current projection enters and leaves the list."""
-    options = (ROOT / "skills/leaf/packages/default/widgets/lf-options.js").read_text()
-    options = options.replace(
-        "connectedCallback() {",
-        """connectedCallback() {
-          if (this.id === "backend") {
-            const message = this.closest(".lf-msg");
-            window.__backendContext ??= {
-              message: Boolean(message),
-              thread: this.closest(".lf-thread")?.dataset.id ?? null,
-              saidAt: message?.querySelector("time")?.dateTime ?? null,
-            };
-          }""",
-        1,
-    )
-    url = serve(PANEL_PAGE, layer_widgets={"lf-options.js": options})
+    url = serve(PANEL_PAGE)
     answered = panel_comment(serve.page_dir, "Why forty?", {"section": "how-cap"})
     asked = panel_comment(serve.page_dir, "What remains?", {"section": "how-store"})
     thread_model.post_reply(
@@ -5545,6 +5686,24 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
           Document.prototype.addEventListener = function(type, ...args) {
             if (this === document && type === "lf-drafts") counts.drafts += 1;
             return add.call(this, type, ...args);
+          };
+          const define = customElements.define.bind(customElements);
+          customElements.define = (name, ctor, options) => {
+            if (name === "lf-options") {
+              const connected = ctor.prototype.connectedCallback;
+              ctor.prototype.connectedCallback = function() {
+                if (this.id === "backend") {
+                  const message = this.closest(".lf-msg");
+                  window.__backendContext ??= {
+                    message: Boolean(message),
+                    thread: this.closest(".lf-thread")?.dataset.id ?? null,
+                    saidAt: message?.querySelector("time")?.dateTime ?? null,
+                  };
+                }
+                return connected?.call(this);
+              };
+            }
+            return define(name, ctor, options);
           };
         })()""",
     )
@@ -6900,14 +7059,14 @@ def _shadow_tree_widget(tag):
     }
     module = f"""
 import {{shadowStage}} from '/runtime/widget-api.js';
-export default class extends HTMLElement {{
+customElements.define('{tag}', class extends HTMLElement {{
   connectedCallback() {{
     if (this.shadowRoot) return;
     const word = document.createElement('span');
     word.textContent = '{tag}';
     shadowStage(this, [word]);
   }}
-}};
+}});
 """
     return declaration, module
 
@@ -10146,11 +10305,6 @@ def _seat_manifest(patch):
         "files": [
             {
                 "path": "app.py",
-                "operation": "modify",
-                "hunkCount": 1,
-                "binary": False,
-                "additions": 1,
-                "deletions": 1,
                 "patch": patch,
             }
         ]
@@ -10260,10 +10414,8 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
 def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
     browser, serve, native_move
 ):
-    """Opening the folded file seats the comment box being written back on its diff
-    line, and the user goes on typing in it at the same caret. Where the browser has
-    `moveBefore` the move never blurs the editor, as `append` did, and the caret
-    survives the native selection the move collapses."""
+    """A folded file withholds its draft; reopening returns focus and the caret to
+    the editor on its diff line, with and without native retained moves."""
     url = serve(
         leaf_page(
             "diff",
@@ -10285,22 +10437,15 @@ def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
     expect(seated).to_be_focused()
     box = page.locator(".lf-fab-input")
     write(box, "Half a thought")
+    box.evaluate("box => box.setSelectionRange(4, 4)")
     details = page.locator("lf-diff details").first
     details.evaluate("details => { details.open = false; }")
     expect(seated).to_have_count(0)
-    expect(box).to_be_focused()
-    rendered(page)
-    box.evaluate("""box => {
-      box.setSelectionRange(4, 4);
-      window.blurs = 0;
-      box.addEventListener('blur', () => window.blurs++);
-    }""")
+    expect(box).to_be_hidden()
     details.evaluate("details => { details.open = true; }")
     expect(seated).to_be_focused()
     page.keyboard.type(" tr")
     expect(seated).to_have_js_property("value", "Half tr a thought")
-    if native_move:
-        assert page.evaluate("window.blurs") == 0
 
 
 def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser, serve):
@@ -12461,7 +12606,7 @@ def capture_page(browser, serve, *, touch=False):
     declaration, _ = _shadow_tree_widget("lf-capture-art")
     module = """
 import {shadowStage} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-capture-art', class extends HTMLElement {
   connectedCallback() {
     if (this.shadowRoot) return;
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -12474,7 +12619,7 @@ export default class extends HTMLElement {
     svg.append(rect);
     shadowStage(this, [svg]);
   }
-};
+});
 """
     context = browser.new_context(
         viewport={"width": 390 if touch else 1200, "height": 844 if touch else 900},
@@ -12911,14 +13056,14 @@ def test_a_changed_datum_keeps_its_old_words_open_when_its_label_changes(
     old = "The original requirement keeps a human review before release. " * 12
     module = """
 import {projectData, html, render} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-quote-subject', class extends HTMLElement {
   connectedCallback() { window.quoteSubject = this; this.show('Old plan', this.dataset.words); }
   show(label, words) {
     render(html`<p>${words}</p>`, this);
     projectData(this, [{key: 'plan', node: this.querySelector('p'), label,
       identity: 'plan', origin: {derived: [{widget: 'subject'}]}}]);
   }
-};
+});
 """
     url = serve(
         leaf_page(

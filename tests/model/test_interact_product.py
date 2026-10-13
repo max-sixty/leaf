@@ -785,6 +785,39 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
     (nested,) = errors(tone.format(name="page-tone"), inner)
     assert nested.code == "not-member"
 
+    # A quotation cannot supply a control to the surrounding playground, even if
+    # its preview surrounds the quotation. Its names neither collide nor resolve.
+    quoted = (
+        '<lf-sample id="quoted-control" label="Control example">'
+        + tone.format(name="item-tone")
+        + "</lf-sample>"
+    )
+    assert [e.code for e in fragment_errors(quoted, registry)] == ["not-member"]
+    assert [e.code for e in errors(tone.format(name="page-tone"), quoted)] == [
+        "not-member"
+    ]
+    quoted_records = SourceDocument(
+        f'<lf-playground id="quoted-member-scope">{quoted}'
+        '<lf-playground-output><lf-playground-value for="item-tone">'
+        "</lf-playground-value></lf-playground-output></lf-playground>"
+    ).lf_elements
+    assert [e.code for e in reference_errors(quoted_records, registry, set(), {})] == [
+        "unmatched-member"
+    ]
+    assert [
+        e.code
+        for e in errors(
+            tone.format(name="item-tone"), tone.format(name="page-tone") + quoted
+        )
+    ] == ["not-member"]
+    # The quoted playground itself still owns the controls written inside it.
+    assert not errors(
+        tone.format(name="item-tone"),
+        '<lf-sample id="quoted-playground" label="Playground example">'
+        + inner.replace(tone.format(name="lost-tone"), "")
+        + "</lf-sample>",
+    )
+
 
 def test_corpus_is_generated_from_the_examples():
     """examples/corpus.html is derived; a commit that lets it drift fails here."""
@@ -818,6 +851,15 @@ def test_corpus_is_generated_from_the_examples():
 
 
 def test_reply_validates_widget_markup(page_dir):
+    """The current layer checks replies; older layers do not constrain their markup."""
+    path = page_dir / "registry.json"
+    current = path.read_text()
+    earlier = json.loads(current)
+    del earlier["lf-diagram"]
+    path.write_text(json.dumps(earlier))
+    publish(page_dir)
+    path.write_text(current)
+    publish(page_dir)
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
@@ -1759,7 +1801,7 @@ def test_export_prints_threads_and_versions(page_dir):
         FLOW_PAGE.replace("<title>t</title>", "<title>Cutoff &amp; backfill</title>")
         .replace(
             '<lf-diagram id="flow">',
-            '<lf-diagram id="flow" parts="node:A node:B">',
+            '<lf-diagram id="flow" parts="all">',
         )
         .replace("<lf-options>", '<lf-options id="plan-options">')
     )
@@ -1786,7 +1828,6 @@ def test_export_prints_threads_and_versions(page_dir):
             "author": "agent",
             "agent": "Claude",
             "parent": "c1",
-            "revision": 1,
             "text": "reversibility",
             "markup": '<lf-diagram id="why"><pre>graph LR\n  A --> B</pre></lf-diagram>',
         },
@@ -1907,83 +1948,36 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "…" in head and len(head) < len(long_quote) / 2, head
 
 
-def test_new_replies_require_a_complete_candidate_publication(
-    page_dir,
-):
-    """New answers capture a complete publication; markup's local asks use
-    those declarations and cannot also be declared by a prose flag."""
+@pytest.mark.parametrize(
+    "markup", ["", '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>']
+)
+def test_reply_refuses_a_missing_current_layer(page_dir, markup):
+    """An addressed reply validates current source, even when its text needs no widget."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry = page_dir / "registry.json"
-    declarations = registry.read_bytes()
-    registry.unlink()
+    (page_dir / "registry.json").unlink()
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
-    answer = [
-        "response",
-        "reply",
-        "--done",
-        response_reference(page_dir, "c1"),
-        "--text",
-        "plain answer, x < y",
-    ]
-    diagram = '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>'
+    reference = response_reference(page_dir, "c1")
     before = events_model.read_events(page_dir)
-    for arguments in (answer, [*answer, "--markup", diagram]):
-        refused = CliRunner().invoke(cli_model.cli, [*arguments, "--json"])
-        assert refused.exit_code == 1, refused.output
-        refusal = refused_on(refused.stdout)
-        assert refusal.code == "invalid-source"
-        assert refusal.values["operation"] == "reply"
-        assert events_model.read_events(page_dir) == before
-        assert files_model.list_revisions(page_dir) == [1]
-    registry.write_bytes(declarations)
-    plain = CliRunner().invoke(cli_model.cli, answer)
-    assert plain.exit_code == 0, plain.output
-    markup = (
-        '<lf-ask id="captured-question"><h2>Which store?</h2>'
-        '<lf-options id="captured-options" choose>'
-        '<lf-option id="captured-a">A</lf-option>'
-        "</lf-options></lf-ask>"
-    )
-    before = events_model.read_events(page_dir)
-    revisions = files_model.list_revisions(page_dir)
-    duplicate = CliRunner().invoke(
+    result = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "c1",
-            "--text",
-            "Choose one.",
-            "--markup",
-            markup,
-            "--ask",
-            "--json",
-        ],
-    )
-    assert duplicate.exit_code == 1, duplicate.output
-    refusal = refused_on(duplicate.stdout)
-    assert refusal.code == "widget-ask-markup"
-    assert refusal.values == {"tags": ["lf-options"]}
-    assert events_model.read_events(page_dir) == before
-    assert files_model.list_revisions(page_dir) == revisions
-    with_markup = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            "c1",
+            "--done",
+            reference,
             "--text",
             "See:",
             "--markup",
-            diagram,
+            markup,
         ],
     )
-    assert with_markup.exit_code == 0, with_markup.output
+    assert result.exit_code != 0, result.output
+    assert "registry.json missing" in result.output
+    assert "run `leaf page init`" in result.output
+    assert events_model.read_events(page_dir) == before
 
 
 def test_comment_requires_the_registry_its_runtime_reads(page_dir):

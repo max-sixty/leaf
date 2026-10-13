@@ -163,6 +163,9 @@
           margin-bottom: 6px; position: sticky; inset-inline-start: 0; max-inline-size: 100cqi; }
 :where(:root, .lf-thread-transcript) :is(th, td) { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--rule);
          vertical-align: top; --lf-block-frame: 1; }
+@media screen and (max-width: 640px) {
+  :where(:root, .lf-thread-transcript) :is(th, td) { padding-inline: 8px; }
+}
 /* The padding is a gutter, and the columns at the two ends have no neighbour to
    keep away from: 10px of it there set every table's first word 10px right of
    the prose above it, and stopped the last column short of the same edge. */

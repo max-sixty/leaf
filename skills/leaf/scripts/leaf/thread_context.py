@@ -53,8 +53,8 @@ def sample_events(
         for event in events
         if event["kind"] == "action" and selected.intersection(memberships[event["id"]])
     }
-    # Allocation maps the retained publication identities into the child. A version's
-    # retractions are applied here rather than copied: what a later
+    # The child has one revision, this document, so every copied event is made on
+    # it. A version's retractions are applied here rather than copied: what a later
     # version retracted stays behind, with the notes that retracted it and anything
     # undoing it, and the rest stands in the child as it stands in the log.
     floors = retractions(events)
@@ -79,6 +79,7 @@ def sample_events(
                 for key, value in event.items()
                 if key not in {"seq", "publication"}
             },
+            **({"revision": 1} if "revision" in event else {}),
         }
         for event in events
         if event["id"] in copied
@@ -184,24 +185,6 @@ def thread_structure(events: list) -> ThreadStructure:
             ids.update(fragment.ids)
             by_id.update(fragment.by_id)
     return ThreadStructure(ids, by_id, fragments)
-
-
-def effective_thread_events(events: list, available_revisions) -> list:
-    """The log as read against the publications this page currently holds.
-
-    A message remains, including its prose and identity, when its captured
-    publication is unavailable. Only the authored markup island disappears.
-    The source log is never rewritten.
-    """
-    available = frozenset(available_revisions)
-    return [
-        (
-            {key: value for key, value in event.items() if key != "markup"}
-            if event.get("markup") and event.get("revision") not in available
-            else event
-        )
-        for event in events
-    ]
 
 
 def widget_messages(structure: ThreadStructure) -> dict:

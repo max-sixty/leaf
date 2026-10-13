@@ -23,6 +23,7 @@ from interact_support import (
     declare_idle,
     delivered,
     delivered_ref,
+    freeze_events,
     last_deliverable_seq,
     page_state,
     publish,
@@ -764,39 +765,72 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     )
 
 
-def test_a_recovery_reading_records_the_refs_an_older_receipt_lacked(claimed, capsys):
-    """A receipt an older Leaf wrote carries no refs. The prompt re-presents the
-    owed message, recording its pickup in this turn, and hands a recovery reading
-    with fresh references; confirming that reading in the same turn records them,
-    though the transition itself is already on record."""
+def test_prompt_and_stop_reuse_the_original_unanswered_delivery(claimed, capsys):
+    """A reminder recovers immutable input without capturing it again."""
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
-    [batch] = [
-        plan.batch for plan in hook_transport_model.read_plans("s1") if plan.batch
-    ]
-    with (
-        service_model.PageTransaction(claimed) as page,
-        delivery_model.receive_batch(page, batch, session_id="s1") as events,
-    ):
-        delivery_model.record_pickup(page, events, session="s1")
+    receive_through(claimed, asked["seq"])
+    ref = delivered_ref(claimed, asked["id"])
+    original = delivery_model.delivery_path(ref.partition(":")[0])
+    captured = original.read_bytes()
+    deliveries = set(original.parent.glob("*.json"))
+    for name in ("UserPromptSubmit", "UserPromptSubmit", "Stop"):
+        hooks_model.cmd_hook(
+            "claude-code", {"hook_event_name": name, "session_id": "s1"}
+        )
+        output = json.loads(capsys.readouterr().out)
+        context = output["hookSpecificOutput"]["additionalContext"]
+        assert re.findall(r'<leaf-delivery id="(\w+)"', context) == [original.stem]
+        assert set(original.parent.glob("*.json")) == deliveries
+        assert original.read_bytes() == captured
+        assert delivered_ref(claimed, asked["id"]) == ref
+
+
+def test_a_recovery_reading_records_refs_for_a_new_owner(claimed, capsys, monkeypatch):
+    """A new owner recovers already-received input at a usable response address."""
+    asked = append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "why B?"}
+    )
+    receive_through(claimed, asked["seq"])
+    original = delivered_ref(claimed, asked["id"])
+    with service_model.PageTransaction(claimed) as page:
+        page.take_claim(harness_model.ClaudeCodeHarness("s2", "Claude"))
     assert (
         "ref"
         not in delivery_model.current_responses(
             claimed, events_model.read_events(claimed)
         )[asked["id"]]
     )
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+    fresh = [
+        append_carried_log_record(
+            claimed, {"kind": "comment", "author": "user", "text": text}
+        )
+        for text in ("why C?", "why D?")
+    ]
+    captured = freeze_events(claimed, fresh)
+    cleanup_model.open_session_turn("s2")
+    delivery_model.receive(captured, "s2")
 
-    cleanup_model.prompt_turn("s1")
+    cleanup_model.prompt_turn("s2")
     hooks_model.cmd_hook(
-        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s2"}
     )
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    [recovery] = re.findall(r'<leaf-delivery id="(\w+)"', context)
+    [held, recovery] = re.findall(r'<leaf-delivery id="(\w+)"', context)
+    assert held == captured["id"]
+    assert recovery != original.partition(":")[0]
+    [batch] = delivery_model.read_delivery(recovery)["batches"]
+    assert [event["id"] for event in batch["events"]] == [asked["id"]]
     delivery_model.receive_delivery(recovery)
     assert delivered_ref(claimed, asked["id"]).startswith(f"{recovery}:")
+    assert all(
+        delivered_ref(claimed, event["id"]).startswith(f"{captured['id']}:")
+        for event in fresh
+    )
 
 
 def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):

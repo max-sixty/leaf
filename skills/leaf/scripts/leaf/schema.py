@@ -338,8 +338,6 @@ EXTENSION_SCHEMA = {
                     "type": "object",
                     "properties": {
                         "parts": _ATTRIBUTE_NAME,
-                        "all": {"type": "string", "pattern": "^\\S+$"},
-                        "complete": {"const": True},
                     },
                     "required": ["parts"],
                     "additionalProperties": False,
@@ -618,14 +616,7 @@ PLUGIN_ROOT = SKILL_ROOT.parent.parent
 ASSETS = SKILL_ROOT / "assets"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
-VENDORED_FILES = (
-    "leaf.js",
-    "theme.css",
-    "widget-theme.css",
-    "shadow.css",
-    "registry.json",
-    "icon.svg",
-)
+VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg")
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 INSTRUCTIONS_DIR = "instructions"
 PACKAGE_DIRS = (*BROWSER_DIRS, INSTRUCTIONS_DIR)

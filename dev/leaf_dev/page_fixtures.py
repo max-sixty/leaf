@@ -27,8 +27,6 @@ from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
-    capture_files,
-    data_file,
     data_operations,
     example_versions,
     page_files,
@@ -166,21 +164,6 @@ def read_fixture(
         versions=tuple(example_versions(source)),
         seed=seed if seed.is_file() else None,
     )
-
-
-def fixture_history(source: Path) -> list[Path]:
-    """The inputs `prepare_page` installs once, as history rather than authored state.
-
-    The seeded log, the data values and the files they capture, and every earlier
-    version, each named whether or not it exists, so a reader of the list sees one
-    arrive.
-    """
-    return [
-        seed_log(source),
-        data_file(source),
-        *example_versions(source)[:-1],
-        *capture_files(source),
-    ]
 
 
 def package_selection_args(packages) -> list[str]:

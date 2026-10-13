@@ -11,8 +11,8 @@ The user follows your work on the page:
 | Surface | What it shows | Written by |
 | --- | --- | --- |
 | Banner | one sentence for the whole page: the line of the item you have in hand, or what you want back | `leaf task start`, `leaf status <page> waiting "<detail>"` |
-| Beside a thread or widget | **Working** and your line, above the message or on the control the work answers | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
-| Thread | what you will do, your progress, and your answer to the user's message | the response operation named by delivered `handling` |
+| Beside a thread or widget | **Working** and your line: the thread's working message above its reply box, or on the control the work answers | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
+| Thread | your answer to the user's message, with the progress before it folded behind it | the response operation named by delivered `handling` |
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
 Leaf itself marks each update **Sent**, **Queued**, and **Picked up**, including
@@ -65,8 +65,8 @@ leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a lin
 ```
 
 The user reads it at once, and it takes the update in hand: the update reads
-**Working** with that line beside its thread and in the banner, and the
-progress line folds into the progress disclosure when your answer arrives
+**Working** with that line as its thread's working message and in the banner, and
+it folds into the progress disclosure when your answer arrives
 ([progress messages](threads.md#progress-messages)). Take any other item in hand,
 such as a to-do or an action on a page widget, which has no thread, with a start:
 
@@ -76,9 +76,9 @@ leaf task start <page> <id> "reading the reconnect traces" && <command>
 
 Take the item in hand again whenever the user would describe what you are doing
 differently: a new phase such as reading, editing, testing, or waiting on a result.
-Another progress message in the thread says it to the user there; a start changes
-only the line, and folding it into the command that begins the step costs no extra
-tool call. Name the operation and its subject in one sentence; "Working on it"
+Another progress message replaces the thread's working message and keeps the step
+behind it; a start changes the line without one, and folding it into the command
+that begins the step costs no extra tool call. Name the operation and its subject in one sentence; "Working on it"
 tells the user nothing the banner's dot does not already say.
 
 Work requested in chat or begun by you gets an item too. After initializing a
@@ -145,8 +145,8 @@ leaf page stamp <page> --text "…" --completes <widget-id>
 `--completes` names a widget with an open to-do, and ends each to-do on it `done`,
 citing the version. `leaf task open` takes a page widget that declares `x-work` or
 holds an unsettled action, any other element of the page, or `page`; work in a thread
-is opened by the reply that promises it (`--todo`). A to-do on a widget survives unrelated versions, and a
-version cannot drop that widget while the to-do stands.
+is opened by the reply that promises it (`--todo`). A to-do on a widget survives
+unrelated versions and removal of its widget.
 
 ## Long-running work
 
@@ -189,11 +189,16 @@ wait on CI, or a change you promise for the next version, answer with
 the reply answers the user's message and opens the to-do on that thread under the
 reply's id, which keeps the thread on you, and named in the banner, through the user
 resolving it and the end of your session. A turn-written reply carries no to-do, so
-answer such a promise with this command. Wherever
+answer such a promise with this command. Handing the work to another session, a
+background job, or a later turn is such a promise, even where the tool you hand it with
+counts the launch as the end of your part: the thread that asked still waits for the
+result, and a reply declared `--done` tells the user nothing is owed. Wherever
 the result lands, the to-do ends there: `leaf task end <page> <todo> done "<where the
 result is>"`, or `failed` or `dropped` with the reason, so work that won't come back
-to you takes the page and the to-do's id in its brief. While you work on it, start it,
-so the banner and the thread show your line.
+to you takes the page and the to-do's id in its brief. Start it in the session
+continuing the work: the start transfers completion authority to that session
+and gives the banner and thread its line. That session can finish on a later
+turn; another session takes over by starting the same to-do.
 Work on an update that finishes inside the turn needs no to-do.
 
 ## Questions and Tasks
@@ -257,8 +262,8 @@ on an external result. Complete authorized work without asking for permission
 again. A paused project needs an ask only when its disposition or resumption
 needs the user's decision; after they choose to keep it paused, that decision is
 settled. A blocked action belongs on the user only when they can take the step
-that unblocks it. Work owned by another session stays there; ask here only for the
-decision this page needs.
+that unblocks it. A question about work another session owns stays with that session;
+ask here only for the decision this page needs.
 
 An answer in chat or another surface still settles the real question. Incorporate
 it and retire its page ask in a revision (`authoring-revisions.md`), or end

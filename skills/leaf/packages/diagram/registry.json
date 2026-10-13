@@ -9,9 +9,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
       "parts": {
-        "type": "string",
-        "minLength": 1,
-        "pattern": "^(?:all|node:\\S+(?:\\s+node:\\S+)*)$"
+        "const": "all"
       }
     },
     "required": [
@@ -21,9 +19,7 @@
     "x-content": "data",
     "x-upgrade": true,
     "x-visual": {
-      "parts": "parts",
-      "complete": true,
-      "all": "all"
+      "parts": "parts"
     },
     "x-space": "available",
     "x-height": true,

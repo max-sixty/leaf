@@ -90,7 +90,7 @@ A page whose approval unblocks work declares:
 <meta name="lf-review" content="sign-off">
 ```
 
-An informational page omits it. The banner offers approval only on a stamped
+An informational page omits it. Leaf offers approval only on a stamped
 version that declares it, so stamp a draft before requesting its sign-off. Each such
 version gets an approval ask; that version's approval answers it, and Undo reopens
 it. Approval requires every widget ask on the page and in its unresolved threads to

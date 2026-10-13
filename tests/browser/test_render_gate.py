@@ -75,7 +75,6 @@ from render_cases_navigation import (
 )
 from render_cases_widgets import (
     GENERIC_VISUAL_LAYER,
-    GENERIC_VISUAL_PAGE,
     PART_DIAGRAM_PAGE,
     prefixed_visual_layer,
     visual_widgets,
@@ -437,7 +436,7 @@ RESERVING_WIDGETS = {
     "lf-test-drawn.js": """
 import { once } from '/runtime/widget-api.js';
 
-export default class extends HTMLElement {
+customElements.define('lf-test-drawn', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const drawing = document.createElement('div');
@@ -445,7 +444,7 @@ export default class extends HTMLElement {
     this.append(drawing);
     this.classList.add('lf-rendered');
   }
-};
+});
 """
 }
 
@@ -1078,99 +1077,10 @@ def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
     ), failures
 
 
-def test_the_render_gate_resolves_registered_visual_inventories(browser, serve):
-    """The gate resolves every authored token through the generic package contract,
-    one registered visual per case on one page: one that draws every part, and one
-    that draws `inner` only in another state, which resolves through its
-    registration's reveal. Reveals come after every other reading, so a defect in the
-    opening state stands even when revealing a part draws it away. A reveal that throws
-    is a caught package fault, and its finding keeps the throw site even without a
-    pageerror event."""
-    cases = {
-        "lf-test-visual": {},
-        "lf-test-visual-staged": {"staged": True},
-        "lf-test-visual-repaired": {
-            "staged": True,
-            "opening_fill": "var(--accent-glow)",
-            "repair_fill_on_reveal": True,
-        },
-    }
-    entry = GENERIC_VISUAL_LAYER["lf-test-visual"]
-    layer = {
-        tag: {
-            **entry,
-            "x-example": f'<{tag} id="example" parts="outer inner html"></{tag}>',
-        }
-        for tag in cases
-    }
-    widgets = {}
-    for tag, configuration in cases.items():
-        widgets |= visual_widgets(tag=tag, **configuration)
-    # Its own copy of the fixture, whose reveal throws, under a path of its own.
-    throws = visual_widgets(tag="lf-test-visual-throws", staged=True)
-    layer["lf-test-visual-throws"] = {
-        **entry,
-        "x-example": '<lf-test-visual-throws id="example" parts="outer inner html">'
-        "</lf-test-visual-throws>",
-    }
-    widgets["throws/visual-fixture.js"] = throws["visual-fixture.js"].replace(
-        'if (id !== "inner") return;',
-        'if (id !== "inner") return; null.revealInner();',
-    )
-    widgets["lf-test-visual-throws.js"] = throws["lf-test-visual-throws.js"].replace(
-        "./visual-fixture.js", "./throws/visual-fixture.js"
-    )
-    markup = GENERIC_VISUAL_PAGE.replace(
-        "</main>",
-        '<lf-test-visual-staged id="staged" parts="outer inner html">'
-        "</lf-test-visual-staged>\n"
-        '<lf-test-visual-repaired id="repaired" parts="outer inner html">'
-        "</lf-test-visual-repaired>\n"
-        '<lf-test-visual-throws id="throws" parts="outer inner html">'
-        "</lf-test-visual-throws>\n</main>",
-    )
-
-    failures = render_gate_model.render_version(
-        browser.unwatched, serve(markup, layer_registry=layer, layer_widgets=widgets)
-    ).failures
-
-    thrown = [f for f in failures if f.at == "<lf-test-visual-throws id=throws>"]
-    assert len(thrown) == 2, failures
-    problems = [problem for f in thrown for problem in f.values["problems"]]
-    assert [problem["kind"] for problem in problems] == ["unrevealable"] * 2, thrown
-    assert all('File "' not in problem["error"] for problem in problems), thrown
-    assert all(
-        "TypeError:" in problem["error"]
-        and "visual-fixture.js:" in problem["error"]
-        and "at reveal" in problem["error"]
-        for problem in problems
-    ), thrown
-    rest = [f for f in failures if f not in thrown]
-    assert rest, "the repaired visual's opening fill went unread"
-    assert all(
-        f.code == "invalid-paint"
-        and "repaired" in f.at
-        and f.values["property"] == "fill"
-        for f in rest
-    ), failures
-
-
 def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     browser, serve, tmp_path, monkeypatch
 ):
-    """A visual's inventory is checked before anything is read off the page, so these
-    refusals share a page whose readings end there.
-
-    A part declaration without a registered inventory cannot silently fall back: the
-    CLI can validate authored tokens without rendering them, so the browser gate holds
-    the other half, and every matching instance must register the inventory from
-    which Leaf derives both lookup directions before semantic visual anchors can
-    publish. An inventory that leaves a declared part unregistered, or names a part
-    with no descendant surface, is refused by element with the throw site of what it
-    could not read. And a prefixed visual authors no tokens, so the gate has none to
-    resolve; what it holds is the widget to its own declaration, refusing a registered
-    id outside it and only that one: `outer` and `inner` stand inside the prefixes
-    left."""
+    """A provider must register a valid inventory whose ids its prefixes admit."""
     monkeypatch.chdir(tmp_path)
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     callout = json.loads((tmp_path / ".leaf" / "registry.json").read_text())[
@@ -1192,8 +1102,7 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     )
     markup = CUSTOM_WIDGET_PAGE.replace(
         "</main>",
-        """<lf-test-visual id="missing" parts="outer absent"></lf-test-visual>
-<lf-test-visual id="outside" parts="outer inner html"></lf-test-visual>
+        """<lf-test-visual id="outside" parts="all"></lf-test-visual>
 <lf-test-visual-prefixed id="prefixed"></lf-test-visual-prefixed>
 </main>""",
     )
@@ -1215,14 +1124,9 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     }, failures
     visual = problems("lf-test-visual")
     assert [(scheme, at, problem["kind"]) for scheme, at, problem in visual] == [
-        (scheme, f"<lf-test-visual id={ident}>", kind)
+        (scheme, "<lf-test-visual id=outside>", "unreadable")
         for scheme in ("light", "dark")
-        for ident, kind in (
-            ("missing", "unregistered-parts"),
-            ("outside", "unreadable"),
-        )
     ], failures
-    assert visual[0][2]["parts"] == ["absent"]
     unread = [problem["error"] for _, _, problem in visual if "error" in problem]
     assert len(unread) == 2, failures
     assert all(
@@ -1262,11 +1166,8 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     assert "replayProjection" in finding["error"]
 
 
-def test_the_render_gate_reports_each_refusing_diagram(browser, serve):
-    """A parts list leaving a node unlisted and a class sharing its namespace's
-    identity, which layout cannot traverse, are independent refusals, and the gate
-    reports both: an invalid inventory ends a scheme's reading early but keeps what
-    the console already said."""
+def test_the_render_gate_refuses_duplicate_diagram_identities(browser, serve):
+    """A class sharing its namespace's identity fails before layout traverses it."""
     page = PART_DIAGRAM_PAGE.replace(
         "</lf-diagram>",
         """</lf-diagram>
@@ -1280,12 +1181,7 @@ classDiagram
     )
     failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
     assert [(f.scheme, f.code, f.at) for f in failures] == [
-        (scheme, code, at)
-        for scheme in ("light", "dark")
-        for code, at in (
-            ("console-error", ""),
-            ("visual-parts", "<lf-diagram id=flow>"),
-        )
+        (scheme, "console-error", "") for scheme in ("light", "dark")
     ], failures
     assert all(
         f.values["text"].startswith(
@@ -1294,11 +1190,6 @@ classDiagram
         )
         for f in failures
         if f.code == "console-error"
-    ), failures
-    assert all(
-        f.values["problems"] == [{"kind": "unlisted-parts", "parts": ["node:U"]}]
-        for f in failures
-        if f.code == "visual-parts"
     ), failures
 
 
@@ -1429,17 +1320,19 @@ def _author_lying_callout(tmp_path):
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        """import { once } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
-      this.textContent = "Entirely different words.";
-      const stage = document.createElement("div");
-      this.append(stage);
-      stage.attachShadow({ mode: "open" }).textContent = "shadow words";
-    }
-  };
-"""
+        'import { once } from "/runtime/widget-api.js";\n'
+        "customElements.define(\n"
+        '  "lf-callout",\n'
+        "  class extends HTMLElement {\n"
+        "    connectedCallback() {\n"
+        "      if (!once(this)) return;\n"
+        '      this.textContent = "Entirely different words.";\n'
+        '      const stage = document.createElement("div");\n'
+        "      this.append(stage);\n"
+        '      stage.attachShadow({ mode: "open" }).textContent = "shadow words";\n'
+        "    }\n"
+        "  },\n"
+        ");\n"
     )
 
 
@@ -1637,7 +1530,9 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     for tag, body in modules.items():
         (package / "widgets" / f"{tag}.js").write_text(
             'import { once, shadowStage } from "/runtime/widget-api.js";\n'
-            "export default class extends HTMLElement {\n" + body + "};\n"
+            f'customElements.define("{tag}", class extends HTMLElement {{\n'
+            + body
+            + "});\n"
         )
     # A lazy image that holds no room is reported only in DevTools' Issues panel. The
     # page owns an image it authors in a form-associated control's light DOM, and a
@@ -1872,7 +1767,9 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     for tag, body in modules.items():
         (package / "widgets" / f"{tag}.js").write_text(
             'import { once } from "/runtime/widget-api.js";\n'
-            "export default class extends HTMLElement {\n" + body + "};\n"
+            f'customElements.define("{tag}", class extends HTMLElement {{\n'
+            + body
+            + "});\n"
         )
     source = leaf_page(
         "widgets in the page and in replies",
@@ -2039,25 +1936,24 @@ def _author_stateful_verbatim_widget(tmp_path):
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
-        """import { once } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
-  connectedCallback() { once(this); }
-};
-"""
+        'import { once } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-shell", class extends HTMLElement {\n'
+        "  connectedCallback() { once(this); }\n"
+        "});\n"
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        """import { keepsText, once, widgetController } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
-  controller = widgetController(this);
-  stop;
-  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }
-  disconnectedCallback() { this.stop?.(); this.stop = null; }
-  renderState(state) {
-    if (state.change.value === "corrupt" || state.status.value === "corrupt")
-      keepsText(this.closest("lf-shell")?.querySelector(":scope > p") ?? this.querySelector("p"), "State replaced unrelated prose.");
-  }
-};
-"""
+        'import { keepsText, once, widgetController } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-stateful", class extends HTMLElement {\n'
+        "  controller = widgetController(this);\n"
+        "  stop;\n"
+        "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
+        "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
+        "  renderState(state) {\n"
+        '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
+        '      keepsText(this.closest("lf-shell")?.querySelector(":scope > p")'
+        ' ?? this.querySelector("p"), "State replaced unrelated prose.");\n'
+        "  }\n"
+        "});\n"
     )
 
 
@@ -3717,18 +3613,17 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        """import { once, shadowStage } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    const text = this.textContent;
-    this.textContent = "";
-    const span = document.createElement("span");
-    span.textContent = text;
-    shadowStage(this, [span]);
-  }
-};
-"""
+        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-callout", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        "    const text = this.textContent;\n"
+        '    this.textContent = "";\n'
+        '    const span = document.createElement("span");\n'
+        "    span.textContent = text;\n"
+        "    shadowStage(this, [span]);\n"
+        "  }\n"
+        "});\n"
     )
     serial = itertools.count(1)
     source = re.sub(

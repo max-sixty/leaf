@@ -528,7 +528,8 @@ def test_nested_target_hints_show_containment_without_covering_each_other(
     browser, serve
 ):
     """A container and its first child may paint the same box corner. Both remain
-    reachable, with separate chips outside their targets and each other."""
+    reachable, with separate chips outside their targets and each other, and the
+    child's chip stands right of its container's, so the two read as an outline."""
     html = leaf_page(
         "nested targets",
         '<section id="outer"><p id="inner">The child fills its parent.</p></section>',
@@ -552,6 +553,7 @@ def test_nested_target_hints_show_containment_without_covering_each_other(
     boxes = geometry["hints"]
     assert abs(geometry["targetLefts"][0] - geometry["targetLefts"][1]) < 0.5
     assert all(box["right"] <= geometry["targetLefts"][0] for box in boxes), geometry
+    assert boxes[1]["left"] >= boxes[0]["left"] + 8, geometry
     assert not (
         boxes[0]["left"] < boxes[1]["right"]
         and boxes[1]["left"] < boxes[0]["right"]

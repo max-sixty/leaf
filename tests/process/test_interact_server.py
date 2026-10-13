@@ -3058,7 +3058,9 @@ def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
     assert len(calls) == 2
 
 
-def test_neighbor_discovery_needs_no_native_subscription(page_dir, tmp_path, monkeypatch):
+def test_neighbor_discovery_needs_no_native_subscription(
+    page_dir, tmp_path, monkeypatch
+):
     """A short-lived reader sees new rows even when native watches cannot start."""
     from leaf import file_changes
 

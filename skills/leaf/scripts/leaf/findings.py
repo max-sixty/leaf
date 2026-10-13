@@ -1528,10 +1528,6 @@ _TEXT = {
         f"{_invalid_record(v)}position record cannot put <{v['unit_tag']}>"
         f" {v['unit']!r} within <{v['found']}> {v['destination']!r}"
     ),
-    "thread-widget-publication": lambda at, v: (
-        f"thread widget {v['widget']!r} belongs to publication "
-        f"r{v['publication']}, not r{v['revision']}"
-    ),
     "unknown-members": lambda at, v: (
         f"{_invalid_record(v)}{', '.join(v['strangers'])} name no member of"
         f" {v['widget']!r}"
@@ -1664,6 +1660,16 @@ _TEXT = {
         " when it no longer applies"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
+    "todo-execution": lambda at, v: (
+        f"to-do {v['todo']!r} was last started by "
+        + (
+            f"session {v['session']!r}"
+            if v["session"] is not None
+            else "a sessionless command"
+        )
+        + f" (start {v['start']!r}); take it in hand with `leaf task start`"
+        " before ending it from another session"
+    ),
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
     "agents-todo": lambda at, v: (
         f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"

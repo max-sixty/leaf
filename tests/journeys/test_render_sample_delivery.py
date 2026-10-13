@@ -41,7 +41,6 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
         </script>""",
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.set_default_timeout(15_000)
     held = []
     route_pattern = re.compile(r"/api/samples/[^/]+/api/state")
     page.route(route_pattern, lambda route: held.append(route))
@@ -85,16 +84,16 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
         inner_box = page_comment(child)
         child_words = "A newer child draft owns this view"
         write(inner_box, child_words)
-    expect(outer_box).to_have_js_property("value", "Parent draft", timeout=5_000)
-    expect(inner_box).to_have_js_property("value", child_words, timeout=5_000)
+    expect(outer_box).to_have_js_property("value", "Parent draft")
+    expect(inner_box).to_have_js_property("value", child_words)
     page.unroute(route_pattern)
     for route in held:
         route.continue_()
-    page.wait_for_function("window.sampleSelected", timeout=15_000)
+    page.wait_for_function("window.sampleSelected")
     assert page.evaluate("window.sampleSelectionResult") is (not newer_input)
     expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(outer_box).to_have_js_property("value", "Parent draft", timeout=5_000)
-    expect(inner_box).to_have_js_property("value", child_words, timeout=5_000)
+    expect(outer_box).to_have_js_property("value", "Parent draft")
+    expect(inner_box).to_have_js_property("value", child_words)
     if newer_input:
         expect(child.locator(".lf-thread-panel")).not_to_have_class(
             re.compile(r"\bopen\b")

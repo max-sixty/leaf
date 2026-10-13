@@ -3,7 +3,9 @@
    The server names each active contiguous range with the exact message ids it covers.
    This module only places those ranges into message order and keeps disclosure
    mechanical. Original message nodes remain connected inside their range, so frozen
-   authored widgets, direct arrivals, and focus identities keep their native lifetime. */
+   authored widgets, direct arrivals, and focus identities keep their native lifetime.
+   Progress no answer has folded yet is gathered the same way (`withPendingProgress`),
+   so when the answer's fold arrives its messages move from one range to the next. */
 
 export function summaryRanges(messages, summaries = []) {
   const index = new Map(messages.map((message, at) => [message.id, at]));
@@ -46,6 +48,48 @@ export function summaryRanges(messages, summaries = []) {
     }
   }
   return Object.freeze(ranges);
+}
+
+// The ranges with each run of pending progress gathered into a range of its own. A
+// progress message no summary covers is one no answer has folded yet (the server folds
+// completed progress, `events._ephemeral_ranges`), so it is a step of work still in hand:
+// the thread draws it as its working message, and keeps the messages behind that
+// message's disclosure. The range is named for its first message, so it keeps its identity, and
+// its disclosure state, as the run grows.
+export function withPendingProgress(ranges) {
+  const gathered = [];
+  for (const range of ranges) {
+    const progress = range.kind === "message" && range.message.progress;
+    const run = gathered.at(-1);
+    if (progress && run?.summary?.pending) {
+      run.summary.covers.push(range.message.id);
+      run.messages.push(range.message);
+    } else if (progress)
+      gathered.push({
+        kind: "summary",
+        summary: {
+          id: `progress:${range.message.id}`,
+          covers: [range.message.id],
+          pending: true,
+        },
+        messages: [range.message],
+      });
+    else gathered.push(range);
+  }
+  return Object.freeze(
+    gathered.map((range) =>
+      range.summary?.pending
+        ? Object.freeze({
+            ...range,
+            summary: Object.freeze({
+              ...range.summary,
+              covers: Object.freeze(range.summary.covers),
+            }),
+            messages: Object.freeze(range.messages),
+          })
+        : range,
+    ),
+  );
 }
 
 // Where each run of unread messages starts ("new") and where the read message after one

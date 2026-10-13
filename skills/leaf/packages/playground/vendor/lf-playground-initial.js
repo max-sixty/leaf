@@ -1,10 +1,11 @@
 (() => {
   // skills/leaf/packages/playground/initial.js
   var own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
+  var belongsTo = (host, member) => member.parentElement.closest("lf-playground, [data-lf-exhibit]") === host;
   var ownControls = (host, preview) => [
     ...own(host, "lf-playground-control"),
     ...[...preview?.querySelectorAll("lf-playground-control") ?? []].filter(
-      (control) => control.parentElement.closest("lf-playground") === host
+      (control) => belongsTo(host, control)
     )
   ];
   var COPY_LABELS = [
@@ -276,6 +277,7 @@
     };
     const renderValues = (next) => {
       for (const slot of output.querySelectorAll("lf-playground-value")) {
+        if (!belongsTo(host, slot)) continue;
         const name = slot.getAttribute("for");
         text(slot, formatted(controlByName.get(name), next[name]));
       }

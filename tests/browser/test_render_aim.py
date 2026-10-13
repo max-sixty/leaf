@@ -4066,10 +4066,10 @@ def test_a_withheld_draft_observes_visibility_without_a_layout_change(
         words = "A reply with the same visibility owner."
         write(field, words)
     page.locator("#ordinary").evaluate("el => el.style.visibility='hidden'")
-    expect(field).not_to_be_visible(timeout=10_000)
+    expect(field).not_to_be_visible()
     page.locator("#ordinary").evaluate("el => el.style.visibility='visible'")
-    expect(field).to_be_visible(timeout=10_000)
-    expect(field).to_be_focused(timeout=10_000)
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
     assert _draft_in_view(page, words, field)
 
 
@@ -4085,24 +4085,23 @@ def test_a_display_contents_comment_editor_observes_visibility_without_layout(
         layout=None,
     )
     page = open_page(browser, serve(source))
-    page.set_default_timeout(10_000)
     rendered(page)
     page.locator("#pair span").first.click(modifiers=["Alt"])
     field = page.locator(".lf-fab-input")
-    expect(field).to_be_visible(timeout=10_000)
-    expect(field).to_be_focused(timeout=10_000)
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
     words = "An unfinished comment remains with its display contents target."
     write(field, words)
-    expect(field).to_have_js_property("value", words, timeout=10_000)
+    expect(field).to_have_js_property("value", words)
 
     parts = page.locator("#pair > p")
     expect(parts).to_have_count(2)
     parts.evaluate_all("els => els.forEach(el => el.style.visibility='hidden')")
-    expect(field).not_to_be_visible(timeout=10_000)
+    expect(field).not_to_be_visible()
     parts.evaluate_all("els => els.forEach(el => el.style.visibility='visible')")
-    expect(field).to_be_visible(timeout=10_000)
-    expect(field).to_be_focused(timeout=10_000)
-    expect(field).to_have_js_property("value", words, timeout=10_000)
+    expect(field).to_be_visible()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", words)
 
 
 DESIGN_PANE_PAGE = leaf_page(

@@ -975,7 +975,7 @@ DATA_PROJECTION_PAGE = leaf_page(
 
 DATA_PROJECTION_MODULE = """
 import {offer, projectData, watchData, setChildren} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-feed', class extends HTMLElement {
   connectedCallback() {
     if (!this.stopWatching)
       this.stopWatching = watchData(
@@ -997,7 +997,7 @@ export default class extends HTMLElement {
     setChildren(this, datums.map(({node}) => node));
     projectData(this, datums, {snapshot});
   }
-};
+});
 """
 
 

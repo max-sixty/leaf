@@ -120,10 +120,11 @@ def _check(page_dir: Path, render: bool, as_json: bool) -> int:
         return reported(0) if as_json else 0
     from leaf.render_gate.command import browser_check, print_browser_check
 
+    revision = result.revision.candidate
     browser = browser_check(
         page_dir,
         result.document,
-        result.revision.candidate,
+        revision,
         result.artifact,
         page_code=runs_code,
         render=render,

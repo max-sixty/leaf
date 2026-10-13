@@ -68,8 +68,6 @@
  * open, including when the platform dismisses it. Scopes sharing a title merge their
  * rows; an unavailable contributor supplies none.
  */
-import { bindVocabulary, vocabularyFor } from "./widget-contexts.js";
-import { requireVocabulary } from "./widget-vocabularies.js";
 import {
   nextAnimation,
   nextRender,
@@ -121,7 +119,7 @@ import {
   wrote,
 } from "./passages.js";
 import { TEXT_BLOCK } from "./passage-facts.js";
-import { registryFor, tagsDeclaring } from "./registry.js";
+import { registry, tagsDeclaring } from "./registry.js";
 import {
   paintMarkdown,
   prepareDeclaredMarkdown,
@@ -448,32 +446,28 @@ export function renderVersions(state) {
 // Which blocks and which widgets is the registry's answer both times, so a widget added
 // to the vocabulary diffs on the strength of its declaration: a compound member whose content
 // model is prose is a block of the page's prose the same way a paragraph is.
-const diffBlockSel = (root = document) =>
+const diffBlockSel = () =>
   [
     TEXT_BLOCK,
     "aside",
-    ...tagsDeclaring(
-      (e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup",
-      root,
-    ),
+    ...tagsDeclaring((e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
     // Preserving widgets contribute their own prose. The leaf-blocks-only rule
     // below avoids counting nested blocks twice and keeps base and live readings
     // symmetric: a draft's authored <pre> and rendered body key the same words.
-    ...tagsDeclaring((e) => e["x-verbatim"], root),
+    ...tagsDeclaring((e) => e["x-verbatim"]),
   ].join(",");
 // Opaque: a widget whose upgrade renders its data body, so the text on screen is the
 // module's and can't compare; and one whose slots a decision retires, which holds two
 // versions of one passage and is already its own mark. Plus svg, drawn by either.
-const diffOpaqueSel = (root = document) =>
+const diffOpaqueSel = () =>
   [
     ...tagsDeclaring(
       (e) => e["x-upgrade"] && !e["x-verbatim"] && e["x-content"] === "data",
-      root,
     ),
     // External data is absent from both authored documents. Its seat is opaque, and
     // the authored binding and immutable selector below are the comparison key.
-    ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"], root),
-    ...Object.entries(registryFor(root).$decisions)
+    ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
+    ...Object.entries(registry.$decisions)
       .filter(([, { retires }]) => Object.keys(retires).length)
       .map(([owner]) => owner),
     "svg",
@@ -521,7 +515,7 @@ function diffWords(block) {
 // version is parsed unupgraded and holds none of them.
 function diffBlocks(root) {
   const pairs = [];
-  const [blocks, opaque] = [diffBlockSel(root), diffOpaqueSel(root)];
+  const [blocks, opaque] = [diffBlockSel(), diffOpaqueSel()];
   const authoredHere = authored(root);
   // A data body is one source value. Its formatted paragraphs are its reading,
   // not independent source units; comparing the source also detects changed emphasis.
@@ -540,7 +534,7 @@ function diffBlocks(root) {
     // changed. Symmetric for free — the base parses unupgraded, where the same
     // attribute would have painted the same words through the pseudo-element.
     for (const [attr, edge] of Object.entries(
-      registryFor(b)[b.localName]?.["x-says"] ?? {},
+      registry[b.localName]?.["x-says"] ?? {},
     )) {
       const said = b.getAttribute(attr);
       if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
@@ -552,7 +546,7 @@ function diffBlocks(root) {
   for (const w of root.querySelectorAll(opaque)) {
     // parentElement, not w itself: an svg a widget rendered stays its widget's.
     if (!authoredHere(w) || inChrome(w) || w.parentElement?.closest(opaque)) continue;
-    const entry = registryFor(w)[w.localName] ?? {};
+    const entry = registry[w.localName] ?? {};
     // A data binding is authored semantics even though the generated children
     // of an upgraded widget are opaque to comparison.
     const bindingAttrs = new Set();
@@ -981,11 +975,6 @@ async function authoredDocument(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
   const doc = new DOMParser().parseFromString(await response.text(), "text/html");
-  const revision = Number(doc.body.dataset.lfVocabulary);
-  const probe = doc.querySelector("script[data-lf-vocabulary-root]").dataset
-    .lfVocabularyRoot;
-  const root = new URL(".", new URL(probe, document.baseURI)).href.replace(/\/$/, "");
-  bindVocabulary(doc, await requireVocabulary(revision, root));
   // First-paint delivery wrappers have no place in the authored revision.
   return restoreInitialSource(doc);
 }
@@ -1314,8 +1303,7 @@ export function createVersionController({
     marker.content = String(revision.revision);
   }
 
-  const upgraded = (element) =>
-    Boolean(registryFor(element)[element.localName]?.["x-upgrade"]);
+  const upgraded = (element) => Boolean(registry[element.localName]?.["x-upgrade"]);
 
   // Every declared widget in one revision's authored page, named the way its capture
   // named it: by id where the author gave one, and otherwise by tag and place among the
@@ -1386,7 +1374,7 @@ export function createVersionController({
     return copy;
   };
   const reachesMembers = (before, after, arrivingRoot) =>
-    registryFor(before)[before.localName]?.["x-patch"] === "members" &&
+    registry[before.localName]?.["x-patch"] === "members" &&
     sameAuthoredMarkup(shell(before), shell(after), arrivingRoot);
 
   // Preparation and installation use the same matching, widget ownership, and resource
@@ -1510,7 +1498,7 @@ export function createVersionController({
     // owed again, and these are the roots the install dresses beside the arrivals.
     const touched = [];
     const arrive = (node, parent) => {
-      const arriving = vocabularyFor(source).importNode(node);
+      const arriving = document.importNode(node, true);
       pairSources(node, arriving, sourcePairs);
       if (arriving.nodeType === Node.ELEMENT_NODE) {
         rememberPassageParts(arriving);

@@ -38,6 +38,7 @@ from leaf.projection import (
     ask_value,
     enclosing_widgets,
     folded_value,
+    frozen_thread_reading,
     markup_value,
     page_reading,
     state_projection,
@@ -89,7 +90,7 @@ def ask_registrations(document, registry: dict) -> dict[str, AskRegistration]:
 
 def settles(reaction: dict, turn: str, tokens: dict) -> bool:
     """Whether a message is the user's reaction on the agent's `turn` with a token
-    the registry declares `settles` (`$reactions`), which answers the ask that
+    the registry declares `settles` (`$reactions`), which answers the question that
     turn asks as a reply would. `tokens` is `$reactions.tokens`."""
     return (
         is_reaction(reaction)
@@ -186,7 +187,7 @@ def thread_asks(
     thread_id: str,
     thread: dict,
     registry: dict,
-    reading: FrozenThreadReading,
+    structure,
     open_widget_threads: set[str],
     ends: dict[str, dict],
 ) -> ThreadAsks:
@@ -207,14 +208,11 @@ def thread_asks(
     for message in turns:
         if message["author"] != "agent":
             continue
-        fragment = reading.structure.fragments.get(message["id"])
-        vocabulary = (
-            reading.registry_for_message(message["id"]) if fragment else registry
-        )
+        fragment = structure.fragments.get(message["id"])
         if any(
-            local_ask_entry(vocabulary.get(rec["tag"]) or {})
-            and asking(rec["attrs"], vocabulary[rec["tag"]]["x-awaits"].get("when"))
-            and not quoted_in(rec, vocabulary)
+            local_ask_entry(registry.get(rec["tag"]) or {})
+            and asking(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
+            and not quoted_in(rec, registry)
             for rec in (fragment.lf_elements if fragment else [])
         ):
             continue
@@ -883,32 +881,26 @@ def page_ask_readings(
 
 def thread_ask_readings(
     events: list,
+    registry: dict,
     threads: dict,
     *,
-    reading: FrozenThreadReading,
+    reading: FrozenThreadReading | None = None,
 ) -> dict:
-    """Read frozen asks under each message's admitted publication.
-
-    Closing a thread retains its inventory with no next actor. While it is open,
-    a user turn after the message that asks hands the ask to the agent until the
-    agent answers that turn, as a thread anchored on a page ask does
-    (`sections_with_agent`)."""
-    records = []
-    for publication in reading.publications.values():
-        reducer = _AskReducer(
-            publication.structure,
-            publication.projection,
-            publication.structure.by_id,
-            publication.spoken,
-            publication.registry,
-            set(),
-            events=events,
-        )
-        records.extend(reducer.inventory(set()))
-    # Publication groups share a vocabulary, not a position in the conversation.
-    # Preserve message and authored widget order when composing their inventories.
-    order = {widget: index for index, widget in enumerate(reading.by_id)}
-    records.sort(key=lambda record: order[record["source"]["id"]])
+    """Frozen widget asks retain inventory when their containing thread closes,
+    with no next actor. While the thread is open, a user turn after the message
+    that asks hands the ask to the agent until the agent answers that turn, as a
+    thread anchored on a page ask does (`sections_with_agent`)."""
+    reading = reading or frozen_thread_reading(events, registry)
+    reducer = _AskReducer(
+        reading.structure,
+        reading.projection,
+        reading.by_id,
+        reading.spoken,
+        registry,
+        set(),
+        events=events,
+    )
+    records = reducer.inventory(set())
     message_by_widget = widget_messages(reading.structure)
     for record in records:
         source = record["source"]["id"]

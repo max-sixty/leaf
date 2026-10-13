@@ -114,8 +114,6 @@ export { flashDuration, agentArrivalDuration } from "./motion.js";
 export { replyIsEditing } from "./thread/replies.js";
 export { THREAD, SAY_BOX } from "./thread/selectors.js";
 export { alignInlineText, sentenceUnits } from "./text-alignment.js";
-export { requireVocabulary } from "./widget-vocabularies.js";
-export { vocabularyFor, bindVocabulary } from "./widget-contexts.js";
 export { registerSampleCommand } from "./sample-child.js";
 export { recordInteraction } from "./interaction-log.js";
 export { heldThreadId, replyDestination } from "./thread/focus.js";

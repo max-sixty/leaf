@@ -2266,9 +2266,9 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
     accepted = [case for case in DIFF_PATCH_CASES if "files" in case]
     refused = [case for case in DIFF_PATCH_CASES if "widget" in case]
     # The manifest stores what it is given, so the widget alone refuses a stored
-    # file's patch, in that file. The contract itself refuses an empty manifest and a
-    # repeated path at `data set`.
-    stored = [case for case in refused if case["id"] not in {"empty", "repeated-path"}]
+    # file's patch, in that file. The producer groups repeated paths for the widget
+    # to judge; the contract itself refuses an empty manifest at `data set`.
+    stored = [case for case in refused if case["id"] != "empty"]
     markup = "".join(
         [
             *(
@@ -3551,7 +3551,7 @@ def test_select_all_on_a_page_with_a_diff_leaves_the_page_responsive(browser, se
     forever from a position that reading lacked, pinning the tab. The press is bounded so
     that regression fails here rather than hanging the run."""
     page = open_page(browser, serve(TWICE_PAGE))
-    page.locator("body").press("ControlOrMeta+a", timeout=5000)
+    page.locator("body").press("ControlOrMeta+a")
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_contain_text(
         re.compile("Something else entirely.*request.headers", re.DOTALL)
@@ -3892,7 +3892,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
         layer_widgets={
             "lf-decoration.js": """
                 import {once} from '/runtime/widget-api.js';
-                export default class extends HTMLElement {
+                customElements.define('lf-decoration', class extends HTMLElement {
                   connectedCallback() {
                     if (!once(this)) return;
                     this.innerHTML = `
@@ -3900,7 +3900,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                       <svg id="decoration-icon" data-lf-gen viewBox="0 0 20 20"
                            width="40" height="40"><path d="M2 18L18 2" /></svg>`;
                   }
-                };
+                });
             """
         },
     )
@@ -4584,14 +4584,14 @@ def test_dismissing_versions_during_thread_upgrade_preserves_the_new_version(
         layer_widgets={
             "lf-menu-preparation.js": """
 import {once, widgetController} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-menu-preparation', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     widgetController(this).present(
       new Promise(resolve => { window.finishMenuPreparation = resolve; }),
     );
   }
-};
+});
 """
         },
     )
@@ -4925,11 +4925,6 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
             "files": [
                 {
                     "path": "app.py",
-                    "operation": "modify",
-                    "hunkCount": 1,
-                    "binary": False,
-                    "additions": 1,
-                    "deletions": 1,
                     "patch": """diff --git a/app.py b/app.py
 --- a/app.py
 +++ b/app.py
@@ -5212,11 +5207,6 @@ TWO_FILE_MANIFEST = {
     "files": [
         {
             "path": "first.py",
-            "operation": "modify",
-            "hunkCount": 1,
-            "binary": False,
-            "additions": 1,
-            "deletions": 1,
             "patch": """diff --git a/first.py b/first.py
 --- a/first.py
 +++ b/first.py
@@ -5227,11 +5217,6 @@ TWO_FILE_MANIFEST = {
         },
         {
             "path": "second.py",
-            "operation": "modify",
-            "hunkCount": 1,
-            "binary": False,
-            "additions": 1,
-            "deletions": 1,
             "patch": """diff --git a/second.py b/second.py
 --- a/second.py
 +++ b/second.py
@@ -5423,11 +5408,6 @@ def test_a_deferred_diff_tracks_each_write_and_retries_a_failed_file(browser, se
             "files": [
                 {
                     "path": path,
-                    "operation": "modify",
-                    "hunkCount": 1,
-                    "binary": False,
-                    "additions": 1,
-                    "deletions": 1,
                     "patch": f"""diff --git a/{path} b/{path}
 --- a/{path}
 +++ b/{path}
@@ -5494,11 +5474,6 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
         "files": [
             {
                 "path": "app.py",
-                "operation": "modify",
-                "hunkCount": 1,
-                "binary": False,
-                "additions": 1,
-                "deletions": 1,
                 "patch": original,
             }
         ]
@@ -5552,11 +5527,6 @@ def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
             "files": [
                 {
                     "path": "second.py",
-                    "operation": "modify",
-                    "hunkCount": 1,
-                    "binary": False,
-                    "additions": 1,
-                    "deletions": 1,
                     "patch": """diff --git a/second.py b/second.py
 --- a/second.py
 +++ b/second.py

@@ -55,8 +55,6 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
         "/leaf.js": Resource(
             b"""
                 import {initialRender} from '/runtime/widget-api.js';
-                import {bindVocabulary} from '/runtime/check-api.js';
-                bindVocabulary(document, {revision: 1});
                 const host = document.getElementById('outer');
                 const frame = host.querySelector('.initial-frame');
                 const adopted = initialRender(host);
@@ -70,7 +68,6 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             for path in (
                 "/runtime/annotation-overlay/annotation-theme.css",
                 "/runtime/chrome.css",
-                "/widget-theme.css",
                 "/runtime/marks.css",
                 "/runtime/annotation-overlay/annotation-chrome.css",
                 "/runtime/annotation-overlay/annotation-marks.css",

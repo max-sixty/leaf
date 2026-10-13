@@ -15,6 +15,18 @@ from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 from .markup import found_at, structure_errors
 
 
+def member_holders(rec: dict, registry: dict):
+    """An element's enclosing widgets within its quotation, innermost first.
+
+    A quotation cannot supply members to an owner outside it. An owner quoted as
+    a whole still holds its own members, since they reach it before the boundary.
+    """
+    for node in enclosing_widgets(rec):
+        if registry.get(node["tag"], {}).get("x-exhibit"):
+            break
+        yield node
+
+
 def thread_markup_contract_errors(parser, registry: dict) -> list[Finding]:
     """Registry-derived errors shared by admission and re-vendoring."""
     errors = fragment_errors(parser, registry)
@@ -67,7 +79,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
         nearest = next(
             (
                 node["tag"]
-                for node in enclosing_widgets(rec)
+                for node in member_holders(rec, registry)
                 if node["tag"] in within or node["tag"] in want_owners
             ),
             None,
@@ -251,9 +263,11 @@ def relation_mismatch(
     }
 
 
-def enclosing(rec: dict, tag: str) -> dict | None:
-    """The nearest Leaf element of `tag` standing around `rec`, if any."""
-    return next((node for node in enclosing_widgets(rec) if node["tag"] == tag), None)
+def enclosing(rec: dict, tag: str, registry: dict) -> dict | None:
+    """The nearest member owner of `tag` within `rec`'s quotation, if any."""
+    return next(
+        (node for node in member_holders(rec, registry) if node["tag"] == tag), None
+    )
 
 
 def keyed_members(lf_elements: list, registry: dict) -> dict:
@@ -265,7 +279,7 @@ def keyed_members(lf_elements: list, registry: dict) -> dict:
     for rec in lf_elements:
         for key, scope_tag in registry.get(rec["tag"], {}).get("x-unique", {}).items():
             value = rec["attrs"].get(key)
-            scope = enclosing(rec, scope_tag)
+            scope = enclosing(rec, scope_tag, registry)
             if value is not None and scope is not None:
                 members.setdefault((id(scope), rec["tag"], key, value), []).append(rec)
     return members
@@ -327,7 +341,7 @@ def reference_errors(
                     keyed = keyed_members(lf_elements, registry)
                 key = reference["key"]
                 scope_tag = registry[member]["x-unique"][key]
-                scope = enclosing(rec, scope_tag)
+                scope = enclosing(rec, scope_tag, registry)
                 if (id(scope), member, key, target) not in keyed:
                     errors.append(
                         found_at(

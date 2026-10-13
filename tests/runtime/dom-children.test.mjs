@@ -1,4 +1,3 @@
-import { bindVocabulary } from "/runtime/widget-contexts.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -34,7 +33,6 @@ test("failure replacement releases directives and supports native and template r
 
 test("a staged widget shows each failure in its stage and its next stage replaces it", () => {
   const host = document.createElement("test-widget");
-  bindVocabulary(host, { revision: 1, shadowRules: { text: "" } });
   document.body.append(host);
   const view = document.createElement("p");
   view.textContent = "Good reading";

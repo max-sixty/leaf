@@ -1071,16 +1071,16 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         7,
         16,
     ]
-    # Folding the file away removes the inline outlet, but the draft remains on
-    # screen with its words and focus until the file is opened again.
+    # Folding the file away removes the inline outlet and withholds its seated
+    # editor. The native draft and its words return when the file opens again.
     details.evaluate("element => { element.open = false; }")
     expect(composer_outlet).to_have_count(0)
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_have_js_property(
         "value", "Review the whole added line."
     )
     details.evaluate("element => { element.open = true; }")
+    expect(composer_outlet.locator(".lf-fab-bar")).to_be_visible()
     expect(composer_outlet.locator(".lf-fab-input")).to_have_js_property(
         "value", "Review the whole added line."
     )
@@ -1184,7 +1184,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     with sending(page, "the comment on the selected expression"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread .lf-quote").nth(1)).to_have_text(
-        "app.py · new line 2 · “request.token.id”"
+        "§ app.py · new line 2"
     )
 
     comments = [

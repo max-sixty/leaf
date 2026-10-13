@@ -28,8 +28,6 @@ class PredecessorReading(NamedTuple):
     """The active and predecessor documents this exact source is checked against."""
 
     active: int
-    # A changed source gets an identity above every committed marker, including
-    # obsolete captures; readable active/predecessor identities can have gaps.
     candidate: int
     committed_active: bool
     # The candidate's captured artifact is the active revision's: its transition

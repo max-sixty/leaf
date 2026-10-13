@@ -41,13 +41,12 @@ import { clipsPastSurfaces, seenRect, whenNone } from "./geometry.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { registerContribution } from "./contributions.js";
 import { runtime } from "./context.js";
-import { reactionVocabulary } from "./registry.js";
+import { registry } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
 import { pageSelection } from "./composing/capture.js";
 import { el, offer, responseAction } from "./widget-elements.js";
 import { HOLDS_WORD } from "./held-word.js";
 import { keeps } from "./keeps.js";
-import { move } from "./dom-move.js";
 
 import { elementById } from "./passages.js";
 import { addressableWord } from "./addressable-names.js";
@@ -78,10 +77,11 @@ import { reactionsAt, tokenChoices } from "./thread/model.js";
 import { allThreads, readThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
 
+const reactionVocabulary = () => registry.$reactions?.tokens ?? {};
 // The layer's reaction vocabulary, in declared order. The bar, a reply's strip, the
 // page row and the keyboard accelerators all read this one list, so a layer that
 // renames, adds or removes a token moves every surface at once, and core never learns
-// a token's name. Empty until the document is captured: the register checks every core
+// a token's name. Empty until the registry has arrived: the register checks every core
 // row's bindings as the module evaluates, before the vocabulary is known.
 export const reactionTokens = () => Object.entries(reactionVocabulary());
 // A toggle needs the saved reaction in force, including proof that none stands.
@@ -134,9 +134,7 @@ export function paintBarReactions(anchor) {
 export function createReactionController({
   marginEntryChoices,
   marginEntryContextContains,
-  foldMarginEntryOptions,
   openMarginEntryOptions,
-  unfoldedMarginEntries,
   designModeActive,
   hideComposer,
   syncResponseOptions,
@@ -156,8 +154,6 @@ export function createReactionController({
   let marginTarget = null;
   let marginAnchor = null;
   let pageCommands = null;
-  let palette = null;
-  let paletteVocabulary = null;
   const marginReactionKey = (name, ordinal) =>
     `reaction:${String(ordinal).padStart(4, "0")}:${name}`;
   function registerReactSurface(surface, { palette, target, trigger }) {
@@ -172,32 +168,12 @@ export function createReactionController({
 
   function buildReactBar(commands) {
     pageCommands = commands;
-    palette = el("span", "lf-react-palette");
+    const palette = el("span", "lf-react-palette");
     palette.setAttribute("role", "group");
     palette.setAttribute("aria-label", "Reactions for this selection or element");
+    for (const choice of tokenChoices(reactionVocabulary(), []))
+      palette.append(reactionChip(choice, (token) => reactHere(token, commands)));
     fabOptions.append(palette);
-    paintReactBar();
-  }
-
-  function paintReactBar() {
-    const vocabulary = reactionVocabulary();
-    if (!palette || vocabulary === paletteVocabulary) return;
-    paletteVocabulary = vocabulary;
-    const retained = new Map(
-      [...palette.children].map((chip) => [chip.dataset.token, chip]),
-    );
-    let before = palette.firstChild;
-    for (const choice of tokenChoices(vocabulary, [])) {
-      const chip =
-        retained.get(choice.name) ??
-        reactionChip(choice, (token) => reactHere(token, pageCommands));
-      retained.delete(choice.name);
-      responseAction(chip, { glyph: choice.glyph, label: choice.name, collapse: true });
-      if (chip !== before) move(palette, chip, before);
-      before = chip.nextSibling;
-    }
-    for (const chip of retained.values()) chip.remove();
-    paintBarReactions(fabAnchorAt());
     syncResponseOptions();
   }
 
@@ -250,10 +226,9 @@ export function createReactionController({
   // command exists, so dispatch cannot advertise a reaction before its target.
   let reactArmed = false;
   let reactRaised = false;
-  // Whether this raise is what unfolded the target's cluster, and so whether putting the
-  // choices away has a fold of its own to put back. A user who pressed `…` themselves
-  // and then `e` opened that layer before the raise found it, and it is theirs to keep.
-  let marginUnfolded = false;
+  // The margin lends reaction mode its disclosure and returns a release that restores
+  // the user's previous fold only while this mode still owns it.
+  let releaseMarginOptions = null;
   // React mode's opener (focus.js, `openLayer`): the control the user stood on as the
   // press armed it, which the close hands them back to.
   const reactLayer = {};
@@ -285,7 +260,6 @@ export function createReactionController({
     // `e` is an explicit reaction mode. Comment remains on `c`, so this temporary
     // contribution contains reactions alone.
     fabBar.dataset.lfMarginRaised = "1";
-    const unfolded = unfoldedMarginEntries?.()?.lfTarget === target;
     marginAnchor = structuredClone(anchor);
     marginOffer = registerContribution({
       key: "responses",
@@ -306,8 +280,9 @@ export function createReactionController({
       activate: (name) => reactHere(name, pageCommands, marginAnchor),
     });
     marginTarget = target;
-    if (openMarginEntryOptions(target, "responses")) {
-      marginUnfolded = !unfolded;
+    const release = openMarginEntryOptions(target, "responses");
+    if (release) {
+      releaseMarginOptions = release;
       return true;
     }
     marginOffer.unregister();
@@ -318,19 +293,14 @@ export function createReactionController({
   }
 
   function lowerMarginSurface() {
+    // Release before removing the choices so the repaint sees the restored fold.
+    releaseMarginOptions?.();
+    releaseMarginOptions = null;
     marginOffer?.unregister();
     marginOffer = null;
     marginTarget = null;
     marginAnchor = null;
     delete fabBar.dataset.lfMarginRaised;
-    // A raise that unfolded the target's margin entries to stand these choices in puts that fold
-    // back, so cancelling leaves the cluster as the press found it rather than an empty
-    // fold the user has to close themselves. Only that raise: this runs on every
-    // disarm, including one whose surface was a reply strip and which never raised the
-    // margin at all, and including one over a fold the user had already opened for
-    // themselves — folding either takes away a layer the gesture never put on.
-    if (marginUnfolded) foldMarginEntryOptions();
-    marginUnfolded = false;
   }
 
   function closeSurface(surface) {
@@ -603,7 +573,6 @@ export function createReactionController({
       if (reactArmed && reactSurface === marginSurface) setReact(false);
     });
     watchProjection(document.body, () => {
-      paintReactBar();
       if (
         reactArmed &&
         reactSurface === marginSurface &&

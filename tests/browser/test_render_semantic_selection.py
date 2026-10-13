@@ -799,7 +799,7 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
           body.firstChild.replaceWith(document.createTextNode('Unified body, rewritten.'));
         }"""
     )
-    page.get_by_role("searchbox", name="Search page text").press("Tab", timeout=5000)
+    page.get_by_role("searchbox", name="Search page text").press("Tab")
     expect(page.locator(".lf-page-search-status")).to_have_text("2 of 2")
     expect(page.locator(".lf-live")).to_contain_text(
         "Match 2 of 2: …Unified title Unified body, rewritten."

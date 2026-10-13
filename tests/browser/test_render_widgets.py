@@ -147,7 +147,7 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
         layer_registry={"lf-source-view": source, "lf-source-stage": stage},
         layer_widgets={
             "lf-source-view.js": """
-export default class extends HTMLElement {
+customElements.define('lf-source-view', class extends HTMLElement {
   connectedCallback() {
     if (this.querySelector('button')) return;
     const button = document.createElement('button');
@@ -160,15 +160,15 @@ export default class extends HTMLElement {
     });
     this.querySelector('pre').append(button);
   }
-}
+});
 """,
             "lf-source-stage.js": """
 import {shadowStage} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-source-stage', class extends HTMLElement {
   connectedCallback() {
     if (!this.shadowRoot) shadowStage(this, [...this.childNodes]);
   }
-}
+});
 """,
         },
     )
@@ -5058,6 +5058,72 @@ def test_a_playground_control_written_in_the_preview_stands_beside_its_item(
     assert action["detail"]["values"]["latency-route"] == "ticket"
 
 
+def test_a_playground_initial_drawing_leaves_quoted_controls_alone(browser, serve):
+    """A quotation neither supplies controls nor yields its own value slots.
+
+    Admission refuses a bare quoted control, so collection is exercised directly.
+    Complete quoted playgrounds keep their own values as the surrounding one changes.
+    """
+    page = open_page(browser, serve(PLAYGROUND_PAGE))
+    drawing = page.evaluate(
+        """source => {
+          const template = document.createElement('template');
+          template.innerHTML = source;
+          const host = template.content.querySelector('#card-playground');
+          host.id = 'quoted-controls-drawing';
+          const quote = document.createElement('lf-sample');
+          quote.setAttribute('data-lf-exhibit', '');
+          quote.innerHTML = `
+            <lf-playground-control name="tone" label="Quoted tone" kind="text"
+              value="quoted"></lf-playground-control>
+            <lf-playground-control name="quoted" label="Quoted toggle" kind="toggle"
+              value="true"></lf-playground-control>`;
+          host.querySelector('lf-playground-preview').append(quote);
+          const quotedOutput = document.createElement('lf-sample');
+          quotedOutput.setAttribute('data-lf-exhibit', '');
+          quotedOutput.innerHTML = `
+            <lf-playground id="quoted-output-drawing">
+              <lf-playground-control name="tone" label="Quoted tone" kind="text"
+                value="quoted"></lf-playground-control>
+              <lf-playground-control name="inner-tone" label="Inner tone" kind="text"
+                value="independent"></lf-playground-control>
+              <lf-playground-preview><p>Inner preview</p></lf-playground-preview>
+              <lf-playground-output><lf-playground-value for="tone"></lf-playground-value>
+                <lf-playground-value for="inner-tone"></lf-playground-value>
+              </lf-playground-output>
+            </lf-playground>`;
+          host.querySelector('lf-playground-output').append(quotedOutput);
+          document.documentElement.lfInitial.paint(
+            quotedOutput.querySelector('lf-playground'));
+          const initial = document.documentElement.lfInitial.paint(host);
+          initial.renderValues({...initial.values, tone: 'bold'});
+          return {
+            controls: initial.controls.map(control => control.getAttribute('name')),
+            values: initial.values,
+            quotedInputs: quote.querySelectorAll('input').length,
+            outerTone: initial.output.querySelector(':scope > lf-playground-value[for="tone"]')
+              .textContent,
+            quotedValues: [...quotedOutput.querySelectorAll('lf-playground-value')]
+              .map(slot => slot.textContent),
+          };
+        }""",
+        PLAYGROUND_PAGE,
+    )
+    assert drawing == {
+        "controls": ["radius", "compact", "tone", "accent", "title"],
+        "values": {
+            "radius": 12,
+            "compact": False,
+            "tone": "quiet",
+            "accent": "#4f766f",
+            "title": "Field note",
+        },
+        "quotedInputs": 0,
+        "outerTone": "bold",
+        "quotedValues": ["quoted", "independent"],
+    }
+
+
 def test_a_quoted_playground_is_a_static_preview_with_its_authored_output(
     browser, serve
 ):
@@ -5185,7 +5251,7 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     expect(approve).to_be_enabled()
 
     choices.get_by_role(
-        "button", name="Take back Done: reopen this question", exact=True
+        "button", name="Take back Done: reopen this ask", exact=True
     ).tap()
     round_trip(page)
     expect_asks_answered(page, "0/1")
@@ -11166,11 +11232,11 @@ POINTER_REGISTRY = {
     }
 }
 POINTER_MODULE = """import { indicate } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
+customElements.define("lf-pointer", class extends HTMLElement {
   connectedCallback() { indicate(this, "for", "3-4"); }
   disconnectedCallback() { indicate(this, "for", null); }
   point(key) { return indicate(this, "for", key); }
-};
+});
 """
 
 

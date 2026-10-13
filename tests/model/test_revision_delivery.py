@@ -8,7 +8,7 @@ import pytest
 import tinycss2
 from interact_support import PAGE
 from leaf import revisioning as revisioning_model
-from leaf.exporting import AssetInliner, ReadableAssets, _module_urls
+from leaf.exporting import AssetInliner, ReadableAssets
 from leaf.files import revision_path
 from leaf.http import scope_page_urls
 from leaf.revision_artifact import (
@@ -20,10 +20,8 @@ from leaf.revision_artifact import (
 from leaf.revision_delivery import (
     Delivery,
     DeliveryAddress,
-    PublicationAddress,
     compose_document,
     deliver_resource,
-    delivered_resource,
     json_script,
     mark_declared,
     rebase_document,
@@ -33,55 +31,6 @@ from leaf.structure import SourceDocument
 PAGE_ROOT = "/p/user"
 ROOT = PAGE_ROOT + "/revisions/r1-0123456789abcdef"
 ADDRESS = DeliveryAddress(PAGE_ROOT, ROOT)
-
-
-@pytest.fixture
-def capture_dir(tmp_path):
-    """A minimal installed kernel exposes its document and public module entries."""
-    runtime = tmp_path / "runtime"
-    runtime.mkdir()
-    (runtime / "widget-api.js").write_text("export {};")
-    (tmp_path / "leaf.js").write_text("export {};")
-    return tmp_path
-
-
-def test_package_module_graph_survives_capture_delivery_and_export(capture_dir):
-    """Native module helpers keep the same graph in a revision and offline file."""
-    modules = {
-        "/widgets/lf-soundings.js": 'export { draw } from "./Soundings/Draw_View%2B測量.mjs";',
-        "/widgets/Soundings/Draw_View+測量.mjs": (
-            'import "/runtime/widget-api.js"; '
-            'export { draw } from "../../runtime/soundings/format.v2.mjs";'
-        ),
-        "/runtime/soundings/format.v2.mjs": (
-            'import { unit } from "../../vendor/soundings/unit_names.js"; '
-            "export const draw = () => unit;"
-        ),
-        "/vendor/soundings/unit_names.js": 'export const unit = "meters";',
-    }
-    for logical, source in modules.items():
-        path = capture_dir / logical.lstrip("/")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(source)
-    artifact = capture_artifact(
-        capture_dir,
-        SourceDocument('<main><lf-soundings id="harbor"></lf-soundings></main>'),
-        {"lf-soundings": {"x-upgrade": True}},
-    )
-
-    for logical, source in modules.items():
-        resource = artifact.resources[logical]
-        assert resource.data.decode() == source
-        assert resource.mime == "application/javascript"
-        delivered = delivered_resource(
-            artifact,
-            logical,
-            PublicationAddress(PAGE_ROOT, ROOT, artifact.shared_modules),
-        )
-        assert delivered.mime == resource.mime
-
-    urls = _module_urls(artifact.resources, ["/widgets/lf-soundings.js"])
-    assert set(urls) == {*modules, "/runtime/widget-api.js"}
 
 
 def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retained():
@@ -237,9 +186,9 @@ def test_capture_refuses_a_declared_initial_producer_that_is_absent(tmp_path):
         )
 
 
-def test_capture_follows_deep_and_cyclic_dependencies_once(capture_dir):
+def test_capture_follows_deep_and_cyclic_dependencies_once(tmp_path):
     """A complete authored graph does not depend on Python's recursion limit."""
-    directory = capture_dir / "page"
+    directory = tmp_path / "page"
     directory.mkdir()
     depth = 1200
     for index in range(depth):
@@ -259,15 +208,13 @@ def test_capture_follows_deep_and_cyclic_dependencies_once(capture_dir):
 
     def read_resource(path):
         reads.append(path)
-        return capture_local_resource(capture_dir, path)
+        return capture_local_resource(tmp_path, path)
 
     artifact = capture_artifact(
-        capture_dir, SourceDocument(source), {}, read_resource=read_resource
+        tmp_path, SourceDocument(source), {}, read_resource=read_resource
     )
 
     expected = {f"/page/{index}.js" for index in range(depth)} | {
-        "/leaf.js",
-        "/runtime/widget-api.js",
         "/page/shared.js",
         "/page/first.css",
         "/page/second.css",
@@ -386,7 +333,7 @@ def test_stylesheets_rebase_nested_imports_urls_and_preserve_inert_values():
     )
 
 
-def test_capture_delivery_and_export_read_one_set_of_stylesheet_urls(capture_dir):
+def test_capture_delivery_and_export_read_one_set_of_stylesheet_urls(tmp_path):
     """Capture decides which files a stylesheet needs, delivery re-addresses them, and
     export embeds them, so all three have to find the same URLs in one sheet: a URL
     only capture finds is a file nobody serves, and one only export finds is a file
@@ -397,7 +344,7 @@ def test_capture_delivery_and_export_read_one_set_of_stylesheet_urls(capture_dir
 main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
 @font-face { src: url(/page/f.woff2) format("woff2"); }
 """
-    authored = capture_dir / "page"
+    authored = tmp_path / "page"
     authored.mkdir()
     (authored / "style.css").write_text(sheet)
     for name in ("base.css", "ignored.css", "a.png", "b.png", "f.woff2"):
@@ -407,7 +354,7 @@ main { background: image-set("./a.png" 1x, url(./b.png) 2x); }
     )
     expected = {"/page/base.css", "/page/a.png", "/page/b.png", "/page/f.woff2"}
 
-    artifact = capture_artifact(capture_dir, SourceDocument(source), {})
+    artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     captured = artifact.resources["/page/style.css"]
     assert set(captured.dependencies) == expected
     assert "/page/ignored.css" not in artifact.resources
@@ -498,15 +445,15 @@ const plain = "../helper.js";
     )
 
 
-def test_media_has_one_address_wherever_a_page_names_it(capture_dir):
+def test_media_has_one_address_wherever_a_page_names_it(tmp_path):
     """Media is the page's and shared across revisions, so every host serves it at the
     page root, and the runtime resolves a message's or a widget's media there too. A
     captured document addresses it there in every form capture reads: a resource
     attribute, any attribute naming it whole, a stylesheet, a declarative shadow root,
     and frozen message markup in a state reading. Prose naming it stays as written."""
     media = "/media/0123456789abcdef.png"
-    (capture_dir / "media").mkdir()
-    (capture_dir / "media" / "0123456789abcdef.png").write_bytes(b"\x89PNG")
+    (tmp_path / "media").mkdir()
+    (tmp_path / "media" / "0123456789abcdef.png").write_bytes(b"\x89PNG")
     source = PAGE.replace(
         "</head>", f"<style>main {{ background: url({media}) }}</style></head>"
     ).replace(
@@ -519,7 +466,7 @@ def test_media_has_one_address_wherever_a_page_names_it(capture_dir):
         "</template></div></main>",
     )
 
-    assert media in capture_artifact(capture_dir, SourceDocument(source), {}).entries
+    assert media in capture_artifact(tmp_path, SourceDocument(source), {}).entries
     delivered = rebase_document(source, ADDRESS)
     assert delivered.replace(PAGE_ROOT + media, "").count(media) == 1  # the prose
     assert delivered.count(PAGE_ROOT + media) == 7
@@ -529,8 +476,8 @@ def test_media_has_one_address_wherever_a_page_names_it(capture_dir):
     assert markup["markup"] == f'<p><img src="{PAGE_ROOT}{media}" alt="Shot"></p>'
 
 
-def test_captured_document_entries_resolve_at_every_public_address(capture_dir):
-    authored = capture_dir / "page"
+def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
+    authored = tmp_path / "page"
     authored.mkdir()
     (authored / "app.js").write_text('import "./helper.js";')
     (authored / "helper.js").write_text('document.body.dataset.helper = "ready";')
@@ -549,7 +496,7 @@ def test_captured_document_entries_resolve_at_every_public_address(capture_dir):
         '<img srcset="./page/image.svg 1x, ./page/image-2.svg 2x" '
         'alt="Leaf"></main>',
     )
-    artifact = capture_artifact(capture_dir, SourceDocument(source), {})
+    artifact = capture_artifact(tmp_path, SourceDocument(source), {})
     delivered = SourceDocument(rebase_document(source, ADDRESS))
     entries = [
         delivered.external_scripts[0]["attrs"]["src"],
@@ -749,10 +696,9 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         unmarked = unmarked.replace(mark, "", 1)
     # Media is addressed at the page root, which is the rebase's change rather than a mark.
     unmarked = unmarked.replace(f"{PAGE_ROOT}/media/", "/media/")
-    authored_main = source[
-        source.index("<main>") : source.index("</main>") + len("</main>")
-    ]
-    assert authored_main in unmarked
+    assert source.removeprefix("<!doctype html><html><head>").split("</head>")[1] in (
+        unmarked
+    )
 
 
 def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():

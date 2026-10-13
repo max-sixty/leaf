@@ -55,7 +55,7 @@ import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
 import { itemNoun } from "./queues.js";
-import { widgetDeclaration } from "./registry.js";
+import { registry } from "./registry.js";
 import { repaint } from "./repaint.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import {
@@ -99,7 +99,7 @@ function askWord(item) {
   if (ask.source.kind === "reply") return "Thread";
   if (ask.source.kind === "approval") return "Approval";
   const word =
-    widgetDeclaration(ask.source.id, "x-word") && addressableWord(askPlace(ask).source);
+    registry[ask.source.tag]?.["x-word"] && addressableWord(askPlace(ask).source);
   return word ? word.charAt(0).toUpperCase() + word.slice(1) : "Ask";
 }
 
@@ -173,11 +173,12 @@ export function createQueuePanel({ actions, next, announce }) {
   function when(item, thread) {
     if (itemNoun(item) === "ask")
       return thread && shortAgo(threadSummary(thread).latest);
-    if (item.kind === "answer") return workflowLabel(item.workflow);
+    // An update in hand says the line the agent last gave for it, as its thread's
+    // working message does.
+    const state = [workflowLabel(item.workflow), item.workflow?.detail];
+    if (item.kind === "answer") return state.filter(Boolean).join(" · ");
     if (item.kind === "work")
-      return [workflowLabel(item.workflow), shortAgo(item.workflow?.ts)]
-        .filter(Boolean)
-        .join(" · ");
+      return [...state, shortAgo(item.workflow?.ts)].filter(Boolean).join(" · ");
     // A to-do the agent has in hand says the line its start gave, as an update in hand does.
     if (item.kind === "todo" && item.running)
       return [item.running.text, shortAgo(item.running.ts)].filter(Boolean).join(" · ");
@@ -281,7 +282,7 @@ export function createQueuePanel({ actions, next, announce }) {
     nameDoor();
     const waiting = reading().questions.length > 0;
     keepsHidden(queueNextBtn, !waiting);
-    // On a phone the door waits in More, which says an ask is there as it says an
+    // On a phone the door waits in More, which says a question is there as it says an
     // approval is open.
     markBannerControl(queueBtn, waiting ? "questions waiting" : null);
     repaint();

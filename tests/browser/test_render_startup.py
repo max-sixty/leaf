@@ -1899,8 +1899,14 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     authored_note = page.locator("#startup-note .lf-draft-body")
     expect(authored_note).to_have_text("Ship on Tuesday from the blue room.")
     authored_note.select_text()
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    page.keyboard.press("c")
+    # A script-selected passage offers the explicit route; only a completed native
+    # selection gesture raises the adjacent field automatically.
+    comment_selection = page.get_by_role(
+        "button", name="Comment on selection", exact=True
+    )
+    expect(comment_selection).to_be_visible()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    comment_selection.click()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     assert posts == [], "an anchored comment posted before the first state projection"
     page.keyboard.press("Escape")

@@ -9298,9 +9298,12 @@ def test_a_contents_target_reply_observes_visibility_without_layout(browser, ser
     expect(reply).to_have_js_property("value", words)
 
 
-def test_a_workspace_page_keeps_no_rail(browser, serve):
+@pytest.mark.parametrize("rail", [None, "right"])
+def test_a_workspace_page_keeps_no_rail(browser, serve, rail):
     """A workspace takes the window, which leaves no room beside it for a rail, so a
-    comment in a pane stands on its block as a pin, as it does on a sidebar page."""
+    comment in a pane stands on its block as a pin. Asking for a rail changes neither:
+    a row stands in the rail only beside what the page scrolls, and a workspace scrolls
+    its panes, so the strip would only stand empty beside them."""
     source = leaf_page(
         "workspace page",
         '<header><h1 id="t">Workspace</h1></header>'
@@ -9308,11 +9311,17 @@ def test_a_workspace_page_keeps_no_rail(browser, serve):
         "</lf-pane>",
         layout="workspace",
     )
+    if rail:
+        source = source.replace("<body>", f'<body data-rail="{rail}">')
     page = open_page(browser, serve(source, events=[_comment_on("p")]))
     resized(page, 1440, 900)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="p"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
+    assert (
+        page.evaluate("document.querySelector('main').getBoundingClientRect().right")
+        == 1440
+    )
 
 
 def test_o_hides_what_is_drawn_over_the_page_and_moves_nothing(browser, serve):

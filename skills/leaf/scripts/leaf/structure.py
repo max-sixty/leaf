@@ -593,8 +593,10 @@ class SourceDocument:
             '<!doctype html><html lang="en"><head>'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
             f"<title>{escape(attrs.get('id', 'Sample'))}</title></head>"
-            # A sample shows a column page; the template is its content, not its frame.
-            f'<body{body}><main class="layout-column">'
+            # The template is the child's content, not its frame. The child is a column
+            # page unless the template names its `main`'s classes, as a workspace's
+            # `layout-workspace` does, since a document's Layout is not every page's.
+            f'<body{body}><main class="{escape(attrs.get("class") or "layout-column")}">'
             # Preserve authored lines, including multiline tags in nested samples.
             + "\n" * (location.start_tag.end_line - 1)
             + self._source[content_start:content_end]

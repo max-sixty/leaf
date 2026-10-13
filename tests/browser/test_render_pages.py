@@ -1508,7 +1508,9 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
 
     # With no evidence width, a board reaches only its holder: six columns in a narrow
     # cell of the page's grid scroll inside it rather than spread over the next cell.
-    columns = "".join(f'<lf-column id="c{i}" label="C{i}"></lf-column>' for i in range(6))
+    columns = "".join(
+        f'<lf-column id="c{i}" label="C{i}"></lf-column>' for i in range(6)
+    )
     cells = leaf_page(
         "Workspace cells",
         f'<div id="cells"><div id="cell"><lf-board id="six">{columns}</lf-board></div>'

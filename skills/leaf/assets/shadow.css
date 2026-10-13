@@ -739,7 +739,7 @@ button.lf-thread-notice[data-lf-focus] {
 :where(:root, .lf-thread-transcript) hr {
   border: none;
   border-top: 1px solid var(--rule);
-  margin: 40px 0;
+  margin: var(--hr-margin-block) 0;
 }
 :is(.lf-thread-transcript, .lf-thread-reply, .lf-general) {
   --quote-inset: 10px;

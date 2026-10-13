@@ -395,7 +395,8 @@ For CSS that depends on a margin resident, use `main`'s `data-lf-margin` tokens
 `main:not([data-lf-margin~="sidebar"]) #route { display: none }`. Verify the
 page at the widths where a resident returns to the document flow.
 
-`data-rail="right"` on `body` keeps a rail on a sidebar page or a workspace.
+`data-rail="right"` on `body` keeps a rail on a sidebar page. A workspace has none,
+since its panes scroll on their own: a comment there stands on its block as a pin.
 `data-rail="none"` gives a column page's right margin to the page's own content.
 A marker beside a hanging `aside.sidenote` already appears as a pin, so notes
 need neither override.
@@ -600,7 +601,9 @@ do not turn their contents into source code or markup.
 Use `lf-sample` with one direct `template[data-sample]` to let the user
 operate a complete Leaf page inside the surrounding document. Give both the
 element and template stable ids. Put the child's content and styles directly in
-the template; Leaf supplies the document and its `main`:
+the template; Leaf supplies the document and its `main`, a column page unless the
+template's `class` names the child's Layout instead, such as
+`class="layout-workspace density-working"` for a workspace:
 
 ```html
 <lf-sample id="practice" label="practice release note">

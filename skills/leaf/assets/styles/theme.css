@@ -1045,6 +1045,15 @@ img, svg, video { max-width: 100%; height: auto; }
  * theirs. A browser without typed attr() drops the line and keeps the attribute
  * ratio it maps, which yields to the loaded image. */
 img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
+/* A page's images are mostly captures of interfaces, often of this same paper and
+ * type, so nothing but a drawn edge says where a capture ends and the page resumes.
+ * A hairline and a resting shadow lay it on the page as an object, as documentation
+ * sites frame screenshots and the site's catalog frames its stills. Both are a
+ * box-shadow outside the image, so no width or ratio changes and no corner of the
+ * capture is cut, and a container that clips to its own frame, such as lf-shot's,
+ * hides them. A page drops them for art with no edge of its own, such as a
+ * transparent logo, with `box-shadow: none`. */
+img { box-shadow: 0 0 0 1px var(--border-2), 0 2px 8px var(--shade); }
 /* Supporting detail stays unfilled whether closed or open. Its chevron and hairline
    offer inspection; the stronger fill belongs to the callout's emphasis. */
 details { border: var(--details-border) solid var(--rule);

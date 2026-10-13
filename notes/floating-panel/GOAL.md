@@ -45,9 +45,11 @@ what the module header of `runtime/floating-panel.js` now states:
 - **Motion moves no layout**: every change of size takes effect in one step and a
   separate surface layer follows by a clip, so the shift watch sees no tween.
 
-The sketch's shimmer on a working status and breathing leaf were left out:
-`skills/leaf/assets/AGENTS.md`, "Motion", allows one continuous animation, and
-changing that is the user's call.
+The sketch's breathing leaf was left out: `skills/leaf/assets/AGENTS.md`,
+"Motion", allows one continuous animation. On 13 October the user had the working
+status carry that one sheen instead, asked for the resting status to read dimmer
+than body text ("currently it's too 'normal text'"), and for the focused field's
+placeholder to say where the words go.
 
 Build an opt-in alternative to Leaf's chrome: one panel that hovers over the
 bottom of the page, like the Codex app's floating chat panel, and replaces both

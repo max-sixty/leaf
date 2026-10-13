@@ -1,18 +1,27 @@
 .lf-drawing-reference { display: block; margin-top: 2px; color: var(--muted-2);
           font: 500 var(--t-6)/1.35 var(--sans); }
 .lf-page-thread-open { margin-top: var(--sp-2); }
-.lf-page-thread-resolved { margin-top: var(--sp-2); color: var(--ok); }
-.lf-page-thread-summary { padding: 8px 10px; color: var(--ok); cursor: pointer;
-          font-weight: 600; }
-.lf-page-thread[open] > .lf-page-thread-summary { margin-bottom: var(--sp-2);
-          border-bottom: 1px solid var(--rule); }
-.lf-page-thread > .lf-page-thread-summary[hidden] { display: none; }
+/* A seat's resolved threads stand under one disclosure (thread/inline.js), whose
+   threads are page threads like any other. Its summary is one line at the aim floor,
+   so a notice of what its threads hold back says so without growing it. */
+.lf-resolved-threads { position: relative; min-width: 0; }
+/* Closed, the disclosure hides its threads by display rather than by the
+   content-visibility a closed details gives its content: Chrome drops scroll anchoring
+   for a change that moves a node into content hidden that way, so a thread the agent
+   resolved above the screen moved what the user read by the thread's height. */
+.lf-resolved-threads::details-content { content-visibility: visible; }
+.lf-resolved-threads:not([open]) > :not(summary) { display: none; }
+.lf-resolved-summary { border-radius: var(--r); cursor: pointer;
+          padding: max(var(--sp-1), (var(--aim-floor) - 1lh) / 2) var(--sp-1);
+          color: var(--muted); font: 600 var(--t-5)/var(--lf-ui-lh) var(--sans);
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lf-resolved-summary:hover { color: var(--ink-2); }
 .lf-page-thread .lf-btn { font: inherit; }
-.lf-page-thread :is(.lf-btn, summary)[data-lf-focus] {
+:is(.lf-page-thread :is(.lf-btn, summary), .lf-resolved-summary)[data-lf-focus] {
           outline: var(--focus-ring); outline-offset: 1px; --lf-focus-ring: thread; }
 @media print {
   .lf-page-thread,
-  .lf-page-thread :is(.lf-msg, .lf-page-thread-resolved) {
+  .lf-page-thread .lf-msg {
           display: block !important; }
   .lf-page-thread :is(.lf-thread-reply, .lf-say, button, .lf-msg-sending) {
           display: none !important; }

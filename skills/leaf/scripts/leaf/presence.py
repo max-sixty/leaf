@@ -11,7 +11,6 @@ from pathlib import Path
 
 from .activity import Turn, current_turn, declared_at, takes_input
 from .event_log import read_cursor
-from .file_changes import FileChanges, existing_root
 from .files import (
     entry_stamps,
     file_stamp,
@@ -51,7 +50,6 @@ VIEWED_RENEW_S = 30
 _candidates = ((), ())
 _candidates_lock = threading.Lock()
 _row_files = {}
-_row_subscription = None
 _row_home = None
 
 
@@ -121,44 +119,22 @@ def neighbor_candidates() -> tuple:
     stamp; readers hold the parsed envelopes until a producer changes them.
     Server leases are still checked on every observation, independent of files.
     """
-    global _candidates, _row_home, _row_subscription, _row_files
+    global _candidates, _row_home, _row_files
     home = state_home()
     rows = home / "rows"
     stamp = (home, file_stamp(rows))
     with _candidates_lock:
-        roots = {existing_root(rows.parent): False, existing_root(rows): False}
-        if (
-            _row_home != rows
-            or _row_subscription is None
-            or not _row_subscription.matches(roots)
-        ):
-            if _row_subscription is not None:
-                _row_subscription.close()
-            _row_subscription = FileChanges(
-                roots,
-                lambda changed: (
-                    changed == rows
-                    or (changed.parent == rows and changed.suffix == ".json")
-                ),
-                collect=True,
-            )
-            if _row_home != rows:
-                _row_files = {}
+        if _row_home != rows:
+            _row_files = {}
             _row_home = rows
-        changes = {Path(path) for path in _row_subscription.batch(0)}
-        if _candidates[0] == stamp and not changes:
+        if _candidates[0] == stamp:
             return _candidates[1]
-        # Atomic producer publications move the directory stamp. Native batches
-        # normally identify the changed files; a read ahead of notification
-        # delivery still observes the directory's authoritative changed listing.
-        if _candidates[0] != stamp or rows in changes:
-            current = set(rows.glob("*.json")) if rows.is_dir() else set()
-            for path in _row_files.keys() - current:
-                del _row_files[path]
-            changes |= current
-        for path in changes:
-            if path.parent != rows or path.suffix != ".json":
-                continue
+        # Atomic producer publications move the directory stamp. Scan only when
+        # it changes; the parsed rows retain their per-file stamps between scans.
+        current = set(rows.glob("*.json")) if rows.is_dir() else set()
+        for path in _row_files.keys() - current:
+            del _row_files[path]
+        for path in current:
             key = file_stamp(path)
             if key is None:
                 _row_files.pop(path, None)

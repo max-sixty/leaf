@@ -24,6 +24,7 @@ from .schema import (
     HTML_NAME,
     INSTRUCTIONS_DIR,
     INSTRUCTIONS_FILE,
+    JAVASCRIPT_SUFFIXES,
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PLUGIN_ROOT,
@@ -496,46 +497,50 @@ def _foreign_protocol(registry: dict) -> int | str | None:
     return declared if declared is not None else "none"
 
 
-def payload_provenance(*, include_path: bool = False) -> dict:
+def payload_provenance(*, include_path: bool = False, root: Path | None = None) -> dict:
     """Describe the Leaf payload that is running this command, when its source can.
 
     Beside the commit, one of two dates says how old the payload is: `committed`,
     the commit's committer date, where Git can read it; or `installed`, when a harness
     copied the payload into its plugin cache without `.git`. Both are ISO 8601 with
-    an offset.
+    an offset. Developer preparations can pass `root` to read another checkout
+    through the same provenance rules.
     """
-    provenance = {"path": str(PLUGIN_ROOT)} if include_path else {}
-    distribution = PLUGIN_ROOT / "leaf-distribution.json"
+    source = (
+        Path(__file__) if root is None else root / "skills/leaf/scripts/leaf/layer.py"
+    )
+    root = PLUGIN_ROOT if root is None else root.resolve()
+    provenance = {"path": str(root)} if include_path else {}
+    distribution = root / "leaf-distribution.json"
     if distribution.is_file():
         published = json.loads(distribution.read_text())
         provenance.update(published["producer"])
         return provenance
     # Claude Code copies a marketplace plugin without its .git directory into a cache
     # whose final component is the resolved plugin version. Leaf leaves its manifest
-    # version unset, so that component is the source commit SHA. PLUGIN_ROOT comes from
-    # this module's own resolved path: an updated sibling cache cannot change the
-    # identity of a session still executing this copy.
-    parents = PLUGIN_ROOT.parents
+    # version unset, so that component is the source commit SHA. The default root
+    # follows this module: a newer sibling cannot change the running copy's identity.
+    parents = root.parents
     if (
         len(parents) >= 4
-        and PLUGIN_ROOT.parent.name == "leaf"
+        and root.parent.name == "leaf"
         and parents[2].name == "cache"
         and parents[3].name == "plugins"
-        and re.fullmatch(r"[0-9a-f]{7,40}", PLUGIN_ROOT.name)
+        and re.fullmatch(r"[0-9a-f]{7,40}", root.name)
     ):
         # The copy stamps every file with the time it was made, and Leaf never
         # rewrites its own modules. A harness copies only the marketplace's newest
         # commit, one update sweep after it lands, so this dates the commit to
         # within that sweep; the commit date itself left with `.git`.
-        installed = datetime.fromtimestamp(Path(__file__).stat().st_mtime, UTC)
+        installed = datetime.fromtimestamp(source.stat().st_mtime, UTC)
         provenance.update(
-            commit=PLUGIN_ROOT.name,
+            commit=root.name,
             dirty=False,
             installed=installed.astimezone().isoformat(timespec="seconds"),
         )
         return provenance
 
-    git = ["git", "--no-optional-locks", "-C", str(PLUGIN_ROOT)]
+    git = ["git", "--no-optional-locks", "-C", str(root)]
     try:
         identity = subprocess.run(
             [*git, "rev-parse", "--show-toplevel", "--short=12", "HEAD"],
@@ -548,7 +553,7 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     if identity.returncode != 0:
         return provenance
     lines = identity.stdout.splitlines()
-    if len(lines) != 2 or Path(lines[0]).resolve() != PLUGIN_ROOT.resolve():
+    if len(lines) != 2 or Path(lines[0]).resolve() != root.resolve():
         return provenance
     provenance["commit"] = lines[1]
     provenance["committed"] = subprocess.run(
@@ -617,7 +622,6 @@ def provenance_label(provenance: dict) -> str:
 def compose_layer(roots: list[Path]) -> LayerComposition:
     """Read and validate the complete layer produced by checked inputs."""
     from .revision_artifact import (
-        JAVASCRIPT_SUFFIXES,
         dependency_path,
         javascript_imports,
     )

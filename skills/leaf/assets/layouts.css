@@ -15,6 +15,16 @@
   inherits: false;
 }
 @layer lf-layouts {
+  /* Each page Layout below owns its page's whole geometry, the body's included, so a
+   * page with no Layout keeps the browser's. A Layout takes the window from its edges:
+   * the body drops its margin and, on a live page other than a block sample (whose frame
+   * takes the body's height, theme.css), fills the window's height. The body is styled
+   * before the parser reaches `main`, so its rules read the Layout delivery repeats on
+   * the root (`data-lf-layout`, revision_delivery.py) rather than `main`'s class, which
+   * would hold the body at the browser's margin until then. On `main` it sets its gutter,
+   * its room above and below its blocks, whether its first and last blocks' margins
+   * trim, and the measure its text keeps (`--lf-measure`), which theme.css reads at the
+   * base layer, where a widget's own rule outranks it. */
   /* The pane role's grammar (theme.css, where its look and the rest of its contract
    * are): which row each child stands in, and a body held to the pane's width with no
    * margin of its own. It is not a Layout a page pulls on, but it resets what a widget
@@ -49,10 +59,19 @@
    *
    * The free room is the shell's (100cqi), so the column is a page's shape, on `main`,
    * and arranges no other box. */
+  html[data-lf-layout~="column"] body { margin: 0; }
+  @media screen {
+    html[data-lf-live][data-lf-layout~="column"]:not([data-lf-sample-block]) body {
+      min-height: 100%;
+    }
+  }
   main.layout-column {
     max-width: var(--col);
     margin-inline: auto;
     padding-inline: var(--col-pad);
+    padding-block: var(--page-pad-start) var(--page-pad-end);
+    --lf-block-frame: trim;
+    --lf-measure: var(--col);
     --lf-width: min(var(--col), max(0px, 100cqi - 2 * var(--col-pad)));
     --lf-beside: calc((100cqi - var(--lf-width)) / 2);
     --lf-shift: var(--lf-column-shift, 0px);
@@ -225,9 +244,14 @@
      * paint rather than a reflow once leaf.js resolves. In a message the runtime withholds
      * the room deliberately, the document's rather than the panel's, by not painting it.
      * `column` is the measure text keeps rather than a breakout, so theme.css sets it in
-     * the rule that sets the text's; this rule grows `wide` and `available`, at the weight
-     * of one attribute so each value's rule below refines it. */
-    [data-lf-space]:where(:not([data-lf-space="column"])) {
+     * the rule that sets the text's; the second rule grows `wide` and `available`, at the
+     * weight of one attribute so each value's rule below refines it.
+     *
+     * The first rule is the room's arithmetic, read on every allocated box. A box allocated
+     * the column reaches no further than its holder, so it has no surplus, unless it spans
+     * a breakout among its own blocks, as an Ask does (the default package's ask.css), and
+     * reaches as far as that block. */
+    [data-lf-space] {
       /* Held to what is free beside the page (main's --lf-free-l and --lf-free-r), and
        * spent so the box stands even about the prose axis where both sides have the
        * room; otherwise the freer side takes what the other lacks. A holder that stands
@@ -245,6 +269,8 @@
         min(var(--lf-surplus), calc(var(--lf-free-l) + var(--lf-indent-l))));
       --lf-grow-r: calc(var(--lf-surplus) - var(--lf-grow-l));
       --lf-breakout-width: calc(100% + var(--lf-surplus));
+    }
+    [data-lf-space]:where(:not([data-lf-space="column"])) {
       max-width: none;
       margin-left: calc(-1 * var(--lf-grow-l));
       margin-right: calc(-1 * var(--lf-grow-r));
@@ -471,8 +497,17 @@
    * board declaring the width its columns need wraps the track below it rather than
    * clipping. A header or footer takes the whole row. The items' own block margins go,
    * since flex margins don't collapse into the gap. */
+  html[data-lf-layout~="sidebar"] body { margin: 0; }
+  @media screen {
+    html[data-lf-live][data-lf-layout~="sidebar"]:not([data-lf-sample-block]) body {
+      min-height: 100%;
+    }
+  }
   main.layout-sidebar {
     padding-inline: clamp(var(--col-pad), 4cqi, 64px);
+    padding-block: var(--page-pad-start) var(--page-pad-end);
+    --lf-block-frame: trim;
+    --lf-measure: var(--col);
     max-width: var(--wide-page-max);
     margin-inline: auto;
     --lf-room: 100%;
@@ -548,9 +583,17 @@
    * sidebar page's gutters held them to 1,472px of the 1,896px this leaves. The type is the
    * theme's: a workspace usually takes working density (`.density-working`, theme.css),
    * which the Layout neither sets nor reads. */
+  html[data-lf-layout~="workspace"] body { margin: 0; }
+  @media screen {
+    html[data-lf-live][data-lf-layout~="workspace"]:not([data-lf-sample-block]) body {
+      min-height: 100%;
+    }
+  }
   main.layout-workspace {
     padding-inline: 12px;
-    padding-block-start: var(--sp-2);
+    padding-block: var(--sp-2) var(--page-pad-end);
+    --lf-block-frame: trim;
+    --lf-measure: var(--col);
     --lf-room: 100%;
   }
   /* The header takes the window's height before the panes do, so it is one row: the

@@ -368,14 +368,10 @@ summary { align-content: center; }
 .lf-say { display: none; align-items: flex-end;
           gap: var(--sp-2); margin-top: var(--sp-3); }
 .lf-say leaf-text { flex: 1; min-width: 0; }
-.lf-page-thread-resolved { display: flex;
-          align-items: center; justify-content: space-between; gap: var(--sp-2);
-          /* Reopen inherits this row's line, 4px padding and a 1px border on each side.
-             Its compact news replacement retains that room under either pointer. */
-          min-height: max(calc(1lh + 10px), var(--aim-floor)); }
 .lf-thread-seat > .lf-say { margin-top: 0; }
-.lf-page-thread + .lf-page-thread { margin-top: calc(2 * var(--sp-3)); }
-.lf-page-thread + .lf-page-thread::before { content: "";
+.lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads) {
+          margin-top: calc(2 * var(--sp-3)); }
+.lf-page-thread + :is(.lf-page-thread, .lf-resolved-threads)::before { content: "";
           position: absolute; inset-inline: var(--sp-1); inset-block-start: calc(-1 * var(--sp-3));
           border-top: 1px solid var(--rule); pointer-events: none; }
 /* Every conversation shares its reading edge, including a floating draft. The
@@ -570,14 +566,11 @@ button.lf-thread-notice { appearance: none; margin: 0; padding: 0;
 button.lf-thread-notice[data-lf-focus] { outline: var(--focus-ring);
           --lf-focus-ring: thread-notice; outline-offset: 1px; }
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).
-   The rows it appears in already stand at the height of a control beside it: the head
-   controls row's Resolve, the resolved row's Reopen. Centred rather than on the row's baseline,
-   it asks for none of the depth below the words; in the resolved row it stands at the
-   end, beside Reopen, or in Reopen's place where it holds the reopening. A seat
-   that draws no thread shows it in its controls row's place, at the height the
-   runtime measured that row at. */
+   The row it appears in already stands at the height of the control beside it, the
+   head controls row's Resolve or Reopen. Centred rather than on the row's baseline,
+   it asks for none of the depth below the words. A seat that draws no thread shows it
+   in its controls row's place, at the height the runtime measured that row at. */
 .lf-thread-news { flex: none; align-self: center; }
-.lf-page-thread-resolved > .lf-thread-news { margin-inline-start: auto; }
 .lf-seat-news { display: flex; align-items: center; box-sizing: border-box; }
 .lf-msg-head time { color: var(--muted-2); }
 .lf-msg-head :is(.lf-edited, .lf-msg-kept) { color: var(--muted-2); }

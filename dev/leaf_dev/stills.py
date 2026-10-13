@@ -51,7 +51,7 @@ from playwright.sync_api import Page, expect
 
 from leaf_dev import ROOT
 from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
-from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
+from leaf_dev.browser import BESIDE, DESKTOP, headless_shell, load, settle, tab
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -650,6 +650,27 @@ def diff_file_reply(page: Page) -> None:
     )
 
 
+def diff_file_resolved_closed(page: Page) -> None:
+    """Both conversations under a diff file resolved, their outlet as it folds them."""
+    diff = page.frame_locator("#dfg-sample iframe").locator("#dfg-patch")
+    resolve = diff.get_by_role("button", name="Resolve thread", exact=True)
+    expect(resolve).to_have_count(2)
+    for remaining in (1, 0):
+        resolve.first.click()
+        expect(resolve).to_have_count(remaining)
+    page.mouse.move(0, 0)
+
+
+def diff_file_resolved(page: Page) -> None:
+    """Both conversations under a diff file resolved, and every resolved disclosure the
+    outlet draws opened."""
+    diff_file_resolved_closed(page)
+    diff = page.frame_locator("#dfg-sample iframe").locator("#dfg-patch")
+    folded = diff.locator(".lf-diff-thread-outlet details:not([open]) > summary")
+    while folded.count():
+        folded.first.click()
+
+
 def diff_line_composer(page: Page) -> None:
     """A line's thread control, number and shared composer in one reading."""
     diff = page.locator("#pr-exact-patch")
@@ -965,6 +986,12 @@ STATES = (
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
     State(
+        "diff-file-resolved-closed",
+        "developer/diff-thread-gallery",
+        diff_file_resolved_closed,
+    ),
+    State("diff-file-resolved", "developer/diff-thread-gallery", diff_file_resolved),
+    State(
         "diff-file-reply-dark-touch",
         "developer/diff-thread-gallery",
         diff_file_reply,
@@ -1131,6 +1158,13 @@ STATES = (
     ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
+    State(
+        "thread-choice-hints",
+        "../tests/fixtures/pages/thread-choice-hints",
+        card_by_keyboard,
+        viewport=(741, 838),
+        region=".lf-margin-preview",
+    ),
     State("plan-card-reply", "review-a-plan", card_reply),
     State(
         "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
@@ -1530,9 +1564,11 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                 source_roots[arm] = scratch / f"{arm}-source"
                 source_roots[arm].mkdir()
                 copy_committed(
-                    ("examples", "leaf-assets.json"), source_roots[arm], commit
+                    ("examples", "tests/fixtures/pages", "leaf-assets.json"),
+                    source_roots[arm],
+                    commit,
                 )
-        with chrome() as browser, differences(browser, out) as compare:
+        with headless_shell() as browser, differences(browser, out) as compare:
             for state in states:
                 folder = out / state.name
                 folder.mkdir()

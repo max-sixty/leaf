@@ -75,7 +75,7 @@ registerBannerControl({
   row: {
     label: "Page Map",
     value: () => String(mapCount),
-    group: "navigate",
+    group: "keys",
   },
 });
 

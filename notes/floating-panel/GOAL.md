@@ -4,6 +4,10 @@
 > on `main` behind the preference, off by default. The user disliked their look, so
 > a second round redesigned it from a sketch they tried and configured (below, "The
 > overhaul"). The rebuilt panel remains non-default while its remaining work is done.
+>
+> On 13 October the user retired the Codex reference: the panel is judged by Leaf's
+> own aesthetic and the user's eye, not against the Codex app. The phone waits until
+> the desktop design is firm, and gets no work before then.
 
 ## The overhaul
 
@@ -24,21 +28,28 @@ what the module header of `runtime/floating-panel.js` now states:
   where the panel was left (`rest`).
 - **The field holds the status**, a thread's turn in a thread, and passing notices,
   which no longer stand at the window's head (`--lf-notice-seat: panel`).
-- **Marks with counts in the row**: the question mark, the thread mark with a dot
-  for news, and the pen, which opens Annotations. Send stands in their place while
-  the user types. Annotations leaves out Select element, which the user starts on
+- **Marks with counts in the row**: the question mark and the thread mark with a
+  dot for news. Send stands in their place while the user types. (The pen that
+  opened Annotations left the row on 13 October: "remove the pen, keep
+  annotations".) Annotations leaves out Select element, which the user starts on
   the page by selecting words or pressing `s` ("I don't think we need the select
   mode").
 - **The leaf's menu is a small menu** of one-line rows with each row's shortcut
-  (the toolbar row contract's `shortcut`), the agent's state at its head.
+  (the toolbar row contract's `shortcut`), the agent's state at its head. A row that
+  opens a list of its own ends in a chevron. Navigate holds All pages and Search
+  page; Page Map, Resume writing, Restore selection and Align current item at top
+  keep their keys and leave the menu (the row group `keys`); where no keyboard is
+  there to reach them, a finger finds them under Navigate.
 - **Where the user is sits at a view's top edge**, with its filters, search,
   Resolve and Close beside it; the destination line and the thread-actions row went.
 - **Motion moves no layout**: every change of size takes effect in one step and a
   separate surface layer follows by a clip, so the shift watch sees no tween.
 
-The sketch's shimmer on a working status and breathing leaf were left out:
-`skills/leaf/assets/AGENTS.md`, "Motion", allows one continuous animation, and
-changing that is the user's call.
+The sketch's breathing leaf was left out: `skills/leaf/assets/AGENTS.md`,
+"Motion", allows one continuous animation. On 13 October the user had the working
+status carry that one sheen instead, asked for the resting status to read dimmer
+than body text ("currently it's too 'normal text'"), and for the focused field's
+placeholder to say where the words go.
 
 Build an opt-in alternative to Leaf's chrome: one panel that hovers over the
 bottom of the page, like the Codex app's floating chat panel, and replaces both
@@ -299,7 +310,7 @@ comments as they arrive. Give them a new checkpoint at each milestone:
 - the resting panel, the leaf mark's status, and the menu;
 - Threads, opening, answering and resolving a thread, and writing in the one box;
 - Questions answered inline, Versions, approval, modes, and the Moderate display;
-- motion and polish, measured against the Codex reference.
+- motion and polish.
 
 Budget about eight hours of work. If the user hasn't answered a checkpoint
 after two more milestones, stop adding scope. Polish what they have seen, and
@@ -310,7 +321,6 @@ subagents, running Opus or Fable, the following:
 
 - this file, including "Intended departures";
 - the prototype, live and in stills;
-- the Codex reference;
 - your build.
 
 Each reviewer uses the prototype and the build through the same journeys, at

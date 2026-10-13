@@ -5,6 +5,23 @@
 // document when it runs, and before the bootstrap and the theme (`compose_document`).
 (() => {
   const root = document.documentElement;
+  // A cross-document swap commits departure before Chrome rejects its aborted
+  // fetches. Those rejections belong to the old document, not its replacement.
+  // beforeunload is cancelable and therefore cannot end this lifetime; pageshow
+  // reopens it when the browser restores the same realm from its page cache.
+  let documentActive = true;
+  root.lfDocumentLifetime = Object.freeze({
+    get active() {
+      return documentActive;
+    },
+  });
+  for (const type of ["pageswap", "pagehide"])
+    window.addEventListener(type, () => {
+      documentActive = false;
+    });
+  window.addEventListener("pageshow", () => {
+    documentActive = true;
+  });
   // The runtime will run here and upgrade the page's widgets, so the themes give each
   // widget the box its module will draw it at (`html[data-lf-interactive]`). A reading
   // with no runtime, a source file or a page with scripts off, keeps the readable
@@ -52,6 +69,7 @@
   // mark off where it is incomplete. The first is the earliest evidence and a later one
   // is often its consequence; the bootstrap's report keeps the first as well.
   const fault = (reason, incomplete, error = null, page = false) => {
+    if (!documentActive) return;
     if (incomplete) root.toggleAttribute("data-lf-interactive", false);
     if (root.hasAttribute("data-lf-startup-error")) return;
     root.dataset.lfStartupError = reason;
@@ -724,12 +742,17 @@
           width: edges.right - edges.left,
           breakouts: [breakout],
         });
-      readings.push([
-        breakout,
+      const reading = [
         Math.max(0, Math.round(edges.left - column.left)),
         Math.max(0, Math.round(column.right - edges.right)),
-        false,
-      ]);
+      ];
+      readings.push([breakout, ...reading, false]);
+      // A holder allocated the column can span the breakout it holds, as an Ask does
+      // (the default package's ask.css), and its padding keeps its content box where
+      // its own holder's is, so it stands in from the column as far: it takes the same
+      // reading, and grows as far each way as the block does.
+      if (holder.matches('[data-lf-space="column"]'))
+        readings.push([holder, ...reading, false]);
     }
     let changed = false;
     for (const [breakout, left, right, arranged] of readings) {

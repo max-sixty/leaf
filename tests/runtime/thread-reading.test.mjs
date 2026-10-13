@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mock } from "node:test";
 import test from "node:test";
 import process from "node:process";
-import { servedThread, servedWorkflow } from "../served.mjs";
+import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
 // Recent's day names are formatted in the zone the page loads in, so the zone — one with
 // a daylight-saving change — is fixed before the modules load rather than by a static
@@ -459,4 +459,152 @@ test("panel narrowing controllers keep independent intent over shared threads", 
   first.view.controls.changeWords(" ");
   assert.equal(first.narrowing.widen(), true);
   assert.equal(first.view.words, "");
+});
+
+test("a deferred direct Thread landing reports cancellation after newer user focus", async (t) => {
+  t.after(() => window.happyDOM.cancelAsync());
+  const { createThreadLanding } = await import("/runtime/thread/landing.js");
+  const list = document.createElement("section");
+  const thread = document.createElement("section");
+  thread.className = "lf-thread";
+  thread.dataset.id = "held-direct-arrival";
+  thread.hidden = true;
+  list.append(thread);
+  list.keepsForWords = () => false;
+  list.revealNavigation = () => {};
+  const source = document.createElement("button");
+  const newer = document.createElement("button");
+  document.body.append(list, source, newer);
+  const held = Promise.withResolvers();
+  let reveals = 0;
+  const landing = createThreadLanding({
+    setPanel() {},
+    threadsBox: list,
+    revealThread: () => {
+      reveals++;
+      return held.promise.then(() => {
+        thread.hidden = false;
+      });
+    },
+  });
+  try {
+    source.focus();
+    const arriving = landing.showThread(thread.dataset.id);
+    assert.equal(reveals, 1);
+    newer.focus();
+    held.resolve();
+    assert.equal(await arriving, null);
+    assert.equal(document.activeElement, newer);
+    assert.equal(thread.classList.contains("flash"), false);
+  } finally {
+    held.resolve();
+    list.remove();
+    source.remove();
+    newer.remove();
+  }
+});
+
+test("superseding a blocked primary destination completes its prior navigation", async () => {
+  const { applicationState } = await import("/runtime/semantic-state.js");
+  const { readThreads } = await import("/runtime/thread/state.js");
+  applicationState.identify(1);
+  applicationState.captureDocument({
+    ...applicationState.read().document,
+    registry: {},
+    authored: new Map(),
+    descriptors: new Map(),
+  });
+  applicationState.adopt(servedReading("suggestion closes a thread"));
+  const id = readThreads().threads[0].id;
+  assert.equal(
+    await (async () => {
+      const workspace = document.createElement("section");
+      document.body.append(workspace);
+      const reached = Promise.withResolvers();
+      const blocked = Promise.withResolvers();
+      const router = createThreadDestinations({
+        panelIsOpen: () => true,
+        showThread: () => null,
+      });
+      let calls = 0;
+      const unregister = router.register(workspace, () => {}, {
+        update: () =>
+          ++calls === 1 ? (reached.resolve(), blocked.promise) : Promise.resolve(),
+        destination: () => null,
+      });
+      const firstNavigation = router.openPageThread(id, { focus: false });
+      await reached.promise;
+      await router.openPageThread(id, { focus: false });
+      const result = await firstNavigation;
+      blocked.resolve();
+      unregister();
+      workspace.remove();
+      return result === null;
+    })(),
+    true,
+  );
+});
+
+test("prepared thread readings consume only their own held-news release", async () => {
+  const { HeldNews } = await import("/runtime/thread/held-news.js");
+  for (const earlier of [false, true])
+    assert.equal(
+      await (async (earlier) => {
+        const base = servedThread([
+          {
+            id: "opening",
+            seq: 1,
+            kind: "comment",
+            author: "user",
+            text: "old",
+            body: { text: "old" },
+          },
+        ]);
+        const reading = (text) => {
+          const source = {
+            ...base,
+            msgs: base.msgs.map((message) => ({
+              ...message,
+              text,
+              body: { ...message.body, text },
+            })),
+          };
+          source.root = source.msgs[0];
+          const descriptor = (source) => ({
+            id: source.id,
+            key: source.key,
+            source,
+            messages: source.msgs,
+            resolved: source.resolved,
+            summaries: source.summaries,
+            reread: descriptor,
+          });
+          return { threads: [descriptor(source)] };
+        };
+        const owner = document.createElement("section");
+        document.body.append(owner);
+        const held = new HeldNews(
+          owner,
+          () => ({ node: owner, newsMoves: () => true }),
+          () => {},
+        );
+        const options = { row: false };
+        held.hold(reading("old"), options);
+        if (earlier) held.release();
+        const pending = held.prepare(reading("new"), options);
+        held.release();
+        pending.commit();
+        const replacement = held.prepare(reading("new"), options);
+        const opened = replacement.reading.threads[0].source.msgs[0].text === "new";
+        replacement.commit();
+        const next = held.prepare(reading("later"), options);
+        const holdingAgain =
+          next.reading.threads[0].source.msgs[0].text === "new" &&
+          Boolean(next.reading.threads[0].news);
+        held.dispose();
+        owner.remove();
+        return opened && holdingAgain;
+      })(earlier),
+      true,
+    );
 });

@@ -276,7 +276,7 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         == []
     )
     assert page.evaluate(
-        "async () => !(await window.__lfRuntimeImport('/runtime/application.js')).hasPending()"
+        "async () => (await window.__lfCheckApi()).readApplication().unresolved.length === 0"
     )
 
     card.get_by_role("button", name="Resolve thread").click()
@@ -958,11 +958,11 @@ def _to_upper_third(locator):
 def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
     browser, serve, opening
 ):
-    """A resolved diff thread stands folded to its summary. An agent's reply that
-    reopened it unfolded it under the reader, and every diff line after it moved down by
-    the whole thread. It stays folded, its summary says what is waiting, and the
-    keyboard, left on the thread by the resolve, reaches the summary and opens it to the
-    thread, open, with the new turn."""
+    """A resolved diff thread stands folded in its outlet's Resolved disclosure. An
+    agent's reply that reopened it unfolded it under the reader, and every diff line
+    after it moved down by the whole thread. It stays folded, the disclosure's summary
+    says what is waiting, and the keyboard, which the resolve left on that summary,
+    opens it to the thread, open in the disclosure's place, with the new turn."""
     url = serve(LONG_LINE_DIFF_PAGE)
     data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
@@ -977,38 +977,39 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
         if event["kind"] == "comment"
     )
     thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    resolved = page.locator("lf-diff .lf-resolved-threads")
+    summary = resolved.locator(":scope > summary")
     # The send leaves the user on the thread, and Resolve is its first stop.
     page.keyboard.press("Tab")
     with sending(page, "the resolve"):
         page.keyboard.press("Enter")
-    expect(thread).to_be_focused()
-    summary = thread.locator(":scope > summary")
-    expect(summary).to_have_text("Resolved · 1 message")
-    _to_upper_third(thread)
-    height = _box_height(thread)
+    expect(summary).to_be_focused()
+    expect(summary).to_have_text("Resolved · 1")
+    expect(thread).to_be_hidden()
+    _to_upper_third(resolved)
+    height = _box_height(resolved)
     # Resolving answered the comment, so the agent's turn is one nothing asked for.
     reply = thread_model.post_reply(serve.page_dir, {"to": root}, "The route stays.")
     told(page)
-    expect(summary).to_have_text("Reopened · 1 new reply")
-    expect(thread).not_to_have_attribute("open", "")
-    assert _box_height(thread) == pytest.approx(height, abs=0.5)
+    expect(summary).to_have_text("Resolved · 1 · Reopened · 1 new reply")
+    expect(resolved).not_to_have_attribute("open", "")
+    assert _box_height(resolved) == pytest.approx(height, abs=0.5)
 
     # A native open-attribute checkpoint runs before paint. The first opened body
-    # must already contain the released news, rather than the older resolved layout.
-    thread.evaluate("""node => {
-      window.openedThread = null;
+    # must already draw the released news, the thread reopened in the disclosure's
+    # place, rather than the older resolved layout inside it.
+    resolved.evaluate("""node => {
+      window.openedResolved = null;
       new MutationObserver(() => {
-        if (!node.open || window.openedThread) return;
-        window.openedThread = {
-          messages: [...node.querySelectorAll('.lf-msg')].map(message => message.dataset.event),
-          reply: Boolean(node.querySelector(':scope > .lf-thread-reply leaf-text')),
+        if (!node.open || window.openedResolved) return;
+        window.openedResolved = {
+          shown: node.isConnected,
+          threads: node.querySelectorAll('.lf-page-thread').length,
         };
       }).observe(node, {attributeFilter:['open']});
     }""")
-    page.keyboard.press("Tab")
-    expect(summary).to_be_focused()
     if opening == "programmatic":
-        thread.evaluate("""node => {
+        resolved.evaluate("""node => {
           const open = document.createElement('button');
           open.textContent = 'Open disclosure';
           open.style.cssText = 'position:fixed;left:0;top:80px;z-index:9999';
@@ -1018,12 +1019,11 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
         page.get_by_role("button", name="Open disclosure", exact=True).click()
     else:
         page.keyboard.press(opening)
-    assert page.evaluate("openedThread") == {
-        "messages": [root, reply["id"]],
-        "reply": True,
-    }
-    expect(thread).to_have_attribute("open", "")
-    expect(summary).to_be_hidden()
+    assert page.evaluate("openedResolved") == {"shown": False, "threads": 0}
+    expect(resolved).to_have_count(0)
+    if opening == "Enter":
+        expect(thread).to_be_focused()
+    expect(thread.locator(".lf-msg")).to_have_count(2)
     expect(thread.locator(f'.lf-msg[data-event="{reply["id"]}"]')).to_be_visible()
     expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_be_visible()
 
@@ -1271,16 +1271,12 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         expect(threads.last).to_contain_text("And the handler's name?")
     if end == "replied":
         expect(threads.first).to_contain_text("Yes, for one release.")
-    if end == "settled":
-        expect(threads.first.locator(":scope > summary")).to_have_text(
-            "Resolved · 1 message"
-        )
-    if end == "keyboard":
+    if end in ("keyboard", "settled"):
         # The marker goes with what it held, and the user lands on the thread it showed,
-        # or on the summary a settled thread folds to.
+        # a settled one in its outlet's Resolved disclosure, which opens to show it.
         expect(threads.first).to_be_focused()
     if end == "settled":
-        expect(threads.first.locator(":scope > summary")).to_be_focused()
+        expect(outlet.locator(".lf-resolved-threads")).to_have_attribute("open", "")
 
 
 @pytest.mark.parametrize(("width", "under_panel"), [(900, True), (1920, False)])

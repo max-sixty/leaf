@@ -258,7 +258,7 @@ def test_hidden_returns_protect_only_the_resumed_reading(browser, serve):
     held = []
     page.route("**/api/news", lambda route: held.append(route))
     page.evaluate("""async () => {
-      window.returnBoundary = await window.__lfRuntimeImport('/runtime/reading-continuity.js');
+      window.returnBoundary = await window.__lfCheckApi();
       window.returnVisibility = 'visible';
       Object.defineProperty(document, 'visibilityState', {
         configurable: true, get: () => window.returnVisibility,
@@ -1179,7 +1179,7 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
     )
     page.evaluate(
         """async work => {
-      const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+      const {nextFrame} = await window.__lfWidgetApi();
       const above = document.querySelector('#above');
       document.querySelector('#press').addEventListener('click', () => {
         let turn = 0;
@@ -1300,7 +1300,7 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
     )
     page.evaluate(
         """async retiredAt => {
-          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfWidgetApi();
           const widget = document.querySelector('#choice');
           const gate = Promise.withResolvers();
           window.release = gate.resolve;
@@ -1362,7 +1362,7 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
         ),
     )
     page.evaluate("""async () => {
-      const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {widgetController} = await window.__lfWidgetApi();
       const widget = document.querySelector('#choice');
       const first = Promise.withResolvers();
       const second = Promise.withResolvers();
@@ -1433,7 +1433,7 @@ def test_a_preparation_no_input_began_lands_passive(browser, serve, input_at):
     page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
     page.evaluate(
         """async inputAt => {
-      const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+      const {nextFrame} = await window.__lfWidgetApi();
       const root = document.querySelector('#patch').shadowRoot;
       const details = root.querySelector('details');
       const opens = () => {
@@ -3044,7 +3044,7 @@ def test_native_clipping_preserves_only_painted_carry(browser, serve):
         field = page.locator(f"#field-{name}")
         state = field.evaluate("""async field=>{
           const box=field.getBoundingClientRect();
-          const geometry=await window.__lfRuntimeImport('/runtime/geometry.js');
+          const geometry=await window.__lfCheckApi();
           return {hit:document.elementFromPoint(box.x+3,box.y+3)===field,
             shown:!!geometry.shownRect(field,new Map()),
             opacity:field.checkVisibility({checkOpacity:true})};
@@ -3131,7 +3131,7 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
     page = open_page(browser, serve(source))
     initial = page.locator("#holder").bounding_box()
     state = page.evaluate("""async()=>{
-      const module=await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js'); const ui=await module.floatingUi();const holder=document.querySelector('#holder'),subject=document.querySelector('#subject'),host=document.querySelector('#host'); let plane='page';
+      const module=await window.__lfOverlayApi(); const ui=await module.floatingUi();const holder=document.querySelector('#holder'),subject=document.querySelector('#subject'),host=document.querySelector('#host'); let plane='page';
       const selected=()=>module.floatingSelections().find(s=>s.floating===holder);
       const owner=module.floatingPlacement({floating:holder,update:()=>void place()});
       async function place(){owner.begin();const answer=await owner.position(ui.computePosition,subject,{placement:'right-start',middleware:[]},()=>plane,subject);if(answer)owner.stand(answer);}

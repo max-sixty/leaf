@@ -443,9 +443,9 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     launched = []
 
     @contextmanager
-    def chrome():
+    def headless_shell():
         launched.append(True)
-        yield "chrome"
+        yield "browser"
 
     entered = []
 
@@ -462,7 +462,7 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
         end.close = lambda: None
         yield journey.User(end, "v"), {"target": target}, lambda: None
 
-    monkeypatch.setattr(journey, "chrome", chrome)
+    monkeypatch.setattr(journey, "headless_shell", headless_shell)
     monkeypatch.setattr(journey, "target_session", target_session)
     monkeypatch.setattr(journey, "samples_path", lambda: Path(os.devnull))
     runner = CliRunner()
@@ -472,5 +472,5 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     assert json.loads(result.stdout)["userEnd"] == "http"
     result = runner.invoke(journey.journey, ["claude-code", "--browser"])
     assert result.exit_code == 0, result.output
-    assert (launched, entered) == ([True], [None, "chrome"])
+    assert (launched, entered) == ([True], [None, "browser"])
     assert json.loads(result.stdout)["userEnd"] == "browser"

@@ -737,7 +737,7 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
         # image commits. Wait for that navigation's promised visible geometry.
         bounds = stage.evaluate(
             """async () => {
-              const {landingBand}=await window.__lfRuntimeImport('/runtime/geometry.js');
+              const {landingBand}=await window.__lfCheckApi();
               return landingBand(document.scrollingElement);
             }"""
         )

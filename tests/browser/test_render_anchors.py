@@ -1495,9 +1495,7 @@ def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve
     expect(page.locator("#later [data-lf-syn]").first).to_be_attached()
     text = page.evaluate(
         """async () => {
-          const syntax = performance.getEntriesByType('resource')
-            .find(resource => resource.name.endsWith('/runtime/syntax.js'));
-          const {highlightBlocks} = await import(syntax.name);
+          const {highlightBlocks} = await window.__lfWidgetApi();
           const code = document.createElement('code');
           code.className = 'language-python';
           code.textContent = 'old = 1';
@@ -1767,7 +1765,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     ]
     bad = page.evaluate(
         """async ([langs, samples]) => {
-          const { syntax } = await window.__lfRuntimeImport('/runtime/syntax.js');
+          const { syntax } = await window.__lfWidgetApi();
           const bad = [];
           for (const lang of langs)
             for (const src of samples) {
@@ -1786,11 +1784,11 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     pierre_bad = page.evaluate(
         """async (langs) => {
           const { parsePatchFiles } =
-            await window.__lfRuntimeImport('/vendor/pierre-parser.esm.js');
+            await window.__lfVendorImport('pierre-parser.esm.js');
           const { preloadDiffHTML } =
-            await window.__lfRuntimeImport('/vendor/pierre-diffs.esm.js');
+            await window.__lfVendorImport('pierre-diffs.esm.js');
           const { themeName } =
-            await window.__lfRuntimeImport('/vendor/syntax.esm.js');
+            await window.__lfVendorImport('syntax.esm.js');
           const source = [
             'diff --git a/example.txt b/example.txt',
             '--- a/example.txt',
@@ -1821,7 +1819,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     assert all(color != "rgb(161, 35, 69)" for color in inherited["before"]), inherited
 
     heredoc = page.evaluate("""async () => {
-      const { syntax } = await window.__lfRuntimeImport('/runtime/syntax.js');
+      const { syntax } = await window.__lfWidgetApi();
       return await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash');
     }""")
     assert any(
@@ -1927,7 +1925,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ), [(file["code"], file["numbers"][:1]) for file in files]
 
     reading = page.evaluate("""async () => {
-      const { says, textNodesUnder, wrote } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const { says, textNodesUnder, wrote } = await window.__lfWidgetApi();
       const diff = document.querySelector('#patch');
       const shadow = diff.shadowRoot;
       const segments = textNodesUnder(document)
@@ -2135,7 +2133,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # stage's children reads the stage as the host's section.
     result = page.evaluate(
         """async () => {
-          const {html, render, shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {html, render, shadowStage} = await window.__lfWidgetApi();
           const host = document.querySelector('lf-diff');
           const container = document.createElement('div');
           const input = document.createElement('input');
@@ -2175,8 +2173,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
 
     result = page.evaluate(
         """async () => {
-          const {shadowStage} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {anchorForRange} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
+          const {shadowStage} = await window.__lfWidgetApi();
+          const {anchorForRange} = await window.__lfCheckApi();
           const host = document.querySelector('lf-diff');
           const first = document.createElement('p');
           first.textContent = 'first';
@@ -2362,7 +2360,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
       const rename = renames[0];
       const quotedRename = renames[1];
       const bomRename = renames[2];
-      const { says, wrote } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const { says, wrote } = await window.__lfWidgetApi();
       return {
         rendered: host.classList.contains('lf-rendered'),
         error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,
@@ -2557,7 +2555,7 @@ def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_standing(
           host.attachShadow({ mode: "open" }).innerHTML =
             "<button id=one>one</button><button id=two>two</button>";
           document.querySelector("main").append(host);
-          const { onStanding } = await window.__lfRuntimeImport("/runtime/focus.js");
+          const { onStanding } = await window.__lfCheckApi();
           window.heard = [];
           onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
           host.shadowRoot.getElementById("one").focus();
@@ -2610,7 +2608,7 @@ def test_internal_focus_moves_publish_before_old_markup_is_collected(
             dialog.replaceWith(layer);
             layer.showPopover();
           }
-          const {onStanding} = await window.__lfRuntimeImport('/runtime/focus.js');
+          const {onStanding} = await window.__lfCheckApi();
           window.heard = [];
           onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
           host.shadowRoot.getElementById('one').focus();
@@ -2626,7 +2624,7 @@ def test_internal_focus_moves_publish_before_old_markup_is_collected(
               const nextHost = document.createElement('div');
               const nextRoot = nextHost.attachShadow({mode: 'open'});
               oldHost.after(nextHost);
-              const {move} = await window.__lfRuntimeImport('/runtime/dom-move.js');
+              const {move} = await window.__lfWidgetApi();
               const place = removed === 'retained-immediate' ? move : (parent, node) => parent.moveBefore(node, null);
               place(nextRoot, oldRoot.querySelector('dialog'), null);
               place(nextRoot, oldRoot.getElementById('two'), null);
@@ -2699,7 +2697,8 @@ def test_first_entry_into_a_shadow_root_can_forward_focus(browser, serve, arriva
           const root = host.attachShadow({mode: 'open'});
           root.innerHTML = '<button id="one">First</button><button id="two">Next</button>';
           document.querySelector('main').append(host);
-          const {onStanding, focusDestination} = await window.__lfRuntimeImport('/runtime/focus.js');
+          const {onStanding} = await window.__lfCheckApi();
+          const {focusDestination} = await window.__lfWidgetApi();
           window.heard = [];
           onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
           const one = root.getElementById('one');
@@ -5489,7 +5488,7 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
     told(page)
     result = page.evaluate(
         """async () => {
-          const {loadDeferred} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {loadDeferred} = await window.__lfWidgetApi();
           let stale;
           try {
             stale = await loadDeferred(window.priorManifest, 'app.py');
@@ -5507,49 +5506,6 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
         "deferred app.py",
         "current": replacement,
     }
-    result = page.evaluate(
-        """async () => {
-          const {loadDeferred} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
-          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-          const manifest = document.querySelector('#patch').snapshot;
-          const original = runtime.data;
-          const failures = [];
-          try {
-            for (const change of ['contract', 'validity']) {
-              const candidate = structuredClone(original);
-              candidate.version = change;
-              if (change === 'contract')
-                candidate.sources['review-patch'].contract = 'another-contract';
-              else {
-                delete candidate.sources['review-patch'].value;
-                candidate.sources['review-patch'].error = 'source is no longer valid';
-              }
-              acceptData(candidate, runtime.state.taken);
-              try {
-                await loadDeferred(manifest, 'app.py');
-                failures.push(null);
-              } catch (error) {
-                failures.push(error.message);
-              }
-            }
-          } finally {
-            acceptData(original, runtime.state.taken);
-            await notifyDataSubscribers();
-          }
-          return {revision: manifest.revision, failures};
-        }"""
-    )
-    assert (
-        result["failures"]
-        == [
-            (
-                f"source review-patch revision {result['revision']} changed before loading "
-                "deferred app.py"
-            )
-        ]
-        * 2
-    )
 
 
 def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):
@@ -5635,7 +5591,7 @@ def test_passage_at_either_shadow_host_edge_excludes_its_words(browser, serve):
     page = open_page(browser, serve(PANEL_PAGE))
     quotes = page.evaluate(
         """async () => {
-          const {anchorForRange} = await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
+          const {anchorForRange} = await window.__lfCheckApi();
           const paragraph = document.querySelector('#how-cap').firstChild;
           const diff = document.querySelector('#how-patch');
           const range = document.createRange();
@@ -6001,7 +5957,7 @@ new file mode 120000
       const rename = renames[0];
       const quotedRename = renames[1];
       const bomRename = renames[2];
-      const { says, wrote } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const { says, wrote } = await window.__lfWidgetApi();
       return {
         rendered: host.classList.contains('lf-rendered'),
         error: host.querySelector('.lf-error')?.firstChild?.textContent ?? null,

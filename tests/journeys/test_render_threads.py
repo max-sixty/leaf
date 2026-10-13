@@ -1402,7 +1402,7 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
       return [style.animationName, style.backgroundClip, style.color];
     }"""
     sweep, clip, fill = topic.evaluate(paint)
-    assert sweep == "lf-title-sheen" and clip == "text"
+    assert sweep.endswith("-sheen") and clip == "text"
     assert topic.evaluate("el => getComputedStyle(el).backgroundImage") != "none"
     # Reduced motion paints ordinary text instead of an animated clipped gradient.
     page.emulate_media(reduced_motion="reduce")

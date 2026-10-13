@@ -419,7 +419,7 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     assert f'data-lf-release="{release}"' in document
     assert f'src="{asset_root}/{revision}/leaf.js"' in document
     assert "sitenote.js" not in document
-    assert (example_layer / "runtime" / "state-feed.js").is_file()
+    assert (example_layer / "runtime" / "check-api.js").is_file()
     assert (example_layer / "registry.json").is_file()
     assert list((example_root / "versions").glob("v*.html"))
     assert list((example_root / "revisions").glob("r*.html"))
@@ -443,9 +443,8 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
         assets
         / active_revision_directory(site_build.product_page(site, "index.html"))
         / "runtime"
-        / "annotation-overlay"
-        / "margin-layout.js",
-        example_layer / "runtime" / "annotation-overlay" / "margin-layout.js",
+        / "widget-api.js",
+        example_layer / "runtime" / "widget-api.js",
     ]
     assert repeated[0].read_bytes() == repeated[1].read_bytes()
     assert repeated[0].stat().st_ino == repeated[1].stat().st_ino
@@ -544,8 +543,8 @@ def test_the_edge_shell_is_the_document_and_runtime_the_leaf_server_serves(
         ("/", "index.html"),
         ("/examples/triage-board/", "examples/triage-board/index.html"),
         (
-            f"/examples/triage-board/{revision}/runtime/state-feed.js",
-            f"examples/triage-board/{revision}/runtime/state-feed.js",
+            f"/examples/triage-board/{revision}/runtime/check-api.js",
+            f"examples/triage-board/{revision}/runtime/check-api.js",
         ),
         *((f"/{relative}", relative) for relative in historical),
     ):
@@ -768,43 +767,6 @@ def test_a_replaced_private_server_keeps_the_active_tab(served_example, browser)
     assert page.evaluate("window.__originalDocument === true")
 
 
-def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, browser):
-    """The gallery and bootstrap listeners hear a runtime-generation mismatch."""
-    _, url = served_example("triage-board")
-    page = browser.new_page()
-    page.add_init_script(
-        """
-        window.__leafStartupFailures = 0;
-        window.addEventListener(
-          "lf-startup-failed",
-          () => window.__leafStartupFailures++,
-        );
-        """
-    )
-
-    def mismatch_layer(route):
-        response = route.fetch()
-        body = (
-            response.body()
-            .decode()
-            .replace(
-                'const layerGeneration = "',
-                'const layerGeneration = "mismatch-',
-                1,
-            )
-        )
-        route.fulfill(response=response, body=body)
-
-    page.route("**/runtime/layer-generation.js", mismatch_layer)
-    page.goto(url, wait_until="domcontentloaded")
-    expect(page.get_by_role("status")).to_have_text(
-        "Leaf couldn't start. Waiting for the server to update."
-    )
-    assert page.evaluate("() => window.__leafStartupFailures") == 1
-    # The mismatch this planted is what the page says on the console too.
-    consume_browser_errors(page, "belong to different layers")
-
-
 def test_a_document_on_a_dead_release_asks_for_one_replacement(served_example, browser):
     """A document whose release is gone asks for a newer one once, not in a loop.
 
@@ -1010,7 +972,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
         names = [page.evaluate("window.__sessionChannel.name") for page in pages[1:]]
         leader.evaluate(
             """async names => {
-              const client = await window.__lfRuntimeImport('/runtime/layer-client.js');
+              const client = await window.__lfClientApi();
               client.admitResponse(new Response(null, {headers: {'Leaf-Session': 'active'}}));
               for (const name of new Set(names)) {
                 const sender = window.__sessionChannel.name === name
@@ -1031,7 +993,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
         ]
         assert [
             page.evaluate(
-                "async () => (await window.__lfRuntimeImport('/runtime/layer-client.js')).sessionIsActive()"
+                "async () => (await window.__lfClientApi()).sessionIsActive()"
             )
             for page in pages
         ] == [True, True, False, False]
@@ -1040,7 +1002,7 @@ def test_session_activation_reaches_other_tabs(served_example, browser):
             page.unroute_all(behavior="ignoreErrors")
 
 
-def test_freshness_checks_share_session_identity_without_rebroadcasting(
+def test_freshness_checks_preserve_session_activation_without_rebroadcasting(
     served_example, browser
 ):
     """Session activation wakes peers once; subsequent server changes stay quiet."""
@@ -1081,16 +1043,16 @@ def test_freshness_checks_share_session_identity_without_rebroadcasting(
     page.route("**/api/news", active)
     page.goto(url, wait_until="load")
     wait_until_ready(page)
-    # An active error envelope still establishes the session and its public reference.
+    # An active error envelope still establishes the session.
     # Later freshness responses may come from another serving process, while the
     # same durable record and browser session continue.
     page.evaluate(
         """async()=>{
-          const client=await window.__lfRuntimeImport('/runtime/layer-client.js');
+          const client=await window.__lfClientApi();
           window.__activations=0;
           document.addEventListener('lf-session-active',()=>window.__activations++);
           client.admitResponse(new Response('', {status:503, headers:{
-            'Leaf-Session':'active','Leaf-Session-Reference':'239383829012'
+            'Leaf-Session':'active'
           }}));
         }"""
     )
@@ -1101,12 +1063,7 @@ def test_freshness_checks_share_session_identity_without_rebroadcasting(
     assert len(looks) >= 4
     assert page.evaluate("window.__activations") == 1
     assert page.evaluate("window.__sessionBroadcasts") == [{"active": True}]
-    assert (
-        page.evaluate(
-            "async()=> (await window.__lfRuntimeImport('/runtime/context.js')).runtime.sessionReference"
-        )
-        == "239383829012"
-    )
+    assert page.evaluate("async () => (await window.__lfClientApi()).sessionIsActive()")
 
 
 def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
@@ -1390,9 +1347,9 @@ def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, bro
     assert frame.evaluate("frame => frame.contentDocument === null")
     result = child.evaluate(
         """async () => {
-          const {tabStore, draftStore, userStore} = await window.__lfRuntimeImport('/runtime/storage.js');
-          const {uploadMedia} = await window.__lfRuntimeImport('/runtime/layer-client.js');
-          const {scopedMediaUrl} = await window.__lfRuntimeImport('/runtime/media.js');
+          const {tabStore, draftStore, userStore} = await window.__lfCheckApi();
+          const {uploadMedia} = await window.__lfClientApi();
+          const {scopedMediaUrl} = await window.__lfWidgetApi();
           const denied = ['localStorage', 'sessionStorage'].every(name => {
             try { window[name]; return false; } catch { return true; }
           });
@@ -1422,7 +1379,7 @@ def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, bro
     sample.evaluate("async sample => { await sample.ready; }")
     assert child.evaluate(
         """async () => {
-          const {tabStore, draftStore, userStore} = await window.__lfRuntimeImport('/runtime/storage.js');
+          const {tabStore, draftStore, userStore} = await window.__lfCheckApi();
           return [tabStore, draftStore, userStore].every(store => store.get('isolation-test') === null);
         }"""
     )

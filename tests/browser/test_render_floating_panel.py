@@ -730,7 +730,7 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     expect(page.locator(".lf-fp-on-user")).to_have_count(0)
     exit_step.click()
     expect(page.locator(".lf-fp-step")).to_have_count(0)
-    expect(page.locator(".lf-fp-questions")).to_be_visible()
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
 
 def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out(

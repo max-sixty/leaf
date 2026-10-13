@@ -660,22 +660,22 @@ export class ThreadView {
     // the fold would put away, by focus or by a selection reaching into it.
     const foot =
       footFold && !folds.messages.some((key) => standsOn(this.#messageNode(key)));
-    const idleAppend =
+    const idleFoot =
       this.#model?.surface === "panel" &&
       this.node.open &&
       !replyIsEditing(this.#model.key) &&
-      appendedAtEnd &&
+      (appendedAtEnd || (news.working && !news.appended)) &&
       !news.settled &&
       !news.summaries &&
       !changed.size &&
       (foot || (!folds.messages.length && !folds.summaries.length));
-    const followed = (pinned && !news.settled) || idleAppend ? this.#foot : null;
+    const followed = (pinned && !news.settled) || idleFoot ? this.#foot : null;
     return (
       [
         ...[...changed].map((message) => this.#messageNode(message)),
-        (news.appended || news.settled) && this.#foot,
+        (news.appended || news.settled || news.working) && this.#foot,
       ].some((node) => node && node !== followed && growthAfterIsSeen(node)) ||
-      (!(idleAppend && foot) &&
+      (!(idleFoot && foot) &&
         [
           ...folds.messages.map((message) => this.#messageNode(message)),
           ...folds.summaries.map((summary) => this.#summaryNode(summary)),

@@ -469,8 +469,8 @@ summary { align-content: center; }
    while the work runs a sheen passes over them, as over a title being generated, so a
    step reads as work under way rather than as a reply. A step is a line, and the
    words keep to one, ellipsized, so each new step leaves the message's box, and what
-   stands below it, where it was: news never moves what the reader is reading, and a
-   step is no news (held-news.js). Assistive technology reads the whole line. */
+   stands below it, where it was. Its arrival and departure are held when they would
+   move what the reader sees (held-news.js). Assistive technology reads the whole line. */
 .lf-thread-working { margin-top: 16px;
   --lf-working-dim: color-mix(in oklab, var(--muted) 80%, var(--paper)); }
 .lf-thread-working-words { margin-top: var(--lf-msg-body-gap);

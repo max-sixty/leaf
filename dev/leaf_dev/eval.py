@@ -111,8 +111,10 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
     ]
 
 
-def native_provider(harness: str, payload: Path, work: Path) -> dict:
-    """A read-only native agent with the arm installed as its complete plugin."""
+def native_provider(
+    harness: str, payload: Path, work: Path
+) -> tuple[dict, Path | None]:
+    """A read-only native agent and its explicitly invokable installed skill."""
     if harness == ClaudeCodeHarness.name:
         child = claude_child(work)
         return {
@@ -142,7 +144,7 @@ def native_provider(harness: str, payload: Path, work: Path) -> dict:
                     },
                 },
             },
-        }
+        }, None
     home = work.with_name(f"{work.name}-home")
     home.mkdir(mode=0o700)
     config_home = codex_home(home / ".codex")
@@ -155,7 +157,9 @@ def native_provider(harness: str, payload: Path, work: Path) -> dict:
     # The installer and provider use the same CLI. Installing the complete
     # plugin preserves discovery and skill references relative to the plugin root.
     try:
-        install_codex_plugin(codex, payload, cwd=work, env=environment(**cli_env))
+        installed = install_codex_plugin(
+            codex, payload, cwd=work, env=environment(**cli_env)
+        )
     except subprocess.CalledProcessError as error:
         raise click.ClickException(
             f"Codex plugin installation failed:\n{error.stdout}{error.stderr}"
@@ -171,7 +175,19 @@ def native_provider(harness: str, payload: Path, work: Path) -> dict:
             "turn_timeout_ms": TURN_LIMIT * 1000,
             "cli_env": cli_env,
         },
-    }
+    }, installed / "skills/leaf/SKILL.md"
+
+
+def render_prompt(context: dict) -> str | list[dict]:
+    """Use native skill input on Codex shipped-skill probes, keeping one table row."""
+    prompt = context["vars"]["prompt"]
+    skill = context["config"]["skills"].get(context["provider"]["label"])
+    if skill is None:
+        return prompt
+    return [
+        {"type": "skill", "name": "leaf", "path": skill},
+        {"type": "text", "text": prompt.removeprefix(SKILL_PREFIX)},
+    ]
 
 
 def workflow_harness(harness: str) -> str:
@@ -257,6 +273,7 @@ def prepare(
     """One test per selected address and condition, run on each column it applies to."""
     definitions = catalog()
     providers: dict[str, dict] = {}
+    skills = {}
     tests = []
     # Judged screenshots sit apart from the rest of the evidence, for the judge.
     screenshots = samples.with_name("screenshots")
@@ -292,7 +309,9 @@ def prepare(
                         else:
                             work = scratch / "work" / label
                             work.mkdir(parents=True)
-                            configured = native_provider(harness, payload, work)
+                            configured, skill = native_provider(harness, payload, work)
+                            if skill is not None and not instructions:
+                                skills[label] = str(skill)
                             if instructions:
                                 field = (
                                     "append_system_prompt"
@@ -400,7 +419,13 @@ def prepare(
             param_hint="--harness/--condition",
         )
     return {
-        "prompts": ["{{prompt}}"],
+        "prompts": [
+            {
+                "id": f"file://{Path(__file__)}:render_prompt",
+                "label": "task",
+                "config": {"skills": skills},
+            }
+        ],
         "providers": list(providers.values()),
         "tests": tests,
         "defaultTest": {
@@ -512,7 +537,9 @@ def eval(args: tuple[str, ...], base: str | None, harness: str, condition: str):
         (out / "node_modules").symlink_to(ROOT / "node_modules")
         click.echo(config["description"])
         env = environment(
-            PROMPTFOO_DISABLE_TELEMETRY="1", PROMPTFOO_DISABLE_UPDATE_CHECK="1"
+            PROMPTFOO_DISABLE_TELEMETRY="1",
+            PROMPTFOO_DISABLE_UPDATE_CHECK="1",
+            PROMPTFOO_PYTHON=sys.executable,
         )
         # Local-login evals must not silently switch to ambient API billing.
         for key in (

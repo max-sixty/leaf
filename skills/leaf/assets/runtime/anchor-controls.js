@@ -40,7 +40,7 @@ import { commandScope } from "./keyboard/scopes.js";
 import { elementById, inChrome, pageQueryAll, pageReadingVersion } from "./passages.js";
 import { pageUpgraded } from "./page-paint.js";
 import { documentChanged, readApplication } from "./semantic-state.js";
-import { reactionVocabulary } from "./registry.js";
+import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
 import { offer, reveal } from "./widget-elements.js";
@@ -111,12 +111,22 @@ export function createAnchorControls({
     for (const candidate of pageQueryAll(visualSelector())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
+      let parts;
+      try {
+        parts = visualParts(candidate, { strict: true });
+      } catch {
+        // Page check reports the malformed inventory. Withhold this visual's
+        // whole action too, while allowing the rest of the page to present.
+        continue;
+      }
+      // Controls must not outlive a malformed inventory: even the whole-visual
+      // action belongs to the same reading as the parts beside it.
       const targets = [
         {
           anchor: { section: found.id },
           label: sectionLabel(elementById(found.id)) || found.id,
         },
-        ...visualParts(candidate)
+        ...parts
           .filter((part) => unclaimedVisualGesture(part.element))
           .map((part) => ({
             anchor: { section: found.id, visual: part.id },
@@ -289,7 +299,7 @@ export function createAnchorControls({
             entries: record.roots.flatMap((root) => [
               {
                 key: `reaction:${root.id}:open`,
-                glyph: reactionVocabulary()[root.token]?.glyph ?? root.token,
+                glyph: registry.$reactions.tokens[root.token]?.glyph ?? root.token,
                 label: `${root.token} reaction actions`,
                 behavior: "disclosure",
                 rank: "secondary",

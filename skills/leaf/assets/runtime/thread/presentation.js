@@ -46,6 +46,7 @@ function renderHolds(threads) {
 }
 
 export function createThreadPresentation({
+  available = true,
   inlineView,
   surfaceView,
   anchorPlacement,
@@ -91,9 +92,7 @@ export function createThreadPresentation({
             thread: root.effective.thread,
             document: root.document,
           },
-    // Local threads are a complete reading of known gestures even while the saved
-    // inventory loads. Every phase owes the same cohort's current presentation.
-    current: () => readApplication().effective.thread,
+    current: () => (available ? readApplication().effective.thread : null),
     paint: async (value, current) => {
       const phase = readApplication().phase;
       // A pass reads the latest root. Clock changes claim another pass through the

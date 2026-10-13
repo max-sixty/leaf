@@ -892,14 +892,14 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     """The round that was already asking when the page came up does not navigate it.
 
     A probe round begins at the fault and ends whenever the source answers, which can
-    be after the page has presented. By then the user is using the page, so what that
+    be after the page has upgraded. By then the user is using the page, so what that
     round learned is no longer worth a navigation: it would take a working page out
     from under them.
 
     Both halves are planted, because the two the page would produce cannot be ordered
     against each other here: the supervisor's probe and the runtime's own widget read
     are the same address, so holding one holds the other and nothing presents. The
-    fault and `data-lf-presented` are the supervisor's two inputs, and the test lands
+    fault and `data-lf-upgraded` are the supervisor's two inputs, and the test lands
     the second one while its first round is still asking.
     """
     _, url = served_example("triage-board")
@@ -907,7 +907,7 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     page.add_init_script(
         """
         setTimeout(() => { throw new Error('planted fault'); }, 10);
-        setTimeout(() => document.body?.setAttribute('data-lf-presented', '1'), 600);
+        setTimeout(() => document.body?.setAttribute('data-lf-upgraded', '1'), 600);
         """
     )
     documents = []
@@ -930,8 +930,8 @@ def test_a_probe_in_flight_leaves_a_page_that_started_alone(served_example, brow
     page.route("**/registry.json", hold_the_first_round)
     page.goto(url, wait_until="domcontentloaded")
     holding(page, held, 1, "the supervisor's first probe round")
-    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    # Answered once the page has presented, as a release that has rolled past: the
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    # Answered once the page has upgraded, as a release that has rolled past: the
     # answer that would otherwise replace the document.
     held[0].fulfill(status=404, content_type="text/plain", body="")
     answered = held[0].request.response()

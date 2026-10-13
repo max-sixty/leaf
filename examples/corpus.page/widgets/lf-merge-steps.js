@@ -3,42 +3,49 @@
 // and how this run treats each one, and adds a line saying why where a step was skipped
 // or stopped the merge. A click on a step holds its result for reading.
 
-import { afterPresentation, keeps, keepsText, once } from "/runtime/widget-api.js";
+import { keeps, keepsText, once } from "/runtime/widget-api.js";
 
-export default class extends HTMLElement {
-  #last = "";
+customElements.define(
+  "lf-merge-steps",
+  class extends HTMLElement {
+    #last = "";
 
-  connectedCallback() {
-    if (!once(this)) return;
-    const film = document.getElementById(this.getAttribute("for"));
-    this.items = [...this.querySelectorAll("li[data-chapter]")];
-    for (const li of this.items)
-      li.addEventListener("click", () => {
-        film.seekChapter(li.dataset.chapter);
-      });
-    film.addEventListener("film-frame", (e) => this.#show(e.detail));
-    // The film may have painted before this list upgraded; ask for the current frame.
-    afterPresentation(() => film.announce());
-  }
-
-  #show(d) {
-    const sig = `${d.chapter}|${d.caption}|${JSON.stringify(d.status)}`;
-    if (sig === this.#last) return;
-    this.#last = sig;
-    for (const li of this.items) {
-      const key = li.dataset.chapter;
-      const now = key === d.chapter;
-      const state = d.status[key] ?? "run";
-      keeps(li, "data-state", state);
-      keeps(li.querySelector("button"), "disabled", state === "unreached" ? "" : null);
-      li.toggleAttribute("data-now", now);
-      // The run's own line only where it adds something: why a step was skipped or
-      // stopped, what the branch is, and how the run ended. The caption leads with the
-      // step's number and name, which the list already shows.
-      const telling = key === "setup" || key === "end" || state !== "run";
-      const run = li.querySelector(".this-run");
-      keepsText(run, now && telling ? d.caption.replace(/^\d · [^—]+— /, "") : "");
-      keeps(run, "data-tone", d.captionTone);
+    connectedCallback() {
+      if (!once(this)) return;
+      const film = document.getElementById(this.getAttribute("for"));
+      this.items = [...this.querySelectorAll("li[data-chapter]")];
+      for (const li of this.items)
+        li.addEventListener("click", () => {
+          film.seekChapter(li.dataset.chapter);
+        });
+      film.addEventListener("film-frame", (e) => this.#show(e.detail));
+      // The film may have painted before this list upgraded; ask for the current frame.
+      customElements.whenDefined("lf-merge-film").then(() => film.announce());
     }
-  }
-}
+
+    #show(d) {
+      const sig = `${d.chapter}|${d.caption}|${JSON.stringify(d.status)}`;
+      if (sig === this.#last) return;
+      this.#last = sig;
+      for (const li of this.items) {
+        const key = li.dataset.chapter;
+        const now = key === d.chapter;
+        const state = d.status[key] ?? "run";
+        keeps(li, "data-state", state);
+        keeps(
+          li.querySelector("button"),
+          "disabled",
+          state === "unreached" ? "" : null,
+        );
+        li.toggleAttribute("data-now", now);
+        // The run's own line only where it adds something: why a step was skipped or
+        // stopped, what the branch is, and how the run ended. The caption leads with the
+        // step's number and name, which the list already shows.
+        const telling = key === "setup" || key === "end" || state !== "run";
+        const run = li.querySelector(".this-run");
+        keepsText(run, now && telling ? d.caption.replace(/^\d · [^—]+— /, "") : "");
+        keeps(run, "data-tone", d.captionTone);
+      }
+    }
+  },
+);

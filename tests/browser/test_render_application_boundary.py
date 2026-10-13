@@ -37,9 +37,9 @@ from render_harness import (
     write,
 )
 
-THREAD_READER = """
+THREAD_READER = r"""
 import {keepsText, watchThreads, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-thread-reader', class extends HTMLElement {
   connectedCallback() {
     this.output = document.createElement('pre');
     this.append(this.output);
@@ -47,13 +47,13 @@ export default class extends HTMLElement {
       this.reading = collection;
       this.sameReading = collection === readThreads();
       keepsText(this.output, collection.threads.map(thread =>
-        threadTurns(thread).map(message => message.body.text).join('\\n')
-      ).join('\\n'));
+        threadTurns(thread).map(message => message.body.text).join('\n')
+      ).join('\n'));
       this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
     });
   }
   disconnectedCallback() { this.stop(); }
-};
+});
 """
 
 THREAD_READER_DECLARATION = {
@@ -67,9 +67,9 @@ THREAD_READER_DECLARATION = {
     "x-example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
 }
 
-THREAD_FILTER = """
+THREAD_FILTER = r"""
 import {keepsText, threadActions, readThreads, threadSummary, watchThreads} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-thread-filter', class extends HTMLElement {
   connectedCallback() {
     if (!this.input) {
       this.input = document.createElement('input');
@@ -109,7 +109,7 @@ export default class extends HTMLElement {
     this.stop?.();
     this.stop = null;
   }
-};
+});
 """
 
 THREAD_FILTER_DECLARATION = {
@@ -126,9 +126,9 @@ THREAD_FILTER_DECLARATION = {
     "x-example": '<lf-thread-filter id="example"></lf-thread-filter>',
 }
 
-THREAD_MIRROR = """
+THREAD_MIRROR = r"""
 import {keeps, mountThreadViews, threadSummary} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-thread-mirror', class extends HTMLElement {
   connectedCallback() {
     if (!this.outlet) {
       this.input = document.createElement('input');
@@ -155,7 +155,7 @@ export default class extends HTMLElement {
     this.consumer?.unregister();
     this.consumer = null;
   }
-};
+});
 """
 
 THREAD_MIRROR_DECLARATION = {
@@ -396,7 +396,7 @@ import {
   html, keeps, layerFact, once, render, widgetController,
 } from "/runtime/widget-api.js";
 
-export default class extends HTMLElement {
+customElements.define("lf-local", class extends HTMLElement {
   controller = widgetController(this);
   reading = this.controller.read();
 
@@ -408,7 +408,7 @@ export default class extends HTMLElement {
   connectedCallback() {
     this.paint();
     if (!once(this)) return;
-    layerFact(this, "$tones");
+    layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
     this.controller.subscribe(reading => {
       this.reading = reading;
@@ -455,7 +455,7 @@ export default class extends HTMLElement {
     render(html`<button ?disabled=${!available} @click=${this.choose}>Choose</button>
       <output>${choice}</output>`, this.shadowRoot, {host: this});
   }
-};
+});
 """
 
 STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
@@ -501,6 +501,7 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
           const control = owner.shadowRoot.querySelector('button');
           control.click();
           return {
+            defined: customElements.get('lf-local') === owner.constructor,
             connected: owner.dataset.pageWidget,
             gestures: owner.dataset.gestures,
             order: owner.dataset.renderOrder,
@@ -508,6 +509,7 @@ def test_current_readiness_releases_a_connected_page_widget(browser, serve):
         }"""
     )
     assert installed == {
+        "defined": True,
         "connected": "ready",
         "gestures": "1",
         "order": "render,subscribe,",
@@ -957,12 +959,11 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
                 "x-example": '<lf-controller-stage id="stage-example"><p id="stage-words">Words</p></lf-controller-stage>',
             },
         }
-        modules[
-            "widgets/lf-controller-stage.js"
-        ] = """import { once, shadowStage } from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+        modules["widgets/lf-controller-stage.js"] = """\
+import { once, shadowStage } from '/runtime/widget-api.js';
+customElements.define('lf-controller-stage', class extends HTMLElement {
   connectedCallback() { if (once(this)) shadowStage(this, [...this.children]); }
-};
+});
 """
     source = LIVE_V1.replace(
         "</main>",
@@ -1693,9 +1694,9 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     round_trip(page)
 
 
-THREAD_ACTIONS = """
+THREAD_ACTIONS = r"""
 import {keeps, threadActions, watchThreads} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-thread-actions', class extends HTMLElement {
   connectedCallback() {
     this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +
       '<button>Resolve</button><button>Reopen</button><button>React</button>';
@@ -1718,7 +1719,7 @@ export default class extends HTMLElement {
     });
   }
   disconnectedCallback() { this.stop(); }
-};
+});
 """
 
 THREAD_ACTIONS_DECLARATION = {
@@ -1795,7 +1796,7 @@ def test_frozen_ask_reveals_its_exact_message_in_a_selective_primary(
     """A message-only primary materializes the widget's turn, including later replies."""
     module = """
     import {registerThreadPresentation, threadTurns} from '/runtime/widget-api.js';
-    export default class extends HTMLElement {
+    customElements.define('lf-message-reader', class extends HTMLElement {
       connectedCallback() {
         this.outlet = document.createElement('section');
         this.append(this.outlet);
@@ -1811,7 +1812,7 @@ def test_frozen_ask_reveals_its_exact_message_in_a_selective_primary(
         });
       }
       disconnectedCallback() { this.presentation.unregister(); }
-    };
+    });
     """
     url = serve(
         leaf_page(
@@ -2265,7 +2266,7 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
         layer_widgets={
             "lf-keyed-slot-list.js": """
             import {holdFocus, shadowStage} from '/runtime/widget-api.js';
-            export default class extends HTMLElement {
+            customElements.define('lf-keyed-slot-list', class extends HTMLElement {
               connectedCallback() {
                 this.scope = document.createElement('section');
                 this.row = document.createElement('div');
@@ -2293,7 +2294,7 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
                 this.editor = editor;
                 return restore();
               }
-            };
+            });
             """
         },
     )

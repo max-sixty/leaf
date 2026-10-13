@@ -243,7 +243,6 @@ export {
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 
 export { LeafEditorView } from "./editor-view.js";
-export { createWidgetElement } from "./widget-vocabularies.js";
 
 // Internal: what Leaf's own bundled packages and kernel widgets import beyond the
 // authoring API module-authoring.md documents. Package authors do not use these.

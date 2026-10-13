@@ -10,12 +10,15 @@
  * x-refers). This producer checks only what needs the values themselves, such as a
  * range value against its bounds or a choice control's value among its choices. */
 const own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
+const belongsTo = (host, member) =>
+  member.parentElement.closest("lf-playground, [data-lf-exhibit]") === host;
 // A control stands in the rail as a direct child, or where the preview's markup puts
-// it, beside the item it changes (x-within); a nested playground's are its own.
+// it, beside the item it changes (x-within). Nested playgrounds and quotations
+// enclose their own content rather than supplying controls to this playground.
 const ownControls = (host, preview) => [
   ...own(host, "lf-playground-control"),
-  ...[...(preview?.querySelectorAll("lf-playground-control") ?? [])].filter(
-    (control) => control.parentElement.closest("lf-playground") === host,
+  ...[...(preview?.querySelectorAll("lf-playground-control") ?? [])].filter((control) =>
+    belongsTo(host, control),
   ),
 ];
 const COPY_LABELS = [
@@ -327,6 +330,7 @@ function render(host, { tabStore, offer, keeps }) {
   };
   const renderValues = (next) => {
     for (const slot of output.querySelectorAll("lf-playground-value")) {
+      if (!belongsTo(host, slot)) continue;
       const name = slot.getAttribute("for");
       text(slot, formatted(controlByName.get(name), next[name]));
     }

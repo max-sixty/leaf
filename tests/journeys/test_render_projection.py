@@ -124,11 +124,6 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
             "files": [
                 {
                     "path": "gateway/limits.py",
-                    "operation": "modify",
-                    "hunkCount": 1,
-                    "binary": False,
-                    "additions": 4,
-                    "deletions": 2,
                     "patch": patch,
                 }
             ]
@@ -1560,8 +1555,9 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     vendored.write_text(css.replace(hide, ""))
     module = serve.page_dir / "widgets" / "lf-trial.js"
     module.write_text(
-        """import {keeps, once, widgetController} from "/runtime/widget-api.js";
-export default class extends HTMLElement {
+        """\
+import {keeps, once, widgetController} from "/runtime/widget-api.js";
+customElements.define("lf-trial", class extends HTMLElement {
   #controller;
   #presented;
   #stop;
@@ -1599,7 +1595,7 @@ export default class extends HTMLElement {
       attributes: true, attributeFilter: ["data-lf-presented"],
     });
   }
-};
+});
 """
     )
     stamp_page(

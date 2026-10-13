@@ -76,7 +76,7 @@ function paintStateOrigins(projection) {
 function paintSettlements(widgets) {
   for (const [widgetId, { state }] of widgets) {
     const owner = widgetElement(widgetId);
-    const decision = owner && decisionFor(owner);
+    const decision = owner && decisionFor(owner.localName);
     if (!decision) continue;
     const outcome = state[decision.verb]?.detail?.outcome ?? null;
     keeps(

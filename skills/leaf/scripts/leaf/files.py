@@ -351,7 +351,7 @@ def document_descriptor(
     events: list,
     *,
     url: str,
-    executable: str | None,
+    executable: str,
     activated_at: str,
 ) -> dict:
     """One revision's live address, public stamp or draft label, and captured identity.

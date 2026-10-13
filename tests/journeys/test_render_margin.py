@@ -691,7 +691,10 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
 
     partway = transcript.evaluate(place)
     assert 0 < partway[0] < partway[1] - 20, partway
-    assert dict(statuses()) == {"working": partway, "waiting": partway}
+    assert {name: offset for name, (offset, _) in statuses()} == {
+        "working": partway[0],
+        "waiting": partway[0],
+    }
 
     transcript.hover()
     page.mouse.wheel(0, partway[1])
@@ -700,7 +703,10 @@ def test_agent_status_leaves_the_margin_transcript_where_the_user_scrolled_it(
         arg=transcript.element_handle(),
     )
     end = transcript.evaluate(place)
-    assert dict(statuses()) == {"working": end, "waiting": end}
+    assert {name: offset for name, (offset, _) in statuses()} == {
+        "working": end[0],
+        "waiting": end[0],
+    }
 
 
 def test_standing_on_a_commented_element_opens_its_thread_in_threads(browser, serve):

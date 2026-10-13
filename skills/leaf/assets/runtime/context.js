@@ -34,13 +34,13 @@ export const DELIVERY = Object.freeze({
 });
 // The public website declares the release it serves; a local server declares none.
 export const WEBSITE_DELIVERY = DELIVERY.release !== undefined;
-// Where a delivered document's layer, and so its captured resources, is addressed: the
-// directory its registry probe names, the revision's own root, as the document writes
-// it. Empty where nothing declared one, and the layer is at the document's own root.
+// Where a delivered document's captured layer is addressed. The entry names the
+// immutable revision; the registry probe may instead name the mutable page root so
+// startup can detect a newer layer. Empty where nothing declared an entry.
 export const layerRoot = (doc) =>
   doc
-    .querySelector("script[data-lf-runtime][data-lf-probe]")
-    ?.dataset.lfProbe.replace(/registry\.json$/, "") ?? "";
+    .querySelector("script[data-lf-runtime][data-lf-entry]")
+    ?.dataset.lfEntry.replace(/leaf\.js$/, "") ?? "";
 // A keyed transport declares its share address even on a cookie-authorized reload.
 // Samples and the public website have no share address. Preserve the current
 // version path, query and passage while taking access from the transport's URL.

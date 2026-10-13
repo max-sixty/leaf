@@ -13,13 +13,6 @@ owns element declarations; its ["User state"](packages.md#user-state) and
 state and source contracts. Add or change those declarations when the module needs
 a new capability.
 
-Registry-declared widgets default-export their constructor. Leaf registers it in
-the publication’s vocabulary. Create child widgets with
-`createWidgetElement(owner, tag, Constructor)` from the public API, importing the
-child’s constructor. Each publication retains these constructors and its private
-module dependencies. The installed layer’s runtime and vendor libraries have one
-instance per running document; changing their bytes requires a fresh document.
-
 ## The helper surface
 
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets. A module imports
@@ -401,8 +394,7 @@ tag, or `undefined`. `elementsDeclaring(root, key, {direct})` lists the elements
 `root`, or only its children with `direct: true`, whose entries declare `key`.
 `matchesWhen(element, when)` says whether the element's attributes satisfy a
 declaration's `when`, as an `x-thread-seat` declaration's `when` selects its elements.
-`layerFact(owner, name)` returns a copy of a layer-wide `$` declaration, such as
-`$reactions`, from the element or document owner's publication.
+`layerFact(name)` returns a copy of a layer-wide `$` declaration, such as `$reactions`.
 
 ### Following a reference
 
@@ -1094,8 +1086,8 @@ position.
 `scrollLimit(box)` is the furthest a box scrolls down, and `atScrollEnd(box)` says whether
 it stands there. `landingInsets(scroller)` reads the `scroll-padding` a scroller declares
 on each edge. `shownWindow({within, gap})` is the `DOMRect` of the window the page shows,
-below Leaf's banner and above its bottom bar, narrowed to the rectangle `within` and
-inset by `gap`.
+clear of the chrome Leaf fixes to its edges, such as its panel at the foot, narrowed to the
+rectangle `within` and inset by `gap`.
 
 ### Sticky headers
 
@@ -1128,8 +1120,8 @@ as `--lf-landing-room-start` beside its `--lf-top-start`. A header sticks below 
 scroller's top padding; to have it stand on the scroller's top edge, state
 `--lf-top-start` at minus that padding and `--lf-top: var(--lf-top-start)`. A box that only
 clips, such as a card rounding its corners, uses `overflow: clip`: a `hidden` box is a
-scroller, and a header inside it would scroll off with the page rather than stick below
-the banner.
+scroller, and a header inside it would scroll off with the page rather than stick at
+the window's top.
 
 ### Sideways scrollers and container queries
 
@@ -1355,7 +1347,7 @@ Each record contains:
 - An approval ask has `source.kind === "approval"`, `source.version` naming the stamped
   version, and id `approval:v<version>`. Its answer is `null` until that version's approval
   settles it with typed `answer.value === true`; Undo reopens it. Its arrival reaches the
-  banner's Approve control.
+  Approve control in the Questions view of Leaf's panel.
 
 `thread` and `message` name a frozen widget ask's Thread and exact message, and a prose
 ask's Thread and source message; both are null for page-widget and approval asks.
@@ -1405,7 +1397,7 @@ panel uses.
 Leaf's arrival, and resolves to `false` for an unavailable row. `queueActions.done(key)`
 returns an admission promise only for a current to-do on `questions`, one the agent opened
 on the user, and `null` otherwise. A widget ask ends through its widget, a prose ask through
-a reply, a settling reaction or the agent's `leaf task end`, and an approval ask through its version's banner approval.
+a reply, a settling reaction or the agent's `leaf task end`, and an approval ask through its version's approval.
 Done removes its to-do optimistically, a duplicate cannot send again, and a refusal restores
 the admitted reading; the server stays final. Collections keep their shape while `phase` is
 `waiting`, `ready` or `offline`; activate only a ready collection.
@@ -1686,8 +1678,9 @@ UI. The handle's `update()` requests a new render after a local layout change. R
 `registerThreadPresentation(owner, {render, reveal})` selects one primary package reader per
 page, for a package that supplies the page's conversation reader, such as a shelf of
 conversations or a feed of individual turns. Interactive message widgets then have one
-native instance, in this reader or in the fallback Threads panel. `mountThreadViews` stays
-useful for optional mirrors of it.
+native instance, in this reader or in the fallback Threads panel. Leaf's floating panel
+draws page threads with its own reader until a package registers one, and then opens them
+in the package's. `mountThreadViews` stays useful for optional mirrors of it.
 
 `render(shownCollection, parts)` nominates connected elements inside the owner as outlets.
 Its collection holds back updates that would move visible content, and Leaf shows a notice

@@ -326,6 +326,7 @@ export function mountApplication(dependencies) {
   });
 
   threadPresenter = createThreadPresentation({
+    available: dependencies.threadAvailable ?? true,
     inlineView,
     surfaceView,
     anchorPlacement: dependencies.anchorPlacement,
@@ -480,7 +481,15 @@ export function mountApplication(dependencies) {
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
-  const registerThreadPresentation = (owner, { render, reveal, replyBox = null }) => {
+  // One reader is the page's primary at a time (thread/destination.js). Leaf's own
+  // chrome registers one that yields (`registerChromeThreadPresentation`, which the
+  // runtime alone is handed): a reader the page's package registers
+  // takes the place while it stands, since the author's presentation outranks Leaf's
+  // defaults, and the chrome's returns when it leaves. `primary` says which holds it. The
+  // chrome's `yielded`, asked before its reader goes, returns how to hand the reader
+  // taking its place the conversation it shows, which runs once the package holds its
+  // registration, as that reader may ask it to present.
+  const attachPresentation = (owner, { render, reveal, replyBox = null }) => {
     const reader = createPrimaryReader(
       owner,
       render,
@@ -497,17 +506,66 @@ export function mountApplication(dependencies) {
       reader.unregister();
       throw error;
     }
+    return {
+      reader,
+      detach() {
+        detachDestination();
+        detachPresentation();
+      },
+    };
+  };
+  let yielding = null;
+  let authored = null;
+  const restoreYielding = () => {
+    if (yielding && !yielding.attached)
+      yielding.attached = attachPresentation(yielding.owner, yielding.spec);
+  };
+  const presentThreads = (owner, spec, yields) => {
+    const entry = { owner, spec, attached: null };
+    if (yields) {
+      if (yielding)
+        throw new Error("The page already has a yielding Thread presentation");
+      yielding = entry;
+      // A package's reader registered first keeps the place.
+      if (!authored) entry.attached = attachPresentation(owner, spec);
+    } else {
+      const displaced = yielding?.attached;
+      const handOff = displaced ? yielding.spec.yielded() : null;
+      if (displaced) {
+        displaced.detach();
+        yielding.attached = null;
+      }
+      try {
+        entry.attached = attachPresentation(owner, spec);
+      } catch (error) {
+        if (displaced) restoreYielding();
+        throw error;
+      }
+      authored = entry;
+      if (handOff)
+        queueMicrotask(() => {
+          if (authored === entry) handOff();
+        });
+    }
     let active = true;
     return Object.freeze({
+      get primary() {
+        return Boolean(entry.attached);
+      },
       update: ({ release = false } = {}) => {
-        if (release) reader.release();
+        if (release) entry.attached?.reader.release();
         return threadPresenter.present();
       },
       unregister() {
         if (!active) return;
         active = false;
-        detachDestination();
-        detachPresentation();
+        entry.attached?.detach();
+        entry.attached = null;
+        if (yielding === entry) yielding = null;
+        if (authored === entry) {
+          authored = null;
+          restoreYielding();
+        }
       },
     });
   };
@@ -527,7 +585,9 @@ export function mountApplication(dependencies) {
     read,
     mountThread: threadPresenter.mount,
     mountRead: read.mount,
-    registerThreadPresentation,
+    registerThreadPresentation: (owner, spec) => presentThreads(owner, spec, false),
+    registerChromeThreadPresentation: (owner, spec) =>
+      presentThreads(owner, spec, true),
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
     post,
     projectData: dataProjection.projectData,

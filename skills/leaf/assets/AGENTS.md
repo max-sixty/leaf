@@ -201,10 +201,11 @@ representative desktop viewport.
 ### Motion
 
 - **Animations are restrained and finite, and acknowledge state changes.** An
-  unchanged state does not animate continuously. The sheen across “Generating title”
-  on an untitled thread awaiting the agent is the one continuous animation; it stops when
-  the title arrives or the thread stops awaiting the agent, and is static under reduced
-  motion (`styles/chrome.css`).
+  unchanged state does not animate continuously. One sheen is the only continuous
+  animation, and it marks work under way: across “Generating title” on an untitled thread
+  awaiting the agent (`styles/chrome.css`), and across a thread's working message while the
+  agent's work on it runs (`styles/components/surfaces.css`). It stops when that state
+  ends, and is static under reduced motion.
 - **Nothing the user must read, press, or decide waits on a clock.** Motion runs from
   a state that is already true, and motion that must finish before the result can be
   read is a pause. A motion the user waits on stays under 300ms; one that moves

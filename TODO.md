@@ -72,11 +72,12 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Questions,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **#28 — Overhaul the floating panel's appearance.** The opt-in floating panel
+- **#28 — Finish the floating panel.** The opt-in floating panel
   (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
-  user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Once
-  the user accepts it, the panel becomes the only chrome: the banner, the bottom bar
-  and the preference go.
+  user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Work
+  through its remaining list (status in the field, opened sizes, one home per thread,
+  the menu's rows, waiting marks, phone, motion) before making it the default or
+  removing the banner, bottom bar, and preference.
 
 ### Agent and author experience
 
@@ -99,7 +100,12 @@ has tried; settle that before building it.
   plain HTML's configurations, which put each alert's controls beside its evidence,
   and Leaf's documents, which put decisions on the page.
   [Teach the compositions that prove useful](notes/workspace-followups.md#item-20),
-  starting with per-item controls for configuration and progress through a queue.
+  starting with progress through a queue; per-item controls for configuration
+  landed in #2711.
+- **Give a recommendation's reason beside the options, not in its card.** The
+  default registry's `lf-options` example writes the reason into the recommended
+  card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
+  options on 2026-10-12. Score the change with `evals/` before and after.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
@@ -269,6 +275,22 @@ and its chrome coordinate.
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
+- **Keep a playground's rail in view beside a tall preview.** With controls beside
+  each item in the preview (#2711), the user works down a long stage while the
+  page-wide controls, the instruction and the submit button scroll away above it.
+  Bound the rail to the window's height, as the sidebar's sticky panel is (#2636).
+- **Decide whether a sidebar built from several blocks sticks.** A sidebar panel
+  sticks only when it is a single block, so existing multi-panel pages keep
+  flowing; dropping that condition makes every sidebar page's panel stick.
+- **Decide whether a too-narrow table fails a page at the fixed widths.** It is
+  advice at every width, the two fixed viewports included, where it once refused
+  the page.
+- **Report a control clipped anywhere in the width sweep.** The clipped-control
+  check runs only at the two fixed viewports, so a control cut off only between
+  360 and 440px goes unreported.
+- **Clear a quoted playground's empty item boxes.** A playground quoted in a static
+  sample hides its controls, those written beside items in its preview included,
+  but leaves the author's settings boxes standing empty.
 
 ### Layout stability
 
@@ -310,6 +332,9 @@ height and where a switch lands wait on the workspace decision under Layout.
   label sticky at the row's start, stepping clear of the start press while stuck
   (`scroll-state(stuck)`, Chrome 133+), keeps it named, but `#showTab` then has to
   bring a tab in clear of a label whose width changes once it sticks.
+- **Close the tally's small gaps.** On a phone the workspace header, tally
+  included, scrolls away after Next; Undo's announcement doesn't name what it
+  undid; the `q` help text is ambiguous; and a row's ○ mark has no legend.
 
 ### Recorded interaction review
 
@@ -332,6 +357,9 @@ on 2026-10-07.
 
 ### The agent's text interface
 
+- **Answer a comment that arrived before the page changed hands.** Its new owner
+  has no delivery to answer it from. A command that hands out a fresh recovery
+  delivery for it would give one.
 - **Keep a blocked stop from hiding the agent's answer.** When Leaf's Stop hook blocks
   a stop, the agent writes one more message, and where the harness shows only the last
   message (Claude Code's focus mode) that message replaces the answer: a user who typed

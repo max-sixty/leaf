@@ -44,7 +44,9 @@ Name an update's kind where it is known: a **comment**, **reply**, **choice**,
 event kind. Don't call an update a *move* or *feedback*, or an *input* as a count noun
 (“an input”, “inputs”); *input* stays as a mass noun (“waiting for input”). Only the
 user's input is an update: a worker's news is a **report**, and the agent's interim
-thread message a **progress message**. Update counts do not count revisions. Where the
+thread message a **progress message**. Until an answer folds it, the thread draws the agent's
+current line at its foot as the **working message**: a message's head over dim words, with
+the sheen of a title being generated while the work runs. Update counts do not count revisions. Where the
 kind is known, say **answer** or **reply** rather than *response*; the Questions panel
 lists a reply the agent owes as **Reply** and a revision it owes as **Answer**. Undo
 keeps its name whatever widget verb it withdraws.
@@ -131,9 +133,10 @@ stylesheet decides whether their bodies scroll.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
-| **Banner** | The fixed chrome row at the window's top: page status ending with the agent's Tasks count, the primary Approval, Comment on the page, Questions and Threads controls, and an overflow disclosure of secondary controls (`banner-toolbar.js` says where each control sits) |
+| **Leaf panel** | Opt-in chrome (`?lf-chrome=floating`, `floating-panel.js`): one box floating over the window's foot whose resting row holds the leaf, coloured by the agent's state and opening the leaf's menu of the page's other controls; the comment field, which shows the agent's status and passing notices while empty; and the Questions and Threads marks. Threads, Questions, Versions and the menu's groups open as views above that row, and folding leaves the leaf alone in the window's corner. It stands for the banner and the bottom bar, drawing their controls from the toolbar's rows (`banner-toolbar.js`) |
+| **Banner** | Default chrome, which `?lf-chrome=classic` also restores after the Leaf panel was chosen (`prepaint.js`): the fixed row at the window's top: page status ending with the agent's Tasks count, the primary Approval, Comment on the page, Questions and Threads controls, and an overflow disclosure of secondary controls (`banner-toolbar.js` says where each control sits) |
 | **Page comment card** | The card hung from the banner's Comment on the page control, holding the page's general comment box, the one place a page thread starts (`thread/page-comment.js`) |
-| **Bottom bar** | The row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
+| **Bottom bar** | Classic chrome's row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
 | **Side panel** | The right-edge slot, with one width and one drawn edge, that the thread panel and the Questions panel take turns in; Questions and Threads are its two banner doors |
 | **Thread panel** | The auxiliary surface listing threads, one of the two that take turns in the side panel |

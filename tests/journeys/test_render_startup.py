@@ -266,7 +266,7 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     # Cross the former ten-second presentation deadline with a read still in flight.
     # This is the interval that used to invent an offline answer and release choices.
-    page.wait_for_function("performance.now() > 11_000", timeout=15_000)
+    page.wait_for_function("performance.now() > 11_000")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-status-text")).to_have_text("Loading saved state…")
     assert len(held) == 1
@@ -306,13 +306,13 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
         expect(page.locator("#no")).not_to_have_attribute("chosen", "")
         assert posts == []
         page.unroute("**/api/state*")
-        wait_until_ready(page, timeout_ms=15_000)
+        wait_until_ready(page)
         first.focus()
         page.keyboard.press("1")
     else:
         for route in held:
             route.continue_()
-        wait_until_ready(page, timeout_ms=15_000)
+        wait_until_ready(page)
     expect(page.locator("#yes")).to_have_attribute("chosen", "")
     round_trip(page)
     assert len(posts) == 1, "the held or fresh digit should send exactly once"
@@ -371,7 +371,7 @@ def test_offline_reaction_waits_for_its_saved_state(browser, serve):
     assert posts == []
     page.keyboard.press("Escape")
     page.unroute("**/api/state*")
-    wait_until_ready(page, timeout_ms=15_000)
+    wait_until_ready(page)
     page.locator("#target").click()
     page.keyboard.press("e")
     page.keyboard.press("1")
@@ -1047,9 +1047,8 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
         "x-example": '<lf-probe id="probe"></lf-probe>',
     }
     widget = """import {once, shadowStage} from '/runtime/widget-api.js';
-export default class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}};"""
+customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}});"""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.set_default_timeout(10_000)
     held = []
     page.route("**/api/state*", lambda r: held.append(r))
     page.goto(
@@ -1062,9 +1061,7 @@ export default class extends HTMLElement {connectedCallback(){if(!once(this))ret
         ),
         wait_until="load",
     )
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-upgraded", "1", timeout=5_000
-    )
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
     page.evaluate(
         """async()=>{const host=document.querySelector('lf-probe');host.shadowRoot.append(document.createTextNode('Broken author words'));const {textNodesUnder}=await __lfRuntimeImport('/runtime/passages.js');[...textNodesUnder(document.body)];}"""
     )
@@ -1097,7 +1094,6 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
         "</template></lf-sample>",
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    page.set_default_timeout(8_000)
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
     page.goto(serve(source), wait_until="load")
@@ -1106,7 +1102,7 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("c")
     field = page.locator(".lf-fab-input")
-    expect(field).to_be_focused(timeout=3_000)
+    expect(field).to_be_focused()
     write(field, "Keep these words.")
     field.evaluate("field => field.setSelectionRange(7, 7)")
     if focus == "sample":
@@ -1115,7 +1111,7 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
     else:
         page.locator(".lf-status-button").focus()
         page.evaluate("getSelection().removeAllRanges()")
-    expect(field).to_be_visible(timeout=3_000)
+    expect(field).to_be_visible()
     page.unroute("**/api/state*")
     for route in held:
         if answer == "ready":
@@ -1123,7 +1119,7 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
         else:
             route.abort("internetdisconnected")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(field).to_be_visible(timeout=3_000)
+    expect(field).to_be_visible()
     expect(field).to_have_js_property("value", "Keep these words.")
     assert field.evaluate("field => [field.selectionStart, field.selectionEnd]") == [
         7,

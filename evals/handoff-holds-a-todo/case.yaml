@@ -8,6 +8,11 @@
 # lands, the task ends there" passed 4 of 4, each brief ending the task from the
 # dispatched session, as did a longer edit that also listed hand-offs as a worker role.
 # Reworded by #2506 (`--task` to `--todo`); at 3fe3eb0af it passed 1/1 on Claude Code.
+# Real pages from Oct 4 to 12 kept failing it: 11 dispatch handoffs answered `--done`.
+# The dispatch skill's own last step, pasted in below, is what pulls that way ("the
+# launch closes out this task"), with "work owned by another session stays there"
+# misread as covering the thread. With it, 759b1beb8 passed 0 of 3 on Claude Code,
+# each reply `--done`; naming a handoff as a promise in "Long-running work" passed 3 of 3.
 description: handoff-holds-a-todo
 metadata:
   purpose: 'Conversation loop: work the agent hands to another session still gets a
@@ -27,6 +32,14 @@ vars:
     session: you write its brief, it starts in its own worktree, and it runs on its
     own for an hour or so. It can run `leaf` commands against this page. You carry on
     with this page and will not hear from that session unless it posts somewhere.
+    The dispatch skill's last step reads:
+
+    > Report that the dispatch fired, described by its task ("Dispatched a session
+    > to document the rate-limiter config"), not by a branch name. Its result comes
+    > back in that session, so the launch is the whole report. Once fired, the
+    > receiving session belongs to the user and talks to them directly. Don't track
+    > its progress, list it as an open item, or park enrichment for it. The launch
+    > closes out this task, however unfinished the dispatched work is.
 
     Read whatever instructions you need. Only Skill and Read run here, so write out,
     in order, each command you would run on the page in this turn, and the brief you

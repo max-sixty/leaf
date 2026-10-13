@@ -26,7 +26,7 @@ from .events import event_document
 from .passages import SourceReading, collapse, shown_words
 from .projection import frozen_thread_reading
 from .revision_artifact import read_revision
-from .thread_context import widget_messages
+from .thread_context import thread_structure
 
 TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6", "strong"})
 
@@ -94,64 +94,35 @@ class _Document:
 class GestureWords:
     """Readings of each document a page's gestures name, parsed once per document.
 
-    `registry` reads the active page; a frozen thread fragment reads the registry
-    captured with its available publication, and an unavailable page revision has
-    no document to lend a gesture."""
+    `registry` is the active one, which frozen thread markup reads under for the
+    page's whole lifetime; a page revision keeps the registry captured with it."""
 
-    def __init__(
-        self,
-        events: list,
-        registry: dict,
-        revisions: RevisionReader,
-        *,
-        available_revisions,
-    ):
+    def __init__(self, events: list, registry: dict, revisions: RevisionReader):
         self.events = events
         self.registry = registry
         self.revisions = revisions
-        self.available_revisions = available_revisions
         self.by_id = {event["id"]: event for event in events}
-        self._documents: dict[tuple[str, int], _Document] = {}
+        self._documents: dict[int | None, _Document] = {}
 
     def _document(self, event: dict) -> _Document | None:
         if event.get("meaning") is None:
             return None
         document = event_document(event)
-        if document["kind"] == "thread":
-            message = widget_messages(self.thread.structure).get(event["widget"])
-            if message is None:
-                return None
-            revision = self.thread.message_revisions[message]
-            key = ("thread", revision)
-            if key not in self._documents:
-                publication = self.thread.publications[revision]
-                self._documents[key] = _Document(
-                    [
-                        fragment.content
-                        for fragment in publication.structure.fragments.values()
-                    ],
-                    publication.spoken,
-                    publication.registry,
+        revision = document.get("revision")
+        if revision not in self._documents:
+            if document["kind"] == "thread":
+                structure = thread_structure(self.events)
+                self._documents[revision] = _Document(
+                    [fragment.content for fragment in structure.fragments.values()],
+                    frozen_thread_reading(self.events, self.registry).spoken,
+                    self.registry,
                 )
-        else:
-            revision = document["revision"]
-            if revision not in self.available_revisions:
-                return None
-            key = ("page", revision)
-            if key not in self._documents:
+            else:
                 reading = self.revisions(revision)
-                self._documents[key] = _Document(
+                self._documents[revision] = _Document(
                     [reading.document.content], reading.spoken, reading.registry
                 )
-        return self._documents[key]
-
-    @cached_property
-    def thread(self):
-        return frozen_thread_reading(
-            self.events,
-            lambda revision: self.revisions(revision).registry,
-            available_revisions=self.available_revisions,
-        )
+        return self._documents[revision]
 
     @cached_property
     def _creations(self) -> dict[str, list[tuple[int, dict]]]:
@@ -191,10 +162,7 @@ class GestureWords:
         )
         if not creates:
             return None
-        document = self._document(creator)
-        if document is None:
-            return None
-        entry = document.registry.get(creator["meaning"]["creates"], {})
+        entry = self._document(creator).registry.get(creator["meaning"]["creates"], {})
         words = creator["detail"][creates["words"]]
         return collapse(shown_words(words, entry, added=True))
 

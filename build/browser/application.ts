@@ -349,10 +349,8 @@ export interface WidgetDescriptor {
   tag: string;
   document:
     | { kind: "page"; revision: number }
-    | { kind: "thread"; revision: number; thread?: string; message?: string };
+    | { kind: "thread"; thread?: string; message?: string };
   declaration: SemanticDocument["registry"][string];
-  /** Composition's stamped verbs from this widget's captured publication. */
-  states: Readonly<Record<string, StampedState>>;
   parent: { id: string; tag: string } | null;
   ancestors: readonly { id: string; tag: string }[];
   quoted: boolean;
@@ -376,8 +374,8 @@ interface AuthoritativeState {
           projection: WireProjection;
           asks: WireAsks;
         };
-        /** Frozen messages keep their admitted vocabularies, including the decisions,
-         * asks and attention their widgets give, beside this revision's page. */
+        /** The frozen threads as this revision reads them: its registry classifies
+         * their widgets' decisions, and so the asks and attention those give. */
         thread: {
           threads: Thread[];
           projection: WireProjection;
@@ -410,8 +408,8 @@ type ServerView = AuthoritativeState["browser"]["views"][string];
 /** A server view with its basis, the transport identity, left off. */
 type PageView = Omit<ServerView, "basis">;
 
-// The server classifies the page under the viewed revision's vocabulary and each
-// frozen message under its admitted vocabulary; every entry has its own captured spec.
+// The server classifies a view's page and thread entries alike under that revision's
+// registry, so every entry is one the view's widgets can draw.
 function normalizedProjection(view: PageView | null | undefined) {
   const entries = [];
   const actionIds = [];
@@ -440,13 +438,6 @@ function normalizedProjection(view: PageView | null | undefined) {
   }
   return { entries, actionIds, reportIds, desiredIds, coverage: view?.coverage ?? [] };
 }
-
-// The selected server view already bounds page history to the captured revision and
-// thread history to its frozen document. Widget ids are unique across both, so
-// filtering again by the event's authored revision would incorrectly discard carried
-// decisions from an earlier revision.
-const appliesTo = (descriptor: WidgetDescriptor, event: WidgetEvent | LocalAction) =>
-  event.widget === descriptor.id;
 
 const NO_ASKS = {
   all: [] as AskRecord[],
@@ -711,7 +702,11 @@ interface WidgetIndex {
 // Every widget's share of the root's action entries and threads, grouped once per
 // publication rather than filtered from the whole projection by each widget. The
 // publisher shares each widget's group across publications, so a widget whose entries
-// did not move reads the group it read before.
+// did not move reads the group it read before. Entries group by widget id alone: the
+// selected server view already bounds page history to the captured revision and thread
+// history to its frozen document, and widget ids are unique across both, so filtering
+// again by the event's authored revision would discard carried decisions from an
+// earlier revision.
 function widgetIndex(root: SemanticRoot): WidgetIndex {
   const projection = root.effective.projection;
   type Group = { -readonly [K in keyof WidgetEntries]: WidgetEntries[K][number][] };
@@ -745,10 +740,11 @@ const NO_ENTRIES: WidgetEntries = { classified: [], desired: [], undo: [] };
 function widgetInputs(
   root: SemanticRoot,
   index: WidgetIndex,
-  id: string,
+  { id, tag }: WidgetDescriptor,
 ) {
   return {
     registered: root.document.descriptors.get(id),
+    states: root.document.registry.$states[tag],
     current: root.effective.widgets.get(id),
     authored: root.document.authored.get(id),
     hostAvailable: root.effective.hostAvailable,
@@ -772,6 +768,8 @@ function widgetReading(
   const classified = inputs.entries.classified.toSorted(
     (left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0),
   );
+  const actionSpecs = descriptor.declaration["x-state"] ?? {};
+  const states = inputs.states ?? {};
   const desired = inputs.entries.desired;
   const durableUndo = inputs.entries.undo;
   const localUndo = desired
@@ -780,8 +778,8 @@ function widgetReading(
   // The user acts only on the verbs they write; an agent's verb reaches this widget as
   // state and never as a control.
   const actions = Object.fromEntries(
-    Object.entries(descriptor.states)
-      .filter(([, state]) => state.writer === "user")
+    Object.entries(actionSpecs)
+      .filter(([verb]) => states[verb]?.writer === "user")
       .map(([verb]) => [
         verb,
         {
@@ -899,7 +897,7 @@ export function createSemanticApplication({
     // the id the log gave it, or as a pending action by the rule above.
     const drawsAction = (e: ProjectionEntry["e"]) => {
       const descriptor = document.descriptors.get(e.widget);
-      const state = descriptor && stampedState(descriptor.states, e);
+      const state = descriptor && stampedState(document.registry, descriptor.tag, e);
       return Boolean(state && sameStateDefinition(e.meaning?.state, state.definition));
     };
     const localProjections = local.flatMap((entry): PendingProjection[] => {
@@ -1281,7 +1279,7 @@ export function createSemanticApplication({
       let inputs: ReturnType<typeof widgetInputs> | null = null;
       let reading: ReturnType<typeof widgetReading>;
       return publisher.select((root) => {
-        const next = widgetInputs(root, widgets.read(), descriptor.id);
+        const next = widgetInputs(root, widgets.read(), descriptor);
         const keys = Object.keys(next) as (keyof typeof next)[];
         if (inputs && keys.every((key) => next[key] === inputs![key])) return reading;
         inputs = next;
@@ -1423,13 +1421,13 @@ export function createSemanticApplication({
         event.kind === "action" ? before.document.authored.get(event.widget) : null;
       // The widget's own captured declaration, as its reading (`widgetReading`) and the
       // projection's meaning check read it.
-      const descriptor =
+      const declaration =
         event.kind === "action"
-          ? before.document.descriptors.get(event.widget)
+          ? before.document.descriptors.get(event.widget)?.declaration
           : null;
       const spec =
         event.kind === "action" && widget
-          ? descriptor?.declaration["x-state"]?.[event.action]
+          ? declaration?.["x-state"]?.[event.action]
           : null;
       const unit =
         event.kind === "action" && spec
@@ -1449,11 +1447,7 @@ export function createSemanticApplication({
               coordinate: target.coordinate,
               localOrder,
             }
-          : event.kind === "action" &&
-              descriptor &&
-              widget &&
-              spec &&
-              typeof unit === "string"
+          : event.kind === "action" && widget && spec && typeof unit === "string"
             ? {
                 unit,
                 spec,
@@ -1463,7 +1457,10 @@ export function createSemanticApplication({
                   ...event,
                   id: localId,
                   meaning: {
-                    state: structuredClone(descriptor.states[event.action]!.definition),
+                    state: structuredClone(
+                      before.document.registry.$states[widget.tag]?.[event.action]
+                        ?.definition,
+                    ),
                   },
                 },
                 value: spec.record ? foldedValue(event, spec.record) : event.action,

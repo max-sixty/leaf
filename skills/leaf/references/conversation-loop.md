@@ -10,14 +10,14 @@ The user follows your work on the page:
 
 | Surface | What it shows | Written by |
 | --- | --- | --- |
-| Leaf's panel, at the window's foot | one sentence for the whole page, in its empty comment field: the line of the item you have in hand, or what you want back | `leaf task start`, `leaf status <page> waiting "<detail>"` |
+| Banner | one sentence for the whole page: the line of the item you have in hand, or what you want back | `leaf task start`, `leaf status <page> waiting "<detail>"` |
 | Beside a thread or widget | **Working** and your line: the thread's working message above its reply box, or on the control the work answers | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
 | Thread | your answer to the user's message, with the progress before it folded behind it | the response operation named by delivered `handling` |
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
 Leaf itself marks each update **Sent**, **Queued**, and **Picked up**, including
 one that owes you nothing, such as a moved card. Your harness contract may add its
-own current step to the panel's status.
+own current step to the banner.
 
 Readings in `leaf page state <page>` describe the user's side between their
 updates. `viewed` says whether they are there: the last time a browser tab had the page
@@ -65,7 +65,7 @@ leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a lin
 ```
 
 The user reads it at once, and it takes the update in hand: the update reads
-**Working** with that line as its thread's working message and in the panel's status, and
+**Working** with that line as its thread's working message and in the banner, and
 it folds into the progress disclosure when your answer arrives
 ([progress messages](threads.md#progress-messages)). Take any other item in hand,
 such as a to-do or an action on a page widget, which has no thread, with a start:
@@ -79,7 +79,7 @@ differently: a new phase such as reading, editing, testing, or waiting on a resu
 Another progress message replaces the thread's working message and keeps the step
 behind it; a start changes the line without one, and folding it into the command
 that begins the step costs no extra tool call. Name the operation and its subject in one sentence; "Working on it"
-tells the user nothing the colour of the panel's leaf does not already say.
+tells the user nothing the banner's dot does not already say.
 
 Work requested in chat or begun by you gets an item too. After initializing a
 new page, open and start its to-do before authoring. On an existing page, open it
@@ -100,14 +100,14 @@ User input comes before the work in hand, in this order:
 
 1. Where the delivery's `acknowledge` names a receipt command, take it first, so the
    user's updates read **Picked up**; where it is `null`, your harness has confirmed
-   receipt already. Until you start an item, the panel's status can say only that you are
+   receipt already. Until you start an item, the banner can say only that you are
    working on their update.
 2. Say what you will do in the thread of each update that asks for work, or start
    it, as above, before starting the work. Each delivered event's `handling`
    clauses say how, with the reply carrying the result once it lands. An update that
    asks for no work, such as a question, is answered by its reply at once.
 3. If the update interrupted other work, start that work's item again once the update's
-   own work is done, so the panel's status describes the work that continues rather than
+   own work is done, so the banner describes the work that continues rather than
    the last step before the interruption.
 
 Then do the work, and reply once its revision passes `leaf page check`, the only
@@ -123,14 +123,14 @@ leaf status <page> waiting "<what you want back>"
 
 The detail names the concrete answer or decision, not the fact that you are
 waiting. For an informational page with no ask, leave it empty; the
-panel's status then invites the user to select text to comment. Name the gesture available
+banner then invites the user to select text to comment. Name the gesture available
 to the user and hand over by the selected harness contract. From the first handoff
 on, include
 the exact page URL in every turn's final response; intermediate progress messages
 do not repeat it. An export hands over its file URL, and a harness that already
 presents the page uses its own handoff surface.
 
-A `waiting` ends every start you made before it, so the panel's status shows what you want
+A `waiting` ends every start you made before it, so the banner shows what you want
 back; a to-do stays open on you until you end it.
 
 What ends a start depends on its item. Your reply answering an update ends that
@@ -172,13 +172,13 @@ as its own. Work that needs its own conversation with the user belongs to a sess
 of its own, with its own page.
 
 A `leaf task start` line lasts for the turn that wrote it. A couple of minutes after
-that turn ends, interrupted or not, the panel's status says your turn ended and keeps the line
+that turn ends, interrupted or not, the banner says your turn ended and keeps the line
 in its explanation, unless you start the item again; a line nothing renews expires
 after about a quarter of an hour. While a worker produces an update's answer, start
 that update in your turn: the start lets the turn end before the answer. In the turn
 that the worker's result or the user's next comment wakes, start the item again or
 answer it. To hold work past the turn, open a to-do (below).
-Within a turn, the panel's status shows the line of the item you started last, so start the
+Within a turn, the banner shows the line of the item you started last, so start the
 item that best describes what is running; each item you have in hand shows its own
 line beside its thread or widget.
 
@@ -187,7 +187,7 @@ asked for that can outlast the turn you took it on in, such as a worker's build,
 wait on CI, or a change you promise for the next version, answer with
 `leaf response reply <answer.ref> --todo "<what you owe>"`, saying what is under way:
 the reply answers the user's message and opens the to-do on that thread under the
-reply's id, which keeps the thread on you, and named in the panel's status, through the user
+reply's id, which keeps the thread on you, and named in the banner, through the user
 resolving it and the end of your session. A turn-written reply carries no to-do, so
 answer such a promise with this command. Handing the work to another session, a
 background job, or a later turn is such a promise, even where the tool you hand it with
@@ -197,8 +197,8 @@ the result lands, the to-do ends there: `leaf task end <page> <todo> done "<wher
 result is>"`, or `failed` or `dropped` with the reason, so work that won't come back
 to you takes the page and the to-do's id in its brief. Start it in the session
 continuing the work: the start transfers completion authority to that session
-and gives the panel's status and the thread its line. That session can finish on a
-later turn; another session takes over by starting the same to-do.
+and gives the banner and thread its line. That session can finish on a later
+turn; another session takes over by starting the same to-do.
 Work on an update that finishes inside the turn needs no to-do.
 
 ## Questions and Tasks
@@ -212,9 +212,9 @@ Recommending one to do next leaves the others open. A request for review needs a
 ask even when preparation is already your work or other work can continue. An
 optional invitation to comment on information creates no obligation.
 
-The Questions count on Leaf's panel, and its Questions view, show everything waiting on the
+The banner's Questions count and the Questions panel show everything waiting on the
 user: these requests, and any update whose send failed and needs sending again.
-Its tab named for you, the agent, shows what waits on you. Done holds ended items. The user presses `q` to
+**Tasks** shows what waits on you. Done holds ended items. The user presses `q` to
 step through Questions in page order. Each press lands where the next item is
 answered, such as an ask's answering widget or the thread holding a prose ask, and
 an ask's displayed `1`–`9` actions answer it there.
@@ -223,7 +223,7 @@ an ask's displayed `1`–`9` actions answer it there.
 | --- | --- | --- |
 | A decision or input recorded by a widget | Author a decision widget (`authoring-asks.md`); optional `lf-ask` frames its question and evidence | The widget's declared answer; a multiple-choice ask also needs the user's Done |
 | A conversational answer | Open an agent thread with the question, or add `--ask` to a reply (`threads.md`) | The user's next reply there or a settling reaction |
-| Required version sign-off | Declare sign-off and stamp the version (`authoring-asks.md`, "Sign-off") | That version's approval, in the panel's Questions and Versions views |
+| Required version sign-off | Declare sign-off and stamp the version (`authoring-asks.md`, "Sign-off") | That version's banner approval |
 | An action neither route records, such as trying a build or connecting a browser | `leaf task open <page> <id> "<direct question naming the action>" --on user`, on its widget, section, or `page` | The user's Done; end it yourself when their action is established or no longer needed |
 
 A widget ask has id `widget:<widget-id>`, a prose ask has `reply:<message-id>`,

@@ -1,5 +1,5 @@
-"""The floating panel: Leaf's chrome as one box over the page's foot, in place of the
-banner and the bottom bar unless the reader asked for them (`lf-chrome`, prepaint.js).
+"""The floating panel: Leaf's chrome as one box over the page's foot, where the reader
+chose it (`lf-chrome`, prepaint.js), in place of the banner and the bottom bar.
 
 Each test is one journey a user takes through the panel, which the suite's pages
 choose here, since they otherwise read with the bars (`watched`):
@@ -183,18 +183,17 @@ def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(3)
 
 
-def test_a_reader_who_chose_nothing_reads_with_the_panel(browser, serve):
-    """The panel is Leaf's chrome for a reader who has not asked for the banner and the
-    bottom bar. A value the preference does not know stands for no choice, which the
-    suite's own default (`watched`) leaves alone."""
+def test_a_reader_who_chose_nothing_reads_with_the_classic_chrome(browser, serve):
+    """A reader without a chrome preference sees the banner and bottom bar. An unknown
+    stored value stands for no choice, overriding the test suite's own preference."""
     page = open_page(
         browser,
         serve(LONG_PAGE),
         init_script="try { localStorage.setItem('lf-chrome', '') } catch {}",
     )
-    expect(page.locator(".lf-floating-panel")).to_be_visible()
-    expect(page.locator(".lf-banner")).to_be_hidden()
-    expect(page.locator(".lf-shortcut-bar")).to_be_hidden()
+    expect(page.locator(".lf-floating-panel")).to_be_hidden()
+    expect(page.locator(".lf-banner")).to_be_visible()
+    expect(page.locator(".lf-shortcut-bar")).to_be_visible()
 
 
 def test_a_page_s_own_conversation_reader_takes_the_panel_s_threads(browser, serve):

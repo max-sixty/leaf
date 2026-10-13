@@ -66,7 +66,9 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     cancel = row.get_by_role("button", name="Cancel selection", exact=True)
     expect(cancel).to_be_visible()
     banner_control(page, ".lf-banner-menu .lf-btn:text-is('Design mode')").tap()
-    expect(page.locator(".lf-live")).to_contain_text("Exit Design mode leaves.")
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Exit Design mode on the banner leaves."
+    )
     expect(cancel).to_have_count(0)
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
     exit_design = row.get_by_role("button", name="Exit Design mode", exact=True)

@@ -204,8 +204,8 @@
     },
   };
 
-  // Which chrome the user reads the page with: the floating panel (`floating`, the
-  // default, floating-panel.js) or the banner and bottom bar (`classic`), with the size the
+  // Which chrome the user reads the page with: the banner and bottom bar (`classic`,
+  // the default) or the floating panel (`floating`, floating-panel.js), with the size the
   // panel was left at (`row`, the comment field and its counts, or `mark`, the leaf
   // alone in the window's corner). One preference for every page on
   // the origin, read here because the classic bars' room is reserved before the
@@ -217,7 +217,7 @@
     rest: "lf-chrome-rest",
   };
   const chromeValues = {
-    mode: ["floating", "classic"],
+    mode: ["classic", "floating"],
     rest: ["row", "mark"],
   };
   const chrome = {};

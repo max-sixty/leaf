@@ -81,7 +81,7 @@ leaf page init <page>
 
 While Leaf is in alpha, an update can also break an older page without changing the
 protocol. Where the Leaf that vendored a page differs from the one running, `page
-check` names both with their dates, and the page's **About this page** menu shows the user its own
+check` names both with their dates, and the page's banner menu shows the user its own
 Leaf beside the one serving it. When a page misbehaves and its Leaf is much
 older than the running one, re-vendor it rather than working around the fault. A page
 that works needs no re-vendor for its age alone, since re-vendoring a changed layer

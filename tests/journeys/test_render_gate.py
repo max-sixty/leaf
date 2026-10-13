@@ -672,10 +672,7 @@ def test_page_fixture_renders(browser, serve, source):
     starting narrow needs a page that first painted narrow, so that journey gets a
     page of its own."""
     url = serve(source)
-    # The gate reads the page in the reader's default chrome, the floating panel, as
-    # `page check --render` does; the journeys after it drive the banner and the bottom
-    # bar, the suite's default (`watched`).
-    gate = render_gate_model.render_version(browser.in_chrome("floating"), url).failures
+    gate = render_gate_model.render_version(browser, url).failures
     # Reduced motion, which the still_page asks for, also holds the sort film still
     # while the scroll pass measures its writes.
     page = still_page(browser, url, width=RESIZE_PATH[0])

@@ -1,5 +1,11 @@
 /* Product-site furniture. Published examples keep their authored Leaf layer. */
 
+/* Leaf's banner already opens every product page, so the column starts at the runtime's
+ * narrow-screen top padding at every width. */
+body.site-page main {
+  padding-top: 28px;
+}
+
 /* The nav holds the reading column whatever Layout the page gives main, so the brand
  * and routes stay in one place from page to page. */
 body.site-page nav.sitenav {

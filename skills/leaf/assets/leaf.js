@@ -594,8 +594,8 @@ pageComment = createPageComment({
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
-// The floating panel stands in for the banner and bottom bar unless the reader asked for
-// them (prepaint.js, `lfChrome`); a choice made later reloads the page.
+// The floating panel stands in for the banner and bottom bar where the reader chose it
+// (prepaint.js, `lfChrome`); a choice made later reloads the page.
 const floatingPanel =
   document.documentElement.lfChrome?.mode === "floating"
     ? createFloatingPanel({

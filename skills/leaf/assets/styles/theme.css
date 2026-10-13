@@ -151,9 +151,9 @@
     calc(var(--aim-floor) + 9px));
   --lf-banner-status-row: max(36px, calc(var(--t-5) * var(--lf-ui-lh) + 4px));
   /* The complete toolbar owns 37em of UI type, the On me door's 7em beside the rest,
-     the agent's On count beside the status 4em, sized for "Tasks: 9" (a longer agent
-     name, as in "On Claude: 9", takes from the status, and banner.js cuts one past 12
-     characters), and 220px is left for the status, insets, and the gaps. Below that the banner takes two rows, and
+     the agent's On count beside the status 4em, which a count such as "On Claude: 9"
+     overruns into the status's room (banner.js cuts an agent name past 12 characters;
+     a wider reserve would put an 820px tablet's banner on two rows), and 220px is left for the status, insets, and the gaps. Below that the banner takes two rows, and
      the sentence has the first to itself (chrome.css), until a phone's face makes it one
      row again (below). The rooms are independent of page capabilities and of whether
      anything waits, since the counts come and go with the log after first paint. A

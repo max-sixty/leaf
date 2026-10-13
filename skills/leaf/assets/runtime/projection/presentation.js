@@ -98,7 +98,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
   // and origin marks, each holder's settlement, against the authored states — claims
   // nothing and carries the standing commit. The coverage stamp below reads the server's
   // view of the log beside the fold, and follows the coordinator rather than this claim.
-  const presenter = applicationPresenter({
+  applicationPresenter({
     region: "projection:chrome",
     order: PRESENTATION_ORDER.projection,
     reading: (root) =>

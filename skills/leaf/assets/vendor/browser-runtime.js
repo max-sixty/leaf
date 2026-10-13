@@ -10,6 +10,7 @@ export { createRef, ref } from "./lit.js";
 export { repeat } from "./lit.js";
 export { styleMap } from "./lit.js";
 export { unsafeHTML } from "./lit.js";
+export { effect, signal } from "./browser-runtime/signals-core.js";
 export { createSemanticApplication } from "./browser-runtime/application.js";
 export {
   createPresentationCoordinator,

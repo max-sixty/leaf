@@ -30,7 +30,7 @@ import { watchProjection } from "./projection-watch.js";
 import { approvalSelection, readQuestions } from "./questions/model.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
-import { agentName, watchSemantic } from "./semantic-state.js";
+import { agentName, applicationState } from "./semantic-state.js";
 import { taskNoun } from "./queues.js";
 import { readQueues } from "./queue-api.js";
 
@@ -897,8 +897,14 @@ export function mountBanner({ approveVersion, paintApproval }) {
   signoff = isSignoffDeclared();
   showBannerControl(approveBtn, signoff);
   watchProjection(document.body, approvalSelection, () => paintApproval());
-  // The queues move with the application's publication, not only with a state answer.
-  watchSemantic(() => lastStatus && presentStatus(lastStatus));
+  // The queues and the agent's name move with the application's publication, not only
+  // with a state answer.
+  applicationState
+    .select((root) => ({
+      queues: root.effective.queues,
+      agent: root.authoritative?.agent ?? null,
+    }))
+    .subscribe(() => lastStatus && presentStatus(lastStatus));
   showNews(othersBtn, false);
   banner.append(bannerStatus, bannerStatus.queues, bannerActions);
   // On two rows the Tasks count stands on the second line only where the run leaves it

@@ -80,6 +80,7 @@ import {
   onUserInput,
   paintKeys,
   projectData,
+  signal,
   quoted,
   registerVisualParts,
   rowArrows,
@@ -235,8 +236,15 @@ customElements.define(
     #playing = false;
     #playIntent = null;
     // The playhead's time from the scope origin when it stands between captures,
-    // after scrubbing or playback. Null when it stands on the selected capture.
-    #cursorTime = null;
+    // after scrubbing or playback. Null when it stands on the selected capture. A signal,
+    // because the step and event commands' liveness reads it.
+    #cursor = signal(null);
+    get #cursorTime() {
+      return this.#cursor.value;
+    }
+    set #cursorTime(time) {
+      this.#cursor.value = time;
+    }
     #scrubbing = false;
     // Nodes of the Lit view that their imperative owners below read and write.
     #timelineHost = createRef();

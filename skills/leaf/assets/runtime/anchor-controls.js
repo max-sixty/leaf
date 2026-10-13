@@ -36,8 +36,9 @@ import {
 } from "./anchor-resolution.js";
 import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
-import { elementById, inChrome, pageQueryAll } from "./passages.js";
+import { elementById, inChrome, pageQueryAll, pageReadingVersion } from "./passages.js";
 import { pagePresented } from "./page-paint.js";
+import { documentChanged, readApplication } from "./semantic-state.js";
 import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
@@ -205,7 +206,21 @@ export function createAnchorControls({
     reconcileVisualActions(groups);
   }
 
+  // The plan is a reading of the page's own pictures, their labels and the parts their
+  // widgets register, none of which a thread changes. It is planned again when the page
+  // might have: its words moved (passages.js, `pageReadingVersion`), a caller said the
+  // document changed (`presentDocument`), the shown document was replaced, or a visual
+  // signalled new parts (`onLayoutInvalidated`). A thread pass over an unchanged page keeps
+  // the responses it published.
+  let plannedFor = null;
   function prepareVisualActions() {
+    const key = [pageReadingVersion(), documentChanged(), readApplication().document];
+    if (
+      plannedFor?.every((part, index) => part === key[index]) &&
+      !pendingVisualActions.size
+    )
+      return;
+    plannedFor = key;
     pendingVisualActions = visualActionPlan();
     if (pagePresented()) publishVisualActions();
   }
@@ -398,7 +413,10 @@ export function createAnchorControls({
     });
   }
 
-  const onLayoutInvalidated = () => {
+  const onLayoutInvalidated = (event) => {
+    // A page visual's parts can move without its nodes moving, and their registration
+    // says so with this signal (visual-parts.js, `update`).
+    if (!inChrome(event.target)) plannedFor = null;
     invalidatePageGeometry();
     queueInvalidation();
   };
@@ -436,6 +454,7 @@ export function createAnchorControls({
     reactionSeats.clear();
     anchorNotes.destroy();
     pendingVisualActions = new Map();
+    plannedFor = null;
     reconcileVisualActions(new Map());
   }
 

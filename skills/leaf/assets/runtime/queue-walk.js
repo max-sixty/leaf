@@ -67,7 +67,7 @@ import { readQuestions } from "./questions/model.js";
 import { asksIn, questionPlace } from "./questions/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
 import { taskNoun } from "./queues.js";
-import { watchSemantic } from "./semantic-state.js";
+import { applicationState } from "./semantic-state.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 import { approvalTarget } from "./banner.js";
@@ -353,12 +353,14 @@ export function createQueueWalk({
   // The q/Q row stands on Questions, and Done on the to-dos it holds, so the surfaces
   // reading them are repainted where the list empties or fills or those to-dos change.
   function mount() {
-    stopWatching ??= watchSemantic(() => {
-      if (offered() === wasOffered && doneable() === wasDoneable) return;
-      wasOffered = offered();
-      wasDoneable = doneable();
-      paintKeys();
-    });
+    stopWatching ??= applicationState
+      .select((root) => root.effective.queues.questions)
+      .subscribe(() => {
+        if (offered() === wasOffered && doneable() === wasDoneable) return;
+        wasOffered = offered();
+        wasDoneable = doneable();
+        paintKeys();
+      });
   }
 
   pageCommand({

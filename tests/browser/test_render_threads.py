@@ -1930,6 +1930,8 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
     expect(resolve).to_be_enabled()
     expect(resolve).not_to_have_attribute("aria-busy", "true")
+    # Its command is live again, so the button says so to the keyboard as well.
+    expect(resolve).not_to_have_attribute("aria-disabled", "true")
     expect(resolve).not_to_have_attribute("aria-keyshortcuts", re.compile(r".*x.*"))
     resolve.focus()
     with page.expect_request("**/api/event"):

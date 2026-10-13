@@ -130,8 +130,14 @@ export const applicationPresenter = ({
   return Object.freeze({ present, disconnect: presenter.disconnect });
 };
 
+// How many times a caller has said the document changed under every region. A reading
+// derived from the page's own nodes, rather than from the root, keys on it.
+let documentChanges = 0;
+export const documentChanged = () => documentChanges;
+
 /** Claim every document-wide region for the root as it stands now. */
 export const presentDocument = () => {
+  documentChanges += 1;
   for (const present of documentPresenters) void present();
   return schedule.passed();
 };

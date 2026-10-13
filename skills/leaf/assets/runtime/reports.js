@@ -120,10 +120,14 @@ export const watchReports = (target, callback) => {
   };
   return watchProjection(
     target instanceof Element ? target : document.body,
-    (root) =>
-      (root.effective.view?.reports ?? []).filter(
+    // The target's reports, and when the page was published, which `saidAt` answers
+    // for a worker no report names.
+    (root) => ({
+      reports: (root.effective.view?.reports ?? []).filter(
         (report) => key === null || targetKey(report.target) === key,
       ),
+      published: root.effective.view?.published_at ?? null,
+    }),
     () => callback(reportSequence(target)),
     () => projectionRegionsPresented(reportWidgets()),
   );

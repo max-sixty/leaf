@@ -45,9 +45,12 @@ import {
 } from "./version.js";
 
 // What the inventory reads from the semantic root: the Questions, the workflows its
-// entries report, the shown revision and the agent's to-dos. Threads reach it through
-// their presentation, which renders the annotations once it commits.
+// entries report, the shown revision and the agent's to-dos, and the projection whose
+// reported and overridden marks it lists once the projection's chrome has painted them.
+// Threads reach it through their presentation, which renders the annotations once it
+// commits.
 export const annotationSelection = (root) => ({
+  projection: root.effective.projection,
   asks: root.effective.asks,
   workflows: root.effective.workflows,
   revision: root.document.revision,

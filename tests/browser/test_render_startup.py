@@ -5230,7 +5230,8 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
           });
           let clock = 0;
           let cancelled = 0;
-          const cancel = watchProjection(owner, () => {
+          const epoch = (root) => root.semanticEpoch;
+          const cancel = watchProjection(owner, epoch, () => {
             cancelled += 1;
             clockValue(() => clock);
           });
@@ -5240,7 +5241,7 @@ def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
           await tickClock(message => { throw new Error(message); });
           let calls = 0;
           let trackClock = false;
-          const stop = watchProjection(owner, () => {
+          const stop = watchProjection(owner, epoch, () => {
             calls += 1;
             if (trackClock) clockValue(() => clock);
           });

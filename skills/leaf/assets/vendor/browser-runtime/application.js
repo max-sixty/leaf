@@ -731,41 +731,89 @@ function localQueues(
 const questionsRank = (item           ) =>
   item.kind === "ask" ? 0 : item.kind === "todo" ? 1 : 2;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Every widget's share of the root's action entries and threads, grouped once per
+// publication rather than filtered from the whole projection by each widget. The
+// publisher shares each widget's group across publications, so a widget whose entries
+// did not move reads the group it read before.
+function widgetIndex(root              )              {
+  const projection = root.effective.projection;
+
+  const byWidget = new Map               ();
+  const group = (widget        ) => {
+    let entries = byWidget.get(widget);
+    if (!entries) byWidget.set(widget, (entries = { classified: [], desired: [], undo: [] }));
+    return entries;
+  };
+  for (const entry of projection.classified.values())
+    if (!entry.terminal && entry.e.kind === "action") group(entry.e.widget).classified.push(entry);
+  for (const entry of projection.actions.values()) group(entry.e.widget).desired.push(entry);
+  for (const { event } of root.effective.view?.undo ?? [])
+    if (event.kind === "action" && !projection.pendingWithdrawals.has(event.id))
+      group(event.widget).undo.push(event);
+  const heldBy = new Map                ();
+  for (const thread of root.effective.thread.all)
+    if (
+      !thread.resolved &&
+      !thread.root.pending &&
+      thread.root.holds &&
+      !heldBy.has(thread.root.holds)
+    )
+      heldBy.set(thread.root.holds, thread.id);
+  return { byWidget, heldBy };
+}
+
+const NO_ENTRIES                = { classified: [], desired: [], undo: [] };
+
+// Everything one widget's reading draws from the root, each part by identity.
+function widgetInputs(
+  root              ,
+  index             ,
+  id        ,
+) {
+  return {
+    registered: root.document.descriptors.get(id),
+    current: root.effective.widgets.get(id),
+    authored: root.document.authored.get(id),
+    states: root.document.registry.$states,
+    hostAvailable: root.effective.hostAvailable,
+    waiting: root.phase === "waiting",
+    entries: index.byWidget.get(id) ?? NO_ENTRIES,
+    heldBy: index.heldBy.get(id) ?? null,
+  };
+}
+
 function widgetReading(
-  root                                                                  ,
+  inputs                                 ,
   descriptor                  ,
 ) {
-  const registered = root.document.descriptors.get(descriptor.id);
-  const currentDescriptor = JSON.stringify(registered) === JSON.stringify(descriptor);
+  const currentDescriptor =
+    JSON.stringify(inputs.registered) === JSON.stringify(descriptor);
   // A live revision connects and prepares replacement nodes before their complete
   // document capture is adopted. An id shared with the outgoing node must not lend the
   // replacement its old semantic state during that preparation window.
-  const current = currentDescriptor
-    ? root.effective.widgets.get(descriptor.id)
-    : undefined;
-  const authored = currentDescriptor
-    ? root.document.authored.get(descriptor.id)?.state
-    : undefined;
+  const current = currentDescriptor ? inputs.current : undefined;
+  const authored = currentDescriptor ? inputs.authored?.state : undefined;
   const declaration = descriptor.declaration;
   const actionSpecs = declaration["x-state"] ?? {};
-  const states = root.document.registry.$states[descriptor.tag] ?? {};
-  const projection = root.effective.projection;
-  const classified = [...projection.classified.values()]
-    .filter(
-      ({ e, terminal }) => !terminal && e.kind === "action" && appliesTo(descriptor, e),
-    )
-    .sort((left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0));
-  const desired = [...projection.actions.values()].filter(({ e }) =>
-    appliesTo(descriptor, e),
+  const states = inputs.states[descriptor.tag] ?? {};
+  const classified = inputs.entries.classified.toSorted(
+    (left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0),
   );
-  const durableUndo = (root.effective.view?.undo ?? [])
-    .map((candidate) => candidate.event)
-    .filter(
-      (event       ) =>
-        event.kind === "action" &&
-        appliesTo(descriptor, event) &&
-        !projection.pendingWithdrawals.has(event.id),
-    );
+  const desired = inputs.entries.desired;
+  const durableUndo = inputs.entries.undo;
   const localUndo = desired
     .map(({ e }) => e)
     .filter((event) => String(event.id).startsWith(PENDING));
@@ -779,17 +827,15 @@ function widgetReading(
         {
           available:
             currentDescriptor &&
-            root.effective.hostAvailable &&
-            root.phase !== "waiting" &&
+            inputs.hostAvailable &&
+            !inputs.waiting &&
             !descriptor.quoted,
-          unavailable: root.effective.hostAvailable
-            ? null
-            : "no agent or server is available",
+          unavailable: inputs.hostAvailable ? null : "no agent or server is available",
           history: classified.filter(({ e }) => e.action === verb).map(({ e }) => e),
           standing: desired
             .filter(({ e }) => e.action === verb)
             .map(({ e, unit, value }) => ({ event: e, unit, value })),
-          undo: root.effective.hostAvailable
+          undo: inputs.hostAvailable
             ? [...localUndo, ...durableUndo].filter((event) => event.action === verb)
             : [],
         },
@@ -803,14 +849,10 @@ function widgetReading(
       { event: e, unit, value },
     ]),
   );
-  const holdingThread = root.effective.thread.all.find(
-    (thread) =>
-      !thread.resolved && !thread.root.pending && thread.root.holds === descriptor.id,
-  );
   return {
     authored: authored ?? {},
     state: current?.state ?? {},
-    thread: { heldBy: holdingThread?.id ?? null },
+    thread: { heldBy: inputs.heldBy },
     provenance,
     actions,
   };
@@ -860,6 +902,7 @@ export function createSemanticApplication({
     semanticEpoch: 0,
   };
   const publisher = createApplicationPublisher(initial);
+  const widgets = publisher.select(widgetIndex);
   let dataTaken = -Infinity;
   let order = 0;
   let publicationDepth = 0;
@@ -1279,8 +1322,18 @@ export function createSemanticApplication({
         )
         .read();
     },
+    // A widget's reading, recomputed only when one of the parts it draws moves, so a
+    // publication about another widget or a thread costs each widget a comparison.
     selectWidget(descriptor                  ) {
-      return publisher.select((root) => widgetReading(root, descriptor));
+      let inputs                                         = null;
+      let reading                                  ;
+      return publisher.select((root) => {
+        const next = widgetInputs(root, widgets.read(), descriptor.id);
+        const keys = Object.keys(next)                         ;
+        if (inputs && keys.every((key) => next[key] === inputs [key])) return reading;
+        inputs = next;
+        return (reading = widgetReading(next, descriptor));
+      });
     },
     entry,
     identify(revision               , stamp                = null, live = false) {

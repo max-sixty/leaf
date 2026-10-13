@@ -66,12 +66,13 @@ export function createThreadPresentation({
   let mounted = false;
   let primary = null;
 
-  // The parts of the root a thread presentation draws: the fold itself, the canonical
-  // workflows its receipts and the margin's entries come from, the Question rows the
-  // margin draws beside them, the queues, the agent's name and to-dos, and the document
+  // The parts of the root a thread presentation draws: the fold itself, whose records
+  // already carry the receipts and attention the workflows give them, and the document
   // whose messages, descriptors and revision the cards name. A publication that moves
-  // none of them — a widget's own action, say — claims nothing, and the standing
-  // presentation carries into the new epoch.
+  // neither — a widget's own action, say — claims nothing, and the standing presentation
+  // carries into the new epoch. The margin this presentation renders once it commits
+  // also draws the Questions and the workflows; its own watcher follows those
+  // (`annotationSelection`).
   //
   // Only epochs the page has read the log for claim. Before it has, each one draws the
   // same line about waiting, and repainting the margin and the anchors to say it again
@@ -84,16 +85,7 @@ export function createThreadPresentation({
     reading: (root) =>
       !available || root.phase === "waiting"
         ? null
-        : {
-            phase: root.phase,
-            thread: root.effective.thread,
-            workflows: root.effective.workflows,
-            asks: root.effective.asks,
-            queues: root.effective.queues,
-            agent: root.authoritative?.agent ?? null,
-            todos: root.authoritative?.browser.todos ?? null,
-            document: root.document,
-          },
+        : { phase: root.phase, thread: root.effective.thread, document: root.document },
     current: () => (available ? readApplication().effective.thread : null),
     paint: async (value, current) => {
       const phase = readApplication().phase;

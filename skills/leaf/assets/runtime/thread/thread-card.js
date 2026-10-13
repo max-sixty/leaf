@@ -32,7 +32,7 @@
 import { nextRender, sizeObserver } from "../rendering.js";
 import { setChildLists, setChildren } from "../dom-children.js";
 import { holdFocus, focusDestination, focused, standsOn } from "../focus.js";
-import { html, render, nothing, ref } from "../../vendor/browser-runtime.js";
+import { html, render, nothing, ref, signal } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
@@ -320,7 +320,15 @@ export class ThreadView {
   #commands;
   #messageCommands;
   #rewrites;
-  #model = null;
+  // The model this card shows. A signal, because its commands' liveness reads it, and
+  // key and button reflection follow what they read (keyboard/scopes.js).
+  #shown = signal(null);
+  get #model() {
+    return this.#shown.value;
+  }
+  set #model(model) {
+    this.#shown.value = model;
+  }
   #messages = new Map();
   #reply = null;
   #replyShown = false;

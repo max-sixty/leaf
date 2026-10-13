@@ -168,7 +168,16 @@ export function share<T>(prior: unknown, next: T): T {
   const copy: Record<string, unknown> = Object.getPrototypeOf(next) === null
     ? Object.create(null)
     : {};
-  keys.forEach((key, index) => (copy[key] = children[index]));
+  // Defined, not assigned: a JSON field named `__proto__` is an own property, and
+  // assigning it would set the copy's prototype instead.
+  keys.forEach((key, index) =>
+    Object.defineProperty(copy, key, {
+      value: children[index],
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    }),
+  );
   return copy as T;
 }
 

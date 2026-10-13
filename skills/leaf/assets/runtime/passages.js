@@ -1103,10 +1103,19 @@ const changesTheReading = (record) => {
   const wasSaid = record.attributeName === "data-lf-said" && record.oldValue !== null;
   return wasSaid || holdsSaid(target) || pageReads(target.parentNode);
 };
+// Which page reading stands: it advances each time one is forgotten, so a reading
+// derived from the page's own nodes, as the visual responses are, keeps what it derived
+// while this stands.
+let readingVersion = 0;
 const forgetReading = () => {
   reading = null;
   elementReadings = new WeakMap();
+  readingVersion += 1;
 };
+export function pageReadingVersion() {
+  catchUpReading();
+  return readingVersion;
+}
 function watchReading() {
   if (watcher) return watcher;
   watcher = new MutationObserver((records) => {

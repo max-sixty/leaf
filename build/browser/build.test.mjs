@@ -9,7 +9,7 @@ import { build } from "esbuild";
 import { adapt, seam } from "../vendor.mjs";
 import { buildOutputs, checkOutputs } from "./build.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
-import { createApplicationPublisher } from "./snapshot.ts";
+import { createApplicationPublisher, share } from "./snapshot.ts";
 
 const outputs = await buildOutputs();
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -38,6 +38,7 @@ test("locked source reproduces the complete committed output", async () => {
     "createSemanticApplication",
     "describeFailure",
     "directive",
+    "effect",
     "guard",
     "html",
     "keyed",
@@ -47,6 +48,7 @@ test("locked source reproduces the complete committed output", async () => {
     "ref",
     "render",
     "repeat",
+    "signal",
     "styleMap",
     "unsafeHTML",
   ]);
@@ -293,6 +295,18 @@ test("publisher shares unchanged subtrees, so a selection hears only its own par
     heard.slice(2).map(([name]) => name),
     ["thread", "pair"],
   );
+});
+
+test("sharing keeps a JSON field named __proto__ an own field", () => {
+  const prior = JSON.parse('{"kept": {"a": 1}, "__proto__": {"x": 1}}');
+  const next = JSON.parse('{"kept": {"a": 1}, "__proto__": {"x": 2}}');
+  const shared = share(prior, next);
+  assert.equal(Object.getPrototypeOf(shared), Object.prototype);
+  assert.ok(Object.hasOwn(shared, "__proto__"));
+  assert.deepEqual(Object.getOwnPropertyDescriptor(shared, "__proto__").value, {
+    x: 2,
+  });
+  assert.equal(shared.kept, prior.kept);
 });
 
 test("publisher secures shallow-frozen inputs and complete selected collections", () => {

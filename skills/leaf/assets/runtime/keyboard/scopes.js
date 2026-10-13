@@ -24,6 +24,7 @@ import {
   AsyncDirective,
   PartType,
   directive,
+  effect,
   nothing,
 } from "../../vendor/browser-runtime.js";
 import {
@@ -49,8 +50,8 @@ import {
   word,
 } from "./bindings.js";
 import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
-import { focused } from "../focus.js";
-import { hostIn, renderedParent } from "../shadow.js";
+import { focused, onStanding } from "../focus.js";
+import { hostIn, renderedParent, under } from "../shadow.js";
 import { repaint } from "../repaint.js";
 import { keeps } from "../keeps.js";
 
@@ -59,6 +60,8 @@ import { keeps } from "../keeps.js";
 // or refuses it. Transient by construction: `attachScope` schedules the frame that drains
 // the set in the same breath as it adds to it.
 const unpainted = new Set();
+// Whether native button availability is owed a reflection (`reflectButtonsTracked`).
+let buttonsDirty = true;
 
 // Native button activation belongs to the same row as its keyed invocation. Resolve
 // getters and attachments again at the press: a retained listener must not retain a
@@ -72,6 +75,7 @@ const BUTTON_AVAILABILITY = Symbol("native command availability");
 const commandAvailabilityReaders = new Set();
 export function watchCommandAvailability(read) {
   commandAvailabilityReaders.add(read);
+  buttonsDirty = true;
   return () => commandAvailabilityReaders.delete(read);
 }
 const reflectCommandAvailability = () => {
@@ -80,6 +84,7 @@ const reflectCommandAvailability = () => {
 const commandScopeReaders = new Set();
 export function watchCommandScopes(read) {
   commandScopeReaders.add(read);
+  buttonsDirty = true;
   return () => commandScopeReaders.delete(read);
 }
 function* nativeCommandScopes() {
@@ -91,7 +96,9 @@ function* nativeCommandScopes() {
   for (const read of commandScopeReaders)
     for (const scope of read()) yield { source: document.documentElement, scope };
 }
-function buttonCommands() {
+// Every button a command names, with the declarations naming it. Gathering them reads no
+// predicate, so it is cheap to do on every pass; choosing among them is what reads.
+function buttonDeclarations() {
   const declarations = new Map();
   for (const { source, scope } of nativeCommandScopes()) {
     if (scope.contextual || scope.sequence) continue;
@@ -121,56 +128,96 @@ function buttonCommands() {
       }
     }
   }
-  const found = new Map();
-  for (const [control, candidates] of declarations) {
-    const available = candidates.filter(
-      ({ scope, row, entry }) =>
-        (!scope.when || scope.when()) &&
-        declaredCommandAvailable(row, entry === row ? null : entry),
+  return declarations;
+}
+// The one command a button answers now: the available declaration, or the first where
+// none is. Two available at once is an ambiguous button.
+function chosenCommand(candidates) {
+  const available = candidates.filter(
+    ({ scope, row, entry }) =>
+      (!scope.when || scope.when()) &&
+      declaredCommandAvailable(row, entry === row ? null : entry),
+  );
+  if (available.length > 1)
+    throw new TypeError(
+      `leaf: ${available[1].entry.id} shares a button with ${available[0].entry.id}`,
     );
-    if (available.length > 1)
-      throw new TypeError(
-        `leaf: ${available[1].entry.id} shares a button with ${available[0].entry.id}`,
-      );
-    found.set(control, available[0] ?? candidates[0]);
-  }
-  return found;
+  return available[0] ?? candidates[0];
 }
-// Getter-named buttons may arrive after declaration. Claim their output fields before
-// availability readers project commands; otherwise their initial disabled paint is
-// mistaken for an input until the next frame. Readers may materialize more controls,
-// which the ordinary button pass below then claims and presents.
-function claimButtons() {
-  for (const control of buttonCommands().keys()) claimButton(control);
+function buttonCommands() {
+  return new Map(
+    [...buttonDeclarations()].map(([control, candidates]) => [
+      control,
+      chosenCommand(candidates),
+    ]),
+  );
 }
-function reflectButtons() {
-  const commands = buttonCommands();
+// A button no declaration names any more gets its own attributes back.
+function releaseButtons(declarations) {
   for (const ref of scopeRefs) {
     const control = ref.deref();
-    if (!control) continue;
+    if (!control || !buttonBaselines.has(control) || declarations.has(control))
+      continue;
     buttonReadings.delete(control);
-    if (buttonBaselines.has(control) && !commands.has(control)) {
-      const { disabled, ariaDisabled } = buttonBaselines.get(control);
-      if (control.disabled !== disabled) control.disabled = disabled;
-      keeps(control, "aria-disabled", ariaDisabled);
-      buttonBaselines.delete(control);
-      controlAvailabilityOutput(control, BUTTON_AVAILABILITY);
-      reflectElementShortcuts(control);
-      forgetScopedElement(control);
+    buttonAvailability.get(control)?.();
+    buttonAvailability.delete(control);
+    const { disabled, ariaDisabled } = buttonBaselines.get(control);
+    if (control.disabled !== disabled) control.disabled = disabled;
+    keeps(control, "aria-disabled", ariaDisabled);
+    buttonBaselines.delete(control);
+    controlAvailabilityOutput(control, BUTTON_AVAILABILITY);
+    reflectElementShortcuts(control);
+    forgetScopedElement(control);
+  }
+}
+// One button's availability, as a tracked effect: a signal its command's predicates read
+// moving marks this button alone for the next frame. The effect stays subscribed to
+// those signals, so it holds the button and its declarations only while it first reads
+// them, and a later run that finds the button gone disposes it.
+const buttonAvailability = new WeakMap();
+// The declarations each button's availability was last read from, so a pass reads a
+// button again when what names it changed.
+const buttonCandidates = new WeakMap();
+const sameCandidates = (left, right) =>
+  left?.length === right.length &&
+  right.every(
+    (candidate, index) =>
+      candidate.scope === left[index].scope &&
+      candidate.row === left[index].row &&
+      candidate.entry === left[index].entry,
+  );
+function reflectButton(control, candidates) {
+  buttonAvailability.get(control)?.();
+  buttonCandidates.set(control, candidates);
+  const ref = new WeakRef(control);
+  let reading = candidates;
+  let failure = null;
+  const dispose = effect(() => {
+    if (reading) {
+      const read = reading;
+      reading = null;
+      try {
+        const command = chosenCommand(read);
+        const { scope, row, entry } = command;
+        const disabled = Boolean(
+          (scope.when && !scope.when()) ||
+          !commandAvailable(row, entry === row ? null : entry),
+        );
+        keeps(ref.deref(), "aria-disabled", disabled ? "true" : null);
+        buttonReadings.set(ref.deref(), command);
+      } catch (error) {
+        failure = error;
+      }
+      return;
     }
-  }
-  for (const [control, command] of commands) {
-    claimButton(control);
-    const { scope, row, entry } = command;
-    const disabled = Boolean(
-      (scope.when && !scope.when()) ||
-      !commandAvailable(row, entry === row ? null : entry),
-    );
-    keeps(control, "aria-disabled", disabled ? "true" : null);
-    buttonReadings.set(control, command);
-    rememberScopedElement(control);
-    wireButton(control);
-  }
+    const moved = ref.deref();
+    if (moved) {
+      dirtyButtons.add(moved);
+      repaint();
+    } else dispose();
+  });
+  buttonAvailability.set(control, dispose);
+  if (failure) throw failure;
 }
 function claimButton(control) {
   if (!buttonBaselines.has(control))
@@ -499,6 +546,7 @@ function attachScope(where, declaration) {
   unpainted.add(scope);
   wireDeclaredButtons(scope);
   rememberScopedElement(where);
+  buttonsDirty = true;
   repaint();
   return scope;
 }
@@ -512,6 +560,7 @@ function detachScope(element, scope) {
   unpainted.delete(scope);
   elementScopes.delete(element);
   forgetScopedElement(element);
+  buttonsDirty = true;
   reflectElementShortcuts(element);
   return true;
 }
@@ -605,6 +654,7 @@ export function commandScope(title, rows, options) {
 // under the same key replaces that owner's scope and leaves every other owner's standing,
 // and a null capability withdraws it.
 export function projectCommandScope(control, projector, capability = null) {
+  dirtyButtons.add(control);
   const projections = projectedScopes.get(control) ?? new Map();
   if (capability == null) {
     projections.delete(projector);
@@ -618,7 +668,7 @@ export function projectCommandScope(control, projector, capability = null) {
   projections.set(projector, capability.scope);
   projectedScopes.set(control, projections);
   rememberScopedElement(control);
-  reflectElementShortcuts(control);
+  reflectTracked(control);
 }
 
 // Commands whose scope stands in one widget, in declaration order. Preserve the
@@ -713,31 +763,141 @@ function reflectElementShortcuts(element) {
 // Ahead of standing content, so an ambiguous declaration is refused under its own title
 // rather than under whichever surface reads its rows first.
 export function reflectFirstScopes() {
-  claimButtons();
-  reflectCommandAvailability();
-  reflectButtons();
+  reflectButtonsTracked();
   for (const scope of [...unpainted]) {
     unpainted.delete(scope);
-    reflectElementShortcuts(scope.el);
+    reflectTracked(scope.el);
   }
 }
 // Reflect after standing content has projected all of its scopes in the current
 // repaint frame. A focus move and a replacement can each ask for a paint, but the
 // shortcut attribute should represent only the final standing of that frame.
 // A scope refused here is reported, and the elements after it still paint.
+//
+// An element's reflection reads its rows' liveness, and that reads two kinds of input.
+// What it reads from the semantic root is tracked: each reflection runs as a signals
+// effect, and a publication that moves something it read marks that element alone for
+// the next frame. What it reads from the document is a mechanical change, and its writer
+// says so: `paintKeys()` marks every element, and `paintKeysWithin(root)` the ones a
+// renderer's paint touched. A publication that moves nothing an element read, and no
+// renderer whose output it reads, leaves its reflection standing.
 let keysDirty = true;
+const dirtyElements = new Set();
+const tracked = new WeakMap();
+// Native buttons read the same predicates for their availability. Which button a
+// command names is gathered across every scope on each pass, since a command may name a
+// control outside the element declaring it; each button's availability is its own
+// tracked effect (`reflectButton`), read again when a signal it read moves or a key
+// paint reaches it. Every button is read again when a declaration is attached, projected
+// or withdrawn, on `paintKeys()`, and when the user's standing moves, which predicates
+// read without a signal. Contribution projections read the same predicates, as one
+// tracked reader beside them.
+const dirtyButtons = new Set();
+let availabilityTracking = null;
+let availabilityDirty = true;
+onStanding(() => {
+  buttonsDirty = true;
+});
+function reflectAvailabilityReaders() {
+  availabilityDirty = false;
+  availabilityTracking?.();
+  let first = true;
+  let failure = null;
+  availabilityTracking = effect(() => {
+    if (first) {
+      first = false;
+      try {
+        reflectCommandAvailability();
+      } catch (error) {
+        failure = error;
+      }
+      return;
+    }
+    availabilityDirty = true;
+    repaint();
+  });
+  if (failure) throw failure;
+}
+function reflectButtonsTracked() {
+  if (!buttonsDirty && !dirtyButtons.size && !availabilityDirty) return;
+  const every = buttonsDirty;
+  buttonsDirty = false;
+  // Getter-named buttons may arrive after declaration. Claim their output fields before
+  // availability readers project commands; otherwise their initial disabled paint is
+  // mistaken for an input until the next frame. Readers may materialize more controls,
+  // which the gathering below then claims and presents.
+  for (const control of buttonDeclarations().keys()) claimButton(control);
+  // Contribution projections read command predicates, some over a widget's nodes, so
+  // any pass reads them again: a scoped paint is as likely to have moved one as a
+  // signal the reader tracks.
+  // A reader or button that fails is reported, and every other one still paints.
+  const failures = [];
+  try {
+    reflectAvailabilityReaders();
+  } catch (error) {
+    failures.push(error);
+  }
+  // Taken after the readers, whose projections mark the controls they move.
+  const dirty = new Set(dirtyButtons);
+  dirtyButtons.clear();
+  const declarations = buttonDeclarations();
+  releaseButtons(declarations);
+  for (const [control, candidates] of declarations) {
+    claimButton(control);
+    rememberScopedElement(control);
+    wireButton(control);
+    if (
+      !every &&
+      !dirty.has(control) &&
+      buttonAvailability.has(control) &&
+      sameCandidates(buttonCandidates.get(control), candidates)
+    )
+      continue;
+    try {
+      reflectButton(control, candidates);
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  for (const failure of failures) reportError(failure);
+}
+function reflectTracked(element) {
+  tracked.get(element)?.();
+  const ref = new WeakRef(element);
+  let first = true;
+  let failure = null;
+  const dispose = effect(() => {
+    if (first) {
+      first = false;
+      try {
+        reflectElementShortcuts(ref.deref());
+      } catch (error) {
+        failure = error;
+      }
+      return;
+    }
+    const moved = ref.deref();
+    if (moved) {
+      dirtyElements.add(moved);
+      repaint();
+    } else dispose();
+  });
+  tracked.set(element, dispose);
+  if (failure) throw failure;
+}
 export function reflectKeys() {
-  if (!keysDirty) return;
+  if (!keysDirty && !dirtyElements.size) return;
+  const every = keysDirty;
   keysDirty = false;
-  claimButtons();
-  reflectCommandAvailability();
-  reflectButtons();
+  const dirty = [...dirtyElements];
+  dirtyElements.clear();
+  reflectButtonsTracked();
   pruneScopedElements();
-  for (const ref of scopeRefs) {
-    const scoped = ref.deref();
+  const elements = every ? [...scopeRefs].map((ref) => ref.deref()) : dirty;
+  for (const scoped of elements) {
     if (!scoped?.isConnected) continue;
     try {
-      reflectElementShortcuts(scoped);
+      reflectTracked(scoped);
     } catch (error) {
       reportError(error);
     }
@@ -745,6 +905,20 @@ export function reflectKeys() {
 }
 export const paintKeys = () => {
   keysDirty = true;
+  buttonsDirty = true;
+  repaint();
+};
+/** Mark for reflection the scoped elements inside `root`, as a renderer that has just
+ * rewritten that part of the document does, and repaint the frame whose shared surfaces,
+ * the shortcut bar among them, read the same rows. */
+export const paintKeysWithin = (root) => {
+  for (const ref of scopeRefs) {
+    const scoped = ref.deref();
+    if (scoped && under(scoped, root)) {
+      dirtyElements.add(scoped);
+      dirtyButtons.add(scoped);
+    }
+  }
   repaint();
 };
 /** What a scope answers right now, as a listener hears it read out — key names rather than

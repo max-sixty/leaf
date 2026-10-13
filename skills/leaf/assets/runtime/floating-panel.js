@@ -62,7 +62,7 @@ import {
   releaseFocus,
 } from "./focus.js";
 import { sizeObserver } from "./rendering.js";
-import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
+import { agentName, applicationState, readApplication } from "./semantic-state.js";
 
 const prefs = () => document.documentElement.lfChrome;
 // The Codex panel's tween: one strong ease-out for every change of size and fade.
@@ -1282,7 +1282,17 @@ export function createFloatingPanel({
     watchBannerRows(() => paint());
     watchThreads(host, () => paint());
     watchQueues(host, () => paint());
-    watchSemantic(() => paint());
+    // Beyond the threads and queues: the undo list, approval's Questions and stamp, and
+    // the agent's name.
+    applicationState
+      .select((root) => ({
+        undo: root.effective.view?.undo ?? null,
+        asks: root.effective.asks,
+        document: root.document,
+        active: root.authoritative?.active ?? null,
+        agent: root.authoritative?.agent ?? null,
+      }))
+      .subscribe(() => paint());
     versionPicker.watch(() => paint());
     document.addEventListener("lf-chrome-preference", () => paint());
     paint();

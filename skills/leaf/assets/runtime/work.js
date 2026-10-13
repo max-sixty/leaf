@@ -11,6 +11,7 @@ import { quoted } from "./widget-descriptors.js";
 import { saidAt, reportSequence } from "./reports.js";
 import { widgetController } from "./widget-controller.js";
 import { addressableName } from "./addressable-names.js";
+import { watchProjection } from "./projection-watch.js";
 
 // Read in place, as `$states` is below: `layerFact` copies the declaration for a
 // package module, and a work reading asks for it once per element it walks.
@@ -179,6 +180,22 @@ function goalView(goal, open, read) {
       reportedStoppedAt ?? (role.stoppedAt ? goal.getAttribute(role.stoppedAt) : null),
   };
 }
+
+// What a work reading draws from the root: every widget's state, the threads holding
+// them, the asks waiting on the user, the reports, and when the page was published,
+// which is when a worker no report names was last heard (`saidAt`).
+const workSelection = (root) => ({
+  widgets: root.effective.widgets,
+  threads: root.effective.thread.all,
+  asks: root.effective.asks.user,
+  reports: root.effective.view?.reports ?? null,
+  published: root.effective.view?.published_at ?? null,
+});
+
+/** Call `callback()` whenever what `readWork` reads moves, by the rules every page
+ * reading's watcher shares (`projection-watch.js`); the callback reads its own scope. */
+export const watchWork = (owner, callback) =>
+  watchProjection(owner, workSelection, () => callback());
 
 export function readWork(scope) {
   const readings = new Map();

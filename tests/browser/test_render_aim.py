@@ -4067,6 +4067,38 @@ def test_a_withheld_draft_observes_visibility_without_a_layout_change(
     assert _draft_in_view(page, words, field)
 
 
+def test_a_display_contents_comment_editor_observes_visibility_without_layout(
+    browser, serve
+):
+    """An aimed comment editor follows its boxless target's visible parts without
+    relying on a resize or render pass to invalidate floating placement."""
+    source = leaf_page(
+        "a display contents comment target",
+        '<h1>Comment visibility</h1><div id="pair" style="display: contents">'
+        "<p><span>The first half.</span></p><p><span>The second half.</span></p></div>",
+        layout=None,
+    )
+    page = open_page(browser, serve(source))
+    page.set_default_timeout(10_000)
+    rendered(page)
+    page.locator("#pair span").first.click(modifiers=["Alt"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_visible(timeout=10_000)
+    expect(field).to_be_focused(timeout=10_000)
+    words = "An unfinished comment remains with its display contents target."
+    write(field, words)
+    expect(field).to_have_js_property("value", words, timeout=10_000)
+
+    parts = page.locator("#pair > p")
+    expect(parts).to_have_count(2)
+    parts.evaluate_all("els => els.forEach(el => el.style.visibility='hidden')")
+    expect(field).not_to_be_visible(timeout=10_000)
+    parts.evaluate_all("els => els.forEach(el => el.style.visibility='visible')")
+    expect(field).to_be_visible(timeout=10_000)
+    expect(field).to_be_focused(timeout=10_000)
+    expect(field).to_have_js_property("value", words, timeout=10_000)
+
+
 DESIGN_PANE_PAGE = leaf_page(
     "design paint in a pane",
     """

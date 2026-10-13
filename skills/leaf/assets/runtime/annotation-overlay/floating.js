@@ -53,7 +53,7 @@
    after a fetch. */
 
 import { afterPresentation } from "../presentation.js";
-import { drawn } from "../focus.js";
+import { visibleTargetParts } from "../visible-target-parts.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "../keeps.js";
 import { anchorElement, anchorFor, anchorHolder, anchorName } from "../css-anchors.js";
 import { move } from "../dom-move.js";
@@ -325,16 +325,32 @@ export function floatingPlacement({ floating, update }) {
       const stopGeometry = autoUpdate(reference, floating, update);
       // Visibility can change without moving or resizing a box. Observe the subject's
       // composed ancestry alongside Floating UI's geometry watch, including while the
-      // surface is withheld. Only a changed visibility reading invalidates placement.
-      let visible = drawn(element);
+      // surface is withheld. A `display: contents` subject has no box of its own, so its
+      // descendants supply both the visibility reading and the mutations that change it.
+      // Only a changed visibility reading invalidates placement.
+      let visible = visibleTargetParts(element).length > 0;
+      let observesParts = null;
       const visibility = new MutationObserver(() => {
-        const next = drawn(element);
+        observeVisibility();
+        const next = visibleTargetParts(element).length > 0;
         if (next === visible) return;
         visible = next;
         update();
       });
-      for (let at = element; at; at = renderedParent(at))
-        if (at instanceof Element) visibility.observe(at, { attributes: true });
+      const observeVisibility = () => {
+        const parts = getComputedStyle(element).display === "contents";
+        if (parts === observesParts) return;
+        visibility.disconnect();
+        visibility.observe(element, {
+          attributes: true,
+          subtree: parts,
+          childList: parts,
+        });
+        for (let at = renderedParent(element); at; at = renderedParent(at))
+          if (at instanceof Element) visibility.observe(at, { attributes: true });
+        observesParts = parts;
+      };
+      observeVisibility();
       stopWatching = () => {
         visibility.disconnect();
         stopGeometry();

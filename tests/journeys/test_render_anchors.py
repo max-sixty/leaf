@@ -1287,7 +1287,6 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
     panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
     expect(thread).to_have_count(1)
-    expect(thread).to_have_attribute("open", "")
     expect(thread.locator("leaf-text")).to_be_visible()
 
     # News updates the root's workflow line in both views, in place.
@@ -1420,14 +1419,14 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     resolve.focus()
     with sending(page, "the inline keyboard resolution"):
         page.keyboard.press("Enter")
-    expect(thread).not_to_have_attribute("open", "")
-    summary = thread.locator(".lf-page-thread-summary")
-    expect(summary).to_have_text("Resolved · 4 messages")
+    resolved = page.locator("lf-diff .lf-resolved-threads")
+    summary = resolved.locator(":scope > summary")
+    expect(summary).to_have_text("Resolved · 1")
+    expect(summary).to_be_focused()
     expect(thread.locator(".lf-msg").first).to_be_hidden()
     summary.click()
     expect(thread.locator(".lf-msg").first).to_be_visible()
     with sending(page, "the inline reopening"):
         thread.get_by_role("button", name="Reopen", exact=True).click()
-    expect(thread).to_have_attribute("open", "")
-    expect(summary).to_be_hidden()
+    expect(resolved).to_have_count(0)
     expect(thread.locator("leaf-text")).to_be_visible()

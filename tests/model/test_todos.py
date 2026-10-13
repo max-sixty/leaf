@@ -563,7 +563,7 @@ def test_an_ask_ends_at_the_reaction_that_settles_it(page_dir):
 def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     """A thread whose reply failed is one item on the user, named by the thread, and an
     ask the agent then leaves in it makes it that ask rather than a second
-    item: `q` stops at a thread once."""
+    item: `m` stops at a thread once."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,

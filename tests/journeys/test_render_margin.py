@@ -178,7 +178,7 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     )
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     reaction = next(
         event

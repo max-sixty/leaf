@@ -3664,7 +3664,7 @@ def test_a_changed_block_shows_an_inline_diff_against_the_base_version(browser, 
     # Page Map carries the same provenance on each changed-passage row. The account
     # stays distinct from the versions, and both remain searchable away from the passage.
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     mapped = sheet.locator('[data-lf-map-item^="change:"]').filter(has_text="v1 → v2")
     expect(mapped).to_have_count(5)

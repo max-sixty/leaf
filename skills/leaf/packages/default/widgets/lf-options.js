@@ -370,7 +370,7 @@ export default class extends HTMLElement {
     keeps(
       this.#done.control,
       "aria-label",
-      answered ? "Take back Done: reopen this ask" : "Done: my picks here are complete",
+      answered ? "Take back Done: reopen this ask" : "Done: these picks are complete",
     );
     keeps(this.#done.control, "aria-pressed", String(answered));
     keeps(this.#done.control, "aria-busy", this.#answering ? "true" : null);

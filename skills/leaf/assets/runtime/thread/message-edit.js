@@ -265,7 +265,7 @@ export class MessageEditor {
     const save = offer("button", "lf-msg-control lf-msg-edit-save");
     const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
     cancel.type = "button";
-    cancel.title = "Cancel, discarding my changes";
+    cancel.title = "Cancel and discard changes";
     cancel.textContent = "Cancel";
     actions.append(cancel);
     // The box's last line, where the caret stands on opening: the field's own lines are
@@ -318,7 +318,7 @@ export class MessageEditor {
     this.#putAside = putAside;
     const sync = wireInput(this.input, {
       hint: "Edit message",
-      accessibleName: () => `Edit my message: ${said().slice(0, 60)}`,
+      accessibleName: () => `Edit message: ${said().slice(0, 60)}`,
       sends: "save",
       icon: null,
       sendBtn: save,

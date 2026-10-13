@@ -1203,7 +1203,7 @@ def test_ask_binding_badges_follow_the_visible_margin_entries(browser, serve, wi
         ),
         context=context,
     )
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#s-replace")).to_be_focused()
     expect(
         page.locator(".lf-command-binding-badges .lf-command-binding-badge")
@@ -1272,7 +1272,7 @@ def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     first = page.locator("#jobs-decision")
     expect(first).to_be_focused()
     first_marker = page.locator(
@@ -1283,7 +1283,7 @@ def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
     assert first_marker.evaluate(
         "marker => getComputedStyle(marker).borderTopColor"
     ) == first.evaluate("ask => getComputedStyle(ask).outlineColor")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#bracket-decision")).to_be_focused()
     expect(first_marker).not_to_have_attribute(
         "data-lf-target-selected", re.compile(".*")
@@ -1585,7 +1585,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     fallback = sample("working · fallback")
     expect(resting).not_to_have_attribute("data-lf-agent-workflow", re.compile(".+"))
     expect(resting).not_to_have_attribute("data-lf-turn", re.compile(".+"))
-    expect(sample("on you")).to_have_attribute("data-lf-turn", "user")
+    expect(sample("my turn")).to_have_attribute("data-lf-turn", "user")
     expect(picked_up).to_have_attribute("data-lf-agent-workflow", "picked_up")
     expect(picked_up).to_have_css(
         "border-top-color",
@@ -1684,7 +1684,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         "Compact face · full row"
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     map_projection = dialog.get_by_role(
         "button", name="Inspect projection, Compact face · full row", exact=True
@@ -1730,7 +1730,7 @@ def _a_pin_on_a_wide_figure_hides_with_o_while_the_rail_stays(page):
     expect(status).to_be_visible()
     expect(status.locator("..")).to_have_attribute("data-lf-place", "pin")
     expect(
-        child.get_by_role("button", name="Questions: 0 waiting on me")
+        child.get_by_role("button", name="On me: 0")
     ).to_be_visible()
     expect(child.get_by_role("button", name="Open threads: 0")).to_be_visible()
     for width in (720, 390):
@@ -2072,7 +2072,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     proxy = dialog.get_by_role("button", name="Inspect source, Patch ready", exact=True)
     expect(proxy).to_be_visible()
@@ -2212,7 +2212,7 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     first = dialog.get_by_role("button", name="First opaque action", exact=True)
     second = dialog.get_by_role("button", name="Second opaque action", exact=True)
@@ -2249,7 +2249,7 @@ def test_page_map_preserves_opaque_contribution_identity_and_relation_targets(
     first.click()
     expect(dialog).to_be_hidden()
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     second.click()
     expect(dialog).to_be_hidden()
     assert page.evaluate("() => window.lfIdentityActivations") == ["c", "b:c"]
@@ -2313,7 +2313,7 @@ def test_page_map_keyed_reconciliation_preserves_user_standing(browser, serve):
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     search = dialog.get_by_role(
         "searchbox", name="Find an action, status, or location in Page Map"
@@ -2404,7 +2404,7 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     scroll_settled(page)
     before_sheet = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible()
     expect(dialog.locator(".lf-page-map-group")).to_have_count(12)
@@ -2429,7 +2429,7 @@ def test_page_map_filtering_keeps_search_and_close_in_place(browser, serve, view
     page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
     resized(page, *viewport)
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     search = dialog.get_by_role(
         "searchbox", name="Find an action, status, or location in Page Map"
@@ -2479,7 +2479,7 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
     resized(page, 1440, 600)
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     rows = dialog.locator("button.lf-page-map-action")
     search = dialog.get_by_role(
@@ -2522,14 +2522,14 @@ def test_the_chrome_names_an_ask_by_its_question(browser, serve):
     Ask is there rather than naming it a second time."""
     page = open_page(browser, serve(ASK_PAGE))
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     row = page.locator("button.lf-queue-row").first
     expect(row).to_contain_text("Which jobs are worth starting?")
     expect(row).not_to_contain_text("Replace the")
     page.keyboard.press("Escape")
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     group = dialog.locator(".lf-page-map-group").filter(
         has=page.get_by_role(
@@ -2550,7 +2550,7 @@ def test_a_finger_opens_the_page_map_on_its_first_row(browser, serve):
         browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS), context=context
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog.locator("button.lf-page-map-action").first).to_be_focused()
 
@@ -2685,7 +2685,7 @@ def test_g_shift_m_exposes_dense_suggestion_verdicts_as_real_buttons(browser, se
     )
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible()
     for title, word in (
@@ -3437,7 +3437,7 @@ def test_a_margin_entry_walk_position_stays_out_of_its_visible_word(browser, ser
     named = next(button["name"] for button in placed if "Which jobs" in button["name"])
     assert named.index("percent down") < named.index("Which jobs"), named
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     expect(page.locator(".lf-page-map-group h3", has_text=subject)).to_have_count(1)
 
 
@@ -3478,7 +3478,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
         1
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     origin = page.get_by_role(
         "button", name=re.compile(r"^Open reported state: Reported state")
     )
@@ -3644,7 +3644,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview).not_to_contain_text(COMMENT_ON_ASK["text"])
     leave_card_by_its_target(page)
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.locator(".lf-page-map-dialog")
     rows = dialog.locator(".lf-page-map-action").filter(
         has=page.locator('[data-lf-icon="comment"]')
@@ -3829,7 +3829,7 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
             if seat.locator(f'[data-lf-margin-entry-key="{key}"]').count()
         }
         page.keyboard.press("g")
-        page.keyboard.press("Shift+m")
+        page.keyboard.press("Shift+p")
         dialog = page.locator(".lf-page-map-dialog")
         expect(dialog).to_be_visible()
         rows = dialog.locator("[data-lf-map-margin-entry]")
@@ -3951,7 +3951,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     # Page Map lists each thread on its own row, so the user's own thread is the
     # control for the agent's beside it.
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible()
     rows = dialog.locator('.lf-page-map-action[data-lf-map-item^="comment:"]')
@@ -4087,7 +4087,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     told(page)
     page.keyboard.press("Escape")
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.locator(".lf-page-map-dialog")
     expect(dialog).to_be_visible()
     expect(dialog.locator('[data-lf-agent-workflow="picked_up"]')).to_have_count(2)
@@ -4143,7 +4143,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     expect(page.locator("[data-lf-agent-arrival]")).to_have_count(0)
     page.keyboard.press("Escape")
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     expect(dialog.locator('[data-lf-agent-workflow="working"]')).to_have_count(2)
     expect(dialog.locator("[data-lf-agent-arrival]")).to_have_count(0)
     assert page.evaluate("window.unitArrivals.length") == 4
@@ -4428,7 +4428,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     ).to_have_count(1)
     carrier.focus()
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     mapped = page.locator('.lf-page-map-action[data-lf-agent-workflow="picked_up"]')
     expect(mapped).to_have_count(1)
     expect(mapped.locator(".lf-margin-kind")).to_have_attribute("data-lf-icon", "edit")
@@ -4695,7 +4695,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
         assert box["x"] >= 0 and box["x"] + box["width"] <= width
         assert label.evaluate("label => label.scrollWidth <= label.clientWidth")
         page.keyboard.press("g")
-        page.keyboard.press("Shift+m")
+        page.keyboard.press("Shift+p")
         dialog = page.locator(".lf-page-map-dialog")
         expect(dialog).to_be_visible()
         expect(
@@ -4866,7 +4866,7 @@ def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser,
     assert line.evaluate("node => node.getBoundingClientRect().height") == 0
     assert line.evaluate("node => node.checkVisibility()")
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible(timeout=10_000)
     dialog.get_by_role(
@@ -7032,7 +7032,7 @@ def test_going_to_a_side_surface_folds_the_cluster_the_user_left(browser, serve)
     expect(option).to_be_focused()
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(page.locator("#lf-queue")).to_be_visible()
     assert page.locator("#lf-queue").evaluate(
         "panel => panel.matches(':focus-within') || panel === document.activeElement"
@@ -7777,7 +7777,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     resized_shell(page, 1920, 900)
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(preview).to_be_hidden()
     expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
     # Exchanging one auxiliary surface for another is lateral, so the drawer's Escape
@@ -8075,7 +8075,7 @@ def test_the_small_screen_map_is_a_complete_accessible_sheet(browser, serve, ope
     if opener == "keyboard":
         page.keyboard.press("g")
         expect(page.locator(".lf-shortcut-bar")).to_contain_text("Page Map")
-        page.keyboard.press("Shift+m")
+        page.keyboard.press("Shift+p")
     else:
         toggle.click()
     dialog = page.locator(".lf-page-map-dialog")
@@ -9358,7 +9358,7 @@ def test_an_ask_arrival_reveals_its_pin_while_annotations_are_hidden(browser, se
 
     # The passage follows both Asks, so a step back lands on the last one.
     page.locator("#gap").click()
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(page.locator("#sug-card")).to_be_focused()
     rendered(page)
     expect(pin).to_be_visible()
@@ -10468,7 +10468,7 @@ def test_page_map_disclosure_arrival_yields_to_newer_search(
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     door = dialog.get_by_role("button", name="Expand choices", exact=True)
     child = dialog.get_by_role("button", name="Revealed choice", exact=True)
@@ -10941,12 +10941,12 @@ def test_exhausted_seat_uses_map_then_restores(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("#lf-margin-preview")).to_be_hidden()
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     expect(dialog).to_be_visible()
     dialog.get_by_role("button", name="Mark plot reviewed", exact=True).press("Enter")
     expect(dialog).to_be_hidden()
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     expect(
         dialog.get_by_role("button", name="Plot reviewed", exact=True)
     ).to_be_visible()

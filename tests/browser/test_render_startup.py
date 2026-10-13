@@ -2055,7 +2055,8 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     body = page.locator("body")
     expect(body).to_have_attribute("data-lf-auxiliary-surface", "queue")
     # The door stands on every page, and claims no count before the log has answered.
-    expect(page.locator(".lf-queue")).to_have_text("Questions")
+    expect(page.locator(".lf-queue")).to_have_text("On me")
+
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
     # Which blanket answers exist is the ask inventory's to say, each ask under its own
     # widget publication, so before the first state answer none is built to offer.
@@ -2063,9 +2064,9 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     # Opened by hand, the panel counts nothing yet either.
     page.locator(".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_contain_text(
-        "Loading current questions…"
+        "Loading…"
     )
-    expect(page.locator(".lf-queue-panel")).not_to_contain_text("Questions · 0")
+    expect(page.locator(".lf-queue-panel")).not_to_contain_text("On me · 0")
 
     comments = page.locator(".lf-threads-toggle")
     expect(comments).to_be_enabled()
@@ -2080,7 +2081,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     decisions = page.locator(".lf-queue")
-    expect(decisions).to_have_text("Questions: 0")
+    expect(decisions).to_have_text("On me: 0")
     expect_asks_answered(page, "1/1")
     expect(decisions).to_have_attribute("aria-expanded", "false")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
@@ -2460,7 +2461,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     # and the target keeps the local quiet word.
     expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     rewritten = page.get_by_role(
         "button", name=re.compile(r"^Open rewritten: Rewritten")
     )
@@ -2470,7 +2471,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
         page.locator("#draft-ops").evaluate("el => getComputedStyle(el).outlineStyle")
         == "none"
     )
-    assert "rewritten since I decided" in page.locator("#draft-ops").aria_snapshot()
+    assert "rewritten since the decision" in page.locator("#draft-ops").aria_snapshot()
 
 
 def test_user_overrides_identify_state_that_differs_from_authored_inputs(
@@ -3739,7 +3740,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up my comment and hasn't said what it's doing yet"
+        "Claude picked up the comment and hasn't said what it's doing yet"
         " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 to-do"
         " (Work on the page)."
     )
@@ -3756,7 +3757,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     told(page)
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up my comment and hasn't said what it's doing yet"
+        "Claude picked up the comment and hasn't said what it's doing yet"
         " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies."
     )
 
@@ -3978,7 +3979,7 @@ def test_a_workflow_and_the_banner_share_agent_activity(browser, serve):
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(
-            r"^\s*Claude picked up my comment and hasn't said what it's doing yet"
+            r"^\s*Claude picked up the comment and hasn't said what it's doing yet"
             r" \(just now\)\. Waiting on me"
         )
     )
@@ -4011,8 +4012,9 @@ def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
         expect(page.locator(".lf-status-text")).to_have_text(
             "Claude awaits — pick a storage engine"
         )
-        expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
+        expect(page.locator(".lf-status-queues")).to_have_text("On Claude: 1")
         expect(page.locator(".lf-status-detail")).to_have_text(
+
             "Claude awaits — pick a storage engine. Waiting on Claude: 1 reply."
         )
         expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(

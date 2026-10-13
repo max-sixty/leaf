@@ -1445,7 +1445,7 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible()
     row = dialog.get_by_role("button", name="Action 15", exact=True)

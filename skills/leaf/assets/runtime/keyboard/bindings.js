@@ -755,7 +755,7 @@ export const clampedRow = (
   return rows[Math.max(0, Math.min(rows.length - 1, next))];
 };
 
-// The page walks' policy (`t`, `q`, `n`): a step past either end comes round to the
+// The page walks' policy (`t`, `m`, `n`): a step past either end comes round to the
 // other. `wrapped` says it came round, which the landing's ordinal alone does not, so
 // the walk can mark it (walk-position.js, `beginWalk`). Entry from off the list takes
 // the end the step faces and comes round nothing.

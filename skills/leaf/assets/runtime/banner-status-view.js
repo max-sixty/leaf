@@ -12,7 +12,7 @@
  * leaves the sentence its room (chrome.css). The box is reserved for the count it
  * usually reaches (`queuesWidest`), so the sentence changing never carries it and its
  * changing moves nothing. A count past that widens the box once, and it keeps the width
- * while the page is open. The count is a press, one of the Questions panel's doors
+ * while the page is open. The count is a press, one of the On panel's doors
  * (drawers.js wires it), so the panel listing those tasks is one press from where they
  * are counted.
  *
@@ -84,11 +84,7 @@ class BannerStatusView extends HTMLElement {
     this.#model = model;
     this.#paint();
     render(model.queues, this.#queues);
-    keeps(
-      this.#queues,
-      "title",
-      `Show or hide my questions and ${agentName()}'s tasks`,
-    );
+    keeps(this.#queues, "title", `Show or hide what's on me and on ${agentName()}`);
     this.#queues.toggleAttribute("hidden", !model.queues);
     // The reservation only grows: its digits are tabular, so the longest counts yet
     // shown are the widest, and a box that shrank back would move them on the next.

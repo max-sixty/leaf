@@ -1941,7 +1941,7 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
     expect(counts).to_have_text("2 asks on me")
     with sending(page, "complete the selected extras"):
         workspace.locator("#extras").get_by_role(
-            "button", name="Done: my picks here are complete", exact=True
+            "button", name="Done: these picks are complete", exact=True
         ).click()
     expect(counts).to_have_text("1 asks on me · 1 answered · Chat")
 

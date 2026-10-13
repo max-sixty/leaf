@@ -1,6 +1,6 @@
-/* The Questions walk: `q` and Shift+`q` page through everything waiting on the user,
-   in page order: the Questions the panel lists first (queue-panel.js). The panel opens with
-   `g Q`, as the Threads panel opens with `g T` and `t` walks the threads.
+/* The On me walk: `m` and Shift+`m` page through everything waiting on the user,
+   in page order: the On me list the panel shows first (queue-panel.js). The panel opens with
+   `g M`, as the Threads panel opens with `g T` and `t` walks the threads.
 
    What waits on the user is the application's one reading, `queues.questions`
    (the server's `served_state.queues`, with this tab's sends placed against it): each open
@@ -14,7 +14,7 @@
    t/T walk's own (navigation.js, `arriveAtThread`), so it lands wherever that walk
    lands; a page widget action, or a to-do on an element or the page, by travel's `arrive`,
    onto the widget the action was made on, the element, or the page's head.
-   A Questions panel row arrives through the same function (`arriveAtItem`), for an item on
+   A On panel row arrives through the same function (`arriveAtItem`), for an item on
    either list or one that is done.
 
    A walk starts from the user's place, in this order:
@@ -233,7 +233,7 @@ export function createQueueWalk({
     );
   }
 
-  // An answered ask is arrived at the same way, which is how the Questions panel's Done
+  // An answered ask is arrived at the same way, which is how the On panel's Done
   // rows return the user to one to review or revise it.
   function arriveAt(stop) {
     if (stop.kind === "ask") {
@@ -326,7 +326,7 @@ export function createQueueWalk({
   let wasOffered = false;
   let wasDoneable = "";
   let stopWatching = null;
-  // The q/Q row stands on Questions, and Done on the to-dos it holds, so the surfaces
+  // The m/M row stands on On me, and Done on the to-dos it holds, so the surfaces
   // reading them are repainted where the list empties or fills or those to-dos change.
   function mount() {
     stopWatching ??= watchSemantic(() => {
@@ -341,34 +341,34 @@ export function createQueueWalk({
     id: "queue.walk",
     ready: savedReadingSettled,
     touch: false,
-    keys: ["q", "Shift+q"],
+    keys: ["m", "Shift+m"],
     routes: [
       {
         id: "queue.next",
-        binding: "q",
-        title: "Next question",
+        binding: "m",
+        title: "Next on me",
         description: "Next ask, thread, to-do or resend waiting on me",
       },
       {
         id: "queue.previous",
-        binding: "Shift+q",
-        title: "Previous question",
+        binding: "Shift+m",
+        title: "Previous on me",
         description: "Previous ask, thread, to-do or resend waiting on me",
       },
     ],
-    title: "Questions",
-    line: "questions",
+    title: "On me",
+    line: "on me",
     when: offered,
     repeat: true,
     // The same shape as the thread walk: it moves the user from item to item rather than
     // down a level, so the standing scope lets go of whichever one they end on. An item
     // reached through the panel leaves the panel a level of its own on the way out,
     // whether this walk opened it or the user already had it.
-    run: (binding) => walk(binding === "q" ? 1 : -1),
+    run: (binding) => walk(binding === "m" ? 1 : -1),
   });
 
-  // Where `q` lands on a to-do the user ends with Done, Done is a key, and a step on the
-  // banner's row under a finger. Its row in the Questions panel carries the same Done.
+  // Where `m` lands on a to-do the user ends with Done, Done is a key, and a step on the
+  // banner's row under a finger. Its row in the On panel carries the same Done.
   pageScope("todo", {
     title: "On a to-do waiting on me",
     ready: savedReadingSettled,
@@ -389,11 +389,11 @@ export function createQueueWalk({
     ],
   });
 
-  // A Questions panel row arrives where the walk would (queue-panel.js), whichever list
+  // A On panel row arrives where the walk would (queue-panel.js), whichever list
   // its item is on.
   const arriveAtItem = (item) => arriveAt(stopOf(item));
 
-  // The Questions panel's Next question, which is `q` pressed from wherever the user
+  // The On panel's Next on me, which is `m` pressed from wherever the user
   // stands (queue-panel.js).
   const next = () => walk(1);
 

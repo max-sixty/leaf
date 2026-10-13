@@ -502,7 +502,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(summary).to_have_text("Claude working — revising the plan")
     # The row's account of the agent's side is the queue count, not the delivery
     # count the disclosure keeps.
-    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 2")
+    expect(page.locator(".lf-status-queues")).to_have_text("On Claude: 2")
+
     expect(text).to_have_text(
         re.compile(
             r"^\s*Claude is working — revising the plan \(.+\)\. 1 response owed on updates awaiting delivery\."
@@ -540,10 +541,10 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             transaction, [first_comment], phase="opened", session="s", turn="turn-1"
         )
     declare("waiting", "your read on the plan")
-    expect(summary).to_have_text("Claude working — picked up my comment")
+    expect(summary).to_have_text("Claude working — picked up the comment")
     expect(text).to_have_text(
         re.compile(
-            r"^\s*Claude picked up my comment and hasn't said what it's doing yet"
+            r"^\s*Claude picked up the comment and hasn't said what it's doing yet"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))

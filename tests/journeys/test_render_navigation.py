@@ -139,7 +139,7 @@ def test_reading_keys_scroll_drawers_without_moving_the_document(
         resized(page, width, 700)
         for key, selector in (
             ("Shift+l", ".lf-others-panel"),
-            ("Shift+q", ".lf-queue-panel"),
+            ("Shift+m", ".lf-queue-panel"),
         ):
             page.keyboard.press("g")
             page.keyboard.press(key)
@@ -248,13 +248,13 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
         "submitted answers are incorporated in the next revision"
     )
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#review-cache-decision")).to_be_focused()
     with sending(page, "the cache rollback decision"):
         page.keyboard.press("1")
     expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#review-billing-decision")).to_be_focused()
     with sending(page, "the billing reconciliation decision"):
         page.keyboard.press("1")
@@ -372,7 +372,7 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
         "chosen", ""
     )
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#comparison-policy-decision")).to_be_focused()
     with sending(page, "the authentication retry policy decision"):
         page.keyboard.press("2")
@@ -808,7 +808,7 @@ def test_firefox_paints_a_natural_color_cue(firefox_browser, serve, target):
     page = open_page(firefox_browser, serve(color_cue_markup()))
     page.emulate_media(reduced_motion="no-preference")
     if target == "tab":
-        page.keyboard.press("q")
+        page.keyboard.press("m")
         expect(page.locator("#ask-first")).to_be_focused()
         selector = '#views [aria-controls="second"] .lf-tab-name'
     else:
@@ -839,7 +839,7 @@ def test_firefox_paints_a_natural_color_cue(firefox_browser, serve, target):
         quality=100,
         size=page.viewport_size,
     ):
-        page.keyboard.press("q" if target == "tab" else "Enter")
+        page.keyboard.press("m" if target == "tab" else "Enter")
         page.wait_for_function(
             "() => window.__colorCue.point || window.__colorCue.error"
         )
@@ -1114,7 +1114,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     line = page.locator(".lf-shortcut-bar")
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(page.locator(".lf-queue-panel.open")).to_be_visible()
     ask = page.locator("#live-question-decision")
     ask.evaluate("el => { el.tabIndex = -1; el.focus(); }")
@@ -1126,7 +1126,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator(".lf-queue-panel.open")).to_have_count(0)
 
-    # `q` from a heading into a thread's Ask, with the panel already beside the page:
+    # `m` from a heading into a thread's Ask, with the panel already beside the page:
     # Escape closes the panel, without returning to the heading.
     page = open_page(browser, serve(ROOT / "examples" / "ship-review.html"))
     line = page.locator(".lf-shortcut-bar")
@@ -1135,7 +1135,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     heading = page.locator("main h2").first
     heading.evaluate("el => { el.tabIndex = -1; el.focus(); }")
     expect(heading).to_be_focused()
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator(".lf-thread lf-ask[data-lf-ask]")).to_be_focused()
     expect(line).to_contain_text("close threads")
     page.keyboard.press("Escape")
@@ -1492,13 +1492,14 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         ),
         (
             "navigation.drawer.queue",
-            ["g", "Q"],
+            ["g", "M"],
             ["pressed", "neutral"],
-            "Questions panel",
+            "On panel",
         ),
         (
             "navigation.page-map",
-            ["g", "M"],
+            ["g", "P"],
+
             ["pressed", "neutral"],
             "Page Map dialog",
         ),
@@ -1665,7 +1666,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # The Questions sequence follows the same contract: show the panel and land on its first
     # row.
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(page.locator(".lf-queue-panel")).to_be_visible()
     expect(page.locator(".lf-queue-row").first).to_be_focused()
     expect(page.locator(CHIPS)).to_have_count(0)
@@ -1686,10 +1687,10 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     # is beneath it rather than remembered by it, so closing the dialog leaves that drawer
     # exactly where it was.
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(page.locator(".lf-queue-panel")).to_be_visible()
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(sheet).to_be_visible()
     expect(
@@ -1721,7 +1722,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     page.keyboard.press("?")
     page.keyboard.press("?")
-    queue_help = command_reference_rows(page, "In Questions")
+    queue_help = command_reference_rows(page, "In On")
     expect(queue_help.get_by_text("Previous item", exact=True)).to_have_count(1)
     expect(queue_help.get_by_text("Next item", exact=True)).to_have_count(1)
     expect(
@@ -1735,7 +1736,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # Uppercase M opens the complete Page Map rather than the numbered prefix.
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(sheet).to_be_visible()
     expect(sheet.locator(".lf-page-map-group")).to_have_count(3)
@@ -1966,7 +1967,7 @@ def test_clamped_leaf_lists_share_the_walk_position(browser, serve, live_leaf):
 
     page.keyboard.press("Escape")
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     rows = page.locator("button.lf-queue-row")
     expect(rows.first).to_be_focused()
     page.keyboard.press("ArrowDown")

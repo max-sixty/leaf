@@ -271,7 +271,7 @@ export default class extends HTMLElement {
         control: () => this.#control("cancel"),
         decision: true,
         title: "Cancel",
-        description: "Cancel the edit, discarding my changes",
+        description: "Cancel the edit and discard changes",
         when: () => Boolean(this.#editor),
         run: () => this.#close(true),
       },

@@ -1,10 +1,11 @@
 """To-dos, the one kind of item on both lists, and the item the agent has in hand.
 
 A to-do is explicit work someone owes, and its `owner` says who: the agent, whose
-to-dos are on Tasks, or the user, whose to-dos are on Questions. How it ends follows
-from its owner and what it stands on, so no field records it.
+to-dos are on its On <agent> list, or the user, whose to-dos are on their On me
+list. How it ends follows from its owner and what it stands on, so no field records
+it.
 
-An item on the agent's Tasks is either an update it owes an answer, whose id is the
+An item on the agent's list is either an update it owes an answer, whose id is the
 update's event id (`workflows`), or a to-do it opened. Working always names one of
 them: `leaf task start` writes a `start` event naming the item with the line the
 banner shows, and the item is in hand, running, from then on. An ephemeral reply to

@@ -1,12 +1,12 @@
 # Asks and sign-off
 
 Pose an ask for every decision waiting on the user. A recommendation leaves
-that decision open until the user decides. `conversation-loop.md`, "Questions and
-Tasks", owns the complete queue contract, including conversational questions and
+that decision open until the user decides. `conversation-loop.md`, "The On
+lists", owns the complete queue contract, including conversational questions and
 requests for actions outside the page.
 
 The user answers an ask from what is on screen when they reach it, often by pressing
-`q` (`conversation-loop.md`, "Questions and Tasks"). Keep its question,
+`m` (`conversation-loop.md`, "The On lists"). Keep its question,
 short shared premise, and evidence together with the answering control. Use `lf-ask`
 to frame that material when it lives outside the answering widget: a question heading,
 then context and evidence, then one answering widget. Backing detail and reproductions
@@ -45,7 +45,7 @@ replace the widget's identity. Standalone decision widgets also pose asks.
 If a widget ask stops mattering before the user answers, retire its source in a
 version or mark that source `restated` as `authoring-revisions.md` says. A to-do you
 put on the user is work you ask them to do, such as trying a build, rather than a
-question they answer (`conversation-loop.md`, "Questions and Tasks").
+question they answer (`conversation-loop.md`, "The On lists").
 
 The user can finish each independently answerable proposal as they review it,
 without leaving the material it rests on. Choosing which of several items to act

@@ -52,7 +52,7 @@ banner.id = "lf-banner";
 declareBanner(banner);
 const bannerStatus = createBannerStatusView(repaint, INITIAL);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
-// The agent's Tasks count, which opens the Questions panel listing them (drawers.js).
+// The agent's Tasks count, which opens the On panel listing them (drawers.js).
 export const queueCounts = bannerStatus.queues;
 
 // Threads reads "Threads: 3" on a desk and, on a phone's one row, a thread icon with its
@@ -142,7 +142,7 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.queue,
   seat: { desk: "row", phone: "menu" },
   row: {
-    label: "Questions",
+    label: "On me",
     value: () => String(readQueues().questions.length),
     group: "page",
   },
@@ -309,7 +309,7 @@ let saidKind;
 let saidActionableWork;
 
 // The page's two queues (`served_state.queues`) are told apart in the banner by where
-// they stand. What waits on the user, which `q` walks, is the Questions door beside
+// they stand. What waits on the user, which `m` walks, is the On me door beside
 // Threads (queue-panel.js paints its count), and on a phone's one row it waits in More.
 // What waits on the agent, its Tasks, stands beside the status, apart from the sentence,
 // as the banner's whole account of the agent's side, with the disclosure naming both
@@ -323,7 +323,7 @@ let saidActionableWork;
 // moves none of its words. Both are read from the application's publication rather
 // than the state answer: a reply the user sends joins the agent's count in the turn
 // it is sent, and leaves the user's once the server has read it. A press on either
-// opens the Questions panel, which lists both.
+// opens the On panel, which lists both.
 const QUEUE_WORDS = Object.freeze({
   ask: ["ask", "asks"],
   approval: ["approval", "approvals"],
@@ -352,13 +352,13 @@ function queueWords() {
   const named = (items, whom) =>
     items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
   return {
-    summary: tasks.length ? `Tasks: ${tasks.length}` : "",
+    summary: tasks.length ? `On ${agent}: ${tasks.length}` : "",
     explanation: [named(questions, "me"), named(tasks, agent)]
       .filter(Boolean)
       .join(" "),
     // The widest the count usually reaches, under ten, which its box keeps; more
     // widens it once (banner-status-view.js).
-    widest: "Tasks: 9",
+    widest: `On ${agent}: 9`,
   };
 }
 const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
@@ -704,7 +704,7 @@ const publicationWords = (published) => [
 // The updates an open turn picked up, by kind: a comment in a thread, or an answer to an
 // ask. A lone update is the user's own; several are counted.
 function pickedUpWords({ comments, answers }) {
-  if (comments + answers === 1) return comments ? "my comment" : "my answer";
+  if (comments + answers === 1) return comments ? "the comment" : "the answer";
   const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
   return [
     comments && counted(comments, "comment"),
@@ -928,7 +928,7 @@ export function mountBanner({ approveVersion, paintApproval }) {
   // On two rows the Tasks count stands on the second line only where the run leaves it
   // room whole, else on a third the banner does not draw, and a phone's one row leaves
   // it out (chrome.css). A press there is a stop nobody can see, so an undrawn count is
-  // inert; the Questions door and the status's disclosure still reach what it says.
+  // inert; the On me door and the status's disclosure still reach what it says.
   const counts = bannerStatus.queues;
   const seatCounts = sizeObserver(() => {
     const drawn =
@@ -987,7 +987,7 @@ export function stateSignoff(next, syncLayout, paintApproval) {
 // More without changing the page's reading loop.
 function reserveBannerControls() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-  reserve(queueBtn, ["Questions: 99"]);
+  reserve(queueBtn, ["On me: 99"]);
   reserve(toggleBtn, ["Threads", "Threads: 999"]);
 }
 

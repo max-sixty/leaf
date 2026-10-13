@@ -1722,7 +1722,7 @@ def expect_banner_control_offered(control, *, offered=True):
 
 
 # How many of the page's active Asks are answered, as "answered/total": the publisher's
-# own Ask reading, which the Questions panel's Done list and the `q` walk select from. Before
+# own Ask reading, which the Questions panel's Done list and the `m` walk select from. Before
 # the page has admitted a state answer the reading is empty, which is no count at all.
 _ASKS_ANSWERED = """async () => {
   const { readApplication } = await window.__lfRuntimeImport('/runtime/semantic-state.js');

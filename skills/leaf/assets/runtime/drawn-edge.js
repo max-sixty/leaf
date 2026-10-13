@@ -35,7 +35,7 @@ let activeResize = null;
  * the number.
  *
  * One width, and a handle for each region on that side: the right edge holds the Threads
- * and Questions panels one at a time, and each wears the edge it is drawn by, because a
+ * and On panels one at a time, and each wears the edge it is drawn by, because a
  * handle outside them both would not slide in with the panel it belongs to. They are handles onto one fact rather
  * than two facts — `state` is the one writer, and it says the same thing on every one.
  */

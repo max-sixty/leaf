@@ -667,7 +667,7 @@ export function createMarginProjection({
   // browser would otherwise put it on body. An explicit request still shows what it asks
   // for without bringing the layer back: `t`, a Threads row and a Page Map pick open the
   // card at their target, and an arrival that walks to a target or to one of its row's
-  // controls (`q`, `focusForNavigation`) shows that one row, so what decides the target
+  // controls (`m`, `focusForNavigation`) shows that one row, so what decides the target
   // is in reach, until the user stands somewhere else. Tabbing or pressing onto a target
   // reveals nothing: the layer stays as the user left it.
   let revealed = null;
@@ -1523,7 +1523,7 @@ export function createMarginProjection({
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere
-  // inside it and never from outside: after `q` the user stands on the ask element, so
+  // inside it and never from outside: after `m` the user stands on the ask element, so
   // the card shows a thread on the ask but not one on its options or a phrase in its
   // heading. Treating an ask as one target for its threads is a possible refinement. It
   // belongs where a thread's target is decided (anchor-placement), so every

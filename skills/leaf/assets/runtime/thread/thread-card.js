@@ -290,7 +290,7 @@ function paintBoundary(node, kind) {
   keeps(
     node,
     "aria-label",
-    kind === "new" ? "New since I last looked" : "End of this new section",
+    kind === "new" ? "New messages" : "End of this new section",
   );
 }
 

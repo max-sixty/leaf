@@ -224,8 +224,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     bottom at the desktop viewport and on a phone, and one screen at each width where
     the page's own arrangement is at its tightest before it changes. A sidebar page with
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
-    Each open Ask, a suggestion as much as an lf-ask, gets the window `q` brings it
-    into, as the user working the page meets it, including those `q` reaches past a
+    Each open Ask, a suggestion as much as an lf-ask, gets the window `m` brings it
+    into, as the user working the page meets it, including those `m` reaches past a
     page widget move handed back to the user, which is a stop of its own and no Ask."""
     tiles = "".join(
         f"<dl id='m{i}'><dt>metric {i}</dt><dd>{i}</dd></dl>" for i in range(4)
@@ -301,7 +301,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
         "1200px-ask-3.png",
     } <= set(names)
     assert "1200px-ask-4.png" not in names
-    assert any("each press of `q`" in line for line in listed)
+    assert any("each press of `m`" in line for line in listed)
     assert any('"Pre-handover review"' in line for line in listed)
     stacks = next(line for line in listed if "<main> 1+2 → 1+1+1" in line)
     assert (into / stacks.split(":")[0].strip()).exists()

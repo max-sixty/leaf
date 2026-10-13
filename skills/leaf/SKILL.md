@@ -13,11 +13,12 @@ its URL with a status saying what you want back, and wait.
 Answer each delivered update on the page and in its thread, stamp checkpoints,
 and idle the page when it is finished.
 
-Anything you need from the user must appear in **Questions**. Zero Questions
-means you need nothing from them now. Before handing over or waiting, read
-`leaf page state <page>` and reconcile `queues.questions` and
-`queues.tasks` with the work and decisions still open.
-`references/conversation-loop.md`, "Questions and Tasks", owns what appears there
+Anything you need from the user must appear in the user's **On me** list. An
+empty On me list means you need nothing from them now. Your own list, which the
+user sees as **On <your name>**, holds what waits on you. Before handing over or
+waiting, read `leaf page state <page>` and reconcile `queues.questions` (On me)
+and `queues.tasks` (yours) with the work and decisions still open.
+`references/conversation-loop.md`, "The On lists", owns what appears there
 and how to register each request.
 
 The input is a subject to present, or a delivery from a page already handed

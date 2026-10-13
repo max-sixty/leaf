@@ -314,7 +314,7 @@ export function createFloatingPanel({
   const titleOf = (route) =>
     ({
       threads: "Threads",
-      questions: "Questions",
+      questions: "On",
       versions: "Versions",
       thread: route.thread ? threadTitle(route.thread) : "",
       group: GROUPS[route.group],
@@ -1290,7 +1290,7 @@ export function createFloatingPanel({
           class="lf-fp-chip lf-fp-questions"
           aria-pressed=${String(top?.view === "questions")}
           ?data-due=${questions > 0}
-          aria-label=${`Questions${questions ? `, ${questions} on me` : ""}`}
+          aria-label=${questions ? `On me: ${questions}` : "On me"}
           @click=${() => open({ view: "questions" })}
         >
           ${iconTemplate("question", "lf-action-icon")}<span class="lf-fp-num"

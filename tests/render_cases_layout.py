@@ -902,7 +902,7 @@ BANNER_ORDER = r"""() => {
       // The version's age ticks with the clock between two readings; the order does not.
       .replace(/ · \S+ ago$/, '')
       // The queue's population does not change the control's place in that order.
-      .replace(/^Questions: \d+ waiting on me$/, 'Questions'));
+      .replace(/^On me: \d+$/, 'On me'));
 }"""
 
 

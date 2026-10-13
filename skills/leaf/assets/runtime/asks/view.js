@@ -11,7 +11,7 @@
    Adding a context wrapper changes neither the ask nor its answer.
 
    Focus, through standing-target.js, determines which ask wears the location
-   ring. The q/Q work walk visits the user's current queue; an answered ask can
+   ring. The m/M work walk visits the user's current queue; an answered ask can
    still receive an explicit review arrival and the same contextual editing routes.
    The selected destination has a lent tab stop at its opening, preserving document
    order so its controls are the next Tab stops. A boxless destination lands on its
@@ -254,7 +254,7 @@ export function createAskView({
   // their focus rested on — a second thread on the child rather than the next line of their
   // own. The agent's reply put both back. Nothing the user did moved either. An
   // answered ask leaves both worklists but stays in the active inventory: the
-  // Questions panel's Done rows can return the user to it, and standing there restores
+  // On panel's Done rows can return the user to it, and standing there restores
   // the same numeric action route so they can revise the recorded answer.
   function standingAsk(held = focused()) {
     if (!held || held === document.body) return null;
@@ -339,7 +339,7 @@ export function createAskView({
   // same place was marked or not by how the user had reached it.
   //
   // Pointer and keyboard arrivals share this location reading, as they share the
-  // focused control's ring. A Questions panel row's press lands the focus by script
+  // focused control's ring. A On panel row's press lands the focus by script
   // after a click, and the ask it brought the user to must show where they are.
   //
   // The ask wears it, and so does every box it shows through (shownParts): the ask is
@@ -351,7 +351,7 @@ export function createAskView({
   // ask itself, and the fallback answers the wrapper any page can still style boxless
   // in a line, the same way the thread's mark does (paintAnchors).
   //
-  // The Questions panel's row for the ask is a second surface showing this one fact, so it
+  // The On panel's row for the ask is a second surface showing this one fact, so it
   // is painted from this one reading rather than from a mark the panel keeps for itself —
   // and the ring is the chrome's as much as the page's (the [data-lf-ask] rule in the
   // stylesheet is written against the attribute, not against the page), so wearing the
@@ -406,7 +406,7 @@ export function createAskView({
   // place that cannot misfire, because it holds a lent tab stop rather than a decision:
   // the widget's context routes are live there and Space decides nothing.
   //
-  // Chrome is excluded because it has nothing to restore: a Questions panel row and a
+  // Chrome is excluded because it has nothing to restore: a On panel row and a
   // margin entry for the same ask are keyed by that id already, so a patch hands each of
   // them back as the same element, still holding the focus the user put on it.
   function captureStanding() {
@@ -554,8 +554,8 @@ export function createAskView({
     );
   }
 
-  // Standing on one ask: what q and Shift+q do once the queue walk has decided on an ask
-  // (queue-walk.js), what a Questions panel row does, and what a Page Map entry does having
+  // Standing on one ask: what m and Shift+m do once the queue walk has decided on an ask
+  // (queue-walk.js), what a On panel row does, and what a Page Map entry does having
   // been told outright. One
   // function because it is one act — a second would be a second answer to "how do I put
   // the user on an ask", and the two would drift the first time either the reveal or the

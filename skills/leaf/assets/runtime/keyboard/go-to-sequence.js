@@ -15,8 +15,8 @@
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
    an edge of the list; `g p` returns focus to the page while leaving open surfaces
    standing. Uppercase mnemonics remain named
-   global destinations: `g T` Threads, `g Q` Questions, `g L` All pages, `g M` the searchable
-   Page Map and `g V` Versions. A named
+   global destinations: `g T` Threads, `g M` the On panel, `g L` All pages, `g P` the
+   searchable Page Map and `g V` Versions. A named
    panel destination toggles that panel, matching its visible control. Completing one that
    opens a surface leaves the user in that surface, whose own Escape step is the way out
    of it — the same step for a surface the user already had, and none of this sequence's
@@ -52,7 +52,7 @@
    including panel narrowing. A surface covering the document cannot make that promise,
    so its ordinary Escape rung remains the route back.
 
-   A destination declares no way back. `g T`, `g Q` and `g L` may exchange a standing
+   A destination declares no way back. `g T`, `g M` and `g L` may exchange a standing
    panel or drawer for another, and the surface the user ends in owns the one step that
    takes it off again — the same step whichever door opened it, and the same for a
    surface they already had. Exchanging one for another is lateral, so the one replaced
@@ -180,13 +180,10 @@ export function createGoToSequence({
     },
     {
       id: "navigation.drawer.queue",
-      keys: ["Shift+q"],
+      keys: ["Shift+m"],
       description: () =>
-        currentDrawer() === "queue"
-          ? "Close the Questions panel"
-          : "Go to the Questions panel",
-      title: () =>
-        currentDrawer() === "queue" ? "close Questions panel" : "Questions panel",
+        currentDrawer() === "queue" ? "Close the On panel" : "Go to the On panel",
+      title: () => (currentDrawer() === "queue" ? "close On panel" : "On panel"),
       control: () => queueBtn,
       when: () => true,
     },
@@ -204,7 +201,7 @@ export function createGoToSequence({
     },
     {
       id: "navigation.page-map",
-      keys: ["Shift+m"],
+      keys: ["Shift+p"],
       description: "Open the Page Map dialog",
       title: "Page Map dialog",
       control: () => mapButton,

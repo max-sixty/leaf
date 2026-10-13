@@ -1607,7 +1607,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     # The complete real action set, wherever the fold has put each of them: what this is
     # about is the pressure that set puts on the sentence beside it.
     on_the_row = page.evaluate(BANNER_ORDER)
-    for wanted in ("All pages", "Questions", "Accept all", "v1", "Approve version"):
+    for wanted in ("All pages", "On me", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in on_the_row), (
             f"{wanted} was not on the row, so the fixture is short of the crowding this "
             f"test is about: {on_the_row}"
@@ -3276,7 +3276,8 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     ), "the fixture did not fold Pages behind the banner menu"
 
     for selector, panel, name, first_destination, door_back in (
-        (".lf-queue", ".lf-queue-panel", "questions", ".lf-queue-row", ".lf-queue"),
+        (".lf-queue", ".lf-queue-panel", "the On panel", ".lf-queue-row", ".lf-queue"),
+
         (
             ".lf-others",
             ".lf-others-panel",
@@ -3310,7 +3311,7 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     opened = re.compile(r"\bopen\b")
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(drawer).to_have_class(opened)
     assert bool(page.locator("dialog:modal").count())
 
@@ -3325,8 +3326,8 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
-    page.get_by_role("button", name="Close questions").click()
+    page.keyboard.press("Shift+m")
+    page.get_by_role("button", name="Close the On panel").click()
     expect(drawer).not_to_have_class(opened)
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body"), (

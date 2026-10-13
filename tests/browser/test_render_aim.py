@@ -4178,7 +4178,7 @@ def _drawn_on(section):
 def _paint_mode(page, mode, words):
     page.evaluate(RELEASE_FOCUS)
     if mode == "ask":
-        page.keyboard.press("q")
+        page.keyboard.press("m")
         expect(page.locator("#pane-ask")).to_be_focused()
         expect(page.locator(".lf-command-binding-badge")).to_have_count(2)
     elif mode == "search":

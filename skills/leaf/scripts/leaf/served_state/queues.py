@@ -1,15 +1,15 @@
-"""The two lists, Questions and Tasks: what is on the user, what is on the agent,
-and what is done.
+"""The two lists, On me (`questions`) and On <agent> (`tasks`): what is on the user,
+what is on the agent, and what is done.
 
 Asks, to-dos and response workflows are separate readings; this is the one selection
 that adds them up. An ask is never a to-do: its source owns its answer, and only a
 to-do on the user, which the agent opened, ends at their Done. A browser view serves
-these lists and `page state` prints them, so the banner's counts, the Questions panel
+these lists and `page state` prints them, so the banner's counts, the On panel
 and an agent picking the page up read one selection. The browser places its own
 unresolved sends against the served lists (`build/browser/application.ts`,
 `localQueues`); it never selects them again.
 
-Questions holds asks, to-dos on the user and resends; Tasks holds answers the agent
+On me holds asks, to-dos on the user and resends; On <agent> holds answers the agent
 owes, work in hand on an update, and the agent's to-dos. An item names its kind, its
 subject and the thread it stands in, and whether the agent has it in hand now
 (`live`): a to-do a start holds, or an update the agent is at work on whose work has
@@ -37,7 +37,7 @@ def _todo_item(todo: dict) -> dict:
 
 
 def _ask_item(ask: dict) -> dict:
-    """One ask on Questions; it retains its canonical record."""
+    """One ask on the user's list, On me; it retains its canonical record."""
     source = ask["source"]
     subject = (
         {"kind": "widget", "id": source["id"]}

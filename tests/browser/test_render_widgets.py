@@ -1612,7 +1612,7 @@ def test_root_tab_targets_remain_global(browser, serve):
       strip: document.querySelector('#root-tabs > .lf-tabstrip').getBoundingClientRect().bottom
     })""")
     assert arrival["target"] >= arrival["strip"] - 1, arrival
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(tabs.get_by_role("tab", name="Evidence", exact=True)).to_have_attribute(
         "aria-selected", "true"
     )
@@ -5124,7 +5124,7 @@ def test_ideas_shortlist_survives_revision_and_can_reopen_before_approval(
     expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
 
     done = choices.get_by_role(
-        "button", name="Done: my picks here are complete", exact=True
+        "button", name="Done: these picks are complete", exact=True
     )
     done.tap()
     round_trip(page)
@@ -5464,9 +5464,9 @@ def test_the_ask_walk_lands_on_a_suggestion_the_reveal_just_opened(browser, serv
     decision — while the announce said otherwise, so Enter was aimed at a decision they
     had already seen."""
     page = open_page(browser, serve(COLLAPSED_PAGE))
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#sug-now[data-lf-ask]")).to_have_count(1)
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#later")).to_have_attribute("open", "")
     expect(page.locator("#sug-boxes[data-lf-ask]")).to_have_count(1)
     # The arrival stands on the suggestion; what the reveal has to have done is leave the
@@ -6091,7 +6091,7 @@ def test_the_ask_reading_counts_completed_asks_against_the_active_total(browser,
 
 
 def test_a_key_walks_the_page_s_open_asks(browser, serve):
-    """t/T step the open threads; q/Q step the things the page is waiting on the user
+    """t/T step the open threads; m/M step the things the page is waiting on the user
     for. The category letter stays under one finger: lowercase advances and Shift goes
     back. Both walks repeat when held because walking often takes several presses.
     Both come round from either end to the other, so a press past the last ask carries
@@ -6106,7 +6106,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     expect_asks_answered(page, "1/5")
     walked = []
     for expected in [*ASKS_IN_ORDER, ASKS_IN_ORDER[0]]:
-        page.keyboard.press("q")
+        page.keyboard.press("m")
         # The ring is painted from the focus, in the frame after the press, so waiting
         # for it on the Ask this press stepped to is both the wait and the assertion —
         # a bare count would pass on the ring an earlier press left standing.
@@ -6127,7 +6127,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     # so a walk reading it where it hangs would step back onto the change the user is
     # standing on.
     for expected in reversed(ASKS_IN_ORDER):
-        page.keyboard.press("Shift+q")
+        page.keyboard.press("Shift+m")
         expect(page.locator(f"#{expected}[data-lf-ask]")).to_have_count(1)
         expect(page.locator(STANDING_ASK)).to_have_count(1)
         expect_asks_answered(page, "1/5")
@@ -6156,7 +6156,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
         "thread, to-do or resend waiting on me"
     )
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("questions")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("on me")
 
     # Leaving the ask takes the place off the count the way it takes the ring off the
     # page: a click into the prose is the user standing nowhere in the list.
@@ -6170,7 +6170,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     # focus. It leaves the open walk while the completed/total count advances.
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
     expect_asks_answered(page, "2/5")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#t-baffles-decision[data-lf-ask]")).to_have_count(1)
     expect(page.locator("#t-baffles-decision")).to_be_focused()
     expect_asks_answered(page, "2/5")
@@ -6189,14 +6189,14 @@ def test_an_ask_the_user_stands_on_survives_the_window_losing_focus(browser, ser
     window losing focus does."""
     page = open_page(browser, serve(ASKS_PAGE))
     first = page.locator(f"#{ASKS_IN_ORDER[0]}")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(first).to_be_focused()
     first.evaluate("ask => ask.dispatchEvent(new FocusEvent('blur'))")
     expect(first).to_be_focused()
     expect(first).to_have_attribute("tabindex", "-1")
 
     # Moving off within the page still gives the stop back.
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator(f"#{ASKS_IN_ORDER[1]}")).to_be_focused()
     expect(first).not_to_have_attribute("tabindex", re.compile(".*"))
 
@@ -6243,7 +6243,7 @@ def test_an_ask_arrival_starts_with_the_context_that_frames_it(browser, serve):
     )
     assert before["room"] > 500, "the page has no room to put the decision at its start"
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#storage-decision")).to_be_focused()
     expect(page.locator("#storage-decision")).to_have_attribute("data-lf-ask", "1")
     expect(page.locator("#storage-options")).not_to_have_attribute("data-lf-ask", "1")
@@ -6317,7 +6317,7 @@ def test_the_ask_itself_binds_each_contributed_action(browser, serve):
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 900, 900)
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert active_digit_bindings(page) == "1–3"
     expect(
@@ -6331,7 +6331,7 @@ def test_the_ask_itself_binds_each_contributed_action(browser, serve):
     round_trip(page)
     expect_asks_answered(page, "2/5")
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#sug-refill")).to_be_focused()
     assert active_digit_bindings(page) == "1–2"
     expect(
@@ -6388,7 +6388,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     page.keyboard.press("Escape")
 
     inspect = page.get_by_role("button", name="Inspect")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#sug")).to_be_focused()
     assert active_digit_bindings(page) == "1–3"
     expect(inspect).to_have_attribute("aria-keyshortcuts", "3")
@@ -6482,7 +6482,7 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
     )
 
     inspect = page.get_by_role("button", name="Inspect")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     # The control's own scope names its keys wherever the user stands; the Ask adds
     # the widget's explicitly declared digit that reaches it from the Ask.
     expect(inspect).to_have_attribute("aria-keyshortcuts", "1 3")
@@ -6571,7 +6571,7 @@ def test_an_ask_alias_runs_the_original_command_in_its_own_scope(browser, serve)
         }"""
     )
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#sug")).to_be_focused()
     page.keyboard.press("3")
     expect(page.get_by_role("button", name="Inside configuration")).to_be_focused()
@@ -6592,7 +6592,7 @@ def test_ask_action_binding_badges_use_the_available_card_action_seats(browser, 
     page = open_page(browser, serve(ASKS_PAGE))
     resized(page, 900, 900)
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     selector = (
         "#live-question > :is(lf-option, .lf-another) "
         "> .lf-key-badge[data-lf-binding-badge]"
@@ -6715,7 +6715,7 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
     )
 
     # The Ask's bindings are chrome, painted on the frame after the press that enters it.
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     for control, binding in (
         ("#disconnected-face", "3"),
         ("#shared-face-one", "4"),
@@ -6756,10 +6756,10 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
     # not started it, and the second answer is the one that loses this test: the geometry
     # below is measured where the walk began, the scroll it computes is issued there, and
     # the travel then lands on top of it with the badge back above the bar.
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#cards-decision")).to_be_focused()
     scroll_settled(page)
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#rows-decision")).to_be_focused()
     scroll_settled(page)
     expect(
@@ -6836,7 +6836,7 @@ def test_an_ask_that_cannot_name_itself_arrives_on_the_words_that_explain_it(
         }"""
     ), "the fixture already shows the change on the first screen"
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#sc-sug")).to_be_focused()
     scroll_settled(page)
 
@@ -6889,7 +6889,7 @@ def test_an_arrival_region_fits_above_the_bottom_bar(browser, serve):
     assert before["bottom"] > 0, "the fixture has no bottom bar to land clear of"
     resized(page, 900, round(before["span"] + before["top"] + before["bottom"] / 2))
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#sc-sug")).to_be_focused()
     scroll_settled(page)
 
@@ -6926,7 +6926,7 @@ def test_an_arrival_does_not_reach_back_into_the_ask_before_it(browser, serve):
     )
     scroll_settled(page)
 
-    page.keyboard.press("Shift+q")  # back to the nearest ask above, which is the change
+    page.keyboard.press("Shift+m")  # back to the nearest ask above, which is the change
     expect(page.locator("#ar-sug")).to_be_focused()
     scroll_settled(page)
 
@@ -6994,7 +6994,7 @@ def test_an_ask_inside_a_card_is_brought_into_that_card(browser, serve):
         "grown past the heading's reach — the region would then be the change itself"
     )
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#ac-sug")).to_be_focused()
     scroll_settled(page)
 
@@ -7033,7 +7033,7 @@ def test_an_ask_already_in_front_of_the_user_is_not_travelled_to(browser, serve)
     page = open_page(browser, serve(SUGGESTION_IN_CONTEXT_PAGE))
     resized(page, 900, 500)
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#sc-sug")).to_be_focused()
     scroll_settled(page)
     arrived = page.evaluate("() => document.scrollingElement.scrollTop")
@@ -7053,7 +7053,7 @@ def test_an_ask_already_in_front_of_the_user_is_not_travelled_to(browser, serve)
     # that: frames held still before a glide starts read the same as a page that never
     # moved, and only the announcement puts the read behind the decision.
     observe_live_region(page)
-    page.keyboard.press("q")  # one ask, so the walk stays on it
+    page.keyboard.press("m")  # one ask, so the walk stays on it
     page.wait_for_function(
         "() => window.__lfLiveRegionChanges.some("
         "words => words.includes('waiting on me'))"
@@ -7090,7 +7090,7 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
     # it, not the question above it. They are standing *in* that suggestion, which is
     # why it is the decision they step off rather than the one they step to.
     page.locator("#refill-now").evaluate("el => el.scrollIntoView({block: 'center'})")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#t-baffles-decision")).to_have_attribute("data-lf-ask", "1")
 
     # The banner's press opens the drawer and keeps the focus, so the walk after it
@@ -7103,7 +7103,7 @@ def test_the_ask_walk_starts_from_where_the_user_is(browser, serve):
     # answer. Which control the fold takes is the banner's business and not this
     # walk's, so the helper opens the door where it has to.
     banner_control(page, ".lf-queue").click()
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 
 
@@ -8048,7 +8048,7 @@ def test_a_completed_ask_persists_and_its_done_row_can_revise_by_keyboard(
     expect_asks_answered(page, "1/1")
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(page.locator("button.lf-queue-row").first).to_be_focused()
     # End is the Done fold's door; Enter opens it and the row below is the Ask's.
     page.keyboard.press("End")
@@ -8329,7 +8329,7 @@ def test_one_drawer_stands_at_a_time(browser, serve, other_leaf):
     # Leaves is a modal covering workspace, so its scrim correctly makes the page and
     # banner inert. The global destination remains the route from one drawer to the other.
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(decisions).to_be_visible()
     expect(leaves).to_be_hidden()
 
@@ -8370,7 +8370,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
       const box = r.getBoundingClientRect();
       return box.top >= 0 && box.bottom <= innerHeight; }"""
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#live-question-decision")).to_have_attribute(
         "data-lf-ask", "1"
     )
@@ -8386,7 +8386,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
 
     # The condition everything below rests on, stated rather than assumed: put
@@ -8460,7 +8460,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
       const box = r.getBoundingClientRect();
       return box.top >= 0 && box.bottom <= innerHeight; }"""
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#live-question-decision")).to_have_attribute(
         "data-lf-ask", "1"
     )
@@ -8468,7 +8468,7 @@ def test_the_walk_travels_to_an_ask_a_page_left_boxless(browser, serve):
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
     assert page.evaluate(
         "() => { const r = document.getElementById('sug-refill').getBoundingClientRect();"
@@ -8527,8 +8527,8 @@ def test_a_commented_ask_does_not_wear_its_ring_on_the_runtime_s_own_note(
     # without it every assertion below holds for the wrong reason.
     expect_comment_notes(page, "#sug-refill", 1)
 
-    page.keyboard.press("q")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
+    page.keyboard.press("m")
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-ask", "1")
 
     # By tag rather than by class: the slots are wearing the comment's own outline too,

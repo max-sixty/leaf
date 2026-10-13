@@ -302,7 +302,7 @@ def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
     rendered(page)
     expect(page.locator("#two")).not_to_have_attribute("chosen", "")
     unhinted = done.bounding_box()
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(group).to_be_focused()
     hints = group.locator(".lf-key-badge[data-lf-binding-badge]")
     expect(hints).to_have_text(["1", "2", "3", "4"])
@@ -346,7 +346,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     group = page.locator("#choices")
     field = group.get_by_role("textbox", name="Another option")
     added = group.locator(":scope > lf-option[data-lf-added]")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     write(field, "First addition")
     group.get_by_role("button", name="Add and select option").click()
@@ -354,7 +354,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     expect(added).to_have_count(1)
     first_id = added.get_attribute("id")
     group.get_by_role("button", name=re.compile("^Done:")).focus()
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(added.locator(".lf-pick")).to_have_attribute(
         "aria-keyshortcuts", re.compile(r"(^| )5($| )")
@@ -373,7 +373,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     expect(added).to_have_count(1)
     assert added.get_attribute("id") != first_id
     group.get_by_role("button", name=re.compile("^Done:")).focus()
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(added.locator(".lf-pick")).to_have_attribute(
         "aria-keyshortcuts", re.compile(r"(^| )6($| )")
@@ -536,7 +536,7 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
 def test_ask_addresses_are_screen_only_apparatus(browser, serve):
     """An Ask's key hints stay out of selected page words and off paper."""
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     badges = page.locator("#storage-options > lf-option > .lf-key-badge")
     expect(badges).to_have_text(["1", "2"])
     expect(badges.first).to_be_visible()
@@ -1445,7 +1445,7 @@ def test_only_bound_cards_yield_their_header_state_to_the_ask(browser, serve):
     )
     resized(page, 900, 1200)
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#routes > lf-option > .lf-key-badge")).to_have_count(10)
     expect(
         page.locator("#routes > lf-option > .lf-key-badge[data-lf-binding-badge]")
@@ -1493,7 +1493,7 @@ def test_a_nested_asks_commands_belong_only_to_their_own_ask(browser, serve):
     breaks the shortcut bar or lends its answers to the wrong Ask.
     """
     page = open_page(browser, serve(NESTED_ASK_PAGE))
-    page.keyboard.press("q")
+    page.keyboard.press("m")
 
     expect(page.locator("#outer-decision")).to_be_focused()
     outer_hints = page.locator("#outer > lf-option > .lf-key-badge")
@@ -1879,7 +1879,7 @@ def test_multiple_done_can_be_taken_back_after_an_empty_answer(browser, serve):
     page.keyboard.press("Enter")
     round_trip(page)
     expect(done).to_have_attribute("aria-pressed", "false")
-    expect(done).to_have_attribute("aria-label", "Done: my picks here are complete")
+    expect(done).to_have_attribute("aria-label", "Done: these picks are complete")
     expect_asks_answered(page, "0/3")
     events = events_model.read_events(serve.page_dir)
     answers = [event for event in events if event.get("action") == "answer"]
@@ -2444,7 +2444,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
         browser, serve(next(p for p in EXAMPLES if p.stem == "alert-review"))
     )
     resized(page, 1440, 900)
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#ar-canary-decision")).to_be_focused()
     page.keyboard.press("2")
     expect(page.locator("#ar-canary-suppress")).to_have_attribute("chosen", "")
@@ -2485,7 +2485,7 @@ def test_an_ask_digit_hangs_off_a_corner_clear_of_its_neighbours(browser, serve)
         browser, serve(next(p for p in EXAMPLES if p.stem == "notification-playground"))
     )
     resized(page, 1024, 768)
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     expect(chip).to_have_count(1)
     reading = chip.evaluate(

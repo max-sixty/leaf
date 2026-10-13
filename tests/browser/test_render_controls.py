@@ -548,7 +548,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     expect(result).to_have_text("0")
 
     # The question context forwards the widget's declaration without an Ask allocator.
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(badge).to_be_visible()
     expect(badge).to_have_text("1")
@@ -875,7 +875,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(
         page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.action-1"]')
@@ -984,7 +984,7 @@ export default class extends HTMLElement {
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     rendered(page)
     routes = page.evaluate(
@@ -1078,7 +1078,7 @@ export default class extends HTMLElement {
             )
         page.keyboard.press("Escape")
         if standing == "outside":
-            page.keyboard.press("q")
+            page.keyboard.press("m")
             expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("1")
     expect(result).to_have_text("Applied 1")
@@ -1123,7 +1123,7 @@ export default class extends HTMLElement {
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 1")
@@ -1265,7 +1265,7 @@ def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, se
     chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     result = page.locator("#probe output")
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
     expect(chip).to_have_text("1")
     expect(chip).to_be_visible()
@@ -1915,7 +1915,7 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     page = open_page(browser, serve(html))
     page.set_viewport_size({"width": width, "height": 900})
     questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
+        "button", name="On me: 1", exact=True, include_hidden=True
     )
     expect(questions).to_be_attached()
     target = page.evaluate("""async () => {
@@ -1926,7 +1926,7 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
       return target === document.querySelector('.lf-signoff') && document.activeElement === target;
     }""")
     assert target, "the public ask route did not reach its declared approval target"
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     approval = page.locator(".lf-signoff")
     expect(approval).to_be_visible()
     expect(approval).to_be_focused()
@@ -1935,7 +1935,7 @@ def test_required_approval_is_an_ask_until_approved(browser, serve, width):
     expect(
         page.get_by_role(
             "button",
-            name="Questions: 0 waiting on me",
+            name="On me: 0",
             exact=True,
             include_hidden=True,
         )
@@ -1976,7 +1976,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     panel_settled(page)
     history = page.locator(".lf-threads > .lf-system")
     questions = page.get_by_role(
-        "button", name="Questions: 1 waiting on me", exact=True, include_hidden=True
+        "button", name="On me: 1", exact=True, include_hidden=True
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -2489,7 +2489,7 @@ def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
     approval = page.locator(".lf-signoff")
     expect(more).to_have_attribute("data-lf-news", "")
     expect(more).to_have_attribute(
-        "aria-label", "More page controls, approval open, questions waiting"
+        "aria-label", "More page controls, approval open, items on me"
     )
     more.click()
     expect(page.locator(".lf-banner-menu > :visible").first).to_have_class(
@@ -3540,8 +3540,8 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     )
     # The page's three suggestions and required approval wait on the user in
     # Questions. The page task waits on the agent, so Tasks stands beside status.
-    expect(page.locator(".lf-queue")).to_have_text("Questions: 4")
-    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
+    expect(page.locator(".lf-queue")).to_have_text("On me: 4")
+    expect(page.locator(".lf-status-queues")).to_have_text("On Agent: 1")
     page.evaluate(DEFINE_BOXES)
     beside = page.evaluate(
         BANNER_WATCH, f":is({NEIGHBOUR}, .lf-status-queues):not(.lf-status-button)"
@@ -3598,7 +3598,7 @@ def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve
     # A comment the agent owes a reply, so there is a Tasks count to stand there.
     panel_comment(serve.page_dir, "Is the feeder sized right?")
     page = open_page(browser, url, context=context)
-    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
+    expect(page.locator(".lf-status-queues")).to_have_text("On Agent: 1")
     page_at_rest(page)
     resting = page.evaluate(STATUS_COUNTS)
     assert resting["drawn"] and resting["inBanner"] and not resting["inert"], resting
@@ -3614,7 +3614,7 @@ def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve
     ).to_be_visible()
     page_at_rest(page)
     searching = page.evaluate(STATUS_COUNTS)
-    # Whether "Tasks: 1" fits beside the steps is the font's to say: macOS's leaves it
+    # Whether "On Agent: 1" fits beside the steps is the font's to say: macOS's leaves it
     # room at this width and Linux's does not. Either way it is drawn whole and live, or
     # gone and out of reach.
     assert searching["drawn"] != searching["inert"], searching
@@ -4174,7 +4174,7 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
         "focusInside": True,
     }, f"the updated document escaped its covering auxiliary surface: {state}"
 
-    page.get_by_role("button", name="Close questions").click()
+    page.get_by_role("button", name="Close the On panel").click()
     expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     assert not bool(page.locator("dialog:modal").count())
 

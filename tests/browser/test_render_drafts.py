@@ -1859,7 +1859,7 @@ def test_a_draft_in_an_ask_takes_no_digits_and_answers_from_its_controls(
     editor = page.locator("#note leaf-text")
     edit = draft_control(page, "edit", "note")
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(question).to_be_focused()
     expect(edit).not_to_have_attribute("aria-keyshortcuts", re.compile(r"\d"))
     page.keyboard.press("1")

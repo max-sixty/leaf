@@ -115,7 +115,7 @@ export default class extends HTMLElement {
     this.counts = offer("p", "counts");
     this.queues = Object.fromEntries(
       ["questions", "tasks", "done"].map((key, i) => {
-        const heading = offer("h4", "", ["Questions", "Tasks", "Done"][i]);
+        const heading = offer("h4", "", ["On me", "On Claude", "Done"][i]);
         const list = offer("ul");
         const group = offer("div", "group");
         group.append(heading, list);

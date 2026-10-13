@@ -1,9 +1,10 @@
-/* The Questions panel: everything waiting on the user, Questions, then everything
-   waiting on the agent, Tasks, and what is done, on the right edge, where the
-   Threads panel stands. Only one of the two is open at a time, so they are two views of
-   one side panel, and their banner doors stand side by side (banner.js).
+/* The On panel: everything waiting on the user, On me (`queues.questions`), then
+   everything waiting on the agent, On <agent> (`queues.tasks`), and what is done, on
+   the right edge, where the Threads panel stands. Only one of the two is open at a
+   time, so they are two views of one side panel, and their banner doors stand side by
+   side (banner.js).
 
-   Questions holds asks, to-dos on the user and resends; Tasks holds answers the agent
+   On me holds asks, to-dos on the user and resends; On <agent> holds answers the agent
    owes, its work in hand and its to-dos. Each ask carries its source and answer; only a
    to-do on the user offers Done. This view renders the publisher's selections and
    never recreates asks from to-do rows.
@@ -13,7 +14,7 @@
 
    The panel decides no membership. Its two lists are the application's one reading,
    `queues.questions` and `queues.tasks` (the server's `served_state.queues`, with this
-   tab's sends placed against it), the same lists the `q` walk steps through and the
+   tab's sends placed against it), the same lists the `m` walk steps through and the
    banner counts; what is done is `done`, served beside them from ended to-dos and
    answered or withdrawn asks. So a reply the user sends joins Tasks in the turn it
    is sent, and leaves Questions when the server's reading of it arrives, as the
@@ -21,7 +22,7 @@
 
    Each row says what kind of item it is, the item's title or opening words, and where it
    is: the passage or section it stands at, and its age, stage or outcome. A press or
-   Enter on a row arrives exactly as `q` does (`queue-walk.js`, `arriveAtItem`), so the
+   Enter on a row arrives exactly as `m` does (`queue-walk.js`, `arriveAtItem`), so the
    panel and the walk cannot disagree about where an item is. An ask's row, and the row
    of a page widget action the user must send again, stands at that element
    (`declareSide`), so a walk or a comment from a focused row starts there. A row whose
@@ -34,8 +35,8 @@
    Rows join, leave and change only while the panel is open, and the list holds its
    focus across them (focus.js, keyed `holdFocus`); a closed panel holds no rows. Its door
    stands on every page, as the Threads door does, so an item arriving or the last one
-   leaving moves nothing on the banner: "Questions: 0" opens a panel that says so. Before
-   the log's first answer it says only "Questions", since a count read from no log would
+   leaving moves nothing on the banner: "On me: 0" opens a panel that says so. Before
+   the log's first answer it says only "On me", since a count read from no log would
    be a claim. */
 import {
   addressableLabel,
@@ -132,17 +133,9 @@ export function createQueuePanel({ actions, next, announce }) {
   // Until the log has answered, the door claims no count, as the Threads door claims none.
   function nameDoor() {
     const count = reading().phase === "ready" ? reading().questions.length : null;
-    keepsText(queueBtn, count === null ? "Questions" : `Questions: ${count}`);
-    keeps(
-      queueBtn,
-      "aria-label",
-      count === null ? "Questions" : `Questions: ${count} waiting on me`,
-    );
-    keeps(
-      queueBtn,
-      "data-lf-key-title",
-      `Show or hide my questions and ${agent()}'s tasks`,
-    );
+    keepsText(queueBtn, count === null ? "On me" : `On me: ${count}`);
+    keeps(queueBtn, "aria-label", count === null ? "On me" : `On me: ${count}`);
+    keeps(queueBtn, "data-lf-key-title", `Show or hide what's on me and on ${agent()}`);
   }
 
   // Where an item is: the section its thread's passage or its own element stands in, or
@@ -255,15 +248,15 @@ export function createQueuePanel({ actions, next, announce }) {
       queues: Object.freeze([
         Object.freeze({
           id: "you",
-          label: known ? `Questions · ${you.length}` : "Questions",
+          label: known ? `On me · ${you.length}` : "On me",
           rows: Object.freeze(you),
-          empty: known ? "No questions." : "Loading current questions…",
+          empty: known ? "Nothing on me." : "Loading…",
         }),
         Object.freeze({
           id: "agent",
-          label: known ? `Tasks · ${them.length}` : "Tasks",
+          label: known ? `On ${agent()} · ${them.length}` : `On ${agent()}`,
           rows: Object.freeze(them),
-          empty: known ? `${agent()} has no tasks.` : "Loading current tasks…",
+          empty: known ? `Nothing on ${agent()}.` : "Loading…",
         }),
       ]),
       done: Object.freeze({
@@ -283,7 +276,7 @@ export function createQueuePanel({ actions, next, announce }) {
     keepsHidden(queueNextBtn, !waiting);
     // On a phone the door waits in More, which says an ask is there as it says an
     // approval is open.
-    markBannerControl(queueBtn, waiting ? "questions waiting" : null);
+    markBannerControl(queueBtn, waiting ? "items on me" : null);
     repaint();
     const next = model();
     try {
@@ -298,7 +291,7 @@ export function createQueuePanel({ actions, next, announce }) {
       } catch (retaining) {
         throw new PresentationRetentionError(
           [error, retaining],
-          "Questions panel presentation and retention failed",
+          "On panel presentation and retention failed",
         );
       }
       throw error;

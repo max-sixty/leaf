@@ -298,11 +298,11 @@ _HONORED = {
 }
 
 
-def _unservable_layer(v: dict, why: str) -> str:
+def _unservable_layer(v: dict, why: str, action: str) -> str:
     """Why this Leaf can neither serve a page nor write its log (`layer`)."""
     return (
-        f"{v['page']} {why}, so it cannot serve the page or write its log. Re-vendor"
-        f" it with `leaf page init {v['page']}`."
+        f"{v['page']} {why}, so it cannot serve the page or write its log. {action}"
+        f" with `leaf page init {v['page']}`."
     )
 
 
@@ -1405,8 +1405,7 @@ _TEXT = {
     # The package check's refusal.
     "package": lambda at, v: v["text"],
     "leaf-version": lambda at, v: (
-        f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}. If the"
-        f" page misbehaves, `leaf page init {v['page']}` re-vendors it."
+        f"Leaf {v['vendored']} vendored this page; this is Leaf {v['running']}."
     ),
     # The widget quality report, for a widget's author.
     "unreadable-examples": lambda at, v: (
@@ -1437,11 +1436,13 @@ _TEXT = {
         v,
         f"was vendored by a Leaf at page protocol {v['vendored']}, and this Leaf"
         f" ({v['leaf']}) speaks protocol {v['protocol']}",
+        "Update the page's Leaf runtime",
     ),
     "retired-layer": lambda at, v: _unservable_layer(
         v,
         f"was vendored by a Leaf that declares {', '.join(v['retired'])}, which this"
         f" Leaf ({v['leaf']}) no longer admits",
+        "Re-vendor it",
     ),
     "foreign-revision": lambda at, v: _unservable_revision(
         v,

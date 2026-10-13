@@ -502,6 +502,24 @@ def vendored_at_another_protocol(page_dir: Path) -> int:
     return foreign
 
 
+def vendored_before_the_ask_rename(page_dir: Path) -> None:
+    """Spell `x-ask-context` as `x-question-context`, its name before the rename, in
+    the page's layer and in every registry its revisions captured: in `$keys` and in
+    each entry that declares it, `lf-ask`'s among them. The state an older Leaf leaves
+    a page in, at the same protocol; files are replaced rather than written through."""
+    for path in [
+        page_dir / "registry.json",
+        *page_dir.glob("revisions/*/resources/registry.json"),
+    ]:
+        registry = json.loads(path.read_text(encoding="utf-8"))
+        assert "x-ask-context" in registry["$keys"]
+        for entry in [registry["$keys"], *registry.values()]:
+            if isinstance(entry, dict) and "x-ask-context" in entry:
+                entry["x-question-context"] = entry.pop("x-ask-context")
+        path.unlink()
+        cleanup_model.write_json(path, registry)
+
+
 PAGE = """<!doctype html>
 <html lang="en">
 <head>
@@ -1538,14 +1556,14 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
     the page has none, dated `ts` (now by default) and spoken in `voice` (`agent`,
     `session`, `turn`). Raw, so a test can date it in the past; `working` is the
     command an agent runs."""
-    from leaf.tasks import owed_tasks
+    from leaf.todos import owed_todos
 
     if item is None:
         item = (
             next(
                 (
                     task["id"]
-                    for task in owed_tasks(events_model.read_events(page_dir))
+                    for task in owed_todos(events_model.read_events(page_dir))
                     if task["subject"] == {"kind": "page"}
                 ),
                 None,
@@ -1578,9 +1596,9 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
 def end_work(page_dir):
     """End every open task on the page as a whole, `declare_work`'s and `working`'s,
     so nothing the agent opened for itself is in hand any more."""
-    from leaf.tasks import owed_tasks
+    from leaf.todos import owed_todos
 
-    for task in owed_tasks(events_model.read_events(page_dir)):
+    for task in owed_todos(events_model.read_events(page_dir)):
         if task["subject"] == {"kind": "page"}:
             append_carried_log_record(
                 page_dir,
@@ -1595,11 +1613,11 @@ def end_work(page_dir):
 
 def end_work_on(page_dir, subject):
     """End the open tasks on the thread or widget `subject` names, done."""
-    from leaf.tasks import owed_tasks
+    from leaf.todos import owed_todos
     from leaf.work import page_subject
 
     named = page_subject(page_dir, events_model.read_events(page_dir), subject)
-    for task in owed_tasks(events_model.read_events(page_dir)):
+    for task in owed_todos(events_model.read_events(page_dir)):
         if task["subject"] == named:
             ended = CliRunner().invoke(
                 cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
@@ -1631,7 +1649,7 @@ def working(page_dir, line, subject="page"):
     page's open task on that subject, so a test can say what it does next. Returns the
     start's record."""
     from leaf import event_log as log_model
-    from leaf.tasks import owed_tasks
+    from leaf.todos import owed_todos
     from leaf.work import page_subject
 
     named = (
@@ -1642,7 +1660,7 @@ def working(page_dir, line, subject="page"):
     task = next(
         (
             task
-            for task in owed_tasks(log_model.read_events(page_dir))
+            for task in owed_todos(log_model.read_events(page_dir))
             if task["subject"] == named
         ),
         None,

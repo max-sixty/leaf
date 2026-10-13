@@ -10,7 +10,7 @@
  * control at its top right copies the Markdown source the box shows. The same
  * command declarations own pointer activation, keyboard routes, availability and
  * accessible shortcut hints. The editor's own keys, Save's and Escape's, show in the
- * shared shortcut bar. The controls take no context keys, so a Question lends them
+ * shared shortcut bar. The controls take no context keys, so an ask lends them
  * no digits; Tab reaches them, as it does every native button. Comments and workflow
  * receipts keep their own annotation layer; hiding annotations cannot hide the
  * editor's controls. The editor and its tools are Leaf surfaces even inside the
@@ -93,7 +93,7 @@ function caretAt(body, x, y) {
 customElements.define(
   "lf-draft",
   class extends HTMLElement {
-    // What the Question was answered with: the standing words.
+    // What the ask was answered with: the standing words.
     static answerWords(value) {
       return markdownWords(value).trim() || "Empty";
     }

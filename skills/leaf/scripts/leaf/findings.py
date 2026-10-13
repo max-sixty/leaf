@@ -256,12 +256,12 @@ def _reference_contract(at: str, v: dict) -> str:
     )
 
 
-def _question_context(at: str, v: dict) -> str:
+def _ask_context(at: str, v: dict) -> str:
     widgets = "; ".join(
         f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
         for w in v["widgets"]
     )
-    return f"{_line(at, v)}: a Question context registers no Question: " + (
+    return f"{_line(at, v)}: an ask context registers no ask: " + (
         widgets or "it holds no widget that declares x-awaits"
     )
 
@@ -291,6 +291,24 @@ _HONORED = {
     "x-language": "a language this page's layer speaks",
     "x-tone": "a tone this page's layer paints",
 }
+
+
+def _unservable_layer(v: dict, why: str) -> str:
+    """Why this Leaf can neither serve a page nor write its log (`layer`)."""
+    return (
+        f"{v['page']} {why}, so it cannot serve the page or write its log. Re-vendor"
+        f" it with `leaf page init {v['page']}`."
+    )
+
+
+def _unservable_revision(v: dict, why: str) -> str:
+    """Why this Leaf can neither serve one revision nor admit input made on it."""
+    return (
+        f"Revision {v['revision']} {why}, so it cannot serve that revision or accept"
+        " input made against it. Revisions saved since the page was re-vendored still"
+        " open, and serving the page saves one from its source; where that fails,"
+        " `leaf page check` names why."
+    )
 
 
 def _invalid_record(v: dict) -> str:
@@ -392,7 +410,7 @@ _TEXT = {
     "unmarkable": lambda at, v: (
         f"{at} shows {v['w']}x{v['h']}px of words and offers no box to mark: it draws"
         " none of its own and no element inside it draws one either, so a comment"
-        " anchored here would outline nothing and the Question walk would travel to"
+        " anchored here would outline nothing and the Questions walk would travel to"
         " the top of the page. Put the words in an element that takes a box"
     ),
     "undeclared-shadow": lambda at, v: (
@@ -685,13 +703,13 @@ _TEXT = {
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
-    "empty-question-context": _question_context,
-    "question-context-headings": lambda at, v: (
-        f"{_line(at, v)}: a Question context must have exactly one direct heading,"
+    "empty-ask-context": _ask_context,
+    "ask-context-headings": lambda at, v: (
+        f"{_line(at, v)}: an ask context must have exactly one direct heading,"
         f" found {_json(v['headings']) if v['headings'] else 'none'}"
     ),
-    "question-context-heading-first": lambda at, v: (
-        f"{_line(at, v)}: a Question context's direct heading must be its first"
+    "ask-context-heading-first": lambda at, v: (
+        f"{_line(at, v)}: an ask context's direct heading must be its first"
         " content, found "
         + ("text" if v["first"] == "#text" else f"<{v['first']}>")
         + " first"
@@ -825,17 +843,25 @@ _TEXT = {
     "attempt-conflict": lambda at, v: (
         f"attempt {v['attempt']!r} already belongs to another event"
     ),
-    "foreign-layer": lambda at, v: (
-        f"{v['page']} was vendored by a Leaf at page protocol {v['vendored']}, and this"
-        f" Leaf ({v['leaf']}) speaks protocol {v['protocol']}, so it cannot serve the"
-        f" page or write its log. Re-vendor it with `leaf page init {v['page']}`."
+    "foreign-layer": lambda at, v: _unservable_layer(
+        v,
+        f"was vendored by a Leaf at page protocol {v['vendored']}, and this Leaf"
+        f" ({v['leaf']}) speaks protocol {v['protocol']}",
     ),
-    "foreign-revision": lambda at, v: (
-        f"Revision {v['revision']} was saved at page protocol {v['saved']}, and this"
-        f" Leaf speaks protocol {v['protocol']}, so it cannot serve that revision or"
-        " accept input made against it. Revisions saved since the page was re-vendored"
-        " still open, and serving the page saves one from its source; where that"
-        " fails, `leaf page check` names why."
+    "retired-layer": lambda at, v: _unservable_layer(
+        v,
+        f"was vendored by a Leaf that declares {', '.join(v['retired'])}, which this"
+        f" Leaf ({v['leaf']}) no longer admits",
+    ),
+    "foreign-revision": lambda at, v: _unservable_revision(
+        v,
+        f"was saved at page protocol {v['saved']}, and this Leaf speaks protocol"
+        f" {v['protocol']}",
+    ),
+    "retired-revision": lambda at, v: _unservable_revision(
+        v,
+        f"was saved by a Leaf that declares {', '.join(v['retired'])}, which this"
+        " Leaf no longer admits",
     ),
     "no-registry": lambda at, v: "the page has no registry.json",
     "unknown-kind": lambda at, v: f"kind must be one of {_json(v['kinds'])}",

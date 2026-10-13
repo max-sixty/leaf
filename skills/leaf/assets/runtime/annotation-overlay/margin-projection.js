@@ -117,8 +117,8 @@ import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "../repaint.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { versionBtn } from "../version-picker.js";
-import { questionHolding, declareSide, placeOf } from "../standing-target.js";
-import { readQuestions } from "../questions/model.js";
+import { askHolding, declareSide, placeOf } from "../standing-target.js";
+import { readAsks } from "../asks/model.js";
 import { closestAcross, inChrome } from "../passages.js";
 import { visualAt } from "../anchor-resolution.js";
 import { paintTrace } from "../target-paint.js";
@@ -1528,9 +1528,9 @@ export function createMarginProjection({
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (header), reached from anywhere
-  // inside it and never from outside: after `q` the user stands on the Question element, so
-  // the card shows a thread on the Question but not one on its options or a phrase in its
-  // heading. Treating a Question as one target for its threads is a possible refinement. It
+  // inside it and never from outside: after `q` the user stands on the ask element, so
+  // the card shows a thread on the ask but not one on its options or a phrase in its
+  // heading. Treating an ask as one target for its threads is a possible refinement. It
   // belongs where a thread's target is decided (anchor-placement), so every
   // reader keeps one definition, not in this or any other single reader.
   // Read from where the node stands (standing-target.js), so chrome that shows a page
@@ -1552,7 +1552,7 @@ export function createMarginProjection({
   };
   // A folded cluster opens while the keyboard stands at its target, as it does when
   // the keyboard arrives on its toggle: what the user stands at offers its actions, and
-  // a Question's digits name them. It folds again when they stand anywhere else but in the
+  // an ask's digits name them. It folds again when they stand anywhere else but in the
   // cluster itself, where standing keeps it open (the fold beside `arriveAtCluster`).
   let standingUnfolded = null;
   // The arrivals below are the keyboard's: the user's latest input was a key, not a
@@ -1599,8 +1599,8 @@ export function createMarginProjection({
     )
       return;
     const host = closestAcross(active, "[data-lf-margin-for]");
-    // Working a Question keeps its decisions clear; explicit discussion remains open.
-    if (questionHolding(readQuestions().all, placeOf(active))) {
+    // Working an ask keeps its decisions clear; explicit discussion remains open.
+    if (askHolding(readAsks().all, placeOf(active))) {
       const entry = threadEntryAt(active);
       if (
         previewOpen() &&

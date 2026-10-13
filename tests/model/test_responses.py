@@ -35,8 +35,8 @@ from leaf import harness as harness_model
 from leaf import revisioning as revisioning_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
-from leaf import tasks as tasks_model
 from leaf import thread as thread_model
+from leaf import todos as todos_model
 from leaf.refusals import Refused
 
 
@@ -716,7 +716,7 @@ def test_addressed_progress_is_one_atomic_message_and_work_start(page_dir):
     events = events_model.read_events(page_dir)
     assert [event["kind"] for event in events] == ["comment", "reply"]
     assert progress["start"]["item"] == comment["id"]
-    assert tasks_model.item_starts(events)[comment["id"]]["id"] == progress["id"]
+    assert todos_model.item_starts(events)[comment["id"]]["id"] == progress["id"]
     assert comment["id"] in delivery_model.current_responses(page_dir, events)
     # A proactive command cannot infer which pending input this progress means.
     with pytest.raises(Refused, match="requires a response"):
@@ -910,7 +910,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
         with pytest.raises(Refused, match="requires.*not a reply"):
             thread_model.post_response(reference, "This is not a revision.", **options)
         assert events_model.read_events(page_dir) == before
-    started = tasks_model.cmd_start(
+    started = todos_model.cmd_start(
         page_dir, action["id"], "Recording the selected plan."
     )
     assert started["item"] == action["id"]

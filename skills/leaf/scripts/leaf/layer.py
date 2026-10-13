@@ -20,6 +20,7 @@ from .schema import (
     BROWSER_DIRS,
     BUNDLED_PACKAGES,
     DEFAULT_PACKAGE,
+    EXTENSION_SCHEMA,
     HTML_NAME,
     INSTRUCTIONS_DIR,
     INSTRUCTIONS_FILE,
@@ -395,35 +396,52 @@ def payload_server_fingerprint() -> str:
 
 def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     """Why this Leaf can neither serve a page nor write its log, given the registry it
-    would serve the page under: that registry's `$events` were vendored at another
-    `protocol` than this Leaf's own (`registry.kernel.kernel_protocol`). None when it
-    may.
+    would serve the page under; None when it may. Either the registry's `$events`
+    were vendored at another `protocol` than this Leaf's own
+    (`registry.kernel.kernel_protocol`), or its `$keys` document an x- key this Leaf
+    no longer admits (`schema.EXTENSION_SCHEMA`).
 
     A Leaf serves and writes any page vendored at its own number, whichever Leaf
-    vendored it, so a plugin update leaves open pages working. Every page server, the
-    gate's and the website's included (`http.page_endpoint`,
-    `leaf_website.page_binding`), and the one append door (`event_contracts`) refuse
-    on this one reading. A page vendored before the number was declared names none,
-    and is refused too. A revision the page saved before its last re-vendor is
-    judged on its own registry (`incompatible_revision`).
+    vendored it, so a plugin update leaves open pages working. A page vendored before
+    the number was declared names none, and is refused too. A key renamed or removed
+    since the page was vendored is the same kind of fact: this Leaf would read the
+    key's new name, find nothing, and drop what the page's layer declares under the
+    old one, so the page is refused rather than misread. The check is one-sided: a
+    key this Leaf added and an older layer lacks refuses nothing. Every page server,
+    the gate's and the website's included (`http.page_endpoint`,
+    `leaf_website.page_binding`), the one append door and the writers that ask it
+    first (`event_contracts.write_refusal`), and `page check` refuse on this one
+    reading, each naming the re-vendor that repairs the page. A revision the page
+    saved before its last re-vendor is judged on its own registry
+    (`incompatible_revision`).
     """
-    if (vendored := _foreign_protocol(registry)) is None:
-        return None
-    return Finding(
-        "foreign-layer",
-        values={
-            "page": str(page_dir),
-            "vendored": vendored,
-            "leaf": str(PLUGIN_ROOT),
-            "protocol": kernel_protocol(),
-        },
-    )
+    if (vendored := _foreign_protocol(registry)) is not None:
+        return Finding(
+            "foreign-layer",
+            values={
+                "page": str(page_dir),
+                "vendored": vendored,
+                "leaf": str(PLUGIN_ROOT),
+                "protocol": kernel_protocol(),
+            },
+        )
+    if retired := _retired_keys(registry):
+        return Finding(
+            "retired-layer",
+            values={
+                "page": str(page_dir),
+                "retired": retired,
+                "leaf": str(PLUGIN_ROOT),
+            },
+        )
+    return None
 
 
 def incompatible_revision(revision: int, registry: dict) -> Finding | None:
     """Why this Leaf can neither serve one of a page's revisions nor admit input made
     against it, given the registry that revision captured: it was saved at another
-    protocol. None when it may.
+    protocol, or its vocabulary uses an x- key this Leaf no longer admits, the two
+    refusals `incompatible_layer` makes of the page's layer. None when it may.
 
     Each revision captures the runtime and registry it was saved with, and a
     re-vendor leaves standing revisions as they were, so a page re-vendored across a
@@ -433,13 +451,38 @@ def incompatible_revision(revision: int, registry: dict) -> Finding | None:
     admit under; readings of the log keep reading every revision's registry, so
     history still projects. Serving the page saves its source as a revision first,
     so its live revision is one of these only where the source no longer saves.
+    A revision whose vocabulary uses a retired key is refused for the reason the
+    layer is: this Leaf would read the key's new name there, find nothing, and draw
+    the revision without what it declares, such as a framed ask's prompt.
     """
-    if (saved := _foreign_protocol(registry)) is None:
-        return None
-    return Finding(
-        "foreign-revision",
-        values={"revision": revision, "saved": saved, "protocol": kernel_protocol()},
-    )
+    if (saved := _foreign_protocol(registry)) is not None:
+        return Finding(
+            "foreign-revision",
+            values={
+                "revision": revision,
+                "saved": saved,
+                "protocol": kernel_protocol(),
+            },
+        )
+    if retired := _retired_keys(registry):
+        return Finding(
+            "retired-revision", values={"revision": revision, "retired": retired}
+        )
+    return None
+
+
+def _retired_keys(registry: dict) -> list[str]:
+    """The x- keys a vocabulary documents in `$keys` or declares on an entry that
+    this Leaf no longer admits (`schema.EXTENSION_SCHEMA`), in order; none where it
+    uses only admitted ones. One-sided: a key this Leaf added and the vocabulary
+    lacks is not among them."""
+    admitted = set(EXTENSION_SCHEMA["properties"])
+    keys = registry.get("$keys")
+    used = set(keys if isinstance(keys, dict) else ()) - {"description"}
+    for name, entry in registry.items():
+        if not name.startswith("$") and isinstance(entry, dict):
+            used |= {key for key in entry if key.startswith("x-")}
+    return sorted(used - admitted)
 
 
 def _foreign_protocol(registry: dict) -> int | str | None:

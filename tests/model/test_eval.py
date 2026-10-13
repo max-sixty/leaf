@@ -724,7 +724,7 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     def run(*args):
         return CliRunner().invoke(module.eval, ["--harness", "claude-code", *args])
 
-    result = run("task-outlasts-the-turn", "--repeat", "3")
+    result = run("todo-outlasts-the-turn", "--repeat", "3")
     assert result.exit_code == 100, result.output
     assert built == [None]
     assert calls.read_text().strip().endswith("--repeat 3 key=none")
@@ -733,16 +733,16 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     )
     assert [p["label"] for p in config["providers"]] == ["claude-code/candidate"]
     assert config["description"].endswith(
-        "(working tree on 012345678): task-outlasts-the-turn"
+        "(working tree on 012345678): todo-outlasts-the-turn"
     )
 
     built.clear()
     # A named ref, since CI's checkout has no local main to take a merge base from.
-    assert run("task-outlasts-the-turn", "--base", "HEAD").exit_code == 100
+    assert run("todo-outlasts-the-turn", "--base", "HEAD").exit_code == 100
     assert built == ["HEAD", None]
 
     built.clear()
-    result = run("--base", "task-outlasts-the-turn")
+    result = run("--base", "todo-outlasts-the-turn")
     assert result.exit_code == 2 and "put cases before --base" in result.output
     assert built == []
 

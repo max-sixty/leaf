@@ -26,7 +26,7 @@ so completed progress leaves unread even when its body was never exposed. The re
 itself still needs read evidence. Edits to completed progress remain superseded; an
 edit to other content is a new version needing fresh evidence. An explicit summary
 does not mark read what it covers. Unread is independent of turn-taking and of the
-user's outstanding work: reading never answers a Question, and answering one does
+user's outstanding work: reading never answers an ask, and answering one does
 mark it read.
 """
 

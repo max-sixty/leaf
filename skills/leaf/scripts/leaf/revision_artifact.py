@@ -1195,10 +1195,10 @@ def _inventory_size(value):
 class _CompactReadings:
     """Compact revision readings with their own byte budget and page lifetime.
 
-    Element identities, Question registration and data consumers are small facts
+    Element identities, ask registration and data consumers are small facts
     about immutable documents. Keeping them separately prevents long-history scans
     from evicting their own completed work with full parses. Each owner charges its retained
-    representation; a Question source also reserves its last dynamic answer,
+    representation; an ask source also reserves its last dynamic answer,
     keyed by the event basis the canonical fold reads. Keys include the marker
     stamp. No document, full registry, SourceReading or event log is retained.
     """

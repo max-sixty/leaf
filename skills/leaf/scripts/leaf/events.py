@@ -241,7 +241,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     turn of its own (`exchange`), so it resumes the thread as a reply does.
 
     Each thread is keyed by, and carries as ``id``, the id of the comment that
-    opened it, its ``root``: the name every Question, workflow, summary, and title
+    opened it, its ``root``: the name every ask, workflow, summary, and title
     uses for it. Admission keeps every standing message's parent standing
     (`event_contracts._parent_error`), so each reply it admits lands in a thread.
     """
@@ -518,9 +518,9 @@ def awaits_agent(thread: dict) -> bool:
 
     This reading says nothing about whether the user owes a word: an ordinary agent
     reply may leave the open thread awaiting nobody, while an agent comment, an
-    explicit prose question, or a structured widget Question awaits the user. The browser
+    explicit prose ask, or a structured widget ask awaits the user. The browser
     does not receive it: each browser Thread's `attention` aggregates this turn with
-    the workflows and Questions standing on the thread, so the panel, its filters and the
+    the workflows and asks standing on the thread, so the panel, its filters and the
     margin read one answer to whose turn it is."""
     return bool(not thread["resolved"] and unanswered_turns(thread))
 

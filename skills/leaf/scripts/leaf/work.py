@@ -1,7 +1,8 @@
-"""The subjects tasks stand on and the widgets that admit new tasks."""
+"""The subjects to-dos stand on and the widgets that admit new to-dos."""
 
 from pathlib import Path
 
+from .asks import quoted_in
 from .files import latest_revision
 from .findings import Finding
 from .passages import page_passages
@@ -11,7 +12,6 @@ from .projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
-from .questions import quoted_in
 from .registry.storage import require_registry
 from .revision_artifact import read_revision
 from .thread_context import id_subject
@@ -20,9 +20,9 @@ from .thread_context import id_subject
 def widget_seat_error(
     page: PageReading, widget: str, workflows: list[dict]
 ) -> Finding | None:
-    """Why `widget` cannot seat a task on `page`, or None.
+    """Why `widget` cannot seat a to-do on `page`, or None.
 
-    A task on a widget stands beside that widget at the page edge, so the widget must
+    A to-do on a widget stands beside that widget at the page edge, so the widget must
     be live on the page: present under the page's standing outcomes and not quoted
     exhibit content. And it must be a seat for work: its tag declares `x-work`, or it
     holds an unsettled action, among `workflows` (`workflows.canonical_workflows`)."""
@@ -50,7 +50,7 @@ def widget_seat_error(
 
 def page_element(page_dir: Path, name: str) -> dict | None:
     """`{"kind": "element", "id"}` where `name` is the id of an element of the newest
-    revision that names no thread or widget, such as a section, which a task may stand
+    revision that names no thread or widget, such as a section, which a to-do may stand
     on; else None."""
     revision = latest_revision(page_dir)
     if revision is None or name not in read_revision(page_dir, revision).document.ids:

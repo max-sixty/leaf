@@ -390,7 +390,7 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     ]
 
 
-def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
+def test_an_arrival_cannot_hide_an_ask_draft(browser, serve):
     """An exact-section thread cannot take an unsent option's field.
 
     The draft remains part of the decision and still becomes a real option. The thread

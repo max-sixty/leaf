@@ -9,7 +9,7 @@
    The chrome's label (`addressableLabel`) reads that name first and an element's words
    only where they are its own.
 
-   The words are the ones the author wrote, so the server names a Question's element
+   The words are the ones the author wrote, so the server names an ask's element
    by the same rule off the document; `tests/name_cases.json` holds both runtimes to
    one set of cases. Each case states its vocabulary rather than loading it, so the
    attribute route is caused by that declaration and by nothing a page might have

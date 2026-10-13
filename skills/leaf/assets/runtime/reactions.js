@@ -41,18 +41,19 @@ import { clipsPastSurfaces, seenRect, whenNone } from "./geometry.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { registerContribution } from "./contributions.js";
 import { runtime } from "./context.js";
-import { registry } from "./registry.js";
+import { reactionVocabulary } from "./registry.js";
 import { composerOpen, fabBar, fabOptions } from "./composing/selection.js";
 import { pageSelection } from "./composing/capture.js";
 import { el, offer, responseAction } from "./widget-elements.js";
 import { HOLDS_WORD } from "./held-word.js";
 import { keeps } from "./keeps.js";
+import { move } from "./dom-move.js";
 
 import { elementById } from "./passages.js";
 import { addressableWord } from "./addressable-names.js";
 import { anchoringIsReady, visualPartLabel } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
-import { claimsEsc, saying } from "./keyboard/scopes.js";
+import { claimsEsc, keys, saying } from "./keyboard/scopes.js";
 import {
   handBack,
   focusDestination,
@@ -70,23 +71,29 @@ import {
   pageCommand,
   pageScope,
 } from "./keyboard/register.js";
-import { PRESS, rowArrows } from "./keyboard/bindings.js";
+import { PRESS, rowArrows, savedReadingSettled } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
-import { allThreads } from "./thread/state.js";
+import { allThreads, readThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
 
-const reactionVocabulary = () => registry.$reactions?.tokens ?? {};
 // The layer's reaction vocabulary, in declared order. The bar, a reply's strip, the
 // page row and the keyboard accelerators all read this one list, so a layer that
 // renames, adds or removes a token moves every surface at once, and core never learns
-// a token's name. Empty until the registry has arrived: the register checks every core
+// a token's name. Empty until the document is captured: the register checks every core
 // row's bindings as the module evaluates, before the vocabulary is known.
 export const reactionTokens = () => Object.entries(reactionVocabulary());
+// A toggle needs the saved standing reaction, including proof that none stands.
+export const reactionAvailable = () => readThreads().phase === "ready";
 // The choices on one anchor, from the threads' current reading.
 const anchorChoices = (anchor) =>
-  tokenChoices(reactionVocabulary(), anchor ? reactionsAt(allThreads(), anchor) : []);
+  reactionAvailable()
+    ? tokenChoices(
+        reactionVocabulary(),
+        anchor ? reactionsAt(allThreads(), anchor) : [],
+      )
+    : [];
 
 // One token as a press in the response bar; a reply's strip builds its own
 // (thread/reaction-strips.js). The token names the control and the compact face
@@ -98,7 +105,17 @@ function reactionChip({ name, glyph, label }, pressed) {
   chip.title = label;
   chip.setAttribute("aria-label", label);
   responseAction(chip, { glyph, label: name, collapse: true });
-  chip.onclick = () => pressed(name);
+  keys(chip, "On a reaction", [
+    {
+      id: `reaction.${name}`,
+      ready: savedReadingSettled,
+      when: reactionAvailable,
+      keys: [],
+      control: chip,
+      title: label,
+      run: () => pressed(name),
+    },
+  ]);
   return chip;
 }
 
@@ -139,6 +156,8 @@ export function createReactionController({
   let marginTarget = null;
   let marginAnchor = null;
   let pageCommands = null;
+  let palette = null;
+  let paletteVocabulary = null;
   const marginReactionKey = (name, ordinal) =>
     `reaction:${String(ordinal).padStart(4, "0")}:${name}`;
   function registerReactSurface(surface, { palette, target, trigger }) {
@@ -153,12 +172,32 @@ export function createReactionController({
 
   function buildReactBar(commands) {
     pageCommands = commands;
-    const palette = el("span", "lf-react-palette");
+    palette = el("span", "lf-react-palette");
     palette.setAttribute("role", "group");
     palette.setAttribute("aria-label", "Reactions for this selection or element");
-    for (const choice of tokenChoices(reactionVocabulary(), []))
-      palette.append(reactionChip(choice, (token) => reactHere(token, commands)));
     fabOptions.append(palette);
+    paintReactBar();
+  }
+
+  function paintReactBar() {
+    const vocabulary = reactionVocabulary();
+    if (!palette || vocabulary === paletteVocabulary) return;
+    paletteVocabulary = vocabulary;
+    const retained = new Map(
+      [...palette.children].map((chip) => [chip.dataset.token, chip]),
+    );
+    let before = palette.firstChild;
+    for (const choice of tokenChoices(vocabulary, [])) {
+      const chip =
+        retained.get(choice.name) ??
+        reactionChip(choice, (token) => reactHere(token, pageCommands));
+      retained.delete(choice.name);
+      responseAction(chip, { glyph: choice.glyph, label: choice.name, collapse: true });
+      if (chip !== before) move(palette, chip, before);
+      before = chip.nextSibling;
+    }
+    for (const chip of retained.values()) chip.remove();
+    paintBarReactions(fabAnchorAt());
     syncResponseOptions();
   }
 
@@ -172,9 +211,9 @@ export function createReactionController({
   };
 
   async function reactHere(name, commands, anchor = fabAnchorAt()) {
-    const standing = anchorChoices(anchor).find(
-      (choice) => choice.name === name,
-    )?.standing;
+    const choice = anchorChoices(anchor).find((choice) => choice.name === name);
+    if (!choice) return;
+    const { standing } = choice;
     // Read before the bar goes, because the reading is about the bar that is standing.
     // The bar owns what that answer is. `setReact(false)` runs after the bar goes and the
     // palette makes a return of its own, so the user lands once, when everything has
@@ -314,6 +353,7 @@ export function createReactionController({
   }
 
   function setReact(on, { surface = null } = {}) {
+    if (on && !reactionAvailable()) return;
     if (!on && !reactArmed) {
       const residue = marginOffer || fabBar.hasAttribute("data-lf-margin-raised");
       if (!residue) return;
@@ -476,6 +516,7 @@ export function createReactionController({
 
   const REACT = {
     title: "With reactions open",
+    ready: savedReadingSettled,
     escape: "inner",
     // Opening the modal reference dismisses this transient mode. Its section still reads
     // the liveness captured at that boundary rather than listing every conditional choice.
@@ -505,6 +546,7 @@ export function createReactionController({
             .map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`)
             .join(", ")}`,
         title: "react",
+        when: reactionAvailable,
         run: (binding) => {
           if (reactSurface === marginSurface) {
             const ordinal = +binding - 1;
@@ -561,6 +603,7 @@ export function createReactionController({
       if (reactArmed && reactSurface === marginSurface) setReact(false);
     });
     watchProjection(document.body, () => {
+      paintReactBar();
       if (
         reactArmed &&
         reactSurface === marginSurface &&
@@ -579,6 +622,7 @@ export function createReactionController({
   // accepted for now (composing/selection.js, TODO.md).
   pageCommand({
     id: "reaction.open",
+    ready: savedReadingSettled,
     touch: false,
     keys: ["e"],
     description: () =>
@@ -587,12 +631,13 @@ export function createReactionController({
         .map(([name, entry]) => `${entry.glyph} ${name}`)
         .join(
           ", ",
-        )} — for the selection, the item you are standing on, or the reply you are reading`,
+        )} — for the selection, the item I'm standing on, or the reply I'm reading`,
     title: "reactions",
     // Reachable from a reply in a Threads panel covering the page, as `c` is; under a
     // covering surface the page's own targets are out of reach.
     covering: true,
     when: () =>
+      reactionAvailable() &&
       reactionTokens().length > 0 &&
       (coveringAuxiliarySurface()
         ? reactionTarget()?.kind === "surface"
@@ -635,5 +680,5 @@ export const undoSentence = (undoable) => {
   const event = undoable();
   return event?.token
     ? `Undo: ${event.token} reaction on ${reactionPlace(event)}`
-    : "Undo your latest update";
+    : "Undo my latest update";
 };

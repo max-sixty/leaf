@@ -72,7 +72,9 @@ def gate(page: Path, widths: dict) -> dict:
                 overflow = view.evaluate(
                     "document.documentElement.scrollWidth > innerWidth + 1"
                 )
-                findings.extend({"width": name, "error": error} for error in errors)
+                findings.extend(
+                    {"width": name, "error": str(error)} for error in errors
+                )
                 if overflow:
                     findings.append(
                         {"width": name, "error": "page overflows the viewport"}

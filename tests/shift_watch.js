@@ -779,7 +779,7 @@
   let owed = 0;
   let wasDrawn = null;
   let seenAnimations = [];
-  // One line for a reading that found unannounced changes: the innermost node that
+  // One finding for a reading that found unannounced changes: the innermost node that
   // changed, what changed on it, and how many other nodes changed with it.
   const missed = (misses) => {
     const depth = (node) => {
@@ -790,14 +790,13 @@
     const [node, changed] = misses.reduce((deepest, miss) =>
       depth(miss[0]) > depth(deepest[0]) ? miss : deepest,
     );
-    const others = misses.length - 1;
-    report(
-      `shift watch missed a change to ${node ? name(node) : "the page's nodes"}`,
-      ` (${changed.join(", ")})` +
-        (others ? ` and to ${others} other node${others === 1 ? "" : "s"}` : "") +
-        ": a source of change is missing from the sensor's announcements" +
-        ' (shift_watch.js, "Unchanged frames")',
-    );
+    const named = node ? name(node) : null;
+    report(`missed ${named}`, {
+      code: "shift-watch-missed",
+      node: named,
+      changed,
+      others: misses.length - 1,
+    });
   };
   const read = (time, frame = true) => {
     // Poses belong to their synchronous observation time. The native frame start
@@ -1362,27 +1361,32 @@
     listen(held, "pointercancel", (event) => presses.delete(event.pointerId), true);
     if (view === view.parent) break;
   }
+  // Each finding goes to the fixture as a record (`leaf/findings.py` words it),
+  // once per `key`, with every node in it named.
   const reported = new Set();
-  const report = (what, detail, evidence) => {
-    if (reported.has(what)) return;
-    reported.add(what);
-    console.error(
-      `${what}${detail}` +
-        (evidence
-          ? `\nshift evidence: ${JSON.stringify(evidence, (_, value) => (value instanceof Node ? name(value) : value))}`
-          : ""),
+  const report = (key, finding) => {
+    if (reported.has(key)) return;
+    reported.add(key);
+    window.__leafWatchFinding(
+      JSON.parse(
+        JSON.stringify(finding, (_, value) =>
+          value instanceof Node ? name(value) : value,
+        ),
+      ),
     );
   };
-  const box = ({ left, top, width, height }) =>
-    `${Math.round(left)},${Math.round(top)} ${Math.round(width)}x${Math.round(height)}`;
-  const by = (from, to) =>
-    ` by (${Math.round(to.left - from.left)}, ${Math.round(to.top - from.top)})px`;
-  const beside = (sources, node) => {
-    const others = sources
-      .filter((source) => source.node !== node)
-      .map((source) => name(source.node));
-    return others.length ? `; the same frame moved ${others.join(", ")}` : "";
-  };
+  const box = ({ left, top, width, height }) => ({
+    left: Math.round(left),
+    top: Math.round(top),
+    width: Math.round(width),
+    height: Math.round(height),
+  });
+  const by = (from, to) => [
+    Math.round(to.left - from.left),
+    Math.round(to.top - from.top),
+  ];
+  const beside = (sources, node) =>
+    sources.filter((source) => source.node !== node).map((source) => name(source.node));
   // Widgets upgrade after the authored document has painted,
   // and the frame that presents the page carries every box their upgrade reshaped. The
   // page before it is presented runs until the second frame after the runtime stamps
@@ -2189,17 +2193,19 @@
           ? { previousRect: first.previousRect, currentRect: last.currentRect }
           : chain.find(confirms);
         if (proof)
-          report(
-            `${name(node)} moved without input`,
-            by(proof.previousRect, proof.currentRect) + beside(entry.sources, node),
-            {
+          report(`moved ${name(node)}`, {
+            code: "moved-without-input",
+            node: name(node),
+            by: by(proof.previousRect, proof.currentRect),
+            beside: beside(entry.sources, node),
+            evidence: {
               kind: "passive",
               node: name(node),
               fragment,
               paint_at: entry.startTime,
               comparisons: (stable ? chain : [proof]).map((move) => move.evidence),
             },
-          );
+          });
       }
     for (let i = pendingMotion.length - 1; i >= 0; i--)
       if (admitted.includes(pendingMotion[i])) pendingMotion.splice(i, 1);
@@ -2225,12 +2231,17 @@
         Math.abs(from.top - to.top) >= 1 &&
         Math.abs(after.top - before.top - scroll.top - motion.top) >= 1;
       if (!x && !y) continue;
-      report(
-        `typing in ${window.lfPlace(typing.field)} moved ${window.lfPlace(node)}`,
-        by(before, after) +
-          `; the key found ${box(before)}, the frame painted ${box(after)}` +
-          beside(entry.sources, node),
-        {
+      const field = window.lfPlace(typing.field),
+        place = window.lfPlace(node);
+      report(`typing in ${field} moved ${place}`, {
+        code: "typing-moved",
+        node: place,
+        field,
+        by: by(before, after),
+        found: box(before),
+        painted: box(after),
+        beside: beside(entry.sources, node),
+        evidence: {
           kind: "typing",
           node: name(node),
           field: name(typing.field),
@@ -2248,7 +2259,7 @@
             ),
           ],
         },
-      );
+      });
     }
   };
   // Native observer delivery can precede the next health frame. Its passive pose
@@ -2311,7 +2322,8 @@
     judge(entries);
   };
   const observer = new PerformanceObserver((list) => received(list.getEntries()));
-  observer.observe({ type: "layout-shift" });
+  if (PerformanceObserver.supportedEntryTypes.includes("layout-shift"))
+    observer.observe({ type: "layout-shift" });
   // Once two native frames and their task checkpoint complete, Chrome has painted
   // the work preceding `through`. Drain its native records before retiring that
   // history. Keep the entering pose and active typing's origin, whose comparison

@@ -145,7 +145,9 @@ def refresh_previews() -> None:
                         output, "JPEG", quality=82, optimize=True, progressive=True
                     )
                     if errors:
-                        raise RuntimeError(f"{source.name}: {errors[:3]}")
+                        raise RuntimeError(
+                            f"{source.name}: {'; '.join(map(str, errors[:3]))}"
+                        )
                     captures[target] = output.getvalue()
         finally:
             browser.close()

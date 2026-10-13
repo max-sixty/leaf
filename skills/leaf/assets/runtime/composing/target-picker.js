@@ -16,7 +16,8 @@ import {
   selectEnds,
   segmentBlock,
 } from "../passages.js";
-import { bannerFoot, shownBox, shownParts } from "../geometry.js";
+import { bannerFoot, shownBox } from "../geometry.js";
+import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { intersect, union } from "../rect.js";
 import { anchorFor } from "../css-anchors.js";
@@ -154,11 +155,7 @@ export function createTargetPicker({
     );
   const targetShown = (target) => {
     const element = hintElement(target);
-    return (
-      element.checkVisibility() ||
-      (getComputedStyle(element).display === "contents" &&
-        shownParts(element).some((part) => part.checkVisibility()))
-    );
+    return visibleTargetParts(element).length > 0;
   };
 
   function firstShown(range, owner, reading) {

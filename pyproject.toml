@@ -176,6 +176,7 @@ ignore_names = [
   # click, uvicorn, markdown-it
   "get_command",
   "format_commands",
+  "command_class",
   "main_loop",
   "validateLink",
 ]

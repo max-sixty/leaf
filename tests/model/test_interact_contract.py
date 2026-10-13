@@ -56,6 +56,8 @@ from interact_support import (
     published,
     queue_board_registry,
     read_page_data,
+    refused_on,
+    registry_refusal,
     styled,
     wait_for,
     yaml_block,
@@ -76,6 +78,7 @@ from leaf import media as media_model
 from leaf import page_view as page_view_model
 from leaf import passages as passages_model
 from leaf import revisioning as revisioning_model
+from leaf import samples as samples_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -83,6 +86,7 @@ from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread as thread_model
 from leaf import vendoring as vendoring_model
+from leaf.findings import Finding
 from leaf.registry import contract as registry_contract
 from leaf.registry import layer as registry_layer
 from leaf.registry import page as registry_page
@@ -90,6 +94,9 @@ from leaf.registry import schema as registry_schema
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
 from leaf.render_gate import preview as render_gate_model
+from leaf.served_state.browser import project_browser_state
+from leaf.served_state.context import read_page
+from leaf.served_state.service import LivePage
 from leaf_dev.page_fixtures import package_selection_args
 
 
@@ -294,7 +301,11 @@ def test_a_pick_names_only_options_its_group_holds():
 
     with pytest.raises(events_model.EventRefused) as refused:
         admit(STATED_LOG, pick)
-    assert "live-mine name no member of 'live-pick'" in str(refused.value)
+    strangers = refused_on(refused.value)
+    assert (strangers.code, strangers.values["strangers"]) == (
+        "unknown-members",
+        ["live-mine"],
+    )
 
     add = admit(
         STATED_LOG,
@@ -436,7 +447,8 @@ def test_the_move_that_empties_the_queue_answers_its_ask():
                 "detail": {"unit": "not-a-card", "value": "keep", "rank": "0r"},
             },
         )
-    assert "unknown unit 'not-a-card'" in str(refused.value)
+    unknown = refused_on(refused.value)
+    assert (unknown.code, unknown.values["unit"]) == ("unknown-unit", "not-a-card")
 
 
 def test_admission_decides_from_the_markup_and_the_standing_log_alone():
@@ -460,7 +472,7 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
     def refusal(event):
         with pytest.raises(events_model.EventRefused) as refused:
             admit(event)
-        return str(refused.value)
+        return refused_on(refused.value)
 
     choose_live = {
         **STATED_PICK,
@@ -468,19 +480,21 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
         "detail": {"value": ["live-gps"]},
     }
     assert admit(choose_live)["meaning"]["unit"] == "live-pick"
-    assert (
-        refusal({**choose_live, "revision": 2}) == "action revision must be one of [1]"
-    )
-    assert "stands inside an exhibit" in refusal(
-        {**STATED_PICK, "widget": "quoted-pick", "detail": {"value": ["quoted-gps"]}}
-    )
+    assert refusal({**choose_live, "revision": 2}).values["revisions"] == [1]
+    quoted = {
+        **STATED_PICK,
+        "widget": "quoted-pick",
+        "detail": {"value": ["quoted-gps"]},
+    }
+    assert refusal(quoted).code == "quoted-widget"
     answer = {"kind": "reply", "author": "agent", "revision": 1, "text": "The GPS."}
-    assert refusal({**answer, "parent": "c9"}) == "unknown parent 'c9'"
+    assert refusal({**answer, "parent": "c9"}) == Finding(
+        "unknown-parent", values={"kind": "reply", "parent": "c9"}
+    )
     assert admit({**answer, "parent": "c1"})["parent"] == "c1"
     for version in ([1], {"version": 1}, True):
-        assert "done event is invalid" in refusal(
-            {"kind": "done", "author": "user", "version": version}
-        )
+        invalid = refusal({"kind": "done", "author": "user", "version": version})
+        assert (invalid.code, invalid.values["field"]) == ("invalid-event", "/version")
 
 
 def test_a_created_child_is_its_actions_unit_and_its_words_stay_payload():
@@ -701,14 +715,18 @@ def test_server_takes_back_only_a_standing_gesture_of_the_users_own(server, page
     # user's history rather than toggling the last gesture on and off.
     status, body = fetch(f"{server}/api/event", data=json.dumps(undone).encode())
     refusal = json.loads(body)
-    assert status == 400 and "already been taken back" in refusal["error"]
+    assert status == 400 and refused_on(refusal).code == "withdrawn-gesture"
     assert took_back in refusal["state"]["events"]
     assert refusal["state"]["browser"]["basis"]["through_seq"] >= took_back["seq"]
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": took_back["id"]}).encode(),
     )
-    assert status == 400 and "undo events cannot be taken" in json.loads(body)["error"]
+    unundoable = refused_on(body)
+    assert status == 400 and (unundoable.code, unundoable.values["target"]) == (
+        "unundoable",
+        "undo",
+    )
 
 
 def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
@@ -796,7 +814,8 @@ def test_two_concurrent_undos_cannot_both_take_back_one_gesture(
     assert validation_calls == 2
     assert {status for status, _ in results} == {200, 400}
     refusal = next(json.loads(body) for status, body in results if status == 400)
-    assert refusal["final"] is True and "already been taken back" in refusal["error"]
+    assert refusal["final"] is True
+    assert refused_on(refusal).code == "withdrawn-gesture"
     undos = [
         event
         for event in events_model.read_events(page_dir)
@@ -1299,10 +1318,8 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
 
 
 @pytest.mark.parametrize("in_sample", [False, True])
-def test_message_vocabulary_answers_to_every_pinned_revision(page_dir, in_sample):
-    """A message shows in every version, and a live sample in it allocates its
-    child from the version showing it, so a widget an older version's registry
-    lacks is refused in either place."""
+def test_new_message_keeps_its_vocabulary_in_an_older_page_view(page_dir, in_sample):
+    """A frozen message and its sample use their own publication in every view."""
     publish(page_dir)
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
@@ -1312,10 +1329,46 @@ def test_message_vocabulary_answers_to_every_pinned_revision(page_dir, in_sample
     publish(page_dir)
     markup = '<lf-local-thread id="local">Choose locally.</lf-local-thread>'
     if in_sample:
-        markup = f'<template id="practice" data-sample>{markup}</template>'
+        markup = (
+            '<lf-sample id="local-sample"><template id="practice" data-sample>'
+            f"{markup}</template></lf-sample>"
+        )
     result = comment(page_dir, "--text", "Try it:", "--markup", markup)
-    assert result.exit_code != 0, result.output
-    assert "pinned revision" in result.output and "lf-local-thread" in result.output
+    assert result.exit_code == 0, result.output
+    message = events_model.read_events(page_dir)[-1]
+    assert message["revision"] == 2
+    source = LivePage(page_dir)
+    assert "lf-local-thread" not in source.revision(1).registry
+    with service_model.PageTransaction(page_dir) as page:
+        context = read_page(page_dir, page.events)
+        browser, reading = project_browser_state(context, 1)
+        [thread] = browser["views"]["1"]["thread"]["threads"]
+        [shown] = thread["msgs"]
+        assert shown["id"] == message["id"] and shown["markup"] == markup
+        publication = reading.thread.message_revisions[message["id"]]
+        assert publication == 2
+        assert (
+            reading.thread.registry_for_message(message["id"])["lf-local-thread"]
+            == local
+        )
+        if not in_sample:
+            assert reading.thread.spoken["local"].words == "Choose locally."
+    if in_sample:
+        samples = samples_model.Samples()
+        try:
+            identity = samples.create(
+                page_dir,
+                source.sample_inputs(publication),
+                "practice",
+                message["id"],
+                None,
+            )
+            child = LivePage(samples.pages[identity].directory)
+            captured = child.revision(child.active_revision())
+            assert captured.registry["lf-local-thread"] == local
+            assert captured.spoken["local"].words == "Choose locally."
+        finally:
+            samples.close()
 
 
 def test_revendoring_can_change_frozen_thread_widget_vocabulary(
@@ -2009,20 +2062,22 @@ def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
     `records: null` a same-protocol Leaf vendored still reads as absent."""
     kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
 
-    def facts_error(**changes):
+    def facts(**changes):
         registry = deepcopy(kernel)
         for fact, value in changes.items():
             registry[f"${fact}"] = {**registry[f"${fact}"], **value}
-        return registry_layer.layer_facts_error(registry)
+        registry_layer.check_layer_facts(registry, "kernel")
 
-    assert facts_error() is None
+    facts()
     absent = {"description": "Build facts.", "schema": {}, "records": None}
-    assert facts_error(data={"contracts": {"builds": absent}}) is None
+    facts(data={"contracts": {"builds": absent}})
     named = {"description": "Build facts.", "schema": {}}
-    assert "does not match" in facts_error(data={"contracts": {"builds\n": named}})
-    assert "does not match" in facts_error(
-        reactions={"tokens": {"keep\n": {"glyph": "+"}}}
+    refused = registry_refusal(lambda: facts(data={"contracts": {"builds\n": named}}))
+    assert refused.values["keyword"] == "pattern"
+    refused = registry_refusal(
+        lambda: facts(reactions={"tokens": {"keep\n": {"glyph": "+"}}})
     )
+    assert refused.values["keyword"] == "pattern"
 
 
 def test_a_custom_units_identity_rule_keeps_the_details_reference_base():
@@ -2492,18 +2547,7 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
     bootstrap = data_contracts_model.page_data_binding_inventory(
         tmp_path / "bootstrap", registry, [{**events[0], "revision": None}]
     )
-    assert bootstrap == {
-        "reply-feed": {
-            "contract": "local-files",
-            "consumers": [
-                {
-                    "widget": "reply-data",
-                    "input": "renamed",
-                    "document": "event 'frozen-feed' markup",
-                }
-            ],
-        }
-    }
+    assert bootstrap == {}
 
 
 @pytest.mark.parametrize("change", ["description", "empty-resources"])
@@ -3055,8 +3099,9 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
         for required in ("widget", "action", "detail", "revision"):
             malformed = {**command, "detail": valid}
             del malformed[required]
-            with pytest.raises(events_model.EventRefused, match="required property"):
+            with pytest.raises(events_model.EventRefused) as refused:
                 event_contracts_model.admitted_event(page, [], malformed)
+            assert refused_on(refused.value).values["rule"] == "required"
         assert admitted["detail"] == valid
         assert admitted["meaning"]["unit"] == (
             valid["unit"] if widget == "board" else widget
@@ -4814,9 +4859,17 @@ def test_sample_diagnostics_report_authored_lines(page_dir, nested):
 def test_sample_checks_available_history_beside_forward_thread_references(
     page_dir,
 ):
+    (page_dir / "index.html").write_text(PAGE)
+    assert revisioning_model.activate_source(page_dir).revision == 1
     append_carried_log_record(
         page_dir,
-        {"kind": "comment", "id": "aabb0011", "author": "user", "text": "A question"},
+        {
+            "kind": "comment",
+            "id": "aabb0011",
+            "author": "user",
+            "revision": 1,
+            "text": "A question",
+        },
     )
     append_carried_log_record(
         page_dir,
@@ -4824,6 +4877,7 @@ def test_sample_checks_available_history_beside_forward_thread_references(
             "kind": "reply",
             "parent": "aabb0011",
             "author": "agent",
+            "revision": 1,
             "text": "An answer",
             "markup": '<lf-code id="duplicate" language="python"><pre>1</pre></lf-code>',
         },
@@ -4838,7 +4892,11 @@ def test_sample_checks_available_history_beside_forward_thread_references(
     status, findings = check_findings(page_dir)
     assert status == 1
     assert [(f.code, f.samples, f.values) for f in findings] == [
-        ("ids-taken-by-messages", ("practice",), {"ids": ["duplicate"]})
+        (
+            "sample-history",
+            ("practice",),
+            {"error": 'ids already taken by message markup: ["duplicate"]'},
+        )
     ]
 
 
@@ -5204,7 +5262,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": root["id"]}).encode(),
     )
-    assert status == 400 and "is not a reaction" in json.loads(body)["error"]
+    assert status == 400 and refused_on(body).code == "said-message"
     # The mark on the thread comes off with one press.
     status, body = fetch(
         f"{server}/api/event",
@@ -5223,7 +5281,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     assert status == 400, body
     answer = json.loads(body)
     assert answer["final"] is True, body
-    assert "already been taken back" in answer["error"], body
+    assert refused_on(answer).code == "withdrawn-gesture", body
     # Every thread fold drops a withdrawn message, so nothing may name it as a parent:
     # a reply to it would open a thread with no root.
     status, body = fetch(
@@ -5232,7 +5290,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
             {"kind": "reply", "revision": 1, "parent": nod["id"], "token": "keep"}
         ).encode(),
     )
-    assert status == 400 and "has been taken back" in json.loads(body)["error"]
+    assert status == 400 and refused_on(body).code == "withdrawn-parent"
     # Nor may a message another stands on be withdrawn, a reaction to it included.
     mark = json.loads(
         fetch(
@@ -5252,7 +5310,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
     )
-    assert status == 400 and "has been answered" in json.loads(body)["error"]
+    assert status == 400 and refused_on(body).code == "answered-reaction"
     # Answered, the page reaction is a thread, and the withdrawal would orphan
     # the answer; the user's move is in the thread it opened.
     thread_model.post_reply(page_dir, {"to": reaction["id"]}, "Which part is long?")
@@ -5260,7 +5318,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         f"{server}/api/event",
         data=json.dumps({"kind": "undo", "undoes": reaction["id"]}).encode(),
     )
-    assert status == 400 and "has been answered" in json.loads(body)["error"]
+    assert status == 400 and refused_on(body).code == "answered-reaction"
     # A Leaf older than the parent rule could have admitted that reply to the
     # withdrawn mark; the log it left still reads, the reply standing on nothing.
     logged = events_model.read_events(page_dir)
@@ -5833,3 +5891,140 @@ def test_state_definition_identity_ignores_only_annotations(case):
         for key in ("before", "after")
     ]
     assert same_state_definition(*definitions) is case["same"]
+
+
+def test_frozen_replies_keep_their_publications_command_and_ask_meanings():
+    """Old and new renderers can share a tag without changing either reply's answer."""
+    from leaf.asks import thread_ask_readings
+    from leaf.events import build_threads
+    from leaf.projection import frozen_thread_reading
+
+    old = model_layer()
+    new = deepcopy(old)
+    options = new["lf-options"]
+    options["x-state"]["pick"] = options["x-state"].pop("choose")
+    options["x-awaits"]["value"] = "pick"
+    options["x-awaits"]["answered"]["pick"] = options["x-awaits"]["answered"].pop(
+        "choose"
+    )
+    page = ModelPage(
+        "<p>First publication</p>",
+        "<p>Second publication</p>",
+        registries={1: old, 2: new},
+    )
+    log = []
+
+    def append(kind, **command):
+        event = event_contracts_model.admitted_event(
+            page,
+            log,
+            {
+                "id": f"e{len(log) + 1}",
+                "seq": len(log) + 1,
+                "ts": model.NOW,
+                "author": "user",
+                "kind": kind,
+                **command,
+            },
+        )
+        log.append(event)
+        return event
+
+    opening = append("comment", revision=1, text="Choose both.")
+    for revision, name in [(1, "old"), (2, "new"), (1, "old-later")]:
+        append(
+            "reply",
+            revision=revision,
+            author="agent",
+            parent=opening["id"],
+            text="Choose.",
+            markup=f'<lf-options id="{name}" choose><lf-option id="{name}-a">A</lf-option>'
+            f'<lf-option id="{name}-b">B</lf-option></lf-options>',
+        )
+
+    def asks():
+        return thread_ask_readings(
+            log,
+            build_threads(log, {}),
+            reading=frozen_thread_reading(
+                log, page.registry, available_revisions=page.revisions
+            ),
+        )
+
+    assert [ask["source"]["id"] for ask in asks()["user"]] == [
+        "old",
+        "new",
+        "old-later",
+    ]
+    chosen = append(
+        "action", revision=1, widget="old", action="choose", detail={"value": ["old-b"]}
+    )
+    picked = append(
+        "action", revision=2, widget="new", action="pick", detail={"value": ["new-a"]}
+    )
+    later = append(
+        "action",
+        revision=1,
+        widget="old-later",
+        action="choose",
+        detail={"value": ["old-later-a"]},
+    )
+    answered = asks()
+    assert answered["user"] == []
+    assert [ask["answer"]["event"]["id"] for ask in answered["all"]] == [
+        chosen["id"],
+        picked["id"],
+        later["id"],
+    ]
+
+    with pytest.raises(events_model.EventRefused) as undeclared:
+        append(
+            "action",
+            revision=1,
+            widget="old",
+            action="pick",
+            detail={"value": ["old-a"]},
+        )
+    assert refused_on(undeclared.value).code == "undeclared-verb"
+    assert refused_on(undeclared.value).values == {
+        "kind": "action",
+        "tag": "lf-options",
+        "verb": "pick",
+        "declared": ["add", "answer", "choose"],
+    }
+    with pytest.raises(events_model.EventRefused) as wrong_publication:
+        append(
+            "action",
+            revision=2,
+            widget="old",
+            action="choose",
+            detail={"value": ["old-a"]},
+        )
+    assert refused_on(wrong_publication.value).code == "thread-widget-publication"
+    assert refused_on(wrong_publication.value).values == {
+        "kind": "action",
+        "widget": "old",
+        "publication": 1,
+        "revision": 2,
+    }
+    with pytest.raises(events_model.EventRefused) as strangers:
+        append(
+            "action",
+            revision=1,
+            widget="old",
+            action="choose",
+            detail={"value": ["new-a"]},
+        )
+    assert refused_on(strangers.value).code == "unknown-members"
+    assert refused_on(strangers.value).values["strangers"] == ["new-a"]
+    assert asks() == answered
+
+    append("undo", undoes=chosen["id"])
+    assert [ask["source"]["id"] for ask in asks()["user"]] == ["old"]
+    reading = frozen_thread_reading(
+        log, page.registry, available_revisions=page.revisions
+    )
+    assert [
+        (event["widget"], event["action"])
+        for event, _ in reading.projection.actions.values()
+    ] == [("old-later", "choose"), ("new", "pick")]

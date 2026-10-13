@@ -11,6 +11,8 @@
    browser's, leaving the bar past either end. Escape folds the extension; Escape from
    the field hides the draft.
    The same anchor resolves both states against the target's geometry.
+   An active quoted draft whose words change stays beside its containing subject; this is
+   placement only and never changes the quote recorded by its eventual send.
 
    The bar a selection or keyboard-selected addressable raises is `.lf-fab-bar`: the
    durable, compact `.lf-fab-input`, which spans the bar so a sent message keeps the
@@ -85,7 +87,7 @@ import {
   commandReferenceOpen,
 } from "../keyboard/command-reference.js";
 
-import { paintBarReactions } from "../reactions.js";
+import { paintBarReactions, reactionAvailable } from "../reactions.js";
 import { threadInput, standingThread } from "../thread/landing.js";
 import { replyDraftContext } from "../thread/replies.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
@@ -313,8 +315,22 @@ export function createResponseSurface({
   };
   // Asked of a stored anchor from outside a live response transaction, where the composer
   // is down and there is no native selection to read the passage off.
-  const anchorStands = (anchor) =>
-    Boolean(anchor) && standsIn(anchor, resolveAnchor(anchor));
+  const responseTarget = (anchor) => {
+    if (!anchor) return null;
+    const found = resolveAnchor(anchor);
+    if (standsIn(anchor, found)) return found;
+    // Reading saved edits or a later revision can replace the words under a live
+    // draft. Its original anchor remains the event's meaning; its containing
+    // subject supplies only a place to keep the editor visible and editable. An
+    // explicitly detached quote never named that subject as its resolved location.
+    return composerOpen &&
+      anchor.quote &&
+      !anchor.detached &&
+      sameAnchor(anchor, fabAnchor)
+      ? (found ?? resolveAnchor({ section: anchor.section }))
+      : null;
+  };
+  const anchorStands = (anchor) => Boolean(responseTarget(anchor));
   const fabPointIn = (target) =>
     fabAnchor?.quote ? null : standingPoint(target, fabPoint);
   const placement =
@@ -334,6 +350,9 @@ export function createResponseSurface({
         get target() {
           return fabTargetAt();
         },
+        get resolved() {
+          return responseTarget(fabAnchor);
+        },
         get captured() {
           return fabHoldsCapturedPassage();
         },
@@ -343,7 +362,6 @@ export function createResponseSurface({
       threadsBox,
       positioned: answerFabPosition,
       dismiss: () => letGoOfFab(),
-      standsIn,
       scrollToElement,
       scrollToRange,
     }) ?? null;
@@ -413,7 +431,7 @@ export function createResponseSurface({
     usesPlacement = Boolean(placement);
     paintFab();
   }
-  function showFab(anchor, { place = true, point = undefined } = {}) {
+  function showFab(anchor, { place = true, point = undefined, reveal = false } = {}) {
     const previous = fabAnchor;
     if (!anchor) {
       restoreFab({ place: false });
@@ -444,7 +462,7 @@ export function createResponseSurface({
       // skipped. Every route that actually shows the bar keeps the geometry gate. The gate
       // is for opening: the bar already standing on this anchor, placed again, is
       // withheld rather than put away (standFab).
-      if (usesPlacement && !placement.place()) {
+      if (usesPlacement && !placement.place({ reveal })) {
         if (same && placement.stands()) placement.withhold();
         else clearFab();
       }
@@ -496,7 +514,7 @@ export function createResponseSurface({
   // draft is about, which is what the route back to it has to travel to.
   const anchorTargetAt = (anchor) => {
     if (!anchor) return null;
-    const found = resolveAnchor(anchor);
+    const found = responseTarget(anchor);
     if (!found) return null;
     if (!anchor.quote) return targetElement(found);
     return lightSeat(targetPlace(found));
@@ -551,6 +569,7 @@ export function createResponseSurface({
     }
     const anchor = structuredClone(fabAnchor);
     bringBackSurfaceOf(fabBar);
+    showFab(anchor, { reveal: true });
     landFabFocus(handoff, anchor, () => sameAnchor(anchor, fabAnchor));
   }
   const fabOptionsAvailable = () =>
@@ -593,15 +612,17 @@ export function createResponseSurface({
     selectionOffered = Boolean(anchor);
     showBannerControl(selectionComment, selectionOffered);
   };
-  const commentOnOfferedSelection = () => {
-    const selection = anchoringIsReady() ? pageSelection() : null;
-    const anchor = selection ? selectionAnchor(selection) : null;
+  const commentOnSelection = (anchor) => {
     offerSelection(null);
     if (!hasQuote(anchor)) return;
     dismissBannerControls();
     cancelRender(selectionUpdate);
     selectionUpdate = null;
     openComment(anchor, "");
+  };
+  const commentOnOfferedSelection = () => {
+    const selection = anchoringIsReady() ? pageSelection() : null;
+    commentOnSelection(selection ? selectionAnchor(selection) : null);
   };
 
   function observeSelection() {
@@ -939,6 +960,7 @@ export function createResponseSurface({
     panelIsOpen,
     setReact,
     reactionTokens,
+    reactionAvailable,
     designModeActive,
     openPageThread,
     threadTransitionOrigin,
@@ -1338,7 +1360,15 @@ export function createResponseSurface({
       (anchoringIsReady() || !pageSelection()) &&
       (!coveringAuxiliarySurface() || inPanel(panelIsOpen)),
     run: () => {
-      updateFab(); // the selection may be newer than the mouseup that last placed the bar
+      // Activation reads the current native selection directly. Painting its offer
+      // first would displace the reading controls only to restore them in this press.
+      const selection = pageSelection();
+      const anchor = selection ? selectionAnchor(selection) : null;
+      if (hasQuote(anchor)) {
+        commentOnSelection(anchor);
+        return;
+      }
+      updateFab();
       commentDestination().go();
     },
   });

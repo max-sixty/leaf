@@ -21,7 +21,7 @@ let walking = null; // {key, noun, read, target, boundary}; never a list snapsho
 let boundaryTimer = 0;
 
 // "Thread 2 of 5", or, for a walk over several kinds that names its list in the
-// qualifier, "2 of 5 waiting on you · Thread" with the kind given there instead.
+// qualifier, "2 of 5 waiting on me · Thread" with the kind given there instead.
 export function walkPositionLabel(noun, position, total, qualifier = "") {
   if (!noun && !qualifier) throw new Error("leaf: a walk position needs a noun");
   return [noun, `${position} of ${total}`, qualifier].filter(Boolean).join(" ");

@@ -405,11 +405,13 @@ function advance(
 
 
 
+
+
 /** A server view with its basis, the transport identity, left off. */
 
 
-// The server classifies a view's page and thread entries alike under that revision's
-// registry, so every entry is one the view's widgets can draw.
+// The server classifies the page under the viewed revision's vocabulary and each
+// frozen message under its admitted vocabulary; every entry has its own captured spec.
 function normalizedProjection(view                             ) {
   const entries = [];
   const actionIds = [];
@@ -708,9 +710,6 @@ function widgetReading(
   const authored = currentDescriptor
     ? root.document.authored.get(descriptor.id)?.state
     : undefined;
-  const declaration = descriptor.declaration;
-  const actionSpecs = declaration["x-state"] ?? {};
-  const states = root.document.registry.$states[descriptor.tag] ?? {};
   const projection = root.effective.projection;
   const classified = [...projection.classified.values()]
     .filter(
@@ -734,15 +733,15 @@ function widgetReading(
   // The user acts only on the verbs they write; an agent's verb reaches this widget as
   // state and never as a control.
   const actions = Object.fromEntries(
-    Object.entries(actionSpecs)
-      .filter(([verb]) => states[verb]?.writer === "user")
+    Object.entries(descriptor.states)
+      .filter(([, state]) => state.writer === "user")
       .map(([verb]) => [
         verb,
         {
           available:
             currentDescriptor &&
             root.effective.hostAvailable &&
-            root.phase !== "waiting" &&
+            root.phase === "ready" &&
             !descriptor.quoted,
           unavailable: root.effective.hostAvailable
             ? null
@@ -859,7 +858,7 @@ export function createSemanticApplication({
     // the id the log gave it, or as a pending action by the rule above.
     const drawsAction = (e                      ) => {
       const descriptor = document.descriptors.get(e.widget);
-      const state = descriptor && stampedState(document.registry, descriptor.tag, e);
+      const state = descriptor && stampedState(descriptor.states, e);
       return Boolean(state && sameStateDefinition(e.meaning?.state, state.definition));
     };
     const localProjections = local.flatMap((entry)                      => {
@@ -877,9 +876,10 @@ export function createSemanticApplication({
       ...admitted,
       pendingEntries: localProjections,
     });
-    // Threads and Questions both wait for an admitted reading. Authored markup names every
-    // ask the page could hold, but only the log says which of them it still holds and
-    // whether they are answered, so before that reading there is no inventory to publish.
+    // A local comment belongs to the shown document even before saved history arrives.
+    // Fold it through the same ledger and receipt path in every phase; collection.phase
+    // still says whether this is a complete reading. Questions need the log to say which
+    // authored asks the page still holds, so their inventory waits for that reading.
     const ready = phase === "ready";
     // The ledger's thread gestures, in the order the user made them.
     const gestures = local.flatMap(({ event, thread, namedParent })                  =>
@@ -891,9 +891,7 @@ export function createSemanticApplication({
             ? [event]
             : [],
     );
-    const folded = ready
-      ? foldThreads(view?.thread.threads ?? [], gestures)
-      : [];
+    const folded = foldThreads(view?.thread.threads ?? [], gestures);
     const widgets = foldWidgetStates(document.authored, projection);
     const asks = ready
       ? normalizedAsks(view, widgets, document, projection, local)
@@ -1383,13 +1381,13 @@ export function createSemanticApplication({
         event.kind === "action" ? before.document.authored.get(event.widget) : null;
       // The widget's own captured declaration, as its reading (`widgetReading`) and the
       // projection's meaning check read it.
-      const declaration =
+      const descriptor =
         event.kind === "action"
-          ? before.document.descriptors.get(event.widget)?.declaration
+          ? before.document.descriptors.get(event.widget)
           : null;
       const spec =
         event.kind === "action" && widget
-          ? declaration?.["x-state"]?.[event.action]
+          ? descriptor?.declaration["x-state"]?.[event.action]
           : null;
       const unit =
         event.kind === "action" && spec
@@ -1409,7 +1407,11 @@ export function createSemanticApplication({
               coordinate: target.coordinate,
               localOrder,
             }
-          : event.kind === "action" && widget && spec && typeof unit === "string"
+          : event.kind === "action" &&
+              descriptor &&
+              widget &&
+              spec &&
+              typeof unit === "string"
             ? {
                 unit,
                 spec,
@@ -1419,10 +1421,7 @@ export function createSemanticApplication({
                   ...event,
                   id: localId,
                   meaning: {
-                    state: structuredClone(
-                      before.document.registry.$states[widget.tag]?.[event.action]
-                        ?.definition,
-                    ),
+                    state: structuredClone(descriptor.states[event.action] .definition),
                   },
                 },
                 value: spec.record ? foldedValue(event, spec.record) : event.action,

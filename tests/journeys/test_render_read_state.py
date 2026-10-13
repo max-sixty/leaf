@@ -23,6 +23,7 @@ from render_harness import (
     Traffic,
     _traffic,
     holding,
+    is_problem,
     leaf_page,
     open_page,
     panel_settled,
@@ -303,7 +304,8 @@ def test_an_acknowledgement_neither_waits_for_nor_holds_up_a_gesture(browser, se
         for text in page.locator(".lf-notice").all_text_contents()
     )
     assert all(
-        "/api/event" in error or "Failed to load" in error
+        is_problem(error, "Failed to load")
+        or (error.code == "failed-load" and "/api/event" in error.values["url"])
         for error in take_browser_errors(page)
     )
 

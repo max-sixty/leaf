@@ -3,31 +3,38 @@
 from pathlib import Path
 
 from .asks import quoted_in
-from .files import latest_revision
+from .files import latest_revision, list_revisions
+from .findings import Finding
 from .passages import page_passages
 from .projection import (
     PageReading,
-    frozen_thread_reading,
     retirement_outcomes,
     rewritten_bodies,
 )
 from .registry.storage import require_registry
 from .revision_artifact import read_revision
-from .thread_context import id_subject
+from .thread_context import (
+    effective_thread_events,
+    id_subject,
+    thread_names,
+    thread_structure,
+    thread_widgets,
+)
 
 
 def widget_seat_error(
     page: PageReading, widget: str, workflows: list[dict]
-) -> str | None:
+) -> Finding | None:
     """Why `widget` cannot seat a to-do on `page`, or None.
 
     A to-do on a widget stands beside that widget at the page edge, so the widget must
     be live on the page: present under the page's standing outcomes and not quoted
     exhibit content. And it must be a seat for work: its tag declares `x-work`, or it
     holds an unsettled action, among `workflows` (`workflows.canonical_workflows`)."""
+    named = {"widget": widget}
     rec = page.document.by_id.get(widget)
     if rec is None or rec["tag"] not in page.registry:
-        return f"{widget!r} is not a widget on this page"
+        return Finding("not-a-widget", values=named)
     passages = page_passages(
         page.document,
         page.registry,
@@ -35,17 +42,14 @@ def widget_seat_error(
         rewritten_bodies(page.projection.actions),
     )
     if widget in passages.retired or widget in passages.gone:
-        return f"{widget} is not visible under the page's standing outcomes"
+        return Finding("hidden-widget", values=named)
     if quoted_in(rec, page.registry):
-        return f"{widget} is quoted exhibit content, not a live page widget"
+        return Finding("quoted-seat", values=named)
     held = any(
         item["subject"] == {"kind": "widget", "id": widget} for item in workflows
     )
     if not page.registry[rec["tag"]].get("x-work") and not held:
-        return (
-            f"{widget} has no work seat; its widget declares no x-work and it holds "
-            "no unsettled action"
-        )
+        return Finding("no-work-seat", values=named)
     return None
 
 
@@ -67,6 +71,7 @@ def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
     if revision is None:
         return id_subject(events, set(), {}, {}, name)
     registry = require_registry(page_dir)
+    events = effective_thread_events(events, list_revisions(page_dir))
     return id_subject(
         events,
         {
@@ -74,7 +79,7 @@ def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
             for element, rec in read_revision(page_dir, revision).document.by_id.items()
             if rec["tag"] in registry
         },
-        frozen_thread_reading(events, registry).thread_by_widget,
+        thread_widgets(thread_structure(events), thread_names(events)),
         read_revision(page_dir, revision).enclosing,
         name,
     )

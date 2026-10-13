@@ -65,114 +65,111 @@ function drawOptions(body, Plot, width, height) {
   return { ...spec, width, height };
 }
 
-customElements.define(
-  "lf-chart",
-  class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
-      // A chart is drawn to the room it has, so the first draw waits for a box. On the
-      // page that box is there already and this settles inside the upgrade, holding the
-      // view restore and the first anchor pass until the drawing is in and the page's
-      // geometry is final. In a shut panel there is no box at all and measure holds the
-      // draw instead of the page.
-      measure(this, () => widgetController(this).present(this.draw()));
-    }
+export default class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    // A chart is drawn to the room it has, so the first draw waits for a box. On the
+    // page that box is there already and this settles inside the upgrade, holding the
+    // view restore and the first anchor pass until the drawing is in and the page's
+    // geometry is final. In a shut panel there is no box at all and measure holds the
+    // draw instead of the page.
+    measure(this, () => widgetController(this).present(this.draw()));
+  }
 
-    async draw() {
-      // Inside the try with everything else: bodyText reaches for a <pre> both markup
-      // doors require, and an authored document hand-edited past them threw out of here
-      // instead of failing soft, leaving the user the body's raw text and no error at all.
-      let source = "";
-      try {
-        source = bodyText(this);
-        const body = compile(source);
-        const Plot = await loadPlot();
-        // The box each drawing goes in. A redraw replaces what is in it and nothing else,
-        // because by then the runtime may have hung its own words on the widget — the
-        // line saying a comment stands on this chart is a child of the element.
-        this.drawing = document.createElement("div");
-        this.drawing.className = "lf-chart-drawing";
-        this.replaceChildren(this.drawing);
-        this.paint(Plot, body);
-        this.classList.add("lf-rendered");
-        // Only the width is watched, and only when it lands on a new whole pixel; the
-        // height is stated and stays. The redraw is scheduled after ResizeObserver
-        // delivery, so the layout a paint reads never lands inside the delivery cycle
-        // that asked for it, which the browser reports as undelivered notifications.
-        // A failed redraw ends the watch: the failure replaced the drawing, and a
-        // chart that returns to the page keeps showing it rather than drawing again.
-        let stop;
-        const paint = frameFor(this, () => {
-          if (!this.clientWidth || Math.round(this.clientWidth) === this.drawn) return;
-          try {
-            this.paint(Plot, body);
-          } catch (err) {
-            stop();
-            failSoft(this, err, source);
-          }
-        });
-        stop = whileConnected(this, () => {
-          const watching = sizeObserver(paint);
-          watching.observe(this);
-          return () => watching.disconnect();
-        });
-      } catch (err) {
-        failSoft(this, err, source);
-      }
+  async draw() {
+    // Inside the try with everything else: bodyText reaches for a <pre> both markup
+    // doors require, and an authored document hand-edited past them threw out of here
+    // instead of failing soft, leaving the user the body's raw text and no error at all.
+    let source = "";
+    try {
+      source = bodyText(this);
+      const body = compile(source);
+      const Plot = await loadPlot();
+      // The box each drawing goes in. A redraw replaces what is in it and nothing else,
+      // because by then the runtime may have hung its own words on the widget — the
+      // line saying a comment stands on this chart is a child of the element.
+      this.drawing = document.createElement("div");
+      this.drawing.className = "lf-chart-drawing";
+      this.replaceChildren(this.drawing);
+      this.paint(Plot, body);
+      this.classList.add("lf-rendered");
+      // Only the width is watched, and only when it lands on a new whole pixel; the
+      // height is stated and stays. The redraw is scheduled after ResizeObserver
+      // delivery, so the layout a paint reads never lands inside the delivery cycle
+      // that asked for it, which the browser reports as undelivered notifications.
+      // A failed redraw ends the watch: the failure replaced the drawing, and a
+      // chart that returns to the page keeps showing it rather than drawing again.
+      let stop;
+      const paint = frameFor(this, () => {
+        if (!this.clientWidth || Math.round(this.clientWidth) === this.drawn) return;
+        try {
+          this.paint(Plot, body);
+        } catch (err) {
+          stop();
+          failSoft(this, err, source);
+        }
+      });
+      stop = whileConnected(this, () => {
+        const watching = sizeObserver(paint);
+        watching.observe(this);
+        return () => watching.disconnect();
+      });
+    } catch (err) {
+      failSoft(this, err, source);
     }
+  }
 
-    paint(Plot, body) {
-      const width = Math.round(this.clientWidth);
-      const box = Number(this.getAttribute("data-lf-height"));
-      this.drawing.replaceChildren(this.plot(Plot, body, width, box));
-      // A legend Plot sets beside the drawing takes its own height, which only laying it
-      // out says, so a chart with one is drawn again into the room the legend leaves.
-      const legend = this.drawing.offsetHeight - box;
-      if (legend > 0)
-        this.drawing.replaceChildren(this.plot(Plot, body, width, box - legend));
-      this.drawn = width;
-    }
+  paint(Plot, body) {
+    const width = Math.round(this.clientWidth);
+    const box = Number(this.getAttribute("data-lf-height"));
+    this.drawing.replaceChildren(this.plot(Plot, body, width, box));
+    // A legend Plot sets beside the drawing takes its own height, which only laying it
+    // out says, so a chart with one is drawn again into the room the legend leaves.
+    const legend = this.drawing.offsetHeight - box;
+    if (legend > 0)
+      this.drawing.replaceChildren(this.plot(Plot, body, width, box - legend));
+    this.drawn = width;
+  }
 
-    plot(Plot, body, width, height) {
-      let built = Plot.plot(drawOptions(body, Plot, width, Math.max(1, height)));
-      // With a legend, Plot returns a <figure> holding it and the drawing. The page gives
-      // its own figures margins and reads them as blocks a comment can stand on, and this
-      // one is neither: the chart is the comment target and its box is the widget's. So
-      // it becomes a plain box, keeping the class Plot styles it by.
-      if (built.matches("figure")) {
-        const box = document.createElement("div");
-        box.className = built.getAttribute("class");
-        box.append(...built.childNodes);
-        built = box;
-      } else {
-        // Plot's pointer reports what it points at by dispatching `input` on its figure,
-        // for a notebook's viewof. On a page that is an input the user never gave, and the
-        // runtime reads every `input` as the user's own, dropping a delayed move it was
-        // holding. A figure turned into a box above is detached, so only this one speaks.
-        built.dispatchEvent = () => true;
-      }
-      // The drawing is the <svg> carrying the author's ariaLabel: a legend Plot puts beside
-      // it is an <svg> too, a colour ramp one of its own.
-      const drawing = [built, ...built.children].find((node) =>
-        node.matches("svg[aria-label]"),
-      );
-      // The drawing is one picture and takes a whole-widget comment, so nothing inside
-      // it needs to be reachable on its own. `role="img"` closes the tree under it, and
-      // Plot names every group inside — `aria-label="bar"`, `"x-axis tick label"` — on
-      // `<g>` elements carrying no role, which axe reports as a serious WCAG failure.
-      // Kept as data, because what Plot calls each group is the only thing that names
-      // one: it is how a test asks for the x axis's words.
-      for (const named of built.querySelectorAll("g[aria-label]")) {
-        named.dataset.lfPart = named.getAttribute("aria-label");
-        named.removeAttribute("aria-label");
-      }
-      drawing.setAttribute("role", "img");
-      // Dependency defaults join the same tier as widget defaults. Leaf's chart
-      // face and paper remain stylesheet-owned; authored Plot style options keep
-      // their inline priority, including legend styles.
-      for (const style of built.querySelectorAll("style"))
-        style.textContent = inBaseLayer(style.textContent);
-      return built;
+  plot(Plot, body, width, height) {
+    let built = Plot.plot(drawOptions(body, Plot, width, Math.max(1, height)));
+    // With a legend, Plot returns a <figure> holding it and the drawing. The page gives
+    // its own figures margins and reads them as blocks a comment can stand on, and this
+    // one is neither: the chart is the comment target and its box is the widget's. So
+    // it becomes a plain box, keeping the class Plot styles it by.
+    if (built.matches("figure")) {
+      const box = document.createElement("div");
+      box.className = built.getAttribute("class");
+      box.append(...built.childNodes);
+      built = box;
+    } else {
+      // Plot's pointer reports what it points at by dispatching `input` on its figure,
+      // for a notebook's viewof. On a page that is an input the user never gave, and the
+      // runtime reads every `input` as the user's own, dropping a delayed move it was
+      // holding. A figure turned into a box above is detached, so only this one speaks.
+      built.dispatchEvent = () => true;
     }
-  },
-);
+    // The drawing is the <svg> carrying the author's ariaLabel: a legend Plot puts beside
+    // it is an <svg> too, a colour ramp one of its own.
+    const drawing = [built, ...built.children].find((node) =>
+      node.matches("svg[aria-label]"),
+    );
+    // The drawing is one picture and takes a whole-widget comment, so nothing inside
+    // it needs to be reachable on its own. `role="img"` closes the tree under it, and
+    // Plot names every group inside — `aria-label="bar"`, `"x-axis tick label"` — on
+    // `<g>` elements carrying no role, which axe reports as a serious WCAG failure.
+    // Kept as data, because what Plot calls each group is the only thing that names
+    // one: it is how a test asks for the x axis's words.
+    for (const named of built.querySelectorAll("g[aria-label]")) {
+      named.dataset.lfPart = named.getAttribute("aria-label");
+      named.removeAttribute("aria-label");
+    }
+    drawing.setAttribute("role", "img");
+    // Dependency defaults join the same tier as widget defaults. Leaf's chart
+    // face and paper remain stylesheet-owned; authored Plot style options keep
+    // their inline priority, including legend styles.
+    for (const style of built.querySelectorAll("style"))
+      style.textContent = inBaseLayer(style.textContent);
+    return built;
+  }
+}

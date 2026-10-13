@@ -12,6 +12,7 @@ from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import service as service_model
+from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -72,6 +73,7 @@ from render_harness import (
     resized,
     round_trip,
     scroll_settled,
+    select,
     select_words,
     sending,
     shortcut_bar_text,
@@ -1567,11 +1569,12 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     ), "the user's editor opened on text the runtime had written into"
 
 
-def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
-    """Plain words retain their geometry and native double-click selection on edit.
+def test_double_clicking_a_draft_keeps_its_frame_and_selected_word(browser, serve):
+    """The draft stays in place and double-click keeps the selected word on edit.
 
-    The frame's inset focus paint changes without reaching outside the reading box,
-    and print keeps the saved body while dropping the shared editor."""
+    The editor leaves room for Copy beside the caret. The frame's inset focus paint
+    changes without reaching outside the reading box, and print keeps the saved body
+    while dropping the shared editor."""
     page = open_page(browser, serve(JOURNEY_V1))
     metrics = """(sel) => {
       const el = document.querySelector('#draft-ops ' + sel), s = getComputedStyle(el);
@@ -1624,9 +1627,11 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     assert page.screenshot(clip=inside) != inside_before, (
         "the open editor is indistinguishable from the read view at the box's edge"
     )
-    assert page.evaluate(metrics, "leaf-text") == read, (
-        "the editor's text sits somewhere the read view's text did not"
+    edited = page.evaluate(metrics, "leaf-text")
+    assert (edited[0], edited[1], edited[3]) == (read[0], read[1], read[3]), (
+        "the editor moved the draft's words or changed their line height"
     )
+    assert edited[2] < read[2], "the editor left no room for Copy beside the caret"
     assert page.locator("#draft-ops").bounding_box() == host, (
         "the draft changed shape under the pointer when the editor opened"
     )
@@ -1907,7 +1912,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     # The fixture deliberately removes the editor's subject. Consume that allowed
     # disappearance at the frame where the words watcher observes the removal.
     one_frame(page)
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
     page.evaluate(
         """() => {
           const {node, parent, next} = window.__lfEditingDraft;
@@ -2026,7 +2031,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     )
     draft_control(page, "save", "draft-ops").click()
     item = draft.locator(".lf-draft-footer")
-    expect(item.get_by_role("status")).to_have_text("Save failed. Your edit is kept.")
+    expect(item.get_by_role("status")).to_have_text("Save failed. The edit is kept.")
     expect(editor).to_have_js_property("value", "Keep these unsent words.")
     expect(item.get_by_role("button", name="Retry", exact=True)).to_be_visible()
     expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
@@ -2034,7 +2039,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     write(editor, "Keep the revised unsent words.")
     expect(item.locator(".lf-draft-status")).to_be_empty()
     item.get_by_role("button", name="Save", exact=True).click()
-    expect(item.get_by_role("status")).to_have_text("Save failed. Your edit is kept.")
+    expect(item.get_by_role("status")).to_have_text("Save failed. The edit is kept.")
     page.unroute("**/api/event")
     item.get_by_role("button", name="Retry", exact=True).click()
     round_trip(page)
@@ -2051,7 +2056,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
         {"value": sent},
         {"value": "Keep the revised unsent words."},
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, one_user):
@@ -2132,7 +2137,10 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     round_trip(first)
     # The forged selection is not the state's, so the `add` renders it away and the pick
     # that follows in the same task puts it back.
-    consume_browser_errors(first, "unchanged write: chosen on lf-option#job-mounts")
+    consume_browser_errors(
+        first,
+        {"code": "unchanged-write", "what": "chosen", "node": "lf-option#job-mounts"},
+    )
 
     moves = [
         event
@@ -2251,7 +2259,7 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == words
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_intent(
@@ -2286,7 +2294,7 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     expect(page.locator(".lf-notice")).to_have_text(
         "Couldn't send — refused before append"
     )
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
@@ -2328,7 +2336,7 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
     assert stored_draft_text(page, "general") == later
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 @pytest.mark.parametrize("reply_sent", [True, False], ids=["sent", "unsent"])
@@ -2421,12 +2429,8 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     # went, which is what the guard's report is about.
     consume_browser_errors(
         page,
-        "400",
-        *(
-            []
-            if reply_sent
-            else [f'typed words left the screen without a key or press: "{reply}"']
-        ),
+        {"code": "failed-load", "status": 400},
+        *([] if reply_sent else [{"code": "words-left-screen", "words": reply}]),
     )
 
 
@@ -2488,7 +2492,7 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
     assert sent["anchor"]["section"] == "p5"
     thread = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
     expect(thread.locator("leaf-text").first).to_have_js_property("value", reply)
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
@@ -2543,7 +2547,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == words
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
@@ -3355,7 +3359,9 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
                 },
             )
         expect(first.locator(".lf-notice")).to_contain_text("Couldn't send")
-        expected_error = f"400 {refused.value.url}"
+        expected_error = Finding(
+            "failed-load", values={"status": 400, "url": refused.value.url}
+        )
         first_errors = first.lf_errors
         first_errors.remove(expected_error)
         expect(first_say.locator("leaf-text")).to_have_js_property("value", newer or "")
@@ -3690,10 +3696,13 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
     # and leaves it standing. `held_stale`'s refusal is lifted here rather than earlier,
     # with the older attempt in the log and the older generation still cached, which is
     # the only arrangement that asks anything.
-    accepted_words = (
-        f'typed words left the screen without a key or press: "{old}" in '
-        + stale_say.locator("leaf-text").evaluate("field => window.lfPlace(field)")
-    )
+    accepted_words = {
+        "code": "words-left-screen",
+        "words": old,
+        "place": stale_say.locator("leaf-text").evaluate(
+            "field => window.lfPlace(field)"
+        ),
+    }
     stale_held.restore()
     told(stale)
     # The fixture blocked the real storage gesture, then explicitly accepted its
@@ -4448,7 +4457,7 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
         # Escape itself, active settlement, and every other field remain strict.
         errors = consume_browser_errors(
             page,
-            f'typed words left the screen without a key or press: "{words}" in leaf-text.lf-ui',
+            {"code": "words-left-screen", "words": words, "place": "leaf-text.lf-ui"},
         )
         assert len(errors) == 1
 
@@ -4840,9 +4849,7 @@ def test_replaced_reply_compositions_keep_their_carets_and_leave_commands(
     # its words and caret until the user selects its next route, so its words are off
     # the screen meanwhile.
     page.evaluate("() => window.lfWordsJudged()")
-    consume_browser_errors(
-        page, f'typed words left the screen without a key or press: "{words[0]}"'
-    )
+    consume_browser_errors(page, {"code": "words-left-screen", "words": words[0]})
     for root, word in zip(roots, words):
         box = page.locator(f'.lf-thread[data-id="{root}"] leaf-text')
         expect(box).to_have_js_property("value", word)
@@ -5879,7 +5886,11 @@ def test_the_draft_box_is_its_own_door(browser, serve):
     # holding, which is the thing the door would have destroyed.
     box = body.bounding_box()
     line = box["y"] + 8
-    hold_selection(page, (box["x"] + 2, line), (box["x"] + box["width"] - 2, line))
+    # Keep the release over the draft's words. The box's far edge lies beside the
+    # text and makes the browser end the selection in the following page content.
+    hold_selection(
+        page, (box["x"] + 2, line), (box["x"] + min(150, box["width"] / 2), line)
+    )
     held = page.evaluate("() => getSelection().toString()")
     assert held.strip() != "", (
         f"the drag selected nothing, so this says nothing about the door: {held!r}"
@@ -5938,8 +5949,11 @@ def test_the_draft_box_is_its_own_door(browser, serve):
 
 
 # Generated editors carry native editing under their existing durable draft identity.
-def editing_revision_source(mode):
-    body = '<h1 id="subject">Editor continuity</h1><p id="passage">A stable passage stays exact across the revision.</p><textarea id="authored-draft" aria-label="Authored draft" style="height:80px"></textarea><lf-draft id="draft-root"><pre>Standing editable text.</pre></lf-draft><lf-ask id="choice-root"><h2>Which choice?</h2><lf-options id="options-root" choose><lf-option id="initial">Initial choice</lf-option></lf-options></lf-ask><lf-test-plan id="command-root" label="Tasks"><lf-test-task id="seat-root" status="active" talk>What should we do?</lf-test-task></lf-test-plan>'
+def editing_revision_source(mode, body=None):
+    body = (
+        body
+        or '<h1 id="subject">Editor continuity</h1><p id="passage">A stable passage stays exact across the revision.</p><textarea id="authored-draft" aria-label="Authored draft" style="height:80px"></textarea><lf-draft id="draft-root"><pre>Standing editable text.</pre></lf-draft><lf-ask id="choice-root"><h2>Which choice?</h2><lf-options id="options-root" choose><lf-option id="initial">Initial choice</lf-option></lf-options></lf-ask><lf-test-plan id="command-root" label="Tasks"><lf-test-task id="seat-root" status="active" talk>What should we do?</lf-test-task></lf-test-plan>'
+    )
     module = """<script type="module">
 window.__rendererLifetime={birth:performance.timeOrigin,hits:0,version:'MODE'};
 addEventListener('renderer-lifetime-probe',()=>window.__rendererLifetime.hits++);
@@ -6227,7 +6241,7 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
     )
     errors = consume_browser_errors(page, "mechanical caret fixture failed")
     assert len(errors) == 1, errors
-    assert "Revision continuity failed" in errors[0], errors
+    assert "Revision continuity failed" in errors[0].values["text"], errors
     page.wait_for_function(
         "async()=> (await window.__lfRuntimeImport('/runtime/semantic-state.js')).readApplication().document.revision===2"
     )
@@ -6269,7 +6283,7 @@ def test_a_fresh_revision_caret_failure_does_not_strand_deferred_arrivals(
     assert page.evaluate("Boolean(window.__presentationDispatched)")
     page.wait_for_function("window.__deferredArrivalRan===true")
     assert len(errors) == 1, errors
-    assert "Revision continuity failed" in errors[0], errors
+    assert "Revision continuity failed" in errors[0].values["text"], errors
 
 
 def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, serve):
@@ -6302,7 +6316,7 @@ def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, se
     expect(draft_control(page, "retry", "first-draft")).to_be_visible()
     expect(draft_control(page, "cancel", "first-draft")).to_be_visible()
     assert page.locator("#following").bounding_box() == before
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, serve):
@@ -6769,3 +6783,354 @@ def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):
     # The shared selection owner may expand partial words; the newer passage remains.
     assert selected in page.evaluate("getSelection().toString()")
     page.evaluate("stopCloseObserver()")
+
+
+@pytest.mark.parametrize("edited", [False, True], ids=["seed", "edited"])
+def test_commenting_on_the_same_selection_preserves_the_existing_suggestion(
+    browser, serve, edited
+):
+    """Activating an already captured passage focuses its existing draft and mode."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Selection mode",
+                '<h1>Selection mode</h1><p id="words">The same selected passage.</p>',
+            )
+        ),
+    )
+    select_words(page, "#words")
+    page.keyboard.press("c")
+    editor = page.locator(".lf-fab-input")
+    expect(editor).to_be_focused()
+    page.keyboard.press("Tab")
+    page.locator(".lf-fab-suggest").click()
+    expect(editor).to_have_attribute("placeholder", re.compile(r"^Replacement text"))
+    words = "My replacement" if edited else "The same selected passage."
+    if edited:
+        write(editor, words)
+    select_words(page, "#words")
+    rendered(page)
+    expect(page.locator('input[name="suggest-replacement"]')).to_be_checked()
+    page.keyboard.press("c")
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", words)
+    expect(editor).to_have_attribute("placeholder", re.compile(r"^Replacement text"))
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "widget",
+        "revision",
+        "dragged-revision",
+        "hidden-revision",
+        "window-revision",
+        "reloaded-revision",
+    ],
+)
+def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
+    browser, serve, change
+):
+    """Changed words retain the editor and sending keeps its original semantic anchor."""
+    source = editing_revision_source(
+        "mutable",
+        '<h1>Mutable words</h1><lf-draft id="mutable">'
+        "<pre>The words first shown.</pre></lf-draft>",
+    )
+    source = source.replace(
+        "</head>",
+        "<style>@media(max-width:600px){#mutable{display:none}}</style></head>",
+    )
+    url = live_url(serve(source))
+
+    def replace_words(value="Different saved words."):
+        append_command(
+            serve.page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "mutable",
+                "action": "edit",
+                "detail": {"value": value},
+            },
+        )
+
+    page = open_page(browser, url)
+    shown = page.locator("#mutable .lf-draft-body")
+    expect(shown).to_have_text("The words first shown.")
+    bounds = shown.evaluate(
+        "e => { const r = document.createRange(); r.selectNodeContents(e); "
+        "return r.getBoundingClientRect().toJSON(); }"
+    )
+    y = bounds["top"] + bounds["height"] / 2
+    select(page, (bounds["left"] + 1, y), (bounds["right"] - 1, y))
+    page.keyboard.press("c")
+    editor = page.locator(".lf-fab-input")
+    words = "Keep this unfinished observation."
+    write(editor, words)
+    editor.press("Home")
+    editor.press("Shift+ArrowRight")
+    caret = editor.evaluate("e => [e.selectionStart, e.selectionEnd]")
+    rendered(page)
+    if change == "dragged-revision":
+        before_drag = editor.bounding_box()
+        grip = page.locator(".lf-fab-bar > .lf-surface-grip").bounding_box()
+        x, y = grip["x"] + grip["width"] / 2, grip["y"] + 2
+        page.mouse.move(x, y)
+        page.mouse.down()
+        page.mouse.move(x - 60, y + 80, steps=8)
+        page.mouse.up()
+        page.wait_for_function(
+            """before => {
+              const box = document.querySelector('.lf-fab-input').getBoundingClientRect();
+              return Math.abs(box.x - before.x + 60) < 1 &&
+                     Math.abs(box.y - before.y - 80) < 1;
+            }""",
+            arg=before_drag,
+        )
+        expect(editor).to_be_focused()
+    if change == "window-revision":
+        resized(page, 480, 900)
+        # The hidden subject withholds its editor. Resume writing restores the same
+        # native field before the revision changes underneath it.
+        expect(editor).to_be_hidden()
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+        expect(editor).to_be_visible()
+        expect(editor).to_be_focused()
+        rendered(page)
+    editor_before = editor.bounding_box()
+    if change in {"hidden-revision", "reloaded-revision"}:
+        page.keyboard.press("Escape")
+        page.mouse.click(5, 600)
+    if change == "widget":
+        replace_words()
+    else:
+        _publish(
+            serve.page_dir,
+            2,
+            source.replace("The words first shown.", "Different saved words."),
+            "Replace the quoted words",
+        )
+    told(page)
+    if change != "widget":
+        rendered(page)
+        if change in {"revision", "dragged-revision", "window-revision"}:
+            page.keyboard.press("Control+Alt+r")
+        wait_for_revision(page, 2)
+    if change == "reloaded-revision":
+        page.reload()
+        wait_until_ready(page)
+    elif change == "hidden-revision":
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+        expect(editor).to_be_focused()
+    expect(shown).to_have_text("Different saved words.")
+    rendered(page)
+    editor_after = editor.bounding_box()
+    if change not in {"hidden-revision", "reloaded-revision"}:
+        assert abs(editor_after["x"] - editor_before["x"]) < 1
+        assert abs(editor_after["y"] - editor_before["y"]) < 1
+    expect(editor).to_be_visible()
+    expect(editor).to_be_focused()
+    expect(editor).to_have_js_property("value", words)
+    if change != "reloaded-revision":
+        assert editor.evaluate("e => [e.selectionStart, e.selectionEnd]") == caret
+    page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
+    comments = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == words
+    ]
+    assert len(comments) == 1
+    assert comments[0]["revision"] == 1
+    assert comments[0]["anchor"]["quote"] == "The words first shown."
+
+
+@pytest.mark.parametrize("surface", ["questions", "threads"])
+def test_covering_surface_retains_the_open_passage_editor(browser, serve, surface):
+    """Every covering auxiliary surface lends room back to the same native editor."""
+    page = open_page(browser, serve(ASK_PAGE))
+    resized(page, 900, 844)
+    page.locator(
+        ".lf-queue" if surface == "questions" else ".lf-threads-toggle"
+    ).click()
+    rendered(page)
+    select_words(page, "#h")
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    words = "Keep this unfinished comment."
+    write(field, words)
+    field.press("Home")
+    field.press("ArrowRight")
+    field.evaluate("el => { window.heldDraftEditor = el; }")
+    resized(page, 390, 844)
+    panel = page.locator(
+        ".lf-queue-panel" if surface == "questions" else ".lf-thread-panel"
+    )
+    expect(panel).to_be_visible()
+    expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-withheld", "")
+    expect(field).not_to_be_focused()
+    landing = panel.locator(
+        ".lf-drawer-list button, .lf-drawer-list a[href]"
+        if surface == "questions"
+        else ".lf-threads"
+    ).first
+    expect(landing).to_be_focused()
+    resized(page, 900, 844)
+    expect(field).to_be_visible()
+    expect(field).to_have_js_property("value", words)
+    assert field.evaluate("el => el === window.heldDraftEditor")
+    assert field.evaluate("el => el.selectionStart") == 1
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
+
+
+def test_revisiting_a_passage_recaptures_its_revision_without_losing_words(
+    browser, serve
+):
+    """A fresh aim keeps saved words but captures the document currently on screen."""
+    source = editing_revision_source("revisit")
+    page = open_page(browser, live_url(serve(source)))
+    select_words(page, "#passage")
+    page.keyboard.press("c")
+    words = "An observation captured on the first revision."
+    write(page.locator(".lf-fab-input"), words)
+    select_words(page, "#subject")
+    rendered(page)
+    _publish(
+        serve.page_dir,
+        2,
+        source.replace(
+            "<title>Editor continuity</title>", "<title>A newer revision</title>"
+        ),
+        "A new revision",
+    )
+    told(page)
+    page.keyboard.press("Control+Alt+r")
+    wait_for_revision(page, 2)
+    select_words(page, "#passage")
+    page.keyboard.press("c")
+    editor = page.locator(".lf-fab-input")
+    expect(editor).to_have_js_property("value", words)
+    editor.press("ControlOrMeta+Enter")
+    round_trip(page)
+    sent = [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event.get("text") == words
+    ]
+    assert len(sent) == 1
+    assert sent[0]["revision"] == 2
+
+
+def test_a_shared_composer_sends_the_revision_its_draft_last_aimed_at(
+    browser, serve, one_user
+):
+    source = editing_revision_source("shared")
+    url = live_url(serve(source))
+    first = open_page(browser, url, context=one_user)
+    choose_comment_target(first, "#passage")
+    first.keyboard.press("c")
+    editor = first.locator(".lf-fab-input")
+    write(editor, "First words.")
+    _publish(
+        serve.page_dir,
+        2,
+        source.replace("Editor continuity", "A newer heading"),
+        "A new revision",
+    )
+    second = open_page(browser, url, context=one_user)
+    wait_for_revision(second, 2)
+    second.keyboard.press("Escape")
+    choose_comment_target(second, "#passage")
+    second.keyboard.press("c")
+    words = "Both views now hold this revision's draft."
+    write(second.locator(".lf-fab-input"), words)
+    expect(editor).to_have_js_property("value", words)
+    second.keyboard.press("Escape")
+    editor.press("ControlOrMeta+Enter")
+    round_trip(first)
+    sent = [
+        e for e in events_model.read_events(serve.page_dir) if e.get("text") == words
+    ]
+    assert len(sent) == 1
+    assert sent[0]["revision"] == 2
+
+
+def datum_draft_url(serve, *, identified=False):
+    """Serve a projected subject whose rendering can change independently of its identity."""
+    module = """
+import {projectData, html, render} from '/runtime/widget-api.js';
+export default class extends HTMLElement {
+  connectedCallback() { this.show('Original datum words.'); }
+  show(words, key='datum') {
+    render(html`<p>${words}</p><p>Other words in the same widget.</p>`, this);
+    projectData(this, [{key, IDENTITY node: this.querySelector('p'), label: 'Datum',
+      origin: {derived: [{widget: 'subject'}]}}]);
+  }
+}
+"""
+    module = module.replace("IDENTITY", "identity: 'subject'," if identified else "")
+    return serve(
+        leaf_page("Datum draft", '<lf-draft-subject id="subject"></lf-draft-subject>'),
+        layer_registry={
+            "lf-draft-subject": {
+                "description": "A datum whose words can change.",
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+                "required": ["id"],
+                "additionalProperties": False,
+                "x-content": "empty",
+                "x-upgrade": True,
+                "x-example": '<lf-draft-subject id="example"></lf-draft-subject>',
+            }
+        },
+        layer_widgets={"lf-draft-subject.js": module},
+    )
+
+
+def test_changed_datum_words_keep_the_draft_on_that_datum(browser, serve):
+    """The resolver's canonical datum fallback owns placement after its quote changes."""
+    page = open_page(browser, datum_draft_url(serve))
+    select_words(page, "#subject p:first-child")
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    write(field, "Keep this datum's original quotation.")
+    page.locator("#subject").evaluate("el => el.show('Changed datum words.')")
+    rendered(page)
+    expect(field).to_be_focused()
+    attachment = page.locator(".lf-fab-bar").evaluate("""bar => {
+      let frame = bar;
+      while (getComputedStyle(frame).positionAnchor === 'auto') frame=frame.parentElement;
+      return {name: getComputedStyle(frame).positionAnchor,
+        datum: getComputedStyle(document.querySelector('#subject p')).anchorName};
+    }""")
+    assert attachment["name"] in attachment["datum"].split(", "), attachment
+
+
+def test_a_mirrored_datum_retarget_does_not_reopen_a_dismissed_response(
+    browser, serve, one_user
+):
+    url = datum_draft_url(serve, identified=True)
+    first = open_page(browser, url, context=one_user)
+    first.locator("#subject p:first-child").click(modifiers=["Alt"])
+    write(first.locator(".lf-fab-input"), "A shared identified subject.")
+    first.keyboard.press("Escape")
+    first.mouse.click(5, 600)
+    expect(first.locator(".lf-fab-bar")).not_to_be_visible()
+    second = open_page(browser, url, context=one_user)
+    second.keyboard.press("Escape")
+    second.locator("#subject").evaluate(
+        "el => el.show('Original datum words.', 'next')"
+    )
+    rendered(second)
+    second.locator("#subject p:first-child").click(modifiers=["Alt"])
+    words = "This rendering is now the shared draft's subject."
+    write(second.locator(".lf-fab-input"), words)
+    expect(first.locator(".lf-fab-input")).to_have_js_property("value", words)
+    expect(first.locator(".lf-fab-bar")).not_to_be_visible()

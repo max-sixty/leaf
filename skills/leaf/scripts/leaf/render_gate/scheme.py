@@ -88,9 +88,11 @@ def console_finding(message, *, warnings: bool = True) -> Finding | None:
     nothing listens to responses for it: a response listener has every request of a
     load — a few hundred modules — sent to and built in this process. The browser
     words that entry and nothing else carries the status, so its words are read here,
-    once, into the finding's fields."""
+    once, into the finding's fields. Any other entry keeps its words and the script
+    that wrote it (`url`, empty where the browser names none)."""
+    said = {"text": message.text, "url": message.location["url"]}
     if message.type == "warning" and warnings:
-        return Finding("console-warning", values={"text": message.text})
+        return Finding("console-warning", values=said)
     if message.type != "error":
         return None
     if failed := _FAILED_LOAD.fullmatch(message.text):
@@ -98,7 +100,7 @@ def console_finding(message, *, warnings: bool = True) -> Finding | None:
             "failed-load",
             values={"status": int(failed[1]), "url": message.location["url"]},
         )
-    return Finding("console-error", values={"text": message.text})
+    return Finding("console-error", values=said)
 
 
 def window_finding(error: dict) -> Finding:
@@ -121,19 +123,18 @@ def exception_finding(error) -> Finding:
     return Finding("page-exception", values={"text": message})
 
 
-def collect_page_exceptions(page, errors: list[str]) -> None:
-    """Collect native exceptions from every document, in the words a reader is
-    shown."""
-    page.on("pageerror", lambda error: errors.append(str(exception_finding(error))))
+def collect_page_exceptions(page, errors: list[Finding]) -> None:
+    """Collect native exceptions from every document, as findings."""
+    page.on("pageerror", lambda error: errors.append(exception_finding(error)))
 
 
-def collect_page_errors(page, errors: list[str]) -> None:
+def collect_page_errors(page, errors: list[Finding]) -> None:
     """Collect the page's console errors and native exceptions, from every document,
-    in the words a reader is shown."""
+    as findings."""
 
     def heard(message):
         if (error := console_finding(message, warnings=False)) is not None:
-            errors.append(str(error))
+            errors.append(error)
 
     page.on("console", heard)
     collect_page_exceptions(page, errors)
@@ -313,7 +314,7 @@ def _render_scheme(
         return ended([Finding("probe-failed", values={"error": str(error).strip()})])
 
     page.on("console", console_message)
-    page.on("pageerror", lambda error: errors.append(exception_finding(error)))
+    collect_page_exceptions(page, errors)
     # The runtime writes each report to the console too, which is where this reading
     # takes it.
     answer_reports(page, lambda text: None)
@@ -353,7 +354,19 @@ def _render_scheme(
     # the page). The readings get data rather than fetching it, so most of them
     # are plain synchronous DOM walks with nothing in them to await or hang in.
     try:
-        registry = served_here("/registry.json").json()
+        state = served_here("/api/state").json()
+        markup = served_here(urlsplit(url).path).text()
+        here = rendered_revision(url, state)
+        captured_registries = {}
+
+        def registry_for_revision(revision):
+            if revision not in captured_registries:
+                captured_registries[revision] = served_here(
+                    state["vocabularies"][str(revision)] + "/registry.json"
+                ).json()
+            return captured_registries[revision]
+
+        registry = registry_for_revision(here)
         # The readings in the page consume element declarations, so they are handed
         # only those:
         # $keys spells its members in the x- keys' own names, and a sweep over
@@ -373,12 +386,6 @@ def _render_scheme(
                 resize_notices,
                 complete=True,
             )
-        state = served_here("/api/state").json()
-        markup = served_here(urlsplit(url).path).text()
-        # Every replay check is bounded by immutable revision.
-        # A stamped URL resolves through the stamp map; an exact source preview
-        # uses the synthetic active revision exposed only by its preview server.
-        here = rendered_revision(url, state)
     except PlaywrightTimeout as e:
         # The first line only: the rest is playwright's call log, which says
         # nothing about the page that a reader of this failure needs.
@@ -416,6 +423,7 @@ def _render_scheme(
         light=scheme == "light",
         errors=[*errors, *pre_upgrade],
         registry=registry,
+        registry_for_revision=registry_for_revision,
         declarations=declarations,
         state=state,
         markup=markup,

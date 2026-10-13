@@ -27,6 +27,7 @@ from interact_support import (
     add_test_widget,
     append_carried_log_record,
     case_alias,
+    command_refusal,
     element_declaration,
     fetch,
     install_payload,
@@ -34,6 +35,7 @@ from interact_support import (
     lock_contention,
     publish,
     record_claim,
+    registry_refusal,
     shipped_payload,
     vendored_at_another_protocol,
     vendored_before_the_ask_rename,
@@ -53,14 +55,15 @@ from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
+from leaf.findings import Finding
 from leaf.page import page_instructions
 from leaf.refusals import Refused
-from leaf.registry import contract as registry_contract
 from leaf.registry import storage as registry_storage
 from leaf.registry import widgets as registry_widgets
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
+from leaf.validation.source import check_source
 from model_folds import leaf_page
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
@@ -300,6 +303,20 @@ def test_response_reply_names_a_page_vendored_at_another_protocol(claimed, serve
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
     assert f"leaf page init {claimed}" in replied.stderr
+    checked = subprocess.run(
+        [*LEAF_COMMAND, "page", "check", str(claimed)],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+    )
+    assert checked.returncode != 0, checked.stdout
+    assert f"leaf page init {claimed}" in checked.stderr
+    assert interact_files.list_revisions(claimed) == [1]
+    [refusal] = check_source(claimed, events_model.read_events(claimed)).errors
+    record = json.loads(json.dumps(refusal.json()))
+    assert record["code"] == "foreign-layer"
+    assert record["values"]["page"] == str(claimed)
 
 
 def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir):
@@ -324,8 +341,7 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
     )
     revendor = f"leaf page init {page_dir}"
     assert registry_storage.load_registry(page_dir) is not None
-    refusal = write_refusal(page_dir)
-    assert refusal and "x-question-context" in refusal and revendor in refusal
+    assert write_refusal(page_dir).values["retired"] == ["x-question-context"]
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code != 0
     assert "x-question-context" in checked.output and revendor in checked.output
@@ -335,7 +351,14 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
     report = json.loads(as_json.output)
     assert report["status"] == 1 and report["browser"] is None
     [finding] = report["findings"]
-    assert finding["code"] == "invalid-registry" and revendor in finding["text"]
+    assert finding["code"] == "retired-layer" and revendor in finding["text"]
+    # Full source composition first rejects this retired key inventory; the
+    # layer-only transport gate above reports the retired-layer refusal.
+    [refusal] = check_source(page_dir, events_model.read_events(page_dir)).errors
+    source_finding = json.loads(json.dumps(refusal.json()))
+    assert source_finding["code"] == "keys-documentation"
+    assert source_finding["values"]["missing"] == ["x-ask-context"]
+    assert source_finding["values"]["unadmitted"] == ["x-question-context"]
 
     vendored(lambda keys: keys.pop("x-question-context"))
     assert write_refusal(page_dir) is None
@@ -607,12 +630,10 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
 
     # A refused title refuses the whole command, so no message goes up unnamed.
     before = events_model.read_events(page_dir)
-    unnamed = runner.invoke(
-        cli_model.cli,
-        ["thread", "open", str(page_dir), "--text", "and the cache?", "--title", ""],
+    unnamed = command_refusal(
+        "thread", "open", page_dir, "--text", "and the cache?", "--title", ""
     )
-    assert unnamed.exit_code != 0
-    assert "comment event is invalid" in unnamed.output
+    assert (unnamed.code, unnamed.values["kind"]) == ("invalid-event", "comment")
     assert events_model.read_events(page_dir) == before
 
     for command, rejected_kind in (
@@ -625,9 +646,11 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
             "thread_title",
         ),
     ):
-        refused = runner.invoke(cli_model.cli, command)
-        assert refused.exit_code != 0
-        assert f"{rejected_kind} event is invalid" in refused.output
+        refused = command_refusal(*command)
+        assert (refused.code, refused.values["kind"]) == (
+            "invalid-event",
+            rejected_kind,
+        )
         assert events_model.read_events(page_dir) == before
 
     # A reply's --title names only a thread nothing has named, so a name the harness
@@ -3061,29 +3084,26 @@ def test_init_preserves_tmp_files_even_when_a_layer_reads_one(tmp_path, monkeypa
 
 
 @pytest.mark.parametrize(
-    ("example", "message"),
+    ("example", "code"),
     [
         (
             '<lf-toned-note id="repeat"><p id="repeat">Two</p></lf-toned-note>',
-            "duplicate ids",
+            "duplicate-ids",
         ),
         (
             '<tr><td id="repeat">One</td><td id="repeat">Two</td></tr>',
-            "duplicate ids",
+            "duplicate-ids",
         ),
-        (
-            '<lf-toned-note id="lf-example">One</lf-toned-note>',
-            "lf- namespace",
-        ),
+        ('<lf-toned-note id="lf-example">One</lf-toned-note>', "reserved-ids"),
         (
             '<lf-toned-note id="note"><p id="two words">One</p></lf-toned-note>',
-            "whitespace",
+            "spaced-ids",
         ),
     ],
     ids=["duplicate", "table-duplicate", "reserved", "spaced"],
 )
 def test_init_refuses_invalid_ids_in_a_registry_example(
-    tmp_path, monkeypatch, example, message
+    tmp_path, monkeypatch, example, code
 ):
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -3095,13 +3115,12 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     registry["lf-toned-note"]["x-example"] = example
     registry_path.write_text(json.dumps(registry))
 
-    result = runner.invoke(
-        cli_model.cli, ["page", "init", "--package", "./.leaf", str(tmp_path / "page")]
+    refused = command_refusal(
+        "page", "init", "--package", "./.leaf", str(tmp_path / "page")
     )
 
-    assert result.exit_code != 0
-    assert "<lf-toned-note> x-example is invalid" in result.output
-    assert message in result.output
+    assert (refused.code, refused.at) == ("invalid-example", "<lf-toned-note>")
+    assert refused.values["finding"]["code"] == code
 
 
 def test_a_fresh_log_starts_without_the_cursor_of_the_log_it_replaced(page_dir):
@@ -3160,7 +3179,7 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
     assert registry["$layer"]["packages"] == ["./first", "./second"]
     assert registry["lf-shared"]["description"] == "second"
     assert (page / "widgets" / "shared.js").read_text() == "// second\n"
-    theme = (page / "theme.css").read_text()
+    theme = (page / "widget-theme.css").read_text()
     assert theme.index("package first") < theme.index("package second")
 
 
@@ -3456,16 +3475,19 @@ def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeyp
     result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
 
     assert result.exit_code != 0
-    assert "<lf-toned-note> must carry a non-empty description" in result.output
-    # With --json the refusal is the result's one finding.
-    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf", "--json"])
-    assert result.exit_code == 1
-    report = json.loads(result.stdout)
+    # With --json the refusal is the result's one finding, in the words the
+    # command line printed.
+    report = json.loads(
+        runner.invoke(cli_model.cli, ["package", "check", ".leaf", "--json"]).stdout
+    )
     assert (report["status"], report["browser"]) == (1, None)
     [refusal] = report["findings"]
-    assert (refusal["code"], refusal["severity"]) == ("package", "error")
-    said = refusal["values"]["text"]
-    assert "<lf-toned-note> must carry a non-empty description" in said
+    assert (refusal["code"], refusal["at"], refusal["severity"]) == (
+        "no-description",
+        "<lf-toned-note>",
+        "error",
+    )
+    assert refusal["text"] in result.output
 
 
 def test_package_check_refuses_a_registry_example_that_violates_its_schema(
@@ -3484,11 +3506,12 @@ def test_package_check_refuses_a_registry_example_that_violates_its_schema(
     entry["required"].append("tone")
     registry_path.write_text(json.dumps(registry))
 
-    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+    refused = command_refusal("package", "check", ".leaf")
 
-    assert result.exit_code != 0
-    assert "<lf-toned-note> x-example is invalid" in result.output
-    assert "'tone' is a required property" in result.output
+    assert (refused.code, refused.at) == ("invalid-example", "<lf-toned-note>")
+    example = Finding.loads(refused.values["finding"])
+    assert (example.code, example.values["keyword"]) == ("attribute-schema", "required")
+    assert "'tone'" in example.values["reason"]
 
 
 def test_package_check_refuses_malformed_css_without_writing(tmp_path, monkeypatch):
@@ -3852,13 +3875,11 @@ def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monke
         packages_model, "starter_element_declaration", lambda tag: declaration
     )
 
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["package", "init", str(package), "--widget", "lf-risk-note"],
+    refused = command_refusal(
+        "package", "init", str(package), "--widget", "lf-risk-note"
     )
 
-    assert result.exit_code != 0
-    assert "<lf-risk-note> x-example is invalid" in result.output
+    assert (refused.code, refused.at) == ("invalid-example", "<lf-risk-note>")
     assert not package.exists()
 
 
@@ -4163,10 +4184,11 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
         ":scope:is(lf-solo) { --lf-block-frame: 1; }\n"
     )
     (widget_package / "widgets" / "lf-solo.js").write_text(
-        'import { ready } from "./ready.js";\n'
-        'customElements.define("lf-solo", class extends HTMLElement {\n'
-        "  connectedCallback() { ready(this); }\n"
-        "});\n"
+        """import { ready } from "./ready.js";
+export default class extends HTMLElement {
+  connectedCallback() { ready(this); }
+};
+"""
     )
     (widget_package / "widgets" / "ready.js").write_text(
         "export const ready = (el) => { el.dataset.ready = '1'; };\n"
@@ -4205,11 +4227,14 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
     assert (page / "widgets" / "ready.js").is_file()
     assert (page / "vendor" / "solo.json").is_file()
     theme = (page / "theme.css").read_text()
+    widgets = (page / "widget-theme.css").read_text()
     # A package with a widget reaches only inside it; a package without one is a
-    # theme, and its rules reach the page as written.
-    assert theme.index(":scope:is(lf-solo) { --lf-block-frame: 1; }") < theme.index(
-        ":root { --solo-night: 1; }"
-    )
+    # theme, and its rules reach the page as written. Their separate sheets let a
+    # publication retain its widget rules while current chrome keeps its theme.
+    assert ":scope:is(lf-solo) { --lf-block-frame: 1; }" in widgets
+    assert ":scope:is(lf-solo) { --lf-block-frame: 1; }" not in theme
+    assert ":root { --solo-night: 1; }" in theme
+    assert "--solo-night" not in widgets
     instructions = (page / "instructions" / "author.md").read_text()
     assert instructions == (
         "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"
@@ -4483,10 +4508,10 @@ def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch,
     registry["$reactions"] = {"tokens": {"nod": entry}}
     registry_path.write_text(json.dumps(registry))
 
-    result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
+    refused = command_refusal("package", "check", ".leaf")
 
-    assert result.exit_code != 0
-    assert "$reactions.tokens.nod" in result.output
+    assert refused.code == "layer-facts"
+    assert refused.values["path"][:3] == ["$reactions", "tokens", "nod"]
 
 
 def test_the_register_is_the_only_way_a_key_enters_the_runtime():
@@ -4935,12 +4960,15 @@ def test_widget_instructions_are_nonempty_text_and_reject_the_old_shape():
         ("x-guidance", {"author": "Use this."}),
     ):
         malformed = {**entry, key: value}
-        with pytest.raises(
-            registry_contract.RegistryError, match="registry extensions are invalid"
-        ):
-            registry_widgets.validate_widget_schemas(
+        refused = registry_refusal(
+            lambda malformed=malformed: registry_widgets.validate_widget_schemas(
                 {"lf-instruction-test": malformed}, {"contracts": {}}, "registry.json"
             )
+        )
+        assert (refused.code, refused.at) == (
+            "invalid-extensions",
+            "<lf-instruction-test>",
+        )
     registry_widgets.validate_widget_schemas(
         {"lf-instruction-test": {**entry, "x-instructions": "Use this."}},
         {"contracts": {}},

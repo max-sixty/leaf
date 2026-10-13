@@ -31,21 +31,10 @@ import {
 import { el, reserve } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
 import { focusDestination, focused } from "./focus.js";
-import { WEBSITE_DELIVERY } from "./context.js";
+import { agentName } from "./semantic-state.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
-const connecting = WEBSITE_DELIVERY ? "Connecting to the Leaf website…" : "Connecting…";
-const INITIAL = Object.freeze({
-  tone: "",
-  summary: connecting,
-  queues: "",
-  queuesWidest: "",
-  explanation: WEBSITE_DELIVERY
-    ? "Loading this website page. Website examples can take longer to connect than a usual Leaf page."
-    : connecting,
-  publication: null,
-});
 
 class BannerStatusView extends HTMLElement {
   #button = createRef();
@@ -61,7 +50,6 @@ class BannerStatusView extends HTMLElement {
   constructor() {
     super();
     this.#queues.type = "button";
-    this.#queues.title = "Show or hide the agent's tasks and your questions";
     this.#queues.setAttribute("aria-controls", "lf-queue");
   }
 
@@ -72,9 +60,9 @@ class BannerStatusView extends HTMLElement {
     this.#onToggle?.();
   };
 
-  configure({ onToggle }) {
+  configure({ onToggle, initial }) {
     this.#onToggle = onToggle;
-    this.present(INITIAL);
+    this.present(initial);
   }
 
   get dot() {
@@ -96,6 +84,11 @@ class BannerStatusView extends HTMLElement {
     this.#model = model;
     this.#paint();
     render(model.queues, this.#queues);
+    keeps(
+      this.#queues,
+      "title",
+      `Show or hide my questions and ${agentName()}'s tasks`,
+    );
     this.#queues.toggleAttribute("hidden", !model.queues);
     // The reservation only grows: its digits are tabular, so the longest counts yet
     // shown are the widest, and a box that shrank back would move them on the next.
@@ -174,9 +167,9 @@ class BannerStatusView extends HTMLElement {
 
 if (!customElements.get(TAG)) customElements.define(TAG, BannerStatusView);
 
-export function createBannerStatusView(onToggle) {
+export function createBannerStatusView(onToggle, initial) {
   const view = document.createElement(TAG);
   view.className = "lf-banner-status";
-  view.configure({ onToggle });
+  view.configure({ onToggle, initial });
   return view;
 }

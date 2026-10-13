@@ -54,7 +54,7 @@ const rowTemplate = (row, activate, finish, end) =>
           id: "queue.row.done",
           keys: ["x"],
           title: "done",
-          description: "Mark this to-do waiting on you done",
+          description: "Mark this to-do done",
           when: () => Boolean(row.done),
           run: () => end(row.key),
         },

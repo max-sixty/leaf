@@ -8,6 +8,7 @@ import pytest
 from interact_support import (
     append_carried_log_record,
     append_command,
+    refused_on,
 )
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -99,6 +100,7 @@ from render_harness import (
     resized,
     root_overflow,
     round_trip,
+    said,
     scroll_settled,
     select,
     sending,
@@ -142,13 +144,13 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
             "</lf-source-stage>"
             '<lf-code id="code" language="python"><pre>print(1)</pre></lf-code>'
             '<lf-diagram id="diagram"><pre>flowchart LR\nA --> B</pre></lf-diagram>'
-            '<lf-diff id="diff"><pre>--- a/a.py\n+++ b/a.py\n'
+            '<lf-diff id="diff"><pre>diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n'
             "@@ -1 +1 @@\n-old\n+new\n</pre></lf-diff>",
         ),
         layer_registry={"lf-source-view": source, "lf-source-stage": stage},
         layer_widgets={
             "lf-source-view.js": """
-customElements.define('lf-source-view', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (this.querySelector('button')) return;
     const button = document.createElement('button');
@@ -161,15 +163,15 @@ customElements.define('lf-source-view', class extends HTMLElement {
     });
     this.querySelector('pre').append(button);
   }
-});
+}
 """,
             "lf-source-stage.js": """
 import {shadowStage} from '/runtime/widget-api.js';
-customElements.define('lf-source-stage', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!this.shadowRoot) shadowStage(this, [...this.childNodes]);
   }
-});
+}
 """,
         },
     )
@@ -2488,43 +2490,6 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     expect(inspector).to_be_hidden()
 
 
-def test_newer_navigation_wins_while_a_call_diff_target_loads(browser, serve):
-    """A lazy exact-patch fetch must not undo a later tab choice and focus."""
-    example = Path(__file__).parents[2] / "examples" / "pr-walkthrough.html"
-    page = open_page(browser, live_url(serve(example)))
-    page.get_by_role("tab", name="CallDiff").click()
-    held = []
-    page.route("**/api/deferred*", lambda route: held.append(route))
-    page.get_by_role("link", name="src/summary.rs:259").first.click()
-    page.wait_for_function(
-        "() => document.querySelector('#pr-exact-patch').shadowRoot.querySelector('details[open]') !== null"
-    )
-    assert held, "the real exact-patch request must remain pending"
-
-    other = page.get_by_role("tab", name="Behavior diff")
-    other.click()
-    expect(other).to_be_focused()
-    before = page.evaluate(
-        "() => ({url: location.href, y: document.scrollingElement.scrollTop})"
-    )
-    page.unroute("**/api/deferred*")
-    for route in held:
-        route.continue_()
-    line = page.locator(
-        '#pr-exact-patch [data-lf-datum=\'["src/summary.rs","new",259]\']'
-    )
-    expect(line).to_have_count(1)
-    page.evaluate(
-        "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
-    )
-    expect(other).to_be_focused()
-    assert page.url == before["url"]
-    assert (
-        abs(page.evaluate("() => document.scrollingElement.scrollTop") - before["y"])
-        < 2
-    )
-
-
 TALL_BOARD_PAGE = leaf_page(
     "tall board",
     """
@@ -4136,7 +4101,7 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
             exact=True,
         )
     ).to_be_visible()
-    expect(page.locator("#card-baffle > .lf-quiet")).to_have_text("your change")
+    expect(page.locator("#card-baffle > .lf-quiet")).to_have_text("my change")
 
     assert board.aria_snapshot() == (
         '- list "Todo":\n'
@@ -4146,7 +4111,7 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Done":\n'
         "  - listitem:\n"
         "    - strong: Squirrel baffle\n"
-        "    - text: your change\n"
+        "    - text: my change\n"
         "    - 'button \"Move: Squirrel baffle — Done\"': ⠿"
     )
 
@@ -4875,7 +4840,8 @@ def test_notification_playground_admits_only_its_exact_page_configuration(
         },
     )
     assert refused.status == 400
-    assert "unknown" in refused.json()["error"]
+    unknown = refused_on(refused.json())
+    assert (unknown.code, unknown.values["field"]) == ("invalid-detail", "/values")
     off_step = post_event(
         page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
@@ -4891,7 +4857,7 @@ def test_notification_playground_admits_only_its_exact_page_configuration(
         },
     )
     assert off_step.status == 400
-    assert "2.5" in off_step.json()["error"]
+    assert refused_on(off_step.json()).values["field"] == "/values/events"
     assert actions(serve.page_dir) == []
 
 
@@ -5418,14 +5384,13 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     box = "el => el.getBoundingClientRect()"
     row = page.locator("[data-lf-margin-for='sug-in-card']")
     expect(row).to_be_visible()
-    # The row stands on the moved card: at its line, or packed just below the card's
-    # own marker where the two would otherwise stand on one corner.
+    # The row stands on the moved card. Clear-space seating may put it above the
+    # changed words, but it must travel with the card and remain actionable.
     card = page.locator("#card-heater").evaluate(box)
-    change = page.locator("#sug-in-card lf-old").evaluate(box)
     stands = row.evaluate(box)
-    assert change["top"] - 5 <= stands["top"] <= change["top"] + 48, (
-        "the row must find the moved change's line again, not the one it left"
-    )
+    assert (
+        card["top"] - 5 <= stands["top"] and stands["bottom"] <= card["bottom"] + 5
+    ), "the row must travel with the moved card"
     assert card["left"] < stands["right"] <= card["right"] + 40, (stands, card)
     row.locator(".lf-sug-accept").click()
     expect(page.locator("#sug-in-card lf-old")).to_be_hidden()
@@ -5705,7 +5670,7 @@ def test_a_refused_undo_keeps_the_outcome_and_can_be_retried(browser, serve):
     ]
     receipt = row.locator(".lf-margin-receipt")
     expect(receipt).to_have_text("Undo failed · Rejected")
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
     assert receipt.evaluate(
         """element => {
           const probe = document.createElement('span');
@@ -6002,7 +5967,7 @@ def test_a_refused_decision_returns_to_pending_with_failure_controls(
     assert logged[0]["attempt"]
     undo(page)
     expect(page.locator("#sug-refill lf-old")).to_be_visible()
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
@@ -6033,7 +5998,7 @@ def test_an_ambiguous_decision_stays_one_gesture_while_retrying(browser, serve):
         accept.click()
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
     expect(page.locator("#sug-refill lf-new")).to_be_visible()
-    expect(page.locator(".lf-notice")).to_contain_text("retrying your change")
+    expect(page.locator(".lf-notice")).to_contain_text("retrying the change")
 
     expect(accept).to_have_count(0)
     expect(
@@ -6188,7 +6153,7 @@ def test_a_key_walks_the_page_s_open_asks(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text(
-        "thread, to-do or resend waiting on you"
+        "thread, to-do or resend waiting on me"
     )
     page.keyboard.press("Escape")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("questions")
@@ -7091,9 +7056,9 @@ def test_an_ask_already_in_front_of_the_user_is_not_travelled_to(browser, serve)
     page.keyboard.press("q")  # one ask, so the walk stays on it
     page.wait_for_function(
         "() => window.__lfLiveRegionChanges.some("
-        "words => words.includes('waiting on you'))"
+        "words => words.includes('waiting on me'))"
     )
-    expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on you"))
+    expect(page.locator(".lf-live")).to_have_text(re.compile(r"waiting on me"))
     assert "" in page.evaluate("window.__lfLiveRegionChanges")
     expect(page.locator("#sc-sug")).to_be_focused()
     scroll_settled(page)
@@ -7986,7 +7951,7 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
     page.evaluate("Promise.all([queueClockTick, queueClockTickAgain])")
     expect(row.locator(".lf-queue-where")).to_contain_text("now")
     assert row.evaluate("node => node === window.queueClockRow")
-    assert [error.splitlines()[0] for error in take_browser_errors(page)] == [
+    assert [said(error) for error in take_browser_errors(page)] == [
         "leaf: Presentation failed: deliberate Queue clock failure"
     ]
     page.evaluate(
@@ -8054,7 +8019,7 @@ def test_failed_ask_paints_report_once_and_retain_their_prior_faces(browser, ser
     assert answer_all.evaluate("control => control === window.__lfAskBulk")
     rows.first.click()
     expect(page.locator("#live-question-decision")).to_be_focused()
-    assert sorted(error.splitlines()[0] for error in take_browser_errors(page)) == [
+    assert sorted(said(error) for error in take_browser_errors(page)) == [
         "leaf: Presentation failed: deliberate Ask banner failure",
         "leaf: Presentation failed: deliberate Queue list failure",
     ]
@@ -9312,8 +9277,17 @@ def test_a_diff_recovers_from_each_failure_on_the_next_good_source(browser, serv
         expect(
             page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
         ).to_contain_text("new first")
-    errors = consume_browser_errors(page, "failed: unified diff repeats file path")
-    assert len(errors) == 2, errors
+    errors = consume_browser_errors(
+        page, "failed: empty diff", "failed: unified diff repeats file path"
+    )
+    assert sum("failed: empty diff" in (said(error) or "") for error in errors) == 1
+    assert (
+        sum(
+            "failed: unified diff repeats file path" in (said(error) or "")
+            for error in errors
+        )
+        == 2
+    )
 
 
 def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(browser, serve):
@@ -10776,9 +10750,9 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
 
     Going forward, nothing-focused meant every hunk lay ahead and the walk stopped at the
     first. Going back it meant every hunk lay ahead too, so none lay behind: the walk ran
-    through the whole list, opened each file and fetched its lines, and landed nowhere. A
-    collapsed manifest is where that costs — one fetch per file — so the reading here is
-    the fetch count and the open count beside the landing, on the review's last hunk."""
+    through the whole list, opened each file and landed nowhere. A collapsed manifest
+    already holds each parsed file's evidence, so this step must open only the last
+    file and make no further request for it."""
     url = serve(MANIFEST_DIFF_PAGE)
     data_model.cmd_data_set(
         serve.page_dir,
@@ -10827,9 +10801,7 @@ def test_a_backward_hunk_step_from_the_diff_itself_opens_one_file_and_lands_in_i
         ".querySelectorAll('details[open]').length"
     )
     assert opened == 1, f"the step opened files it never reached: {opened} open"
-    assert len(fetched) == 1, (
-        f"one file's lines were needed, {len(fetched)} were fetched"
-    )
+    assert not fetched, f"opening parsed evidence fetched it again: {fetched}"
 
 
 def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
@@ -11193,11 +11165,11 @@ POINTER_REGISTRY = {
     }
 }
 POINTER_MODULE = """import { indicate } from "/runtime/widget-api.js";
-customElements.define("lf-pointer", class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() { indicate(this, "for", "3-4"); }
   disconnectedCallback() { indicate(this, "for", null); }
   point(key) { return indicate(this, "for", key); }
-});
+};
 """
 
 

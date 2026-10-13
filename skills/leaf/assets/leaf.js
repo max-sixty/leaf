@@ -1,4 +1,5 @@
 /* Leaf runtime boot and application composition root. */
+import "./vendor/scoped-registry.js";
 import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 import "./vendor/browser-runtime.js";
 import "./runtime/interaction-log.js";
@@ -17,12 +18,14 @@ import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
 import { upgradeWidgets } from "./runtime/widget-loader.js";
 import {
   markPagePresented,
+  markPageUpgraded,
   whenArrived,
   pageReadiness,
   settlePageInterface,
+  afterPresentation,
   PRESENTATION,
 } from "./runtime/presentation.js";
-import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./runtime/page-paint.js";
+import { pagePresented } from "./runtime/page-paint.js";
 import { nextFrame, renderingState, observePreparations } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
@@ -225,7 +228,6 @@ const narrowing = createThreadNarrowing({
   view: narrowingView,
   listRoot: threadsBox,
   readThreads: threadList,
-  ready: () => runtime.statePhase === "ready",
   repaint: () => app.presentThread(),
 });
 const paintVersionApproval = () => paintApproval(approvalBlockingAsks());
@@ -429,7 +431,7 @@ app = mountApplication({
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
   accompanyThread: (...args) => landing.accompanyThread(...args),
-  threadAvailable: !offlineInteractive,
+  reportPageError,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
   wireInput: inputs.wireInput,
@@ -752,19 +754,30 @@ if (document.documentElement.lfSample) {
     viewOperation?.abort();
     viewOperation = new AbortController();
     const { signal } = viewOperation;
-    if (surface === "panel")
-      return threadPanelController.showView({ thread: id, status, waiting, signal });
     const retained = retainUserIntent({ available: () => !signal.aborted });
     // A host view never takes focus, but newer child input still supersedes it.
     const intent = restrictUserIntent(retained, retained);
-    intent.handoff(() => threadPanelController.setPanel(false));
-    return Boolean(
-      await app.threadDestinations.openPageThread(id, {
-        focus: false,
-        travel: false,
-        intent,
-      }),
-    );
+    // The host's usable interface includes comments while history still loads.
+    // Selecting a saved conversation needs the child's authoritative reading.
+    return afterPresentation(async () => {
+      if (!intent()) return false;
+      if (surface === "panel")
+        return threadPanelController.showView({
+          thread: id,
+          status,
+          waiting,
+          signal,
+          intent,
+        });
+      intent.handoff(() => threadPanelController.setPanel(false));
+      return Boolean(
+        await app.threadDestinations.openPageThread(id, {
+          focus: false,
+          travel: false,
+          intent,
+        }),
+      );
+    });
   });
 }
 
@@ -971,28 +984,12 @@ const { landArrival, savedView } = offlineInteractive
 const savedComposer = offlineInteractive ? null : responseSurface.pendingComposer();
 
 async function presentPage() {
-  if (pagePresented() || startupFailed) return;
+  // Saved state gates state-dependent interaction, not the commenting interface.
+  if (applicationState.read().phase === "waiting" || pagePresented() || startupFailed)
+    return;
   await whenApplicationPresented();
+  if (applicationState.read().phase === "waiting") return;
   if (pagePresented()) return;
-  setAnchoringReady(true);
-  try {
-    const draftOpened =
-      !offlineInteractive &&
-      recoverComposer() &&
-      responseSurface.openDraft(savedComposer);
-    await app.presentThread();
-    // Anchoring changes where thread chrome is painted. That final paint is part
-    // of initial presentation too: opening interaction before it commits can expose a
-    // malformed page that the unanchored provisional pass could not yet inspect.
-    await whenApplicationPresented();
-    if (draftOpened) {
-      await responseSurface.fabPositioned();
-      paintKeys();
-    }
-  } catch (error) {
-    setAnchoringReady(false);
-    throw error;
-  }
   if (startupFailed) return;
   markPagePresented();
   // Optional author context begins after the presented frame. It neither imports
@@ -1006,13 +1003,11 @@ async function presentPage() {
       }, 0),
     );
   void whenArrived().then(landFragment);
-  anchorControls.publishVisualActions();
   if (offlineInteractive) {
     landFragment();
     document.dispatchEvent(new Event(PRESENTATION));
     return;
   }
-  responseSurface.updateFab();
   auxiliarySurfaces.present();
   presentLeaves();
   paintKeys();
@@ -1056,7 +1051,26 @@ async function startPage() {
   }
   await settlePageInterface();
   landFragment();
-  document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.upgraded, "1");
+  // Comments name the shown document, not the private history still loading. Its
+  // widgets and words are now settled; prepare the anchor-dependent chrome before
+  // opening keyboard capture, so malformed coordinates never become controls.
+  setAnchoringReady(true);
+  try {
+    const draftOpened =
+      !offlineInteractive &&
+      recoverComposer() &&
+      responseSurface.openDraft(savedComposer);
+    await app.presentThread();
+    await whenApplicationPresented();
+    if (draftOpened) await responseSurface.fabPositioned();
+  } catch (error) {
+    setAnchoringReady(false);
+    throw error;
+  }
+  markPageUpgraded();
+  anchorControls.publishVisualActions();
+  responseSurface.updateFab();
+  paintKeys();
   app.startFeed(presentPage, initialStateRead);
 }
 

@@ -87,7 +87,6 @@ from render_harness import (
     EXAMPLES,
     INLINE_PAGE,
     LONG_PAGE,
-    RECURRING_RESIZE_NOTICE,
     RELEASE_FOCUS,
     TOKEN,
     _traffic,
@@ -438,7 +437,7 @@ RESERVING_WIDGETS = {
     "lf-test-drawn.js": """
 import { once } from '/runtime/widget-api.js';
 
-customElements.define('lf-test-drawn', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const drawing = document.createElement('div');
@@ -446,7 +445,7 @@ customElements.define('lf-test-drawn', class extends HTMLElement {
     this.append(drawing);
     this.classList.add('lf-rendered');
   }
-});
+};
 """
 }
 
@@ -465,7 +464,7 @@ def test_the_pre_upgrade_proof_reads_the_held_authored_document(browser, serve):
         page, serve(source, packages=())
     )
 
-    assert findings == ["authored main has no measurable pre-upgrade layout"]
+    assert [finding.code for finding in findings] == ["main-unlaid"]
 
 
 def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, serve):
@@ -501,9 +500,9 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
 
     assert holding, "the page asked for no runtime module, so nothing was held"
     path = urlsplit(holding[0].request.url).path
-    assert str(stopped.value) == (
-        f"the document never reached load; still requesting {path}"
-    )
+    assert stopped.value.finding.code == "never-reached"
+    assert stopped.value.finding.values["arrival"] == "load"
+    assert stopped.value.finding.values["requesting"] == [path]
 
 
 def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
@@ -532,10 +531,8 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
 
     assert holding, "the page asked for no theme stylesheet, so nothing was held"
     path = urlsplit(holding[0].request.url).path
-    message = str(stopped.value)
-    assert message.startswith("the document never reached ")
-    assert message.endswith(f"; still requesting {path}")
-    assert "leaf.js" not in message
+    assert stopped.value.finding.code == "never-reached"
+    assert stopped.value.finding.values["requesting"] == [path]
 
 
 @pytest.fixture
@@ -594,9 +591,9 @@ def test_a_released_entry_that_never_arrives_is_named_like_any_other_file(
     ).path
 
     assert asked.is_set(), "the browser never asked for the entry, so nothing dropped"
-    assert str(stopped.value) == (
-        f"the document never reached load; still requesting {entry_path}"
-    )
+    assert stopped.value.finding.code == "never-reached"
+    assert stopped.value.finding.values["arrival"] == "load"
+    assert stopped.value.finding.values["requesting"] == [entry_path]
 
 
 def test_a_refused_document_reports_the_status_beside_the_wait_that_stopped(
@@ -1002,8 +999,11 @@ def test_page_navigation_classifies_only_its_resize_notices(browser, serve):
 
     page.evaluate(RESIZE_LOOP_EVENT)
     errors = take_browser_errors(page)
-    assert errors == [
-        "window error: ResizeObserver loop completed with undelivered notifications."
+    assert [(e.code, e.values) for e in errors] == [
+        (
+            "resize-loop",
+            {"text": "ResizeObserver loop completed with undelivered notifications."},
+        )
     ], "a notice after the classified navigation was hidden too"
 
 
@@ -1014,7 +1014,9 @@ def test_page_navigation_reports_a_recurring_resize_notice(browser, serve):
     page = open_page(browser, serve(LONG_PAGE), init_script=every_load)
 
     errors = take_browser_errors(page)
-    assert errors == [RECURRING_RESIZE_NOTICE]
+    assert [(e.code, e.values.get("confirmation")) for e in errors] == [
+        ("resize-loop", "recurred")
+    ]
 
 
 def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
@@ -1427,19 +1429,17 @@ def _author_lying_callout(tmp_path):
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
-        "customElements.define(\n"
-        '  "lf-callout",\n'
-        "  class extends HTMLElement {\n"
-        "    connectedCallback() {\n"
-        "      if (!once(this)) return;\n"
-        '      this.textContent = "Entirely different words.";\n'
-        '      const stage = document.createElement("div");\n'
-        "      this.append(stage);\n"
-        '      stage.attachShadow({ mode: "open" }).textContent = "shadow words";\n'
-        "    }\n"
-        "  },\n"
-        ");\n"
+        """import { once } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+    connectedCallback() {
+      if (!once(this)) return;
+      this.textContent = "Entirely different words.";
+      const stage = document.createElement("div");
+      this.append(stage);
+      stage.attachShadow({ mode: "open" }).textContent = "shadow words";
+    }
+  };
+"""
     )
 
 
@@ -1637,9 +1637,7 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     for tag, body in modules.items():
         (package / "widgets" / f"{tag}.js").write_text(
             'import { once, shadowStage } from "/runtime/widget-api.js";\n'
-            f'customElements.define("{tag}", class extends HTMLElement {{\n'
-            + body
-            + "});\n"
+            "export default class extends HTMLElement {\n" + body + "};\n"
         )
     # A lazy image that holds no room is reported only in DevTools' Issues panel. The
     # page owns an image it authors in a form-associated control's light DOM, and a
@@ -1874,9 +1872,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     for tag, body in modules.items():
         (package / "widgets" / f"{tag}.js").write_text(
             'import { once } from "/runtime/widget-api.js";\n'
-            f'customElements.define("{tag}", class extends HTMLElement {{\n'
-            + body
-            + "});\n"
+            "export default class extends HTMLElement {\n" + body + "};\n"
         )
     source = leaf_page(
         "widgets in the page and in replies",
@@ -2043,24 +2039,25 @@ def _author_stateful_verbatim_widget(tmp_path):
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
-        'import { once } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-shell", class extends HTMLElement {\n'
-        "  connectedCallback() { once(this); }\n"
-        "});\n"
+        """import { once } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  connectedCallback() { once(this); }
+};
+"""
     )
     (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { keepsText, once, widgetController } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-stateful", class extends HTMLElement {\n'
-        "  controller = widgetController(this);\n"
-        "  stop;\n"
-        "  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }\n"
-        "  disconnectedCallback() { this.stop?.(); this.stop = null; }\n"
-        "  renderState(state) {\n"
-        '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
-        '      keepsText(this.closest("lf-shell")?.querySelector(":scope > p")'
-        ' ?? this.querySelector("p"), "State replaced unrelated prose.");\n'
-        "  }\n"
-        "});\n"
+        """import { keepsText, once, widgetController } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  controller = widgetController(this);
+  stop;
+  connectedCallback() { once(this); this.stop ??= this.controller.subscribe(() => {}); }
+  disconnectedCallback() { this.stop?.(); this.stop = null; }
+  renderState(state) {
+    if (state.change.value === "corrupt" || state.status.value === "corrupt")
+      keepsText(this.closest("lf-shell")?.querySelector(":scope > p") ?? this.querySelector("p"), "State replaced unrelated prose.");
+  }
+};
+"""
     )
 
 
@@ -3720,17 +3717,18 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
-        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
-        'customElements.define("lf-callout", class extends HTMLElement {\n'
-        "  connectedCallback() {\n"
-        "    if (!once(this)) return;\n"
-        "    const text = this.textContent;\n"
-        '    this.textContent = "";\n'
-        '    const span = document.createElement("span");\n'
-        "    span.textContent = text;\n"
-        "    shadowStage(this, [span]);\n"
-        "  }\n"
-        "});\n"
+        """import { once, shadowStage } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const text = this.textContent;
+    this.textContent = "";
+    const span = document.createElement("span");
+    span.textContent = text;
+    shadowStage(this, [span]);
+  }
+};
+"""
     )
     serial = itertools.count(1)
     source = re.sub(

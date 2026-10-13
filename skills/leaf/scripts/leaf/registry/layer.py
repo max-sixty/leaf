@@ -10,12 +10,16 @@ from jsonschema.exceptions import SchemaError
 
 from leaf.schema import DECLARED_MARKS, EXTENSION_SCHEMA, LAYER_FACTS_SCHEMA
 
-from .contract import RegistryError, is_element_name, stamp_decisions, stamp_states
+from .contract import (
+    is_element_name,
+    registry_error,
+    stamp_decisions,
+    stamp_states,
+)
 from .schema import (
     check_schema,
     json_validator,
-    json_value,
-    schema_error_message,
+    schema_reading,
     unresolved_schema_reference,
 )
 
@@ -51,10 +55,7 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
             # `1.0` is not taken for a protocol of 1, and the kernel's copy is kept.
             for key in entry.keys() - LAYER_OWNED_EVENTS:
                 if _canonical(entry[key]) != _canonical(earlier.get(key)):
-                    raise RegistryError(
-                        f"$events.{key} is Leaf's fixed transport contract and cannot be "
-                        "changed by a layer"
-                    )
+                    raise registry_error("fixed-events", key=key)
             entry = {key: entry[key] for key in entry.keys() & LAYER_OWNED_EVENTS}
         combined = {**earlier, **entry}
         for key, value in entry.items():
@@ -85,44 +86,38 @@ def stamp_composition(registry: dict) -> dict:
     return registry
 
 
-def layer_facts_error(registry: dict) -> str | None:
-    """Where the vocabulary's shared layer facts depart from `LAYER_FACTS_SCHEMA`,
-    and how; None when they hold its shape."""
+def check_layer_facts(registry: dict, path) -> None:
+    """Refuse a vocabulary whose shared layer facts depart from `LAYER_FACTS_SCHEMA`,
+    naming where and how."""
     error = min(
         json_validator(LAYER_FACTS_SCHEMA).iter_errors(registry), key=str, default=None
     )
-    if error is None:
-        return None
-    where = "".join(
-        f"[{step}]" if isinstance(step, int) else f".{step}"
-        for step in error.absolute_path
-    )
-    return f"{where.lstrip('.') or 'registry'}: {schema_error_message(error)}"
+    if error is not None:
+        raise registry_error("layer-facts", path, **schema_reading(error))
 
 
 def validate_layer_declarations(registry: dict, path) -> None:
     """The layer facts' shape (`LAYER_FACTS_SCHEMA`), then what the schema cannot
     say: each name one fact gives another, each `when` and contract `schema` a JSON
     Schema, each `resources` entry JMESPath, the documented keys, and the idioms."""
-    if error := layer_facts_error(registry):
-        raise RegistryError(f"{path}: {error}")
+    check_layer_facts(registry, path)
     events = registry["$events"]
     for key in ("handling", "answering"):
         for kind, clauses in events[key].items():
             if key == "handling" and kind not in events["kinds"]:
-                raise RegistryError(
-                    f"{path}: $events.handling names {kind!r}, which $events.kinds "
-                    "does not declare"
-                )
+                raise registry_error("undeclared-event-kind", path, kind=kind)
             for clause in clauses:
                 if "when" not in clause:
                     continue
                 try:
                     check_schema(clause["when"])
                 except SchemaError as error:
-                    raise RegistryError(
-                        f"{path}: $events.{key}.{kind} clause `when` is not a valid "
-                        f"JSON Schema: {schema_error_message(error)}"
+                    raise registry_error(
+                        "invalid-when",
+                        path,
+                        key=key,
+                        kind=kind,
+                        **schema_reading(error),
                     ) from error
     # $keys documents exactly the x- keys the lint admits, one string per key: the
     # keys are closed here (EXTENSION_SCHEMA), so a member for a key that cannot be
@@ -138,10 +133,11 @@ def validate_layer_declarations(registry: dict, path) -> None:
         or not all(isinstance(text, str) and text for text in keys.values())
         or documented != admitted
     ):
-        raise RegistryError(
-            f"{path}: $keys must carry a description and one paragraph per x- key the "
-            f"lint admits — missing {json_value(sorted(admitted - documented))}, "
-            f"unadmitted {json_value(sorted(documented - admitted))}"
+        raise registry_error(
+            "keys-documentation",
+            path,
+            missing=sorted(admitted - documented),
+            unadmitted=sorted(documented - admitted),
         )
     # Idioms share author-facing fields with elements; only marks whose readers
     # consume delivery's paint can be declared on selectors. Validate every selector,
@@ -155,8 +151,8 @@ def validate_layer_declarations(registry: dict, path) -> None:
         try:
             probe.matches(selector)
         except turbohtml.SelectorSyntaxError as error:
-            raise RegistryError(
-                f"{path}: idiom {selector!r} selector cannot be matched: {error}"
+            raise registry_error(
+                "idiom-selector", path, selector=selector, error=str(error)
             ) from None
         if (
             not isinstance(entry, dict)
@@ -166,18 +162,15 @@ def validate_layer_declarations(registry: dict, path) -> None:
             or not isinstance(entry.get("x-example"), str)
             or not entry["x-example"].strip()
         ):
-            raise RegistryError(
-                f"{path}: idiom {selector!r} must carry a non-empty description and "
-                "x-example, with optional x-instructions and "
-                + ", ".join(sorted(marks))
+            raise registry_error(
+                "idiom-fields", path, selector=selector, marks=sorted(marks)
             )
         for key in set(entry) - {"description"}:
             if not json_validator(EXTENSION_SCHEMA["properties"][key]).is_valid(
                 entry[key]
             ):
-                raise RegistryError(
-                    f"{path}: idiom {selector!r} declares {key}={json_value(entry[key])}; "
-                    "the value must satisfy its $keys declaration"
+                raise registry_error(
+                    "idiom-value", path, selector=selector, key=key, value=entry[key]
                 )
     languages = registry["$languages"]
     if strays := sorted(
@@ -185,35 +178,29 @@ def validate_layer_declarations(registry: dict, path) -> None:
         for extension, language in languages["paths"].items()
         if language not in languages["names"]
     ):
-        raise RegistryError(
-            f"{path}: $languages.paths maps {json_value(strays)} to languages "
-            "$languages.names does not declare"
-        )
+        raise registry_error("undeclared-language", path, extensions=strays)
     for contract, declaration in registry["$data"]["contracts"].items():
         for expression in declaration.get("resources", []):
             try:
                 jmespath.compile(expression)
             except JMESPathError as error:
-                raise RegistryError(
-                    f"{path}: $data contract {contract!r} resource expression "
-                    f"{expression!r} is invalid: {error}"
+                raise registry_error(
+                    "contract-resource",
+                    path,
+                    contract=contract,
+                    expression=expression,
+                    error=str(error),
                 ) from error
         records = declaration.get("records") or {}
         if len(set(records.values())) != len(records):
-            raise RegistryError(
-                f"{path}: $data contract {contract!r} records must name distinct "
-                "items, key, and deferred fields"
-            )
+            raise registry_error("contract-records", path, contract=contract)
         try:
             check_schema(declaration["schema"])
         except SchemaError as error:
-            raise RegistryError(
-                f"{path}: $data contract {contract!r} has an invalid JSON Schema: "
-                f"{schema_error_message(error)}"
+            raise registry_error(
+                "contract-schema", path, contract=contract, **schema_reading(error)
             ) from error
         if reference := unresolved_schema_reference(declaration["schema"]):
-            raise RegistryError(
-                f"{path}: $data contract {contract!r} schema reference {reference!r} "
-                "does not resolve within the package; data contracts must be "
-                "self-contained"
+            raise registry_error(
+                "contract-reference", path, contract=contract, reference=reference
             )

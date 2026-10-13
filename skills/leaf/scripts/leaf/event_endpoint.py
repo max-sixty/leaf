@@ -15,11 +15,12 @@ from .event_contracts import (
     browser_command_error,
 )
 from .event_log import AttemptConflict
+from .findings import Finding
 from .harness import claim_harness
 from .presence import nudge_unwatched
+from .refusals import Refused
 from .registry.contract import RegistryError
 from .registry.kernel import kernel_event_kinds, kernel_event_ownership
-from .registry.schema import json_value
 from .schema import MESSAGE_KINDS
 from .service import PageTransaction, requires_agent_attention
 from .thread_titles import name_admitted_thread
@@ -28,9 +29,10 @@ EventAnswer = tuple[int, dict]
 StateReader = Callable[[], dict]
 
 
-def event_rejection(event: dict, error: str, status: int = 400) -> EventAnswer:
-    """A final answer proving that this execution appended no event."""
-    body = {"ok": False, "error": error, "final": True}
+def event_rejection(event: dict, refusal: Refused, status: int = 400) -> EventAnswer:
+    """A final answer proving that this execution appended no event: the refusal's
+    findings (`Refused.json`) under the words the browser shows its user."""
+    body = {"ok": False, **refusal.json(), "error": refusal.user, "final": True}
     if event.get("attempt"):
         body["attempt"] = event["attempt"]
     return status, body
@@ -68,7 +70,10 @@ def _receive_event(page_dir: Path, event: dict) -> EventAnswer:
     kind = event.get("kind")
     if not isinstance(kind, str) or kind not in browser_kinds:
         return event_rejection(
-            event, f"kind must be one of {json_value(browser_kinds)}"
+            event,
+            EventRefused(
+                Finding("unknown-kind", values={"kinds": browser_kinds}), event
+            ),
         )
     # The server owns the record envelope and agent identity. Removing client
     # copies before validation prevents them from entering attempt identity too.
@@ -76,7 +81,7 @@ def _receive_event(page_dir: Path, event: dict) -> EventAnswer:
         event.pop(field, None)
     event["author"] = "page" if kind == "error" else "user"
     if error := browser_command_error(contracts[kind], event):
-        return event_rejection(event, f"{kind} event is invalid: {error}")
+        return event_rejection(event, EventRefused(error, event))
     # A fault raises out of here, before or after the append, and the transport's
     # one fault boundary answers it with `event_fault`.
     return _execute_event(page_dir, event)
@@ -104,11 +109,9 @@ def _execute_event(
             # that record unappended rather than repeating the gesture.
             admitted, appended = append_admitted(page, event)
         except AttemptConflict as error:
-            return event_rejection(event, str(error), 409)
-        except EventRefused as error:
-            return event_rejection(event, error.user)
-        except RegistryError as error:
-            return event_rejection(event, str(error))
+            return event_rejection(event, error, 409)
+        except (EventRefused, RegistryError) as error:
+            return event_rejection(event, error)
         if appended:
             claim = page.active_claim
             # Input that asks for the agent reaches it even when no watcher will.

@@ -130,11 +130,11 @@ def arrival_findings(browser, url):
     def console_message(message):
         found = render_gate_model.console_finding(message, warnings=False)
         if found is not None:
-            errors.append(str(found))
+            errors.append(found)
 
     def window_error(error):
         found = render_gate_model.window_finding(error)
-        (notices if found.code == "resize-loop" else errors).append(str(found))
+        (notices if found.code == "resize-loop" else errors).append(found)
 
     page.on("console", console_message)
     render_gate_model.collect_page_exceptions(page, errors)
@@ -158,7 +158,10 @@ def arrival_findings(browser, url):
         return [
             "[arrivals] the page never came up unarranged, so nothing could be "
             "arranged — "
-            + ("; ".join([*errors, *notices]) or "and no console error says why")
+            + (
+                "; ".join(map(str, [*errors, *notices]))
+                or "and no console error says why"
+            )
         ]
     found += arrival_transition_findings(page, "first visit")
     for restore_case in user_view_restore_cases(page):
@@ -172,7 +175,10 @@ def arrival_findings(browser, url):
         except (PlaywrightTimeout, render_checks_model.PageNotReady):
             found.append(
                 f"[{restore_case['name']}] the page never finished coming up — "
-                + ("; ".join([*errors, *notices]) or "and no console error says why")
+                + (
+                    "; ".join(map(str, [*errors, *notices]))
+                    or "and no console error says why"
+                )
             )
             continue
         found += arrival_transition_findings(page, restore_case["name"])
@@ -499,7 +505,7 @@ DRAWING_CONTROL_LAYER = {
 DRAWING_CONTROL_WIDGETS = {
     "lf-test-drawing-control.js": """
 import { once, offer } from '/runtime/widget-api.js';
-customElements.define('lf-test-drawing-control', class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const control = offer('button', 'drawing-control', 'Inspect');
@@ -507,7 +513,7 @@ customElements.define('lf-test-drawing-control', class extends HTMLElement {
     control.style.width = '100%';
     this.append(control);
   }
-});
+};
 """
 }
 # A scroller the page wrote and did not position, beside one it did. The commented
@@ -896,7 +902,7 @@ BANNER_ORDER = r"""() => {
       // The version's age ticks with the clock between two readings; the order does not.
       .replace(/ · \S+ ago$/, '')
       // The queue's population does not change the control's place in that order.
-      .replace(/^Questions: \d+ waiting on you$/, 'Questions'));
+      .replace(/^Questions: \d+ waiting on me$/, 'Questions'));
 }"""
 
 
@@ -1299,7 +1305,7 @@ MANY_ASKS_PAGE = leaf_page(
 """
     + "\n".join(
         f'<lf-test-task id="t-{i}" status="review" owner="wren">'
-        f"<strong>Waiting on you, item {i}</strong>"
+        f"<strong>Waiting on me, item {i}</strong>"
         f'<lf-ask id="t-{i}-decision"><h2>Decision {i}</h2>'
         f'<lf-options id="t-{i}-choice" choose>'
         f'<lf-option id="t-{i}-yes"><strong>Approve</strong></lf-option>'

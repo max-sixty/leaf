@@ -35,6 +35,7 @@ from leaf import leases as leases_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
+from leaf.findings import Finding
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf.structure import SourceDocument
@@ -916,7 +917,7 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
 OFFLINE_WIDGET = """\
 import { html, render, widgetController } from "/runtime/widget-api.js";
 
-customElements.define("lf-offline-test", class extends HTMLElement {
+export default class extends HTMLElement {
   controller = widgetController(this);
   reading = this.controller.read();
   local = 0;
@@ -959,7 +960,7 @@ customElements.define("lf-offline-test", class extends HTMLElement {
       ${unavailable ? html`<p id="unavailable">${unavailable}</p>` : null}
     `, this.shadowRoot, {host: this});
   }
-});
+};
 """
 
 OFFLINE_REGISTRY = {
@@ -1204,7 +1205,17 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.on(
         "requestfailed",
-        lambda request: page.lf_errors.append(f"unfetched {request.url}"),
+        lambda request: page.lf_errors.append(
+            Finding(
+                "request-failed",
+                values={
+                    "kind": request.resource_type,
+                    "error": request.failure,
+                    "frame": request.frame.url,
+                    "url": request.url,
+                },
+            )
+        ),
     )
     page.goto(out.as_uri(), wait_until="load")
     source = (ROOT / "examples" / "pr-walkthrough.html").read_text(encoding="utf-8")
@@ -1273,3 +1284,162 @@ PIXEL = bytes.fromhex(
     "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
     "1f15c4890000000d49444154789c63000100000500010d0a2db40000000049454e44ae426082"
 )
+
+
+def test_an_offline_historical_page_keeps_each_replies_captured_renderer(
+    browser, serve, tmp_path
+):
+    """One kernel renders each reply's captured constructor and initial drawing."""
+    from copy import deepcopy
+
+    from interact_support import append_command, element_declaration
+    from leaf.revision_artifact import read_artifact
+    from leaf.revisioning import activate_source
+
+    source = leaf_page(
+        "Two renderer publications",
+        '<h1 id="topic">Review both answers</h1><lf-conversations id="conversations"></lf-conversations>',
+    )
+    conversations = element_declaration("lf-conversations", upgrade=True)
+    initial_probe = element_declaration("lf-initial-probe", upgrade=True)
+    initial_probe["x-initial"] = "/page/initial.js"
+
+    def producer(era):
+        return f"""document.documentElement.lfInitial.register('lf-initial-probe', host => {{
+          host.textContent = '{era} drawing'; return {{era: '{era}'}};
+        }});"""
+
+    serve(
+        source,
+        layer_registry={
+            "lf-conversations": conversations,
+            "lf-initial-probe": initial_probe,
+        },
+        layer_widgets={
+            "lf-initial-probe.js": """
+      import {once, initialRender} from '/runtime/widget-api.js';
+      export default class extends HTMLElement {
+        connectedCallback() {
+          if (once(this)) this.dataset.drawn = initialRender(this).era;
+        }
+      }
+    """,
+            "lf-conversations.js": """
+      import {registerThreadPresentation} from '/runtime/widget-api.js';
+      export default class extends HTMLElement {
+        connectedCallback() {
+          this.outlet ??= this.appendChild(document.createElement('div'));
+          this.consumer ??= registerThreadPresentation(this, {
+            render: (collection, surfaces) => {
+              for (const thread of collection.threads) surfaces.thread(thread.key, this.outlet);
+            },
+            reveal: () => true,
+          });
+        }
+        disconnectedCallback() {this.consumer?.unregister(); this.consumer = null;}
+      }
+    """,
+        },
+        page_files={"initial.js": producer("old")},
+    )
+    page_dir = serve.page_dir
+    old = read_artifact(page_dir, 1)
+    opening = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Choose both."},
+    )
+
+    def reply(revision, name):
+        return append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "revision": revision,
+                "parent": opening["id"],
+                "text": "Pick one.",
+                "markup": f'<lf-options id="{name}" choose><lf-option id="{name}-a">Alpha</lf-option>'
+                f'<lf-option id="{name}-b">Beta</lf-option></lf-options>'
+                f'<lf-initial-probe id="{name}-drawing"></lf-initial-probe>',
+            },
+        )
+
+    reply(1, "old-choice")
+    entry = deepcopy(old.registry["lf-options"])
+    entry["x-state"]["pick"] = entry["x-state"].pop("choose")
+    entry["x-awaits"]["value"] = "pick"
+    entry["x-awaits"]["answered"]["pick"] = entry["x-awaits"]["answered"].pop("choose")
+    (page_dir / "page/registry.json").write_text(json.dumps({"lf-options": entry}))
+    (page_dir / "page/initial.js").write_text(producer("new"))
+    widgets = page_dir / "page/widgets"
+    widgets.mkdir(exist_ok=True)
+    renderer = old.resources["/widgets/lf-options.js"].data.decode()
+    renderer = (
+        renderer.replace("state.choose", "state.pick")
+        .replace('#available("choose")', '#available("pick")')
+        .replace('#dispatch("choose",', '#dispatch("pick",')
+    )
+    (widgets / "lf-options.js").write_text(renderer)
+    for helper in ("lf-options-addition.js", "lf-options-settled.js"):
+        (widgets / helper).write_bytes(old.resources["/widgets/" + helper].data)
+    files_model.replace_files(
+        [
+            (
+                page_dir / "leaf.js",
+                old.resources["/leaf.js"].data
+                + b"\ndocument.documentElement.dataset.kernelPublication = 'latest';\n",
+                False,
+            )
+        ]
+    )
+    activation = activate_source(page_dir)
+    assert activation.error is None and activation.revision == 2
+    reply(2, "new-choice")
+    for revision, name, verb, value in [
+        (1, "old-choice", "choose", "old-choice-b"),
+        (2, "new-choice", "pick", "new-choice-a"),
+    ]:
+        append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": revision,
+                "widget": name,
+                "action": verb,
+                "detail": {"value": [value]},
+            },
+        )
+
+    out = tmp_path / "two-vocabularies.html"
+    exporting_model.cmd_export(page_dir, out, 1)
+    page = browser.new_page()
+    external = []
+    page.on(
+        "request",
+        lambda request: (
+            external.append(request.url)
+            if not request.url.startswith(("data:", "blob:"))
+            else None
+        ),
+    )
+    page.goto(out.as_uri(), wait_until="load")
+    page.wait_for_function("document.body.dataset.lfApplied")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("html")).to_have_attribute("data-kernel-publication", "latest")
+    expect(page.locator("#old-choice-b .lf-pick")).to_have_attribute(
+        "aria-checked", "true"
+    )
+    expect(page.locator("#new-choice-a .lf-pick")).to_have_attribute(
+        "aria-checked", "true"
+    )
+    for name, era in [("old-choice", "old"), ("new-choice", "new")]:
+        expect(page.locator(f"#{name}-drawing")).to_have_attribute("data-drawn", era)
+        expect(page.locator(f"#{name}-drawing")).to_have_text(f"{era} drawing")
+    assert (
+        page.locator("#old-choice").evaluate(
+            "element => element.constructor === document.querySelector('#new-choice').constructor"
+        )
+        is False
+    )
+    assert external == [out.as_uri()]

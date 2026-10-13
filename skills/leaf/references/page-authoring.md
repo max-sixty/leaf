@@ -680,18 +680,21 @@ not reach it; neither page can read the other's DOM, browser storage, or runtime
 functions. Scripts, embedded frames, forms, popups, and downloads work in the child,
 and native resource loaders and module-relative URLs reach its own captured assets. A
 page module can await the element's `ready` promise for the current child's
-presentation; Reset, and the child leaving its page, each replace that promise. `await
+upgraded, usable interface. The child's banner can still say saved state is loading;
+its comments already work, independently of the containing page.
+Reset, and the child leaving its page, each replace that promise. `await
 sample.reset()` replaces the child with a fresh copy of its initial state, and a
 reload inside the child reconnects the same child. When the child cannot be loaded,
 `ready` rejects and the sample shows the error with Reset available. The bubbling
-`lf-sample-ready` event carries `detail.sample` after each presentation, including
+`lf-sample-ready` event carries `detail.sample` after each upgrade, including
 Reset and a reload, so host controls can reapply a selected view without inspecting
 the Reset button. Once the child leaves its Leaf page, `ready` waits for the next one,
 which a reload brings. The containing page cannot tell a reload from a link to another
 document, so after such a link the wait lasts until Reset, which rejects it with
 `AbortError`.
 To select a conversation, call `await sample.showThread(id)` with its root event id;
-this shows the same page destination as its marker. To inspect it in Threads,
+this waits for the child's authoritative state reading, then shows the same page
+destination as its marker. To inspect it in Threads,
 call `await sample.showThread(id, {surface: "panel"})`. The panel view accepts
 `status: "open" | "resolved" | "all"` and `waiting: "user" | "agent" | "all"`;
 omitted values restore Open and unrestricted waiting. A panel view may omit the

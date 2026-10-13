@@ -91,6 +91,7 @@ from render_harness import (
     expect_asks_answered,
     expect_banner_control_offered,
     holding,
+    is_problem,
     leaf_page,
     open_page,
     page_comment,
@@ -103,6 +104,7 @@ from render_harness import (
     resized,
     root_overflow,
     round_trip,
+    said,
     scroll_settled,
     select,
     sending,
@@ -1520,10 +1522,11 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
 
     resized(page, 390, 900)
     assert root_overflow(page) == 0
-    printed_query = (
-        'typed words left the screen without a key or press: "second" in '
-        + search.evaluate("field => window.lfPlace(field)")
-    )
+    printed_query = {
+        "code": "words-left-screen",
+        "words": "second",
+        "place": search.evaluate("field => window.lfPlace(field)"),
+    }
     page.emulate_media(media="print")
     # This fixture explicitly enters print rendering, where search tools disappear;
     # no native Print gesture is delivered by media emulation.
@@ -2954,7 +2957,7 @@ def test_a_live_revision_updates_the_closed_questions_door(browser, serve, subje
     (serve.page_dir / "index.html").write_text(second)
     expect(page.locator("lf-ask")).to_have_count(3)
     expect(door).to_have_text("Questions: 3")
-    expect(door).to_have_attribute("aria-label", "Questions: 3 waiting on you")
+    expect(door).to_have_attribute("aria-label", "Questions: 3 waiting on me")
     if subject == "selection":
         assert (
             page.evaluate("getSelection().toString().trim()")
@@ -3133,15 +3136,14 @@ def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
         },
         "x-example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
-    module = """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-conditional", class extends HTMLElement {
+    module = """import { keeps, once, widgetController } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { keeps(this, "phase", state.phase.value); }
-});
+};
 """
     page = open_page(
         browser,
@@ -3312,14 +3314,14 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-shadow-reading.js").write_text(
         """import { once } from "/runtime/widget-api.js";
-customElements.define("lf-shadow-reading", class extends HTMLElement {
+export default class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const paragraph = document.createElement("p");
     paragraph.textContent = this.textContent.trim();
     this.attachShadow({mode: "open"}).append(paragraph);
   }
-});
+};
 """
     )
     reading = "The shadow-rendered passage is the user's stable semantic landmark."
@@ -3726,7 +3728,7 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
     }
     module = """
 import {registerReadingRegion} from '/runtime/widget-api.js';
-customElements.define('lf-owned-scroll', class extends HTMLElement {
+export default class extends HTMLElement {
   #stop = null;
   connectedCallback() {
     const body = this.querySelector(':scope > [data-scroll-body]');
@@ -3736,7 +3738,7 @@ customElements.define('lf-owned-scroll', class extends HTMLElement {
     this.#stop?.();
     this.#stop = null;
   }
-});
+};
 """
     active = """
 <div style="height: 250px"></div>
@@ -4514,7 +4516,9 @@ def test_a_revision_the_page_has_to_refuse_leaves_the_beat_beating(browser, serv
         )
         wait_until_ready(page)
         problems = take_browser_errors(page)
-        assert len(problems) >= 2 and all("failed to load" in p for p in problems), (
+        assert len(problems) >= 2 and all(
+            is_problem(p, "failed to load") for p in problems
+        ), (
             "the beats did not come through with only their own refused asks behind "
             f"them: {problems}"
         )
@@ -4771,7 +4775,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text(
-        "Let go of what you are standing on"
+        "Let go of what I'm standing on"
     )
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
@@ -5624,9 +5628,8 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
-        """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-tally", class extends HTMLElement {
+        """import { keeps, once, widgetController } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
@@ -5637,7 +5640,7 @@ customElements.define("lf-tally", class extends HTMLElement {
     if (state.observe.value === null) this.removeAttribute("seen");
     else keeps(this, "seen", state.observe.value);
   }
-});
+};
 """
     )
     url = serve(RELATIVE_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
@@ -5731,9 +5734,8 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     piece.pop("x-example", None)
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(
-        """\
-import { once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-owner", class extends HTMLElement {
+        """import { once, widgetController } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
@@ -5744,19 +5746,18 @@ customElements.define("lf-owner", class extends HTMLElement {
       for (const child of order) zone.append(document.getElementById(child));
     }
   }
-});
+};
 """
     )
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
-        """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-piece", class extends HTMLElement {
+        """import { keeps, once, widgetController } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { keeps(this, "pinned", state.move.value); }
-});
+};
 """
     )
     html = leaf_page(
@@ -5803,8 +5804,9 @@ customElements.define("lf-piece", class extends HTMLElement {
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
     # A data renderer can remount a part while retaining its owner. Both owning
     # coordinates must render onto the new node even when no winning event changed.
-    page.evaluate("""() => {
-      const piece = document.createElement('lf-piece');
+    page.evaluate("""async () => {
+      const {createWidgetElement} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const piece = createWidgetElement(document.getElementById('piece'), 'lf-piece', document.getElementById('piece').constructor);
       piece.id = 'piece';
       piece.setAttribute('pinned', 'no');
       document.getElementById('piece').replaceWith(piece);
@@ -5938,7 +5940,7 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
         bool,
         failure="the agent never heard the refusal",
     )
-    assert reports == [errors[0].splitlines()[0].removeprefix("leaf: ")], reports
+    assert reports == [said(errors[0]).removeprefix("leaf: ")], reports
 
 
 def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, serve):
@@ -6212,13 +6214,13 @@ def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
         )
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
         """import { keeps, once, shadowStage, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { STAGE this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { keeps(this, "decision", state.decide.detail.decision ?? "open"); }
-});
+};
 """.replace("STAGE", stage)
     )
     page_html = TWO_HOLDER_PAGE.replace(
@@ -6269,15 +6271,14 @@ def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """\
-import {widgetController} from "/runtime/widget-api.js";
-customElements.define("lf-trial", class extends HTMLElement {
+        """import {widgetController} from "/runtime/widget-api.js";
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState() { throw new Error("trial replay broke"); }
-});
+};
 """
     )
     url = serve(TWO_HOLDER_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
@@ -6521,7 +6522,7 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
             "layer_widgets": {
                 f"{tag}.js": """
 import {once, widgetController, keepsText} from '/runtime/widget-api.js';
-customElements.define('lf-delayed-body', class extends HTMLElement {
+export default class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() {
@@ -6535,7 +6536,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
   }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
   renderState(state) { keepsText(this.querySelector('pre'), state.edit.value); }
-});
+};
 """
             },
         }
@@ -6920,7 +6921,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
         )
     expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
     assert actions(serve.page_dir) == []
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
     page.unroute("**/api/event")
 
     page.locator("#tq-logs").click()
@@ -6956,7 +6957,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
         ("choose", {"value": ["tq-logs"]}),
         ("answer", {}),
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, serve):
@@ -7009,7 +7010,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     expect(done).not_to_have_attribute("aria-busy", "true")
     expect(done).to_have_attribute("aria-pressed", "false")
     assert actions(serve.page_dir) == []
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_done_press_answers_optimistically_and_only_once(browser, serve):

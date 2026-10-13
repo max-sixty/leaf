@@ -170,7 +170,10 @@ def schema_complaint(schema: dict, instance) -> dict | None:
     if error is None:
         return None
     return {
-        "field": "".join(f"/{part}" for part in error.absolute_path),
+        "field": "".join(
+            f"/{str(part).replace('~', '~0').replace('/', '~1')}"
+            for part in error.absolute_path
+        ),
         "rule": error.validator if error.schema is not False else "false",
         "error": schema_error_message(error),
     }

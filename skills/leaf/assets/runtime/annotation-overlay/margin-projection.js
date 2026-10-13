@@ -960,11 +960,17 @@ export function createMarginProjection({
   }
 
   function renderNow(inventory) {
-    if (!nav.isConnected) return;
     const selected = card.selection();
     const forcedKey = selected?.forced ? selected.entry.key : null;
     const threadOwnerHeld = transferThreadFocus || focused() === selected?.control;
     transferThreadFocus = false;
+    // Before the card, which anchors to its rows (`mount`).
+    if (!nav.isConnected)
+      move(
+        chromeRoot,
+        nav,
+        preview.parentNode === chromeRoot ? preview : chromeForeground,
+      );
     pageInventory = inventory;
     const liveHosts = new Set(
       pageInventory.filter(entryHasMarginHost).map((entry) => entry.key),
@@ -1736,9 +1742,6 @@ export function createMarginProjection({
   // the version picker, then its own parts in the root.
 
   function mount() {
-    // The card anchors to rows laid out before it. Mount the margin first; an
-    // application reading can also arrive without mounting this optional chrome.
-    move(chromeRoot, nav, chromeForeground);
     mountMarginLayer(toolbar);
     card.mount(() => closePreview(landOnEntry));
     document.addEventListener("lf-margin-layout", ({ detail: { column, height } }) => {
@@ -1785,6 +1788,9 @@ export function createMarginProjection({
     watchRoom(() => scheduleRoving());
     window.addEventListener("resize", () => scheduleWidthRender());
     renderAnnotations();
+    // The card anchors to its row (floating.js), which an anchor may do only to a box
+    // laid out before it: the margin comes first.
+    move(chromeRoot, nav, chromeForeground);
   }
   return {
     pageMapActive: () => availableRows().includes(focused()),

@@ -634,7 +634,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
         json.dumps({"lf-local-draft": shipped["lf-draft"]})
     )
     (overlay / "widgets" / "lf-local-draft.js").write_text(
-        """export default class extends HTMLElement {};"""
+        "customElements.define('lf-local-draft', class extends HTMLElement {});"
     )
     assert (
         CliRunner()

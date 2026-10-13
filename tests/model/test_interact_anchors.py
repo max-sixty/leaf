@@ -762,9 +762,8 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     assert events_model.read_events(page_dir) == recovered
 
 
-@pytest.mark.parametrize("obsolete_capture", [False, True])
 def test_an_explicit_replacement_is_durable_before_its_revision_appears(
-    page_dir, monkeypatch, obsolete_capture
+    page_dir, monkeypatch
 ):
     from leaf import revisioning
     from leaf.service import PageTransaction
@@ -772,12 +771,6 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
     original = PAGE.replace("</main>", "<p>Alpha</p></main>")
     (page_dir / "index.html").write_text(original)
     publish(page_dir)
-    if obsolete_capture:
-        obsolete = page_dir / "revisions/r9-0123456789abcdef"
-        obsolete.mkdir()
-        (obsolete / "manifest.json").write_text("{}")
-        obsolete.with_suffix(".html").write_text(original)
-    candidate = 10 if obsolete_capture else 2
     root = json.loads(
         comment(page_dir, "--quote", "Alpha", "--text", "Keep this").output
     )
@@ -814,8 +807,8 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
     assert pending[-1]["kind"] == "reply" and pending[-1]["anchor"]["quote"] == "Beta"
     (page_dir / "index.html").write_text(original.replace("Alpha", "Gamma"))
     with PageTransaction(page_dir) as page:
-        assert files_model.latest_revision(page_dir) == candidate
-        assert files_model.revision_path(page_dir, candidate).read_text() == revised
+        assert files_model.latest_revision(page_dir) == 2
+        assert files_model.revision_path(page_dir, 2).read_text() == revised
         assert page.events == pending
 
 

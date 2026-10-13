@@ -1,4 +1,4 @@
-"""Static checks for mutable source, including whether this Leaf can activate it."""
+"""Static checks for the mutable source document."""
 
 from pathlib import Path
 from typing import NamedTuple
@@ -10,18 +10,12 @@ from leaf.data_contracts import (
     measurement_lag,
     working_data_document_readings,
 )
-from leaf.files import list_revisions
 from leaf.findings import Finding
-from leaf.layer import incompatible_layer
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
-from leaf.sample_content import (
-    SampleHistory,
-    initial_sample_history,
-    page_sample_history,
-)
+from leaf.sample_content import initial_sample_events
 from leaf.schema import VENDORED_FILES
 from leaf.structure import LF_META, SourceDocument, script_kind
 from leaf.styles import (
@@ -189,15 +183,8 @@ def sample_errors(
     log of `parent`. Each child is checked as a page against its initial history,
     and then the samples it declares in turn."""
     errors = []
-    pending = [
-        (
-            parent,
-            page_sample_history(parent, events, list_revisions(page_dir)),
-            holder,
-            (),
-        )
-    ]
-    for document, document_history, declaring, outer in pending:
+    pending = [(parent, events, holder, ())]
+    for document, document_events, declaring, outer in pending:
         for sample in declaring.samples:
             samples = (*outer, sample["attrs"].get("id"))
             child = sample["document"]
@@ -206,18 +193,18 @@ def sample_errors(
             # whatever the log holds — so the child checked here is the child
             # allocation would build from this document and this history.
             try:
-                child_history = (
-                    initial_sample_history(
+                child_events = (
+                    initial_sample_events(
                         page_dir,
                         document,
-                        document_history,
+                        document_events,
                         declaring,
                         sample,
                         registry,
                         contracts,
                     )
                     if registry is not None
-                    else SampleHistory([], {})
+                    else []
                 )
             except ValueError as error:
                 errors.append(
@@ -225,9 +212,8 @@ def sample_errors(
                         "sample-history", values={"error": str(error)}, samples=samples
                     )
                 )
-                child_history = SampleHistory([], {})
-            child_events = child_history.events
-            pending.append((child, child_history, child, samples))
+                child_events = []
+            pending.append((child, child_events, child, samples))
             child_readings = initial_data_document_readings(
                 child, child_events, registry
             )
@@ -288,7 +274,7 @@ def _source_advice(
 
 
 def check_source(page_dir: Path, events: list) -> SourceCheck:
-    """Validate current source under this Leaf's protocol and derive anchor moves."""
+    """Validate current source declarations and derive automatic anchor moves."""
     data, source_error = _source_bytes(page_dir)
     if source_error:
         return SourceCheck(EMPTY_READING, None, [source_error], [])
@@ -303,13 +289,6 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         registry = None
         errors.extend(error.findings)
     reading = SourceReading(document, registry)
-    if registry is not None and (refusal := incompatible_layer(page_dir, registry)):
-        return SourceCheck(
-            reading,
-            registry,
-            [refusal],
-            [],
-        )
     stored_data = read_data(page_dir, registry)
     contracts = read_contracts(page_dir)
     readings = (

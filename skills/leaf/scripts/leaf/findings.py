@@ -1523,10 +1523,6 @@ _TEXT = {
         f"{_invalid_record(v)}position record cannot put <{v['unit_tag']}>"
         f" {v['unit']!r} within <{v['found']}> {v['destination']!r}"
     ),
-    "thread-widget-publication": lambda at, v: (
-        f"thread widget {v['widget']!r} belongs to publication "
-        f"r{v['publication']}, not r{v['revision']}"
-    ),
     "unknown-members": lambda at, v: (
         f"{_invalid_record(v)}{', '.join(v['strangers'])} name no member of"
         f" {v['widget']!r}"

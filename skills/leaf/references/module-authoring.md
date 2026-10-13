@@ -13,13 +13,6 @@ owns element declarations; its ["User state"](packages.md#user-state) and
 state and source contracts. Add or change those declarations when the module needs
 a new capability.
 
-Registry-declared widgets default-export their constructor. Leaf registers it in
-the publication’s vocabulary. Create child widgets with
-`createWidgetElement(owner, tag, Constructor)` from the public API, importing the
-child’s constructor. Each publication retains these constructors and its private
-module dependencies. The installed layer’s runtime and vendor libraries have one
-instance per running document; changing their bytes requires a fresh document.
-
 ## The helper surface
 
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets. A module imports
@@ -400,8 +393,7 @@ tag, or `undefined`. `elementsDeclaring(root, key, {direct})` lists the elements
 `root`, or only its children with `direct: true`, whose entries declare `key`.
 `matchesWhen(element, when)` says whether the element's attributes satisfy a
 declaration's `when`, as an `x-thread-seat` declaration's `when` selects its elements.
-`layerFact(owner, name)` returns a copy of a layer-wide `$` declaration, such as
-`$reactions`, from the element or document owner's publication.
+`layerFact(name)` returns a copy of a layer-wide `$` declaration, such as `$reactions`.
 
 ### Following a reference
 

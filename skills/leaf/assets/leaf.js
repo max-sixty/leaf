@@ -1,5 +1,4 @@
 /* Leaf runtime boot and application composition root. */
-import "./vendor/scoped-registry.js";
 import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
 import "./vendor/browser-runtime.js";
 import "./runtime/interaction-log.js";
@@ -431,7 +430,7 @@ app = mountApplication({
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
   accompanyThread: (...args) => landing.accompanyThread(...args),
-  reportPageError,
+  threadAvailable: !offlineInteractive,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
   wireInput: inputs.wireInput,

@@ -1327,12 +1327,9 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         "x-upgrade": True,
     }
     module = (companion / "widgets/lf-conversation-workspace.js").read_text()
-    module = "import NestedReader from './lf-nested-reader.js';\n" + module.replace(
-        "  shadowStage,", "  shadowStage,\n  createWidgetElement,"
-    )
     module = module.replace(
         "body.append(index, this.reader);",
-        """const nested = createWidgetElement(this, 'lf-nested-reader', NestedReader);
+        """const nested = offer('lf-nested-reader');
         nested.style.display = 'block';
         nested.style.minWidth = '0';
         nested.style.minHeight = '0';
@@ -1350,7 +1347,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         layer_registry=registry,
         layer_widgets={
             "lf-conversation-workspace.js": module,
-            "lf-nested-reader.js": """export default class extends HTMLElement {};""",
+            "lf-nested-reader.js": "customElements.define('lf-nested-reader', class extends HTMLElement {});",
         },
     )
     append_carried_log_record(

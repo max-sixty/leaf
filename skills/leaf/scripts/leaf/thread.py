@@ -172,7 +172,9 @@ def current_anchor(
         revision = require_revision(page_dir)
     if not (quote or section or part):
         return revision, None
-    reading = read_revision(page_dir, revision)
+    from leaf.registry.storage import require_registry
+
+    reading = read_revision(page_dir, revision).under(require_registry(page_dir))
     return revision, _capture_anchor(
         page_dir, events, reading, quote, section, part, revision
     )
@@ -617,8 +619,8 @@ def _compose_and_append(
     title: str | None,
 ) -> dict:
     """Check the reply's content against the page, compose its event and append it
-    at `obligation`, publishing the complete saved publication first for source
-    validation, detach, or a markup-bearing reply."""
+    at `obligation`, publishing saved page edits first where `validate_source` or a
+    detach reads them."""
     page_dir, events = page.page_dir, page.events
     to, thread_id, responds, in_hand = obligation
     opening = _messages(events)[thread_id]
@@ -638,14 +640,11 @@ def _compose_and_append(
     if detach and (current_thread is None or current_thread["anchor"] is None):
         raise Rejected([Finding("no-anchor", values={"thread": thread_id})])
     reply_revision = None
-    prospective_reading = None
+    prospective_page = None
     prospective_anchor = None
     source_events = events
     checked = None
-    if validate_source or detach or markup:
-        active = latest_revision(page_dir)
-        # A reply freezes the complete publication, including widget modules.
-        # HTML equality cannot decide whether that vocabulary changed.
+    if validate_source or detach:
         if relocating:
             source_events = [
                 *events,
@@ -661,6 +660,7 @@ def _compose_and_append(
                     **({"responds": responds} if responds is not None else {}),
                 },
             ]
+        from leaf.revisioning import planned_activation
         from leaf.validation.source import check_source
 
         checked = check_source(page_dir, source_events)
@@ -670,24 +670,23 @@ def _compose_and_append(
                     Finding(
                         "invalid-source",
                         values={
-                            "operation": "reply"
-                            if validate_source or markup
-                            else "detach",
+                            "operation": "reply" if validate_source else "detach",
                             "error": "; ".join(map(str, checked.errors)),
                         },
                     )
                 ]
             )
-        prospective_reading = checked.reading
+        prospective_page = checked.document
+        reply_revision = planned_activation(page_dir, checked).revision
         if moving:
             prospective_anchor = _capture_anchor(
                 page_dir,
                 events,
-                prospective_reading,
+                checked.reading,
                 quote,
                 section,
                 part,
-                (active or 0) + 1,
+                reply_revision,
             )
     fragment = (
         check_markup(
@@ -695,14 +694,16 @@ def _compose_and_append(
             "reply",
             markup,
             events,
-            reading=prospective_reading,
+            page=prospective_page,
             thread=thread_id,
         )
         if markup
         else None
     )
     if ask and fragment:
-        registry = prospective_reading.registry
+        from leaf.registry.storage import require_registry
+
+        registry = require_registry(page_dir)
         structural = sorted(
             {
                 rec["tag"]
@@ -716,10 +717,6 @@ def _compose_and_append(
             raise Rejected(
                 [Finding("widget-ask-markup", values={"tags": list(structural)})]
             )
-    if checked is not None:
-        from leaf.revisioning import planned_activation
-
-        reply_revision = planned_activation(page_dir, checked).revision
     if prospective_anchor is not None:
         revision, anchor = reply_revision, prospective_anchor
     elif moving:
@@ -768,7 +765,7 @@ def _compose_and_append(
     if failure is not None:
         event["failure"] = failure
     if relocating or markup:
-        event["revision"] = revision or reply_revision or latest_revision(page_dir)
+        event["revision"] = revision or latest_revision(page_dir)
     if relocating:
         event["anchor"] = anchor
     if title is not None:

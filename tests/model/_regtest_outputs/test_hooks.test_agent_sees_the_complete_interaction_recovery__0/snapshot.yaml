@@ -116,7 +116,6 @@ answer:
     I will add the camera first.
   responds: event-2
   attempt: <attempt>
-  revision: 1
   id: event-4
   attention: false
   ts: <time>

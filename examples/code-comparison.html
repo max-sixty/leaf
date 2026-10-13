@@ -99,8 +99,6 @@
       }
     </style>
     <script type="module">
-      import { afterPresentation } from "/runtime/widget-api.js";
-
       import {
         frameFor,
         keeps,
@@ -153,21 +151,23 @@
             this.prepend(toolbar);
           }
 
-          #connect(signal) {
-            return afterPresentation(() => {
-              if (signal.aborted) return;
-              if (!this.#notify) this.#initialize();
-              this.#playground.addEventListener("lf-playground-change", this.#change, {
-                signal,
-              });
-              this.addEventListener("lf-layout", this.#readerLayout, { signal });
-              const watching = sizeObserver(this.#scheduleMeasurement);
-              signal.addEventListener("abort", () => watching.disconnect());
-              for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
-                watching.observe(reader);
-              }
-              this.#render();
+          async #connect(signal) {
+            await Promise.all([
+              customElements.whenDefined("lf-playground"),
+              customElements.whenDefined("lf-code"),
+            ]);
+            if (signal.aborted) return;
+            if (!this.#notify) this.#initialize();
+            this.#playground.addEventListener("lf-playground-change", this.#change, {
+              signal,
             });
+            this.addEventListener("lf-layout", this.#readerLayout, { signal });
+            const watching = sizeObserver(this.#scheduleMeasurement);
+            signal.addEventListener("abort", () => watching.disconnect());
+            for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
+              watching.observe(reader);
+            }
+            this.#render();
           }
 
           #initialize() {

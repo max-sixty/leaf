@@ -141,13 +141,9 @@ def finish_publications(page: PageTransaction, publications: list[dict]) -> None
     for event in publications:
         revision = event["revision"]
         reading = staged_reading(page.page_dir, event["publication"])
-        previous = max(
-            (order for order in list_revisions(page.page_dir) if order < revision),
-            default=0,
-        )
+        previous = revision - 1
         predecessor = PredecessorReading(
             previous,
-            revision,
             False,
             False,
             previous,
@@ -195,10 +191,9 @@ def _publish_checked_source(page, checked, event=None):
             **admitted_event(view or PageView(page.page_dir), page.events, event),
             "seq": page.events[-1]["seq"] + 1 if page.events else 1,
         }
-        previous = checked.revision.active if activation.created else revision
+        previous = (revision - 1) if activation.created else revision
         predecessor = PredecessorReading(
             previous,
-            revision,
             False,
             False,
             previous,

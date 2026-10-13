@@ -10,7 +10,6 @@ outside a captured data value, are still read from the directory under either so
 
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
-from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Protocol
@@ -59,8 +58,9 @@ class PageSource(Protocol):
     def served_document(self) -> tuple[RevisionArtifact, int, int | None] | None:
         """The active revision as the root serves it, or None before the first."""
 
-    def sample_inputs(self, revision: int) -> "SampleInputs":
-        """The captured parent reading and revision resources a child may inherit."""
+    def sample_inputs(self, revision: int) -> tuple[RevisionArtifact, list, dict]:
+        """A revision's artifact with the log and data a sample's child starts
+        from, read together."""
 
     def user_views(self) -> dict: ...
 
@@ -78,19 +78,6 @@ class PageSource(Protocol):
     def state_reading(self, reading: str, state: dict) -> str:
         """Finalize the state's source-specific refresh facts and return its token,
         from `state_read`'s."""
-
-
-@dataclass(frozen=True)
-class SampleInputs:
-    """The source facts and immutable revision readings used to allocate a sample."""
-
-    revision: int
-    artifact: RevisionArtifact
-    events: list[dict]
-    data: dict
-    available_revisions: frozenset[int]
-    artifacts: Mapping[int, RevisionArtifact]
-    readings: Mapping[int, SourceReading]
 
 
 class LivePage:
@@ -143,25 +130,10 @@ class LivePage:
                 stamped_version(page.events, revision),
             )
 
-    def sample_inputs(self, revision: int) -> SampleInputs:
+    def sample_inputs(self, revision: int) -> tuple[RevisionArtifact, list, dict]:
         with PageTransaction(self.page_dir) as page:
             artifact = read_artifact(self.page_dir, revision)
-            available = frozenset(revision_names(self.page_dir))
-            artifacts = {item: read_artifact(self.page_dir, item) for item in available}
-            readings = {item: read_revision(self.page_dir, item) for item in available}
-            artifacts = {**artifacts, revision: artifact}
-            readings.setdefault(revision, read_revision(self.page_dir, revision))
-            for reading in readings.values():
-                _ = (reading.document, reading.registry)
-            return SampleInputs(
-                revision,
-                artifact,
-                page.events,
-                read_data(self.page_dir, artifact.registry),
-                available,
-                artifacts,
-                readings,
-            )
+            return artifact, page.events, read_data(self.page_dir, artifact.registry)
 
     def user_views(self) -> dict:
         return read_user_views(self.page_dir, latest_revision(self.page_dir))

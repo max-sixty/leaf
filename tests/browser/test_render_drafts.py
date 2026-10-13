@@ -7066,14 +7066,14 @@ def datum_draft_url(serve, *, identified=False):
     """Serve a projected subject whose rendering can change independently of its identity."""
     module = """
 import {projectData, html, render} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-draft-subject', class extends HTMLElement {
   connectedCallback() { this.show('Original datum words.'); }
   show(words, key='datum') {
     render(html`<p>${words}</p><p>Other words in the same widget.</p>`, this);
     projectData(this, [{key, IDENTITY node: this.querySelector('p'), label: 'Datum',
       origin: {derived: [{widget: 'subject'}]}}]);
   }
-}
+});
 """
     module = module.replace("IDENTITY", "identity: 'subject'," if identified else "")
     return serve(

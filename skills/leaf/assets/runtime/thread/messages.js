@@ -31,7 +31,7 @@ import {
   releaseMessageEdit,
   watchRewrite,
 } from "./message-edit.js";
-import { reactionVocabulary } from "../registry.js";
+import { tokenEntry } from "../registry.js";
 import { readAttachedMedia, writeAttachedMedia } from "../media.js";
 import {
   rememberAuthoredParents,
@@ -97,7 +97,7 @@ function proseReading(message) {
 /** @param {import("../../../../../build/browser/domain.ts").Message | Extract<import("../../../../../build/browser/domain.ts").Command, {kind: "comment" | "reply"}>} message @returns {string} */
 export function messageText(message) {
   if (message.token) {
-    const token = reactionVocabulary()[message.token];
+    const token = tokenEntry(message.token);
     return `${token?.glyph ?? ""} ${message.token}`.trim();
   }
   return message.suggestion ? (message.text ?? "") : proseReading(message).plainText;
@@ -106,16 +106,16 @@ export function messageText(message) {
 // A rollback can withdraw an authored island, but neither retry nor a prose edit
 // may instantiate it twice. Its native identity is independent of the prose cache.
 const authoredMessages = new Map();
-export function prepareAuthoredMessage(message, thread, context) {
+export function prepareAuthoredMessage(message, thread) {
   const key = message.attempt ?? message.id;
   if (typeof thread !== "string" || !thread)
     throw new TypeError("an authored message needs its thread's id");
   if (!authoredMessages.has(key)) {
-    const template = { content: context.prepare(message.markup ?? "") };
+    const template = document.createElement("template");
+    template.innerHTML = message.markup ?? "";
     rememberAuthoredParents(template.content);
     const descriptors = stageWidgetDescriptors(template.content, {
       kind: "thread",
-      revision: message.revision,
       thread,
       message: message.id,
     });
@@ -128,7 +128,7 @@ export function prepareAuthoredMessage(message, thread, context) {
       message: message.id,
       body: {
         text,
-        document: { thread, message: message.id, revision: message.revision },
+        document: { thread, message: message.id },
       },
       authored,
       descriptors,
@@ -140,8 +140,7 @@ export function prepareAuthoredMessage(message, thread, context) {
   for (const descriptor of prepared.descriptors.descriptors.values())
     if (
       descriptor.document.thread !== thread ||
-      descriptor.document.message !== message.id ||
-      descriptor.document.revision !== message.revision
+      descriptor.document.message !== message.id
     )
       throw new TypeError("an authored message changed its frozen document identity");
   return prepared;
@@ -158,7 +157,7 @@ export function messageReading(
   { panel, nativeAuthored = false, reactions, workflows },
 ) {
   const workflow = strongestWorkflow(workflows);
-  const token = isReaction(message) ? reactionVocabulary()[message.token] : null;
+  const token = isReaction(message) ? tokenEntry(message.token) : null;
   const kind = isReaction(message)
     ? "reaction"
     : message.suggestion
@@ -168,7 +167,6 @@ export function messageReading(
   return Object.freeze({
     key: messageKey(message),
     id: message.id,
-    revision: message.revision,
     // A reply still streaming, which the answer it stands for completes in place.
     provisional: Boolean(message.provisional),
     version: message.content_version,
@@ -364,7 +362,6 @@ export class MessageView {
         ${this.#header}
         <div
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
-          data-lf-vocabulary=${model.nativeAuthored && model.body.authored ? model.revision : nothing}
         >
           ${editing ? this.#editor.node : this.#body(model.body)}
           ${

@@ -10,7 +10,7 @@ folding the panel to the leaf in the window's corner and back."""
 import re
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, declare_idle, working
 from leaf import event_log as events_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
@@ -63,15 +63,15 @@ def field(page):
 def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve):
     """The field clicked at rest is the field written in. Sending a page comment opens
     its new thread above the row, the same field now replying there, and the thread is
-    resolved and reopened from the thread's head. The line above the field names where
-    the words go. The banner and the bottom bar are gone, and Escape puts the thread
-    away."""
+    resolved and reopened from the thread's head. The focused field names where the
+    words go, and once they hide that, the line above it does. The banner and the
+    bottom bar are gone, and Escape puts the thread away."""
     page = floating(browser, serve(LONG_PAGE))
     expect(page.locator(".lf-banner")).to_be_hidden()
     expect(page.locator(".lf-shortcut-bar")).to_be_hidden()
 
     write(field(page), "Could the rollback cover the weekend?")
-    expect(page.locator(".lf-fp-context")).to_contain_text("New comment on the page")
+    expect(page.locator(".lf-fp-context")).to_contain_text("Comment on the page")
     with sending(page, "the page comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     comment = events_model.read_events(serve.page_dir)[-1]
@@ -82,10 +82,13 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_contain_text(
         "Could the rollback cover the weekend?"
     )
-    expect(page.locator(".lf-fp-context")).to_contain_text("Reply in")
     expect(field(page)).to_be_focused()
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^Reply in this thread")
+    )
 
     write(field(page), "And the mobile cohort too.")
+    expect(page.locator(".lf-fp-context")).to_contain_text("Reply in")
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
     reply = events_model.read_events(serve.page_dir)[-1]
@@ -277,6 +280,54 @@ def test_a_reader_arriving_later_leaves_focus_the_user_moved_elsewhere(browser, 
     )
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_have_count(0)
     expect(page.locator("#elsewhere")).to_be_focused()
+
+
+def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, serve):
+    """At rest the empty field says what the agent is doing, in the banner's words and
+    dimmer than anything written there, and while the work runs it carries the one sheen
+    that marks work under way, standing still under reduced motion and once the work
+    ends. Clicking in gives the placeholder to where the words go and the line above to
+    who they go to; once words hide the placeholder, that line names where as well."""
+    url = serve(LONG_PAGE)
+    working(serve.page_dir, "Drafting the rollout")
+    page = floating(browser, url)
+    status = re.compile(r"^Agent working — Drafting the rollout")
+    expect(field(page)).to_have_attribute("placeholder", status)
+    words = page.locator(".lf-fp-field .lf-compose-placeholder > span")
+    expect(words).to_have_text(status)
+    alpha = """node => {
+      const color = getComputedStyle(node).color;
+      const slash = color.match(/\\/\\s*([\\d.]+)\\)$/);
+      return slash ? Number(slash[1]) : 1;
+    }"""
+    expect(words).to_have_css("animation-name", re.compile("sheen"))
+    # Still under reduced motion, in a face well short of the ink words are written in.
+    page.emulate_media(reduced_motion="reduce")
+    expect(words).to_have_css("animation-name", "none")
+    assert words.evaluate(alpha) < 0.5
+    page.emulate_media(reduced_motion="no-preference")
+    expect(words).to_have_css("animation-name", re.compile("sheen"))
+
+    field(page).click()
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile("^Comment on the page")
+    )
+    expect(words).to_have_css("animation-name", "none")
+    destination = page.locator(".lf-fp-dest")
+    expect(destination).to_have_text("To Agent")
+    page.keyboard.type("Could")
+    expect(destination).to_have_text("Comment on the page · to Agent")
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    expect(destination).to_have_text("To Agent")
+
+    page.mouse.click(5, 5)
+    expect(field(page)).to_have_attribute("placeholder", status)
+    expect(words).to_have_css("animation-name", re.compile("sheen"))
+    declare_idle(serve.page_dir)
+    told(page)
+    expect(field(page)).not_to_have_attribute("placeholder", status)
+    expect(words).to_have_css("animation-name", "none")
 
 
 def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):

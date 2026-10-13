@@ -57,6 +57,7 @@ from interact_support import (
     queue_board_registry,
     read_page_data,
     refused_on,
+    registry_refusal,
     styled,
     wait_for,
     yaml_block,
@@ -2023,20 +2024,22 @@ def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
     `records: null` a same-protocol Leaf vendored still reads as absent."""
     kernel = json.loads((schema_model.ASSETS / "registry.json").read_text())
 
-    def facts_error(**changes):
+    def facts(**changes):
         registry = deepcopy(kernel)
         for fact, value in changes.items():
             registry[f"${fact}"] = {**registry[f"${fact}"], **value}
-        return registry_layer.layer_facts_error(registry)
+        registry_layer.check_layer_facts(registry, "kernel")
 
-    assert facts_error() is None
+    facts()
     absent = {"description": "Build facts.", "schema": {}, "records": None}
-    assert facts_error(data={"contracts": {"builds": absent}}) is None
+    facts(data={"contracts": {"builds": absent}})
     named = {"description": "Build facts.", "schema": {}}
-    assert "does not match" in facts_error(data={"contracts": {"builds\n": named}})
-    assert "does not match" in facts_error(
-        reactions={"tokens": {"keep\n": {"glyph": "+"}}}
+    refused = registry_refusal(lambda: facts(data={"contracts": {"builds\n": named}}))
+    assert refused.values["keyword"] == "pattern"
+    refused = registry_refusal(
+        lambda: facts(reactions={"tokens": {"keep\n": {"glyph": "+"}}})
     )
+    assert refused.values["keyword"] == "pattern"
 
 
 def test_a_custom_units_identity_rule_keeps_the_details_reference_base():

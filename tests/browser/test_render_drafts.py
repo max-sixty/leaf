@@ -1569,11 +1569,12 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     ), "the user's editor opened on text the runtime had written into"
 
 
-def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
-    """Plain words retain their geometry and native double-click selection on edit.
+def test_double_clicking_a_draft_keeps_its_frame_and_selected_word(browser, serve):
+    """The draft stays in place and double-click keeps the selected word on edit.
 
-    The frame's inset focus paint changes without reaching outside the reading box,
-    and print keeps the saved body while dropping the shared editor."""
+    The editor leaves room for Copy beside the caret. The frame's inset focus paint
+    changes without reaching outside the reading box, and print keeps the saved body
+    while dropping the shared editor."""
     page = open_page(browser, serve(JOURNEY_V1))
     metrics = """(sel) => {
       const el = document.querySelector('#draft-ops ' + sel), s = getComputedStyle(el);
@@ -1626,9 +1627,11 @@ def test_double_clicking_a_draft_leaves_every_word_where_it_was(browser, serve):
     assert page.screenshot(clip=inside) != inside_before, (
         "the open editor is indistinguishable from the read view at the box's edge"
     )
-    assert page.evaluate(metrics, "leaf-text") == read, (
-        "the editor's text sits somewhere the read view's text did not"
+    edited = page.evaluate(metrics, "leaf-text")
+    assert (edited[0], edited[1], edited[3]) == (read[0], read[1], read[3]), (
+        "the editor moved the draft's words or changed their line height"
     )
+    assert edited[2] < read[2], "the editor left no room for Copy beside the caret"
     assert page.locator("#draft-ops").bounding_box() == host, (
         "the draft changed shape under the pointer when the editor opened"
     )
@@ -5883,7 +5886,11 @@ def test_the_draft_box_is_its_own_door(browser, serve):
     # holding, which is the thing the door would have destroyed.
     box = body.bounding_box()
     line = box["y"] + 8
-    hold_selection(page, (box["x"] + 2, line), (box["x"] + box["width"] - 2, line))
+    # Keep the release over the draft's words. The box's far edge lies beside the
+    # text and makes the browser end the selection in the following page content.
+    hold_selection(
+        page, (box["x"] + 2, line), (box["x"] + min(150, box["width"] / 2), line)
+    )
     held = page.evaluate("() => getSelection().toString()")
     assert held.strip() != "", (
         f"the drag selected nothing, so this says nothing about the door: {held!r}"

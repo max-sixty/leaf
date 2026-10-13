@@ -1,5 +1,6 @@
-/* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
- * that has changed. */
+/* This module owns banner wording, tone, tab-icon paint, and announcing changes
+ * after the first status reading. Provisional interface readiness paints the banner
+ * without establishing that announcement baseline; saved state or a failed read does. */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { JUST_NOW, ago, clocked } from "./presence.js";
 import { el, offer, reserve } from "./widget-elements.js";
@@ -32,12 +33,24 @@ import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
 import { agentName, watchSemantic } from "./semantic-state.js";
 import { itemNoun } from "./queues.js";
+import { UPGRADE } from "./presentation.js";
+import { WEBSITE_DELIVERY } from "./context.js";
 import { readQueues } from "./queue-api.js";
+
+const INITIAL = Object.freeze({
+  tone: "",
+  summary: "Loading…",
+  queues: "",
+  queuesWidest: "",
+  explanation:
+    "Loading the page's interface. Reading, links, and scrolling are already available.",
+  publication: null,
+});
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 declareBanner(banner);
-const bannerStatus = createBannerStatusView(repaint);
+const bannerStatus = createBannerStatusView(repaint, INITIAL);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
 // The agent's Tasks count, which opens the Questions panel listing them (drawers.js).
 export const queueCounts = bannerStatus.queues;
@@ -395,6 +408,9 @@ const presentStatus = (status) => {
   statusReading = model;
   for (const listener of statusListeners) listener(model);
   paintTab();
+  // Interface readiness precedes the first saved reading. It paints usable chrome,
+  // but only a state or failed read establishes the status announcement baseline.
+  if (kind === "loading") return;
   const changed =
     saidKind !== undefined &&
     (saidKind !== kind ||
@@ -403,6 +419,23 @@ const presentStatus = (status) => {
   saidActionableWork = actionableWork;
   if (changed) announce(explanation);
 };
+// Upgrade opens new comments before the buffered saved reading is applied.
+document.addEventListener(
+  UPGRADE,
+  () => {
+    presentStatus({
+      kind: "loading",
+      tone: "",
+      summary: "Loading saved state…",
+      explanation:
+        "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds." +
+        (WEBSITE_DELIVERY
+          ? " Website examples can take longer to load their saved state than a usual Leaf page."
+          : ""),
+    });
+  },
+  { once: true },
+);
 // The developer preview's identity: which checkout is serving this page, and a press to
 // copy the whole diagnostic. It is the banner's least-used control, so it stays behind
 // the overflow door at every width instead of adding a permanent chip to the reading row.

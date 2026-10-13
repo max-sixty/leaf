@@ -1,7 +1,9 @@
 /* The isolated child's explicit interface to its containing page. Values cross the
- * port; documents, DOM nodes, functions and browser owners remain in this realm. */
+ * port; documents, DOM nodes, functions and browser owners remain in this realm.
+ * `ready` announces the usable, upgraded interface, independently of saved state.
+ * Commands that need history wait at their owning child capability. */
 import { canPlaceFocus, focusDestination, onStanding } from "./focus.js";
-import { pagePresented } from "./page-paint.js";
+import { pageUpgraded } from "./page-paint.js";
 import { sizeObserver } from "./rendering.js";
 const child = document.documentElement.lfSample;
 const commands = new Map();
@@ -37,7 +39,7 @@ if (child)
   });
 
 if (child) {
-  let presented = false;
+  let upgraded = false;
   let height = null;
   // A parent cannot inspect focus in this opaque document. Report whether a
   // control holds it, and retain its node while a parent control borrows focus.
@@ -81,8 +83,8 @@ if (child) {
         "error",
         document.documentElement.lfStartupException ?? { message: error },
       );
-    if (presented || !(document.body && pagePresented())) return;
-    presented = true;
+    if (upgraded || !(document.body && pageUpgraded())) return;
+    upgraded = true;
     child.present();
     measure();
     sizeObserver(measure, { counted: false }).observe(document.body);
@@ -96,7 +98,7 @@ if (child) {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["data-lf-presented", "data-lf-startup-error"],
+    attributeFilter: ["data-lf-upgraded", "data-lf-startup-error"],
   });
   inspect();
 }

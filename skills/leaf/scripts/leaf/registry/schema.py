@@ -217,6 +217,16 @@ def schema_error_message(error) -> str:
     return error.message
 
 
+def schema_reading(error) -> dict:
+    """A validator's complaint as a finding's values: the schema `keyword` it broke,
+    the `path` into the instance it read, and its words (`schema_error_message`)."""
+    return {
+        "keyword": error.validator,
+        "path": list(error.absolute_path),
+        "reason": schema_error_message(error),
+    }
+
+
 def unresolved_schema_reference(schema: dict) -> str | None:
     """Return the first operative ref not supplied by this schema resource graph.
 

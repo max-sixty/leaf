@@ -41,7 +41,7 @@ import { anchorForRange } from "../anchor-resolution.js";
 import { THREAD } from "../thread/selectors.js";
 import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
-import { PRESS, rowArrows } from "../keyboard/bindings.js";
+import { PRESS, rowArrows, savedReadingSettled } from "../keyboard/bindings.js";
 import {
   onStanding,
   takesLetters,
@@ -152,6 +152,7 @@ export function createSelectionComposer({
   panelIsOpen,
   setReact,
   reactionTokens,
+  reactionAvailable,
   designModeActive,
   openPageThread,
   threadTransitionOrigin,
@@ -806,6 +807,7 @@ export function createSelectionComposer({
   const RESPONSE_OPTIONS_TITLE = "With other responses open";
   const RESPONSE_REACTION = {
     id: "response.reaction.choose",
+    ready: savedReadingSettled,
     keys: () =>
       reactionTokens()
         .slice(0, 9)
@@ -820,7 +822,10 @@ export function createSelectionComposer({
         .map(([name, entry], index) => `${index + 1} ${entry.glyph} ${name}`)
         .join(", ")}`,
     title: "react",
-    when: () => !takesLetters(focused()) && responseReactionButtons().length > 0,
+    when: () =>
+      reactionAvailable() &&
+      !takesLetters(focused()) &&
+      responseReactionButtons().length > 0,
     run: (binding) => responseReactionButtons()[+binding - 1]?.click(),
   };
   const RESPONSE_MOVE = {
@@ -837,7 +842,9 @@ export function createSelectionComposer({
     keys: PRESS,
     description: "Use the focused response",
     title: "choose",
-    when: () => focusedResponseOption(),
+    when: () =>
+      focusedResponseOption() &&
+      (!focused().classList.contains("lf-react") || reactionAvailable()),
     run: () => focused()?.click(),
   };
   const RESPONSE_CLOSE = {

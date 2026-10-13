@@ -116,7 +116,7 @@ import {
   upFrom,
 } from "./shadow.js";
 import { decisionFor, registry } from "./registry.js";
-import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./page-paint.js";
+import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
 import { readApplication } from "./semantic-state.js";
 import { COLLAPSE, TEXT_BLOCK } from "./passage-facts.js";
@@ -321,11 +321,11 @@ export const elementOver = (n) => {
 // refuses the text once, here, whichever reader reaches it first, and no reader meets it
 // again. Thrown out of each reader instead, it was refused again on every repaint frame,
 // key and selection, each an uncaught error and each a report. The one refusal is
-// reported to the agent here, and before the page presents it is also the page's
+// reported to the agent here, and before the page upgrades it is also the page's
 // startup failure, its own fault, which no server update fixes: it is declared
 // (`lf-startup-failed`, `page`), so the readable fallback shows at once, the notice says
 // the page has a problem, and the page never presents (leaf.js). A page already
-// presented keeps running without those words, and without the root: a mark or a
+// upgraded keeps running without those words, and without the root: a mark or a
 // projection painted into it is never cleared, and an id inside it stops resolving,
 // since every sweep of declared roots (`shadowRootsIn`) has dropped it.
 function refusesBareText(root) {
@@ -335,7 +335,7 @@ function refusesBareText(root) {
   refuseShadowRoot(root);
   const refusal = bareTextRefusal(bare);
   reportPageError(refusal);
-  if (!pagePresented())
+  if (!pageUpgraded())
     window.dispatchEvent(
       new CustomEvent("lf-startup-failed", {
         detail: { reason: refusal.message, error: refusal, page: true },

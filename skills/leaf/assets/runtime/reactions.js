@@ -53,7 +53,7 @@ import { elementById } from "./passages.js";
 import { addressableWord } from "./addressable-names.js";
 import { anchoringIsReady, visualPartLabel } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
-import { claimsEsc, saying } from "./keyboard/scopes.js";
+import { claimsEsc, keys, saying } from "./keyboard/scopes.js";
 import {
   handBack,
   focusDestination,
@@ -71,11 +71,11 @@ import {
   pageCommand,
   pageScope,
 } from "./keyboard/register.js";
-import { PRESS, rowArrows } from "./keyboard/bindings.js";
+import { PRESS, rowArrows, savedReadingSettled } from "./keyboard/bindings.js";
 import { beginWalk, listWalkPosition } from "./walk-position.js";
 import { anchorLabel } from "./thread/messages.js";
 import { reactionsAt, tokenChoices } from "./thread/model.js";
-import { allThreads } from "./thread/state.js";
+import { allThreads, readThreads } from "./thread/state.js";
 import { watchProjection } from "./projection-watch.js";
 
 // The layer's reaction vocabulary, in declared order. The bar, a reply's strip, the
@@ -84,9 +84,16 @@ import { watchProjection } from "./projection-watch.js";
 // a token's name. Empty until the document is captured: the register checks every core
 // row's bindings as the module evaluates, before the vocabulary is known.
 export const reactionTokens = () => Object.entries(reactionVocabulary());
+// A toggle needs the saved standing reaction, including proof that none stands.
+export const reactionAvailable = () => readThreads().phase === "ready";
 // The choices on one anchor, from the threads' current reading.
 const anchorChoices = (anchor) =>
-  tokenChoices(reactionVocabulary(), anchor ? reactionsAt(allThreads(), anchor) : []);
+  reactionAvailable()
+    ? tokenChoices(
+        reactionVocabulary(),
+        anchor ? reactionsAt(allThreads(), anchor) : [],
+      )
+    : [];
 
 // One token as a press in the response bar; a reply's strip builds its own
 // (thread/reaction-strips.js). The token names the control and the compact face
@@ -98,7 +105,17 @@ function reactionChip({ name, glyph, label }, pressed) {
   chip.title = label;
   chip.setAttribute("aria-label", label);
   responseAction(chip, { glyph, label: name, collapse: true });
-  chip.onclick = () => pressed(name);
+  keys(chip, "On a reaction", [
+    {
+      id: `reaction.${name}`,
+      ready: savedReadingSettled,
+      when: reactionAvailable,
+      keys: [],
+      control: chip,
+      title: label,
+      run: () => pressed(name),
+    },
+  ]);
   return chip;
 }
 
@@ -194,9 +211,9 @@ export function createReactionController({
   };
 
   async function reactHere(name, commands, anchor = fabAnchorAt()) {
-    const standing = anchorChoices(anchor).find(
-      (choice) => choice.name === name,
-    )?.standing;
+    const choice = anchorChoices(anchor).find((choice) => choice.name === name);
+    if (!choice) return;
+    const { standing } = choice;
     // Read before the bar goes, because the reading is about the bar that is standing.
     // The bar owns what that answer is. `setReact(false)` runs after the bar goes and the
     // palette makes a return of its own, so the user lands once, when everything has
@@ -336,6 +353,7 @@ export function createReactionController({
   }
 
   function setReact(on, { surface = null } = {}) {
+    if (on && !reactionAvailable()) return;
     if (!on && !reactArmed) {
       const residue = marginOffer || fabBar.hasAttribute("data-lf-margin-raised");
       if (!residue) return;
@@ -498,6 +516,7 @@ export function createReactionController({
 
   const REACT = {
     title: "With reactions open",
+    ready: savedReadingSettled,
     escape: "inner",
     // Opening the modal reference dismisses this transient mode. Its section still reads
     // the liveness captured at that boundary rather than listing every conditional choice.
@@ -527,6 +546,7 @@ export function createReactionController({
             .map(([name, entry], i) => `${i + 1} ${entry.glyph} ${name}`)
             .join(", ")}`,
         title: "react",
+        when: reactionAvailable,
         run: (binding) => {
           if (reactSurface === marginSurface) {
             const ordinal = +binding - 1;
@@ -602,6 +622,7 @@ export function createReactionController({
   // accepted for now (composing/selection.js, TODO.md).
   pageCommand({
     id: "reaction.open",
+    ready: savedReadingSettled,
     touch: false,
     keys: ["e"],
     description: () =>
@@ -616,6 +637,7 @@ export function createReactionController({
     // covering surface the page's own targets are out of reach.
     covering: true,
     when: () =>
+      reactionAvailable() &&
       reactionTokens().length > 0 &&
       (coveringAuxiliarySurface()
         ? reactionTarget()?.kind === "surface"

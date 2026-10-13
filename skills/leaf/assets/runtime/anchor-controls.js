@@ -5,7 +5,8 @@
  * Visual proxies are keyed Lit controls, one group per drawing's seat, standing on the
  * details shelf with the seat naming the group as its details (details-shelf.js). A
  * screen reader reaches them from the drawing; a keyboard reaches the drawing and each
- * declared part through the target picker (`s`). A standing reaction first reveals
+ * declared part through the target picker (`s`). A failed thread presentation withdraws
+ * visual proxies until a valid reading replaces them. A standing reaction first reveals
  * its dedicated removal action; only that action withdraws the reaction. Commands enter
  * only through the constructor.
  */
@@ -37,7 +38,7 @@ import {
 import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
 import { elementById, inChrome, pageQueryAll } from "./passages.js";
-import { pagePresented } from "./page-paint.js";
+import { pageUpgraded } from "./page-paint.js";
 import { reactionVocabulary } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
@@ -207,7 +208,12 @@ export function createAnchorControls({
 
   function prepareVisualActions() {
     pendingVisualActions = visualActionPlan();
-    if (pagePresented()) publishVisualActions();
+    if (pageUpgraded()) publishVisualActions();
+  }
+
+  function withholdVisualActions() {
+    pendingVisualActions = new Map();
+    reconcileVisualActions(pendingVisualActions);
   }
 
   // Each target contributes its complete standing reaction reading. Only the selected
@@ -435,8 +441,7 @@ export function createAnchorControls({
     for (const record of reactionSeats.values()) record.margin.unregister();
     reactionSeats.clear();
     anchorNotes.destroy();
-    pendingVisualActions = new Map();
-    reconcileVisualActions(new Map());
+    withholdVisualActions();
   }
 
   return {
@@ -444,6 +449,7 @@ export function createAnchorControls({
     destroy,
     render,
     publishVisualActions,
+    withholdVisualActions,
     visualActionAnchor,
   };
 }

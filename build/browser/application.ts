@@ -741,7 +741,7 @@ function widgetReading(
           available:
             currentDescriptor &&
             root.effective.hostAvailable &&
-            root.phase !== "waiting" &&
+            root.phase === "ready" &&
             !descriptor.quoted,
           unavailable: root.effective.hostAvailable
             ? null
@@ -876,9 +876,10 @@ export function createSemanticApplication({
       ...admitted,
       pendingEntries: localProjections,
     });
-    // Threads and Questions both wait for an admitted reading. Authored markup names every
-    // ask the page could hold, but only the log says which of them it still holds and
-    // whether they are answered, so before that reading there is no inventory to publish.
+    // A local comment belongs to the shown document even before saved history arrives.
+    // Fold it through the same ledger and receipt path in every phase; collection.phase
+    // still says whether this is a complete reading. Questions need the log to say which
+    // authored asks the page still holds, so their inventory waits for that reading.
     const ready = phase === "ready";
     // The ledger's thread gestures, in the order the user made them.
     const gestures = local.flatMap(({ event, thread, namedParent }): ThreadGesture[] =>
@@ -890,9 +891,7 @@ export function createSemanticApplication({
             ? [event]
             : [],
     );
-    const folded = ready
-      ? foldThreads(view?.thread.threads ?? [], gestures)
-      : [];
+    const folded = foldThreads(view?.thread.threads ?? [], gestures);
     const widgets = foldWidgetStates(document.authored, projection);
     const asks = ready
       ? normalizedAsks(view, widgets, document, projection, local)

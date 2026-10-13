@@ -10143,7 +10143,9 @@ def _seat_manifest(patch):
         "files": [
             {
                 "path": "app.py",
-                "kind": "patch",
+                "operation": "modify",
+                "hunkCount": 1,
+                "binary": False,
                 "additions": 1,
                 "deletions": 1,
                 "patch": patch,

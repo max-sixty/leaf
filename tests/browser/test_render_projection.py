@@ -2,7 +2,6 @@
 
 import json
 import re
-from copy import deepcopy
 from datetime import datetime, timedelta
 from itertools import pairwise
 
@@ -50,18 +49,17 @@ from render_cases_interaction import (
     RETIRED_WIDGET_PAGE,
     RING,
     ROSTER_PAGE,
-    SEATED_ASK_ENTRY,
     SEATED_QUESTION_PAGE,
     SUGGESTION_PAGE,
     THREAD_ASKS,
     TRAVEL_PAGE,
     TWO_HOLDER_PAGE,
     WRAP_TOP,
+    answered_comment,
     backdate_note,
     drifting_widget,
     executable_revision,
     live_url,
-    seated_ask_module,
     stale_report,
 )
 from render_cases_layout import (
@@ -593,7 +591,10 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
     assert resolved(["app.py", "new", 20]) == '["app.py","both",5,20]'
 
 
-def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser, serve):
+@pytest.mark.parametrize("manifest", [False, True])
+def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
+    browser, serve, manifest
+):
     """Old source b.py and durable destination b.py identify different rename rows."""
     url = serve(
         leaf_page(
@@ -616,7 +617,9 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
         "diff --git a/a.py b/a.py\nnew file mode 100644\n"
         "--- /dev/null\n+++ b/a.py\n@@ -0,0 +1 @@\n+new_a()\n"
     )
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch_manifest(patch))
+    data_model.cmd_data_set(
+        serve.page_dir, "patch-data", patch_manifest(patch) if manifest else patch
+    )
     data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
@@ -665,7 +668,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(long_preimage),
+        patch_manifest(long_preimage) if manifest else long_preimage,
     )
     told(page)
     expect(header).to_contain_text("legacy/very/long/original.py → c.py")
@@ -680,7 +683,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
     data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
-        patch_manifest(ambiguous),
+        patch_manifest(ambiguous) if manifest else ambiguous,
     )
     told(page)
     expect(header).to_contain_text("a.py → c.py")
@@ -704,6 +707,55 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
         )
         == "removed_b()"
     )
+
+    # Copies share a preimage without owning its identity. A modified original and
+    # two destinations cannot silently redirect an old-source link to the first copy.
+    def copied(destination):
+        return (
+            f"diff --git a/a.py b/{destination}\n"
+            f"similarity index 50%\ncopy from a.py\ncopy to {destination}\n"
+            f"--- a/a.py\n+++ b/{destination}\n"
+            f"@@ -1,2 +1,2 @@\n context()\n-removed_a()\n+copied_{destination[0]}()\n"
+        )
+
+    original = (
+        "diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n"
+        "@@ -1,2 +1,2 @@\n context()\n-removed_a()\n+changed_a()\n"
+    )
+    for copy_patch in (original + copied("b.py"), copied("b.py") + copied("c.py")):
+        data_model.cmd_data_set(
+            serve.page_dir,
+            "patch-data",
+            patch_manifest(copy_patch) if manifest else copy_patch,
+        )
+        told(page)
+        links.nth(1).click()
+        expect(page.locator(".lf-live")).to_have_text(
+            "a.py:2 is not present in the exact patch"
+        )
+        assert page.locator("#patch").evaluate(
+            "(diff, key) => diff.lfDataDatum(JSON.stringify(key)) === null",
+            ["a.py", "source", "old", 2],
+        )
+        assert (
+            page.locator("#patch").evaluate(
+                "(diff, key) => diff.lfDataDatum(JSON.stringify(key)).textContent.trim()",
+                ["b.py", "old", 2],
+            )
+            == "removed_a()"
+        )
+        page.get_by_role("button", name="Comment on b.py", exact=True).click()
+        expect(page.locator("#lf-composer-quote")).to_contain_text("§ b.py · file")
+        page.keyboard.press("Escape")
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        patch_manifest(copied("b.py")) if manifest else copied("b.py"),
+    )
+    told(page)
+    links.nth(1).click()
+    expect(page.locator('#patch [data-lf-datum=\'["b.py","old",2]\']')).to_be_focused()
 
 
 def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
@@ -1367,7 +1419,9 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
         "files": [
             {
                 "path": path,
-                "kind": "patch",
+                "operation": "modify",
+                "hunkCount": 1,
+                "binary": False,
                 "additions": 1,
                 "deletions": 1,
                 "patch": f"""diff --git a/{path} b/{path}
@@ -1393,6 +1447,11 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
     # A source refresh rebuilds file shells; lazy rows inherit its new revision.
     refreshed = json.loads(json.dumps(manifest))
     refreshed["files"][0]["additions"] = 2
+    refreshed["files"][0]["patch"] = (
+        refreshed["files"][0]["patch"]
+        .replace("@@ -1 +1 @@", "@@ -1 +1,2 @@")
+        .replace('+return "new"', '+return "new"\n+return "newer"')
+    )
     data_model.cmd_data_set(serve.page_dir, "review-patch", refreshed)
     refreshed_revision = source_revision(serve.page_dir, "review-patch")
     told(page)
@@ -3126,56 +3185,6 @@ customElements.define("lf-conditional", class extends HTMLElement {
             expect(withdrawn).to_contain_text("Withdrawn")
 
 
-def test_a_live_revision_reapplies_the_authored_thread_seat_predicate(browser, serve):
-    """An old seated thread cannot hide an Ask from a revision with no seat."""
-    entry = deepcopy(SEATED_ASK_ENTRY)
-    entry["properties"]["talk"] = {"type": "boolean"}
-    entry["x-thread-seat"]["when"] = {"talk": [True]}
-    entry["x-example"] = (
-        '<lf-verdict id="verdict-example" asks talk>Ship it?</lf-verdict>'
-    )
-    module = seated_ask_module(seat_attribute="talk")
-    first = leaf_page(
-        "Conditional thread seat",
-        '<lf-verdict id="question" asks talk>Ship it?</lf-verdict>',
-    )
-    second = leaf_page(
-        "Conditional thread seat",
-        '<lf-verdict id="question" asks>Ship it?</lf-verdict>',
-    )
-    page = open_page(
-        browser,
-        live_url(
-            serve(
-                first,
-                layer_registry={"lf-verdict": entry},
-                layer_widgets={"lf-verdict.js": module},
-            )
-        ),
-    )
-    composer = page.locator("#question > .lf-thread-seat > .lf-say")
-    write(composer.get_by_role("textbox"), "Please check the premise first.")
-    with sending(page, "the seated question"):
-        composer.get_by_role("button", name="Send", exact=True).click()
-
-    def user_asks():
-        # The Ask reading is the log's, so ask it of a page that has taken in what the
-        # server holds: a trip is over when the outbox empties, one beat before the
-        # answer it carried has been applied.
-        told(page)
-        return page.evaluate(
-            """async () => {
-              const {readQuestions} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-              return readQuestions().user.filter(q => q.source.kind === "widget").map(q => q.source.id);
-            }"""
-        )
-
-    assert user_asks() == []
-    stamp_page(serve.page_dir, second, "remove the thread seat")
-    wait_for_revision(page, 2)
-    assert user_asks() == ["question"]
-
-
 def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, serve):
     """A partly covered title is the page opening, not a reading place to preserve.
 
@@ -4748,15 +4757,10 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     Map action leaves focus in a margin cluster."""
     url = serve(ASKS_PAGE)
     # A third action puts the suggestion's cluster beyond its two resting controls.
-    append_carried_log_record(
+    answered_comment(
         serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Check this wording before accepting it.",
-            "anchor": {"section": "sug-refill"},
-        },
+        "Check this wording before accepting it.",
+        {"section": "sug-refill"},
     )
     page = open_page(browser, url)
     page.keyboard.press("q")

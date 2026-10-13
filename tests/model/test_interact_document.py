@@ -2469,33 +2469,43 @@ diff --git a/src/second file.py b/src/second file.py
     ] == [
         {
             "path": "app.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
         },
         {
             "path": "new.py",
             "previousPath": "old.py",
-            "kind": "patch",
+            "operation": "rename",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
         },
         {
             "path": "docs/new.md",
             "previousPath": "docs/old.md",
-            "kind": "rename",
+            "operation": "rename",
+            "hunkCount": 0,
+            "binary": False,
             "additions": 0,
             "deletions": 0,
         },
         {
             "path": "café2026 notes.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
         },
         {
             "path": "src/second file.py",
-            "kind": "patch",
+            "operation": "modify",
+            "hunkCount": 1,
+            "binary": False,
             "additions": 1,
             "deletions": 1,
         },
@@ -3572,7 +3582,9 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     patch = "--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-before\n+after\n"
     file = {
         "path": "a.py",
-        "kind": "patch",
+        "operation": "modify",
+        "hunkCount": 1,
+        "binary": False,
         "additions": 1,
         "deletions": 1,
         "patch": patch,
@@ -3602,11 +3614,12 @@ def test_page_inspection_fragments_only_the_manifest_branch_of_a_data_contract(
     [
         ([], "does not satisfy minItems: 1"),
         (
-            [{"path": "b.py", "kind": "rename", "additions": 0, "deletions": 0}],
+            [{"path": "b.py", "operation": "rename", "additions": 0, "deletions": 0}],
             "'previousPath' is a required property",
         ),
         (
-            [{"path": "a.py", "kind": "patch", "additions": 1, "deletions": 1}] * 2,
+            [{"path": "a.py", "operation": "modify", "additions": 1, "deletions": 1}]
+            * 2,
             "record keys must be unique",
         ),
     ],
@@ -3626,7 +3639,14 @@ def test_data_set_refuses_a_diff_manifest_the_widget_cannot_list(
     written = CliRunner().invoke(
         cli_model.cli,
         ["data", "set", str(page_dir), "reading-patch"],
-        input=json.dumps({"files": [{**file, "patch": patch} for file in files]}),
+        input=json.dumps(
+            {
+                "files": [
+                    {**file, "hunkCount": 1, "binary": False, "patch": patch}
+                    for file in files
+                ]
+            }
+        ),
     )
     assert written.exit_code == 1
     assert refusal in written.output
@@ -4325,3 +4345,184 @@ def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_di
     [thread] = state_json(page_dir)["threads"]
     assert thread["anchor"] is None
     assert root in events_model.read_events(page_dir)
+
+
+@pytest.mark.parametrize(
+    "patch_text",
+    [
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-old
++GIT binary patch
+""",
+        """diff --git a/old.py b/new.py
+similarity index 100%
+rename from old.py
+rename to new.py
+--- a/old.py
++++ b/new.py
+-before
++after
+""",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
++lost
+""",
+        """diff --git a/app.py b/app.py
+@@ -1 +1 @@
+--- bogus-old
++++ bogus-new
+""",
+        """diff --git a/app.py b/app.py
+--- a/other.py
++++ b/other.py
+@@ -1 +1 @@
+-before
++after
+""",
+        """diff --git a/new.py b/new.py
+new file mode 100644
+--- /dev/null
++++ b/new.py
+@@ -0,0 +3 @@
++partial
+""",
+        """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
+diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1 +1 @@
+-before
++after
+""",
+    ],
+)
+def test_the_diff_script_preserves_evidence_for_the_widget_to_judge(patch_text):
+    manifest = patch_manifest(patch_text)
+    assert "".join(file["patch"] for file in manifest["files"]) == patch_text
+
+
+def test_native_git_file_operations_survive_capture_without_invented_hunks(
+    page_dir, tmp_path
+):
+    """Git owns operation evidence, including copies it can detect from unchanged files."""
+    repository = tmp_path / "native"
+    repository.mkdir()
+
+    def git(*arguments):
+        return subprocess.run(
+            ["git", "-C", str(repository), *arguments],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    git("init", "-q")
+    original = {
+        "mode.sh": b"echo ready\n",
+        "binary.dat": b"old\0blob\n",
+        "deleted-empty": b"",
+        "copy-source.txt": "".join(f"line {index}\n" for index in range(30)).encode(),
+        "old name.txt": b"same text\n",
+        "old-mode.txt": b"same mode\n",
+        "changed-type": b"before\n",
+        "same-type-content": b"target",
+        "binary-type": b"old\0binary\n",
+    }
+    for name, content in original.items():
+        (repository / name).write_bytes(content)
+    (repository / "removed-link").symlink_to("old-target")
+    git("add", ".")
+    git(
+        "-c",
+        "user.name=Leaf test",
+        "-c",
+        "user.email=leaf@example.invalid",
+        "commit",
+        "-qm",
+        "Original",
+    )
+    for name, target in [
+        ("changed-type", "new-target"),
+        ("same-type-content", "target"),
+        ("binary-type", "binary-target"),
+    ]:
+        (repository / name).unlink()
+        (repository / name).symlink_to(target)
+    (repository / "removed-link").unlink()
+    (repository / "removed-link").write_text("after\n")
+    (repository / "mode.sh").chmod(0o755)
+    (repository / "binary.dat").write_bytes(b"new\0blob\n")
+    (repository / "deleted-empty").unlink()
+    (repository / "added-empty").write_text("")
+    (repository / "copy-pure.txt").write_bytes(original["copy-source.txt"])
+    (repository / "copy-edited.txt").write_bytes(
+        original["copy-source.txt"] + b"extra line\n"
+    )
+    (repository / "old name.txt").rename(repository / "new name.txt")
+    (repository / "old-mode.txt").rename(repository / "new-mode.txt")
+    (repository / "new-mode.txt").chmod(0o755)
+    git("add", ".")
+    patch = git("diff", "--cached", "-M", "-C", "--find-copies-harder")
+    manifest = patch_manifest(patch)
+    files = {file["path"]: file for file in manifest["files"]}
+    assert files["copy-pure.txt"]["operation"] == "copy"
+    assert files["copy-edited.txt"]["operation"] == "copy"
+    assert files["copy-edited.txt"]["previousPath"] == "copy-source.txt"
+    assert files["copy-edited.txt"]["hunkCount"] == 1
+    assert files["copy-edited.txt"]["additions"] == 1
+    assert files["new name.txt"]["operation"] == "rename"
+    for path in ("mode.sh", "new-mode.txt"):
+        assert files[path]["oldMode"] == "100644"
+        assert files[path]["newMode"] == "100755"
+    assert files["binary.dat"]["binary"] is True
+    for path in ("changed-type", "same-type-content", "binary-type", "removed-link"):
+        assert files[path]["operation"] == "modify"
+        assert files[path]["hunkCount"] == 1
+        assert files[path]["oldMode"] != files[path]["newMode"]
+        assert files[path]["patch"].count("diff --git ") == 2
+    assert (
+        files["same-type-content"]["additions"]
+        == files["same-type-content"]["deletions"]
+        == 1
+    )
+    assert files["binary-type"]["binary"] is True
+    opaque = patch_manifest(git("diff", "--cached", "--binary", "--", "binary-type"))[
+        "files"
+    ][0]
+    assert opaque["binary"] and "literal " not in opaque["patch"]
+    assert opaque["patch"].startswith("diff --git ")
+    assert all(file["patch"].startswith("diff --git ") for file in files.values())
+    binary = patch_manifest(git("diff", "--cached", "--binary", "--", "binary.dat"))
+    assert [
+        {key: value for key, value in file.items() if key != "patch"}
+        for file in binary["files"]
+    ] == [{key: value for key, value in files["binary.dat"].items() if key != "patch"}]
+    assert "literal " not in binary["files"][0]["patch"]
+    empty = patch_manifest(
+        git("diff", "--cached", "--no-renames", "--", "added-empty", "deleted-empty")
+    )
+    assert [
+        (file["operation"], file["hunkCount"], file["binary"])
+        for file in empty["files"]
+    ] == [
+        ("add", 0, False),
+        ("delete", 0, False),
+    ]
+    declare_data_input(
+        page_dir, "native-patch", {"type": "object"}, contract="unified-diff"
+    )
+    for value in (manifest, empty, binary):
+        data_model.cmd_data_set(page_dir, "native-patch", value)
+        assert read_page_data(page_dir)["sources"]["native-patch"]["value"] == value

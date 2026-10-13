@@ -18,6 +18,7 @@ from render_cases_interaction import (
     SEATED_ASK_LAYER,
     SEATED_ASK_WIDGETS,
     SEATED_QUESTION_PAGE,
+    answered_comment,
     executable_revision,
     live_url,
     panel_comment,
@@ -12623,14 +12624,14 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("Escape")
     page.locator("lf-diff summary").click()
+    # Evidence admission precedes listing; delay the textual preparation that
+    # selection travel needs after the new closed file has been presented.
     page.evaluate("""() => {
-      const fetch = window.fetch.bind(window);
-      window.fetch = (input, init) => {
-        const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-        if (url.pathname === '/api/deferred') return new Promise(resolve => {
-          window.releaseSelectionDatum = () => resolve(fetch(input, init));
-        });
-        return fetch(input, init);
+      const host = document.querySelector('#patch');
+      const prepare = host.prepareEntry;
+      host.prepareEntry = async function(...args) {
+        await new Promise(resolve => { window.releaseSelectionDatum = resolve; });
+        return prepare.apply(this, args);
       };
     }""")
     data_model.cmd_data_set(
@@ -12640,7 +12641,9 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
             "files": [
                 {
                     "path": "app.py",
-                    "kind": "patch",
+                    "operation": "modify",
+                    "hunkCount": 1,
+                    "binary": False,
                     "additions": 1,
                     "deletions": 1,
                     "patch": patch.replace("amber", "violet"),
@@ -14393,7 +14396,7 @@ def test_ask_work_keeps_its_discussion_closed_until_requested(
         + "<p>Compare the memory and disk constraints carefully.</p>" * 14,
     )
     url = serve(source)
-    root = panel_comment(
+    root = answered_comment(
         serve.page_dir, "The disk cache costs more.", {"section": "cache-ask"}
     )
     page = open_page(browser, url)
@@ -14434,7 +14437,7 @@ def test_ask_controls_do_not_automatically_open_discussion(browser, serve, famil
     passive = panel_comment(
         serve.page_dir, "Remember the background.", {"section": "passage"}
     )
-    root = panel_comment(
+    root = answered_comment(
         serve.page_dir, "Please compare the alternatives.", {"section": "work"}
     )
     page = open_page(browser, url)
@@ -14494,7 +14497,9 @@ def test_an_ask_and_its_thread_are_one_standing_target(browser, serve):
     panel_comment(
         d, "Budgets are tight.", {"section": "lead", "quote": "latency budgets"}
     )
-    about_ask = panel_comment(d, "The disk cache costs more.", {"section": "cache-ask"})
+    about_ask = answered_comment(
+        d, "The disk cache costs more.", {"section": "cache-ask"}
+    )
     about_task = panel_comment(
         d,
         "Doubling is a lot.",

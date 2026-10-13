@@ -1314,10 +1314,8 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
 
 
 @pytest.mark.parametrize("in_sample", [False, True])
-def test_message_vocabulary_answers_to_every_pinned_revision(page_dir, in_sample):
-    """A message shows in every version, and a live sample in it allocates its
-    child from the version showing it, so a widget an older version's registry
-    lacks is refused in either place."""
+def test_message_markup_uses_the_current_layer(page_dir, in_sample):
+    """Current markup admission does not inventory old document vocabularies."""
     publish(page_dir)
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
@@ -1329,8 +1327,8 @@ def test_message_vocabulary_answers_to_every_pinned_revision(page_dir, in_sample
     if in_sample:
         markup = f'<template id="practice" data-sample>{markup}</template>'
     result = comment(page_dir, "--text", "Try it:", "--markup", markup)
-    assert result.exit_code != 0, result.output
-    assert "pinned revision" in result.output and "lf-local-thread" in result.output
+    assert result.exit_code == 0, result.output
+    assert events_model.read_events(page_dir)[-1]["markup"] == markup
 
 
 def test_revendoring_can_change_frozen_thread_widget_vocabulary(

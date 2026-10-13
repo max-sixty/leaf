@@ -49,7 +49,7 @@ import turbohtml
 from tinycss2.serializer import serialize_string_value
 from tree_sitter import Language, Parser, Query, QueryCursor
 
-from leaf.files import file_stamp, latest_revision, list_revisions, revision_path
+from leaf.files import file_stamp, latest_revision, revision_orders, revision_path
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
 from leaf.refusals import Refused
@@ -66,6 +66,28 @@ from leaf.structure import (
 )
 
 PUBLIC_MODULES = ("/runtime/widget-api.js",)
+
+
+def current_artifact(bundle: Path) -> bool:
+    """Ignore a capture missing the current manifest at its inventory boundary."""
+    try:
+        manifest = json.loads((bundle / "manifest.json").read_bytes())
+    except (OSError, ValueError):
+        return False
+    return isinstance(manifest, dict) and {
+        "html",
+        "title",
+        "entries",
+        "executable",
+        "widgets",
+        "public_modules",
+        "layer",
+        "declarations",
+        "implementations",
+        "resources",
+    }.issubset(manifest)
+
+
 RESOURCE_TYPES = {
     **CONTENT_TYPES,
     ".mjs": "application/javascript",
@@ -856,7 +878,7 @@ def stage_artifact(page_dir: Path, revision: int, artifact: RevisionArtifact) ->
     durable = not memo(page_dir, Disposable).held
     revisions = page_dir / "revisions"
     revisions.mkdir(exist_ok=True)
-    if revision in list_revisions(page_dir):
+    if revision in revision_orders(page_dir):
         raise ArtifactError(f"revision r{revision} already exists")
     name = artifact_name(revision, artifact)
     destination = revisions / name

@@ -1442,7 +1442,6 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
 
     # A source refresh rebuilds file shells; lazy rows inherit its new revision.
     refreshed = json.loads(json.dumps(manifest))
-    refreshed["files"][0]["additions"] = 2
     refreshed["files"][0]["patch"] = (
         refreshed["files"][0]["patch"]
         .replace("@@ -1 +1 @@", "@@ -1 +1,2 @@")
@@ -3308,13 +3307,13 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     declarations["lf-shadow-reading"]["x-shadow"] = True
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-shadow-reading.js").write_text(
-        """import { once } from "/runtime/widget-api.js";
+        """import { once, shadowStage } from "/runtime/widget-api.js";
 customElements.define("lf-shadow-reading", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const paragraph = document.createElement("p");
     paragraph.textContent = this.textContent.trim();
-    this.attachShadow({mode: "open"}).append(paragraph);
+    shadowStage(this, [paragraph]);
   }
 });
 """
@@ -5937,7 +5936,10 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
         bool,
         failure="the agent never heard the refusal",
     )
-    assert reports == [errors[0].splitlines()[0].removeprefix("leaf: ")], reports
+    assert errors[0].code == "console-error", errors
+    assert reports == [
+        errors[0].values["text"].splitlines()[0].removeprefix("leaf: ")
+    ], reports
 
 
 def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, serve):

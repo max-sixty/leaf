@@ -11,6 +11,7 @@ from leaf.data_contracts import (
     working_data_document_readings,
 )
 from leaf.findings import Finding
+from leaf.layer import incompatible_layer
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
 from leaf.registry.storage import read_page_registry
@@ -289,6 +290,8 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
         registry = None
         errors.extend(error.findings)
     reading = SourceReading(document, registry)
+    if registry is not None and (refusal := incompatible_layer(page_dir, registry)):
+        return SourceCheck(reading, registry, [refusal], [])
     stored_data = read_data(page_dir, registry)
     contracts = read_contracts(page_dir)
     readings = (

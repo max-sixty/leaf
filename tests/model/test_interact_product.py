@@ -1915,44 +1915,36 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "…" in head and len(head) < len(long_quote) / 2, head
 
 
-def test_reply_markup_uses_the_captured_registry_after_candidate_files_disappear(
-    page_dir,
-):
-    """Text renders with every raw tag escaped, so a plain reply has nothing to
-    validate and posts without the registry; markup is checked against it, so without
-    one the gate refuses rather than guessing."""
+@pytest.mark.parametrize(
+    "markup", ["", '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>']
+)
+def test_reply_refuses_a_missing_current_layer(page_dir, markup):
+    """An addressed reply validates current source, even when its text needs no widget."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     (page_dir / "registry.json").unlink()
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
     )
-    plain = CliRunner().invoke(
+    reference = response_reference(page_dir, "c1")
+    before = events_model.read_events(page_dir)
+    result = CliRunner().invoke(
         cli_model.cli,
         [
             "response",
             "reply",
             "--done",
-            response_reference(page_dir, "c1"),
-            "--text",
-            "plain answer, x < y",
-        ],
-    )
-    assert plain.exit_code == 0, plain.output
-    with_markup = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(page_dir),
-            "c1",
+            reference,
             "--text",
             "See:",
             "--markup",
-            '<lf-diagram id="f"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+            markup,
         ],
     )
-    assert with_markup.exit_code == 0, with_markup.output
+    assert result.exit_code != 0, result.output
+    assert "registry.json missing" in result.output
+    assert "run `leaf page init`" in result.output
+    assert events_model.read_events(page_dir) == before
 
 
 def test_comment_requires_the_registry_its_runtime_reads(page_dir):

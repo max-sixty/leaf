@@ -162,24 +162,26 @@ const entryReading = (declaration, selected, amount, disabled, hidden = false) =
 // Counts describe each named subset under the other standing filters, including
 // Status clearing Waiting on. An active choice keeps its subset count; clearing it
 // broadens the results rather than changing what its label counts.
-function presentationReading(reading, threads, shown, places) {
+function presentationReading(reading, threads, shown, places, complete) {
   const rows = threads.map((thread) => ({ thread, place: places.get(thread) }));
   const anyUnplaced = rows.some(({ place }) => place.unplaced);
   const baseline = threads.filter((thread) => matchesStatus(reading, thread)).length;
   const lifecycle = reading.status === "all" ? "" : `${reading.status} `;
   const amount =
     shown.length === baseline ? `${shown.length}` : `${shown.length} of ${baseline}`;
-  const summary = [
-    `${amount} ${lifecycle}${baseline === 1 ? "thread" : "threads"}`,
-    reading.waiting === "all"
-      ? null
-      : `On ${reading.waiting === "user" ? "you" : "agent"}`,
-    reading.scope !== "all" ? labelFor("scope", reading.scope) : null,
-    reading.subject !== "all" ? labelFor("subject", reading.subject) : null,
-    reading.onlyUnplaced ? labelFor("unplaced", "unplaced") : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const summary = complete
+    ? [
+        `${amount} ${lifecycle}${baseline === 1 ? "thread" : "threads"}`,
+        reading.waiting === "all"
+          ? null
+          : `On ${reading.waiting === "user" ? "you" : "agent"}`,
+        reading.scope !== "all" ? labelFor("scope", reading.scope) : null,
+        reading.subject !== "all" ? labelFor("subject", reading.subject) : null,
+        reading.onlyUnplaced ? labelFor("unplaced", "unplaced") : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
 
   const order = Object.freeze({
     kind: ORDER.kind,
@@ -212,8 +214,8 @@ function presentationReading(reading, threads, shown, places) {
           return entryReading(
             declaration,
             selected,
-            switched,
-            !selected && !recovery && !switched,
+            complete ? switched : null,
+            !complete || (!selected && !recovery && !switched),
             facet.kind === "unplaced" && !anyUnplaced && !selected,
           );
         }),
@@ -239,7 +241,7 @@ function presentationReading(reading, threads, shown, places) {
       !reading.onlyUnplaced
     ),
     groups: Object.freeze([order, ...renderedGroups]),
-    userAvailable,
+    userAvailable: complete && userAvailable,
     userTitle:
       reading.waiting === "user"
         ? "Clear waiting filter"
@@ -266,7 +268,7 @@ function emptyReading(reading) {
 }
 
 // `places` holds each thread's `threadSection` reading (placement.js).
-export function narrowingReading(reading, threads, places) {
+export function narrowingReading(reading, threads, places, complete = true) {
   const shown = Object.freeze(
     threads.filter((thread) => includesThread(reading, thread, places.get(thread))),
   );
@@ -274,13 +276,13 @@ export function narrowingReading(reading, threads, places) {
     intent: reading,
     shown,
     emptyText: emptyReading(reading),
-    presentation: presentationReading(reading, threads, shown, places),
+    presentation: presentationReading(reading, threads, shown, places, complete),
   });
 }
 
 // Each panel owns its view intent. The reading above remains pure so package views can
 // apply their own intent to the same threads without sharing this panel's controls.
-export function createThreadNarrowing({ view, listRoot, readThreads, ready, repaint }) {
+export function createThreadNarrowing({ view, listRoot, readThreads, repaint }) {
   // Replace the whole value on every change. A retained arrival can then distinguish
   // its own transition from a later choice by identity.
   let intent = DEFAULT_INTENT;
@@ -296,10 +298,10 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
     intent.onlyUnplaced;
   // Capture intent once for each list candidate. Its rows, summary and facets all
   // derive from the same reading.
-  const model = (threads, places) => narrowingReading(intent, threads, places);
+  const model = (threads, places, complete = true) =>
+    narrowingReading(intent, threads, places, complete);
 
   function renarrow() {
-    if (!ready()) return;
     const mayReset = retainUserIntent();
     const ticket = repaint();
     // Reset after the keyed list commits. The coordinator reports rejection; observe

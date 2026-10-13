@@ -83,7 +83,7 @@
         target.matches("[rel=stylesheet][data-lf-runtime]")
       )
         fault("theme stylesheet did not load", true);
-      else if (target === window && !document.body?.hasAttribute("data-lf-presented"))
+      else if (target === window && !document.body?.hasAttribute("data-lf-upgraded"))
         // A browser that treats the script as another origin gives "Script error." and
         // nothing else, so the file and line ride along: between them they are enough
         // to find the fault in a build nobody here can run.

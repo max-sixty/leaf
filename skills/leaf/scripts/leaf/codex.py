@@ -155,7 +155,6 @@ from .service import (
     delivery_reply_attempt,
     owned_pages,
     restore_page_claim,
-    same_claim,
 )
 from .state import (
     close_session_turn,
@@ -2325,15 +2324,6 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                         raise ReceiptRefused(
                             "the pending delivery no longer owns its page"
                         )
-                    path, record = pending
-                    if isinstance(record, Offering):
-                        expected = (
-                            read_delivery(path.stem).get("correction", {}).get("claim")
-                        )
-                        if expected is not None and not same_claim(claim, expected):
-                            raise ReceiptRefused(
-                                "the correction's page acquisition has ended"
-                            )
                     offered = offer_delivery(*pending, transport="app-server")
                     return offered
             transition = page.take_claim(harness)

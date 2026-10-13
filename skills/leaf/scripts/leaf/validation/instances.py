@@ -7,7 +7,6 @@ from leaf.registry.contract import (
     is_element_name,
     registry_path,
     retirement_slots,
-    visual_parts,
 )
 from leaf.registry.schema import json_validator, schema_reading
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
@@ -138,17 +137,6 @@ def layout_errors(lf_elements: list, registry: dict) -> list[Finding]:
         body = [child for child in direct if child not in {"header", "footer"}]
         if len(body) != 1 or body[0] == "#text":
             errors.append(found_at("pane-body", rec, role=role, body=body))
-    return errors
-
-
-def visual_part_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """A visual's authored part tokens each name one stable generated target."""
-    errors = []
-    for rec in lf_elements:
-        parts = visual_parts(rec, registry).tokens
-        duplicates = sorted({part for part in parts if parts.count(part) > 1})
-        if duplicates:
-            errors.append(found_at("repeated-parts", rec, parts=duplicates))
     return errors
 
 
@@ -497,7 +485,6 @@ def instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
     return (
         widget_errors(lf_elements, registry)
         + layout_errors(lf_elements, registry)
-        + visual_part_errors(lf_elements, registry)
         + addressable_instance_errors(lf_elements, registry)
         + ask_context_errors(lf_elements, registry)
         + declared_word_errors(lf_elements, registry)

@@ -2,11 +2,12 @@
 
 Claude Code and Pi carry pending page input here; Codex reserves its new-input
 pointers through `codex`. All three use this module's continuation policy and
-reminders for already-receipted work. A reminder freezes the currently owed inputs
-with the ordinary delivery producer, recovering their exact response references
-even when the original pointer is lost. It does not make those inputs pending
-again or reserve another Codex transport offer. A Stop hook continues the turn for
-each owed answer this turn has not started (`activity.turn_obligations`), and for a
+reminders for already-receipted work. A reminder names the immutable deliveries
+whose receipt references the current owner can use. Only owed inputs with no usable
+reference are captured again, as when another session takes the page. A reminder
+does not make those inputs pending again or reserve another Codex transport offer.
+A Stop hook continues the turn for each owed answer this turn has not started
+(`activity.turn_obligations`), and for a
 page whose watcher is not running while it has input pending or is not idle
 (`stop_continues`). A repeated Stop (`stop_hook_active`) continues the turn only for
 a newly delivered update that owes an answer.
@@ -54,8 +55,9 @@ Confirmed input can still miss the context, as when Leaf's Claude Code hooks mod
 calls this hook for a wake and finds its session ended before it appends the
 result (`hooks/claude-code.ts`). It is not offered again as new: an update that
 owes an answer stays owed on the page, and the next prompt or first Stop hook of
-whichever session owns the page then hands it over by pointer
-(`PagePlan.recovery`), while one that owes none is lost. Confirming
+whichever session owns the page names its original pointer, or captures a recovery
+reading if that owner has no usable reference (`PagePlan.recovery`), while one that
+owes none is lost. Confirming
 only once the module has appended was rejected: a confirmation refused or never
 run after the append would leave input the turn already holds pending, and every
 later hook would offer it again as new."""
@@ -162,7 +164,9 @@ def read_plans(session_id: str) -> list[PagePlan]:
                 pending = deliverable(page)
                 watched = harness.watcher_live(listening=state["listening"])
                 owed = turn_obligations(state, watched=watched)
-                owed_ids = {item["input"] for item in owed}
+                recovery_ids = {
+                    item["input"] for item in owed if "ref" not in item["answer"]
+                }
                 responses = {item["input"]: item["answer"] for item in work.obligations}
                 plans.append(
                     PagePlan(
@@ -178,10 +182,14 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         batch_data(
                             page_dir,
                             page,
-                            [event for event in page.events if event["id"] in owed_ids],
+                            [
+                                event
+                                for event in page.events
+                                if event["id"] in recovery_ids
+                            ],
                             responses=responses,
                         )
-                        if owed
+                        if recovery_ids
                         else None,
                         owed,
                         acknowledged_obligations(state),
@@ -435,17 +443,24 @@ def carry_turn(
         if reasons
         else []
     )
+    reminders = list(
+        dict.fromkeys(
+            item["answer"]["ref"].partition(":")[0]
+            for plan in plans
+            for item in plan.owed
+            if "ref" in item["answer"]
+        )
+    )
     recovery = [plan.recovery for plan in plans if plan.recovery]
     if recovery:
-        # Already-receipted debt is absent from the next pending delivery. Capture
-        # its current inputs again so a lost pointer (or seeded history with no
-        # original delivery) still has exact, ownership-checked response addresses.
-        # This snapshot is not a new transport offer and advances no cursor.
-        reminder = freeze_delivery(recovery)
+        # The cursor already passed these inputs, but their receipts gave this
+        # owner no usable refs. Recovery advances no cursor or transport offer.
+        reminders.append(freeze_delivery(recovery)["id"])
+    if reminders:
         attention.extend(
             [
                 "Read these unanswered updates and their exact answer references:",
-                delivery_pointer_prompt(reminder["id"]),
+                *(delivery_pointer_prompt(identity) for identity in reminders),
             ]
         )
     delivery = freeze_delivery(batches) if batches else None

@@ -13,7 +13,6 @@ from interact_support import (
     append_command,
     asks_on_user,
     before_choice,
-    check,
     check_findings,
     command_refusal,
     comment,
@@ -514,12 +513,12 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     assert json.loads(element.output)["anchor"] == {"section": "flow"}
 
 
-def test_a_comment_may_name_a_declared_visual_part(page_dir):
-    parted = FLOW_PAGE.replace(
-        '<lf-diagram id="flow">',
-        '<lf-diagram id="flow" parts="node:A node:B">',
+def test_a_comment_may_name_a_visual_inventory_part(page_dir):
+    (page_dir / "index.html").write_text(
+        FLOW_PAGE.replace(
+            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
+        )
     )
-    (page_dir / "index.html").write_text(parted)
     published(page_dir)
 
     result = comment(
@@ -536,18 +535,6 @@ def test_a_comment_may_name_a_declared_visual_part(page_dir):
         "section": "flow",
         "visual": "node:A",
     }
-
-    unknown = comment(
-        page_dir,
-        "--section",
-        "flow",
-        "--part",
-        "node:Missing",
-        "--text",
-        "x",
-    )
-    assert unknown.exit_code != 0
-    assert 'known: ["node:A", "node:B"]' in unknown.output
 
     unseated = comment(page_dir, "--part", "node:A", "--text", "x")
     assert unseated.exit_code != 0
@@ -991,25 +978,6 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     )
     assert detached.exit_code != 0
     assert refused_on(detached.stdout).code == "held-anchor"
-
-
-PARTED = FLOW_PAGE.replace(
-    '<lf-diagram id="flow">',
-    '<lf-diagram id="flow" parts="node:A node:B">',
-)
-
-
-def parted(page_dir):
-    """A published v1 whose diagram declares two addressable visual parts."""
-    (page_dir / "index.html").write_text(PARTED)
-    return published(page_dir)
-
-
-def drop_node_a(page_dir):
-    (page_dir / "index.html").write_text(
-        PARTED.replace(' parts="node:A node:B"', ' parts="node:B"')
-    )
-    return check(page_dir)
 
 
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):

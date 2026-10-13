@@ -83,14 +83,8 @@ def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
 
 def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     preview = {
-        "kind": "example",
         "example": "triage-board",
         "checkout": "fb77",
-        "commit": "26499ea1abcd",
-        "dirty": True,
-        "committed": (datetime.now().astimezone() - timedelta(days=3)).isoformat(
-            timespec="seconds"
-        ),
         "interaction": "user",
         "started": "2026-08-31T12:00:00+00:00",
     }
@@ -98,6 +92,21 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
         viewport={"width": 1200, "height": 900},
         permissions=["clipboard-read", "clipboard-write"],
     )
+    producer = {
+        "commit": "26499ea1abcd",
+        "dirty": True,
+        "committed": (datetime.now().astimezone() - timedelta(days=3)).isoformat(
+            timespec="seconds"
+        ),
+    }
+
+    def provenance(route):
+        response = route.fetch()
+        reading = response.json()
+        reading["layer"]["producer"] = producer
+        route.fulfill(response=response, json=reading)
+
+    context.route("**/api/state*", provenance)
     page = open_page(
         browser,
         serve(leaf_page("Preview", "<h1>Preview</h1>"), preview=preview),
@@ -119,7 +128,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     assert "interaction: user" in diagnostics
     assert "commit: 26499ea1abcd" in diagnostics
     assert "dirty: true" in diagnostics
-    assert f"committed: {preview['committed']}" in diagnostics
+    assert f"committed: {producer['committed']}" in diagnostics
     assert "layer generation:" in diagnostics
     assert "layer fingerprint: sha256:" in diagnostics
     assert "revision: 1" in diagnostics
@@ -127,6 +136,7 @@ def test_a_preview_names_its_checkout_and_copies_diagnostics(browser, serve):
     assert "?t=" not in diagnostics
     page.close()
 
+    context.unroute("**/api/state*", provenance)
     ordinary = open_page(
         browser,
         serve(leaf_page("Ordinary", "<h1>Ordinary</h1>")),

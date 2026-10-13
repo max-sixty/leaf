@@ -337,7 +337,8 @@ journey against the deployed release is the only production reading.
 ## Compare checkout versions
 
 `uv run leaf-dev compare <example> --user` serves the merge-base runtime beside
-this checkout, and keeps running in the foreground. Keep the default shared source
+this checkout. A desktop Codex `--user` comparison detaches and returns both URLs;
+every other comparison runs in the foreground. Keep the default shared source
 for a runtime change and pass `--authored` when the authored content changed; omit
 `--user` for claimless tests. Its `--help` lists the other flags.
 

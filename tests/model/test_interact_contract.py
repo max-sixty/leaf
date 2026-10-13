@@ -1154,13 +1154,12 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
     assert events_model.read_events(page_dir)
 
 
-@pytest.mark.parametrize("parts", ["node:A node:B", "all"])
-def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir, parts):
+def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir):
     """A provider can remove a visual target without deleting its original comment."""
     (page_dir / "index.html").write_text(
         FLOW_PAGE.replace(
             '<lf-diagram id="flow">',
-            f'<lf-diagram id="flow" parts="{parts}">',
+            '<lf-diagram id="flow" parts="all">',
         )
     )
     publish(page_dir)

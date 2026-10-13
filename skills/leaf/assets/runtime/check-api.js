@@ -4,7 +4,7 @@
    check-api.js so core checks never load that renderer. */
 export { exceptionText } from "./layer-client.js";
 export { validationWidgetStates } from "./validation.js";
-export { unrevealedVisualParts, visualPartProblems } from "./visual-parts.js";
+export { visualPartProblems } from "./visual-parts.js";
 export {
   readApplication,
   watchSemantic,

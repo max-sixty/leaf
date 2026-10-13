@@ -183,12 +183,6 @@ def data_companion(source: Path) -> dict:
     return json.loads(companion.read_text(encoding="utf-8"))
 
 
-def capture_files(source: Path) -> list[Path]:
-    """The files the companion's `$captures` read, which its values depend on."""
-    captures = data_companion(source).get("$captures", {})
-    return [source.parent / spec["file"] for spec in captures.values()]
-
-
 def data_operations(
     source: Path, *, runtime: Path = ROOT, env: dict[str, str] | None = None
 ) -> list[dict]:

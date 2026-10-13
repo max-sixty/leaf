@@ -534,7 +534,7 @@ def test_the_gate_passes_what_the_renderer_draws(browser, serve):
     family it can draw is no failure, whether or not the guide names it.
     """
     extra = (
-        """<lf-diagram id="authored-life" parts="node:_start2 node:_end2"><pre>
+        """<lf-diagram id="authored-life" parts="all"><pre>
 stateDiagram-v2
   [*] --&gt; _start2
   _start2 --&gt; _end2

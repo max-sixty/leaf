@@ -3,18 +3,37 @@ to a scripted author; judges read real screenshots."""
 
 import json
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
+import pytest
 import turbohtml
 from leaf.event_log import read_events
+from leaf.render_gate.browser import ending, launch_browser
 from leaf.service import PageTransaction
-from leaf_dev import ROOT, arrangement_plain
+from leaf_dev import ROOT, arrangement_eval, arrangement_plain
+from leaf_dev import browser as browser_module
 from leaf_dev.arrangement_eval import (
     CASES,
     WIDTHS,
     comment_message,
     first_prompt,
 )
+
+
+@pytest.fixture(autouse=True)
+def arrangement_browser(_playwright, monkeypatch):
+    """Use the worker's driver when another browser test has already started it."""
+
+    @contextmanager
+    def chrome(**options):
+        browser, _ = launch_browser(_playwright, **options)
+        with ending(browser):
+            yield browser
+
+    monkeypatch.setattr(arrangement_plain, "chrome", chrome)
+    monkeypatch.setattr(arrangement_eval, "chrome", chrome)
+    monkeypatch.setattr(browser_module, "chrome", chrome)
 
 
 def test_html_control_uses_browser_without_leaf_payload(tmp_path):

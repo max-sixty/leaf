@@ -34,8 +34,9 @@ reaches a module by importing it from this package, never through `sys.path`,
   `example_data.py` reads the catalog, names, and each page's companions; `docs.py`
   composes into a product document under `docs/` the parts other sources own, so
   every builder of one, the site and a preview alike, shows them.
-- `browser.py` launches Chrome, and opens and settles a tab, the same way for every
-  command that reads one.
+- `browser.py` launches Playwright's pinned headless shell, the build the suite
+  drives, and opens and settles a tab, the same way for every command that reads
+  one.
 - `leaf-dev probe SOURCE` opens a page built from this working tree, runs input
   steps, and prints what a JavaScript expression returns, the console errors, and
   optionally a screenshot; `--base` does the same on the merge base. Its startup

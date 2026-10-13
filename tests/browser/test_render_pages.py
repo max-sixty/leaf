@@ -1407,9 +1407,11 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     """On a sidebar page an Ask and a callout keep the prose's width and left edge, so
     the Ask's ring and pin stand beside what it asks, as on a column page. One granted
     `data-width`, or holding a block of its own that declares one, takes that room for
-    the evidence. On a column page the Ask stays in the column and its wide block breaks
-    out of it, as the block would from a section; the table's twelve columns need the
-    room, since a table granted it takes only what its columns need."""
+    the evidence. On a column page the wide block breaks out of the column, as it would
+    from a section, and the Ask spans it, so the ring it wears goes round the block
+    rather than cutting across it, while its heading keeps the column; the table's
+    twelve columns need the room, since a table granted it takes only what its columns
+    need."""
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     ask = (
@@ -1450,12 +1452,38 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     # The widened Ask frames its table, which stands wider than the measure.
     assert at["holds-t"]["width"] > 720, at
 
-    column = open_page(browser, serve(leaf_page("Column", body)))
+    # The Ask spans its block wherever the block breaks out: from a list item, which
+    # stands in from the column, and from an Ask granted the room itself, whose block
+    # then keeps it; where the page arranged the Ask, in a grid track, neither grows.
+    extras = (
+        "<ol><li>"
+        + ask.format(id="listed", width="", table=table.format(id="listed"))
+        + "</li></ol>"
+        + ask.format(
+            id="both", width=' data-width="wide"', table=table.format(id="both")
+        )
+        + '<div style="display: grid; grid-template-columns: 350px 1fr">'
+        + ask.format(id="tracked", width="", table=table.format(id="tracked"))
+        + "<p>Beside.</p></div>"
+    )
+    column = open_page(browser, serve(leaf_page("Column", body + extras)))
     resized(column, 1726, 900)
-    at = column.evaluate(measure)
-    assert at["holds"]["width"] == at["prose"]["width"] == 720, at
+    at = column.evaluate(
+        measure.replace(
+            "'list']", "'list', 'listed', 'listed-t', 'both', 'both-t', 'tracked']"
+        )
+    )
     assert at["holds-t"]["width"] == 1080, at
     assert at["holds-t"]["left"] < at["prose"]["left"], at
+    assert at["holds"] == at["holds-t"], at
+    heading = column.locator("#holds h3").bounding_box()
+    assert round(heading["x"]) == at["prose"]["left"], (heading, at)
+    assert at["ask"] == at["prose"], at
+    assert at["listed"] == at["listed-t"], at
+    assert at["both"] == at["both-t"] == {"width": 1080, "left": at["holds"]["left"]}, (
+        at
+    )
+    assert at["tracked"]["width"] == 350, at
 
 
 NOTE = '<aside class="sidenote" id="note"><p>A note that needs a sidenote.</p></aside>'
@@ -3199,7 +3227,7 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         else:
             assert at["note"]["float"] == "none", (width, at)
 
-    # The Questions panel stands over the page and grants or withdraws no margin.
+    # The On panel stands over the page and grants or withdraws no margin.
     toggle_queue(page)
     panelled = page.evaluate(reading)
     assert panelled["sidebars"] == at["sidebars"]

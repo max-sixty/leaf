@@ -115,7 +115,8 @@ check the main skill's "Check the page" step asks before a reply.
 
 ## Status and handoff
 
-Before a handoff, reconcile Questions and Tasks as described below, then run:
+Before a handoff, reconcile the user's On me list and your own as described below,
+then run:
 
 ```bash
 leaf status <page> waiting "<what you want back>"
@@ -201,21 +202,21 @@ and gives the banner and thread its line. That session can finish on a later
 turn; another session takes over by starting the same to-do.
 Work on an update that finishes inside the turn needs no to-do.
 
-## Questions and Tasks
+## The On lists
 
-Everything you need from the user belongs in **Questions**, whether an answer,
+Everything you need from the user belongs in their **On me** list, whether an answer,
 decision, permission, review, or action elsewhere. Ask a direct question and register
 it by one of the routes below. Prose in the page, a status line, and a question in
 chat alone do not register it. Keep every independently answerable proposal you
-present for the user's judgment in Questions until decided or withdrawn.
+present for the user's judgment in their On me list until decided or withdrawn.
 Recommending one to do next leaves the others open. A request for review needs an
 ask even when preparation is already your work or other work can continue. An
 optional invitation to comment on information creates no obligation.
 
-The banner's Questions count and the Questions panel show everything waiting on the
+The banner's On me count and the On panel show everything waiting on the
 user: these requests, and any update whose send failed and needs sending again.
-**Tasks** shows what waits on you. Done holds ended items. The user presses `q` to
-step through Questions in page order. Each press lands where the next item is
+Your list, which the user sees as **On <your name>**, shows what waits on you. Done
+holds ended items. The user presses `m` to step through On me in page order. Each press lands where the next item is
 answered, such as an ask's answering widget or the thread holding a prose ask, and
 an ask's displayed `1`–`9` actions answer it there.
 
@@ -244,7 +245,7 @@ leaf page state <page> | jq '{source, asks, todos, queues}'
 ```
 
 Page state contains separate canonical `asks` and `todos`; its
-`queues.questions` and `queues.tasks` select those records with response obligations
+`queues.on_user` and `queues.on_agent` select those records with response obligations
 and delivery retries for the panel. `jq` only selects these fields; do not reconstruct
 membership from events or widget state. Each queue item names its `id`, `kind`,
 `subject`, and `thread`. An ask contains its prompt, typed answer and lifecycle;
@@ -256,8 +257,8 @@ covers the active document and admitted log, not unsent browser drafts or a tab
 pinned to an older version. Check `source` for an invalid or missing draft before
 treating an empty list as a successful handoff.
 
-Reconcile the lists with what you still need and owe. Zero Questions says that
-you need nothing from the user **now**; Tasks may still contain your work or a wait
+Reconcile the lists with what you still need and owe. An empty On me says
+that you need nothing from the user **now**; your list may still hold your work or a wait
 on an external result. Complete authorized work without asking for permission
 again. A paused project needs an ask only when its disposition or resumption
 needs the user's decision; after they choose to keep it paused, that decision is
@@ -271,5 +272,5 @@ the user's to-do with `leaf task end`. Retire a prose ask the user answered ther
 with `leaf task end <page> reply:<message-id> done "<where the answer is>"`, which
 records it answered elsewhere, and one that no longer applies with `dropped
 "<why>"`, which records it withdrawn; neither invents the user's answer. Keep
-finished requests off the user's Questions; answered and withdrawn ask records
+finished requests off the user's On me list; answered and withdrawn ask records
 remain available in the complete reading.

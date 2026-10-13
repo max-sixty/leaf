@@ -39,8 +39,8 @@ Options:
 Usage: leaf page state [OPTIONS] PAGE [ID]
 
   Print the page as it is now, as one JSON object: the active revision's file,
-  the current widget actions and workers' reports, the Questions and Tasks
-  lists, thread summaries, versions, presence, and bound data. Read the active
+  the current widget actions and workers' reports, the user's On me list and
+  yours, thread summaries, versions, presence, and bound data. Read the active
   revision's HTML beside it for the document.
 
   ID narrows the output to what it names. A message, or a widget frozen into

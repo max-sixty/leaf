@@ -93,8 +93,8 @@ export function createAnchorTravel({
   // arrival commits it only once its final destination exists (history.js).
   // A destination already readable where the user stands is no departure. A trip that
   // names its `landing` while any of the last trip's landing still shows continues that
-  // journey, whether it goes to threads or Questions: it replaces the journey's entry, which
-  // already holds where the journey began. Choosing a different authored passage by
+  // journey, whether it goes to threads or the On panel: it replaces the journey's entry,
+  // which already holds where the journey began. Choosing a different authored passage by
   // pointer or Tab ends the journey, as does moving off its landing. The next successful
   // trip then saves the newly chosen working place. A journey is not a walk (the glossary's ordered movement
   // among one category of destination): steps of the thread walk and of the queue

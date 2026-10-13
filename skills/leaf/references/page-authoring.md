@@ -492,8 +492,8 @@ whitespace. Verbatim source quotations keep their exact text; logs and transcrip
 stay literal and uncolored when they are not source code.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
-shortcuts, live-leaves drawer, and Questions panel. `conversation-loop.md`,
-"Questions and Tasks", owns what belongs in those lists and how to inspect them.
+shortcuts, live-leaves drawer, and On panel. `conversation-loop.md`,
+"The On lists", owns what belongs in those lists and how to inspect them.
 Readers can turn off **Quick keyboard shortcuts** under **More → Keyboard shortcuts**.
 This preference persists across pages on the same origin and removes Leaf's character
 shortcuts and their hints; commands and ordinary control navigation remain available.
@@ -808,11 +808,11 @@ At each destination, check that the visible content and focus leave the user
 oriented and able to continue; compare equivalent moves across the page's views.
 
 For a page with asks, the check also saves the window at each of the first eight
-as `q` reaches it from the top, which is how a user working the page meets each
-question (`conversation-loop.md`, "Questions and Tasks"). At each arrival, confirm
+as `m` reaches it from the top, which is how a user working the page meets each
+question (`conversation-loop.md`, "The On lists"). At each arrival, confirm
 that the question, shared premise, alternatives, and evidence that distinguishes them
 are visible together, the displayed numbers match the available actions, and the next
-press of `q` reaches the next item on Questions while the complete page remains
+press of `m` reaches the next item on the user's On me list while the complete page remains
 visible.
 
 Without a way to inspect the rendered page, read `leaf page state <page>`'s

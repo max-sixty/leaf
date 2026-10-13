@@ -36,7 +36,8 @@ export function commandShortcut(id) {
   return "";
 }
 
-export function paintCoreControls() {
+// Each visible control a page row names, with the row that reaches it.
+function controlRows() {
   // The shortcut bar owns the permanent More control because its binding must first pass
   // through the same contextual shadowing as the line's ordinary rows.
   const more = universalCommandReference();
@@ -54,7 +55,21 @@ export function paintCoreControls() {
       if (!prior || (!prior.active && active))
         controls.set(control, { scope, row, active });
     }
-  for (const [control, { scope, row, active }] of controls) {
+  return controls;
+}
+
+/** The complete shortcut that reaches each visible control now, by control, for a
+ * presentation that draws a control as words rather than the control itself, as a menu
+ * built from the banner's rows does (banner-toolbar.js, `bannerRows`). */
+export function controlShortcuts() {
+  const shortcuts = new Map();
+  for (const [control, { scope, row, active }] of controlRows())
+    if (active) shortcuts.set(control, shortcutIn(scope, row));
+  return shortcuts;
+}
+
+export function paintCoreControls() {
+  for (const [control, { scope, row, active }] of controlRows()) {
     if (!("lfKeyTitle" in control.dataset)) control.dataset.lfKeyTitle = control.title;
     keeps(
       control,

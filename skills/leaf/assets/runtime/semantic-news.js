@@ -16,7 +16,7 @@ import { moved } from "./thread/model.js";
 
 const identity = (record) => record.attempt ?? record.id;
 
-// News reads the shown revision's view: the one the page just presented, whose Questions
+// News reads the shown revision's view: the one the page just presented, whose On me list
 // the drawer and banner count paint. While an activation waits (a gesture defers it, or
 // the document is a pinned version), an ask the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.

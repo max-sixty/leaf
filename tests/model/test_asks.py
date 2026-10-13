@@ -230,7 +230,7 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
             [entry["event"]["id"] for entry in view["thread"]["projection"]["entries"]],
             (ask["id"], ask["status"]),
             thread["attention"],
-            [item["id"] for item in view["queues"]["questions"]],
+            [item["id"] for item in view["queues"]["on_user"]],
         )
 
     assert read(2) == (
@@ -330,13 +330,13 @@ def test_display_only_widget_does_not_suppress_a_prose_ask():
 
 
 def lists(state) -> tuple[list, list, list]:
-    """Questions and Tasks as served, and the open asks whose next move is the
+    """On me and On <agent> as served, and the open asks whose next move is the
     agent's."""
     queues = state["views"]["1"]["queues"]
     asks = [*page_asks(state)["all"], *state["views"]["1"]["thread"]["asks"]["all"]]
     return (
-        sorted(item["id"] for item in queues["questions"]),
-        sorted(item["id"] for item in queues["tasks"]),
+        sorted(item["id"] for item in queues["on_user"]),
+        sorted(item["id"] for item in queues["on_agent"]),
         sorted(
             ask["id"]
             for ask in asks
@@ -367,7 +367,7 @@ FRAMED = model.leaf_page(
 )
 def test_a_comment_on_an_ask_is_the_agents_turn_until_the_agent_replies(anchor, held):
     """The user's comment about an open ask hands it to the agent without answering
-    it: the ask leaves Questions while the comment's answer stands on Tasks, and comes
+    it: the ask leaves On me while the comment's answer stands on On <agent>, and comes
     back once the agent replies. A comment on one ask leaves its framed sibling with
     the user, one on the frame's heading or on a widget there that asks nothing is
     about both, and one elsewhere about none."""

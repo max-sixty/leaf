@@ -1541,11 +1541,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
 }
 .lf-margin-entry-glyph { line-height: 1; }
-.lf-margin-entry-icon {
-  inline-size: 16px; block-size: 16px; overflow: visible;
-  fill: none; stroke: currentColor; stroke-width: 1.6;
-  stroke-linecap: round; stroke-linejoin: round;
-}
+.lf-margin-entry-icon { inline-size: 16px; block-size: 16px; }
 .lf-margin-entry > .lf-margin-entry-space { display: none; }
 .lf-margin-entry > .lf-margin-entry-label {
   position: absolute; z-index: 3; inset-block-start: calc(100% + 6px);

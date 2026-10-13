@@ -987,12 +987,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 .lf-margin-entry-icon {
   inline-size: 16px;
   block-size: 16px;
-  overflow: visible;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 .lf-margin-entry > .lf-margin-entry-space {
   display: none;

@@ -1006,15 +1006,18 @@ leaf-text.lf-fab-input,
   opacity: 0;
   cursor: pointer;
 }
-.lf-msg-control-icon {
-  inline-size: 16px;
-  block-size: 16px;
+svg[data-lf-icon] {
+  max-width: none;
   overflow: visible;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+.lf-msg-control-icon {
+  inline-size: 16px;
+  block-size: 16px;
 }
 .lf-msg:is(:hover, [data-lf-focus-within]) .lf-msg-control,
 .lf-msg-control[data-lf-focus] {
@@ -1279,13 +1282,7 @@ leaf-text.lf-fab-input,
   z-index: 1;
   inline-size: 16px;
   block-size: 16px;
-  overflow: visible;
   pointer-events: none;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 .lf-close-action {
   border: 0;

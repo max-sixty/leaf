@@ -94,9 +94,10 @@ import {
   focused,
   onStanding,
   onUserInput,
-  releaseFocus,
+  rove,
   standingIn,
 } from "./focus.js";
+import { rowWalk } from "./walk-position.js";
 import { sizeObserver } from "./rendering.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
@@ -421,6 +422,18 @@ export function createFloatingPanel({
     searching = false;
     transition(before);
   }
+  // A press that puts away the menu or view it stands in hands the user back to the leaf,
+  // the door to both, before its command runs, so the pressed row going takes no one's
+  // focus to the body: a layer the command opens records the leaf as where its close
+  // returns (focus.js, `openLayer`), folding leaves the user on the leaf it folds to, and
+  // a command that places the user elsewhere still does.
+  function putAwayThen(run) {
+    const inside = standingIn(host);
+    close();
+    setMenu(false);
+    if (inside) focusDestination(leaf, "return");
+    run();
+  }
   function setMenu(on) {
     if (menuOpen === on) return;
     menuOpen = on;
@@ -627,9 +640,7 @@ export function createFloatingPanel({
           open({ view });
           return;
         }
-        close();
-        setMenu(false);
-        entry.press(heldStanding);
+        putAwayThen(() => entry.press(heldStanding));
       },
       {
         urgent: Boolean(entry.urgent),
@@ -747,10 +758,7 @@ export function createFloatingPanel({
             ${menuItem(
               entry.name,
               entry.current ? html`<span class="lf-fp-value">Showing</span>` : nothing,
-              () => {
-                close();
-                versionPicker.activate(entry);
-              },
+              () => putAwayThen(() => versionPicker.activate(entry)),
               { role: null },
             )}${
               entry.comparable
@@ -759,10 +767,8 @@ export function createFloatingPanel({
                     class="lf-fp-quiet lf-fp-compare"
                     aria-pressed=${String(selection.on && selection.base === entry.version)}
                     aria-label=${`Compare with ${entry.name}`}
-                    @click=${() => {
-                      close();
-                      versionPicker.compare(entry.version);
-                    }}
+                    @click=${() =>
+                      putAwayThen(() => versionPicker.compare(entry.version))}
                   >
                     Compare
                   </button>`
@@ -1253,12 +1259,14 @@ export function createFloatingPanel({
   // ---------- paint ----------
   function setRest(rest) {
     const before = trail.at(-1);
+    // Folding takes away whatever the user stood on in the panel but the leaf, so it
+    // keeps them on the leaf it folds to; from the page they stay where they are.
+    const inside = standingIn(host);
     prefs().set("rest", rest);
     trail = [];
     menuOpen = false;
     transition(before, { focus: false });
-    // A key that folded the panel keeps the user on the leaf it folded to.
-    if (keyed) focusDestination(leaf, "move");
+    if (inside) focusDestination(leaf, "return");
   }
 
   // A paint can blur what it removes, and the blur asks for a paint; that one runs
@@ -1326,6 +1334,10 @@ export function createFloatingPanel({
     keeps(newsDot, "data-shown", news ? "" : null);
 
     render(menuOpen ? menuTemplate() : nothing, menu);
+    if (menuOpen) {
+      const rows = menuRows();
+      rove(rows, rows.includes(focused()) ? focused() : rows[0]);
+    }
 
     const views = [leaving, top].filter(Boolean);
     render(
@@ -1371,6 +1383,7 @@ export function createFloatingPanel({
     // always its reply, so nothing moves when the caret leaves.
     const engaged = Boolean(thread) || writing || holds;
     keeps(host, "data-engaged", engaged ? "" : null);
+    keeps(host, "data-writing", writing ? "" : null);
     // While the user types, Send stands in the counts' place.
     typing = writing && Boolean(draftOf(current.input).trim());
     keeps(host, "data-typing", typing ? "" : null);
@@ -1499,7 +1512,8 @@ export function createFloatingPanel({
   leaf.addEventListener("focus", () => showPeek(leaf.matches(":focus-visible")));
   leaf.addEventListener("blur", () => showPeek(false));
   // What stands open, the menu first and then a view, is a step of the page's Escape,
-  // taken wherever focus has fallen; with nothing open, Escape leaves the field.
+  // taken wherever focus has fallen; with nothing open, the page's own foot of the ladder
+  // takes the user from the panel back onto the page.
   pageRung("floating panel", () => {
     if (query && focused()?.matches?.(".lf-fp-search"))
       return {
@@ -1533,34 +1547,43 @@ export function createFloatingPanel({
       },
     };
   });
-  keys(host, "In the floating panel", [
-    {
-      id: "panel.floating.leave",
-      keys: ["Escape"],
-      description: "Leave the comment field",
-      title: "leave field",
-      when: () => !menuOpen && !trail.length && standingIn(host),
-      run: () => releaseFocus(),
-    },
-    // The menu's rows are a list the arrows walk.
-    ...[
-      ["ArrowDown", 1, "next"],
-      ["ArrowUp", -1, "previous"],
-    ].map(([key, step, word]) => ({
-      id: `panel.floating.menu.${word}`,
-      keys: [key],
-      description: `Move to the ${word} row of the page menu`,
-      title: word,
-      when: () => menuOpen,
-      run: () => {
-        const items = [...menu.querySelectorAll("button:not(:disabled)")];
-        if (!items.length) return;
-        const at = items.indexOf(focused());
-        const next = items[(at + step + items.length) % items.length];
-        focusDestination(next, "move");
-      },
-    })),
-  ]);
+  // The menu's rows are one list the arrows, Home and End walk, from the leaf too, and
+  // one stop for Tab, which stands on the row last walked to. With nothing open the
+  // panel declares no Escape of its own: the page's foot of the ladder takes the user
+  // from the chrome back onto the page (keyboard/page.js), and a step declared over the
+  // whole panel would claim Escape on its every control, where the Go-to sequence
+  // refuses to arm.
+  const menuRows = () => [...menu.querySelectorAll("button:not(:disabled)")];
+  keys(
+    host,
+    "In the floating panel",
+    rowWalk({
+      id: "panel.floating.menu",
+      noun: "Row",
+      plural: "rows of the page menu",
+      rows: menuRows,
+      // A menu names its rows' places to a screen reader itself, so the walk shows none.
+      position: () => null,
+      landed: (row) => rove(menuRows(), row),
+    })
+      .map((row) => ({ ...row, when: () => menuOpen }))
+      .concat(
+        // Tab leaves the menu as it leaves a menu button's menu: the menu goes, and the
+        // browser moves the user on from the leaf that opened it, either way.
+        ["Tab", "Shift+Tab"].map((key) => ({
+          id: `panel.floating.menu.leave-${key === "Tab" ? "forward" : "backward"}`,
+          keys: [key],
+          description: `Leave the page menu ${key === "Tab" ? "forward" : "backward"}`,
+          title: key === "Tab" ? "leave forward" : "leave backward",
+          native: true,
+          when: () => menuOpen && renderedUnder(focused(), menu),
+          run: () => {
+            focusDestination(leaf, "move");
+            setMenu(false);
+          },
+        })),
+      ),
+  );
   // Folding to the leaf is the page's command, so it has a key and a row in the menu.
   pageCommand({
     id: FOLD,
@@ -1584,6 +1607,9 @@ export function createFloatingPanel({
   // Writing begins in the field and lasts while the user stays in the panel, so the
   // line naming where the words go stays put while they press Resolve or a filter.
   onStanding((node, _cause, left) => {
+    // The menu lasts while the user stands in it or on the leaf that opened it, so Tab
+    // past its row, or a press in the field, puts it away.
+    if (menuOpen && node && node !== leaf && !renderedUnder(node, menu)) setMenu(false);
     const inside = Boolean(node) && renderedUnder(node, host);
     if (inside && left && !renderedUnder(left, host)) heldStanding = readPlace(left);
     const next = inside ? writing || node.localName === "leaf-text" : false;

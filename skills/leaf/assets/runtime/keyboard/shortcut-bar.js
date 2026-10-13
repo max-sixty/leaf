@@ -207,7 +207,7 @@ const boxesOf = (nodes) =>
 // the page and its hints.
 const standingStatus = () => !walkPositionEl.hidden || !goToStatusEl.hidden;
 let standingStatusBox = null;
-export const standingStatusBoxes = () => {
+const standingStatusBoxes = () => {
   if (!standingStatus()) {
     standingStatusBox = null;
     return [];

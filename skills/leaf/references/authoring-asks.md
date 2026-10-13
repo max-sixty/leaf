@@ -66,9 +66,10 @@ relevant interaction work inside each option so the user can try every alternati
 before choosing. For a choice between arrangements, structures, or mechanisms that
 nothing can run yet, draw each option inside it, all in one frame at one scale. A
 proposal to accept or reject, or a piece of work to take on, is a choice between
-today and the change: show today as it is, a visible defect in a capture cropped or
-marked where it goes wrong, and draw or demonstrate the change beside it in one frame
-or in the accepting option. A choice of wording shows each wording as it would
+today and the change: show both in the form the work takes, with the change beside
+today in one frame or in the accepting option. A visible fault is a capture cropped
+or marked where it goes wrong, beside a drawing or demonstration of the fix; a code
+or data change is the code or data before and after. A choice of wording shows each wording as it would
 appear. In each case, hold everything except the disputed treatment constant, and
 include the current or no-treatment case as a neutral control. Put longer rationale
 or provenance in a disclosure after the ask.

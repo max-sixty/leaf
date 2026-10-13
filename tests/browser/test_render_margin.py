@@ -10642,6 +10642,10 @@ def test_observed_scroll_retains_the_seat_of_a_constrained_target(
         {"position": position, "native": native_scroll},
     )
     rendered(page)
+    # Inserting the scroller can retain the old content by scrolling the page.
+    # Put the newly registered target on screen before testing its inner scroll.
+    page.evaluate("window.scrollTo(0, 0)")
+    rendered(page)
     reading = """() => {
       const {target, contribution} = window.__nonlinear;
       const row = contribution.control('nonlinear', 'margin').closest('.lf-margin-cluster');

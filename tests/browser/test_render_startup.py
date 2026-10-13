@@ -2202,10 +2202,10 @@ def test_visual_comments_arrive_with_the_initialized_document(browser, serve):
 
 
 @pytest.mark.parametrize("phase", ["initial", "history", "ready", "anchored"])
-def test_failed_anchor_presentation_keeps_visual_actions_withheld(
+def test_malformed_visual_inventory_withholds_its_actions_at_each_presentation_phase(
     browser, serve, phase
 ):
-    """A malformed visual reading cannot leave comment controls on a partial page."""
+    """A malformed visual cannot offer comment controls at any startup phase."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     state_ready = phase in {"ready", "anchored"}
     held = []
@@ -2262,9 +2262,7 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(
     else:
         held.pop(0).continue_()
 
-    expect(page.locator(".lf-status-detail")).to_contain_text("reload")
-    if not state_ready:
-        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-visual-actions")).to_have_count(0)
     if phase == "initial":
         assert page.evaluate("() => window.__lfVisualActionInsertions") == []
@@ -2278,7 +2276,8 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(
         )
         expect(page.locator(".lf-visual-actions")).to_have_count(1)
         expect(page.locator(".lf-visual-action")).to_have_count(4)
-    consume_browser_errors(page, "registered part outer twice")
+    if phase == "anchored":
+        consume_browser_errors(page, "registered part outer twice")
 
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):

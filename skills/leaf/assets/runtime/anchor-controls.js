@@ -110,6 +110,14 @@ export function createAnchorControls({
     for (const candidate of pageQueryAll(visualSelector())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
+      let parts;
+      try {
+        parts = visualParts(candidate, { strict: true });
+      } catch {
+        // Page check reports the malformed inventory. Withhold this visual's
+        // whole action too, while allowing the rest of the page to present.
+        continue;
+      }
       // Controls must not outlive a malformed inventory: even the whole-visual
       // action belongs to the same reading as the parts beside it.
       const targets = [
@@ -117,7 +125,7 @@ export function createAnchorControls({
           anchor: { section: found.id },
           label: sectionLabel(elementById(found.id)) || found.id,
         },
-        ...visualParts(candidate, { strict: true })
+        ...parts
           .filter((part) => unclaimedVisualGesture(part.element))
           .map((part) => ({
             anchor: { section: found.id, visual: part.id },

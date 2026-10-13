@@ -2,25 +2,10 @@
  * that supply margin clusters. DOM placement, retained controls, activation, search
  * input and focus stay in the dialog adapter. */
 
-import {
-  spokenSubject,
-  compareContributionEntryRecords,
-  visibleContributionEntryLabel,
-} from "./contribution-model.js";
+import { spokenSubject, visibleContributionEntryLabel } from "./contribution-model.js";
 
 import { contributionItemKey } from "./contribution-model.js";
-import { annotationItems } from "./margin-model.js";
-
-function dialogControls(entry) {
-  const records = entry.offers
-    .flatMap((offered) =>
-      offered.reading.entries
-        .filter((record) => record.visible)
-        .map((record) => Object.freeze({ record, offered })),
-    )
-    .sort(compareContributionEntryRecords);
-  return records;
-}
+import { annotationItems, entryControls } from "./margin-model.js";
 
 const dialogItemKey = (entry, item) =>
   JSON.stringify(["item", entry.key, contributionItemKey(item)]);
@@ -35,7 +20,7 @@ const dialogControlId = (entry, offered, record) =>
 export function marginMapGroups(entries, faceFor, searchTextByKey) {
   return Object.freeze(
     entries.map((entry) => {
-      const controls = dialogControls(entry);
+      const controls = entryControls(entry);
       const items = annotationItems(entry);
       const actions = [
         ...items.map((item) => {
@@ -52,9 +37,11 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
             // Producers add context only when it carries another fact. Version
             // comparisons do: their pair is provenance, separate from the account.
             context: item.mapContext,
+            receipt: item.workflowReceipt,
+            awaitsUser: Boolean(item.userAttention),
           };
         }),
-        ...controls.map(({ offered, record }) => ({
+        ...controls.map(({ offered, record, receipt }) => ({
           kind: "control",
           key: dialogControlKey(entry, offered, record),
           id: dialogControlId(entry, offered, record),
@@ -66,6 +53,8 @@ export function marginMapGroups(entries, faceFor, searchTextByKey) {
           label: record.accessibleLabel,
           visibleLabel: visibleContributionEntryLabel(record),
           context: record.context,
+          receipt,
+          awaitsUser: false,
         })),
       ];
       const search = [

@@ -21,16 +21,17 @@
    because what it measures is drawn where it stands rather than moved somewhere legible. */
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
 import { PRESSES } from "../control-selectors.js";
-import { bottomChromeBoxes } from "./shortcut-bar.js";
 import {
   bannerFoot,
   layoutWindow,
+  windowChromeBoxes,
   shownParts,
   shownRect,
   startsAt,
 } from "../geometry.js";
 import { clamp, intersect, overlaps } from "../rect.js";
 import { renderedUnder } from "../shadow.js";
+import { setChildren } from "../dom-children.js";
 
 // A rectangle, or nothing where its edges crossed. `clippedTop` records that the source
 // box began above the room the user has, which a chip hung on the surviving corner
@@ -52,7 +53,7 @@ export function keyBadgePlacement() {
   const clips = new Map();
   const covered = bannerFoot();
   const room = { ...layoutWindow(), top: covered };
-  const chrome = bottomChromeBoxes();
+  const chrome = windowChromeBoxes();
   const kept = [...chrome];
 
   // What the user can see of a box: the window, less the banner standing over its top.
@@ -174,7 +175,7 @@ export function keyBadgePlacement() {
       !box ||
       box.right <= box.left ||
       box.bottom <= box.top ||
-      kept.some((standing) => overlaps(box, standing))
+      kept.some((other) => overlaps(box, other))
     )
       return false;
     kept.push(box);
@@ -209,14 +210,14 @@ export function keyBadgePlacement() {
     const { right, bottom } = layoutWindow();
     const measured = chips.map(({ chip, owner, corner }) => {
       const seat = seats.seat(owner);
-      if (chip.parentElement !== seat) seat.replaceChildren(chip);
+      if (chip.parentElement !== seat) setChildren(seat, [chip]);
       return { chip, seat, owner, corner };
     });
     for (const one of measured) one.start = seats.boxAt(one.seat, one.corner);
     const free = (box) =>
       box.right > box.left &&
       box.bottom > box.top &&
-      !kept.some((standing) => overlaps(box, standing));
+      !kept.some((other) => overlaps(box, other));
     const seated = [];
     for (const { chip, seat, owner, corner, start } of measured) {
       const places = [

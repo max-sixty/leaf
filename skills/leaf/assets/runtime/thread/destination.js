@@ -17,7 +17,7 @@
    A native continuation (`focus: false`) returns its presented route under session
    availability even after Tab supersedes positioning; it never takes focus, and the
    original intent alone permits scrolling or another reveal gesture.
-   Addressed part and focus are independent. Materializing a thread Question asks
+   Addressed part and focus are independent. Materializing a thread ask asks
    for its message part without focus; a native editing continuation asks for the
    reply part without focus. Omitting part follows each surface's ordinary route.
    A focused primary arrival uses page travel's ordinary arrival, which clears a
@@ -30,6 +30,7 @@
    a visible accompanying preview remains the current conversation. Canonical page
    targets always come from anchor placement, independently of whichever view draws a
    Thread. */
+import { aborted } from "../abort.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { focusDestination, focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
@@ -45,6 +46,7 @@ import { renderedUnder } from "../shadow.js";
 import { threadKey, threadNames } from "./model.js";
 import { openMessageEditIn } from "./message-edit.js";
 import { THREAD } from "./selectors.js";
+import { threadPlace as placementOf } from "./placement.js";
 
 export function createThreadDestinations({
   placedAt,
@@ -59,10 +61,6 @@ export function createThreadDestinations({
   let presentation = null;
   let opening = null;
   function register(owner, open, reader) {
-    if (!(owner instanceof Element) || typeof open !== "function")
-      throw new TypeError(
-        "A Thread presentation needs an Element owner and an open callback",
-      );
     if (presentation) throw new Error("The page already has a Thread presentation");
     const registration = { owner, open, reader };
     presentation = registration;
@@ -74,6 +72,12 @@ export function createThreadDestinations({
     };
   }
   const threadTarget = (id) => placedAt(id)?.place ?? null;
+  // Where the thread stands in the page's order, as the list sorts it: its target, or
+  // the section its anchor names where the passage no longer resolves.
+  const threadPlace = (id) => {
+    const thread = allThreads().find((candidate) => candidate.id === id);
+    return thread ? placementOf(thread, placedAt) : null;
+  };
   const threadHere = () => heldThread() ?? preview?.accompanied() ?? null;
   // Discussion identity precedes the view that realizes it. Reply availability
   // narrows an editable destination without erasing the user's standing thread.
@@ -123,9 +127,7 @@ export function createThreadDestinations({
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
-      const cancelled = new Promise((resolve) =>
-        abort.signal.addEventListener("abort", () => resolve(null), { once: true }),
-      );
+      const cancelled = aborted(abort.signal);
       const whileCurrent = (work) => Promise.race([work, cancelled]);
       const request = {
         message:
@@ -298,5 +300,6 @@ export function createThreadDestinations({
     threadAtStanding,
     replyThreadAtStanding,
     threadTarget,
+    threadPlace,
   };
 }

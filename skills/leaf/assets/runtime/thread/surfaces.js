@@ -1,5 +1,15 @@
 /* Canonical Thread placement into exact widget seats and one page presentation.
 
+   A widget whose tag declares `x-thread-surface` is a seat for as long as it stands
+   upgraded: `watchThreadSurfaces` registers it once its module has defined it and
+   retires it when it leaves, over the same arrival lifetime every element owner holds
+   (`watchArrivals`, arrivals.js), so a move within one batch keeps it. The runtime asks
+   the widget itself for outlets with
+   `owner.threadOutlets(targets, {signal, collection, onCommit})`, and the widget
+   reaches its registration through `threadSurface(owner)` to say its seats changed
+   (`update()`) or to open a comment on one of its datums (`open(node)`). The selected page presentation registers explicitly
+   (`placePageThreads`).
+
    A placement claims one Thread's page position, so reconciliation joins the core
    Thread presentation. Both callbacks return outlets for an admitted batch;
    widget seats that survive final validation claim first, then the selected page presentation.
@@ -12,11 +22,13 @@
    what the reader reads, is held out of what the widget is handed (`HeldArrivals`,
    held-news.js): its target stays out of the batch, so the selected annotation
    presentation notices it, and `revealHeld` is how the margin's marker shows it. */
+import { aborted } from "../abort.js";
 import { reportPageError } from "../layer-client.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
 import { closestAcross } from "../passages.js";
-import { registry } from "../registry.js";
+import { tagsDeclaring } from "../registry.js";
+import { watchArrivals } from "../arrivals.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { allThreads, readThreads } from "./state.js";
 import { threadNames } from "./model.js";
@@ -39,9 +51,40 @@ function update(registration) {
   });
 }
 
-export function placeThreads(owner, render, options) {
-  return register(owner, render, options, "widget");
+export function watchThreadSurfaces(commands) {
+  const tags = tagsDeclaring((entry) => entry["x-thread-surface"] === true);
+  if (!tags.length) return;
+  watchArrivals(tags.join(","), [], {
+    arrive(owner) {
+      if (registrations.has(owner)) return;
+      // Every door that brings a tag in imports its module before connecting its
+      // markup (`widget-loader.js`), and this watch starts after startup's upgrade, so
+      // an undefined owner failed to upgrade, which its module's failure reports.
+      if (!owner.matches(":defined")) return;
+      register(
+        owner,
+        (targets, context) => owner.threadOutlets(targets, context),
+        commands,
+        "widget",
+      );
+    },
+    leave(owner) {
+      registrations.get(owner)?.handle.unregister();
+    },
+  });
 }
+
+// The registered surface of a widget declaring `x-thread-surface`, as the widget reads
+// it: before the runtime has registered it, or after it left, there is nothing to update
+// and nothing it can open.
+export const threadSurface = (owner) =>
+  Object.freeze({
+    update() {
+      const registration = registrations.get(owner);
+      if (registration) update(registration);
+    },
+    open: (node) => registrations.get(owner)?.handle.open(node) ?? false,
+  });
 
 // The selected page presentation joins the same outlet and generation lifetime.
 // This owner nominates fallback candidates. Only the final cohort move knows which
@@ -54,24 +97,9 @@ export function placePageThreads(owner, render, options) {
 
 function register(owner, render, { invalidate, composition, reveal }, kind) {
   if (!(owner instanceof Element))
-    throw new TypeError("placeThreads needs an Element owner");
-  if (kind === "widget") requireSurface(owner);
-  if (typeof render !== "function")
-    throw new TypeError("placeThreads needs a render callback");
-  if (typeof invalidate !== "function")
-    throw new TypeError("placeThreads needs an invalidation function");
-  if (
-    !composition ||
-    typeof composition.open !== "function" ||
-    typeof composition.active !== "function" ||
-    typeof composition.node !== "function" ||
-    typeof composition.seat !== "function" ||
-    typeof composition.restore !== "function" ||
-    typeof composition.outlet !== "function"
-  )
-    throw new TypeError("placeThreads needs composition presentation");
+    throw new TypeError("A Thread presentation needs an Element owner");
   if (registrations.has(owner))
-    throw new Error(`placeThreads(${owner.localName}) registered twice`);
+    throw new Error(`Thread surface ${owner.localName} registered twice`);
   const registration = {
     render,
     owner,
@@ -89,7 +117,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
   };
   // The outlet lifetime also owns its source standing. A page rail's card stands
   // at the source it shows, while its unrelated controls keep their authored place.
-  // The standing reader gives an innermost reply Question priority over this relation.
+  // The standing reader gives an innermost reply ask priority over this relation.
   registration.stopSide = declareSide((node) => {
     const outlet = [...registration.outlets].find((outlet) => under(node, outlet));
     if (!outlet) return null;
@@ -103,16 +131,15 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
   registrations.set(owner, registration);
   update(registration);
   let active = true;
-  return {
+  registration.handle = {
     read: readThreads,
     reveal(key) {
       if (!active) return false;
       const thread = readThreads().threads.find((item) => item.key === key);
       return thread ? reveal(thread.id) : false;
     },
-    open(node, { origin = null } = {}) {
+    open(node) {
       if (!active) return false;
-      if (kind === "widget") requireSurface(owner);
       const target = kind === "widget" ? datumAimTarget(node) : aimTargetAt(node);
       if (
         !target ||
@@ -121,10 +148,10 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
       )
         throw new TypeError(
           kind === "widget"
-            ? `placeThreads(${owner.localName}) can open only its own projected datum`
+            ? `Thread surface ${owner.localName} can open only its own projected datum`
             : "The page Thread presentation needs an addressable source target",
         );
-      composition.open(target, { origin });
+      composition.open(target);
       return true;
     },
     update: () => update(registration),
@@ -136,13 +163,7 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
       update(registration);
     },
   };
-}
-
-function requireSurface(owner) {
-  if (registry[owner.localName]?.["x-thread-surface"] !== true)
-    throw new Error(
-      `placeThreads(${owner.localName}) requires x-thread-surface: true to place Threads`,
-    );
+  return registration.handle;
 }
 
 function clearOutlets(outlets) {
@@ -154,6 +175,17 @@ function clearOutlets(outlets) {
 
 function reportFailure({ owner }, error) {
   reportPageError(error, `thread surface ${owner.localName}#${owner.id} failed`);
+}
+
+// A widget removes a node that may hold an outlet only through its placement's
+// `onCommit`, or after this: core's composer, the one node it carries from outlet to
+// outlet, leaves every outlet under `node` now, for where the next commit would put
+// it once `node` is gone, so the removal cannot take the user's editor with it.
+export function releaseOutlets(node) {
+  for (const { outlets, composition } of registrations.values()) {
+    const outlet = composition.outlet();
+    if (outlets.has(outlet) && under(outlet, node)) composition.restore();
+  }
 }
 
 function clearRegistration(registration) {
@@ -174,7 +206,7 @@ function validateOutlets({ owner }, byOutlet) {
     if (!outlet.isConnected) byOutlet.delete(outlet);
     else if (!under(outlet, owner))
       throw new Error(
-        `placeThreads(${owner.localName}) returned an outlet outside its presentation owner`,
+        `Thread surface ${owner.localName} returned an outlet outside its presentation owner`,
       );
   }
 }
@@ -229,15 +261,10 @@ export function renderSurfaces(collection, placements, commands) {
       registration.placements = placements;
       const byOutlet = new Map();
       const abort = new AbortController();
-      let cancel;
-      const cancelled = new Promise((resolve) => {
-        cancel = resolve;
-      });
-      registration.cancelRender = () => {
-        abort.abort();
-        cancel();
-      };
+      const cancelled = aborted(abort.signal);
+      registration.cancelRender = () => abort.abort();
       let compositionOutlet = null;
+      const committed = [];
       try {
         const byKey = new Map(collection.threads.map((thread) => [thread.key, thread]));
         const targets = new Map();
@@ -277,6 +304,7 @@ export function renderSurfaces(collection, placements, commands) {
         const rendering = render(Object.freeze(batch), {
           signal: abort.signal,
           collection,
+          onCommit: (run) => committed.push(run),
         });
         const outlets = rendering?.then
           ? await Promise.race([rendering, cancelled])
@@ -315,11 +343,16 @@ export function renderSurfaces(collection, placements, commands) {
         if (registration.kind === "page") throw error;
         // A failed widget can yield to the selected page phase. Clearing its prior
         // seats belongs to the same eventual commit as that fallback.
-        plans.push({ registration, byOutlet: new Map(), compositionOutlet: null });
+        plans.push({
+          registration,
+          byOutlet: new Map(),
+          compositionOutlet: null,
+          committed: [],
+        });
         reportFailure(registration, error);
         continue;
       }
-      plans.push({ registration, byOutlet, compositionOutlet });
+      plans.push({ registration, byOutlet, compositionOutlet, committed });
     }
     return current() ? plans : null;
   }
@@ -431,6 +464,16 @@ export function renderSurfaces(collection, placements, commands) {
       }
       throw error;
     }
+    // Only now has the composer left every outlet a widget stopped returning, so the
+    // widget can take those outlets down without taking the user's editor with them.
+    for (const { registration, committed } of plans)
+      for (const run of committed) {
+        try {
+          run();
+        } catch (error) {
+          reportFailure(registration, error);
+        }
+      }
   }
 }
 

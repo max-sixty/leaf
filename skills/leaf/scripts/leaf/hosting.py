@@ -8,6 +8,7 @@ second server stack in the client process.
 import contextlib
 import errno
 import functools
+import ipaddress
 import json
 import logging
 import secrets
@@ -21,9 +22,14 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .detached import Handshake, StartRefused, starting_detached
-from .files import read_json
 from .harness import Harness, claim_harness, harness_argument, session_harness
-from .leases import page_locked, release_lease, take_lease
+from .leases import (
+    end_if_terminated,
+    lock_is_held,
+    page_locked,
+    release_lease,
+    take_lease,
+)
 from .refusals import Refused
 from .schema import SERVER_LOCK, SERVICE_FILE
 from .server import (
@@ -32,6 +38,7 @@ from .server import (
     loopback_note,
     page_access,
     page_url,
+    read_service,
     running_server,
     stop_when_service_ends,
 )
@@ -43,35 +50,66 @@ from .service import (
     prepare_claim,
     same_claim,
 )
-from .state import require_cross_process_locking, write_json
+from .state import write_json
 
 TEMPORARY_SERVER_NOTE = "server   temporary (stops with this command)"
 
 
-# Allow TCP cooldown to expire, without waiting forever for an address held
-# by another live process.
+# The side that closes a TCP connection first keeps its address in TIME_WAIT, for
+# 60 s on Linux and 30 s on macOS. A server is that side for the keep-alive
+# connections it closes or exits with, so its fixed address can stay in use after
+# it stops. Wait out what address reuse cannot pass, without waiting forever for an
+# address another live process holds.
 PORT_WAIT_SECONDS = 90
+
+# Linux refuses a SO_REUSEADDR bind beside any listener on an overlapping address
+# (socket(7)). BSD kernels, macOS among them, admit one at a specific address beside
+# a wildcard listener.
+REUSE_EXCLUDES_LISTENERS = sys.platform == "linux"
 
 
 def listening_socket(bind: str, port: int) -> socket.socket:
-    """Open an exclusive listener, retaining fixed addresses through TCP cooldown.
+    """Open an exclusive listener, rebinding a fixed address over its own TIME_WAIT.
 
-    A new service asks the OS for a port with zero; a recorded address waits up
-    to PORT_WAIT_SECONDS for native availability. No address reuse or port lease
-    relaxes the kernel's exclusion of overlapping listeners. Only EADDRINUSE is
-    retried; other failures retain their original error.
+    A new service asks the OS for a port with zero; a recorded address binds its
+    port again, retrying EADDRINUSE for up to PORT_WAIT_SECONDS. Other failures keep
+    their original error. The kernel's bind checks keep two Leaf listeners, in any
+    processes, off overlapping addresses; no port lease or record stands beside them.
+
+    SO_REUSEADDR lets a restart pass the TIME_WAIT connections the previous server
+    left on its port, and it is set wherever it keeps the exclusion. On Linux every
+    bind sets it, the first one included, because Linux passes a TIME_WAIT connection
+    only when the listener that accepted it set the option too. On BSD kernels only a
+    fixed port at a specific address sets it, since there the new socket's option
+    alone decides, and the bind then fails as in use while a wildcard listener holds
+    the port (`_refuse_wildcard_listener`). A wildcard bind there stays strict: the
+    kernel refuses it beside any specific listener, so it cannot slip in after that
+    check, and it also refuses it over TIME_WAIT, so a `--host` restart on macOS
+    still waits out the cooldown.
+
+    Resetting connections, so that the server never holds TIME_WAIT, was rejected:
+    the server exits with its keep-alive connections open (`stop_when_service_ends`),
+    so every close would have to be abortive, and an abortive close can discard a
+    response the client has not yet read.
 
     A stated host binds both IP families. Only `::` falls back to IPv4 when IPv6
     is unavailable; a literal IPv6 address never widens to every interface.
     """
 
     def bound(family: int, host: str) -> socket.socket:
+        reuse = REUSE_EXCLUDES_LISTENERS or (
+            bool(port) and not ipaddress.ip_address(host).is_unspecified
+        )
         sock = socket.socket(family, socket.SOCK_STREAM)
         try:
+            if reuse:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             if family == socket.AF_INET6:
                 sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
             sock.bind((host, port))
             sock.listen(socket.SOMAXCONN)
+            if reuse and not REUSE_EXCLUDES_LISTENERS:
+                _refuse_wildcard_listener(family, port)
         except BaseException:
             sock.close()
             raise
@@ -98,6 +136,30 @@ def listening_socket(bind: str, port: int) -> socket.socket:
             time.sleep(0.25)
 
 
+def _refuse_wildcard_listener(family: int, port: int) -> None:
+    """Raise EADDRINUSE while a wildcard listener covering `family` holds `port`.
+
+    A BSD kernel matches a SO_REUSEADDR bind only against sockets at the same
+    address. A reusing bind of each wildcard that covers the listener's family
+    therefore fails exactly while a listener holds that wildcard, and passes both
+    the specific listener just bound and every TIME_WAIT connection, whose addresses
+    are specific. The probe binds without listening and closes at once.
+    """
+    wildcards = [(socket.AF_INET6, "::")]
+    if family == socket.AF_INET:
+        wildcards.append((socket.AF_INET, "0.0.0.0"))
+    for wildcard_family, host in wildcards:
+        try:
+            probe = socket.socket(wildcard_family, socket.SOCK_STREAM)
+        except OSError as error:
+            if error.errno != errno.EAFNOSUPPORT:
+                raise
+            continue
+        with probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            probe.bind((host, port))
+
+
 class LeafHTTPServer:
     """One page's HTTP server: uvicorn over the endpoint each request becomes.
 
@@ -110,10 +172,10 @@ class LeafHTTPServer:
     cooldown; a stop waits behind that private preparation before disabling it.
 
     `server_id` names the serving process on every answer. Startup recovery uses it
-    to detect a replacement after failure. An ordinary page's durable record survives
-    that replacement; only an active private website session loses its record and
-    needs an already-presented document to reload. Uvicorn owns signal handling and
-    the order of a stop; every page response completes, so no held-open response
+    to detect a replacement after failure. Page records survive process replacement,
+    including website records restored from the Durable Object; an already-presented
+    document keeps its state and drafts across that replacement. Uvicorn owns signal
+    handling and the order of a stop; every page response completes, so no held-open response
     needs a second stop flag or an application signal wrapper. The stop's timing is
     this server's own (`_page_uvicorn`).
     """
@@ -156,6 +218,9 @@ class LeafHTTPServer:
         """Serve on the current thread until `shutdown` or a handled signal."""
         if self._uvicorn.should_exit:
             return
+        # uvicorn answers a stop once it is serving; one whose raise a finalizer
+        # discarded before then ends the process here (`release_on_termination`).
+        end_if_terminated()
         listener = self.socket.dup()
         try:
             self._uvicorn.run(sockets=[listener])
@@ -311,7 +376,6 @@ class TemporaryPageServer:
 
 def cmd_serve_temporary(page_dir: Path) -> None:
     """Run the process-owned page server used by browser automation."""
-    require_cross_process_locking()
     server = TemporaryPageServer(page_dir)
     print(json.dumps({"url": server.url}), flush=True)
     print(TEMPORARY_SERVER_NOTE, file=sys.stderr, flush=True)
@@ -324,7 +388,7 @@ def startup_note(page_dir: Path) -> str:
     from .registry.storage import layer_metadata
 
     layer = layer_metadata(page_dir)
-    service = read_json(page_dir / SERVICE_FILE) or {}
+    service = read_service(page_dir) or {}
     # An older live service has no trustworthy runtime identity. Naming this
     # command's payload instead would make the exact stale-server case this note
     # exists to expose look current merely because a newer client inspected it.
@@ -352,7 +416,7 @@ def _serve_claim(
     page_dir: Path,
     page: PageTransaction,
     service: dict | None,
-    standing: bool,
+    persistent: bool,
     revive: bool,
     harness: Harness | None,
 ) -> bool:
@@ -362,11 +426,11 @@ def _serve_claim(
         raise Refused("service was stopped; not reviving")
 
     claimed = bool(
-        not standing
+        not persistent
         and harness is not None
         and claimant_matches(page.active_claim, harness)
     )
-    if not standing and harness is not None and not claimed:
+    if not persistent and harness is not None and not claimed:
         raise Refused(
             f"this harness session no longer owns {page_dir}; the server was not started"
         )
@@ -382,7 +446,7 @@ def _announce_server(page_dir: Path, url: str) -> bool:
     return True
 
 
-def _reuse_server(page_dir: Path, host: str | None, standing: bool) -> str | None:
+def _reuse_server(page_dir: Path, host: str | None, persistent: bool) -> str | None:
     """Read a compatible running server's URL, or say a fresh bind is needed."""
     existing = running_server(page_dir)
     if not existing:
@@ -392,10 +456,10 @@ def _reuse_server(page_dir: Path, host: str | None, standing: bool) -> str | Non
             f"already serving at {existing['url']}; "
             "leaf server stop first, then re-run with --host"
         )
-    if standing and existing["lifetime"] != "standing":
+    if persistent and existing["lifetime"] != "persistent":
         raise Refused(
             f"already serving as a session server at {existing['url']}; "
-            "leaf server stop first, then re-run with --standing"
+            "leaf server stop first, then re-run with --persistent"
         )
     return existing["url"]
 
@@ -414,12 +478,12 @@ def _take_server_lease(page_dir: Path):
 
 
 def _service_record(
-    access: dict, httpd, standing: bool, claimed: bool, runtime: dict
+    access: dict, httpd, persistent: bool, claimed: bool, runtime: dict
 ) -> dict:
     """The durable desired state for a newly bound server."""
     lifetime = (
-        "standing"
-        if standing or access.get("lifetime") == "standing" or not claimed
+        "persistent"
+        if persistent or access.get("lifetime") == "persistent" or not claimed
         else "session"
     )
     return {
@@ -436,7 +500,7 @@ def _service_record(
 def cmd_serve(
     page_dir: Path,
     host: str | None = None,
-    standing: bool = False,
+    persistent: bool = False,
     revive: bool = False,
     *,
     harness: Harness | None,
@@ -460,28 +524,27 @@ def cmd_serve(
     from .layer import payload_provenance
     from .server_rows import RowPublisher
 
-    require_cross_process_locking()
     lease = None
     httpd = None
     delivery = (
         harness.preparing_delivery()
-        if acquire and not standing and harness is not None and handshake is None
+        if acquire and not persistent and harness is not None and handshake is None
         else contextlib.nullcontext()
     )
     try:
         with delivery, page_locked(page_dir):
-            if acquire and not standing and harness is not None:
+            if acquire and not persistent and harness is not None:
                 prepared_claim = prepared_claim or prepare_claim(harness, page_dir)
-            previous_service = service = read_json(page_dir / SERVICE_FILE)
+            previous_service = service = read_service(page_dir)
             with PageTransaction(page_dir) as page:
                 claimed = (
-                    bool(not standing and harness is not None)
+                    bool(not persistent and harness is not None)
                     if acquire
                     else _serve_claim(
-                        page_dir, page, service, standing, revive, harness
+                        page_dir, page, service, persistent, revive, harness
                     )
                 )
-            url = _reuse_server(page_dir, host, standing)
+            url = _reuse_server(page_dir, host, persistent)
             if url is None:
                 access = page_access(page_dir, host)
                 token = host_key()
@@ -499,7 +562,7 @@ def cmd_serve(
                 service = _service_record(
                     access,
                     httpd,
-                    standing,
+                    persistent,
                     claimed,
                     payload_provenance(include_path=True),
                 )
@@ -514,7 +577,7 @@ def cmd_serve(
                                     write_json(page_dir / SERVICE_FILE, service)
                         else:
                             _serve_claim(
-                                page_dir, page, service, standing, revive, harness
+                                page_dir, page, service, persistent, revive, harness
                             )
                             claim = page.claim if claimed else None
                             if httpd is not None:
@@ -583,7 +646,7 @@ class PageStart:
 def _starting_server(
     page_dir: Path,
     host: str | None = None,
-    standing: bool = False,
+    persistent: bool = False,
     revive: bool = False,
     *,
     harness: Harness | None,
@@ -591,14 +654,13 @@ def _starting_server(
     claim: dict | None = None,
 ):
     """Prepare a private serving resource and expose its owner before accepting."""
-    require_cross_process_locking()
     with starting_detached(
         [
             "server",
             "_serve",
             str(page_dir),
             *(["--host", host] if host else []),
-            *(["--standing"] if standing else []),
+            *(["--persistent"] if persistent else []),
             *(["--revive"] if revive else []),
             *(["--acquire"] if acquire else []),
             *(["--claim", json.dumps(claim)] if claim is not None else []),
@@ -614,7 +676,7 @@ def _starting_server(
 def start_server(
     page_dir: Path,
     host: str | None = None,
-    standing: bool = False,
+    persistent: bool = False,
     revive: bool = False,
     *,
     harness: Harness | None,
@@ -626,7 +688,9 @@ def start_server(
     while holding
     the page transition lock. Every revival retains the recorded address.
     """
-    with _starting_server(page_dir, host, standing, revive, harness=harness) as started:
+    with _starting_server(
+        page_dir, host, persistent, revive, harness=harness
+    ) as started:
         pass
     return started
 
@@ -635,7 +699,7 @@ def start_server(
 def claim_and_start(
     page_dir: Path,
     host: str | None = None,
-    standing: bool = False,
+    persistent: bool = False,
     *,
     prepared_claim: dict | None = None,
 ):
@@ -653,16 +717,16 @@ def claim_and_start(
     harness = claim_harness(prepared_claim) if prepared_claim else session_harness()
     delivery = (
         harness.preparing_delivery()
-        if not standing and harness is not None and prepared_claim is None
+        if not persistent and harness is not None and prepared_claim is None
         else contextlib.nullcontext()
     )
     with delivery:
         claim = prepared_claim or (
-            prepare_claim(harness, page_dir) if not standing and harness else None
+            prepare_claim(harness, page_dir) if not persistent and harness else None
         )
         try:
             with _starting_server(
-                page_dir, host, standing, harness=harness, acquire=True, claim=claim
+                page_dir, host, persistent, harness=harness, acquire=True, claim=claim
             ) as ready:
                 yield ready
         except BaseException:
@@ -696,7 +760,6 @@ def cmd_stop(
     disables a service something enabled meanwhile, and keeps whatever mark the
     record then carries, so a restart waiting out the old server's lease does not
     write its mark back over a plain stop that landed during the wait."""
-    require_cross_process_locking()
     stopped = False
     first = True
     while True:
@@ -712,9 +775,26 @@ def cmd_stop(
             if owner is not _StopScope.ANY_OWNER and not same_claim(page.claim, owner):
                 return stopped
             # The server may release its lease immediately after we disable it.
-            stopped = stopped or running_server(page_dir) is not None
-            service = read_json(page_dir / SERVICE_FILE)
-            if service and first:
+            service = read_service(page_dir)
+            # Whether a server runs is the lease's to say: one an older Leaf started
+            # over a record this version cannot read holds it without a readable
+            # record to show it by. A private preparation holds the lease too, but
+            # has no service record and has not become a running service.
+            stopped = (
+                stopped
+                or running_server(page_dir) is not None
+                or (
+                    service is None
+                    and (page_dir / SERVICE_FILE).exists()
+                    and lock_is_held(page_dir / SERVER_LOCK)
+                )
+            )
+            if service is None:
+                # A record this version cannot read names no service it could
+                # disable. Discarding it is what stops a server an older Leaf
+                # started over it, which exits once its record is gone.
+                (page_dir / SERVICE_FILE).unlink(missing_ok=True)
+            elif first:
                 disabled = {
                     **{
                         key: value for key, value in service.items() if key != "restart"
@@ -724,7 +804,7 @@ def cmd_stop(
                 }
                 if disabled != service:
                     write_json(page_dir / SERVICE_FILE, disabled)
-            elif service and service["enabled"]:
+            elif service["enabled"]:
                 write_json(page_dir / SERVICE_FILE, {**service, "enabled": False})
             first = False
             lease = take_lease(page_dir / SERVER_LOCK)
@@ -769,12 +849,24 @@ def restarting_server(page_dir: Path):
     this block reads the mark, so one a killed restart leaves behind is inert: the
     next start or stop writes a record without it.
     """
-    service = read_json(page_dir / SERVICE_FILE)
+    service = read_service(page_dir)
+    if service is None and lock_is_held(page_dir / SERVER_LOCK):
+        # A server runs over a record this version cannot read, as one an older Leaf
+        # started does. It has no lifetime this version could bring back, so it
+        # stops and stays stopped.
+        cmd_stop(page_dir)
+        print(
+            f"{page_dir}'s server stays stopped; `leaf server start {page_dir}` "
+            "serves it again.",
+            file=sys.stderr,
+        )
+        yield
+        return
     if not service or not service["enabled"]:
         yield
         return
-    standing = service["lifetime"] == "standing"
-    comes_back = standing or _restarts_for_this_session(page_dir)
+    persistent = service["lifetime"] == "persistent"
+    comes_back = persistent or _restarts_for_this_session(page_dir)
     mark = secrets.token_hex(8) if comes_back else None
     cmd_stop(page_dir, restart=mark)
     if not comes_back:
@@ -795,7 +887,7 @@ def restarting_server(page_dir: Path):
         )
         raise
     with page_locked(page_dir):
-        service = read_json(page_dir / SERVICE_FILE)
+        service = read_service(page_dir)
         resumed = bool(service and service.get("restart") == mark)
         if resumed:
             del service["restart"]
@@ -809,7 +901,7 @@ def restarting_server(page_dir: Path):
         return
     try:
         start_server(
-            page_dir, standing=standing, revive=True, harness=session_harness()
+            page_dir, persistent=persistent, revive=True, harness=session_harness()
         )
     except StartRefused as error:
         raise Refused(f"{page_dir}'s server did not start again: {error}")

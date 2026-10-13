@@ -99,46 +99,62 @@ onPress((start) => {
 
 export const standingThreadId = () => heldThreadId() ?? pressed;
 
+// The intent restricted to the thread `id` still present with a reply to write.
+const mayReplyTo = (id, intent) =>
+  restrictUserIntent(intent, () => {
+    const thread = allThreads().find((candidate) => candidate.id === id);
+    return Boolean(thread && replyAvailable(thread));
+  });
+
 // A pass that redraws threads hands the user writing a reply across itself, under the
 // thread's identity. A surface that stops drawing a thread takes its box with it: a
 // widget rebuilding its tree, or a thread leaving a widget for the margin because its
 // anchor no longer lands there. The thread still stands somewhere, and the user goes on
-// in its box there, with the draft every view of it shares and the caret where it was.
+// in its box there: the same editor, carried with its caret and undo history, or where
+// the view there cannot take it, that view's own box with the draft and the caret.
 //
 // Read before the pass: the reply box the user stands in, or the one a change took out
 // from under them before the pass began (focus.js, `holdStanding`). The step it returns
 // runs once the pass has drawn every surface, and lands the user through `open`, which
 // puts the thread up where it stands. Typing on in the box during the pass keeps them
 // in it; standing anywhere else, a press on the page included, is a newer word, and so
-// is a surface that landed them itself. A box is carried once, to a thread the reading
-// still holds and whose editor lifetime continues: an open conversation, or a resolved
+// is a surface that landed them itself. A box left behind is carried once, to a thread
+// the reading still holds and whose editor lifetime continues: an open conversation, or a resolved
 // one with a reply still being edited. Nothing is put up for a thread that has none, and one that
 // comes back later does not pull the user to it.
 // Replacement resolves through the current route, never another visible mirror of
 // the same draft. Both in-document paint and executable replacement use this admission.
 // `scroll: false` lands the user back in a box they had scrolled away from, moving no
 // scroller to show it.
+//
+// From the pass's start until that step has run, the box is being carried
+// (`carryingReply`): a surface closing under the user meanwhile, as the margin card does
+// when its thread goes back to a widget, places no one, and the step decides.
 export async function replyDestination(
   id,
   open,
   intent,
   { destination = (thread) => thread.querySelector(SAY_BOX), scroll = true } = {},
 ) {
-  const mayReply = restrictUserIntent(intent, () => {
-    const standing = allThreads().find((candidate) => candidate.id === id);
-    return Boolean(standing && replyAvailable(standing));
-  });
+  const mayReply = mayReplyTo(id, intent);
   if (!mayReply()) return null;
   const shown = await open(id, { part: "reply", scroll, intent: mayReply });
   const thread = shown instanceof Element ? closestAcross(shown, THREAD) : null;
-  const control = thread && destination(thread);
-  if (!control || focused() !== shown || !mayReply()) return null;
-  if (control !== shown) mayReply.handoff(() => focusDestination(control, "move"));
+  if (!thread || focused() !== shown || !mayReply()) return null;
+  // The destination may put the user's own row in place of the one `open` landed on
+  // (replies.js, `carry`), and they go on in it.
+  const control = destination(thread);
+  if (!control) return null;
+  if (control !== focused()) mayReply.handoff(() => focusDestination(control, "move"));
   return focused() === control && mayReply() ? control : null;
 }
 
 const carried = new WeakSet();
+let carrying = null;
+export const carryingReply = (node) =>
+  Boolean(node) && carrying?.box === node && carrying.mayReply();
 export function holdReply(open) {
+  carrying = null;
   const held = holdStanding();
   const box = held?.node;
   const thread = box && closestAcross(box, THREAD);
@@ -146,9 +162,19 @@ export function holdReply(open) {
   if (!thread || !destination || carried.has(box)) return null;
   const id = thread.dataset.id ?? thread.dataset.thread;
   const intent = retainUserIntent({ source: box });
-  return () =>
-    held.restore(() => {
-      carried.add(box);
-      return replyDestination(id, open, intent, { destination });
-    });
+  const carry = { box, mayReply: mayReplyTo(id, intent) };
+  carrying = carry;
+  return async () => {
+    try {
+      return await held.restore(async () => {
+        carried.add(box);
+        const control = await replyDestination(id, open, intent, { destination });
+        // The row itself came along (replies.js, `carry`), so it is the user's box still.
+        if (control === box) carried.delete(box);
+        return control;
+      });
+    } finally {
+      if (carrying === carry) carrying = null;
+    }
+  };
 }

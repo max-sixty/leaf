@@ -4,7 +4,7 @@
     <title>Leaf core product gallery</title>
     <meta
       name="description"
-      content="Leaf's core page vocabulary on one synthetic page, with live examples and focused replays of its interactions."
+      content="Leaf's core page vocabulary on one synthetic page, with live examples and its core interactions to try in live samples."
     />
     <meta name="lf-review" content="sign-off" />
     <style>
@@ -172,132 +172,12 @@
         }
       }
 
-      .interaction-gallery lf-tabs {
-        margin-top: 14px;
-        margin-bottom: 0;
-        box-shadow: 0 18px 46px color-mix(in srgb, var(--ink) 11%, transparent);
-      }
-
       #bg-rollout-tabs {
         max-inline-size: 26rem;
       }
 
-      .interaction-gallery .lf-interaction-controls {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-        margin-top: 14px;
-      }
-
-      /* Placement and density only. The runtime gives the playback action the shared
-         lf-btn face; the gallery keeps its changing labels on one stable row. */
-      .interaction-gallery .lf-interaction-control {
-        min-height: var(--aim-floor);
-        padding: 6px 13px;
-        font: 600 var(--t-6) / 1.2 var(--sans);
-      }
-
-      .interaction-gallery .lf-interaction-setting {
-        display: inline-flex;
-        min-height: var(--aim-floor);
-        align-items: center;
-        gap: 6px;
-        color: var(--ink-2);
-        font: var(--t-6) / 1.2 var(--sans);
-      }
-
-      .interaction-gallery .lf-interaction-loop {
-        margin: 0;
-      }
-
-      /* Under the persistent controls rather than beside them, at every width. The
-         runtime rewrites this line as the demo runs, and changing prose on the button's
-         line would move the row while the user is aiming at it. */
-      .interaction-gallery .lf-interaction-status {
-        flex-basis: 100%;
-        color: var(--muted);
-        font: var(--t-6) / 1.4 var(--sans);
-      }
-
-      .interaction-demo {
-        margin: 0;
-      }
-
-      .interaction-stage {
-        position: relative;
-        min-height: 18rem;
-        overflow: visible;
-        padding: clamp(28px, 6vw, 64px);
-        border: 1px solid var(--border-2);
-        border-radius: calc(var(--r) - 2px);
-        background:
-          linear-gradient(
-            120deg,
-            color-mix(in srgb, var(--field) 72%, transparent),
-            transparent 58%
-          ),
-          var(--paper);
-      }
-
-      .interaction-frame-stage {
-        height: 30rem;
-        overflow: hidden;
-        padding: 0;
-      }
-
-      .interaction-suggestion-stage {
-        height: 24rem;
-      }
-
-      .interaction-frame {
-        display: none;
-        width: calc(100% / var(--interaction-page-scale, 0.5));
-        height: calc(100% / var(--interaction-page-scale, 0.5));
-        border: 0;
-        opacity: 0;
-        pointer-events: none;
-        transform: scale(var(--interaction-page-scale, 0.5));
-        transform-origin: top left;
-      }
-
-      .interaction-gallery[data-interaction-viewport="1"] {
-        --interaction-page-scale: 1;
-      }
-
-      .interaction-gallery[data-interaction-viewport="2"] {
-        --interaction-page-scale: 0.5;
-      }
-
-      .interaction-gallery[data-interaction-viewport="4"] {
-        --interaction-page-scale: 0.25;
-      }
-
-      .interaction-frame[data-interaction-ready] {
-        display: block;
-        opacity: 1;
-      }
-
-      .interaction-demo figcaption {
-        max-width: 66ch;
-        margin-top: 13px;
-        color: var(--ink-2);
-        font-size: var(--t-5);
-        line-height: 1.55;
-      }
-
       main:not([data-lf-margin~="map"], [data-lf-margin~="sidebar"]) #bg-sidebar {
         display: none;
-      }
-
-      @media print {
-        .lf-interaction-controls {
-          display: none !important;
-        }
-
-        .interaction-gallery lf-tabs {
-          box-shadow: none;
-        }
       }
     </style>
     <script id="bg-margin-layer-status-history" type="application/json">
@@ -343,16 +223,12 @@
       ]
     </script>
     <script type="module">
-      import {
-        afterPresentation,
-        commands,
-        readQuestions,
-      } from "/runtime/widget-api.js";
+      import { afterPresentation, commands, readAsks } from "/runtime/widget-api.js";
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
-        const question = readQuestions().all.find((q) => q.id === "widget:bg-choice");
+        const ask = readAsks().all.find((q) => q.id === "widget:bg-choice");
         const output = document.querySelector("#bg-question-reading");
-        output.textContent = JSON.stringify(question, null, 2);
+        output.textContent = JSON.stringify(ask, null, 2);
         output.hidden = false;
       });
 
@@ -485,31 +361,43 @@
               ><span class="bg-feature-detail">: decisions and answers</span>
             </h2>
             <p id="bg-core-surfaces-guide">
-              An <code>lf-ask</code> adds a heading and context to a Question whose
-              nested widget owns the answer. The Question keeps that widget’s identity
-              and typed value; the widget can also pose it without the wrapper. This
-              sample uses <code>lf-options</code>, which records a choice Leaf can
-              replay as page state. Press <kbd>q</kbd> for the next question waiting on
-              you, in page order: an open Question, a thread whose question is yours to
-              answer, such as the gallery thread that asks about a pasted image, a to-do
-              the agent put on you, or a move whose reply failed and needs sending
-              again. The banner's <strong>Questions</strong> door, beside Threads,
-              counts them, and the agent's Tasks count follows its status. Press either,
-              or press <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in the
-              panel Threads also opens in, with answered Questions and finished tasks
-              folded under Done; Enter on a row goes where <kbd>q</kbd> would. The
-              Questions panel is experimental. A stamped page asking for sign-off also
-              lists its version approval as a Question. That row reaches the banner's
-              Approve control; approving answers it, and Undo reopens it. Within a view,
-              <kbd>q</kbd> scrolls to the question. When it opens another view, the
-              question appears immediately and its tab name briefly highlights.
-              <kbd>Shift+Q</kbd> walks back. Reduced motion removes the glide and
-              highlight. When <kbd>q</kbd> reaches a commented Question, its discussion
-              stays closed while you read and choose, including when Tab enters its
-              controls. Press <kbd>c</kbd> to reply in that existing discussion,
-              <kbd>t</kbd> to read it, or its Thread marker to open it under a finger.
-              Returning to a Question you have answered also keeps its controls clear.
+              An <code>lf-ask</code> puts a heading and context around the choice below.
+              Your questions are everything waiting on you: open asks, threads whose
+              question is yours to answer (such as the gallery thread about a pasted
+              image), to-dos the agent put on you, and updates whose reply failed and
+              need sending again.
             </p>
+            <ul id="bg-core-surfaces-steps">
+              <li>
+                Press <kbd>q</kbd>: the page moves to your next question in page order,
+                and <kbd>Shift+Q</kbd> walks back. Where that question is in another
+                view, it appears at once and the view's tab name briefly highlights;
+                with reduced motion, there is no glide or highlight.
+              </li>
+              <li>
+                Look at the banner: the <strong>Questions</strong> control beside
+                Threads counts your questions, and the agent's Tasks count follows its
+                status.
+              </li>
+              <li>
+                Press either, or <kbd>g</kbd> then <kbd>Shift+Q</kbd>: the experimental
+                Questions panel opens where Threads opens, with both lists and with
+                answered asks and ended to-dos folded under Done. Press Enter on a row:
+                it goes where <kbd>q</kbd> would.
+              </li>
+              <li>
+                On a stamped page that asks for sign-off, find the version approval
+                among the asks: its row leads to the banner's Approve control, approving
+                answers it, and Undo reopens it.
+              </li>
+              <li>
+                Comment on the map question, then press <kbd>q</kbd> until it lands
+                there: the discussion stays closed while you read and choose, even when
+                Tab enters the controls. Press <kbd>c</kbd> to reply in that discussion,
+                <kbd>t</kbd> to read it, or, under a finger, its Thread marker to open
+                it. Answer the question and come back to it: its controls stay clear.
+              </li>
+            </ul>
             <lf-ask id="bg-choice-ask">
               <h3>Which map should the sample team carry?</h3>
               <lf-options id="bg-choice" choose>
@@ -518,43 +406,54 @@
               </lf-options>
             </lf-ask>
             <details id="bg-question-api">
-              <summary>Inspect the Question record</summary>
+              <summary>Inspect the ask record</summary>
               <p>
-                The map's Question is <code>widget:bg-choice</code> whether or not it
-                has an <code>lf-ask</code> wrapper. Choose a map, then read its current
-                record: <code>answer.value</code> contains option ids, and
+                The map's ask is <code>widget:bg-choice</code> whether or not it has an
+                <code>lf-ask</code> wrapper. Choose a map, then read its current record:
+                <code>answer.value</code> contains option ids, and
                 <code>prompt.target</code> names the surrounding context.
               </p>
-              <button id="bg-read-question" type="button">Read current Question</button>
+              <button id="bg-read-question" class="button" type="button">
+                Read current ask
+              </button>
               <pre id="bg-question-reading" hidden></pre>
             </details>
             <section id="bg-task-on-you">
-              <h3>A task on you</h3>
+              <h3>A to-do on you</h3>
               <p>
-                The agent put a task on you about this section with
+                The agent put a to-do on you about this section with
                 <code>leaf task open … --on user</code>: check that the trail map marks
-                the shelter. Nothing here answers it, so it ends at your Done. It waits
-                under Questions in the Questions panel, as a To do whose row has a Done
-                button, and <kbd>q</kbd> reaches it after the Question above. Where
-                <kbd>q</kbd> lands on it, press <kbd>x</kbd>, or under a finger the
-                banner's <strong>Done</strong>. Done moves it under the panel's Done
-                fold and tells the agent.
+                the shelter. Nothing on the page answers it, so it ends only when you
+                press Done.
               </p>
+              <ul>
+                <li>
+                  Open the Questions panel: the to-do waits under Questions, and its row
+                  has a Done button.
+                </li>
+                <li>
+                  Press <kbd>q</kbd> until it lands on the to-do, after the ask above,
+                  then press <kbd>x</kbd>, or under a finger the banner's
+                  <strong>Done</strong>: the to-do moves to the panel's Done fold, and
+                  the agent is told.
+                </li>
+              </ul>
             </section>
             <section id="bg-widget-shortcut-hints">
-              <h3>Inline hints outside a Question</h3>
+              <h3>Inline hints outside an ask</h3>
               <p>
-                Tab into this sample to see <kbd>1</kbd> beside its button. Press it to
-                focus the note: the hint disappears and digits type normally. Leaving
-                the sample withdraws its binding. This command has no Decision role; the
-                shared keyboard renderer paints its requested control-corner hint from
-                the same binding that dispatches the key.
+                Tab into this sample: <kbd>1</kbd> appears beside its button. Press
+                <kbd>1</kbd>: the note gets focus, the hint disappears, and digits type
+                normally. Leave the sample: <kbd>1</kbd> no longer focuses the note.
               </p>
               <div id="bg-local-shortcuts" tabindex="0">
-                <button id="bg-shortcut-focus-note" type="button">
+                <button id="bg-shortcut-focus-note" class="button" type="button">
                   Write sample note
                 </button>
-                <label>Sample note <input id="bg-shortcut-note" type="text" /></label>
+                <label>
+                  Sample note
+                  <input id="bg-shortcut-note" class="field" type="text" />
+                </label>
               </div>
             </section>
             <section id="bg-keyboard-preference">
@@ -567,6 +466,40 @@
                 field still work with Tab, Enter and Space. Reload to check the
                 preference stays off, then turn it on to restore the hints and keys.
               </p>
+            </section>
+            <section id="bg-floating-panel">
+              <h3>The floating panel (experimental)</h3>
+              <p>
+                Add <code>?lf-chrome=floating</code> to this page's address: the banner
+                and the bottom bar give way to one panel hovering over the foot of the
+                page, and the choice stays for every page until
+                <code>?lf-chrome=classic</code> restores them. A window sample shows the
+                chrome its <code>chrome</code> attribute names, whichever you chose.
+                Below, the same page in each: press the floating panel's leaf for the
+                menu, and its field to comment.
+              </p>
+              <lf-sample
+                id="bg-chrome-classic"
+                label="classic chrome"
+                window
+                chrome="classic"
+              >
+                <template id="bg-chrome-classic-page" data-sample>
+                  <h1>Trail notes</h1>
+                  <p>The covered terrace is a short walk from the shelter.</p>
+                </template>
+              </lf-sample>
+              <lf-sample
+                id="bg-chrome-floating"
+                label="floating panel"
+                window
+                chrome="floating"
+              >
+                <template id="bg-chrome-floating-page" data-sample>
+                  <h1>Trail notes</h1>
+                  <p>The covered terrace is a short walk from the shelter.</p>
+                </template>
+              </lf-sample>
             </section>
             <p id="bg-core-controls-guide">
               The banner also shows <strong>Threads</strong>, the
@@ -648,13 +581,14 @@
             <p class="eyebrow bg-feature-elements">lf-draft</p>
             <h2>
               <strong>Drafts</strong
-              ><span class="bg-feature-detail">: editable passages and history</span>
+              ><span class="bg-feature-detail">: editable passages</span>
             </h2>
             <p id="bg-editing-guide">
               Drafts render Markdown as readable prose. “Edit” opens its exact source;
-              “Save” records it, “Cancel” discards the unsaved edit, and “Close” keeps
-              it for later. These controls stay in the box when annotations are hidden.
-              After an edit, “Changes” lists saved versions and “Restore” reapplies one.
+              “Save” records it, and “Cancel” or <kbd>Escape</kbd> discards the unsaved
+              edit. These controls stay in the box when annotations are hidden. Copy, at
+              the box’s top right, copies its Markdown. Press <kbd>z</kbd> to undo a
+              saved edit.
             </p>
             <lf-draft id="bg-draft">
               <pre>
@@ -677,16 +611,25 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: short verdicts on a passage</span>
             </h2>
             <p id="bg-reactions-guide">
-              Select words and press <kbd>E</kbd>, or focus the comment field and press
-              <kbd>Tab</kbd> for Suggest and reactions. The field keeps one primary
-              action, Dictate when available or Send; these other responses have no
-              mouse or touch opener. An agent reply has its own corner control. The
-              picker is feedback for the agent, not chat decoration. Press and hold a
-              reaction to read its word; slide to another to read that one, and let go
-              on the one you mean, or off the picker to choose none. A saved passage
-              reaction leaves only its emoji; press it to reveal the separate “Remove”
-              control, then press that control to take the reaction back.
+              Each reaction reaches the agent as feedback on a passage or a reply. The
+              comment field keeps one primary action, Dictate when available or Send, so
+              Suggest and the reactions have no mouse or touch opener there; an agent
+              reply has its own corner control for them.
             </p>
+            <ul id="bg-reactions-steps">
+              <li>
+                Select words below and press <kbd>E</kbd>, or focus the comment field
+                and press <kbd>Tab</kbd>: Suggest and the reactions appear.
+              </li>
+              <li>
+                Press and hold a reaction: its word shows. Slide to another to read that
+                one, then let go on the one you mean, or off the picker to choose none.
+              </li>
+              <li>
+                Press a saved passage reaction, which shows only its emoji: a separate
+                “Remove” control appears. Press it to take the reaction back.
+              </li>
+            </ul>
             <p id="bg-react-ok">
               <strong>1 · 👍 · keep.</strong> The spare key is with reception.
             </p>
@@ -740,7 +683,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: approve a version</span>
               </h3>
               <p id="bg-signoff-guide">
-                This gallery deliberately leaves sample Questions unanswered, so
+                This gallery deliberately leaves sample asks unanswered, so
                 <strong>Approve version</strong> remains unavailable. On a settled page
                 it records approval for the current version; <kbd>z</kbd>, or “Undo” in
                 “More page controls” on a touch screen, takes that approval back.
@@ -755,31 +698,56 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 >
               </h3>
               <p id="bg-page-comment-card-guide">
-                With Threads shut, press the comment symbol beside Threads on the
-                banner, or press <kbd>c</kbd> with nothing selected. A card hangs from
-                the symbol; write a sentence and send it. The card closes and focus
-                returns to the symbol. Threads flashes yellow, its count one higher,
-                while the panel stays shut; the new thread is in Threads. Press
-                <kbd>c</kbd> to write again. <kbd>Escape</kbd> or a click elsewhere puts
-                the card away, keeping what you wrote for the next time it opens. With
-                Threads open, the same press opens the same card over the panel. On a
-                phone, “Comment on the page” is in “More page controls”.
+                The comment symbol beside Threads on the banner starts a thread about
+                the whole page.
               </p>
+              <ul id="bg-page-comment-card-steps">
+                <li>
+                  With Threads shut, press the symbol, or press <kbd>c</kbd> with
+                  nothing selected: a card hangs from the symbol.
+                </li>
+                <li>
+                  Write a sentence and send it: the card closes and focus returns to the
+                  symbol. Threads flashes yellow with its count one higher while the
+                  panel stays shut, and the new thread is in Threads. Press
+                  <kbd>c</kbd> to write again.
+                </li>
+                <li>
+                  Press <kbd>Escape</kbd> or click elsewhere: the card goes away and
+                  keeps what you wrote for the next time it opens.
+                </li>
+                <li>
+                  Open Threads and press the symbol: the same card opens over the panel.
+                </li>
+                <li>On a phone, find “Comment on the page” in “More page controls”.</li>
+              </ul>
             </section>
 
             <section id="bg-comment-dictation">
               <h3>Dictate a comment</h3>
               <p id="bg-comment-dictation-guide">
                 In a browser with speech recognition, every empty comment or reply box
-                offers a microphone where Send will stand. Press it and speak: the empty
-                box says “Listening…”, then your words appear with the microphone lit.
-                Press the microphone again to stop and review. Typing takes over
-                immediately. Send submits the words shown; Escape leaves the box with
-                its draft kept. If dictation fails, an empty box names the reason and
-                offers Retry dictation. Words already heard stay editable. Try this in
-                the page comment card, on a passage, and in a thread reply; each uses
-                the same control.
+                offers a microphone where Send will stand. The page comment card, a
+                passage's comment box, and a thread reply all use the same control.
               </p>
+              <ul id="bg-comment-dictation-steps">
+                <li>
+                  Press the microphone and speak: the empty box says “Listening…”, then
+                  your words appear with the microphone lit.
+                </li>
+                <li>
+                  Press the microphone again: dictation stops so you can review. Start
+                  typing instead: typing takes over at once.
+                </li>
+                <li>
+                  Press Send: it submits the words shown. Press Escape instead: the box
+                  closes with its draft kept.
+                </li>
+                <li>
+                  If dictation fails, the empty box names the reason and offers Retry
+                  dictation; words already heard stay editable.
+                </li>
+              </ul>
             </section>
 
             <section id="bg-design-comments">
@@ -802,26 +770,45 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: point with freehand strokes</span>
               </h3>
               <p id="bg-drawing-comments-guide">
-                Press <kbd>w</kbd> and draw anywhere across the page. Start over this
-                guide or in the space around it to anchor the comment here: a stroke in
-                empty space belongs to the nearest element on screen. Every further
-                stroke joins the same drawing, wherever it starts. Send the drawing
-                alone or add words first. The comment box pictures the page beneath the
-                drawing beside Undo last stroke and Remove drawing. Resize the window:
-                text reflow keeps the ink’s size, while a diagram carries its drawing in
-                the diagram’s own coordinates. In the box, <kbd>⌘Z</kbd> and
-                <kbd>⌘⇧Z</kbd> undo and redo strokes and words in the order you made
-                them. <kbd>Escape</kbd> puts the box away and leaves the drawing on the
-                page, dashed, and the next stroke brings the box back;
-                <kbd>z</kbd> takes back a stroke while it is away. A second
-                <kbd>Escape</kbd> leaves Draw mode with the drawing still showing. Press
-                <kbd>w</kbd> again and start over this guide: the stroke joins the kept
-                drawing rather than replacing it. On a touch screen, “Draw mode” is in
-                “More page controls”, and “Undo stroke” and “Exit Draw mode” stand on
-                the banner while the mode holds. Try drawing over a choice control: the
-                stroke marks the choice without selecting it. Leaf’s comment box and
-                draft editing controls remain usable while Draw mode holds.
+                Press <kbd>w</kbd> and draw across this paragraph or the space around
+                it: the comment anchors here, because a stroke in empty space belongs to
+                the nearest element on screen. Every further stroke joins the same
+                drawing, wherever it starts.
               </p>
+              <ul id="bg-drawing-comments-steps">
+                <li>
+                  Look at the comment box: it pictures the page beneath the drawing,
+                  beside Undo last stroke and Remove drawing. Send the drawing alone, or
+                  add words first.
+                </li>
+                <li>
+                  In the box, press <kbd>⌘Z</kbd> and <kbd>⌘⇧Z</kbd>: strokes and words
+                  are undone and redone in the order you made them.
+                </li>
+                <li>
+                  Resize the window: where text reflows, the ink keeps its size; on a
+                  diagram, the drawing stays in the diagram's own coordinates.
+                </li>
+                <li>
+                  Press <kbd>Escape</kbd>: the box goes away and the drawing stays on
+                  the page, dashed. Press <kbd>z</kbd> to take back a stroke while the
+                  box is away; the next stroke brings the box back.
+                </li>
+                <li>
+                  Press <kbd>Escape</kbd> again: Draw mode ends and the drawing still
+                  shows. Press <kbd>w</kbd> and draw over this paragraph: the stroke
+                  joins the kept drawing rather than replacing it.
+                </li>
+                <li>
+                  Draw over a choice control: the stroke marks the choice without
+                  selecting it. Leaf's comment box and draft editing controls stay
+                  usable while Draw mode is on.
+                </li>
+                <li>
+                  On a touch screen, choose “Draw mode” in “More page controls”; “Undo
+                  stroke” and “Exit Draw mode” stand on the banner while the mode is on.
+                </li>
+              </ul>
             </section>
 
             <section id="bg-area-capture">
@@ -830,16 +817,29 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 ><span class="bg-feature-detail">: attach part of the page</span>
               </h3>
               <p id="bg-area-capture-guide">
-                Open “More page controls” and choose “Capture area”. Drag a rectangle
-                around this guide or a nearby widget, then choose “Attach capture” in
-                the banner. The selected image appears in an anchored comment: add
-                words, remove the image, or send it alone. Arrow keys move the
-                rectangle;
-                <kbd>Shift</kbd> with an arrow resizes it. <kbd>Enter</kbd> attaches the
-                image, and <kbd>Escape</kbd> or “Cancel capture” leaves without a
-                capture. Try a scrolled pane or a diagram to inspect the captured visual
-                state.
+                “Capture area” attaches an image of part of the page to a comment.
               </p>
+              <ul id="bg-area-capture-steps">
+                <li>
+                  Open “More page controls”, choose “Capture area”, and drag a rectangle
+                  around this paragraph or a nearby widget. Arrow keys move the
+                  rectangle, and <kbd>Shift</kbd>
+                  with an arrow resizes it.
+                </li>
+                <li>
+                  Choose “Attach capture” in the banner, or press <kbd>Enter</kbd>: the
+                  image appears in an anchored comment, where you can add words, remove
+                  the image, or send it alone.
+                </li>
+                <li>
+                  Press <kbd>Escape</kbd> or “Cancel capture” instead: you leave without
+                  a capture.
+                </li>
+                <li>
+                  Capture a scrolled pane or a diagram: the image shows its current
+                  visual state.
+                </li>
+              </ul>
             </section>
 
             <section id="bg-align-current-item">
@@ -850,15 +850,28 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 >
               </h3>
               <p id="bg-align-current-item-guide">
-                Select some words in this guide, or focus its heading, then scroll until
-                it sits lower on screen. Press <kbd>g</kbd> and <kbd>z</kbd>, or choose
-                Align current item at top in More page controls: its reading block moves
-                just below the banner, keeping your focus and selection. A focused
-                Question aligns its question; a focused thread in Threads aligns its
-                card inside the panel. A bounded reading area aligns within its own
-                scroller. Browser Back has no new stop to undo. Inside an editor, typing
-                <kbd>g</kbd><kbd>z</kbd> writes those letters.
+                Align current item at top moves the block you are reading to just below
+                the banner.
               </p>
+              <ul id="bg-align-current-item-steps">
+                <li>
+                  Select some words in this paragraph, or focus the heading above, and
+                  scroll until it sits lower on screen. Press <kbd>g</kbd> and
+                  <kbd>z</kbd>, or choose Align current item at top in More page
+                  controls: its reading block moves just below the banner, and your
+                  focus and selection stay.
+                </li>
+                <li>
+                  Try it on a focused ask: its question aligns. Try it on a focused
+                  thread in Threads: its card aligns inside the panel. In a bounded
+                  reading area, the block aligns within that area's own scroller.
+                </li>
+                <li>
+                  Press browser Back: there is no new stop to undo. Inside an editor,
+                  typing
+                  <kbd>g</kbd><kbd>z</kbd> writes those letters.
+                </li>
+              </ul>
             </section>
 
             <section id="bg-restored-selection">
@@ -887,16 +900,29 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 >
               </h3>
               <p id="bg-kept-draft-guide">
-                Select a few words here, press <kbd>c</kbd>, and type a sentence without
-                sending it. Press <kbd>Escape</kbd>: the box goes, the words stay, and a
-                notice names the destination that returns to them. Scroll somewhere
-                else, then press <kbd>g</kbd> and <kbd>i</kbd>, or choose Resume writing
-                in More: the page returns to this editor and restores the caret. Send
-                the comment, move elsewhere and use Resume writing again: its
-                conversation opens ready for your next reply. Editing a reply or the
-                draft block below makes that editor the destination; focusing a box
-                alone leaves it alone.
+                Resume writing takes you back to words you put away without sending.
               </p>
+              <ul id="bg-kept-draft-steps">
+                <li>
+                  Select a few words here, press <kbd>c</kbd>, type a sentence without
+                  sending it, and press <kbd>Escape</kbd>: the box goes, the words stay,
+                  and a notice names the destination that returns to them.
+                </li>
+                <li>
+                  Scroll somewhere else, then press <kbd>g</kbd> and <kbd>i</kbd>, or
+                  choose Resume writing in More: the page returns to this editor and
+                  restores the caret.
+                </li>
+                <li>
+                  Send the comment, move elsewhere, and use Resume writing again: its
+                  conversation opens ready for your next reply.
+                </li>
+                <li>
+                  Edit a reply or the draft block below: that editor becomes the
+                  destination. Focusing a box without editing it leaves the destination
+                  unchanged.
+                </li>
+              </ul>
               <lf-draft id="bg-resume-edit">
                 <pre>The revised message belongs here.</pre>
               </lf-draft>
@@ -924,6 +950,39 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 empty to inspect automatic arrival.
               </p>
             </section>
+
+            <section id="bg-carried-comment">
+              <h3>
+                <strong>Move a comment</strong
+                ><span class="bg-feature-detail"
+                  >: carry the box or card off the words it covers</span
+                >
+              </h3>
+              <p id="bg-carried-comment-guide">
+                A passage's comment box and a thread card both move by their edge.
+              </p>
+              <ul id="bg-carried-comment-steps">
+                <li>
+                  Select a sentence here and press <kbd>c</kbd>. Point just outside the
+                  box's border: the pointer becomes a hand. Drag the box over the next
+                  paragraph and type: the caret stays and the box stays where you
+                  dropped it.
+                </li>
+                <li>
+                  Scroll: the box travels with its passage at the spot you chose. Send:
+                  the thread card opens there.
+                </li>
+                <li>
+                  Rest the pointer on the card's padding: after a beat its border
+                  lights. Drag it from there; its words, buttons and links keep their
+                  own presses, and on a touch screen a finger carries it too.
+                </li>
+                <li>
+                  Resize the window, or open another thread: the surface returns to
+                  where the page would stand it.
+                </li>
+              </ul>
+            </section>
           </section>
         </lf-tab>
 
@@ -945,7 +1004,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Open threads
               </button>
               <button type="button" class="button" data-view="you" aria-pressed="false">
-                On you
+                On me
               </button>
               <button
                 type="button"
@@ -1014,50 +1073,88 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: anchored threads</span>
             </h2>
             <p id="bg-threads-guide">
-              “Resolve” settles the conversation; “Sent” beside a message records
-              delivery. Type a reply: its small Send arrow turns blue when there
-              is something to send, without moving the field.
-              With Threads closed, a Thread control or marked passage opens the thread
-              inline; <kbd>t</kbd> moves to the next inline card and <kbd>T</kbd> to the
-              previous one. Scroll far from a commented passage, then press
-              <kbd>t</kbd>: the card enters with its passage as the page approaches it.
-              Scroll away and back; it leaves and returns by the same attachment rule.
-              Open Threads while one is focused, including with <kbd>g</kbd> then
-              <kbd>T</kbd>, and the same thread stays focused in the panel. Under
-              “View”, filters narrow the list to “Open”, “On you”, “On agent”, or
-              “Resolved”, and combine “Page” or “Anchored” with “Content” or “Layer”.
-              “Order” switches the list from the page's order to “Recent”, which puts
-              the thread spoken in last first under its day. Collapsed titles retain
-              their message count, last message activity, and current status; “On you”
-              also names the action owed. Each thread has a short title chosen by the
-              agent; open one to read the full messages beneath it. Reply follows a
-              short conversation directly; in a long conversation it stays visible while
-              you scroll. Send a reply: focus stays on the conversation card or its
-              title, including in the floating card. Press <kbd>c</kbd> to write again;
-              <kbd>Escape</kbd> leaves a floating card for its page target. With a panel
-              thread open and its reply editor idle, have the agent append a message: it
-              appears immediately, moving Reply and later cards down while the existing
-              messages keep their place. Repeat with an answer taller than the panel:
-              the previous reading stays in view rather than jumping to the end. While
-              you write in a short thread, an arriving reply waits behind “new reply”
-              until you open it. Switch to another browser tab, have the agent add a
-              reply, then return: held replies and the first refreshed reply appear
-              automatically with the usual arrival tint. Your draft and caret stay in
-              the same editor. Leave this page visible beside another window while
-              composing and focus that window: new replies still wait behind the notice.
+              Each thread has a short title the agent chose; open one to read its
+              messages. With Threads closed, a thread opens inline beside its passage.
             </p>
+            <ul id="bg-threads-steps">
+              <li>
+                Press a Thread control or a marked passage: its thread opens inline.
+                Press
+                <kbd>t</kbd> for the next inline card and <kbd>T</kbd> for the previous
+                one.
+              </li>
+              <li>
+                Scroll far from a commented passage and press <kbd>t</kbd>: the card
+                enters with its passage as the page approaches it. Scroll away and back:
+                the card leaves and returns with its passage.
+              </li>
+              <li>
+                With a thread focused, open Threads, including with <kbd>g</kbd> then
+                <kbd>T</kbd>: the same thread stays focused in the panel.
+              </li>
+              <li>
+                Under “View”, choose “Open” or “Resolved”, and “Me” or the agent's name
+                under “Waiting on”, to narrow the list, and combine “Page” or “Anchored”
+                with “Content” or “Design”. Switch “Order” from the page's order to
+                “Recent”: the thread with the latest message comes first under its day.
+              </li>
+              <li>
+                Look at a collapsed row: it keeps its message count, last activity, and
+                status, and “On me” also names the action you owe.
+              </li>
+              <li>
+                Open a short thread: Reply follows its last message. In a long one,
+                Reply stays visible while you scroll.
+              </li>
+              <li>
+                Send a reply: focus stays on the card or its title, in the floating card
+                too. Press
+                <kbd>c</kbd> to write again, or <kbd>Escape</kbd> to leave a floating
+                card for its target on the page.
+              </li>
+              <li>
+                With a panel thread open and its reply box idle, have the agent add a
+                message: it appears at once, Reply and later cards move down, and the
+                existing messages keep their place. With an answer taller than the
+                panel, what you were reading stays in view rather than jumping to the
+                end.
+              </li>
+              <li>
+                While you write in a short thread, have the agent reply: the reply waits
+                behind “new reply” until you open it.
+              </li>
+              <li>
+                Switch to another browser tab, have the agent reply, and return: held
+                replies and the first new reply appear with the usual arrival tint, and
+                your draft and caret stay in the same editor. If the page instead stays
+                visible beside another focused window, new replies still wait behind the
+                notice.
+              </li>
+            </ul>
             <section id="bg-thread-api">
               <p class="eyebrow bg-feature-elements">lf-conversation-workspace</p>
               <h3>Package conversation readers</h3>
               <p id="bg-thread-api-guide">
-                Switch between Conversation, Shelf, and Feed. Answer the channel
-                Question inside its message, write a reply, and change layouts before
-                sending: the same draft follows the conversation. Double-click your own
-                message to rewrite it in any layout, Feed included. Start a conversation
-                and mark the proofreading task Done. The package's queues and Leaf's
-                Questions panel show the same outcomes. First unread and question
-                navigation arrive in this reader.
+                This package reader shows the same conversation as Conversation, Shelf,
+                or Feed.
               </p>
+              <ul id="bg-thread-api-steps">
+                <li>
+                  Answer the channel ask inside its message, write a reply, and switch
+                  layouts before sending: the same draft follows the conversation.
+                </li>
+                <li>
+                  Double-click your own message: you can rewrite it in any layout, Feed
+                  included.
+                </li>
+                <li>
+                  Start a conversation and mark the proofreading to-do Done: the
+                  package's lists and Leaf's Questions panel show the same outcomes.
+                </li>
+                <li>
+                  Use first-unread and question navigation: each lands in this reader.
+                </li>
+              </ul>
               <script id="bg-thread-api-history" type="application/json">
                 [
                   {
@@ -1082,7 +1179,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   },
                   {
                     "id": "api-proofread",
-                    "kind": "task",
+                    "kind": "todo",
                     "author": "agent",
                     "owner": "user",
                     "subject": { "kind": "page" },
@@ -1157,31 +1254,54 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
             <p id="bg-reply-lifetime">
               <strong>An unfinished reply.</strong> Open a thread inline or in Threads
-              and begin a reply. Have the agent resolve it while the caret is in your
-              words: the editor and caret stay put. Tab to Send and press Enter to send
-              the reply and reopen the thread. Have the agent resolve another unfinished
-              reply, then Tab past Send: the editor stays visible. Return to the reply
-              and press Escape, or press elsewhere, to put it away and keep the words.
-              Reopen the thread, start a reply, and use Resolve yourself: the editor
-              closes and keeps its draft. Reload the page, choose Resolved under View,
-              and open that thread: the editor stays closed until Reopen recovers the
-              words.
+              and begin a reply.
             </p>
+            <ul id="bg-reply-lifetime-steps">
+              <li>
+                Have the agent resolve the thread while the caret is in your words: the
+                editor and caret stay put. Tab to Send and press Enter: the reply is
+                sent and the thread reopens.
+              </li>
+              <li>
+                Have the agent resolve another thread with an unfinished reply, then Tab
+                past Send: the editor stays visible. Return to the reply and press
+                Escape, or press elsewhere: the reply is put away with its words kept.
+              </li>
+              <li>
+                Reopen the thread, start a reply, and press Resolve yourself: the editor
+                closes and keeps its draft. Reload, choose Resolved under View, and open
+                that thread: the editor stays closed until Reopen recovers the words.
+              </li>
+            </ul>
             <p id="bg-new-thread">
               <strong>A clean passage.</strong> Select some of these words, or
-              <kbd>Alt</kbd>-click this paragraph, to start a comment. On a touch
-              screen, select words and tap “Comment on selection” in the banner. The
-              field opens after the native selection menu closes. To comment on the
-              whole paragraph, open “More page controls”, choose “Select element”, then
-              tap it. “Cancel selection” leaves the page unchanged. Type into the
-              floating field and send it. The thread opens with your words already in
-              it, before the server has answered, and becomes another Thread control at
-              this passage. In Threads, its collapsed row reads
-              <code>Generating title</code> until the agent names it. A send slow enough
-              to notice goes quiet until the log takes it. One the server refuses leaves
-              the words on this passage, where opening the composer again finds them;
-              the card under “Comment on the page” gets them back in place.
+              <kbd>Alt</kbd>-click this paragraph, to start a comment. Type into the
+              floating field and send it.
             </p>
+            <ul id="bg-new-thread-steps">
+              <li>
+                Look at the passage: the thread opens with your words already in it,
+                before the server has answered, and becomes another Thread control here.
+                In Threads, its collapsed row reads <code>Generating title</code> until
+                the agent names it.
+              </li>
+              <li>
+                If the send takes a moment, the message's header reads “Sending” until
+                the server records it.
+              </li>
+              <li>
+                If the server refuses the send, the words stay on this passage, where
+                opening the comment box again finds them; the card under “Comment on the
+                page” gets them back in place.
+              </li>
+              <li>
+                On a touch screen, select words and tap “Comment on selection” in the
+                banner: the field opens after the native selection menu closes. To
+                comment on the whole paragraph, open “More page controls”, choose
+                “Select element”, then tap it; “Cancel selection” leaves the page
+                unchanged.
+              </li>
+            </ul>
             <p id="bg-revised-quotes-guide">
               <strong>A revised passage.</strong> Select “first draft” and send a
               comment, then select “early estimate” and send another. Keep both threads
@@ -1208,20 +1328,32 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 };</code></pre>
             <p id="bg-rewrite-guide">
               <strong>Rewriting your own words.</strong> The thread on the line below
-              holds a message of yours and the agent's answer. Double-click your
-              message, or press the Edit control at the end of its header, to open its
-              words where they stand: a finger always sees that control, and a pointer
-              finds it on hover. In the thread's empty reply box,
-              <kbd>&uarr;</kbd> opens your latest message the same way, and
-              <kbd>&uarr;</kbd> from the start of an open rewrite opens your message
-              before it. Nothing around the message moves: its words stay where they
-              were, and Cancel and Save take its header. <kbd>Enter</kbd> saves.
-              <kbd>Escape</kbd> and Cancel leave the message as it was and drop your
-              words; words a reload interrupts wait as an "unsaved edit". Each puts you
-              back in the reply box. The new words show at once, labelled edited, whose
-              tooltip says what it said before, and the agent owes the message, as it
-              now reads, an answer.
+              holds a message of yours and the agent's answer.
             </p>
+            <ul id="bg-rewrite-steps">
+              <li>
+                Double-click your message, or press the Edit control at the end of its
+                header: its words open for editing where they stand, nothing around the
+                message moves, and Cancel and Save take its header. A finger always sees
+                the Edit control; a pointer finds it on hover.
+              </li>
+              <li>
+                In the thread's empty reply box, press <kbd>&uarr;</kbd>: your latest
+                message opens the same way. Press <kbd>&uarr;</kbd> from the start of an
+                open rewrite: your message before it opens.
+              </li>
+              <li>
+                Press <kbd>Enter</kbd> to save: the new words show at once, labelled
+                edited, with a tooltip saying what the message said before, and the
+                agent owes the message, as it now reads, an answer.
+              </li>
+              <li>
+                Press <kbd>Escape</kbd> or Cancel instead: the message stays as it was
+                and your words are dropped. Words a reload interrupts wait as an
+                "unsaved edit". Saving, Escape, and Cancel each put you back in the
+                reply box.
+              </li>
+            </ul>
             <p id="bg-rewrite">The kickoff runs from nine to eleven.</p>
             <p id="bg-markdown-draft">
               <strong>Markdown as you type.</strong> Every box Leaf gives you to write
@@ -1241,7 +1373,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <strong>Thread states</strong
               ><span class="bg-feature-detail">: live before and after examples</span>
             </h2>
-            <p id="bg-thread-states-guide" data-width="column">
+            <p id="bg-thread-states-guide">
               These passages have real threads in this gallery. Open Threads to compare
               each row's status and compact last-activity time, then open a row to
               inspect its messages. The title remains in the header when the card opens.
@@ -1256,7 +1388,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   lettering. Reset starts a fresh untitled thread. Reduced motion shows
                   solid muted text.
                 </p>
-                <button id="bg-title-sheen-show" type="button">
+                <button id="bg-title-sheen-show" class="button" type="button">
                   Open sample thread
                 </button>
                 <lf-sample
@@ -1293,11 +1425,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <p id="bg-thread-text">
                     <strong>An existing thread.</strong> The sample agenda has room for
                     one more topic. Its speech-bubble control is green, and hovering it
-                    shows “On you” under the label. The image question still needs an
-                    answer even though the agent added a later progress message. In
-                    Threads, “On you” still says to answer the question. Open the
+                    shows “My turn to answer” under the label. The image question still
+                    needs an answer even though the agent added a later progress
+                    message. In Threads, “My turn to answer” still says so. Open the
                     control and reply: the control turns blue as the thread comes back
-                    to the agent. The same reading fills the panel’s “On you” filter and
+                    to the agent. The same reading fills the panel’s “Me” filter and
                     this target’s Page Map row.
                   </p>
                   <p id="bg-thread-media">
@@ -1374,20 +1506,37 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Choose “Progress messages” in the practice page, then use “Show 2
                 progress messages” beside the answer’s timestamp with a press or Enter.
                 Expanded progress runs have an inset border and ordinary message headers
-                on the page’s normal background. User replies separate the groups.
+                on the page’s normal background. User replies separate the groups. The
+                later room check has no answer yet, so it stands as a dim working
+                message above the reply box rather than as a reply, and counts nothing
+                unread.
               </p>
               <p id="bg-thread-unread">
-                <strong>Unread replies.</strong> The seeded agent replies start unread.
-                Use “Next unread” in Threads, or press <kbd>g</kbd> then <kbd>u</kbd>,
-                to reveal the earliest unread reply, including one covered by a summary.
-                A fully exposed short reply leaves the count; scroll through a long
-                reply to read all of it. The blue rail marks each unread message without
-                shifting the transcript. Interactive replies clear when their visible
-                body has been shown too; replying, answering, or resolving also marks
-                the thread's current messages read. A margin control whose thread holds
-                unread replies carries the same dot as Threads. “On you to answer” still
-                identifies an outstanding question after it is read.
+                <strong>Unread replies.</strong> The seeded agent replies start unread,
+                and a blue rail marks each unread message without shifting the
+                transcript.
               </p>
+              <ul id="bg-thread-unread-steps">
+                <li>
+                  Use “Next unread” in Threads, or press <kbd>g</kbd> then <kbd>u</kbd>:
+                  the earliest unread reply is revealed, including one covered by a
+                  summary.
+                </li>
+                <li>
+                  Show a short reply in full: it leaves the count. Scroll through a long
+                  reply to read all of it. An interactive reply clears once its visible
+                  body has been shown too.
+                </li>
+                <li>
+                  Reply, answer, or resolve in a thread: its current messages are marked
+                  read.
+                </li>
+                <li>
+                  Look at a margin control whose thread holds unread replies: it carries
+                  the same dot as Threads. “My turn to answer” still identifies an
+                  outstanding question after you read it.
+                </li>
+              </ul>
             </section>
           </section>
         </lf-tab>
@@ -1426,14 +1575,16 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               with the author. On the public site, make a decision or comment first to
               activate your private page, then return here.
             </p>
-            <button id="bg-read-user-view" type="button">Read observed views</button>
+            <button id="bg-read-user-view" class="button" type="button">
+              Read observed views
+            </button>
             <pre id="bg-user-view-reading" hidden></pre>
           </section>
 
           <section id="bg-widths" data-width="wide">
             <p class="eyebrow">data-width</p>
             <h2><strong>Responsive block widths</strong></h2>
-            <p id="bg-widths-guide" data-width="column">
+            <p id="bg-widths-guide">
               Prose keeps the reading column inside this wide section. Individual
               evidence blocks can instead use the shared wide measure or all space the
               shell has left.
@@ -1462,25 +1613,24 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </table>
           </section>
 
-          <section id="bg-ask-track">
+          <section id="bg-ask-across">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-chart · lf-options</p>
             <h2>
-              <strong>A Question beside its figure</strong
-              ><span class="bg-feature-detail">: the options track</span>
+              <strong>An ask around its figure</strong
+              ><span class="bg-feature-detail">: options laid across</span>
             </h2>
-            <p id="bg-ask-track-guide">
-              This Question holds a chart and ends in one option list, and it takes the
-              wide measure. In a window wide enough for both, the list stands in a
-              column beside the chart and stays put while the evidence scrolls past it;
-              narrow the window and the list drops below the chart again.
+            <p id="bg-ask-across-guide">
+              This ask holds a chart and ends in one list of titled options. Under the
+              chart the three cards stand side by side, so the question, the chart and
+              every option fit one window; narrow the window and the cards stack.
             </p>
-            <lf-ask id="bg-track-ask" data-width="wide">
+            <lf-ask id="bg-across-ask">
               <h3>Which trail should the sample team hike on Saturday?</h3>
-              <p id="bg-track-premise">
+              <p id="bg-across-premise">
                 The team walks at a sample pace of 300 m of climb an hour, and the last
                 bus leaves the trailhead at 17:00.
               </p>
-              <lf-chart id="bg-track-climb" data-height="180">
+              <lf-chart id="bg-across-climb" data-height="180">
                 <pre>
 {
   ariaLabel: "Climb by sample trail: Ridge loop 900 m, Lake path 350 m, Pass traverse 1,250 m",
@@ -1501,19 +1651,19 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 }
 </pre>
               </lf-chart>
-              <p id="bg-track-reading">
+              <p id="bg-across-reading">
                 The traverse's climb takes a little over four hours on its own, which
                 leaves no margin before the bus.
               </p>
-              <lf-options id="bg-track-choice" choose>
-                <lf-option id="bg-track-ridge">
+              <lf-options id="bg-across-choice" choose>
+                <lf-option id="bg-across-ridge">
                   <strong>Ridge loop</strong> Three hours of climbing with views the
                   whole way.
                 </lf-option>
-                <lf-option id="bg-track-lake">
+                <lf-option id="bg-across-lake">
                   <strong>Lake path</strong> An easy morning, back long before the bus.
                 </lf-option>
-                <lf-option id="bg-track-pass">
+                <lf-option id="bg-across-pass">
                   <strong>Pass traverse</strong> The longest day, and a tight finish.
                 </lf-option>
               </lf-options>
@@ -1521,16 +1671,34 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           </section>
 
           <section id="bg-side-list">
-            <p class="eyebrow">list="side"</p>
+            <p class="eyebrow bg-feature-elements">lf-tabs · lf-tally</p>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
-              The tab list stands left of the open item, each row its name and summary,
-              and each run of rows sharing a <code>group</code> under its heading. Walk
-              it with the up and down arrows, which pass the headings by. Answer the
-              first item's Question and its row shows a check and the option you picked,
-              and undo takes them away; narrow the window below the set's 36rem and the
-              list becomes a row above the item, with each group's name before its first
-              row and the rows keeping only the check.
+              The tab list stands left of the open item: each row shows its name and
+              summary, and rows sharing a <code>group</code> sit under that group's
+              heading. The <code>lf-tally</code> above it counts the queue's asks still
+              to answer.
+            </p>
+            <ul id="bg-side-list-steps">
+              <li>
+                Walk the list with the up and down arrows: they pass the headings by.
+              </li>
+              <li>
+                Press Next question in the tally: it opens the first item's ask, whose
+                row carries an open mark.
+              </li>
+              <li>
+                Answer the ask: its row shows a check and the option you picked, and the
+                tally says Answered. Undo puts the open mark and the count back.
+              </li>
+              <li>
+                Narrow the window below the set's 36rem: the list becomes a row above
+                the item, each group's name before its first row, and the rows keep only
+                the check.
+              </li>
+            </ul>
+            <p id="bg-side-left">
+              <lf-tally id="bg-side-tally" for="bg-side-queue" next></lf-tally>
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
@@ -1588,30 +1756,48 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </h2>
             <p id="bg-margin-controls-guide">
               <strong>One inventory, using the production controls.</strong> A margin
-              entry is runtime-owned chrome whose shared code name is
-              <code>lf-margin-entry</code>, rather than an authored element type. Rank
-              and behavior cover every action, disclosure, status, tone, and ordering
-              rank. Message workflow follows one user move: “Sent” records admission,
-              “Queued” means a later turn will handle it, “Picked up” means a turn
-              accepted it, and “Working” or “Replying” reports progress on its answer.
-              “Turn ended” and “Update stale” keep uncertainty visible without claiming
-              an interruption. Green marks a thread that needs an answer from you; other
-              threads stay blue. Pickup and work use status words on the existing
-              control; a status face carries the same workflow when no control survives.
-              Face anatomy shows the icon-or-glyph choice, a related-reading count, and
-              the transient label with its quieter context. User interaction compares
-              rest, hover or focus, an open disclosure, and a selected page reading.
-              Click and <kbd>Tab</kbd> onto the live samples to exercise their real
-              feedback. The projection sample stands at this exhibit's margin; open Page
-              Map to see that same contributed control as a full labeled row. Reload to
-              see the one-time pulse as “Working” arrives. A control dims only while its
-              user action is waiting for the log to confirm it. Open a thread and
-              shorten the window: its messages scroll between the header and reply
-              field, and the scrollbar spans those messages alone. Scroll the page to
-              give a short conversation more room; the card expands once all its
-              messages fit. The reply field keeps the same inset at both sides and below
-              it.
+              entry is chrome the runtime draws, named <code>lf-margin-entry</code> in
+              code, not an element an author writes. The Rank and behavior samples cover
+              every action, disclosure, status, tone, and ordering rank.
             </p>
+            <ul id="bg-margin-controls-steps">
+              <li>
+                Read the Turn and agent workflow samples, which follow one update:
+                “Sent” means the server recorded it, “Queued” that a later turn will
+                handle it, “Picked up” that a turn accepted it, and “Working” or
+                “Replying” that its answer is in progress. “Turn ended” and “Update
+                stale” show uncertainty without claiming an interruption.
+              </li>
+              <li>
+                Compare thread colors: green marks a thread that needs an answer from
+                you, and other threads are blue. Pickup and work add status words to the
+                existing control; where no control remains, a status face carries the
+                same workflow.
+              </li>
+              <li>
+                Read Face anatomy: the choice of icon or glyph, a count of related
+                readings, and the transient label with its quieter context. User
+                interaction compares rest, hover or focus, an open disclosure, and a
+                selected page reading.
+              </li>
+              <li>
+                Click and <kbd>Tab</kbd> onto the live samples: each gives its real
+                feedback. A control dims only while its action waits for the log to
+                confirm it.
+              </li>
+              <li>
+                Find the Projection sample in this exhibit's margin, then open Page Map:
+                the same contributed control appears as a full labeled row.
+              </li>
+              <li>Reload: “Working” arrives with a one-time pulse.</li>
+              <li>
+                Open a thread and shorten the window: its messages scroll between the
+                header and the reply field, and the scrollbar spans the messages alone.
+                Scroll the page to give a short conversation more room: the card expands
+                once all its messages fit. The reply field keeps the same inset at both
+                sides and below.
+              </li>
+            </ul>
             <lf-margin-entry-gallery
               id="bg-margin-controls-samples"
             ></lf-margin-entry-gallery>
@@ -1666,9 +1852,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               ><span class="bg-feature-detail">: annotations beside their targets</span>
             </h3>
             <p id="bg-margin-layer-guide">
-              Leaf places threads, unanswered Questions, actions, changes, and delivery
-              or work status beside the content they concern. With enough room beside
-              the reading column, their controls stand in the rail. Where the rail is
+              Leaf places threads, unanswered asks, actions, changes, and delivery or
+              work status beside the content they concern. With enough room beside the
+              reading column, their controls stand in the rail. Where the rail is
               absent, the same controls appear as pins near their targets on the page.
               Every annotation uses the same filled teardrop face as a pin. Its glyph
               and label keep their meaning: a Thread opens a conversation, Accept acts
@@ -1700,7 +1886,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <strong>Action pins without a rail.</strong> This practice page has no
               rail. The suggestion's “Accept” and “Reject” controls appear as pins
               beside the proposed wording. Choose either, then use “Undo” to restore the
-              suggestion. These annotations work without a thread or a Question.
+              suggestion. These annotations work without a thread or an ask.
             </p>
             <lf-sample id="bg-margin-layer-actions" label="suggestion without a rail">
               <template id="bg-margin-layer-actions-page" data-sample data-rail="none">
@@ -2143,19 +2329,32 @@ gallery/
                 ><span class="bg-feature-detail">: saved panel selection</span>
               </h3>
               <p id="bg-tabs-guide">
-                This embedded sample is a framed tabbed section. The browser test also
-                presents this same tab set at the root of a page, where it becomes
-                borderless top navigation for page-scale views. Both forms remember the
-                selected panel after reload. Horizontal tab strips stay at the top of
-                the view while their panel is being read, below any enclosing tabs.
-                Switching a pinned embedded strip opens its new panel at the start. At
-                page level, scroll a view and switch away and back: an unread view opens
-                below the tab strip, and a view you already read returns to its place.
-                The strip stays put even when the next view is shorter than the window.
-                Browser Back and Forward return to the corresponding views. Narrow the
-                window until the gallery’s own tab names overflow, then page them with
-                the edge arrows. Reduced motion makes that move immediate.
+                This embedded sample is a framed tabbed section. At the root of a page,
+                the same tab set becomes borderless top navigation for page-scale views,
+                as the browser test presents it.
               </p>
+              <ul id="bg-tabs-steps">
+                <li>
+                  Choose a tab and reload: both forms remember the selected panel.
+                </li>
+                <li>
+                  Scroll while reading a panel: a horizontal tab strip stays at the top
+                  of the view, below any enclosing tabs. Switch tabs on a pinned
+                  embedded strip: the new panel opens at its start.
+                </li>
+                <li>
+                  In this gallery's own views, scroll one, switch away, and switch back:
+                  a view you have not read opens below the tab strip, and a view you
+                  already read returns to its place. The strip stays put even when the
+                  next view is shorter than the window. Browser Back and Forward return
+                  to the corresponding views.
+                </li>
+                <li>
+                  Narrow the window until the gallery's own tab names overflow, then
+                  page them with the edge arrows. With reduced motion, the move is
+                  immediate.
+                </li>
+              </ul>
               <lf-tabs id="bg-tabs">
                 <lf-tab id="bg-tab-current" label="Current">
                   <p id="bg-tab-current-text">
@@ -2170,13 +2369,23 @@ gallery/
               </lf-tabs>
               <h4 id="bg-overflow-tabs-heading">A rollout review in a narrow column</h4>
               <p id="bg-overflow-tabs-guide">
-                This review keeps six sections in one compact row. The native scrollbar
-                is hidden; use the edge arrows to reveal more names, or swipe the row on
-                a touch screen. Focus a tab and use Left or Right to switch sections, or
-                Home and End to reach the first and last. Narrow the window: the
-                selected name stays visible and its section stays open. The arrows
-                disappear at an edge with no more names.
+                This review keeps six sections in one compact row, with the native
+                scrollbar hidden.
               </p>
+              <ul id="bg-overflow-tabs-steps">
+                <li>
+                  Use the edge arrows, or swipe the row on a touch screen: more names
+                  come into view. The arrows disappear at an edge with no more names.
+                </li>
+                <li>
+                  Focus a tab and press Left or Right: the section switches. Home and
+                  End reach the first and last.
+                </li>
+                <li>
+                  Narrow the window: the selected name stays visible and its section
+                  stays open.
+                </li>
+              </ul>
               <lf-tabs id="bg-rollout-tabs">
                 <lf-tab id="bg-rollout-summary" label="Summary">
                   <p id="bg-rollout-summary-text">
@@ -2377,7 +2586,7 @@ gallery/
                   page; another origin cannot frame it.
                 </p>
                 <div id="bg-durable-frame-host">
-                  <button id="bg-durable-frame-open" type="button">
+                  <button id="bg-durable-frame-open" class="button" type="button">
                     Open the earlier map decision
                   </button>
                   <iframe
@@ -2466,21 +2675,32 @@ gallery/
                 stays at the top of the view until the pair ends, below any page tabs.
                 This pair carries
                 <code>outlines</code>, so outlines mark each region where the two images
-                differ, on both sides of the divider, and the rail counts them.
+                differ, on both sides of the divider. The rail offers three views:
+                Plain, Outlines, and Pixels. Outlines starts selected; Plain hides the
+                outlines, while Pixels shows the after image greyed with every changed
+                pixel painted over it. Use the arrow keys to select a view, or choose it
+                directly. Hover or focus Outlines to read the changed and moved counts,
+                or hold it on a phone. Slide off before releasing to leave the current
+                view selected. Clicking the pixel picture returns to the previous
+                comparison view with its divider preserved.
               </p>
               <lf-shot
                 id="bg-shot"
                 outlines
+                pixels
                 alt="a sample run list with and without a status column"
                 before="/media/051bee487bfb5d13.png"
                 after="/media/a99a1b63048502d0.png"
               ></lf-shot>
               <p id="bg-shot-plain-guide">
-                The same pair without <code>outlines</code>: nothing is marked, and the
-                rail says nothing, since the pair has a change to point at.
+                The same pair without <code>outlines</code> offers Plain and Pixels,
+                starting in Plain. Select Pixels to inspect every changed pixel.
+                Selecting it again keeps that view open. Choose Plain, Before or After,
+                or click the pixel picture, to return to the comparison.
               </p>
               <lf-shot
                 id="bg-shot-plain"
+                pixels
                 alt="a sample run list with and without a status column"
                 before="/media/051bee487bfb5d13.png"
                 after="/media/a99a1b63048502d0.png"
@@ -2701,19 +2921,18 @@ switch --readers checkout-api,orders-api</code></pre>
               “Cancel”.
             </p>
             <p id="bg-cut-guide">
-              This board carries more columns than the page has room for, so it scrolls
-              sideways. Its content fades at each edge with more beyond it: the right
-              edge at first, both edges while crossing, and the left edge at the end.
-              The layer writes these marks on any box in that state, because the
-              platform’s own scrollbar draws nothing until something scrolls it. Boxes
-              holding everything they have — the code block and the diagram above — wear
-              none.
+              This board has more columns than the page has room for, so it scrolls
+              sideways. Scroll it: the content fades at each edge with more beyond it,
+              the right edge at first, both edges while crossing, and the left edge at
+              the end. Leaf draws these fades because the browser's own scrollbar shows
+              nothing until something scrolls it. The code block and the diagram above
+              hold everything they have and show no fade.
             </p>
             <lf-board id="bg-work-board">
               <lf-column id="bg-work-ready" label="Ready">
                 <lf-card id="bg-work"
                   ><strong>Check the sample route</strong>
-                  An open task on this card puts a Working indicator here because the
+                  An open to-do on this card puts a Working indicator here because the
                   card has no other margin control to carry it.
                 </lf-card>
               </lf-column>
@@ -2750,165 +2969,88 @@ switch --readers checkout-api,orders-api</code></pre>
         </lf-tab>
 
         <lf-tab id="bg-view-interactions" label="Interactions">
-          <section
-            class="interaction-gallery"
-            id="bg-interactions"
-            aria-labelledby="bg-interactions-title"
-            data-interaction-gallery
-            data-interaction-viewport="2"
-          >
+          <section id="bg-interactions" aria-labelledby="bg-interactions-title">
             <p class="eyebrow bg-feature-elements">
-              lf-tabs · lf-tab · lf-suggestion · lf-old · lf-new · lf-board · lf-column
-              · lf-card
+              lf-sample · lf-suggestion · lf-old · lf-new
             </p>
             <h2 id="bg-interactions-title">
               <strong>Interactions</strong
-              ><span class="bg-feature-detail">: motion and input sequences</span>
+              ><span class="bg-feature-detail">: core input sequences to try</span>
             </h2>
             <p id="bg-interactions-guide">
-              Selecting a tab starts its focused sequence against Leaf’s production
-              component and transition code. Each replay runs in a Leaf page inside the
-              preview box, so page-wide controls keep their real margin placement while
-              the gallery stays still. “Viewport” compares the same page at 1×, 2×, or
-              4× its displayed size. Pause, replay, or loop the sequence; none writes to
-              the page’s event log.
+              Each sample below is a complete Leaf page running the production
+              components and transitions. Do what its caption asks and watch the page
+              answer. What you do stays in that sample's own log; “Reset” starts it
+              again, and nothing reaches this page. To move a card, drag one on
+              <a id="bg-interactions-board" href="#bg-delivery">the delivery board</a>.
             </p>
 
-            <lf-tabs id="bg-interaction-tabs">
-              <lf-tab id="bg-interaction-accept" label="Accept a suggestion">
-                <figure class="interaction-demo" data-interaction-demo="accept">
-                  <template id="bg-motion-accept-page" data-sample>
-                    <p class="eyebrow">proposed release note</p>
-                    <p id="bg-motion-accept-copy">
-                      The importer now
-                      <lf-suggestion id="bg-motion-accept"
-                        ><lf-old>usually finishes</lf-old
-                        ><lf-new>finishes</lf-new></lf-suggestion
-                      >
-                      before the next run begins.
-                    </p>
-                  </template>
-                  <div
-                    class="interaction-stage interaction-frame-stage interaction-suggestion-stage"
-                  >
-                    <iframe
-                      class="interaction-frame"
-                      data-interaction-frame
-                      name="interaction-accept"
-                      title="Contained Leaf suggestion animation"
-                      tabindex="-1"
-                      aria-hidden="true"
-                    ></iframe>
-                  </div>
-                  <figcaption>
-                    The pointer presses Accept; Leaf folds away the retired wording and
-                    leaves the sentence in its settled state.
-                  </figcaption>
-                </figure>
-              </lf-tab>
+            <section id="bg-interaction-accept">
+              <h3>Accept a suggestion</h3>
+              <p id="bg-interaction-accept-guide">
+                Press the suggestion's Accept check (✓) above the changed words. Leaf
+                folds away the retired wording and leaves the sentence in its settled
+                state.
+              </p>
+              <lf-sample id="bg-motion-accept-sample" label="proposed release note">
+                <template id="bg-motion-accept-page" data-sample>
+                  <p class="eyebrow">proposed release note</p>
+                  <p id="bg-motion-accept-copy">
+                    The importer now
+                    <lf-suggestion id="bg-motion-accept"
+                      ><lf-old>usually finishes</lf-old
+                      ><lf-new>finishes</lf-new></lf-suggestion
+                    >
+                    before the next run begins.
+                  </p>
+                </template>
+              </lf-sample>
+            </section>
 
-              <lf-tab id="bg-interaction-move" label="Move a card">
-                <figure class="interaction-demo" data-interaction-demo="move-card">
-                  <template id="bg-motion-board-page" data-sample>
-                    <p class="eyebrow">migration checklist</p>
-                    <h1>Schema migration</h1>
-                    <lf-board id="bg-motion-board">
-                      <lf-column id="bg-motion-ready" label="Ready">
-                        <lf-card id="bg-motion-card"
-                          ><strong>Verify migration</strong> Run the schema
-                          sample.</lf-card
-                        >
-                      </lf-column>
-                      <lf-column id="bg-motion-tried" label="Tried"></lf-column>
-                    </lf-board>
-                  </template>
-                  <div class="interaction-stage interaction-frame-stage">
-                    <iframe
-                      class="interaction-frame"
-                      data-interaction-frame
-                      name="interaction-move-card"
-                      title="Contained Leaf board animation"
-                      tabindex="-1"
-                      aria-hidden="true"
-                    ></iframe>
-                  </div>
-                  <figcaption>
-                    The pointer finds the card’s grip, then Leaf plays the same
-                    placement transition used after a keyboard or drag move.
-                  </figcaption>
-                </figure>
-              </lf-tab>
+            <section id="bg-interaction-comment">
+              <h3>Send a comment</h3>
+              <p id="bg-interaction-comment-guide">
+                Select the sentence about the agenda, then press <kbd>c</kbd> or click
+                the Comment field that appears. Type a comment and press
+                <kbd>Enter</kbd>: the field becomes an inline thread whose controls grow
+                around your words in their original place.
+              </p>
+              <lf-sample id="bg-motion-comment-sample" label="agenda review note">
+                <template id="bg-motion-comment-page" data-sample>
+                  <p class="eyebrow">review note</p>
+                  <h1>Agenda draft</h1>
+                  <p id="bg-thread-text">
+                    The sample agenda has room for one more topic.
+                  </p>
+                </template>
+              </lf-sample>
+            </section>
 
-              <lf-tab id="bg-interaction-comment" label="Send a comment">
-                <figure
-                  class="interaction-demo"
-                  data-interaction-demo="send-comment"
-                  data-interaction-keypress="Enter"
-                  data-interaction-target="bg-thread-text"
-                  data-interaction-thread-id="2be2443f0bb6cc49fc86b52f340e6073"
+            <section id="bg-interaction-threads">
+              <h3>Open and close Threads</h3>
+              <p id="bg-interaction-threads-guide">
+                Press <strong>Threads</strong> in the sample's top bar to open the
+                Threads panel and read its conversation, then close the panel with its ×
+                button or <kbd>Escape</kbd>.
+              </p>
+              <lf-sample
+                id="bg-motion-threads-sample"
+                label="release notes review"
+                window
+              >
+                <template
+                  id="bg-motion-threads-page"
+                  data-sample
+                  data-sample-threads="2be2443f0bb6cc49fc86b52f340e6073"
                 >
-                  <template
-                    id="bg-motion-comment-page"
-                    data-sample
-                    data-sample-threads="2be2443f0bb6cc49fc86b52f340e6073"
-                  >
-                    <p class="eyebrow">review note</p>
-                    <h1>Agenda draft</h1>
-                    <p id="bg-thread-text">
-                      The sample agenda has room for one more topic.
-                    </p>
-                  </template>
-                  <div class="interaction-stage interaction-frame-stage">
-                    <iframe
-                      class="interaction-frame"
-                      data-interaction-frame
-                      name="interaction-send-comment"
-                      title="Contained Leaf comment animation"
-                      tabindex="-1"
-                      aria-hidden="true"
-                    ></iframe>
-                  </div>
-                  <figcaption>
-                    Leaf’s real response field submits with <kbd>Enter</kbd>, then
-                    becomes the real inline thread, whose controls grow around the words
-                    in their original place. Placement fits that frame before typing. A
-                    seeded comment lets the gallery replay that accepted-send transition
-                    without posting another one.
-                  </figcaption>
-                </figure>
-              </lf-tab>
-
-              <lf-tab id="bg-interaction-threads" label="Open and close Threads">
-                <figure class="interaction-demo" data-interaction-demo="open-threads">
-                  <template
-                    id="bg-motion-threads-page"
-                    data-sample
-                    data-sample-threads="2be2443f0bb6cc49fc86b52f340e6073"
-                  >
-                    <p class="eyebrow">review workspace</p>
-                    <h1>Release notes</h1>
-                    <p id="bg-thread-text">
-                      The sample agenda has room for one more topic.
-                    </p>
-                  </template>
-                  <div class="interaction-stage interaction-frame-stage">
-                    <iframe
-                      class="interaction-frame"
-                      data-interaction-frame
-                      name="interaction-open-threads"
-                      title="Contained Leaf Threads animation"
-                      tabindex="-1"
-                      aria-hidden="true"
-                    ></iframe>
-                  </div>
-                  <figcaption>
-                    The pointer presses the real top-bar control inside a zoomed-out
-                    Leaf page; the production Threads panel opens and closes without
-                    changing this gallery page.
-                  </figcaption>
-                </figure>
-              </lf-tab>
-            </lf-tabs>
+                  <p class="eyebrow">review workspace</p>
+                  <h1>Release notes</h1>
+                  <p id="bg-thread-text">
+                    The sample agenda has room for one more topic.
+                  </p>
+                </template>
+              </lf-sample>
+            </section>
           </section>
         </lf-tab>
       </lf-tabs>

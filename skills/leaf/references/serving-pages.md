@@ -7,7 +7,7 @@ URL returned by `leaf server start`.
 ## Exported files
 
 When `$ARGUMENTS` asks for `--export`, build the page as a finished record (the main
-skill's "Quick pages and records" step), since only a stamped version exports, then
+skill's "Review and stamp a record" step), since only a stamped version exports, then
 run:
 
 ```bash
@@ -38,9 +38,10 @@ tunnel. Binding beyond loopback exposes the port to that network.
 The OS chooses a page's first port. Leaf retains its host and port in
 `<page>/service.json`, and its key in the machine's state home. Re-serving,
 re-vendoring and reviving it use the same URL. `--host` changes the hostname while
-preserving the port. A restart waits for TCP to release that port. If the port
-stays occupied beyond the startup wait, serving refuses rather than moving the
-page. A stop issued during startup waits for that preparation.
+preserving the port. On macOS, restarting a `--host` page can wait about 30
+seconds for TCP to release that port. If the port stays occupied beyond the
+startup wait, serving refuses rather than moving the page. A stop issued during
+startup waits for that preparation.
 
 ## Unreachable URLs and `--host`
 
@@ -68,13 +69,23 @@ file.
 ## Re-vendoring and layer epochs
 
 A Leaf update leaves open pages served and writable until it changes the page
-protocol; then serving or writing the page refuses, naming the command that
-re-vendors it. Re-vendor the page from its owning session then, or to adopt a
-newer runtime, theme or package:
+protocol or retires a registry key the page's layer declares; then serving or
+writing the page refuses, and `leaf page state` reports the refusal as
+`source.error`, each naming the `leaf page init` that updates the page's Leaf
+runtime. Re-vendor the page from its owning session then, or to adopt a newer
+runtime, theme or package:
 
 ```bash
 leaf page init <page>
 ```
+
+While Leaf is in alpha, an update can also break an older page without changing the
+protocol. Where the Leaf that vendored a page differs from the one running, `page
+check` names both with their dates, and the page's banner menu shows the user its own
+Leaf beside the one serving it. When a page misbehaves and its Leaf is much
+older than the running one, re-vendor it rather than working around the fault. A page
+that works needs no re-vendor for its age alone, since re-vendoring a changed layer
+reloads the user's open tabs.
 
 Init validates incoming layer declarations and file destinations first; refusal
 leaves the page and server unchanged. An unchanged layer and serving payload
@@ -84,14 +95,15 @@ writes a new layer epoch, restarts a running server at its recorded URL and
 lifetime, and reloads open tabs. Page status is preserved, and a stopped server
 stays stopped. For a session service, init refuses a change while another live
 session owns it. If its previous session has ended, init leaves it stopped;
-serve it from the session that will now own it. An enabled standing service
+serve it from the session that will now own it. An enabled persistent service
 restarts independently of session ownership.
 
 Serving or writing a page vendored at another protocol refuses with the same init
-command. If restart fails,
+command. Versions the page saved before that re-vendor stay in its history but no
+longer open. If restart fails,
 follow init's diagnostic; an enabled page's watcher also tries one revival.
-Init reads the log under Leaf's kernel transport contract. If an earlier page's
-log cannot be read or the page misbehaves after an update, initialize a new
+Init reads the log under Leaf's kernel transport contract. If init cannot read an
+earlier page's log, or the page still misbehaves once re-vendored, initialize a new
 directory, write the current page there, and hand over its new URL.
 
 ## Page lifetime
@@ -100,25 +112,25 @@ A normal `server start` from an agent session claims the page and connects the
 selected harness's delivery route before returning. Re-serving restores delivery
 even when its server is already running. The page's first serve records its
 lifetime. Normal re-serving from an agent session preserves that lifetime. To
-change a session service to standing, stop it and start with `--standing`;
-starting a stopped service from the user's shell also selects standing.
+change a session service to persistent, stop it and start with `--persistent`;
+starting a stopped service from the user's shell also selects persistent.
 
 A session page retires when no live session holds it. Desktop Codex keeps the
 chat's ownership and delivery across idle instance unloading and long absences.
 Archiving or deleting the chat ends that lifetime. Terminal sessions release
 ownership when their harness ends.
 
-`server start --standing`, or serving from the user's shell, makes a page stay
+`server start --persistent`, or serving from the user's shell, makes a page stay
 live between sessions and prepares no agent delivery. Tell the user when starting
 one: they inherit a process that only `leaf server stop <page>` ends. Ending a
-session releases its claim and leaves the standing service enabled.
+session releases its claim and leaves the persistent service enabled.
 
 A watcher revives an enabled service whose process dies, at its recorded URL and
 lifetime, and ends if revival fails. `leaf server stop <page>` disables service;
 a watcher still watches a stopped page until it is idle. Ending the page's
 conversation follows `page-checkpoints.md`, "Sign-off and ending".
 
-## Resuming a standing or foreign page
+## Resuming a persistent or foreign page
 
 Resume a page from one session only. `leaf page claim <page>` moves the claim to
 whichever session runs it, and a watcher another session still runs stops watching
@@ -128,12 +140,12 @@ that page. First read the page:
 leaf page state <page>
 ```
 
-Read the active revision's HTML (`active.file`) and the standing `state` over it,
-then open Questions, current thread state, and `measurement_lag` for figures whose sources
+Read the active revision's HTML (`active.file`) and the current `state` over it,
+then open asks, current thread state, and `measurement_lag` for figures whose sources
 have run again. Before editing, follow `authoring-revisions.md`'s "Read
 before editing" section. Then run `leaf page claim <page>` and follow your harness
 contract for watching it. Starting a server
-when the standing one is already live prints its URL without changing its lifetime.
+when the persistent one is already live prints its URL without changing its lifetime.
 
 ## Inspecting interactions
 

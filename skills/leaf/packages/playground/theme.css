@@ -1,12 +1,14 @@
-/* A playground is an instrument laid out as a wide page's body beside its rail: the real
- * preview is the stage and owns the larger field, and the controls stand above the
- * instruction they write, with its actions, in a rail beside it. Its regions are three
- * generated panes (data-lf-reading-role="pane", the kernel's theme.css), whose bodies
- * scroll where a workspace Layout fills the window (layouts.css); here the playground
- * only places the panes and draws them.
+/* A playground is an instrument laid out as a sidebar page's body beside its aside: the
+ * real preview is the stage and owns the larger field, and the controls that change all
+ * of it stand above the instruction they write, with its actions, in a rail beside it. A
+ * control written inside the preview stands there, beside the item it changes, and the
+ * rail then holds only what is left. Its regions are up to three generated panes
+ * (data-lf-reading-role="pane", the kernel's theme.css), whose bodies scroll where a
+ * workspace Layout fills the window (layouts.css); here the playground only places the
+ * panes and draws them.
  *
  * Each region is drawn once. The playground itself is no card: the stage is the
- * preview's own well, and each rail pane is a panel as a wide page draws its regions
+ * preview's own well, and each rail pane is a panel as a sidebar page draws its regions
  * (theme.css, section.panel), so a candidate the page draws on the stage is the only
  * surface inside the well rather than a card in a well in a card. */
 :scope:is(lf-playground) {
@@ -15,7 +17,9 @@
   grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-4);
   box-sizing: border-box;
-  width: 100%;
+  /* A grid box keeps the width it states, so it states the room's
+   * (`--lf-breakout-width`, layouts.css), which a granted `data-width` widens. */
+  width: var(--lf-breakout-width);
   margin: var(--sp-4) 0;
   container-type: inline-size;
 }
@@ -105,7 +109,7 @@
   flex: 1 0 auto;
 }
 
-/* A rail pane is a panel: the card a wide page draws each region in, titled in the panel's
+/* A rail pane is a panel: the card a sidebar page draws each region in, titled in the panel's
  * small capitals. Only a playground draws these regions, so the rules name no scope
  * root: `:scope` would weigh a class, and the presets band's rule below would lose its
  * bottom rule and padding to the generic header's. */
@@ -129,7 +133,7 @@
   padding: 12px 18px;
 }
 
-.lf-playground-controls-region > .lf-playground-presets {
+.lf-playground-controls-region > header.lf-playground-presets {
   padding-bottom: 14px;
   border-bottom: 1px solid var(--rule);
 }
@@ -331,8 +335,9 @@
   color: var(--danger-ink);
 }
 
-/* A quoted playground is its preview and instruction as authored. */
-:scope:is(lf-playground).lf-playground-quoted > lf-playground-control,
+/* A quoted playground is its preview and instruction as authored, without the controls
+ * written in either place. */
+:scope:is(lf-playground).lf-playground-quoted lf-playground-control,
 :scope:is(lf-playground).lf-playground-quoted > lf-playground-preset {
   display: none;
 }

@@ -18,9 +18,15 @@ vars:
     contents outline. Reply with the complete index.html; the page directory
     is not reachable from here.
 assert:
-  - type: regex
+  - type: llm-rubric
     metric: grouped-title
-    value: '<hgroup\b[^>]*\bid="[^"]+"[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?Eval consolidation[\s\S]*?</p>[\s\S]*?<h1\b[^>]*>(?:\s|<[^>]+>)*One catalog, with short cases and complete workflows(?:\s|<[^>]+>)*</h1>[\s\S]*?</hgroup>'
+    value: |
+      Pass only if the eyebrow and the title are one addressed destination: an
+      `hgroup` carrying an `id` holds a `<p>` with "Eval consolidation" before the
+      `h1`, and the `h1`'s text is exactly "One catalog, with short cases and
+      complete workflows", so the heading alone labels the outline. Fail if the
+      eyebrow stands outside that group or inside the `h1`, or if the group has no
+      id and only the `h1` or another wrapper carries one.
 
 variants:
   # A handover used a plain paragraph for its status above the title. With the
@@ -33,7 +39,7 @@ variants:
     vars:
       prompt: >-
         Write a short Leaf handover for the Questions contract change. Use the title
-        "Questions lists every move the agent needs from you". Put "Implemented locally
+        "Questions lists everything the agent needs from you". Put "Implemented locally
         · October 9, 2026" directly above the title. Explain that Questions contains
         every current request for the user, zero Questions means nothing is needed from
         them, and Tasks can still contain the agent's work. Include a short verification
@@ -42,6 +48,10 @@ variants:
         supplies its theme and runtime. The page directory is outside this read-only environment.
         Reply with the complete authored index.html.
     assert:
-      - type: regex
+      - type: llm-rubric
         metric: shared-label
-        value: '<p\b[^>]*class="[^"]*\beyebrow\b[^"]*"[^>]*>Implemented locally · October 9, 2026</p>'
+        value: |
+          Pass only if "Implemented locally · October 9, 2026" stands directly above
+          the title as a paragraph in the theme's shared label idiom, `class="eyebrow"`,
+          holding just that text. Fail if it is a plain paragraph, a page-styled
+          class of its own, or part of the heading.

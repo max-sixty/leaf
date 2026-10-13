@@ -40,7 +40,7 @@ import {
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { coarsePointer } from "./pointer.js";
+import { coarsePointer, pressIsKeyboardActivation } from "./pointer.js";
 import { rowWalk } from "./walk-position.js";
 import { closeControl, el, searchField } from "./widget-elements.js";
 import { keepsHidden, keepsText } from "./keeps.js";
@@ -56,8 +56,6 @@ import {
   clearContributionControls,
   contributionHost,
   contributionReceipts,
-  syncContributionAgentWorkflow,
-  trackContributionControl,
 } from "./contribution-controls.js";
 import { contributionSource } from "./contributions.js";
 
@@ -66,6 +64,7 @@ import { versionBtn } from "./version-picker.js";
 import { marginMapGroups } from "./margin-map-model.js";
 
 export const mapButton = el("button", "lf-btn lf-page-map-toggle", "Map");
+let mapCount = 0;
 mapButton.type = "button";
 mapButton.title = "Open Page Map";
 registerBannerControl({
@@ -73,6 +72,11 @@ registerBannerControl({
   control: mapButton,
   rank: BANNER_CONTROL_RANK.map,
   present: false,
+  row: {
+    label: "Page Map",
+    value: () => String(mapCount),
+    group: "navigate",
+  },
 });
 
 const dialog = document.createElement("dialog");
@@ -133,7 +137,7 @@ export function createPageMapDialog({
     releaseAnnotations?.(entry);
     const destination = annotationFocus?.(entry);
     // A location without a presented annotation lands on its exact authored target.
-    // Commands that open a Thread or Question retain their own navigation capability.
+    // Commands that open a Thread or ask retain their own navigation capability.
     closeLayer(leavePageMap, () =>
       !destination && targetFor(entry)?.isConnected
         ? focusDestination(targetFor(entry), "move")
@@ -172,7 +176,7 @@ export function createPageMapDialog({
       contributionSource(offered).registration.activate(record.key, {
         origin: control,
         surface: "map",
-        input: event.detail === 0 ? "keyboard" : "pointer",
+        input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer",
       });
       nextRender(() => {
         if (!currentIntent()) return;
@@ -193,36 +197,17 @@ export function createPageMapDialog({
     contributionSource(offered).registration.activate(record.key, {
       origin: control,
       surface: "map",
-      input: event.detail === 0 ? "keyboard" : "pointer",
+      input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer",
     });
   }
 
   const sheetHost = (action, actions) =>
-    contributionHost(
-      action.record,
-      {
-        accessibleLabel: [action.record.accessibleLabel, action.record.context]
-          .filter(Boolean)
-          .join(", "),
-        relatedControlIds: relatedControlIds(action, actions),
-      },
-      (control) => {
-        const { entry, offered, record } = action;
-        const workflow = entry.workflowCarrier;
-        syncContributionAgentWorkflow(
-          control,
-          workflow?.key === record.key && workflow.owner === record.owner
-            ? workflow.receipt
-            : record.workflowReceipt,
-        );
-        trackContributionControl(
-          contributionSource(offered),
-          "map",
-          record.key,
-          control,
-        );
-      },
-    );
+    contributionHost(contributionSource(action.offered), "map", action.record, {
+      accessibleLabel: [action.record.accessibleLabel, action.record.context]
+        .filter(Boolean)
+        .join(", "),
+      relatedControlIds: relatedControlIds(action, actions),
+    });
 
   const sheetItemTemplate = (action) => html`
     <button
@@ -231,7 +216,7 @@ export function createPageMapDialog({
       data-lf-map-key=${action.key}
       data-lf-map-item=${action.item.id}
       aria-label=${[action.label, action.context].filter(Boolean).join(", ")}
-      ${contributionReceipts(action.item.workflowReceipt, Boolean(action.item.userAttention))}
+      ${contributionReceipts(action.receipt, action.awaitsUser)}
       @click=${() => activateItem(action.item, action.entry)}
     >
       ${sheetFace(action)}
@@ -261,6 +246,7 @@ export function createPageMapDialog({
         data-lf-map-key=${action.key}
         data-lf-map-margin-entry=${action.key}
         ${sheetHost(action, actions)}
+        ${contributionReceipts(action.receipt, action.awaitsUser)}
         >${body}</span
       >`;
     return html`<button
@@ -270,6 +256,7 @@ export function createPageMapDialog({
       data-lf-map-key=${action.key}
       data-lf-map-margin-entry=${action.key}
       ${sheetHost(action, actions)}
+      ${contributionReceipts(action.receipt, action.awaitsUser)}
       @click=${(event) => activateSheetControl(event, action)}
     >
       ${body}
@@ -358,6 +345,7 @@ export function createPageMapDialog({
   function renderPageMapDialog(nextEntries) {
     entries = nextEntries;
     const label = `Map (${entries.length})`;
+    mapCount = entries.length;
     showBannerControl(mapButton, entries.length > 0);
     keepsText(mapButton, label);
     if (dialog.open) renderSheet();

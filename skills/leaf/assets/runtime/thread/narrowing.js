@@ -32,6 +32,7 @@
    presentation only while no newer user gesture has chosen another reading place. */
 import { anchorLabel } from "./messages.js";
 import { awaitsAgent, awaitsUser } from "./model.js";
+import { agentLabel, agentName } from "../semantic-state.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
 
@@ -41,14 +42,15 @@ const group = (kind, label, choices) =>
   Object.freeze({ kind, label, choices: Object.freeze(choices) });
 
 // Labels and choices are declarations, not facts recovered from rendered buttons.
+// The agent's choice is named as every surface names it, read when it renders.
 const FACETS = Object.freeze([
   group("status", "Status", [
     choice("status", "open", "Open"),
     choice("status", "resolved", "Resolved"),
   ]),
   group("waiting", "Waiting on", [
-    choice("waiting", "user", "You", "lf-needs"),
-    choice("waiting", "agent", "Agent"),
+    choice("waiting", "user", "Me", "lf-needs"),
+    choice("waiting", "agent", agentLabel),
   ]),
   group("scope", "Location", [
     choice("scope", "page", "Page"),
@@ -157,29 +159,39 @@ const includesThread = (reading, thread, place) =>
 
 const count = (rows, predicate) => rows.filter(predicate).length;
 const entryReading = (declaration, selected, amount, disabled, hidden = false) =>
-  Object.freeze({ ...declaration, selected, amount, disabled, hidden });
+  Object.freeze({
+    ...declaration,
+    label:
+      typeof declaration.label === "function" ? declaration.label() : declaration.label,
+    selected,
+    amount,
+    disabled,
+    hidden,
+  });
 
-// Counts describe each named subset under the other standing filters, including
+// Counts describe each named subset under the other active filters, including
 // Status clearing Waiting on. An active choice keeps its subset count; clearing it
 // broadens the results rather than changing what its label counts.
-function presentationReading(reading, threads, shown, places) {
+function presentationReading(reading, threads, shown, places, complete) {
   const rows = threads.map((thread) => ({ thread, place: places.get(thread) }));
   const anyUnplaced = rows.some(({ place }) => place.unplaced);
   const baseline = threads.filter((thread) => matchesStatus(reading, thread)).length;
   const lifecycle = reading.status === "all" ? "" : `${reading.status} `;
   const amount =
     shown.length === baseline ? `${shown.length}` : `${shown.length} of ${baseline}`;
-  const summary = [
-    `${amount} ${lifecycle}${baseline === 1 ? "thread" : "threads"}`,
-    reading.waiting === "all"
-      ? null
-      : `On ${reading.waiting === "user" ? "you" : "agent"}`,
-    reading.scope !== "all" ? labelFor("scope", reading.scope) : null,
-    reading.subject !== "all" ? labelFor("subject", reading.subject) : null,
-    reading.onlyUnplaced ? labelFor("unplaced", "unplaced") : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const summary = complete
+    ? [
+        `${amount} ${lifecycle}${baseline === 1 ? "thread" : "threads"}`,
+        reading.waiting === "all"
+          ? null
+          : `On ${reading.waiting === "user" ? "me" : agentName()}`,
+        reading.scope !== "all" ? labelFor("scope", reading.scope) : null,
+        reading.subject !== "all" ? labelFor("subject", reading.subject) : null,
+        reading.onlyUnplaced ? labelFor("unplaced", "unplaced") : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
 
   const order = Object.freeze({
     kind: ORDER.kind,
@@ -212,8 +224,8 @@ function presentationReading(reading, threads, shown, places) {
           return entryReading(
             declaration,
             selected,
-            switched,
-            !selected && !recovery && !switched,
+            complete ? switched : null,
+            !complete || (!selected && !recovery && !switched),
             facet.kind === "unplaced" && !anyUnplaced && !selected,
           );
         }),
@@ -239,13 +251,13 @@ function presentationReading(reading, threads, shown, places) {
       !reading.onlyUnplaced
     ),
     groups: Object.freeze([order, ...renderedGroups]),
-    userAvailable,
+    userAvailable: complete && userAvailable,
     userTitle:
       reading.waiting === "user"
         ? "Clear waiting filter"
         : userAvailable
-          ? "Show threads waiting on you"
-          : "Nothing shown is waiting on you",
+          ? "Show threads waiting on me"
+          : "Nothing shown is waiting on me",
   });
 }
 
@@ -255,9 +267,9 @@ function emptyReading(reading) {
     : reading.scope !== "all" || reading.subject !== "all" || reading.onlyUnplaced
       ? "No threads match these filters."
       : reading.waiting === "user"
-        ? "Nothing is waiting on you."
+        ? "Nothing is waiting on me."
         : reading.waiting === "agent"
-          ? "Nothing is waiting on the agent."
+          ? `Nothing is waiting on ${agentName()}.`
           : reading.status === "resolved"
             ? "No resolved threads."
             : reading.status === "open"
@@ -266,7 +278,7 @@ function emptyReading(reading) {
 }
 
 // `places` holds each thread's `threadSection` reading (placement.js).
-export function narrowingReading(reading, threads, places) {
+export function narrowingReading(reading, threads, places, complete = true) {
   const shown = Object.freeze(
     threads.filter((thread) => includesThread(reading, thread, places.get(thread))),
   );
@@ -274,13 +286,13 @@ export function narrowingReading(reading, threads, places) {
     intent: reading,
     shown,
     emptyText: emptyReading(reading),
-    presentation: presentationReading(reading, threads, shown, places),
+    presentation: presentationReading(reading, threads, shown, places, complete),
   });
 }
 
 // Each panel owns its view intent. The reading above remains pure so package views can
 // apply their own intent to the same threads without sharing this panel's controls.
-export function createThreadNarrowing({ view, listRoot, readThreads, ready, repaint }) {
+export function createThreadNarrowing({ view, listRoot, readThreads, repaint }) {
   // Replace the whole value on every change. A retained arrival can then distinguish
   // its own transition from a later choice by identity.
   let intent = DEFAULT_INTENT;
@@ -296,10 +308,10 @@ export function createThreadNarrowing({ view, listRoot, readThreads, ready, repa
     intent.onlyUnplaced;
   // Capture intent once for each list candidate. Its rows, summary and facets all
   // derive from the same reading.
-  const model = (threads, places) => narrowingReading(intent, threads, places);
+  const model = (threads, places, complete = true) =>
+    narrowingReading(intent, threads, places, complete);
 
   function renarrow() {
-    if (!ready()) return;
     const mayReset = retainUserIntent();
     const ticket = repaint();
     // Reset after the keyed list commits. The coordinator reports rejection; observe

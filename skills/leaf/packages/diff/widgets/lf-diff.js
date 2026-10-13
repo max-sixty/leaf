@@ -3,8 +3,8 @@
  * rendered lines support selection anchors. A source revision updates evidence
  * under stable file owners: reader controls, disclosure and code scrollports stay
  * connected. The search reserves its current source's longest count label, so
- * filtering files leaves its field and controls in place. A changed file
- * kind replaces only its inner presentation and hands
+ * filtering files leaves its field and controls in place. Changed file
+ * evidence replaces only its inner presentation and hands
  * source focus to that same file; supplied thread/composer outlets keep core focus
  * ownership across replacement. Unchanged parsed files keep their rendering; changed files
  * reconcile unchanged lines by their datum coordinate, retaining selection and line threads.
@@ -16,7 +16,11 @@
  * disclosure joins the pending source render before reading its evidence, and a closed file shows
  * none of the previous revision while it loads current evidence. Line conversations
  * follow the visible reader width while source lines may scroll horizontally. Passage reveal
- * clears this widget's file filter; addressed datum reveal also hydrates its file. */
+ * clears this widget's file filter; addressed datum reveal also hydrates its file.
+ * All file evidence is read and checked before any listing metadata appears;
+ * closed files retain that parse and defer only textual rendering. Native
+ * operations and textual hunks are independent: metadata-only files have a commentable
+ * row without an empty disclosure, and a file-type replacement keeps one file identity. */
 import {
   DISCLOSE,
   HOLDS_WORD,
@@ -41,12 +45,16 @@ import {
   layoutChanged,
   loadDeferred,
   listWalkPosition,
+  move,
   offer,
   once,
   paintKeys,
   projectData,
   projectedDatum,
-  placeThreads,
+  threadSurface,
+  readingPaint,
+  releaseOutlets,
+  reportFailure,
   reserve,
   retainUserIntent,
   scrollBehavior,
@@ -60,6 +68,7 @@ import {
   whileConnected,
   scrollIntoView,
   layoutPx,
+  focused,
 } from "/runtime/widget-api.js";
 import {
   diffDatumKey,
@@ -74,6 +83,9 @@ import "/vendor/webawesome.esm.js";
 // module load: the page pays for the renderer when it draws a diff, and a version whose
 // diff has been taken back out stops paying on the next load. The promise is kept, so
 // every later file, every other diff on the page, and every re-render share one import.
+// Metadata must be parsed before its row commits; unopened text needs no renderer.
+let parser = null;
+const parse = () => (parser ??= import("/vendor/pierre-parser.esm.js"));
 let renderer = null;
 const pierre = () => (renderer ??= import("/vendor/pierre-diffs.esm.js"));
 
@@ -107,33 +119,13 @@ function markSyntax(root, foreground) {
 // refuses a manifest that repeats one, and this refuses a patch text that does.
 async function sourceRecords(source) {
   if (typeof source !== "string") return source.files;
-  const files = await parsedFiles(source);
-  const paths = new Set();
-  for (const { name } of files) {
-    if (paths.has(name)) throw new Error(`unified diff repeats file path ${name}`);
-    paths.add(name);
-  }
-  return files.map((file) => ({
-    path: file.name,
-    ...(file.prevName ? { previousPath: file.prevName } : {}),
-    kind: file.type === "rename-pure" ? "rename" : "patch",
-    ...file.hunks.reduce(
-      (counts, hunk) => ({
-        additions: counts.additions + hunk.additionLines,
-        deletions: counts.deletions + hunk.deletionLines,
-      }),
-      { additions: 0, deletions: 0 },
-    ),
-    parsed: file,
-  }));
+  return (await parsedFiles(source)).map((file) => ({ path: file.name, parsed: file }));
 }
 
-// A manifest record's patch, fetched for the delivery that listed it, must hold that
-// one file.
-async function deferredFile(snapshot, path) {
-  const patch = await loadDeferred(snapshot, path);
-  if (typeof patch !== "string")
-    throw new Error("the deferred patch is not unified patch text");
+// A deferred patch must describe its keyed logical file, including both native
+// sections of a file-type replacement. All display metadata comes from this parse.
+async function deferredFile(patch, record) {
+  const { path } = record;
   const files = await parsedFiles(patch);
   if (files.length !== 1 || files[0].name !== path)
     throw new Error(`the deferred patch for ${path} does not contain that one file`);
@@ -162,8 +154,6 @@ function sourceLines(file) {
         }
         continue;
       }
-      if (part.type !== "change")
-        throw new Error(`unsupported ${part.type} line in ${file.name}`);
       for (let index = 0; index < part.deletions; index++)
         lines.push({ path: file.name, hunk, side: "old", oldLine: oldLine++ });
       for (let index = 0; index < part.additions; index++)
@@ -359,18 +349,25 @@ function filePathTemplate({ path, previousPath }) {
 
 // Lit owns only the summary's contents. The native disclosure and Pierre's body
 // stay connected across revisions, including loading and failed evidence.
-function paintSummary(details, record) {
+function paintSummary(details, record, verified = true) {
   const { path, previousPath, additions, deletions } = record;
   const previous = pathParts(details);
   render(
-    html`${keyed(JSON.stringify([path, previousPath]), filePathTemplate(record))}<span
-        class="lf-diff-stat"
-        data-lf-gen="1"
-        ><span class="lf-diff-additions">+${additions}</span>${" "}<span
-          class="lf-diff-deletions"
-          >−${deletions}</span
-        ></span
-      >`,
+    html`${keyed(
+      JSON.stringify([path, verified && previousPath]),
+      filePathTemplate(verified ? record : { path }),
+    )}${
+      verified
+        ? html`<span class="lf-diff-stat" data-lf-gen="1"
+            ><span class="lf-diff-additions">+${additions}</span>${" "}<span
+              class="lf-diff-deletions"
+              >−${deletions}</span
+            ><span class="lf-diff-metadata-words"
+              >${operationWord(record) ? ` · ${operationWord(record)}` : ""}</span
+            ></span
+          >`
+        : null
+    }`,
     details.firstElementChild,
   );
   const current = pathParts(details);
@@ -378,14 +375,14 @@ function paintSummary(details, record) {
   for (const part of current) if (!previous.includes(part)) pathSizes.observe(part);
 }
 
-function summaryNode(record, open) {
+function summaryNode(record, open, verified = true) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
   details.open = open;
   const summary = document.createElement("summary");
   summary.className = `lf-diff-head ${HOLDS_WORD}`;
   details.append(summary);
-  paintSummary(details, record);
+  paintSummary(details, record, verified);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -393,6 +390,7 @@ function summaryNode(record, open) {
       title: () => `${details.open ? "hide" : "show"} this file`,
     },
   ]);
+  paintFileDetails(details, verified ? record : {});
   return details;
 }
 
@@ -453,42 +451,74 @@ function diffBody(nodes) {
 // existing datum coordinate supplies its focus counterpart when that content changes.
 function rowSpan(node) {
   const value = node.style.gridRow || getComputedStyle(node).gridRow;
-  const matches = [...value.matchAll(/span\s+(\d+)/g)];
-  const count = Number(matches.at(-1)?.[1]);
-  if (!Number.isInteger(count))
-    throw new Error("Pierre returned a diff grid without a finite row span");
-  return count;
+  return Number([...value.matchAll(/span\s+(\d+)/g)].at(-1)[1]);
 }
 
 // A file's datum owns its controls even when its evidence changes kind. Only the
 // inner presentation changes; a focus that no longer has a line or disclosure lands
 // on that same file, while surviving controls keep their own native focus.
-// Supplied outlets belong to core thread/composition presentation. It carries focus
-// when one leaves this file; the file's source fallback must not replace that standing.
-function holdFileFocus(entry, outlets) {
-  for (const { outlet } of outlets?.values() ?? []) if (holdFocus(outlet)) return null;
-  return holdFocus(entry.node, { key: LINE_KEY });
-}
+//
+// Thread outlets hold core's composer and thread views, so neither replacement takes one
+// out of the document: an outlet stays in its file until the thread surface has placed
+// what stands in it and retires it (`retireThreadOutlets`). The user writing in one
+// keeps their place natively, and no hold of this file's stands in for theirs.
+const holdFileFocus = (entry) => holdFocus(entry.node, { key: LINE_KEY });
 
-function replaceFileRendering(entry, row, outlets) {
-  const restore = holdFileFocus(entry, outlets);
+function replaceFileRendering(entry, row) {
+  const restore = holdFileFocus(entry);
   unwatchPathCut(entry.details);
-  setChildren(entry.node, [entry.node.firstElementChild, row]);
+  // Out of the replaced row first, which takes everything still in it.
+  const outlets = [...entry.node.querySelectorAll(".lf-diff-thread-outlet")];
+  for (const outlet of outlets)
+    if (outlet.parentNode !== entry.node) move(entry.node, outlet, null);
+  setChildren(entry.node, [entry.node.firstElementChild, row, ...outlets]);
   entry.details = row.matches("details") ? row : null;
   entry.lines = [];
   entry.renderKey = null;
   return () => restore?.(entry.details?.firstElementChild, entry.node);
 }
 
+// The line each thread outlet in a file's `content` column follows once the file is
+// drawn anew, as `{lead, after}`: its own datum's line in `rows` where that is drawn
+// again, which its record now names, or else the line that stood before it, or `lead`,
+// the column's start, where none did.
+function outletPlaces(content, rows, outlets) {
+  const lead = [];
+  const after = new Map();
+  let last = null;
+  for (const child of content?.children ?? []) {
+    const key = child.getAttribute(LINE_KEY);
+    if (key !== null) {
+      if (rows.has(key)) last = key;
+      continue;
+    }
+    const datum = child.dataset.lfThreadDatum;
+    const record = outlets?.get(datum);
+    if (record?.outlet !== child) continue;
+    if (rows.has(datum)) record.row = rows.get(datum);
+    const place = rows.has(datum) ? datum : last;
+    if (place === null) lead.push(record);
+    else after.set(place, [...(after.get(place) ?? []), record]);
+  }
+  return { lead, after };
+}
+
 // A file's evidence goes under its kept disclosure, whose summary the record paints.
 function replaceFileContent(entry, rendered, pairs, outlets) {
-  const restore = holdFileFocus(entry, outlets);
+  const restore = holdFileFocus(entry);
   const details = entry.details;
   const pre = details.querySelector("pre");
   const nextPre = rendered.pre;
   const prior = new Map(entry.lines.map((record) => [diffDatumKey(record), record]));
   const retained = new Map();
   const gutters = new Map();
+  // Read by the index each had before any is given its new one below: a hunk added
+  // above kept lines gives them indices other kept rows held.
+  const priorGutters = new Map(
+    [...(pre?.querySelectorAll("[data-gutter] > [data-line-index]") ?? [])].map(
+      (gutter) => [gutter.dataset.lineIndex, gutter],
+    ),
+  );
   for (const next of rendered.lines) {
     const previous = prior.get(diffDatumKey(next));
     if (!previous || previous.node.innerHTML !== next.node.innerHTML) continue;
@@ -496,15 +526,22 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
     const nextGutter = nextPre.querySelector(
       `[data-gutter] [data-line-index="${next.node.dataset.lineIndex}"]`,
     );
-    const gutter = pre.querySelector(
-      `[data-gutter] [data-line-index="${previous.node.dataset.lineIndex}"]`,
-    );
+    const gutter = priorGutters.get(previous.node.dataset.lineIndex);
     gutters.set(nextGutter, gutter);
     keeps(previous.node, "data-line-index", next.node.dataset.lineIndex);
     keeps(gutter, "data-line-index", next.node.dataset.lineIndex);
     next.node = previous.node;
     next.comment = previous.comment;
   }
+  const rows = new Map(rendered.lines.map((line) => [diffDatumKey(line), line.node]));
+  const { lead, after } = outletPlaces(
+    pre?.querySelector("[data-content]"),
+    rows,
+    outlets,
+  );
+  const keyAt = new Map(
+    rendered.lines.map((line) => [line.node.dataset.lineIndex, diffDatumKey(line)]),
+  );
   if (pre && nextPre) {
     // The fresh render's attributes, and whatever the runtime painted on the kept box,
     // which a fresh render never carries (a scroller's marks, reach.js).
@@ -531,25 +568,22 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
             if (!current) return column;
             const content = code.querySelector("[data-content]");
             const pair = pairs?.get(content);
+            // A column holding outlets takes its rows from `layoutThreadOutlets`.
             if (pair) {
               pair[`${kind}Rows`] = rowSpan(column);
               pair[`${kind}GridRow`] = column.style.gridRow;
-            }
-            current.style.gridRow = column.style.gridRow;
+            } else current.style.gridRow = column.style.gridRow;
             const kept = kind === "content" ? retained : gutters;
-            const children = [...column.childNodes].flatMap((child) => {
-              const previous = kept.get(child);
-              if (!previous) return [child];
-              const outlets = [];
-              for (
-                let sibling = previous.nextElementSibling;
-                sibling?.matches(".lf-diff-thread-outlet, .lf-diff-thread-gutter");
-                sibling = sibling.nextElementSibling
-              )
-                outlets.push(sibling);
-              return [previous, ...outlets];
-            });
-            setChildren(current, children);
+            const part = kind === "content" ? "outlet" : "gutterRow";
+            // A line's row in either column carries the line's index.
+            setChildren(current, [
+              ...lead.map((record) => record[part]),
+              ...[...column.childNodes].flatMap((child) => {
+                const node = kept.get(child) ?? child;
+                const line = keyAt.get(node.dataset?.lineIndex);
+                return [node, ...(after.get(line) ?? []).map((record) => record[part])];
+              }),
+            ]);
             return current;
           }),
         );
@@ -580,28 +614,191 @@ function diffTools(host) {
   return { search, progress };
 }
 
-function renameNode(record) {
+function operationWord(record) {
+  return (
+    {
+      add: "added",
+      delete: "deleted",
+      rename: "renamed",
+      copy: "copied",
+    }[record.operation] ?? ""
+  );
+}
+
+function evidenceWords(record) {
+  const words = [];
+  if (record.binary) words.push("binary content");
+  if (record.oldMode !== record.newMode) {
+    words.push(
+      record.oldMode && record.newMode
+        ? `mode ${record.oldMode} → ${record.newMode}`
+        : `mode ${record.newMode ?? record.oldMode}`,
+    );
+  }
+  return words.join(" · ");
+}
+
+function metadataWords(record) {
+  return [operationWord(record), evidenceWords(record)].filter(Boolean).join(" · ");
+}
+
+// Header counts and the short operation keep their columns. Longer mode/binary
+// evidence belongs with the disclosed text, where it can wrap without hiding a path.
+function paintFileDetails(details, record) {
+  const words = evidenceWords(record);
+  let evidence = details.querySelector(":scope > .lf-diff-evidence");
+  if (!words) {
+    evidence?.remove();
+    return;
+  }
+  if (!evidence) {
+    evidence = document.createElement("div");
+    evidence.className = "lf-diff-evidence";
+    evidence.dataset.lfGen = "1";
+    details.firstElementChild.after(evidence);
+  }
+  keepsText(evidence, words);
+}
+
+function metadataNode(record) {
   const row = document.createElement("div");
-  row.className = "lf-diff-rename";
+  row.className = "lf-diff-metadata";
   row.dataset.lfGen = "1";
   render(
-    html`${filePathTemplate(record)}<span class="lf-diff-stat">renamed</span>`,
+    html`${filePathTemplate(record)}<span class="lf-diff-stat"
+        >${metadataWords(record)}</span
+      >`,
     row,
   );
   return row;
 }
 
-// How many hunkless renames the source states in Git's exact path-only form. Pierre also
-// reads a rename whose hunk headers are missing as hunkless, which would show its
-// changed lines as a clean rename, so it must report no more than these.
-const pathOnlyRenames = (source) =>
-  source
-    .split(/(?=^diff --git )/m)
-    .filter((section) =>
-      /^diff --git .+\nsimilarity index 100%\nrename from .+\nrename to .+\n*$/.test(
-        section,
-      ),
-    ).length;
+function headerPath(side, path) {
+  return path.startsWith('"') && path.endsWith('"')
+    ? `"${side}/${path.slice(1)}`
+    : `${side}/${path}`;
+}
+
+function gitPath(path) {
+  if (!path.startsWith('"')) return path;
+  if (!path.endsWith('"')) return null;
+  const inner = path.slice(1, -1);
+  if (!/^(?:[^\\]|\\(?:[abtnvfr"\\]|[0-3][0-7]{2}|[0-7]{1,2}(?![0-7])))*$/.test(inner))
+    return null;
+  const escapes = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13 };
+  const bytes = [];
+  const encoder = new globalThis.TextEncoder();
+  for (let i = 0; i < inner.length; i++) {
+    if (inner[i] !== "\\") {
+      const point = inner.codePointAt(i);
+      bytes.push(...encoder.encode(String.fromCodePoint(point)));
+      if (point > 0xffff) i++;
+      continue;
+    }
+    const match = /^(?:[0-3][0-7]{2}|[0-7]{1,2})/.exec(inner.slice(i + 1));
+    if (match) {
+      bytes.push(parseInt(match[0], 8));
+      i += match[0].length;
+    } else {
+      const escaped = inner[++i];
+      bytes.push(escapes[escaped] ?? escaped.charCodeAt(0));
+    }
+  }
+  if (bytes.includes(0)) return null;
+  try {
+    return new globalThis.TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      new Uint8Array(bytes),
+    );
+  } catch {
+    return null;
+  }
+}
+
+function fileRecord(file, section) {
+  const moved = {};
+  for (const operation of ["rename", "copy"]) {
+    const from = new RegExp(`^${operation} from (.*)$`, "m").exec(section)?.[1];
+    const to = new RegExp(`^${operation} to (.*)$`, "m").exec(section)?.[1];
+    if ((from === undefined) !== (to === undefined))
+      throw new Error(`incomplete ${operation} metadata`);
+    if (from !== undefined) {
+      if (
+        !from ||
+        !to ||
+        from === '\"\"' ||
+        to === '\"\"' ||
+        section.split("\n", 1)[0] !==
+          `diff --git ${headerPath("a", from)} ${headerPath("b", to)}` ||
+        gitPath(from) !== file.prevName ||
+        gitPath(to) !== file.name
+      )
+        throw new Error(`${operation} paths disagree with its diff --git header`);
+      moved[operation] = true;
+    }
+  }
+  if (Object.keys(moved).length > 1)
+    throw new Error("diff mixes rename and copy metadata");
+  const operation =
+    Object.keys(moved)[0] ??
+    (file.type === "new" ? "add" : file.type === "deleted" ? "delete" : "modify");
+  const binary = /^(?:Binary files .+ differ|GIT binary patch)$/m.test(section);
+  if (/^old mode /m.test(section) !== /^new mode /m.test(section))
+    throw new Error("incomplete mode change");
+  for (const line of section.split("\n").slice(1)) {
+    if (line.startsWith("@@") || line === "GIT binary patch") break;
+    if (file.hunks.length && /^(?:---|\+\+\+) /.test(line)) continue;
+    if (
+      line &&
+      !/^(?:(?:old mode|new mode|new file mode|deleted file mode) [0-7]{6}|(?:dis)?similarity index [0-9]+%|(?:rename|copy) (?:from|to) .+|index [0-9a-f]+\.\.[0-9a-f]+(?: [0-7]{6})?|Binary files .+ differ)$/.test(
+        line,
+      )
+    )
+      throw new Error(`unexpected diff metadata for ${file.name}: ${line}`);
+  }
+  if (file.prevName && !Object.keys(moved).length)
+    throw new Error("diff has changed paths without rename or copy metadata");
+  if (file.hunks.length && ["add", "delete"].includes(operation)) {
+    const hunk = file.hunks[0];
+    const consuming = operation === "delete";
+    if (
+      file.hunks.length !== 1 ||
+      (consuming ? hunk.deletionStart : hunk.additionStart) !== 1 ||
+      (consuming ? hunk.additionStart : hunk.deletionStart) !== 0 ||
+      (consuming ? hunk.additionCount : hunk.deletionCount) !== 0
+    )
+      throw new Error(`${operation} must capture its complete file`);
+  }
+  if (!file.hunks.length) {
+    if (!binary && operation === "modify" && (file.prevMode ?? file.mode) === file.mode)
+      throw new Error(`diff has no content or metadata change for ${file.name}`);
+    if (
+      !binary &&
+      ["copy", "rename"].includes(operation) &&
+      !/^similarity index 100%$/m.test(section)
+    )
+      throw new Error(`${operation} with changed content needs textual hunks`);
+  }
+  const oldMode = operation === "add" ? undefined : (file.prevMode ?? file.mode);
+  const newMode = operation === "delete" ? undefined : file.mode;
+  const { additions, deletions } = file.hunks.reduce(
+    (counts, hunk) => ({
+      additions: counts.additions + hunk.additionLines,
+      deletions: counts.deletions + hunk.deletionLines,
+    }),
+    { additions: 0, deletions: 0 },
+  );
+  return {
+    path: file.name,
+    ...(file.prevName ? { previousPath: file.prevName } : {}),
+    operation,
+    hunkCount: file.hunks.length,
+    binary,
+    ...(oldMode ? { oldMode } : {}),
+    ...(newMode ? { newMode } : {}),
+    additions,
+    deletions,
+  };
+}
 
 // One file's evidence, the nodes that go under its disclosure's summary. Each kind of
 // Pierre stylesheet joins `sharedStyles` once, for the stage to hold.
@@ -641,7 +838,6 @@ async function renderFile(file, sharedStyles) {
   markSyntax(rendered, foreground);
 
   const pre = rendered.querySelector("pre");
-  if (!pre) throw new Error(`Pierre returned no diff for ${file.name || "a file"}`);
   const viewport = pre.querySelector("code[data-code]") ?? pre;
   // Its last row clears the overlay scrollbar the pointer widens (shadow.css).
   viewport.classList.add("lf-text-scroller");
@@ -652,57 +848,107 @@ async function renderFile(file, sharedStyles) {
   return { nodes: [...rendered.children], pre, lines };
 }
 
-// What the widget can present. The diff package's `patch_manifest.py` refuses the same
-// excluded entries before a manifest is stored, and `tests/diff_patch_cases.json` holds
-// both readers to one table of cases.
+function replacementFile(files, parseDiffFromFile) {
+  const deleted = files.find((file) => file.record.operation === "delete");
+  const added = files.find((file) => file.record.operation === "add");
+  const oldMode = deleted?.record.oldMode;
+  const newMode = added?.record.newMode;
+  if (
+    files.length !== 2 ||
+    !deleted ||
+    !added ||
+    !oldMode ||
+    !newMode ||
+    (parseInt(oldMode, 8) & 0o170000) === (parseInt(newMode, 8) & 0o170000)
+  )
+    throw new Error(`unified diff repeats file path ${files[0].name}`);
+  const hunkCount = Number(files.some((file) => file.record.hunkCount > 0));
+  // A different file type consumes the old object and produces the new one, even
+  // when both carry identical text. The maintained comparator keeps that meaning.
+  const side = (file, lines) =>
+    file.record.binary
+      ? null
+      : {
+          name: file.name,
+          contents: lines.join(""),
+        };
+  const file = hunkCount
+    ? parseDiffFromFile(
+        side(deleted, deleted.deletionLines),
+        side(added, added.additionLines),
+        { comparator: () => false },
+        true,
+      )
+    : { name: added.name, hunks: [] };
+  file.record = {
+    path: added.name,
+    operation: "modify",
+    hunkCount,
+    binary: deleted.record.binary || added.record.binary,
+    oldMode,
+    newMode,
+    additions: added.record.additions,
+    deletions: deleted.record.deletions,
+  };
+  return file;
+}
+
+// What the widget can present, which it alone judges: the diff package's
+// `patch_manifest.py` preserves the evidence, and an entry refused here reports when
+// its listing appears, even when its textual file stays closed. `tests/diff_patch_cases.json`
+// is the table of cases.
 async function parsedFiles(source) {
-  if (/^copy (?:from|to) /m.test(source))
-    throw new Error(
-      "unsupported copy diff (copy entries belong in prose; omit " +
-        "copy metadata and use textual @@ hunks for an edited destination)",
-    );
-  const { parsePatchFiles } = await pierre();
+  const { parsePatchFiles, parseDiffFromFile } = await parse();
   const files = parsePatchFiles(source, undefined, true).flatMap(
     (patch) => patch.files,
   );
+  const sections = source
+    .split(/(?=^diff --git )/m)
+    .filter((section) => section.startsWith("diff --git "));
   if (!files.length) throw new Error("empty diff");
-  if (
-    pathOnlyRenames(source) !==
-    files.filter((file) => file.type === "rename-pure").length
-  )
-    throw new Error(
-      "unsupported hunkless rename (only an exact path-only block with " +
-        "diff --git, similarity index 100%, rename from, and rename to " +
-        "lines may omit textual @@ hunks)",
-    );
-  for (const file of files)
-    if (!file.hunks.length && file.type !== "rename-pure")
-      throw new Error(
-        `unsupported hunkless diff for ${file.name || "a file"} ` +
-          "(only path-only renames may omit @@ hunks; binary, mode-only, " +
-          "and empty added/deleted entries belong in prose; changed files " +
-          "need textual @@ hunks)",
-      );
-  return files;
+  if (files.length !== sections.length)
+    throw new Error("diff needs one file per diff --git section");
+  const owners = new Map();
+  for (const [index, file] of files.entries()) {
+    file.record = fileRecord(file, sections[index]);
+    const owned = owners.get(file.name) ?? [];
+    owned.push(file);
+    owners.set(file.name, owned);
+  }
+  return [...owners.values()].map((files) =>
+    files.length === 1 ? files[0] : replacementFile(files, parseDiffFromFile),
+  );
 }
 
+// The box takes the place of the file's lines, so core's composer leaves their outlets
+// first: a user writing about one of them stays in it, and the hold below, which
+// would hand them to Retry, finds them outside the file. A patch the widget cannot draw
+// offers no Retry, and the hold lands on the file's header.
 function deferredError(details, error, retry) {
+  releaseOutlets(details);
   const restore = holdFocus(details);
+  const header = details.firstElementChild;
+  const message = error?.message || error;
   const box = document.createElement("div");
   box.className = "lf-error";
   box.dataset.lfGen = "1";
-  box.textContent = `That file's diff failed to load: ${error?.message || error}`;
-  const button = offer("button", "lf-btn");
-  button.type = "button";
-  button.textContent = "Retry";
-  button.addEventListener("click", () => {
-    if (button.getAttribute("aria-disabled") === "true") return;
-    button.setAttribute("aria-disabled", "true");
-    retry();
-  });
-  box.append(" ", button);
-  details.replaceChildren(details.firstElementChild, box);
-  restore?.(button);
+  box.textContent = retry
+    ? `That file's diff failed to load: ${message}`
+    : `That file's diff cannot be shown: ${message}`;
+  let standIn = header;
+  if (retry) {
+    standIn = offer("button", "lf-btn");
+    standIn.type = "button";
+    standIn.textContent = "Retry";
+    standIn.addEventListener("click", () => {
+      if (standIn.getAttribute("aria-disabled") === "true") return;
+      standIn.setAttribute("aria-disabled", "true");
+      retry();
+    });
+    box.append(" ", standIn);
+  }
+  setChildren(details, [header, box]);
+  restore?.(standIn);
 }
 
 customElements.define(
@@ -810,36 +1056,39 @@ customElements.define(
         () => Boolean(this.fileEntries?.length),
       );
       const bound = this.hasAttribute("source");
+      // An inline patch never changes, so it is one reading, drawn again on a return
+      // only when the departure cut its rendering short: a refusal stands.
+      const paintInline = bound
+        ? null
+        : readingPaint(this, () => {
+            const rendering = (this.sourceRendering = this.render(this.inlineSource));
+            this.present(rendering);
+            return rendering;
+          });
       whileConnected(this, (signal) => {
         this.addEventListener("lf-reveal", this.revealPassage, { signal });
-        this.threadSurface = placeThreads(this, (targets) => {
-          this.beginThreadSurface();
-          const outlets = targets.map((target) => this.threadOutletFor(target));
-          this.endThreadSurface();
-          return outlets;
-        });
         // A page diff's file header pins at `--lf-top`, the top of the page's box that
         // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
         // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
         // the module answers it once with the layer's own predicate and paints the answer.
         this.toggleAttribute("data-lf-diff-pinned", !inChrome(this));
-        // An inline patch never changes, so it renders once, and again on a return
-        // only when the departure cut that rendering short: a refusal stands.
-        if (!bound && !this.settled) {
+        if (paintInline) {
           // Not bodyText: a diff's trailing whitespace is content — a hunk's last line
           // can be a lone space, the context line for a blank source line — so only the
           // closing newline is the <pre>'s layout.
           this.inlineSource ??= dataBody(this).replace(/^\n+/, "").replace(/\n$/, "");
-          this.present((this.sourceRendering = this.render(this.inlineSource)));
+          paintInline(this.inlineSource);
         }
         return () => {
           this.rendering = (this.rendering ?? 0) + 1;
-          for (const target of this.threadSizeTargets ?? [])
-            threadSizes.unobserve(target);
+          // Leaf retires this surface when it leaves, after this cleanup, and puts
+          // core's views back, so every outlet goes.
+          if (this.threadSeats) {
+            for (const record of this.threadSeats.values()) record.active = false;
+            this.retireThreadOutlets();
+          }
           this.threadSizeTargets = null;
-          this.threadSurface.unregister();
-          this.threadSurface = null;
-          this.threadOutlets = null;
+          this.threadSeats = null;
           this.threadPairs = null;
         };
       });
@@ -858,6 +1107,7 @@ customElements.define(
       this.rendering = rendering;
       try {
         if (source === null) {
+          releaseOutlets(this);
           this.fileEntries = null;
           this.sharedStyles = null;
           this.diffTools = null;
@@ -874,20 +1124,27 @@ customElements.define(
         );
         const sharedStyles = this.sharedStyles ?? new Map();
         const open = !this.hasAttribute("collapsed");
-        const plans = records.map((record) => ({
-          record,
-          previous: prior.get(record.path),
-          prepared: null,
-        }));
+        const plans = await Promise.all(
+          records.map(async (record) => {
+            const evidence = await this.readEntry(snapshot, record);
+            return {
+              record: evidence.file?.record ?? record,
+              evidence,
+              previous: prior.get(record.path),
+              prepared: evidence.error ? evidence : null,
+            };
+          }),
+        );
+        // Every row's evidence is judged before its metadata commits. Only open files
+        // need the textual renderer; closed files retain their one parsed reading.
         // Open evidence is prepared without changing the current entries or their native
         // outlets. A disclosure opened while another file loads joins this same commit.
         for (;;) {
           if (rendering !== this.rendering || !this.isConnected) return;
           const pending = plans.filter(
             ({ record, previous, prepared }) =>
-              record.kind !== "rename" &&
               !prepared &&
-              (previous?.details?.open ?? open),
+              (record.hunkCount === 0 || (previous?.details?.open ?? open)),
           );
           if (!pending.length) break;
           await Promise.all(
@@ -897,6 +1154,7 @@ customElements.define(
                 plan.record,
                 plan.previous?.details ? plan.previous.renderKey : null,
                 sharedStyles,
+                plan.evidence,
               );
             }),
           );
@@ -905,33 +1163,45 @@ customElements.define(
         const restores = [];
         const resume = this.controller.defer();
         try {
-          const entries = plans.map(({ record, previous, prepared }) => {
+          const entries = plans.map(({ record, evidence, previous, prepared }) => {
             let entry = previous;
-            const rename = record.kind === "rename";
+            const metadata = record.hunkCount === 0 && !prepared?.error;
             if (
-              rename
+              metadata
                 ? !entry ||
                   entry.details ||
-                  entry.record.previousPath !== record.previousPath
+                  JSON.stringify(entry.record) !== JSON.stringify(record)
                 : !entry?.details
             ) {
-              const row = rename ? renameNode(record) : summaryNode(record, open);
-              if (entry)
-                restores.push(replaceFileRendering(entry, row, this.threadOutlets));
+              const row = metadata
+                ? metadataNode(record)
+                : summaryNode(
+                    record,
+                    !!prepared?.error || record.hunkCount === 0 || open,
+                    !prepared?.error,
+                  );
+              if (entry) restores.push(replaceFileRendering(entry, row));
               else fresh.push((entry = fileEntry(row)));
             }
             Object.assign(entry, {
               record,
-              loaded: rename,
+              file: evidence.file,
+              loaded: metadata,
               failed: false,
+              refused: false,
               loading: null,
               prepared,
             });
             keeps(entry.node, "data-lf-gen", "1");
-            if (rename) return entry;
-            paintSummary(entry.details, record);
+            if (metadata) {
+              entry.lines = [];
+              entry.renderKey = null;
+              return entry;
+            }
+            paintSummary(entry.details, record, !prepared?.error);
             if (prepared) restores.push(this.applyEntry(entry));
             else entry.details.querySelector("pre")?.toggleAttribute("hidden", true);
+            paintFileDetails(entry.details, prepared?.error ? {} : record);
             return entry;
           });
           this.snapshot = snapshot;
@@ -941,15 +1211,18 @@ customElements.define(
           for (const entry of fresh) this.attachEntryControls(entry);
           for (const entry of entries) this.attachDisclosure(entry);
           this.filesBody ??= diffBody([]);
+          // A file the patch dropped goes with its outlets, which core's composer leaves first.
+          for (const entry of prior.values())
+            if (!entries.includes(entry)) releaseOutlets(entry.node);
           setChildren(this.filesBody, [
             this.diffTools.search,
             ...entries.map(({ node }) => node),
           ]);
           this.replaceChildren();
+          this.layoutThreadOutlets();
           this.stageFiles();
           this.projectFiles();
           this.classList.toggle("lf-rendered", true);
-          this.settled = true;
           this.filterFiles(this.diffTools.search.value);
           for (const restore of restores) restore?.();
         } finally {
@@ -957,26 +1230,49 @@ customElements.define(
         }
       } catch (err) {
         if (rendering !== this.rendering || !this.isConnected) return;
-        this.settled = true;
         this.fileEntries = null;
         this.sharedStyles = null;
         this.diffTools = null;
         this.filesBody = null;
         this.classList.toggle("lf-rendered", false);
-        // The failure box quotes a patch text; a manifest has none to quote.
+        // The failure box quotes a patch text; a manifest has none to quote. It takes
+        // the place of every outlet, which core's composer leaves first.
+        releaseOutlets(this);
         failSoft(this, err, typeof source === "string" ? source : undefined);
-        if (this.shadowRoot) shadowStage(this, [...this.childNodes]);
         if (snapshot !== undefined) projectData(this, [], { snapshot });
       }
     }
 
-    async prepareEntry(snapshot, record, renderKey, sharedStyles) {
+    // A patch that fails to load may load on Retry. One this widget cannot draw never
+    // will, so it offers no Retry, and `applyEntry` reports it to the agent, which stored
+    // it, once the current rendering shows it: the manifest's producer leaves judging a
+    // patch to this widget.
+    async readEntry(snapshot, record) {
+      let patch;
+      if (!record.parsed)
+        try {
+          patch = await loadDeferred(snapshot, record.path);
+        } catch (error) {
+          return { error, retry: true };
+        }
       try {
-        const file = record.parsed ?? (await deferredFile(snapshot, record.path));
+        return { file: record.parsed ?? (await deferredFile(patch, record)) };
+      } catch (error) {
+        return { error };
+      }
+    }
+
+    async prepareEntry(snapshot, record, renderKey, sharedStyles, evidence) {
+      const reading = evidence ?? (await this.readEntry(snapshot, record));
+      if (reading.error) return reading;
+      try {
+        const { file } = reading;
         const nextKey = JSON.stringify(file);
         const rendered =
-          renderKey === nextKey ? null : await renderFile(file, sharedStyles);
-        return { renderKey: nextKey, rendered };
+          !file.hunks.length || renderKey === nextKey
+            ? null
+            : await renderFile(file, sharedStyles);
+        return { file, renderKey: nextKey, rendered };
       } catch (error) {
         return { error };
       }
@@ -1009,19 +1305,24 @@ customElements.define(
       );
     }
 
+    // x-thread-surface: Leaf asks for one outlet, or null, per target it hands over, and
+    // the outlets this placement no longer uses come down once it commits.
+    threadOutlets(targets, { onCommit }) {
+      this.beginThreadSurface();
+      const outlets = targets.map((target) => this.threadOutletFor(target));
+      this.layoutThreadOutlets();
+      onCommit(() => this.retireThreadOutlets());
+      return outlets;
+    }
+
+    // One outlet per datum, kept beside its datum's drawn node for as long as the thread
+    // surface returns it. One the surface stops returning still holds the composer or
+    // a thread view core placed there, until that placement commits; only then does it
+    // come down, so the user's editor never leaves the document with it.
     beginThreadSurface() {
-      this.threadOutlets ??= new Map();
+      this.threadSeats ??= new Map();
       this.threadPairs ??= new Map();
-      for (const [key, record] of this.threadOutlets) {
-        if (
-          !record.outlet.isConnected ||
-          (record.gutterRow && !record.gutterRow.isConnected)
-        ) {
-          this.threadOutlets.delete(key);
-          continue;
-        }
-        record.active = false;
-      }
+      for (const record of this.threadSeats.values()) record.active = false;
       for (const [content, pair] of this.threadPairs)
         if (!content.isConnected || !pair.gutter.isConnected)
           this.threadPairs.delete(content);
@@ -1030,14 +1331,11 @@ customElements.define(
     threadPair(row) {
       this.threadPairs ??= new Map();
       const content = row.parentElement;
-      const pre = content?.closest("pre");
-      const gutter = pre?.querySelector("[data-gutter]");
+      const gutter = content.closest("pre").querySelector("[data-gutter]");
       const lineIndex = row.dataset.lineIndex;
-      const gutterRow = [...(gutter?.children ?? [])].find(
+      const gutterRow = [...gutter.children].find(
         (candidate) => candidate.dataset.lineIndex === lineIndex,
       );
-      if (!content?.matches("[data-content]") || !gutter || !gutterRow)
-        throw new Error("Pierre returned a diff line without its paired gutter row");
       let pair = this.threadPairs.get(content);
       if (!pair) {
         pair = {
@@ -1068,15 +1366,9 @@ customElements.define(
       )
         return null;
 
-      let record = this.threadOutlets.get(anchor.datum);
-      if (record && record.row !== placement.datumElement) {
-        record.outlet.remove();
-        record.gutterRow?.remove();
-        this.threadOutlets.delete(anchor.datum);
-        record = null;
-      }
+      const row = placement.datumElement;
+      let record = this.threadSeats.get(anchor.datum);
       if (!record) {
-        const row = placement.datumElement;
         const outlet = document.createElement("section");
         outlet.className = `lf-diff-thread-outlet lf-ui${
           file ? " lf-diff-file-thread-outlet" : ""
@@ -1087,35 +1379,50 @@ customElements.define(
           "aria-label",
           `Thread on ${row.dataset.lfDatumLabel || (file ? "file" : "diff line")}`,
         );
-        if (file) {
-          entry.node.append(outlet);
-          record = { active: true, gutterRow: null, outlet, pair: null, row };
-        } else {
-          const { gutterRow: lineGutter, pair } = this.threadPair(row);
-          const gutterRow = document.createElement("div");
+        let gutterRow = null;
+        if (!file) {
+          gutterRow = document.createElement("div");
           gutterRow.className = "lf-diff-thread-gutter lf-ui";
           gutterRow.dataset.lfGen = "1";
           gutterRow.setAttribute("aria-hidden", "true");
-          row.after(outlet);
-          lineGutter.after(gutterRow);
-          record = { active: true, gutterRow, outlet, pair, row };
         }
-        this.threadOutlets.set(anchor.datum, record);
+        record = { gutterRow, outlet, pair: null, row: null };
+        this.threadSeats.set(anchor.datum, record);
+      }
+      // A datum drawn anew takes its outlet along, which keeps whoever stands in it.
+      if (record.row !== row) {
+        if (file) move(entry.node, record.outlet, null);
+        else {
+          const { gutterRow: lineGutter, pair } = this.threadPair(row);
+          move(row.parentNode, record.outlet, row.nextSibling);
+          move(lineGutter.parentNode, record.gutterRow, lineGutter.nextSibling);
+          record.pair = pair;
+        }
+        record.row = row;
       }
       record.active = true;
       return record.outlet;
     }
 
-    endThreadSurface() {
-      for (const [key, record] of this.threadOutlets ?? []) {
+    // Take down the outlets the committed placement no longer uses.
+    retireThreadOutlets() {
+      for (const [key, record] of this.threadSeats) {
         if (record.active) continue;
         record.outlet.remove();
         record.gutterRow?.remove();
-        this.threadOutlets.delete(key);
+        this.threadSeats.delete(key);
       }
+      this.layoutThreadOutlets();
+    }
+
+    // Each line outlet takes a grid row of its own beside its line, in the content and
+    // the gutter columns alike. A file drawn anew sets its columns' rows from the fresh
+    // render alone, so the outlets it kept take theirs again here.
+    layoutThreadOutlets() {
       const counts = new Map();
-      for (const record of this.threadOutlets?.values() ?? [])
-        if (record.pair) counts.set(record.pair, (counts.get(record.pair) ?? 0) + 1);
+      for (const { outlet, pair } of this.threadSeats?.values() ?? [])
+        if (pair && outlet.parentNode === pair.content)
+          counts.set(pair, (counts.get(pair) ?? 0) + 1);
       const targets = new Set();
       for (const pair of this.threadPairs?.values() ?? []) {
         const count = counts.get(pair) ?? 0;
@@ -1147,7 +1454,7 @@ customElements.define(
         if (rendering === this.sourceRendering) break;
       }
       if (!this.fileEntries?.includes(entry)) return;
-      if (entry.loaded || entry.prepared) return;
+      if (entry.loaded || entry.prepared || entry.refused) return;
       // A disconnect abandons a load, and the entry stays loadable: an inline patch
       // keeps its entries across a reconnection, so a later open starts afresh.
       if (entry.loading?.rendering === this.rendering) return entry.loading.promise;
@@ -1158,11 +1465,13 @@ customElements.define(
           entry.record,
           entry.renderKey,
           this.sharedStyles,
+          entry.file ? { file: entry.file } : undefined,
         );
         if (rendering !== this.rendering || !this.isConnected) return;
         entry.loading = null;
         entry.prepared = prepared;
         const restore = this.applyEntry(entry);
+        this.layoutThreadOutlets();
         this.stageFiles();
         this.projectFiles();
         restore?.();
@@ -1173,30 +1482,51 @@ customElements.define(
 
     // Returns the focus restore for the caller to run once the file's evidence is staged.
     applyEntry(entry) {
-      const { error, renderKey, rendered } = entry.prepared;
+      const { error, retry, file, renderKey, rendered } = entry.prepared;
       entry.prepared = null;
       if (error) {
         entry.failed = true;
+        paintSummary(entry.details, entry.record, false);
+        if (!entry.details.open) entry.details.open = true;
+        entry.disclosureOpen = true;
+        // Reopening retries a load; nothing loads a patch this widget refused again.
+        entry.refused = !retry;
+        if (entry.refused) reportFailure(this, error);
         entry.lines = [];
         entry.renderKey = null;
-        deferredError(entry.details, error, () => {
-          if (!entry.failed) return;
-          entry.failed = false;
-          this.present(this.loadEntry(entry));
-        });
+        deferredError(
+          entry.details,
+          error,
+          retry &&
+            (() => {
+              if (!entry.failed) return;
+              entry.failed = false;
+              this.present(this.loadEntry(entry));
+            }),
+        );
         return null;
+      }
+      entry.file = file;
+      entry.record = file.record;
+      paintSummary(entry.details, entry.record);
+      if (entry.record.hunkCount === 0) {
+        const restore = replaceFileRendering(entry, metadataNode(entry.record));
+        entry.loaded = true;
+        this.attachDisclosure(entry);
+        return restore;
       }
       const restore =
         rendered &&
-        replaceFileContent(entry, rendered, this.threadPairs, this.threadOutlets);
+        replaceFileContent(entry, rendered, this.threadPairs, this.threadSeats);
       entry.renderKey = renderKey;
       entry.loaded = true;
       entry.details.querySelector("pre")?.toggleAttribute("hidden", false);
       this.attachLineComments(entry);
+      paintFileDetails(entry.details, entry.record);
       return restore;
     }
 
-    // Core can place a standing line thread at its file disclosure before that file's
+    // Core can place an existing line thread at its file disclosure before that file's
     // patch exists in the DOM. Navigation asks the second method to make the exact line
     // real, then the ordinary datum resolver and anchor painter take over.
     lfDataDatum(key, { outdated = false } = {}) {
@@ -1234,9 +1564,14 @@ customElements.define(
       entry.disclosureNode?.removeEventListener("toggle", entry.disclose);
       entry.disclosureNode = entry.details;
       if (!entry.details) return;
+      entry.disclosureOpen = entry.details.open;
       entry.disclose ??= () => {
-        this.threadSurface?.update();
-        if (!entry.details.open || !this.fileEntries?.includes(entry)) return;
+        const previous = entry.disclosureOpen;
+        entry.disclosureOpen = entry.details.open;
+        threadSurface(this).update();
+        if (previous === entry.disclosureOpen) return;
+        if (!entry.details.open || !this.fileEntries?.includes(entry) || entry.refused)
+          return;
         entry.failed = false;
         this.present(this.loadEntry(entry));
       };
@@ -1256,7 +1591,7 @@ customElements.define(
       const label = entry.record.path || "file";
       entry.fileComment = commentButton(
         label,
-        () => this.threadSurface?.open(entry.node, { origin: entry.fileComment }),
+        () => threadSurface(this).open(entry.node),
         "lf-diff-file-comment",
       );
       entry.node
@@ -1271,7 +1606,7 @@ customElements.define(
         if (line.comment?.parentElement === gutterRow) continue;
         line.comment = commentButton(
           lineLabel(line),
-          () => this.threadSurface?.open(line.node, { origin: line.comment }),
+          () => threadSurface(this).open(line.node),
           "lf-diff-line-comment",
         );
         // Thousands of lines must not become thousands of Tab stops. The page-level
@@ -1298,7 +1633,7 @@ customElements.define(
       }
       this.refreshDiffTools();
       layoutChanged(this);
-      this.threadSurface?.update();
+      threadSurface(this).update();
     }
 
     clearFilter() {
@@ -1334,8 +1669,8 @@ customElements.define(
     // against, and the tools row standing before every file is why a user who has
     // touched nothing steps to the first hunk rather than nowhere.
     hereNode() {
-      const focused = this.shadowRoot?.activeElement;
-      return focused && this.shadowRoot.contains(focused) ? focused : null;
+      const standing = this.shadowRoot && focused(this.shadowRoot);
+      return standing && this.shadowRoot.contains(standing) ? standing : null;
     }
 
     // With nothing focused inside the shadow tree — the host itself is focused, which
@@ -1448,9 +1783,9 @@ customElements.define(
     }
 
     entryAroundFocus() {
-      const focused = this.hereNode();
+      const here = this.hereNode();
       const focusedEntry =
-        this.fileEntries?.find(({ node }) => focused && node.contains(focused)) ?? null;
+        this.fileEntries?.find(({ node }) => here && node.contains(here)) ?? null;
       if (focusedEntry) return focusedEntry;
       return this.fileEntries?.includes(this.fileCursor) ? this.fileCursor : null;
     }

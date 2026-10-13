@@ -41,23 +41,26 @@ primitive must give the user something that site would not:
 Leaf standardizes reading, commenting, and actions across sessions and agents.
 Page content and composition remain the agent's and user's choices.
 
+The agent that writes a page, sets its data, or changes Leaf works in a fast loop: it
+reads what fails and tries again. So Leaf lets a failure surface through the parser or
+check already in its path, and spends code preventing one only where the agent could
+not see it, where it would pass silently into what the user relies on, such as an
+admitted event or a stored decision. Every check, option, and special case is a
+permanent cost to every later maintainer, and one that buys nothing the agent's next
+attempt would not is removed.
+
 ## Stage
 
 Leaf has no users, deployment, database, or persisted state that constrains new
-code. Prefer the simpler interface even when it is incompatible. Delete and
-regenerate stale state. Add a guard only for a reachable condition with a useful
-response.
+code. Prefer the simpler interface even when it is incompatible. Spend no code or
+test complexity on backward compatibility with earlier runtimes. Delete and
+regenerate stale state.
 
 Regenerate or discard claims, logs, and pages from earlier runtimes. Add no
-migration, compatibility shim, or removal promise. Leave old state and recovery
-instructions out of the handoff.
-
-The state home is one directory per machine, written at once by every worktree,
-harness and session on it, each running the leaf it was built from, so a record
-older than the code reading it is ordinary rather than exceptional. If a record
-lacks fields this version expects, Leaf ignores it where it is loaded and treats
-the thing it described as absent. It neither migrates the record nor fails the
-session: a session is never taken down by state it does not own.
+migration, compatibility shim, old-record validator, fallback read, or removal
+promise. This includes the state home shared by worktrees and sessions: its old
+records are disposable, not inputs a new reader must accommodate. Leave old
+state and recovery instructions out of the handoff.
 
 Tests should protect behavior a user depends on. Treat rewriting or deleting a
 test as an ordinary part of a code change. Check which behavior its assertion
@@ -82,6 +85,41 @@ long as any architectural problem they leave remains easy to fix.
 
 Make improvements that follow from the repository. Ask the user only when the
 choice depends on purpose or intent the code cannot supply.
+
+### Responsiveness
+
+A gesture shows what it settles by itself in the turn the user makes it: a
+message in its thread, a widget's new state, a thread the user resolves. Facts
+derived from the rest of the log, such as whose turn a thread is and which asks
+the user owes, come back with the server's reading of the gesture. The server
+usually runs on the user's machine, so that reading should be on screen within
+100 ms. The browser does not anticipate it: a prediction is a second copy of the
+server's rules, and each gesture and subject it misses shows the wrong state
+until the reading lands. Where the reading cannot reach the screen within 100 ms,
+make that path faster rather than predicting what it will say.
+
+### Pages across Leaf updates
+
+A page keeps the layer of the Leaf that vendored it, and each later Leaf serves,
+checks and writes it, so the two often differ. Changes cross that gap in two ways:
+
+- **A protocol bump** breaks every page vendored before it, and the schema
+  announces it: the kernel registry's `$events.protocol` changes, and a Leaf
+  refuses a page vendored at another number, naming the `leaf page init` that
+  rebuilds it. A change to what a page's log holds, what its runtime posts, or the
+  reading its server serves, that an earlier page would break on, bumps the
+  number; the browser build holds the event contract to that. Bumps are rare,
+  perhaps one in five hundred commits. Once Leaf is released, a bump is the only
+  change allowed to break an existing page.
+- **Drift**, while Leaf is in alpha, may occasionally break an older page without
+  a bump, as when a render check imports a runtime name the page's runtime lacks.
+  Leaf does not detect drift by comparing the page's files with its own: a check
+  that refuses a page over any change to them forces a rebuild on nearly every
+  update. Instead the page's banner names the Leaf that vendored it beside the one
+  serving it, `page check` names it beside the one checking it, each with its
+  date, and the agent judges: a page much older than its Leaf that misbehaves
+  gets re-vendored. A failure drift does cause names the re-vendor, as the render
+  gate's does.
 
 ## Fix the underlying issue
 
@@ -195,8 +233,8 @@ install must be writable, and Leaf writes nothing else there. Point Codex
 at the git source, since a local-directory marketplace copies a checkout's
 `.venv` too. A plugin update may replace the directory wholesale, so what has to
 survive one belongs in the page directory or the state home. Runtime
-dependencies, and those a package script declares, state a floor and no cap. The
-host supplies Chrome and `jq`; leaf never downloads a browser.
+dependencies, and those a bundled package script declares, state a floor and no
+cap. The host supplies Chrome and `jq`; leaf never downloads a browser.
 
 Files under `skills/leaf/assets/vendor/` and each package's `vendor/` are
 generated and committed where their consumer reads them; `build/AGENTS.md` says
@@ -238,7 +276,7 @@ counter-event.
 Actions and reports share one registry-declared key: owner widget, fold unit, and
 verb. Admission records the command's declared meaning in the event, so a later
 reader recovers it without the widget. Python derives winners, retractions,
-settlement, Questions, threads, and updates in one transaction-consistent browser view.
+settlement, asks, threads, and updates in one transaction-consistent browser view.
 JavaScript combines that view with authored initial values and unresolved local
 gestures into complete widget and thread state, and widgets render it, unset and
 undecided values included. Undo never reconstructs widgets or replays baseline
@@ -248,10 +286,12 @@ frozen into thread markup use the thread window.
 A forward gesture whose result the page can draw shows that result in the turn that
 sends it, before the log answers; a disabled control, spinner, or other delivery
 status is not that result. The page can draw what its own document settles, such as
-a widget's state or a thread's turn. Which widget Questions the document still holds, and which
-of them the user owes, depend on the whole log, so that reading changes only when
-the browser adopts the state the gesture's own POST returns; the browser never
-derives it. A refusal restores the authoritative state.
+a widget's state or the words of a turn the user adds to a thread. Which asks
+the document still holds, which of them the user owes, and whose turn a thread is
+depend on the whole log, so the browser reads them from the server's state and
+waits for its reading of a gesture ("Responsiveness"). It adds only what it decides
+itself: a required-version approval, a to-do the user ends, a thread it opened, the
+answer a send is owed, and the resend a refused send leaves. A refusal restores the authoritative state.
 
 The active document has one immutable application publication. Only its publisher
 combines authored baselines, the complete admitted server reading, and the ordered
@@ -280,7 +320,7 @@ canonical activity summary for neighboring rows (`server_rows.py`). The summary 
 disposable delivery output; neighboring readers consult it and server liveness,
 never another page's log or document.
 Messages, thread attention, and margin entries consume the canonical workflows;
-thread attention also retains outstanding user Questions. Page activity does not imply
+thread attention also retains outstanding asks. Page activity does not imply
 work on every message. JavaScript adds unresolved local sends through the
 application publisher and may schedule a read at `next_transition_at`; it does not
 age or independently reclassify accepted workflow evidence. The stop guard consumes
@@ -316,14 +356,17 @@ live under `$` keys; each tag entry is one complete schema.
 
 ## Working on the repository
 
-When the user is to choose among designs, show the candidates in a playground
-(`/developing-leaf`, "Explore an open design").
+When the user is to choose among designs, show the candidates side by side and let
+the user select one (`/developing-leaf`, "Explore an open design").
 
 Before finishing a feature:
 
-- Give every action a keyboard route, without spending a page-level binding on
-  each one, and a route a finger can take (`runtime/keyboard/AGENTS.md`, "Touch
-  routes").
+- Give every result a pointer reaches a keyboard route, without spending a
+  page-level binding on each one, and a route a finger can take
+  (`runtime/keyboard/AGENTS.md`, "Touch routes"). The route is owed to the result,
+  not to each gesture: ask what a user could no longer see, reach, or decide
+  without the gesture. Dragging a thread card aside needs no route of its own,
+  since Escape also uncovers the passage beneath it.
 - Follow `examples/AGENTS.md` when adding or changing a feature, and regenerate
   the derived corpus.
 - If the feature changes what an agent can do or how it should do it, update
@@ -340,7 +383,7 @@ Before handing over, run the tests that hold the behavior the change touches, an
 change needs"). A pull request's `test` job and `wt merge`'s pre-merge run the broad
 selection, `uv run pytest tests`, at landing, and report any failure your selection
 missed. Don't run it by hand before then, nor a whole browser test file or a whole
-later tier (`--run-main`, `--run-nightly`, `-m main`, `-m nightly`): each takes minutes
+later tier (`--run-main`, `--run-nightly`, `tests/browser`, `tests/journeys`): each takes minutes
 to over an hour and slows every session on the shared host, however idle it looks. A
 change to code most of the suite runs through still hands over on the tests that
 exercise what it changed, and leaves finding the rest to the gate. Before widening

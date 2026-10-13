@@ -68,7 +68,7 @@ function paintStateOrigins(projection) {
 }
 
 // A holder's settlement is the registry's slot relation read against its deciding
-// verb's standing outcome, so the layer paints it for every holder whether or not its
+// verb's outcome in force, so the layer paints it for every holder whether or not its
 // module renders anything. A module with a choreography of its own (lf-suggestion's
 // fold) has already run it in the publication, before this pass writes the same mark.
 // A holder in a message's frozen markup is painted before the thread mounts it, so it
@@ -208,7 +208,7 @@ export function createProjectionPresentation({ onDeferredReady }) {
 
   // `present` stays in here. The region has two ways in — its own subscription above,
   // and `presentDocument` for a caller that changed the document and has no business
-  // knowing which regions are alive. A third, handed to one caller, is how the Question
+  // knowing which regions are alive. A third, handed to one caller, is how the ask
   // inventory came to be left out of a document-wide repaint.
   return {
     retireProjectionCoverage,

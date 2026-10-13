@@ -20,11 +20,12 @@ import { clippedContents } from "./geometry.js";
 import { inUi, shadowHost, under, upFrom } from "./shadow.js";
 import {
   registeredVisualPart,
-  registeredVisualPartAt,
   registeredVisualPartLabel,
-  registeredVisualParts,
   revealRegisteredVisualPart,
   revealsVisualParts,
+  usableVisualPartAt,
+  usableVisualParts,
+  registeredVisualParts,
   visualPartAdmission,
 } from "./visual-parts.js";
 import {
@@ -63,8 +64,9 @@ import {
 } from "./addressable-names.js";
 import { fragmentId } from "./initial-render.js";
 
-// Anchors are durable coordinates, so every route that can mint one begins only after
-// replay has reconciled the authored document. The presentation root owns the writer.
+// Every route that mints an anchor starts after the shown document's widgets and
+// selectable words have settled. Private history can still be loading: the gesture
+// names the revision and coordinate the user actually saw. The entry owns the writer.
 let anchoringReady = false;
 export const anchoringIsReady = () => anchoringReady;
 export function setAnchoringReady(ready) {
@@ -126,8 +128,6 @@ function suppliedDatum(source, key) {
 // handed it by package code, so an undeclared one is that code's error, thrown at the
 // call rather than read as a reference to nothing.
 export function requireReference(verb, owner, attribute) {
-  if (!(owner instanceof Element))
-    throw new TypeError(`${verb} owner must be an element`);
   if (
     typeof attribute !== "string" ||
     !Object.hasOwn(registry[owner.localName]?.["x-refers"] ?? {}, attribute)
@@ -137,13 +137,26 @@ export function requireReference(verb, owner, attribute) {
     );
 }
 
-// The element an `x-refers` attribute names: in the owner's own authored document
-// first, so a widget in a message finds its message's element before a page element
-// with the same id, as the server's request check does, and then in the page beside
-// it, which a message's widget may name.
+// The element an `x-refers` attribute names. A keyed contract names the member whose
+// key holds the value inside the owner's nearest enclosing scope, the scope the
+// member's x-unique declares for that key. Any other names an id: in the owner's own
+// authored document first, so a widget in a message finds its message's element before
+// a page element with the same id, as the server's request check does, and then in the
+// page beside it, which a message's widget may name.
 export function referencedProjection(owner, attribute) {
   const id = owner.getAttribute(attribute);
   if (!id) return null;
+  const { tag, key } = registry[owner.localName]["x-refers"][attribute];
+  if (tag) {
+    const within = registry[tag]["x-unique"][key];
+    const scopeOf = (element) => element.parentElement?.closest(within) ?? null;
+    const scope = scopeOf(owner);
+    return (
+      [...(scope?.querySelectorAll(tag) ?? [])].find(
+        (member) => scopeOf(member) === scope && member.getAttribute(key) === id,
+      ) ?? null
+    );
+  }
   const scope = authoredScope(owner);
   const page = pageDocument();
   return elementById(id, scope) ?? (scope === page ? null : elementById(id, page));
@@ -176,28 +189,23 @@ export function revealAddressed(source, key) {
   return source.lfRevealDatum?.(key) ?? null;
 }
 
-// A generated visual part keeps a semantic id its provider's declaration admits
-// (`visualPartAdmission`). Element ids never escape into the event log; the
-// declaration bounds the inventory core will trust. No rank when the visual declares
-// no parts at all.
-const visualPartRank = (visual) =>
-  visual
-    ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"])?.rank
-    : null;
+// A generated visual part keeps an id its provider's declaration admits.
+const visualAdmission = (visual) =>
+  visual ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"]) : null;
 
 const wholeVisualSurface = (element) =>
   registry[element?.localName]?.["x-visual"] ? element : null;
 
-/** The registered parts a visual's declaration admits, in declaration order. */
-export function visualParts(visual) {
-  const rank = visualPartRank(visual);
-  if (!rank) return [];
-  return registeredVisualParts(visual)
-    .filter((part) => rank(part.id) >= 0)
-    .sort((a, b) => rank(a.id) - rank(b.id));
+/** The admitted parts in their registered inventory order. */
+export function visualParts(visual, { strict = false } = {}) {
+  const admits = visualAdmission(visual);
+  if (!admits) return [];
+  return (strict ? registeredVisualParts(visual) : usableVisualParts(visual)).filter(
+    (part) => admits(part.id),
+  );
 }
 
-const admitsVisualPart = (visual, part) => visualPartRank(visual)?.(part) >= 0;
+const admitsVisualPart = (visual, part) => visualAdmission(visual)?.(part) ?? false;
 
 function visualPart(visual, part) {
   return admitsVisualPart(visual, part) ? registeredVisualPart(visual, part) : null;
@@ -210,10 +218,8 @@ function revealVisualPart(visual, part) {
 }
 
 function visualPartAt(visual, target) {
-  const rank = visualPartRank(visual);
-  return rank
-    ? registeredVisualPartAt(visual, target, (part) => rank(part.id) >= 0)
-    : null;
+  const admits = visualAdmission(visual);
+  return admits ? usableVisualPartAt(visual, target, (part) => admits(part.id)) : null;
 }
 
 export const visualPartLabel = (visual, part) =>
@@ -361,14 +367,16 @@ export function datumAimTarget(datum) {
 // semantic fences. A short unique quote keeps the file capture’s initial context;
 // repeated words grow their context until the shared resolver finds this exact span
 // or the real boundary is exhausted. An unresolved passage remains unresolved.
-export function anchorForRange(range) {
-  const node = range.commonAncestorContainer;
+// `anchorForPassage` captures segments already taken from the page reading, under
+// `node`, without walking the reading again to find them.
+export const anchorForRange = (range) =>
+  anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
+export function anchorForPassage(segments, node) {
   const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
   // The neighbours come from the same indexed reading the search uses and stop at
   // the same opaque-widget fences as the file-side capture. The browser knows words
   // a module generated and may quote them; it does not pretend the file can confirm
   // context across their seam.
-  const segments = segmentsIn(range);
   const { text: quote, units } = readingFrom(segments);
   const dataNodes = new Set(
     segments.map((seg) => closestAcross(seg.node, DATUM)).filter(Boolean),

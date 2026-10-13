@@ -40,13 +40,13 @@
  * Every tab's accessible name is its label; what else the tab shows describes it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
- * the panel's `summary` under the name, and beside the name, once
- * every Question its panel holds is answered, a check with the answer's own words where the
- * panel holds one Question, or the check alone where it holds several. So a queue shows how
- * far the user has worked through it, and an undo that reopens a Question takes the check
- * away again. Which Questions a panel holds and their answers are the Questions API's, read
- * from the admitted Question inventory. A row whose panel authors a Question keeps the check's
- * room either way, so an answer moves no row. While the
+ * the panel's `summary` under the name, and beside the name its asks' state: an open mark
+ * while any ask the panel holds is unanswered, and once every one is answered a check, with
+ * the answer's own words where the panel holds one ask. So a queue shows each item's state
+ * and how far the user has worked through it, and an undo that reopens an ask puts the
+ * open mark back. Which asks a panel holds is `asksIn` (asks/place.js), read from the
+ * admitted ask inventory, so a tally of the queue counts the same asks. A row whose panel
+ * authors an ask keeps the mark's room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
  * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
@@ -55,9 +55,8 @@ import {
   afterScript,
   HIDDEN,
   PRESS,
-  readQuestions,
-  questionWords,
-  elementById,
+  asksIn,
+  askWords,
   under,
   backgroundFlash,
   beginWalk,
@@ -91,13 +90,14 @@ import {
   setRuntimeRootStyle,
   sizeObserver,
   tabStore,
-  watchQuestions,
+  watchAsks,
   watchComparison,
   focusDestination,
   fragmentTarget,
   rove,
   rowArrows,
   scrollIntoView,
+  focused,
 } from "/runtime/widget-api.js";
 
 // The page's navigation strip, where one stands: the first tab set in main, drawn as
@@ -128,7 +128,7 @@ customElements.define(
   "lf-tabs",
   class extends HTMLElement {
     #buttons = new Map(); // panel → its strip button
-    #stopQuestions = null;
+    #stopAsks = null;
     #active = null;
     #root = false;
     #contextObserver = null;
@@ -206,9 +206,8 @@ customElements.define(
           relabel(summary, panel.getAttribute("summary"), { says: true });
           btn.append(summary);
         }
-        // The row's answer, unsaid until every Question in the panel is answered (`#marks`),
-        // stands where the panel authors a Question; before the Δ count, which takes the
-        // next column.
+        // The row's ask state (`#marks`) stands where the panel authors an ask; before the
+        // Δ count, which takes the next column.
         if (side && elementsDeclaring(panel, "x-awaits").length) {
           const answer = document.createElement("span");
           answer.className = "lf-tab-answer";
@@ -242,14 +241,14 @@ customElements.define(
         const order = [...this.#buttons.values()];
         // The strip takes no tab stop of its own, so focus inside it — which is the
         // whole of when this scope holds — is always one of these buttons.
-        const at = order.indexOf(document.activeElement);
+        const at = order.indexOf(focused());
         const next = order[to(at, order.length)];
         // The strip is always on screen; focus scrolling a stuck tab back to its place
         // in flow would move the view being left before the switch records it.
         focusDestination(next, "move");
         next.click();
         beginWalk("tab", "Tab", () =>
-          listWalkPosition([...this.#buttons.values()], document.activeElement),
+          listWalkPosition([...this.#buttons.values()], focused()),
         );
       };
       // Across the row, back is the way the names run from.
@@ -262,8 +261,8 @@ customElements.define(
 
           // The tab already open has nothing for this press to do, so the line does not
           // name it there; the walk beside it is what moves.
-          when: () => document.activeElement?.getAttribute("aria-selected") !== "true",
-          run: () => document.activeElement.click(),
+          when: () => focused()?.getAttribute("aria-selected") !== "true",
+          run: () => focused().click(),
         },
         {
           id: "tab.walk",
@@ -312,7 +311,7 @@ customElements.define(
         this.#replaceLocation(this.#active);
       }
       // The Δ count follows the version diff; the runtime announces each toggle.
-      this.#listenForQuestions();
+      this.#listenForAsks();
       watchComparison(this, () => this.#marks());
       whileConnected(this, (signal) => {
         this.#watchRootContext();
@@ -368,8 +367,8 @@ customElements.define(
     }
 
     // What each panel holds, said with its summary as the tab's description: the
-    // version diff's marked passages, and in a side list the answer once its Questions are
-    // all answered.
+    // version diff's marked passages, and in a side list its asks' state, with the answer
+    // once they are all answered.
     #marks() {
       for (const [panel, btn] of this.#buttons) {
         const changed = comparisonChanges(panel).length;
@@ -378,22 +377,17 @@ customElements.define(
           changed ? `Δ${changed}` : "",
         );
         const slot = btn.querySelector(":scope > .lf-tab-answer");
-        const questions = slot
-          ? readQuestions().all.filter((question) => {
-              const source =
-                question.status !== "withdrawn" &&
-                question.source.kind === "widget" &&
-                elementById(question.source.id);
-              return source && under(source, panel);
-            })
-          : [];
-        const answered =
-          questions.length > 0 &&
-          questions.every((question) => question.status === "answered");
-        const only = questions.length === 1 ? questions[0] : null;
-        const answer = answered && only ? questionWords(only) : "";
+        const asks = slot ? asksIn(panel) : [];
+        const done = asks.filter((ask) => ask.status === "answered");
+        const answered = asks.length > 0 && done.length === asks.length;
+        const only = asks.length === 1 ? asks[0] : null;
+        const answer = answered && only ? askWords(only) : "";
         if (slot) {
-          keeps(slot, "data-lf-answered", answered ? "" : null);
+          keeps(
+            slot,
+            "data-lf-asks",
+            answered ? "answered" : asks.length ? "open" : null,
+          );
           keepsText(slot.firstElementChild, answer);
         }
         const group = this.#side && panel.getAttribute("group");
@@ -401,13 +395,17 @@ customElements.define(
           group && `${group} group`,
           panel.getAttribute("summary"),
           changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
-          !answered
+          !asks.length
             ? ""
-            : questions.length > 1
-              ? `All ${questions.length} Questions answered`
-              : answer
-                ? `Answered: ${answer}`
-                : "Answered",
+            : !answered
+              ? only
+                ? "Unanswered"
+                : `${done.length} of ${asks.length} answered`
+              : only
+                ? answer
+                  ? `Answered: ${answer}`
+                  : "Answered"
+                : `All ${asks.length} answered`,
         ]
           .filter(Boolean)
           .join(". ");
@@ -415,10 +413,10 @@ customElements.define(
       }
     }
 
-    // A side list's answers follow the page's Question reading.
-    #listenForQuestions() {
-      if (!this.#side || !this.#buttons.size || this.#stopQuestions) return;
-      this.#stopQuestions = watchQuestions(this, () => this.#marks());
+    // A side list's answers follow the page's ask reading.
+    #listenForAsks() {
+      if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
+      this.#stopAsks = watchAsks(this, () => this.#marks());
     }
 
     #activate(active, reason) {

@@ -17,7 +17,7 @@ export interface ActionSpec {
   unit: string;
   record?: StateRecord;
   writer?: "user" | "agent";
-  report?: boolean;
+  text?: boolean;
   creates?: { child: string; [key: string]: unknown };
   detail?: object | boolean;
 }
@@ -64,7 +64,7 @@ export type LocalEdit = Extract<Command, { kind: "edit" }> & {
   pending: true;
 };
 /** A user's edit as a thread holds it, with the words it replaced. */
-export type Revision = (EventMap["edit"] | LocalEdit) & { was: string };
+type Revision = (EventMap["edit"] | LocalEdit) & { was: string };
 /** What the ledger hands `foldThreads`: each message or rewrite as the thread draws it,
  * each settlement, and each undo. */
 export type ThreadGesture =
@@ -114,6 +114,7 @@ export interface Thread {
   })[];
   unread: readonly ContentVersion[];
   attention: Attention;
+  todos: readonly { id: string; title: string; line: string | null }[];
   settling?: "resolve" | "unresolve";
 }
 export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {
@@ -160,21 +161,21 @@ export interface ProjectionInput {
   coverage?: readonly Coverage[];
   pendingEntries?: readonly PendingProjection[];
 }
-export interface StandingValue {
+export interface ActionValue {
   action: string | null;
   value: unknown;
   detail: Record<string, unknown>;
 }
 export interface UnitValue {
   value: Record<string, string[]>;
-  units: Record<string, StandingValue>;
+  units: Record<string, ActionValue>;
 }
 export interface PositionValue extends UnitValue {
   ranks: Record<string, string>;
 }
 export interface AuthoredWidget {
   tag: string;
-  state: Record<string, StandingValue | UnitValue | PositionValue>;
+  state: Record<string, ActionValue | UnitValue | PositionValue>;
   specs: ReadonlyMap<string, ActionSpec>;
 }
 export type AuthoredMap = ReadonlyMap<string, Immutable<AuthoredWidget>>;

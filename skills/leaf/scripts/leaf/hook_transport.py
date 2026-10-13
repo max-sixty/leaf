@@ -2,11 +2,15 @@
 
 Claude Code and Pi carry pending page input here; Codex reserves its new-input
 pointers through `codex`. All three use this module's continuation policy and
-reminders for already-receipted work. A reminder freezes the currently owed inputs
-with the ordinary delivery producer, recovering their exact response references
-even when the original pointer is lost. It does not make those inputs pending
-again or reserve another Codex transport offer. Repeated Stop skips old debt;
-only newly owed input warrants another continuation.
+reminders for already-receipted work. A reminder names the immutable deliveries
+whose receipt references the current owner can use. Only owed inputs with no usable
+reference are captured again, as when another session takes the page. A reminder
+does not make those inputs pending again or reserve another Codex transport offer.
+A Stop hook continues the turn for each owed answer this turn has not started
+(`activity.turn_obligations`), and for a
+page whose watcher is not running while it has input pending or is not idle
+(`stop_continues`). A repeated Stop (`stop_hook_active`) continues the turn only for
+a newly delivered update that owes an answer.
 
 `hooks` reaches this module for active ownership or a reconnect notice about a
 page the session previously served.
@@ -27,15 +31,16 @@ read Picked up without waiting on the model; the envelope's `acknowledge` is nul
 and its reader confirms nothing. So it hands an envelope over inline only once it
 has confirmed every batch: an inline envelope it could not confirm would leave its
 input pending, and every later hook and watch would offer it again as new. A
-batch's receipt can be refused for good, as when this Leaf may not write a log
-vendored at another protocol (`event_contracts.write_refusal`), so whatever the hook
-could not confirm goes as a pointer, whose reader's explicit `leaf delivery ack`
-either confirms it or shows the refusal. The plan reads that refusal once per
-page: the hook then records no other pickup there and names the refusal in the
-turn's attention, so it never fails on a page it cannot write. Claude Code cuts
-context over a limit to a preview (`HOOK_CONTEXT_LIMIT`), so a delivery that
-large goes as a pointer too, unconfirmed, as do pointers Codex's tool hook
-offers.
+batch's receipt can still be refused, as when the page changed hands after the plan
+read it, so whatever the hook could not confirm goes as a pointer, whose reader's
+explicit `leaf delivery ack` either confirms it or shows the refusal. A page vendored
+at another protocol, whose log this Leaf may not write
+(`event_contracts.write_refusal`), offers no new input at all (`delivery.deliverable`):
+the hook records no pickup there and names the refusal in the turn's attention, so
+it never fails on a page it cannot write, nor offers input it could never confirm.
+Claude Code cuts context over a limit to a preview (`HOOK_CONTEXT_LIMIT`), so a
+delivery that large goes as a pointer too, unconfirmed, as do pointers Codex's tool
+hook offers.
 
 A harness reads a hook's output only once it exits, and discards it for a hook it
 times out, so the hook confirms only by a deadline well inside its timeout
@@ -44,7 +49,18 @@ confirms, it has confirmed nothing; it never waits on a lock past the deadline
 into the harness's timeout, and a page whose lock is still held then goes
 unconfirmed. What remains is a turn that ends just after it starts, as an
 interrupt can; its updates then read Picked up in a turn that ended, as an App
-Server turn's do."""
+Server turn's do.
+
+Confirmed input can still miss the context, as when Leaf's Claude Code hooks module
+calls this hook for a wake and finds its session ended before it appends the
+result (`hooks/claude-code.ts`). It is not offered again as new: an update that
+owes an answer stays owed on the page, and the next prompt or first Stop hook of
+whichever session owns the page names its original pointer, or captures a recovery
+reading if that owner has no usable reference (`PagePlan.recovery`), while one that
+owes none is lost. Confirming
+only once the module has appended was rejected: a confirmation refused or never
+run after the append would leave input the turn already holds pending, and every
+later hook would offer it again as new."""
 
 import json
 import time
@@ -55,12 +71,14 @@ from pathlib import Path
 from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
     batch_data,
+    deliverable,
     delivery_pointer_prompt,
     freeze_delivery,
     receive_held,
     record_pickup,
 )
 from .event_contracts import write_refusal
+from .findings import Finding
 from .harness import Harness, claim_harness
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
@@ -70,7 +88,6 @@ from .served_state.context import read_page
 from .service import (
     PageTransaction,
     owned_pages,
-    unacknowledged,
 )
 from .state import flocked, session_lock_path, session_record
 
@@ -90,8 +107,9 @@ def restart(obligations: list[dict]) -> str:
     if not items:
         return ""
     return (
-        f"; your start on {', '.join(items)} is older than its pickup: answer once "
-        "that work is done, or while it still runs start it again with "
+        f"; your start on {', '.join(items)} came before this turn, or before a "
+        "newer update in its thread was picked up. Answer once that work is done, "
+        "or, while it still runs, start it again in this turn with "
         '`leaf task start <page> <id> "<what is still running>"`'
     )
 
@@ -119,7 +137,7 @@ class PagePlan:
     acknowledged: list[dict]
     watched: bool
     preview: bool
-    unwritable: str | None
+    unwritable: Finding | None
 
 
 def read_plans(session_id: str) -> list[PagePlan]:
@@ -143,10 +161,12 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         break
                 if claim is None or claim["id"] != session_id:
                     continue
-                pending = unacknowledged(page.events, state["cursor"])
+                pending = deliverable(page)
                 watched = harness.watcher_live(listening=state["listening"])
                 owed = turn_obligations(state, watched=watched)
-                owed_ids = {item["input"] for item in owed}
+                recovery_ids = {
+                    item["input"] for item in owed if "ref" not in item["answer"]
+                }
                 responses = {item["input"]: item["answer"] for item in work.obligations}
                 plans.append(
                     PagePlan(
@@ -162,10 +182,14 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         batch_data(
                             page_dir,
                             page,
-                            [event for event in page.events if event["id"] in owed_ids],
+                            [
+                                event
+                                for event in page.events
+                                if event["id"] in recovery_ids
+                            ],
                             responses=responses,
                         )
-                        if owed
+                        if recovery_ids
                         else None,
                         owed,
                         acknowledged_obligations(state),
@@ -216,11 +240,11 @@ def remedies(
     reasons = []
     for plan in plans:
         if plan.unwritable:
-            reasons.append((plan.unwritable, None))
+            reasons.append((str(plan.unwritable), None))
         if plan.owed:
             reasons.append(
                 (
-                    f"{plan.page}: {unanswered(plan.owed, 'acknowledged')}{restart(plan.owed)}.",
+                    f"{plan.page}: {unanswered(plan.owed, plan.page, 'acknowledged')}{restart(plan.owed)}.",
                     ANSWER_ASK_INSTRUCTION,
                 )
             )
@@ -311,54 +335,61 @@ HOOK_CONTEXT_LIMIT = 10_000
 CONFIRM_WITHIN = 10.0
 
 
-# The line an inline delivery opens with, by which Leaf's Claude Code hooks module
-# finds one in the Stop hook's output (`hooks/claude-code.ts`).
-# TODO: without the module, Claude Code prints a Stop hook's inline delivery in
-# full in the terminal. Hiding it there means handing over a pointer, which needs a
-# record of offered, unread deliveries that a repeated Stop and the watch both
-# respect; otherwise each re-offers it as new. Moot once the module is Claude
+# The words that open a delivery's context, inline or by pointer: prose for the
+# model alone. What reads a hook's output for its delivery reads `DELIVERY_FIELD`.
+# TODO: without the hooks module, Claude Code prints a Stop hook's inline delivery
+# in full in the terminal. Hiding it there means handing over a pointer, which
+# needs a record of offered, unread deliveries that a repeated Stop and the watch
+# both respect; otherwise each re-offers it as new. Moot once the module is Claude
 # Code's only watcher and transport.
-INLINE_DELIVERY = (
+INLINE_OPENING = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )
-# The words a delivery handed over by pointer opens with, before its read command.
-POINTED_DELIVERY = "Leaf has new input for this turn. Read it with"
+POINTED_OPENING = "Leaf has new input for this turn. Read it with"
 
-
-def hands_delivery(output: str) -> bool:
-    """Whether a hook's output hands the turn a delivery `render` wrote, inline or by
-    pointer: the reading a transcript of hook runs is scored by. The context may sit
-    inside the harness's JSON envelope, so it is found anywhere in the output."""
-    return INLINE_DELIVERY in output or POINTED_DELIVERY in output
+# The hook output's field naming the delivery its context hands the turn: its
+# `id`, and whether it went `inline` or as a pointer. Claude Code leaves a field
+# it does not know out of what it hands the model and a hooks module, and keeps
+# the hook's whole stdout in a trace's `hook_response` (measured at 2.1.296). So
+# the field reaches Leaf's hooks module, which runs the Stop hook itself to read
+# it (`hooks/claude-code.ts`), and an eval's reading of a trace
+# (`leaf_dev.arms.hook_delivered`).
+DELIVERY_FIELD = "leaf_delivery"
 
 
 def render(
-    delivery: dict | None, attention: list[str], *, confirm: Callable[[], bool]
-) -> str:
-    """The hook's context. It hands `delivery` over inline only where the whole
-    message fits under `HOOK_CONTEXT_LIMIT` and `confirm` then confirms every batch;
-    otherwise it hands over the pointer its reader's `leaf delivery ack` confirms
-    after complete reading."""
+    harness: Harness,
+    event: str | None,
+    delivery: dict | None,
+    attention: list[str],
+    *,
+    confirm: Callable[[], bool],
+) -> dict | None:
+    """The hook's output, or None where it puts nothing in the turn. It hands
+    `delivery` over inline only where the whole message fits under
+    `HOOK_CONTEXT_LIMIT` and `confirm` then confirms every batch; otherwise it hands
+    over the pointer its reader's `leaf delivery ack` confirms after complete
+    reading. Either way `DELIVERY_FIELD` names what it handed over."""
     if delivery is None:
-        return "\n".join(attention)
+        return harness.hook_context(event, "\n".join(attention)) if attention else None
     message = "\n".join(
-        [
-            INLINE_DELIVERY,
-            json.dumps(delivery, ensure_ascii=False),
-            *attention,
-        ]
+        [INLINE_OPENING, json.dumps(delivery, ensure_ascii=False), *attention]
     )
-    if len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT and confirm():
-        return message
-    return "\n".join(
-        [
-            (
-                f"{POINTED_DELIVERY} `leaf delivery read {delivery['id']}` "
-                "and follow its receipt instruction."
-            ),
-            *attention,
-        ]
-    )
+    inline = len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT and confirm()
+    if not inline:
+        message = "\n".join(
+            [
+                (
+                    f"{POINTED_OPENING} `leaf delivery read {delivery['id']}` "
+                    "and follow its receipt instruction."
+                ),
+                *attention,
+            ]
+        )
+    return {
+        **harness.hook_context(event, message),
+        DELIVERY_FIELD: {"id": delivery["id"], "inline": inline},
+    }
 
 
 def carry_turn(
@@ -412,17 +443,24 @@ def carry_turn(
         if reasons
         else []
     )
+    reminders = list(
+        dict.fromkeys(
+            item["answer"]["ref"].partition(":")[0]
+            for plan in plans
+            for item in plan.owed
+            if "ref" in item["answer"]
+        )
+    )
     recovery = [plan.recovery for plan in plans if plan.recovery]
     if recovery:
-        # Already-receipted debt is absent from the next pending delivery. Capture
-        # its current inputs again so a lost pointer (or seeded history with no
-        # original delivery) still has exact, ownership-checked response addresses.
-        # This snapshot is not a new transport offer and advances no cursor.
-        reminder = freeze_delivery(recovery)
+        # The cursor already passed these inputs, but their receipts gave this
+        # owner no usable refs. Recovery advances no cursor or transport offer.
+        reminders.append(freeze_delivery(recovery)["id"])
+    if reminders:
         attention.extend(
             [
                 "Read these unanswered updates and their exact answer references:",
-                delivery_pointer_prompt(reminder["id"]),
+                *(delivery_pointer_prompt(identity) for identity in reminders),
             ]
         )
     delivery = freeze_delivery(batches) if batches else None
@@ -434,7 +472,9 @@ def carry_turn(
             return
     # Receipt takes the page and session locks the notices hold, so it follows them,
     # and confirms only into the lifecycle they were read under.
-    message = render(
+    output = render(
+        harness,
+        event,
         delivery,
         [*context, *attention],
         confirm=lambda: (
@@ -442,5 +482,5 @@ def carry_turn(
             and receive_held(delivery, sid, expected, deadline=deadline)
         ),
     )
-    if message:
-        print(json.dumps(harness.hook_context(event, message)), flush=True)
+    if output:
+        print(json.dumps(output), flush=True)

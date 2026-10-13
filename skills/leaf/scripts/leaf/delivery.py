@@ -3,7 +3,7 @@
 A delivery is transport-independent input: one or more complete page batches,
 each preserving the page's monotonic event order. Thread membership is
 context, not a partition key, and response requirements are a snapshot of the
-standing projection at capture. Response commands validate the current page
+current projection at capture. Response commands validate the current page
 again when they write, so this snapshot never becomes settlement authority.
 Receipt validates the current receiver and captured event identities under the
 page transaction before advancing its cursor. Pickup records harness acceptance or
@@ -13,16 +13,29 @@ on the events they apply to. Clause identities belong only to that batch.
 
 The envelope names who confirms receipt through `acknowledge`. A hook confirms
 what it hands over inline; a pointer reader explicitly confirms a complete
-reading through its session's harness. `turn_replies` assigns final custody to the
-provider turn.
-An answer's `writer` guides initial handling at capture; the current binding alone
-controls final custody when writing. It is separate from the semantic operation:
-reply and markup requirements retain their meaning on every transport.
+reading through its session's harness.
+
+A reply reservation is a provider turn's hold on the reply to one delivered
+update, on a harness whose turn's final message becomes that reply (a Codex App
+Server turn). Freezing with `turn_replies` marks each reply answer
+`writer: "turn"`, and the harness reserves the answer's address before it starts
+the turn (`thread.reserve_delivery_reply`); the page's status keeps the
+reservation under `stream.reply_reservations`, and session-lifetime.md says when it
+stands and when it clears. While it stands, no other delivery can reserve the
+address, the turn's final message commits as the reply, and failure receipts and
+other provider finals are refused or write nothing. A direct `leaf response reply` still commits at once,
+and the turn's final then yields to it. `writer` is the hint captured at freeze;
+only an open reservation decides who writes. Neither changes the answer's
+operation: reply and markup answers mean the same on every transport.
 
 Freeze emits an exact `answer.ref`, qualified by delivery, page batch and input.
-The immutable envelope is the only address store. Direct authors and provider
+The immutable envelope is the only address store. A receipt's pickup copies the
+refs its batch carries into the page log (`record_pickup`'s `refs`), so a reader
+of the page, such as a refusal naming the input a thread owes, recovers the ref
+without the envelope's id; an input no receipt has carried has none, and nothing
+mints one outside a delivery. Direct authors and provider
 finals resolve it through `response_address` before the rich durable reply writer
-rechecks the captured logical owner, exact input and standing obligation under the
+rechecks the captured logical owner, exact input and open obligation under the
 page lock. An address may be forwarded to a worker without changing its own
 author identity; another session's claim supersedes its authorization even after
 release or end. The owning session's process restart preserves it.
@@ -40,13 +53,13 @@ from typing import Literal
 from xml.etree import ElementTree
 
 from .files import read_json
-from .harness import claim_harness, session_harness
+from .harness import session_harness
 from .machine import state_home
 from .refusals import Refused
 from .schema import CURSOR_FILE, WIDGET_KINDS
 from .service import (
     PageTransaction,
-    owned_pages,
+    may_receive,
     requires_agent_attention,
     unacknowledged,
 )
@@ -271,6 +284,17 @@ def response_addresses(payload: dict) -> Iterator[dict]:
                 }
 
 
+def batch_refs(batch: dict) -> dict[str, dict]:
+    """The `answer.ref` one frozen envelope batch gives each input it owes an
+    answer, by input id, with the claim the batch was captured under, which is the
+    only owner `post_reply` lets write at it."""
+    return {
+        event["id"]: {"ref": event["answer"]["ref"], "claim": batch["claim"]}
+        for event in batch["events"]
+        if "answer" in event
+    }
+
+
 def response_address(reference: str) -> dict:
     """Resolve only a complete reference emitted by an immutable delivery.
 
@@ -308,7 +332,7 @@ def handled(
     turn_replies: bool,
     preserve_refs: bool = False,
 ) -> dict:
-    """One captured batch with exact references, writer custody and handling.
+    """One captured batch with exact references, writer hints and handling.
 
     A clause's `when` reads the event, the answer it owes, and its thread's
     digest, so each event is told only its own case and the answer it owes. The
@@ -571,6 +595,7 @@ def record_pickup(
     session: str | None = None,
     turn: str | None = None,
     failure: str | None = None,
+    refs: dict[str, dict] | None = None,
 ) -> dict | None:
     """Durably record one delivery transition for exact attention-bearing inputs.
 
@@ -584,30 +609,51 @@ def record_pickup(
     Queued and opened are transport evidence, not authored work claims. A queued
     transition may therefore be followed by an opened transition for the same
     events, while a retry of the same transition appends nothing.
+
+    ``refs`` are the `answer.ref`s the receipt's envelope batch gave the inputs it
+    owes, each with the claim the batch was captured under (`batch_refs`), which
+    the record keeps for the inputs it names, so the page's workflows can name each
+    owed input's ref to the owner who can use it (`activity._bind_receipt_refs`). A
+    transition that carries no envelope, such as the prompt re-presenting debt an
+    earlier receipt recorded, passes none.
     """
-    if phase not in {"queued", "opened", "failed"}:
-        raise ValueError(f"unknown pickup phase {phase!r}")
     claim = page.claim
     if session is None and claim:
         session = claim["id"]
     if phase == "opened" and turn is None and claim and claim["id"] == session:
         turn = claim["turn"]
     wanted = [event["id"] for event in events if requires_agent_attention(event)]
+    pickups = [event for event in page.events if event["kind"] == "pickup"]
     picked = {
         (event_id, event["phase"], event["session"], event["turn"])
-        for event in page.events
-        if event["kind"] == "pickup"
+        for event in pickups
         for event_id in event["events"]
     }
+    # Each input and claim some recorded ref was captured under.
+    referenced = {
+        (event_id, ref["claim"])
+        for event in pickups
+        for event_id, ref in event.get("refs", {}).items()
+    }
+    refs = refs or {}
+    # A transition already on record is recorded again only to give an input its
+    # first ref under a claim, as when a recovery reading re-delivers debt an older
+    # receipt, or an earlier owner's, left without one the page's owner can use,
+    # and the prompt has already re-presented it.
     fresh = list(
         dict.fromkeys(
             event_id
             for event_id in wanted
             if (event_id, phase, session, turn) not in picked
+            or (
+                event_id in refs
+                and (event_id, refs[event_id]["claim"]) not in referenced
+            )
         )
     )
     if not fresh:
         return None
+    carried = {event_id: refs[event_id] for event_id in fresh if event_id in refs}
     from .event_contracts import append_admitted
 
     record, _ = append_admitted(
@@ -620,13 +666,31 @@ def record_pickup(
             "session": session,
             "turn": turn,
             **({"failure": failure} if failure is not None else {}),
+            **({"refs": carried} if carried else {}),
         },
     )
     return record
 
 
+def deliverable(page: PageTransaction) -> list[dict]:
+    """The page's unacknowledged input a session of this Leaf may be handed: none on
+    a page whose log this Leaf may not write (`event_contracts.write_refusal`), where
+    `receive_batch` refuses its receipt. Handed over anyway, it stayed pending, so a
+    watch woke its session on every pass and a Codex watch opened a turn for it each
+    time. It waits for a Leaf that can write the page; the prompt hook names the
+    re-vendor that frees it (`hook_transport.remedies`). A page with nothing pending
+    is answered without loading its layer, since Codex asks after every tool call."""
+    pending = unacknowledged(page.events, page.cursor)
+    if not pending:
+        return []
+    from .event_contracts import write_refusal
+
+    return [] if write_refusal(page.page_dir) else pending
+
+
 class ReceiptRefused(Refused):
-    """Captured input no longer belongs to this receiver or page log."""
+    """Captured input no longer belongs to this receiver or page log, or sits on a
+    page whose log this Leaf may not write."""
 
 
 @contextmanager
@@ -642,8 +706,13 @@ def receive_batch(
     page is still the receiver's (`service.claim_names_session`), even between a
     restart's new generation and its claim, and an old envelope can be confirmed
     after ownership returns to its receiver. A receiver with no session takes
-    receipt only while no session holds the page.
+    receipt only while no session holds the page. Nor does one take it on a page
+    vendored at another protocol (`event_contracts.write_refusal`): its body could
+    record no pickup there, and every transport retires a refused receipt rather
+    than retrying it, leaving the input for a Leaf that can write the page.
     """
+    from .event_contracts import write_refusal
+
     # The page is already locked; keep lifecycle admission valid through pickup
     # and cursor commit. SessionEnd cannot cross between those writes.
     with (
@@ -651,12 +720,10 @@ def receive_batch(
         if session_id
         else nullcontext()
     ):
-        if (
-            page.active_claim is not None
-            if session_id is None
-            else page.claim_of(session_id) is None
-        ):
+        if not may_receive(page.claim, session_id):
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
+        if refusal := write_refusal(page.page_dir):
+            raise ReceiptRefused(str(refusal))
         expected = {event["seq"]: event["id"] for event in batch["events"]}
         delivered = {event["seq"]: event for event in page.events}
         if not expected or any(
@@ -747,30 +814,7 @@ def receive_one(
             # Receipt observes the consumer turn. The explicit acknowledgement
             # boundary can open an unnamed turn; hooks and providers cannot.
             turn = observed["turn"]
-        record_pickup(page, events, session=session_id, turn=turn)
+        record_pickup(
+            page, events, session=session_id, turn=turn, refs=batch_refs(batch)
+        )
     return page_dir
-
-
-def pending_batches(session_id: str) -> list[dict]:
-    """Every page's pending input for a session whose hooks carry it, one batch
-    per page, captured under that page's transaction and not yet confirmed.
-
-    Receipt is a separate step, taken once those batches are handed over:
-    it rechecks ownership and the captured events, and anything appended between
-    the two readings stays pending, above the cursor it advances."""
-    batches = []
-    for page_dir in owned_pages(session_id):
-        try:
-            with PageTransaction(page_dir) as page:
-                claim = page.active_claim
-                if not (
-                    claim
-                    and claim["id"] == session_id
-                    and claim_harness(claim).hooks_carry()
-                ):
-                    continue
-                if batch := unacknowledged(page.events, page.cursor):
-                    batches.append(batch_data(page_dir, page, batch))
-        except FileNotFoundError:
-            continue
-    return batches

@@ -162,12 +162,12 @@
     justify-items: start;
     text-align: start;
   }
-    /* A row whose item holds a Question has its answer between the name and the count, and
-     * that column keeps room for the check whether or not the Question is answered, so an
-     * answer moves no row. The words take what the name leaves; the answer is its own
-     * container so that, with too little room for any of them, it shows the check
-     * alone, and contains its size so the words never widen the row. The tab's
-     * description carries them whole. */
+    /* A row whose item holds an ask has its state between the name and the count: a quiet
+     * open mark while an ask is unanswered, then the check with the answer. That column
+     * keeps its room in either state, so an answer moves no row. The words take what the
+     * name leaves; the answer is its own container so that, with too little room for any
+     * of them, it shows the check alone, and contains its size so the words never widen
+     * the row. The tab's description carries them whole. */
   :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn:has(> .lf-tab-answer) {
     grid-template-columns: minmax(0, max-content) minmax(1.25em, 1fr) auto;
   }
@@ -187,7 +187,14 @@
   }
   :scope:is(lf-tabs)[list="side"].lf-rendered
     > .lf-tabstrip
-    .lf-tab-answer:not([data-lf-answered]) {
+    .lf-tab-answer[data-lf-asks="open"]::before {
+    content: "○" / "";
+    font-weight: 400;
+    color: var(--muted);
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered
+    > .lf-tabstrip
+    .lf-tab-answer:not([data-lf-asks]) {
     visibility: hidden;
   }
   :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-answer-words {

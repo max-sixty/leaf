@@ -1,0 +1,7 @@
+The output supplies HTML, original captures (before.png and after.png) and the
+actual page media. `captures.exact_inputs` lists verified original matches for each
+page media URL. Treat those as the supplied captures without rechecking identical
+pixels. For other page media, open the originals and the two images in the lf-shot.
+Pass only if the pair shows the supplied before state as before and the supplied
+after state as after. Cropping or marking the captures is allowed. Fail if it
+substitutes a drawing, reverses them or shows the same state twice.

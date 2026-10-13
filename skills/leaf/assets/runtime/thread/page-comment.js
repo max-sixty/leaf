@@ -17,11 +17,13 @@
    arriving while the user writes in the card opens it again through its Resume writing
    route (drafts.js).
 
-   The card is an auto popover, so a press outside puts it away. Escape is its own row in
-   the register, so the shortcut line says whether the words stay. Either way focus goes
-   back to where the card was opened from: the control, or, for a key such as `c` that
-   opens it from the page, the control too, since the key runs the control's press
-   (keyboard/dispatch.js). On a phone the control stands behind More in its words, and
+   The card is an auto popover and the control its declared invoker (`popovertarget`), so
+   a press outside puts it away, and so does a second press on the control, which the
+   browser does not count as a press outside. Escape is its own row in the register, so
+   the shortcut line says whether the words stay. Either way focus goes back to where the
+   card was opened from: the control, or, for a key such as `c` that opens it from the
+   page, the control too, since `open` stands the user on the control's door before the
+   card shows. On a phone the control stands behind More in its words, and
    the card spans the window under the banner. The box takes words offline too: the
    offline banner says a comment will not send, not that there is nowhere to write it.
 
@@ -29,10 +31,11 @@
    a connected field builds its editor, so a page whose card never opens builds none.
    Until then it holds its draft unconnected. */
 import { showNativeLayer, closeNativeLayer } from "../keyboard/layer-stack.js";
+import { isNativeLayer } from "../shadow-tree.js";
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
-import { closeLayer, focusDestination } from "../focus.js";
+import { closeLayer, focusDestination, focused } from "../focus.js";
 import { retainUserIntent } from "../user-intent.js";
 import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
 import { flashDuration, backgroundFlash } from "../motion.js";
@@ -81,7 +84,7 @@ export function createPageComment({
 
   const hint = () => (designModeActive() ? "Comment on the design" : NAME);
   const holds = () => Boolean(loadDraft("general")?.trim());
-  const cardIsOpen = () => card.matches(":popover-open");
+  const cardIsOpen = () => isNativeLayer(card);
   keys(card, "In the page comment card", [
     {
       id: "comment.card-close",
@@ -97,18 +100,23 @@ export function createPageComment({
     keeps(control, "aria-expanded", String(event.newState === "open")),
   );
 
-  // The control's press is the same `open` as `c`, or a second press putting the card
-  // away; opened with the control as its source, the card does not count a press on the
-  // control as one outside it.
-  control.addEventListener("click", () => {
-    if (cardIsOpen()) closeNativeLayer(card);
-    else open();
+  // The control is the card's invoker, so the browser never counts its press as one
+  // outside the card, and a press while the card stands puts it away. A press opening the
+  // card is `open`, the same as `c`'s: the browser's opening comes after every listener on
+  // the press, with no turn left to put focus in the box, short of an autofocus that
+  // scrolls a sample's frame into view.
+  control.popoverTargetElement = card;
+  control.addEventListener("click", (event) => {
+    if (cardIsOpen()) return;
+    event.preventDefault();
+    open();
   });
   registerBannerControl({
     key: "page-comment",
     control,
     rank: BANNER_CONTROL_RANK.pageComment,
     seat: { desk: "row", phone: "menu" },
+    row: { label: "Comment on the page", group: "page" },
   });
 
   function open() {
@@ -147,6 +155,7 @@ export function createPageComment({
       accessibleName: hint,
       sends: "send",
       sendBtn: send,
+      mediaBelow: true,
       save: (text) => saveDraft("general", text),
       send: (_text, raw, owns) => {
         let flight = null;
@@ -172,8 +181,7 @@ export function createPageComment({
         // Delivery may refuse long after Send. Restore text entry only while the user
         // still stands at the door; a later gesture owns its focus and disclosure.
         void Promise.resolve(flight).then((accepted) => {
-          if (!accepted && document.activeElement === door && mayRestore())
-            mayRestore.handoff(open);
+          if (!accepted && focused() === door && mayRestore()) mayRestore.handoff(open);
         });
       },
     });

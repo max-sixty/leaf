@@ -3,7 +3,7 @@
 The shipped triage board shows seven defect cards and a status tile counting open
 defects. The `seeded` scenario's status tile claims eight; the `clean` control claims
 seven. Each sample shows the judge that grades authored pages one page, and
-`rubrics` asks the same question of both: whether the displayed total equals the
+the YAML case asks the same question of both: whether the displayed total equals the
 cards. Seeded passes only when the judge says no, so a judge that agrees with
 the rubric's wording fails one of them. This calibrates count reading, not
 general page acceptance or judge reliability.
@@ -17,22 +17,13 @@ from leaf.harness import ClaudeCodeHarness
 from leaf_dev import ROOT
 from leaf_dev.arms import build_source
 from leaf_dev.arrangement_eval import Run, capture_phase, listing
+from leaf_dev.eval_cases import definition
 
-REQUEST = """Make a v2.4 release triage board with these seven defects: migration reruns,
-digest email timezone, CSV export quoting, webhook retry delays, logout with an expired
-session, HEIC avatar uploads and search missing renamed projects. Only the migration
-blocks release because the next migration would apply account credits twice. Keep
-all seven defects visible with their priorities, show the total open count, and let
-me move cards. The release cut is Thursday, two days away."""
+DEFINITION = definition("reader_eval")
+REQUEST = DEFINITION["request"]
 
 # The open count each scenario's status tile claims.
-CASES = {"seeded": 8, "clean": 7}
-COUNT = (
-    "Open every screenshot the output lists. A region with its own scroll shows "
-    "only its first screen, so count the cards at a width that shows the whole "
-    "board. Pass only if the page's displayed total of open defects equals the "
-    "number of defect cards on the board."
-)
+CASES = {name: case["inputs"]["total"] for name, case in DEFINITION["cases"].items()}
 
 
 def fixture(total: int) -> str:
@@ -45,18 +36,6 @@ def fixture(total: int) -> str:
         )
     counts[0].set_text(str(total))
     return document.serialize()
-
-
-def rubrics(scenario: str) -> list[dict]:
-    return [
-        {
-            "type": "agent-rubric" if scenario == "clean" else "not-agent-rubric",
-            "metric": "count-control-accepted"
-            if scenario == "clean"
-            else "count-defect-detected",
-            "value": COUNT,
-        }
-    ]
 
 
 def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:

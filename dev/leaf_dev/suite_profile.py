@@ -29,8 +29,12 @@ sampled stacks (`stacks.txt`), for the suite's own Python by function; and `sa`'
 table of CPU by command (`cpu-by-command.txt`), for the browsers and servers no
 Python stack shows. Accounting names a process after the last of its threads to
 exit, so Chrome's processes appear under thread names such as `ThreadPoolForeg`, a
-Python process that watches files as `notify-rs inoti`, and py-spy as `ctrl-c`. CI writes all three and puts this command's output in the job's
-summary.
+Python process that watches files as `notify-rs inoti`, and py-spy as `ctrl-c`. A table
+totalling well under the cgroups' CPU is flagged as one whose accounting stopped
+mid-run. CI writes all three and puts this command's output in the job's
+summary. The report also lists every test over its tier directory's budget
+(`BUDGETS`) and every journey within the browser budget, the moves tend's weekly pass
+makes.
 """
 
 import json
@@ -49,6 +53,11 @@ import pytest
 from leaf_dev import ROOT
 
 PLAYWRIGHT_DIR = f"{os.sep}playwright{os.sep}"
+# The seconds a test in each tier directory may take on CI's runner: a test that
+# crosses nothing outside pytest, or a real process, costs about what opening a page
+# does, and a browser test that page and a few gestures. `journeys` has no budget.
+BUDGETS = {"model": 3.0, "process": 3.0, "browser": 8.0}
+GROUP_SUFFIX = re.compile(r"@[^@\[\]]+$")
 PHASES = ("setup", "call", "teardown")
 # py-spy's raw format: one stack per line, `;`-separated frames and its sample count,
 # rooted at its process and that process's ancestors, `process PID:"COMMAND LINE"`.
@@ -180,37 +189,58 @@ def suite_profile(directory: Path, rate: float | None, top: int) -> None:
     py-spy's `stacks.txt` and `sa`'s `cpu-by-command.txt`. CI's `test` job uploads
     all three as its `pytest-results-*` artifact."""
     cases = read_cases(directory / "results.xml")
-    report_cases(cases, top)
+    cpu = report_cases(cases, top)
     if (stacks := directory / "stacks.txt").exists():
         if rate is None:
             raise click.UsageError(
                 "stacks.txt needs --rate, the rate py-spy sampled at"
             )
         report_stacks(stacks, rate, top)
-    if (cpu := directory / "cpu-by-command.txt").exists():
-        lines = cpu.read_text().splitlines()
+    if (accounting := directory / "cpu-by-command.txt").exists():
+        lines = accounting.read_text().splitlines()
         section("CPU by command (sa: calls, real and CPU minutes)")
         click.echo("\n".join(lines[: top + 1]))
+        # Accounting covers the whole machine, missing only what still runs when it
+        # stops, so a total well short of the cgroups' means it stopped mid-run.
+        recorded = 60 * float(re.search(r"([\d.]+)cp", lines[0]).group(1))
+        if cpu is not None and recorded < 0.9 * cpu:
+            click.echo(
+                f"sa recorded {minutes(recorded)} of the workers' cgroups' "
+                f"{minutes(cpu)} CPU-minutes: accounting stopped partway through."
+            )
 
 
 def read_cases(report: Path) -> list[dict]:
-    """Each test case's file, seconds and profile. A failed call whose teardown also
-    failed is reported as two cases, the profile on the second; they are one test
-    here. A case without a profile, a collection error, has none."""
+    """Each test case's file, seconds, profile, and whether it passed. A failed call
+    whose teardown also failed is reported as two cases, the profile on the second;
+    they are one test here. A case without a profile, a collection error, has none."""
     cases = {}
     for case in ET.parse(report).iter("testcase"):
         key = (case.get("classname", ""), case.get("name", ""))
         entry = cases.setdefault(
             key,
-            {"file": key[0].replace(".", "/") + ".py", "seconds": 0.0, "profile": None},
+            {
+                "file": key[0].replace(".", "/") + ".py",
+                "name": key[1],
+                "seconds": 0.0,
+                "profile": None,
+                "passed": True,
+            },
         )
         entry["seconds"] += float(case.get("time", 0))
+        if any(
+            case.find(outcome) is not None
+            for outcome in ("failure", "error", "skipped")
+        ):
+            entry["passed"] = False
         if (prop := case.find("properties/property[@name='profile']")) is not None:
             entry["profile"] = json.loads(prop.get("value"))
     return list(cases.values())
 
 
-def report_cases(cases: list[dict], top: int) -> None:
+def report_cases(cases: list[dict], top: int) -> float | None:
+    """Print the run's tests, phases and files, returning the CPU seconds its tests
+    used, or None for a run whose tests carry no CPU."""
     total = sum(c["seconds"] for c in cases)
     profiled = [c["profile"] for c in cases if c["profile"]]
     phases = {p: sum(prof.get(p, 0) for prof in profiled) for p in PHASES}
@@ -220,11 +250,7 @@ def report_cases(cases: list[dict], top: int) -> None:
     cpu = sum(prof["cpu"] for prof in profiled) if timed else None
     section(
         f"{len(cases)} tests, {minutes(total)} worker-minutes"
-        + (
-            f", {minutes(cpu)} CPU-minutes in the workers' process trees"
-            if timed
-            else ""
-        )
+        + (f", {minutes(cpu)} CPU-minutes in the workers' cgroups" if timed else "")
     )
     if profiled:
         click.echo(
@@ -266,8 +292,9 @@ def report_cases(cases: list[dict], top: int) -> None:
             for c, s, name, n, m, su, pw in sorted(rows, reverse=True)[:top]
         ],
     )
+    report_budgets(cases)
     if not profiled:
-        return
+        return cpu
 
     methods, callers = Counter(), Counter()
     counts = Counter()
@@ -290,6 +317,39 @@ def report_cases(cases: list[dict], top: int) -> None:
         ("minutes", "method from caller"),
         [(minutes(s), key) for key, s in callers.most_common(top)],
     )
+    return cpu
+
+
+def report_budgets(cases: list[dict]) -> None:
+    """Every test over its directory's budget, which belongs in `journeys` or needs to
+    get faster, and every journey within the browser budget, which could run on each
+    push to main instead (`tests/AGENTS.md`, "Run what the change needs"). Only a
+    test that passed has a time that says what it costs."""
+    over, under = [], []
+    for case in cases:
+        parts = Path(case["file"]).parts
+        if not case["passed"] or len(parts) < 3:
+            continue
+        directory = parts[1]
+        # The node id pytest selects by, without the `@group` xdist's `loadgroup`
+        # appends to a grouped test's name.
+        test = f"{case['file']}::{GROUP_SUFFIX.sub('', case['name'])}"
+        if (budget := BUDGETS.get(directory)) and case["seconds"] >= budget:
+            over.append((case["seconds"], budget, test))
+        if directory == "journeys" and case["seconds"] < BUDGETS["browser"]:
+            under.append((case["seconds"], test))
+    if over:
+        section("Over their directory's budget")
+        table(
+            ("seconds", "budget", "test"),
+            [
+                (f"{s:.1f}", f"{b:.0f}", name)
+                for s, b, name in sorted(over, reverse=True)
+            ],
+        )
+    if under:
+        section("Journeys within the browser budget")
+        table(("seconds", "test"), [(f"{s:.1f}", name) for s, name in sorted(under)])
 
 
 def report_stacks(path: Path, rate: float, top: int) -> None:

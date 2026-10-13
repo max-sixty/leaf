@@ -1,81 +1,165 @@
-"""Author, revise and read one page-task sample under its explicit condition.
+"""Author, revise and decide on one page-task sample under its explicit condition,
+on the loop a user would run.
 
-Leaf and ordinary HTML receive the same task and revision request. Each sample
-contains only its selected condition; the HTML child sees no Leaf payload,
-instructions or runtime. CC and Codex authors use the shared harness interface.
+Leaf and ordinary HTML receive the same task in one live session (`LiveSession`),
+then the same width preference as a chat message, then, where the task declares
+them, the same user comment and a decision the user makes on the page. Each
+sample contains only its selected condition; the HTML child sees no Leaf payload,
+instructions or runtime.
 
-The sample's output is what a judge needs: the user's request and each version's
-screenshots by width, written to `shots`, the one directory its judge may read.
-`rubrics` are the Promptfoo `agent-rubric` assertions the judge grades from it by
-opening the screenshots; the fixed checks cover execution and the render gate.
-For a task that asks for a decision, Leaf also seeds a choice after the common
-comparison, asks a fresh reader for its current state, and checks that a separate
-resumed revision preserves that choice. Readable records have no invented decision.
+- **Leaf** runs as installed: the arm is the session's plugin, hooks included. The
+  agent serves the page and hands it over; the harness comments from a browser
+  selection on the served page (`eval_user.comment_on_passage`), and the hook
+  delivers the comment.
+- **HTML** keeps chat turns, since it has no page to wait on: the comment arrives
+  in chat, naming the passage in words.
+
+The decision round is the same in both: a user agent makes the page's decision in
+the browser (`eval_user.decide`), then the user asks in chat for it to be applied.
+Leaf's agent reads the gestures from the page's log; HTML's user pastes what the
+page offered to copy, or types the decision where it offered nothing, and so does
+a Leaf user whose page took none of it. A reader then says what the agent applied,
+from its answer and the page's final files, and `decision-applied` checks that
+against what was chosen. On Leaf a fresh reader also reports the decision from
+the page's state, without the conversation. A comment that directs an outcome is
+the user's pick for that item, so recording it as chosen is correct; whether the
+agent did is recorded, not checked.
+
+Each phase records what the author spent and wrote, from the session's records
+between the harness's `eval_phase` marks: time, turns, tokens and cost (`resumed`),
+the CSS and script lines in the files it authored, and how many times it wrote and
+rendered the page, the measure of its repair iterations. The user agent and the
+readers spend too; that is the harness's, recorded apart.
+
+The sample's output is what a judge needs: the user's request, the later messages,
+the author's answer to the comment, and each version's screenshots by width,
+written to `shots`, the one directory its judge may read. Before screenshotting a version that carries the comment, the
+capture opens the commented item (`Scenario.reveal`), so the judge sees the change.
+The YAML cases hold the native Promptfoo `agent-rubric` assertions;
+`eval-pairs` is the quality score, judging a pair's final versions side by side.
 """
 
 import json
 import re
 import shutil
-import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+import turbohtml
+from leaf.delivery import opened_input_ids
+from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
+from leaf.passages import SourceReading
 from leaf.render_checks import rendered
+from leaf.schema import MESSAGE_KINDS
+from leaf.service import requires_agent_attention
 from leaf.structure import SourceDocument
+from leaf.thread import successful_replies
 
 from leaf_dev import ROOT, arrangement_plain
 from leaf_dev.arms import (
+    MODELS,
+    TURN_LIMIT,
+    LiveChild,
+    LiveSession,
+    blocks,
     completed,
+    now,
     observed_sum,
     read_trace,
+    resumed,
     run_agent,
     run_leaf,
     scratch,
     serving,
+    trace_result,
     trace_summary,
 )
-from leaf_dev.arms import trace_result as result
 from leaf_dev.browser import chrome, load, settle, tab
-from leaf_dev.usability_eval import admit
+from leaf_dev.eval_cases import definition
+from leaf_dev.eval_user import comment_on_passage, decide, reveal
 
 TASKS = ROOT / "evals"
-PHASES = (1, 2)
+DEFINITION = definition("arrangement_eval")
 WIDTHS = {
-    "laptop": ((1440, 900), "a 1440px laptop window"),
-    "narrow": ((900, 900), "a 900px window"),
-    "short": ((900, 600), "a short 900px by 600px window"),
-    "phone": ((390, 844), "a 390px phone"),
+    name: (tuple(width["viewport"]), width["description"])
+    for name, width in DEFINITION["widths"].items()
 }
-PREFERENCE = (
-    '"A standing preference for all my pages from now on: I read them in a window about '
-    "900px wide, beside my editor. At that width, keep the page's summary, status, "
-    'contents or queue beside the main content rather than stacked above or below it."'
-)
+PREFERENCE = DEFINITION["preference"]
+# Content out of view is reachable through a labeled control, as both judges count
+# it.
+REACHABLE = DEFINITION["reachable"]
+# How long a session that has answered stays quiet before the next phase, and how
+# long the harness waits for a turn to start before calling a phase undelivered.
+GRACE = 20
+WAKE = 15 * 60
+
+
+@dataclass(frozen=True)
+class Comment:
+    """The user's comment on the width-revised page, the same in both conditions.
+
+    `target` names the passage in words, as a user writing in chat would. On Leaf the
+    user selects the first of `quotes` the page draws, and otherwise comments on
+    the page whole, naming the target. `applied` names a fact only the comment
+    supplies, which the authored files carry once the change is made and the answer
+    carries when it tells the user so."""
+
+    target: str
+    quotes: tuple[str, ...]
+    text: str
+    applied: str
+
+
+@dataclass(frozen=True)
+class Decision:
+    """What the user decides on the page once it carries the comment, then asks
+    the agent to apply. `task` tells the user agent what to do on the page; `typed`
+    is the decision as the user types it in chat. `chosen` is what applying it
+    records, item by item, each value one of the item's `values`."""
+
+    task: str
+    typed: str
+    chosen: dict[str, str]
+    values: dict[str, tuple[str, ...]]
 
 
 @dataclass(frozen=True)
 class Scenario:
-    choice: bool
-    quality: str = ""
+    comment: Comment | None = None
+    decision: Decision | None = None
+    # What a reader clicks to open the item that holds the comment's passage.
+    reveal: str = ""
+
+
+# Each alert's candidate thresholds as the request lists them, and the user's setting.
 
 
 CASES = {
-    "document": Scenario(choice=True),
-    "dashboard": Scenario(choice=True),
-    "queue": Scenario(choice=True),
-    "sidebar-page-at-900px": Scenario(
-        choice=False,
-        quality=(
-            "The completed rollout's forty entries must remain readable in the "
-            "document's scroll, rather than showing only one screen of a separate "
-            "listing. At both 900px window heights, all six checks and their failing "
-            "result stay accessible beside the log as it scrolls. Page navigation "
-            "and any supporting sidebar content remain reachable; a sticky box must "
-            "not hold them below the window. On a phone, the regions stack without covering "
-            "the log or hiding its entries."
+    name: Scenario(
+        comment=(
+            Comment(**(comment | {"quotes": tuple(comment["quotes"])}))
+            if (comment := case["inputs"]["comment"])
+            else None
         ),
-    ),
+        decision=(
+            Decision(
+                **(
+                    decision
+                    | {
+                        "values": {
+                            item: tuple(values)
+                            for item, values in decision["values"].items()
+                        }
+                    }
+                )
+            )
+            if (decision := case["inputs"]["decision"])
+            else None
+        ),
+        reveal=case["inputs"]["reveal"],
+    )
+    for name, case in DEFINITION["cases"].items()
 }
 
 
@@ -87,10 +171,11 @@ class Run:
     shots: Path
     harness: str = ClaudeCodeHarness.name
     condition: str = "leaf"
+    phase_starts: dict = field(default_factory=dict, compare=False)
 
     @property
-    def needs_choice(self) -> bool:
-        return self.condition == "leaf" and CASES[self.subject].choice
+    def leaf_condition(self) -> bool:
+        return self.condition == "leaf"
 
     @property
     def work(self) -> Path:
@@ -108,199 +193,352 @@ class Run:
         return run_leaf(self.payload, self.state, *args, **kwargs)
 
     def page(self, phase: int) -> Path | None:
-        page = self.directory / ("page" if phase == 2 else "page-phase1")
+        page = self.directory / f"page-phase{phase}"
         return page if (page / "index.html").exists() else None
+
+    def record(self, name: str, value: dict) -> None:
+        (self.directory / f"{name}.json").write_text(json.dumps(value, indent=2))
+
+    def recorded(self, name: str) -> dict:
+        path = self.directory / f"{name}.json"
+        return json.loads(path.read_text()) if path.exists() else {}
+
+
+def phases(subject: str) -> tuple[int, ...]:
+    """Authoring, the width revision, the comment and the decision, as the task has
+    them."""
+    scenario = CASES[subject]
+    return (
+        1,
+        2,
+        *((3,) if scenario.comment else ()),
+        *((4,) if scenario.decision else ()),
+    )
 
 
 def first_prompt(payload: Path, page: Path, subject: str, condition="leaf") -> str:
-    request = (TASKS / subject / "request.md").read_text()
-    tooling = (
-        f"You have the Leaf skill at {payload}/skills/leaf/SKILL.md. Read and follow it, "
-        f"resolving references from {payload}/skills/leaf/. $LEAF is {payload}/bin/leaf. "
-        f"Check the page with `$LEAF page check {page} --render`, fix findings and stamp it."
-        if condition == "leaf"
-        else "Build with ordinary HTML, CSS and JavaScript. No Leaf instructions, widgets "
-        "or runtime are available. Check your output in the browser and fix findings."
+    return DEFINITION["prompts"]["first"][condition].format(
+        payload=payload,
+        page=page,
+        request=(TASKS / subject / "request.md").read_text(),
     )
-    return f"""{tooling}
-
-Write the page at {page}/index.html. This run is non-interactive: nobody will
-answer in the page. Produce a finished record with readable evidence and the
-choices or navigation the request needs. You may use the browser tooling available
-on this machine. Do not start an agent feedback watcher or wait for input. Reply
-with one line naming the path.
-
-The user's request follows.
-
-{request}"""
 
 
-def second_prompt(page: Path, condition="leaf") -> str:
-    check = (
-        f"Check it with `$LEAF page check {page} --render`, fix findings and stamp it."
-        if condition == "leaf"
-        else "Check your output in the browser and fix findings."
+def preference_message() -> str:
+    return DEFINITION["prompts"]["preference"].format(preference=PREFERENCE)
+
+
+def comment_message(comment: Comment) -> str:
+    """The comment as a user writes it in chat, or on a page whole."""
+    return DEFINITION["prompts"]["comment"].format(
+        target=comment.target, text=comment.text
     )
-    return f"""The user writes:
 
-{PREFERENCE}
 
-Revise the page at {page} to follow this preference. {check}
-Do not start an agent feedback watcher or wait for input. Reply with its path.
-"""
+# What applying a decision means here, where no system takes it but the page.
+
+
+def apply_message(decision: Decision, route: str, copied: str | None) -> str:
+    """The user's request to apply the decision: made on the page, pasted from what
+    the page offered to copy, or typed."""
+    return DEFINITION["prompts"]["apply"][route].format(
+        typed=decision.typed, copied=copied
+    )
+
+
+def snapshot(page: Path, destination: Path) -> None:
+    if page.exists():
+        shutil.copytree(
+            page,
+            destination,
+            ignore=shutil.ignore_patterns("service.json", "*.lock"),
+        )
+
+
+def latest_seq(page: Path) -> int:
+    events = read_events(page) if (page / "events.jsonl").exists() else []
+    return max((e["seq"] for e in events), default=0)
 
 
 def author(run: Run, cwd: Path) -> None:
-    """Author and revise with the same harness session, preserving the initial page."""
+    """Run the sample's live session through its phases, preserving each phase's
+    page, and stop any server it left running."""
     cwd.mkdir(parents=True, exist_ok=True)
     (run.directory / "work-dir").write_text(str(cwd))
     run.state.mkdir(parents=True)
     page = run.authored_page
-    prompts = [
-        first_prompt(run.payload, page, run.subject, run.condition),
-        second_prompt(page, run.condition),
-    ]
-    for phase, prompt in enumerate(prompts, 1):
-        (run.directory / f"prompt-{phase}.txt").write_text(prompt)
-    child = {
-        "dirs": [run.payload] if run.condition == "leaf" else [],
-        "env": (
+    leaf = run.leaf_condition
+    prompt = first_prompt(run.payload, page, run.subject, run.condition)
+    (run.directory / "prompt-1.txt").write_text(prompt)
+    child = LiveChild(
+        cwd,
+        prompt,
+        *(("--plugin-dir", str(run.payload)) if leaf else ()),
+        stderr=run.directory / "err.txt",
+        limit=TURN_LIMIT,
+        timed_out=run.directory / "timed-out",
+        dirs=[run.payload] if leaf else [],
+        env=(
             {"LEAF": str(run.payload / "bin/leaf"), "XDG_STATE_HOME": str(run.state)}
-            if run.condition == "leaf"
+            if leaf
             else {}
         ),
-        "harness": run.harness,
-    }
-    first = run_agent(
-        cwd,
-        prompts[0],
-        out=run.directory / "stream-1.jsonl",
-        err=run.directory / "err-1.txt",
-        **child,
+        harness=run.harness,
     )
-    if page.exists():
-        shutil.copytree(
-            page,
-            run.directory / "page-phase1",
-            ignore=shutil.ignore_patterns("service.json", "*.lock"),
-        )
-    second = []
-    if completed(first) and (session := result(first).get("session_id")):
-        second = run_agent(
-            cwd,
-            prompts[1],
-            "--resume",
-            session,
-            out=run.directory / "stream-2.jsonl",
-            err=run.directory / "err-2.txt",
-            **child,
-        )
-
-    if page.exists():
-        shutil.copytree(
-            page,
-            run.directory / "page",
-            ignore=shutil.ignore_patterns("service.json", "*.lock"),
-        )
-    if run.needs_choice and page.exists() and completed(first) and completed(second):
-        seed_and_read_choice(run)
-        continuation = (
-            f"The user has reviewed {page}. Add a short Review status note saying "
-            "it has now been reviewed. Preserve their existing decisions. "
-            f"Check with `$LEAF page check {page} --render` and stamp the revision. "
-            "Do not start a watcher or wait for input. Reply with its path."
-        )
-        (run.directory / "prompt-3.txt").write_text(continuation)
-        run_agent(
-            cwd,
-            continuation,
-            "--resume",
-            result(second)["session_id"],
-            out=run.directory / "stream-3.jsonl",
-            err=run.directory / "err-3.txt",
-            **child,
-        )
-        shutil.copytree(
-            page,
-            run.directory / "page-continuation",
-            ignore=shutil.ignore_patterns("service.json", "*.lock"),
-        )
+    try:
+        with LiveSession(
+            child,
+            run.directory / "stream.jsonl",
+            watch=(run.payload, run.state, page) if leaf else None,
+        ) as live:
+            for phase in phases(run.subject):
+                live.note({"type": "eval_phase", "phase": phase, "received_at": now()})
+                since = live.answered
+                run.phase_starts[phase] = latest_seq(page)
+                before = None
+                if phase == 2:
+                    live.send(preference_message())
+                elif phase == 3:
+                    before = comment(run, live)
+                elif phase == 4:
+                    decision_round(run, live)
+                settled = live.settle(since, grace=GRACE, wake=WAKE, before=before)
+                snapshot(page, run.directory / f"page-phase{phase}")
+                if not settled or not (page / "index.html").exists():
+                    break
+                if leaf and not live.url:
+                    break
+    finally:
+        if leaf:
+            run.leaf("server", "stop", str(page))
 
 
-def seed_and_read_choice(run: Run) -> None:
-    """Admit a real user choice, then read it without the author's conversation."""
+def comment(run: Run, live: LiveSession):
+    """Send the scenario's comment: from a selection on the served Leaf page, or
+    in chat. On Leaf, record its delivery, `eval_received`, if it has arrived, and
+    return the check that records it ahead of the record that shows it."""
+    scenario = CASES[run.subject]
+    remark = scenario.comment
+    if not run.leaf_condition:
+        live.send(comment_message(remark))
+        return None
+    posted = live.during(
+        lambda: comment_on_passage(
+            live.url,
+            remark.quotes,
+            remark.text,
+            comment_message(remark),
+            scenario.reveal,
+        )
+    )
+    live.note({"type": "eval_post", **posted, "received_at": now()})
+    event = next(
+        e
+        for e in read_events(run.authored_page)
+        if e.get("attempt") == posted["attempt"]
+    )
+    run.record(
+        "comment", {**posted, "event": event["id"], "anchor": event.get("anchor")}
+    )
+    delivered = False
+
+    def received(record: dict | None = None) -> None:
+        nonlocal delivered
+        if not delivered and event["id"] in opened_input_ids(
+            read_events(run.authored_page)
+        ):
+            delivered = True
+            live.note(
+                {"type": "eval_received", "event": event["id"], "received_at": now()}
+            )
+
+    # The hook may have delivered it while the browser was still posting.
+    received()
+    return received
+
+
+def decision_round(run: Run, live: LiveSession) -> None:
+    """Make the scenario's decision on the page as its user, then ask for it to be
+    applied, recording the route the request took: what the page gave to copy
+    where it offered that, the page itself where it sent the decision to the
+    agent's log, and otherwise the decision typed."""
+    decision = CASES[run.subject].decision
     page = run.authored_page
-    record = {"seeded": False}
-    elements = SourceDocument((page / "index.html").read_text()).lf_elements
-    options = [
-        r
-        for r in elements
-        if r["tag"] == "lf-option"
-        and "chosen" not in r["attrs"]
-        and r["holder"]
-        and "choose" in r["holder"]["attrs"]
+    before = latest_seq(page)
+
+    def deciding():
+        if run.leaf_condition:
+            return decide(live.url, decision.task, run.directory / "user")
+        with arrangement_plain.serving(page) as url:
+            return decide(url, decision.task, run.directory / "user")
+
+    made = live.during(deciding)
+    # What the page sent the agent: the user's inputs admission marked as owing it
+    # attention, rather than bookkeeping such as a read receipt.
+    gestures = [
+        {k: e.get(k) for k in ("kind", "widget", "action", "detail", "text")}
+        for e in (read_events(page) if run.leaf_condition else [])
+        if e["seq"] > before
+        and e.get("author") == "user"
+        and requires_agent_attention(e)
     ]
-    if options:
-        option = options[-1]
-        widget, chosen = option["holder"]["attrs"]["id"], option["attrs"]["id"]
-        state = json.loads(run.leaf("page", "state", str(page)).stdout)
-        admit(
-            run,
-            page,
-            {
-                "kind": "action",
-                "widget": widget,
-                "action": "choose",
-                "revision": state["active"]["revision"],
-                "detail": {"value": [chosen]},
-                "attempt": "authored-choice-0001",
+    copied = (made["copies"] or [None])[-1] or made["copied"]
+    # The user copies only where the page has no way to send the decision, so
+    # what it copied is the handover even beside inputs the page sent.
+    if made["made"] and copied:
+        route = "copied"
+    elif made["made"] and gestures:
+        route = "page"
+    else:
+        route = "typed"
+    message = apply_message(decision, route, copied)
+    run.record(
+        "decision",
+        {**made, "gestures": gestures, "route": route, "message": message},
+    )
+    live.send(message)
+
+
+def answers_in_phase(run: Run, phase: int) -> list[str]:
+    """The agent's page messages from `phase` on, which a Leaf agent may answer
+    in rather than in chat."""
+    start = run.phase_starts.get(phase, 0)
+    return [
+        f"{e.get('title') or ''} {e.get('text') or ''}".strip()
+        for e in read_events(run.authored_page)
+        if e["seq"] > start
+        and e.get("author") == "agent"
+        and e["kind"] in MESSAGE_KINDS
+    ]
+
+
+def items(decision: Decision) -> str:
+    return "\n".join(
+        f"- {item}: {' | '.join(values)}" for item, values in decision.values.items()
+    )
+
+
+def reading_schema(decision: Decision) -> str:
+    """The reader's answer, which the harness's structured output holds to each
+    item's listed values."""
+    return json.dumps(
+        {
+            "type": "object",
+            "properties": {
+                item: {"type": "string", "enum": [*values, "undecided"]}
+                for item, values in decision.values.items()
             },
+            "required": list(decision.values),
+            "additionalProperties": False,
+        }
+    )
+
+
+def matches(decision: Decision, reading: dict | None) -> dict[str, bool]:
+    """Each item, and whether the reading gives its chosen value."""
+    return {
+        item: reading is not None and reading[item] == chosen
+        for item, chosen in decision.chosen.items()
+    }
+
+
+def read_applied(run: Run, reply: str) -> dict:
+    """What the agent applied, read by a judge from the final page's authored
+    files, with its answers in the decision phase only to point the way."""
+    decision = CASES[run.subject].decision
+    evidence = run.directory / "applied"
+    files = evidence / "page"
+    page = run.authored_page
+    for found in authored_files(page, run.condition):
+        target = files / found.relative_to(page)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(found, target)
+    answer = evidence / "answer.txt"
+    answer.write_text(
+        "\n\n".join([reply, *answers_in_phase(run, 4)]) if run.leaf_condition else reply
+    )
+    listed = "\n".join(
+        f"- {path}" for path in sorted(files.rglob("*")) if path.is_file()
+    )
+    prompt = DEFINITION["prompts"]["reading"].format(
+        situation=DEFINITION["prompts"]["reading_applied"].format(
+            listed=listed, answer=answer
+        ),
+        items=items(decision),
+    )
+    (evidence / "prompt.txt").write_text(prompt)
+    with scratch() as cwd:
+        trace = run_agent(
+            cwd,
+            prompt,
+            "--tools",
+            "Read",
+            "--json-schema",
+            reading_schema(decision),
+            out=evidence / "stream.jsonl",
+            err=evidence / "err.txt",
+            dirs=[evidence],
+            model=MODELS["judge"],
         )
-        record = {
-            "seeded": True,
-            "widget": widget,
-            "options": [chosen],
-            "revision": state["active"]["revision"],
-        }
-        source_before = (page / "index.html").read_bytes()
-        events_before = (page / "events.jsonl").read_bytes()
-        destination = run.directory / "reader"
-        destination.mkdir()
-        with scratch() as work:
-            prompt = (
-                f"Read the Leaf skill at {run.payload}/skills/leaf/SKILL.md. "
-                f"The page at {page} has been reviewed by a user. Read its current "
-                f"state: which option ids are selected in {widget}? Don't edit "
-                'the page or serve it. Reply only with JSON: {"options":["id"]}.'
-            )
-            (destination / "prompt.txt").write_text(prompt)
-            trace = run_agent(
-                work,
-                prompt,
-                out=destination / "stream.jsonl",
-                err=destination / "err.txt",
-                dirs=[run.payload, page],
-                env={
-                    "LEAF": str(run.payload / "bin/leaf"),
-                    "XDG_STATE_HOME": str(run.state),
-                },
-                harness=run.harness,
-            )
-        raw = result(trace).get("result", "")
-        match = re.search(r"\{.*\}", raw, re.DOTALL)
-        try:
-            answer = json.loads(match[0]) if match else None
-        except json.JSONDecodeError:
-            answer = None
-        record |= {
-            "completed": completed(trace),
-            "page_unchanged": source_before == (page / "index.html").read_bytes()
-            and events_before == (page / "events.jsonl").read_bytes(),
-            "answer": answer,
-            "correct": isinstance(answer, dict) and answer.get("options") == [chosen],
-            "trace": trace_summary(trace),
-        }
-    (run.directory / "choice.json").write_text(json.dumps(record, indent=2))
+    reading = trace_result(trace).get("structured_output")
+    return {
+        "reading": reading,
+        "items": matches(decision, reading),
+        "trace": trace_summary(trace),
+    }
+
+
+def read_decision(run: Run) -> dict:
+    """The user's decision as a fresh Leaf reader reports it from the page's state,
+    without the author's conversation."""
+    decision = CASES[run.subject].decision
+    page = run.authored_page
+    destination = run.directory / "reader"
+    destination.mkdir()
+    source_before = (page / "index.html").read_bytes()
+    events_before = (page / "events.jsonl").read_bytes()
+    prompt = DEFINITION["prompts"]["reading"].format(
+        situation=DEFINITION["prompts"]["reading_decision"].format(
+            payload=run.payload, page=page
+        ),
+        items=items(decision),
+    )
+    (destination / "prompt.txt").write_text(prompt)
+    with scratch() as work:
+        trace = run_agent(
+            work,
+            prompt,
+            "--json-schema",
+            reading_schema(decision),
+            out=destination / "stream.jsonl",
+            err=destination / "err.txt",
+            dirs=[run.payload, page],
+            env={
+                "LEAF": str(run.payload / "bin/leaf"),
+                "XDG_STATE_HOME": str(run.state),
+            },
+            harness=run.harness,
+        )
+    reading = trace_result(trace).get("structured_output")
+    return {
+        "completed": completed(trace),
+        "page_unchanged": source_before == (page / "index.html").read_bytes()
+        and events_before == (page / "events.jsonl").read_bytes(),
+        "reading": reading,
+        "items": matches(decision, reading),
+        "trace": trace_summary(trace),
+    }
+
+
+def chosen_options(page: Path | None) -> set[str]:
+    """The `lf-option`s a Leaf page's markup marks chosen."""
+    if page is None:
+        return set()
+    return {
+        r["attrs"]["id"]
+        for r in SourceDocument((page / "index.html").read_text()).lf_elements
+        if r["tag"] == "lf-option" and "chosen" in r["attrs"] and "id" in r["attrs"]
+    }
 
 
 def gate(run: Run, phase: int, page: Path) -> dict:
@@ -317,21 +555,35 @@ def gate(run: Run, phase: int, page: Path) -> dict:
 def capture_phase(
     run: Run, phase: int, page: Path | None = None
 ) -> dict[str, list[str]]:
-    """Screenshot one version at each width, top to bottom, keyed by width."""
+    """Screenshot one version at each width, top to bottom, keyed by width, with
+    the commented item open once the version carries the comment."""
     run.shots.mkdir(parents=True, exist_ok=True)
     captures = {name: [] for name in WIDTHS}
     page = page or run.page(phase)
     if page is None:
         return captures
+    html = run.condition == "html"
+    scenario = CASES[run.subject]
+    opening = scenario.reveal if phase >= 3 and scenario.comment else ""
     server = (
         arrangement_plain.serving(page)
-        if run.condition == "html"
+        if html
         else serving(run.payload, run.state, page)
     )
+
+    def settled(view):
+        if html:
+            arrangement_plain.settle(view)
+        else:
+            rendered(view)
+            settle(view)
+
     with server as url, chrome() as browser:
         for name, (viewport, _) in WIDTHS.items():
             with tab(browser, viewport=viewport, touch=name == "phone") as view:
-                (arrangement_plain.load if run.condition == "html" else load)(view, url)
+                (arrangement_plain.load if html else load)(view, url)
+                if opening:
+                    reveal(view, opening, scenario.comment.applied, settled)
                 height = view.evaluate("document.documentElement.scrollHeight")
                 step = int(viewport[1] * 0.85)
                 screens = min(16, 1 + max(0, height - viewport[1] + step - 1) // step)
@@ -340,11 +592,7 @@ def capture_phase(
                         "y => window.scrollTo({top: y, behavior: 'instant'})",
                         index * step,
                     )
-                    if run.condition == "html":
-                        arrangement_plain.settle(view)
-                    else:
-                        rendered(view)
-                        settle(view)
+                    settled(view)
                     path = run.shots / f"p{phase}-{name}-{index}.png"
                     view.screenshot(path=path)
                     captures[name].append(str(path))
@@ -352,8 +600,128 @@ def capture_phase(
 
 
 def capture(run: Run) -> dict[int, dict[str, list[str]]]:
-    """Capture the initial and width-revised page phases."""
-    return {phase: capture_phase(run, phase) for phase in PHASES}
+    """Capture every phase's page."""
+    return {phase: capture_phase(run, phase) for phase in phases(run.subject)}
+
+
+AUTHORED = (".html", ".css", ".js", ".mjs", ".json")
+
+
+def authored_files(page: Path, condition: str) -> list[Path]:
+    """The text files the author wrote: all of an HTML page's; a Leaf page's
+    document, its page-specific inputs and its data, leaving out what Leaf vendors."""
+    if condition == "html":
+        found = page.rglob("*")
+    else:
+        found = [
+            page / "index.html",
+            *(page / "page").rglob("*"),
+            *(page / "data").rglob("*"),
+        ]
+    return sorted(f for f in found if f.is_file() and f.suffix in AUTHORED)
+
+
+def authored_lines(page: Path, condition: str) -> dict[str, int]:
+    """Non-blank CSS and script lines across the authored files, inline or separate,
+    and the count of `style` attributes."""
+    counts = {"css_lines": 0, "script_lines": 0, "style_attributes": 0}
+
+    def lines(text: str) -> int:
+        return sum(1 for line in text.splitlines() if line.strip())
+
+    for file in authored_files(page, condition):
+        if file.suffix == ".css":
+            counts["css_lines"] += lines(file.read_text())
+        elif file.suffix in (".js", ".mjs"):
+            counts["script_lines"] += lines(file.read_text())
+        elif file.suffix == ".html":
+            # The parsed tree, template contents included, so a live sample's code
+            # counts as the author's too.
+            tree = turbohtml.parse(file.read_text())
+            counts["css_lines"] += sum(lines(e.text) for e in tree.select("style"))
+            counts["script_lines"] += sum(
+                lines(e.text) for e in tree.select("script:not([src])")
+            )
+            counts["style_attributes"] += len(tree.select("[style]"))
+    return counts
+
+
+# A shell command that writes the page, and one that renders it in a browser. Both
+# read command text, so they approximate: a write through some other program, or a
+# browser run under another name, goes uncounted.
+SHELL_WRITE = re.compile(
+    r"sed -i|perl -\w*i|\.write\(|write_text\(|(>|tee)\s*\S*index\.html"
+)
+RENDER = re.compile(r"page check|playwright|chrom|puppeteer|screenshot", re.IGNORECASE)
+
+
+def tool_work(trace: list[dict], page: Path) -> dict[str, int]:
+    """The phase's writes to the page, its first draft plus each repair iteration,
+    and the times it rendered the page to check it."""
+    writes = renders = 0
+    for block in blocks(trace):
+        if block.get("type") != "tool_use":
+            continue
+        given = block.get("input", {})
+        if block.get("name") in ("Write", "Edit", "MultiEdit"):
+            writes += str(given.get("file_path", "")).startswith(f"{page}/")
+        elif command := given.get("command"):
+            writes += bool(
+                SHELL_WRITE.search(command)
+                and (str(page) in command or "index.html" in command)
+            )
+            renders += bool(RENDER.search(command))
+    return {"page_writes": writes, "renders": renders}
+
+
+def comment_applied(run: Run, page: Path) -> bool:
+    """Whether the authored files carry the fact only the comment supplied: what an
+    HTML file says (`SourceReading`), any other file whole."""
+    text = " ".join(
+        SourceReading(SourceDocument(f.read_text()), {}).passages.text
+        if f.suffix == ".html"
+        else f.read_text()
+        for f in authored_files(page, run.condition)
+    )
+    return (
+        re.search(CASES[run.subject].comment.applied, " ".join(text.split()))
+        is not None
+    )
+
+
+def comment_answer(run: Run, reply: str) -> str:
+    """What the author told the user about their comment, where it was asked: its
+    replies on the comment's thread in Leaf, its chat reply in HTML. The judge reads
+    it (the case's "comment-answered" assertion)."""
+    if not run.leaf_condition:
+        return reply
+    thread = run.recorded("comment").get("event")
+    answers = (
+        successful_replies(read_events(run.authored_page), thread) if thread else []
+    )
+    return "\n\n".join(
+        f"{answer.get('title', '')}\n{answer['text']}".strip() for answer in answers
+    )
+
+
+def phase_traces(trace: list[dict]) -> dict[int, list[dict]]:
+    """The session's records split at the harness's `eval_phase` marks."""
+    split: dict[int, list[dict]] = {}
+    current = None
+    for record in trace:
+        if record.get("type") == "eval_phase":
+            current = record["phase"]
+            split[current] = []
+        elif current is not None:
+            split[current].append(record)
+    return split
+
+
+def replies(trace: list[dict]) -> str:
+    """Every turn's closing message in a phase, in order."""
+    return "\n\n".join(
+        r.get("result") or "" for r in trace if r.get("type") == "result"
+    ).strip()
 
 
 def listing(captures: dict[str, list[str]]) -> list[str]:
@@ -365,77 +733,70 @@ def listing(captures: dict[str, list[str]]) -> list[str]:
     return lines
 
 
-def brief(subject: str, captures: dict[int, dict[str, list[str]]]) -> str:
-    """What the judge reads: the request, the later preference, each version's screenshots."""
+def later_messages(subject: str, first: str = "version 1") -> list[str]:
+    """The user's messages after the first version, as both judges read them."""
+    scenario = CASES[subject]
+    lines = [f'After {first}, the user added a lasting preference: "{PREFERENCE}"']
+    if comment := scenario.comment:
+        lines += ["", f'Then the user commented: "{comment_message(comment)}"']
+    if decision := scenario.decision:
+        lines += [
+            "",
+            (
+                "Then the user made these decisions on the page and asked for them "
+                f'to be applied: "{decision.typed}"'
+            ),
+        ]
+    return lines
+
+
+def brief(
+    subject: str, captures: dict[int, dict[str, list[str]]], answer: str = ""
+) -> str:
+    """What the judge reads: the request, the later messages, the author's `answer`
+    to the comment, and each version's screenshots."""
     lines = [
         f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
         "",
-        f"After version 1, the user added a standing preference: {PREFERENCE}",
+        *later_messages(subject),
+        "",
+        "Each message after the request produced the next version.",
     ]
-    for phase in PHASES:
+    if CASES[subject].comment:
+        lines += [
+            "",
+            "The author answered the comment:",
+            f"<answer>\n{answer or '(no answer)'}\n</answer>",
+        ]
+    for phase in phases(subject):
         lines += ["", f"Version {phase} screenshots:", *listing(captures[phase])]
     return "\n".join(lines)
 
 
-JUDGING = (
-    "Open every screenshot the output lists for version {phase} before judging. "
-    "Each width's screenshots run top to bottom with overlap. Fixed viewer "
-    "controls are outside the page's content, and a region with its own "
-    "scroll shows only its first screen. Judge only what a user sees; don't infer "
-    "interaction behavior from an unoperated screenshot. "
-)
-
-
-def rubrics(scenario: str) -> list[dict]:
-    """The judged quality of each version, and of the revision against the preference.
-
-    Splitting quality into separate verdicts would have the judge read every
-    screenshot once per verdict; its reason names what failed."""
-    return [
-        *(
-            {
-                "type": "agent-rubric",
-                "metric": f"phase-{phase}-quality",
-                "value": JUDGING.format(phase=phase)
-                + f"Pass only if, at every width, version {phase} keeps the request's "
-                "substantive information, lets the user find and read the evidence, and "
-                "provides the decisions or navigation the request needs. "
-                + CASES[scenario].quality,
-            }
-            for phase in PHASES
-        ),
-        {
-            "type": "agent-rubric",
-            "metric": "phase-2-preference",
-            "value": JUDGING.format(phase=2)
-            + "Pass only if version 2 follows the standing width preference the "
-            "output quotes.",
-        },
-    ]
-
-
 def expected_checks(case: str, *, condition="leaf") -> list[str]:
-    """Common outcome checks apply to both tools, without Leaf routing in HTML."""
+    """Common outcome checks apply to both tools; the hand-over, the comment's
+    delivery and the fresh reader are Leaf's own."""
     if case not in CASES:
         raise ValueError(f"Unknown authored task: {case}")
+    scenario, leaf = CASES[case], condition == "leaf"
     return [
         "completed",
         *(
             f"phase-{phase}-{check}"
-            for phase in PHASES
+            for phase in phases(case)
             for check in ("completed", "page", "render", "captures")
         ),
+        *(["handed-over"] if leaf else []),
+        *(["comment-delivered"] if leaf and scenario.comment else []),
+        *(["comment-applied"] if scenario.comment else []),
+        *(["decision-made", "decision-applied"] if scenario.decision else []),
         *(
             [
-                "choice-seeded",
-                "choice-reader-completed",
-                "choice-reader-correct",
-                "choice-reader-page-unchanged",
-                "choice-continuation-completed",
-                "choice-revised",
-                "choice-preserved",
+                "decision-reader-completed",
+                "decision-reader-correct",
+                "decision-reader-page-unchanged",
             ]
-            if condition == "leaf" and CASES[case].choice
+            if leaf and scenario.decision
             else []
         ),
     ]
@@ -454,79 +815,93 @@ def execute_scenario(
     work.mkdir(parents=True, exist_ok=True)
     checks = dict.fromkeys(expected_checks(case, condition=condition), False)
     run = Run(case, payload, work, shots, harness, condition)
+    scenario = CASES[case]
     diagnostics = {
         "subject": case,
         "harness": harness,
         "condition": condition,
         "phases": {},
     }
-    costs = []
-    with tempfile.TemporaryDirectory(prefix="leaf-author-") as temporary:
-        author(run, Path(temporary) / "cwd")
-        if run.needs_choice:
-            choice_path = work / "choice.json"
-            choice = json.loads(choice_path.read_text()) if choice_path.exists() else {}
-            diagnostics["choice"] = choice
-            checks["choice-seeded"] = choice.get("seeded") is True
-            checks["choice-reader-completed"] = choice.get("completed") is True
-            checks["choice-reader-correct"] = choice.get("correct") is True
-            checks["choice-reader-page-unchanged"] = (
-                choice.get("page_unchanged") is True
+    harness_costs = []
+    with scratch(payload) as child_work:
+        author(run, child_work)
+        trace = read_trace(work / "stream.jsonl")
+        split = phase_traces(trace)
+        order = list(phases(case))
+        session = dict(
+            zip(order, resumed([trace_summary(split.get(p, [])) for p in order]))
+        )
+        if run.leaf_condition:
+            served = next((r["url"] for r in trace if r["type"] == "eval_served"), None)
+            checks["handed-over"] = served is not None and served in replies(
+                split.get(1, [])
             )
-            continuation = trace_summary(read_trace(work / "stream-3.jsonl"))
-            checks["choice-continuation-completed"] = (
-                continuation.get("completed") is True
-            )
-            diagnostics["continuation"] = continuation
-            costs.append(continuation.get("cost_usd"))
-            if choice.get("seeded"):
-                state = json.loads(
-                    run.leaf("page", "state", str(run.authored_page)).stdout
+            if scenario.comment:
+                checks["comment-delivered"] = any(
+                    r["type"] == "eval_received" for r in trace
                 )
-                checks["choice-revised"] = (
-                    state["active"]["revision"] != choice["revision"]
+                remark = run.recorded("comment")
+                diagnostics["comment"] = remark
+                # A comment that directs an outcome may be recorded as the user's
+                # pick, which is right; record whether it was.
+                diagnostics["comment_recorded_pick"] = sorted(
+                    chosen_options(run.page(3)) - chosen_options(run.page(2))
                 )
-                standing = [
-                    s
-                    for s in state["state"]
-                    if s["widget"] == choice["widget"] and s["action"] == "choose"
-                ]
-                document = SourceDocument(
-                    (run.authored_page / "index.html").read_text()
-                )
-                authored_choice = [
-                    r["attrs"]["id"]
-                    for r in document.lf_elements
-                    if r["tag"] == "lf-option"
-                    and "chosen" in r["attrs"]
-                    and r["holder"]
-                    and r["holder"]["attrs"].get("id") == choice["widget"]
-                ]
-                checks["choice-preserved"] = (
-                    standing[0]["detail"]["value"] if standing else authored_choice
-                ) == choice["options"]
-                reader_trace = choice["trace"]
-                costs.append(reader_trace["cost_usd"])
+        if scenario.decision:
+            made = run.recorded("decision")
+            harness_costs.append((made.get("trace") or {}).get("cost_usd"))
+            checks["decision-made"] = made.get("made") is True
+            decision = {"made": made}
+            if (run.authored_page / "index.html").exists() and 4 in split:
+                applied = read_applied(run, replies(split[4]))
+                harness_costs.append(applied["trace"]["cost_usd"])
+                decision["applied"] = applied
+                checks["decision-applied"] = all(applied["items"].values())
+                if run.leaf_condition:
+                    reader = read_decision(run)
+                    harness_costs.append(reader["trace"]["cost_usd"])
+                    decision["reader"] = reader
+                    checks["decision-reader-completed"] = reader["completed"]
+                    checks["decision-reader-correct"] = all(reader["items"].values())
+                    checks["decision-reader-page-unchanged"] = reader["page_unchanged"]
+            diagnostics["decision"] = decision
         captures = capture(run)
-        for phase in PHASES:
-            trace = trace_summary(read_trace(work / f"stream-{phase}.jsonl"))
-            costs.append(trace.get("cost_usd"))
-            checks[f"phase-{phase}-completed"] = bool(trace.get("completed"))
+        answer = ""
+        for phase in order:
+            summary = session[phase]
+            checks[f"phase-{phase}-completed"] = summary["completed"]
             page = run.page(phase)
             checks[f"phase-{phase}-page"] = page is not None
             checks[f"phase-{phase}-captures"] = all(captures[phase].values())
-            row = {"trace": trace, "captures": captures[phase]}
+            row = {
+                "trace": summary,
+                "captures": captures[phase],
+                **tool_work(split.get(phase, []), run.authored_page),
+            }
             if page:
                 reading = gate(run, phase, page)
                 checks[f"phase-{phase}-render"] = reading["passed"]
                 row |= {
                     "page": str(page),
                     "gate": reading,
+                    **authored_lines(page, condition),
                 }
+                if phase == 3:
+                    checks["comment-applied"] = comment_applied(run, page)
+                    answer = comment_answer(run, summary["reply"])
             diagnostics["phases"][phase] = row
-    checks["completed"] = all(checks[f"phase-{phase}-completed"] for phase in PHASES)
+    checks["completed"] = all(checks[f"phase-{phase}-completed"] for phase in order)
+    authoring = [session[p]["cost_usd"] for p in order]
+    diagnostics["cost"] = {
+        "author": observed_sum(authoring),
+        "harness": observed_sum(harness_costs),
+    }
     return {
-        "output": brief(case, captures),
+        "output": brief(case, captures, answer),
         "metadata": {"checks": checks, "diagnostics": diagnostics},
-        **({"cost": cost} if (cost := observed_sum(costs)) is not None else {}),
+        **(
+            {"cost": cost}
+            if (cost := observed_sum([*authoring, *harness_costs])) is not None
+            else {}
+        ),
     }

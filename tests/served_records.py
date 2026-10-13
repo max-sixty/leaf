@@ -5,7 +5,7 @@ through `model_folds.served_reading` rather than written by hand, so a Node test
 every field the server sends and cannot omit one the runtime relies on. `thread` and
 `workflow` are one record of each, which `served.mjs` hands out for a test to change
 only the fields the server sends; `gestures` holds an admitted edit, undo, refusal
-and revision sequence shared across runtimes; `question_values` holds typed values
+and revision sequence shared across runtimes; `ask_values` holds typed values
 folded by Python for comparison with the browser; `state_definitions` holds the
 operation definitions Python records, for the browser's comparison of them; `readings`
 holds whole served readings whose premise is the case under test. `served.mjs` reads this output directly, so its
@@ -15,10 +15,10 @@ assertions always consume this checkout's server rather than a recorded copy.
 import json
 from pathlib import Path
 
-from interact_support import model_layer
+from interact_support import model_layer, served_thread
 from leaf.event_log import EventRefused
 from leaf.passages import SourceReading
-from leaf.projection import StateProjection, authored_rank, question_value
+from leaf.projection import StateProjection, ask_value, authored_rank
 from leaf.registry.contract import state_definition
 from leaf.structure import SourceDocument
 from model_folds import NOW, UNCLAIMED, leaf_page, served_reading
@@ -29,14 +29,14 @@ PAGE = leaf_page("Served records", '<h1 id="h">Steps</h1><p id="p">Two steps.</p
 def _served(events: tuple[dict, ...]) -> dict:
     state = served_reading(PAGE, events)
     return {
-        "threads": state["browser"]["thread"]["threads"],
+        "threads": served_thread(state["browser"])["threads"],
         "workflows": state["workflows"],
     }
 
 
-# Something of every kind on each side: an open Ask, a question left in prose, a task
-# the agent put on them, a reply that failed and a page action whose pickup failed are on
-# the user; a comment owed a reply and a task the agent has in hand are on the agent.
+# Something of every kind on each list: a widget ask, a prose ask, a to-do the agent put
+# on the user, a reply that failed and a page action whose pickup failed are on Questions;
+# a comment owed a reply and a to-do the agent has in hand are on Tasks.
 BOTH_SIDES = (
     {"kind": "comment", "text": "Weekly?"},
     {
@@ -46,7 +46,7 @@ BOTH_SIDES = (
         "parent": "e1",
         "responds": "e1",
         "text": "Weekly or daily?",
-        "question": True,
+        "ask": True,
     },
     {"kind": "comment", "text": "Tighten this."},
     {"kind": "comment", "text": "Rebuild the chart."},
@@ -58,7 +58,7 @@ BOTH_SIDES = (
         "parent": "e4",
         "responds": "e4",
         "text": "On it after CI.",
-        "task": "Rebuild the chart",
+        "todo": "Rebuild the chart",
     },
     {"kind": "comment", "text": "Retitle it."},
     {
@@ -95,7 +95,7 @@ BOTH_SIDES = (
         "text": "Redrawing the chart",
     },
     {
-        "kind": "task",
+        "kind": "todo",
         "author": "agent",
         "agent": "Agent",
         "session": "served-records",
@@ -154,15 +154,15 @@ def build() -> dict:
     threads = {thread["id"]: thread for thread in records["threads"]}
     workflows = {workflow["id"]: workflow for workflow in records["workflows"]}
     return {
-        "question_values": question_value_cases(),
+        "ask_values": ask_value_cases(),
         "thread": threads["e1"],
         "workflow": workflows["e4"],
         "gestures": gesture_sequence(),
-        "question_item": _served_question_item(),
+        "ask_item": _served_ask_item(),
         "state_definitions": state_definition_cases(),
         "readings": {
             # A required approval of the exact stamped document, with no other
-            # Questions. Keep the whole browser reading for local approval folds.
+            # asks. Keep the whole browser reading for local approval folds.
             "approval": served_reading(SIGN_OFF_PAGE, (READY,)),
             # The same version once the user approved it.
             "approved": served_reading(
@@ -181,7 +181,7 @@ def build() -> dict:
                         "parent": "e1",
                         "responds": "e1",
                         "text": "Here is the board. Which card goes first?",
-                        "question": True,
+                        "ask": True,
                         "markup": model_layer()["lf-board"]["x-example"],
                     },
                     {
@@ -200,22 +200,22 @@ def build() -> dict:
                 ASK_PAGE,
                 BOTH_SIDES,
             ),
-            # The same page once the user has marked their task done.
+            # The same page once the user has marked their to-do done.
             "user done": served_reading(
                 ASK_PAGE,
                 (
                     *BOTH_SIDES,
-                    {"kind": "task_end", "task": "e11", "outcome": "done"},
+                    {"kind": "todo_end", "todo": "e11", "outcome": "done"},
                 ),
             ),
-            # Two tasks the agent holds on a page it is working on: a start running
+            # Two to-dos the agent holds on a page it is working on: a start running
             # on one went quiet past the working grace, and the other's is current.
             "quiet start": served_reading(
                 ASK_PAGE,
                 (
                     *(
                         {
-                            "kind": "task",
+                            "kind": "todo",
                             "author": "agent",
                             "agent": "Agent",
                             "session": "served-records",
@@ -260,8 +260,8 @@ def build() -> dict:
                     },
                 ),
             ),
-            # One Ask answered and one open, and a task the agent ended beside one it
-            # still holds: only the answered Ask and the ended task are done.
+            # One ask answered and one open, and a to-do the agent ended beside one it
+            # still holds: only the answered ask and the ended to-do are done.
             "done": served_reading(
                 ASK_PAGE,
                 (
@@ -280,7 +280,7 @@ def build() -> dict:
                         "parent": "e2",
                         "responds": "e2",
                         "text": "Rebuilding it.",
-                        "task": "Rebuild the chart",
+                        "todo": "Rebuild the chart",
                     },
                     {
                         "kind": "reply",
@@ -289,14 +289,14 @@ def build() -> dict:
                         "session": "served-records",
                         "parent": "e2",
                         "text": "And checking the colours.",
-                        "task": "Check the colours",
+                        "todo": "Check the colours",
                     },
                     {
-                        "kind": "task_end",
+                        "kind": "todo_end",
                         "author": "agent",
                         "agent": "Agent",
                         "session": "served-records",
-                        "task": "e4",
+                        "todo": "e4",
                         "outcome": "done",
                         "detail": "Matched the theme",
                     },
@@ -329,22 +329,22 @@ ASK_PAGE = leaf_page(
 )
 
 
-def _served_question_item() -> dict:
-    """One Question as a work queue lists it (`served_state.queues`)."""
+def _served_ask_item() -> dict:
+    """One ask as Questions lists it (`served_state.queues`)."""
     state = served_reading(ASK_PAGE, BOTH_SIDES)
     return next(
         item
-        for item in state["browser"]["views"]["1"]["queues"]["on_you"]
-        if item["kind"] == "question"
+        for item in state["browser"]["views"]["1"]["queues"]["questions"]
+        if item["kind"] == "ask"
     )
 
 
-def question_value_cases():
+def ask_value_cases():
     """Shared typed-value fixtures: Python's projection reader supplies expected output.
 
     These isolate the state boundary from event admission, pairing authored markup
-    with its browser initial state and standing value actions. Both runtimes fold
-    the same operation specs; no Question-specific store participates.
+    with its browser initial state and value actions in force. Both runtimes fold
+    the same operation specs; no ask-specific store participates.
     """
     cases = []
 
@@ -386,7 +386,7 @@ def question_value_cases():
                 }
             )
         projection = StateProjection(held, {}, held, {}, {}, frozenset(), frozenset())
-        value, present = question_value(
+        value, present = ask_value(
             "owner",
             "set",
             spec,
@@ -545,7 +545,7 @@ def gesture_sequence() -> dict:
     try:
         served_reading({1: documents[1]}, [*commands[:4], duplicate])
     except EventRefused as error:
-        assert "already been taken back" in str(error), str(error)
+        assert error.findings[0].code == "withdrawn-gesture", str(error)
     else:
         raise AssertionError("The duplicate undo must be refused")
     layer = model_layer()

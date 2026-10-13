@@ -6,15 +6,15 @@
    behavior, the layer implements it once. Current examples are:
 
    - `renderSaid` turns `x-says` values into real selectable text.
-   - `renderQuiet` gives `x-paints` facts and state provenance a clipped spoken reading.
+   - `renderQuiet` gives state provenance a clipped spoken reading.
    - Declared marks expose the width model, inline run, quoting, own height, and
      reading role to the theme: delivery paints a page's document, and `markDeclared`
      a message.
    - `paintSettlements` (projection/presentation.js) paints every holder's
      authoritative settlement, whether or not its module renders anything.
    - `renderRetired` marks slots retired by the declared holder relation.
-   - The Question model (questions/model.js) reads `x-awaits`, while the Question drawer
-     projects a declared `x-question-context` region around that source where one exists;
+   - The ask model (asks/model.js) reads `x-awaits`, while the ask view (asks/view.js)
+     projects a declared `x-ask-context` region around that source where one exists;
      neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
@@ -38,10 +38,10 @@
    the whole element, and stepping past it renders the element's own opening words
    underneath a summary of them.
 
-   `renderQuiet` handles facts with no local words, such as an attribute-driven status
-   or the provenance of projected widget state. These words are clipped, unselectable,
-   excluded from clipboard and anchor readings, but available to assistive technology.
-   `quietFacts` derives them from `x-paints` and the runtime's provenance attributes.
+   `renderQuiet` handles facts with no local words, such as the provenance of projected
+   widget state. These words are clipped, unselectable, excluded from clipboard and
+   anchor readings, but available to assistive technology. `quietFacts` derives them
+   from the runtime's provenance attributes.
 
    The runtime may inject its own words inside a widget: a quiet word, or an attribute
    the registry says aloud. A module reading its slot or body must call `says` so
@@ -51,6 +51,7 @@ import { elementDeclarations, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { highlightBlocks } from "./syntax.js";
 import { keeps } from "./keeps.js";
+import { move } from "./dom-move.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
@@ -72,25 +73,24 @@ export const isPagePaint = (name) =>
 // before it was one, and the copies had already diverged on whether a stale word was
 // removed first — which is now renderQuiet's to state for every widget that declares it.
 //
-// Which writer an element gets follows from the declaration, and the two sets do not
-// meet: renderQuiet has the elements the registry names (x-paints) and those the runtime
-// paints a retraction on, and a module has only the parts it builds or the ones no
-// declaration can reach — a suggestion's two slots, a code line. Declaring x-paints on a
-// tag whose module also writes one here would leave both removing the other's word on
-// each state application, which the user would hear as the element re-reading itself.
+// Which writer an element gets follows from what paints it, and the two sets do not
+// meet: renderQuiet has the elements the runtime paints a provenance on, and a module
+// has only the parts it builds — a suggestion's two slots, a code line. Two writers on
+// one element would each remove the other's word on every state application, which the
+// user would hear as the element re-reading itself.
 export function quietWord(el, word) {
   const title = el.querySelector(":scope > strong");
   const seat = title ? title.nextSibling : el.firstChild;
-  const standing = el.querySelector(":scope > .lf-quiet");
-  if (standing) {
+  const existing = el.querySelector(":scope > .lf-quiet");
+  if (existing) {
     // Nothing to say that isn't already said, in the place it belongs: a screen
     // reader rebuilds its buffer from the mutations, so a pass that finds the page
     // as it left it re-reads the element to whoever is on it for no reason. The seat
     // is part of that — a module that rebuilds its chip row between two runs of this
-    // leaves the word standing behind it, and the fix is to move it, not to leave it
+    // leaves the word behind it, and the fix is to move it, not to leave it
     // where the rebuild happened to put it.
-    if (standing === seat && standing.textContent === word) return;
-    standing.remove();
+    if (existing === seat && existing.textContent === word) return;
+    existing.remove();
   }
   if (!word) return;
   const span = Object.assign(document.createElement("span"), {
@@ -98,7 +98,7 @@ export function quietWord(el, word) {
     textContent: word,
   });
   span.dataset.lfGen = "1";
-  el.insertBefore(span, title ? title.nextSibling : el.firstChild);
+  move(el, span, title ? title.nextSibling : el.firstChild);
 }
 
 // External page links keep native link behavior but make the boundary explicit: the
@@ -373,13 +373,13 @@ export function renderSaid(root) {
     for (const el of elementsIn(root, tag))
       for (const [attr, edge] of Object.entries(entry["x-says"])) {
         const text = el.getAttribute(attr);
-        const standing = el.querySelector(`:scope > [data-lf-said="${attr}"]`);
+        const existing = el.querySelector(`:scope > [data-lf-said="${attr}"]`);
         // A live revision may change or drop the attribute under a span already
         // standing for it; the span follows the attribute rather than the first word
         // it ever said.
-        if (standing) {
-          if (text === null) standing.remove();
-          else if (standing.textContent !== text) standing.textContent = text;
+        if (existing) {
+          if (text === null) existing.remove();
+          else if (existing.textContent !== text) existing.textContent = text;
           continue;
         }
         if (text === null) continue;
@@ -411,7 +411,8 @@ export function renderSaid(root) {
         const beforeLeadingChrome = [...el.childNodes].find(
           (n) => !(n.nodeType === 1 && n.dataset.lfSaid),
         );
-        el.insertBefore(
+        move(
+          el,
           span,
           (edge === "before"
             ? beforeLeadingChrome
@@ -421,35 +422,23 @@ export function renderSaid(root) {
   }
 }
 
-// What a widget states without local words. A paint-only status marker or kind band
-// is a fact the eye reads off paint alone, so a user listening
-// is handed every word around it and nothing of the fact itself — done sounded exactly
-// like blocked. Same reasoning as renderSaid, one rung quieter: the registry names the
-// attributes (x-paints) and one pass speaks them, because left to each module it is a
-// thing to remember, and a declaration without a module could never remember it.
-//
-// The value is the word, or the attribute's own name where the value is empty: an enum
-// means what it says (`blocked`), and a flag attribute means what it is called.
-//
-// The runtime's three provenance states are said here too. Page Map makes them visible
-// and navigable in a live page, while this quiet word keeps each one attached to its
-// target for assistive technology.
+// What a widget states without local words: the runtime's three provenance states, a
+// fact the eye reads off paint alone. Page Map makes them visible and navigable in a
+// live page, while this quiet word keeps each one attached to its target for assistive
+// technology.
 // They compose into the element's one quiet span, so independent verbs can name user,
 // report, and restatement origins without three writers fighting over the same seat.
 function quietFacts(el) {
   const words = el.hasAttribute(PAGE_PAINT_ATTRIBUTE.restated)
-    ? ["rewritten since your decision"]
+    ? ["rewritten since I decided"]
     : [];
-  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.userOverride)) words.push("your change");
+  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.userOverride)) words.push("my change");
   if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.reported)) words.push("reported state");
-  for (const attr of registry[el.localName]?.["x-paints"] ?? [])
-    if (el.hasAttribute(attr)) words.push(el.getAttribute(attr) || attr);
   return words.join(", ");
 }
 
 export function renderQuiet(root, also = []) {
   const painting = [
-    ...tagsDeclaring((entry) => entry["x-paints"]),
     `[${PAGE_PAINT_ATTRIBUTE.restated}]`,
     `[${PAGE_PAINT_ATTRIBUTE.userOverride}]`,
     `[${PAGE_PAINT_ATTRIBUTE.reported}]`,

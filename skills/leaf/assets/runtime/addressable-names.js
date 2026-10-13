@@ -1,7 +1,8 @@
 /* What the chrome calls an addressable element: the word for its kind
  * (`addressableWord`), the words it says (`addressableSays`), the name the authoring
- * contract gives it (`addressableName`), and the label every surface shows for it away
- * from the page (`addressableLabel`). Each reads authored words through the passage
+ * contract gives it (`addressableName`), the label every surface shows for it away
+ * from the page (`addressableLabel`), and the word and label an anchor on it shows
+ * (`sectionLabel`). Each reads authored words through the passage
  * reader, so generated chrome never names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
@@ -45,7 +46,7 @@ export function addressableWord(addressable) {
     const own = addressable.lfWord?.();
     if (own) return own;
   }
-  if (registry[tag]?.["x-question-context"]) return "question";
+  if (registry[tag]?.["x-ask-context"]) return "question";
   if (tag.startsWith("lf-")) return tag.slice(3);
   if (tag === "pre")
     return addressable.querySelector(":scope > code") ? "code" : "block";
@@ -74,7 +75,7 @@ export function addressableSays(addressable) {
 // is no part of a heading's name, and generated chrome names nothing: chrome inside
 // the element, asked about the element's own insides, since a widget an agent sent in
 // a reply stands inside the thread panel's chrome and its heading is still its name.
-// An element the contract gives no name answers "". The server names a Question's
+// An element the contract gives no name answers "". The server names an ask's
 // element by the same rule off the document (`gesture_words.element_name`), and
 // `tests/name_cases.json` holds both to the same cases.
 const TITLES = "summary, h1, h2, h3, h4, h5, h6, strong";
@@ -148,3 +149,9 @@ export function addressableLabel(element) {
     LABEL_WORDS,
   );
 }
+
+// A thread's § coordinate and the visual-action picker both show it.
+export const sectionLabel = (addressable) =>
+  [addressableWord(addressable), addressableLabel(addressable)]
+    .filter(Boolean)
+    .join(" · ");

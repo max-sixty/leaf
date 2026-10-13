@@ -45,14 +45,6 @@ records its identities under `$layer`:
   identity and its age in its low-frequency banner controls; a press copies the full
   layer diagnostics. A harness can ask its running payload for the same source identity
   and date with `leaf --version`.
-- `runtime` is the SHA-256 identity of the kernel runtime modules the payload vendored
-  from, read from its own `assets/runtime/` rather than recomposed from the page's
-  selections. The render gate serves its probe modules from the Leaf running the
-  command, and they import the page's runtime modules by name, so the gate alone
-  requires this exact identity (`layer.foreign_runtime`) and refuses another, naming
-  `leaf page init`. `fingerprint` cannot answer that question, because a package
-  selection recorded beside it resolves against the project `page init` ran in and
-  cannot be recomposed anywhere else.
 - `server` is the SHA-256 identity of the payload's Python serving code,
   `pyproject.toml`, and `uv.lock`. It excludes the interpreter version because a site
   builds pages on one Python release and serves them from a container on another.
@@ -67,7 +59,8 @@ marks a startup failure before the module graph or stylesheet can fail, so the t
 gives back the readable fallback. A served page's inline bootstrap also supervises
 the failure. It reloads when the server incarnation, layer generation, or website
 release changes. A published page also reloads when its release-addressed probe
-disappears. A rejected or unchanged re-vendor preserves its running server and
+disappears. A fault that is the page's own, which no server fixes, it reports and
+stops supervising. A rejected or unchanged re-vendor preserves its running server and
 layer, so neither triggers a reload. Source files carry neither
 script, and an export no supervisor.
 
@@ -81,8 +74,14 @@ with, which no layer can change, and every page server — durable, temporary, t
 gate's ephemeral one, and the website's — and the one append door compare it with
 the running Leaf's own when they bind the page or admit an event
 (`layer.incompatible_layer`), refusing another number and naming `leaf page init`.
+The same reading refuses a layer whose `$keys` document an x- key this Leaf no longer
+admits, since this Leaf would read the key's new name and drop what the page declares
+under the old one; a key this Leaf added and the layer lacks refuses nothing.
 Each reads the registry it would serve the page under: a snapshot's captured one, or
-else the vendored layer.
+else the vendored layer. A revision is judged on the registry it captured, by both
+readings (`layer.incompatible_revision`): a page re-vendored across a bump or a key's
+rename keeps the revisions it saved before in its history, but the document server
+serves none of them and the append door admits nothing made against one.
 
 Any other Leaf at the same number serves and writes the page, so a plugin update
 leaves open pages working: admission validates a kernel record against the running
@@ -91,10 +90,23 @@ page an older one vendored. Bump the number when a page an older Leaf vendored a
 would break under this one: the served state, a runtime module the server relies on,
 or an event drops, renames or changes the meaning of something the other side reads,
 or a field the page's runtime sends becomes required, as a new drawing `format` does.
-Adding a field or kind the older code ignores needs no bump. The promise runs one
+Adding a field or kind the older code ignores needs no bump. The browser build holds
+the event contract to this: it keeps the contract as it last stood at the current
+number (`build/browser/protocol-contract.d.ts`), and `protocol.test.ts` fails a
+change that drops a kind or a field at any depth, requires a new one, or narrows a
+value's type or constant, until the change takes what it took or the number moves.
+The check reads the types generated from the schemas, which carry no patterns,
+bounds or conditional clauses, so a change to one of those is the author's to judge. The promise runs one
 way: an older Leaf serving a page a newer one vendored may refuse a field it does not
 know. Every page vendored before a bump, and one vendored before the number was
 declared, is refused until `leaf page init` re-vendors it.
+
+The render gate's probes are outside the number. They come from the Leaf running the
+check and import `check-api.js` and `widget-api.js` from the page's runtime, so a
+probe that starts importing a newer name fails on a page vendored earlier, and the
+gate refuses it naming the re-vendor. While Leaf is in alpha that drift is accepted
+rather than bumped (`AGENTS.md`, "Pages across Leaf updates"): `page check` names
+the page's Leaf beside its own, with their dates, for the agent to judge.
 
 ## Composition stamps
 

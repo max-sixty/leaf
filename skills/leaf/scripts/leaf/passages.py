@@ -35,7 +35,7 @@ from .structure import VOID_TAGS, SourceDocument, pre_body
 #               the log's outcomes drops here exactly what drops there — and a widget
 #               whose decision leaves nothing showing goes with its slots (settledAway
 #               there, `gone` here). Its values are also the vocabulary's decision
-#               verbs, which is where `questions` reads them from.
+#               verbs, which is where `asks` reads them from.
 #   x-state, record kind "body"  the verb whose detail text becomes this element's
 #               body once the user sends one (lf-draft's `edit`): replay writes
 #               the newest surviving one into the DOM verbatim (renderState is
@@ -57,12 +57,6 @@ from .structure import VOID_TAGS, SourceDocument, pre_body
 # Retirement drops and rewriting substitutes rather than fencing, because that is what
 # each leaves on the screen. A fence says the reading doesn't know what stands there, and
 # in both of these it knows exactly.
-#
-# x-paints is the key that writes into an upgraded element and belongs in none of this.
-# Its word is clipped to nothing and marked as the runtime's (.lf-quiet, .lf-ui), so the
-# browser's own reading of the page skips it exactly as this one never sees it: the two
-# readings agree by both being silent, and a fence would be room reserved for words no
-# user on either side can reach.
 
 # The characters a whitespace run is made of, as the browser's reading collapses them
 # (registry.json's `$passages.collapse` says why the set is spelled out).
@@ -269,11 +263,11 @@ class _PassageParser:
     widget with nothing — a deletion accepted, an insertion refused — empties the
     wrapper too (`gone`), because an element showing nothing is one nobody can point
     at, however present its markup. `rewrites` is the user's
-    standing text per element whose element declaration records a verb as the body
+    current text per element whose element declaration records a verb as the body
     (`rewritten_bodies`): their words stand in the authored body's place, because
     replay writes exactly that into the DOM. Without either, the reading is the
     version as authored — every slot pending, every body Claude's. `additions`
-    supplies the standing generated children from the same projection. They pass
+    supplies the generated children in force from the same projection. They pass
     through the ordinary element reading at the end of their declared owner,
     including retirement, ancestry, and the fences around opaque widgets."""
 
@@ -295,9 +289,7 @@ class _PassageParser:
         self.owner = []  # per character: the tuple of enclosing ids
         self.fences = set()  # indices a quote may not span
         self.retired = {}  # id under a retired slot → the suggestion whose decision did it
-        self.rewritten = {}  # id whose body the user rewrote → the verb that did it
         self.gone = {}  # decided id whose decision left it empty → the outcome that did it
-        self.shown = {}  # id whose data body this reading withheld → the words in it
         # id → the ids enclosing it, outermost first, itself last. Structure, not
         # words: an element is somewhere on the page whether or not it says
         # anything, which is what the containment questions downstream ask (see
@@ -310,7 +302,7 @@ class _PassageParser:
         self.bearing = (
             set()
         )  # ids still showing something: text under them, or a surviving child
-        self.stack = []  # [{"tag", "id", "ids", "skip", "shows", "sub", "opaque", "editable", "fenced", "retired_by", "tb", "block", "tail"}]
+        self.stack = []  # [{"tag", "id", "ids", "skip", "sub", "opaque", "editable", "fenced", "retired_by", "tb", "block", "tail"}]
         self._uid = 0
         self._block = None  # the block the last character came from
         self._space = False  # a separator waiting for a character to follow it
@@ -465,22 +457,6 @@ class _PassageParser:
         # through this element's x-state, so an id in the dict is the whole test:
         # the fold decides, this pass only applies.
         sub = self.rewrites.get(attrs_d.get("id")) if not silenced else None
-        # The element whose data body this reading is withholding, carried down to
-        # everything under it. The page shows whatever its module made of that body, so a
-        # quote landing inside one is told where it landed rather than told the page never
-        # said it — a claim wider than this reading can make. Only where the body still
-        # stands: a retired or rewritten one is `retired`/`rewritten`'s to answer for, and
-        # each of those names the act that did it.
-        shows = (
-            None
-            if own_wall or sub is not None
-            else (parent["shows"] if parent else None)
-            or (
-                attrs_d.get("id")
-                if opaque and entry.get("x-content") == "data"
-                else None
-            )
-        )
         frame = {
             "tag": tag,
             "id": attrs_d.get("id"),
@@ -489,7 +465,6 @@ class _PassageParser:
             "skip": silenced
             or sub is not None
             or (opaque and entry.get("x-content") == "data"),
-            "shows": shows,
             "sub": sub,
             "retired_by": retired_by,
             "opaque": opaque,
@@ -524,14 +499,13 @@ class _PassageParser:
         elif sub is not None:
             # The body's own write path, so a quote across the element's edge sees
             # the same adjacency the screen shows — no fence, nothing withheld.
-            verb, their_text = sub
+            _verb, their_text = sub
             if entry.get("x-text-format") == "markdown":
                 frame["skip"] = False
                 feed_markdown(self, their_text)
                 frame["skip"] = True
             else:
                 self._write(their_text, frame["block"], frame["ids"])
-            self.rewritten[frame["id"]] = verb
 
     def handle_data(self, data):
         frame = self.stack[-1] if self.stack else None
@@ -542,8 +516,6 @@ class _PassageParser:
         )
         if not frame["skip"]:
             self._write(data, frame["block"], frame["ids"])
-        elif frame["shows"]:
-            self.shown[frame["shows"]] = self.shown.get(frame["shows"], "") + data
 
     def handle_endtag(self, tag):
         # Every caller walks a parsed tree or replays a declared child, so ends arrive
@@ -560,9 +532,7 @@ class Passages(NamedTuple):
     owner: list  # per character: the tuple of enclosing ids, outermost first
     fences: set  # indices a quote may not span: where a module may write
     retired: dict  # id under a retired slot → the suggestion whose decision did it
-    rewritten: dict  # id whose body the user rewrote → the verb that did it
     gone: dict  # decided id whose decision left it empty → the outcome that did it
-    shown: dict  # id whose data body this withheld → the words a module shows there
     enclosing: dict  # id → the ids enclosing it, outermost first, itself last
     verbatim: dict  # source provenance → compositional words with upgraded descendants as boundaries
 
@@ -606,10 +576,7 @@ def page_passages(
         parser.owner,
         parser.fences,
         parser.retired,
-        parser.rewritten,
         parser.gone,
-        # Collapsed the way `text` is, so one comparison answers for both.
-        {id: collapse(words) for id, words in parser.shown.items()},
         parser.enclosing,
         {wid: reading.reading() for wid, reading in parser.verbatim.items()},
     )
@@ -655,7 +622,7 @@ class SourceInventory(NamedTuple):
     """Compact authored facts needed by scans across an entire revision history."""
 
     ids: tuple[str, ...]
-    questions: dict
+    asks: dict
     data_documents: list
 
 
@@ -669,7 +636,7 @@ class SourceReading:
     requests (`revision_artifact.read_revision`); a candidate's lives as long as
     the check that built it.
 
-    The log never reaches this object. A reading under standing outcomes is the
+    The log never reaches this object. A reading under the outcomes in force is the
     same `page_passages` walk with `decided`, taken by `decided_passages`, which
     returns the authored reading where no outcome names an element this document
     carries: the parser consults `decided` only by the id of an element it opens,
@@ -686,12 +653,12 @@ class SourceReading:
     @cached_property
     def inventory(self) -> SourceInventory:
         """Read historical consumers together, without retaining parser records."""
+        from .asks import ask_registrations
         from .data_contracts import data_document_readings
-        from .questions import question_registrations
 
         return SourceInventory(
             tuple(self.document.ids),
-            question_registrations(self.document, self.registry),
+            ask_registrations(self.document, self.registry),
             data_document_readings(self.document, "", self.registry),
         )
 
@@ -735,7 +702,7 @@ class SourceReading:
         return self.passages.enclosing
 
     def decided_passages(self, decided: dict) -> Passages:
-        """The passage reading under standing retirement outcomes
+        """The passage reading under the retirement outcomes in force
         (`projection.retirement_outcomes`)."""
         carried = tuple(
             sorted(

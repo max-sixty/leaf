@@ -8,12 +8,14 @@
  * into a native modal dialog, keeping its document, gestures, and drafts alive. The
  * sample retains its embedded allocation while the dialog fills the viewport; Return
  * to page and the child's final Escape restore the Full view button. Each child announces
- * lf-sample-ready with its sample element, on first mount and Reset. Reset stays focusable
+ * lf-sample-ready with its sample element after upgrade, on first mount, Reset and
+ * reload. Its loading saved state does not hold the parent. Reset stays focusable
  * while loading but accepts no new press, preserving the parent's keyboard position.
  * Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
+  aborted,
   frameFor,
   whileConnected,
   keeps,
@@ -27,6 +29,7 @@ import {
   closeLayer,
   showNativeLayer,
   closeNativeLayer,
+  isNativeLayer,
   handBack,
 } from "/runtime/widget-api.js";
 
@@ -45,6 +48,7 @@ customElements.define(
     };
     #scheduleFit = frameFor(this, this.#fit);
     #ready;
+    #following;
     #focusedContent = false;
     #mounting = false;
     #viewOperation;
@@ -81,16 +85,15 @@ customElements.define(
     #mount() {
       // Removal ends native modality even when a retained widget reconnects before
       // its host is retired. Reconcile the presentation with that platform state.
-      if (
-        this.#view?.getAttribute("role") === "dialog" &&
-        !this.#view.matches(":modal")
-      )
+      if (this.#view?.getAttribute("role") === "dialog" && !isNativeLayer(this.#view))
         this.#embed();
       if (!this.#frame || this.#host || this.#mounting) return;
       this.#mounting = true;
       const ready = mountSample(this.#frame, {
         template: this.#template.id,
-        window: this.hasAttribute("window") || this.#view.matches(":modal"),
+        window: this.hasAttribute("window") || isNativeLayer(this.#view),
+        // The child reads with the chrome its element names, else with the reader's own.
+        chrome: this.getAttribute("chrome") ?? document.documentElement.lfChrome?.mode,
       }).then(
         async (host) => {
           this.#mounting = false;
@@ -109,9 +112,11 @@ customElements.define(
           host.on("standing", ({ focused }) => {
             this.#focusedContent = focused;
           });
+          // The departed document's frame shows the browser's destination, which
+          // Reset replaces; a reload's `loading` follows the same promise.
           host.on("departed", () => {
             this.#focusedContent = false;
-            this.#ready = host.ready;
+            this.#follow(host.ready);
             keepsText(this.#status, "");
             keeps(this.#reset, "aria-disabled", null);
           });
@@ -123,7 +128,10 @@ customElements.define(
         },
       );
       // A failed child is drawn by this widget's status and Reset. That is a
-      // completed parent rendering; the public sample.ready still rejects.
+      // completed parent rendering; the public sample.ready still rejects. A first
+      // document that departs before upgrading holds it until the next document,
+      // which a reload brings, or Reset: the parent cannot tell a reload from an
+      // external destination.
       widgetController(this).present(this.#track(ready).catch(() => {}));
     }
 
@@ -141,7 +149,7 @@ customElements.define(
       this.#frame.className = "lf-sample-frame";
       this.#frame.title = this.getAttribute("label") || "Leaf sample";
       this.#frame.addEventListener("lf-sample-return", () => {
-        if (this.#view.matches(":modal")) this.#return();
+        if (isNativeLayer(this.#view)) this.#return();
         else focusDestination(this, "return");
       });
 
@@ -168,7 +176,7 @@ customElements.define(
       this.#status.setAttribute("role", "status");
       this.#full = offer("button", "lf-btn", "Full view");
       this.#full.addEventListener("click", () => {
-        if (this.#view.matches(":modal")) this.#return();
+        if (isNativeLayer(this.#view)) this.#return();
         else {
           // The frame never moves in the DOM: reparenting it destroys its browsing
           // context. Native modality supplies focus containment and parent isolation.
@@ -227,7 +235,7 @@ customElements.define(
     // Full view retains the embedded height while its same frame fills the dialog;
     // returning applies the current block reading without replacing any native editor.
     #height(height, { immediate = false } = {}) {
-      if (this.hasAttribute("window") || this.#view.matches(":modal")) return;
+      if (this.hasAttribute("window") || isNativeLayer(this.#view)) return;
       this.#heightReading = height;
       if (immediate) this.#fit();
       else this.#scheduleFit();
@@ -243,10 +251,18 @@ customElements.define(
     #track(promise) {
       keeps(this.#reset, "aria-disabled", "true");
       keepsText(this.#status, "Loading sample…");
+      return this.#follow(promise);
+    }
+
+    // One `ready` per usable document the host promises, so a departure and the reload
+    // that follows it are one wait for a selection or a page module.
+    #follow(promise) {
+      if (promise === this.#following) return this.#ready;
+      this.#following = promise;
       const ready = promise.then(async (reading) => {
         if (this.#ready !== ready) return reading;
         const current = await this.#host.setWindow(
-          this.hasAttribute("window") || this.#view.matches(":modal"),
+          this.hasAttribute("window") || isNativeLayer(this.#view),
         );
         if (this.#ready !== ready) return reading;
         this.#height(current.height, { immediate: true });
@@ -268,34 +284,29 @@ customElements.define(
     }
 
     // Latest selection wins, including a selection waiting on a replacement child.
-    // The outer control remains the keyboard stop while the child draws its view.
+    // A departing child takes the selection's command with it but not the selection,
+    // which waits for the next document as it waits for the first. A newer
+    // selection, Reset or removal supersedes it. The outer control remains the
+    // keyboard stop while the child draws its view.
     async showThread(id, { surface = "page", status, waiting } = {}) {
       this.#viewOperation?.abort();
       const operation = new AbortController();
       this.#viewOperation = operation;
       const { signal } = operation;
-      const ready = this.#ready;
-      let cancelled;
-      const cancellation = new Promise((resolve) => {
-        cancelled = () => resolve(false);
-        signal.addEventListener("abort", cancelled, { once: true });
-      });
-      const select = async () => {
-        if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
-        const shown = await this.#host.showThread(id, {
-          surface,
-          status,
-          waiting,
-          signal,
-        });
-        if (signal.aborted || ready !== this.#ready || !this.isConnected) return false;
-        return shown;
-      };
-      try {
-        return await Promise.race([ready.then(select), cancellation]);
-      } finally {
-        signal.removeEventListener("abort", cancelled);
-      }
+      const select = (ready) =>
+        ready
+          .then(() =>
+            signal.aborted
+              ? false
+              : this.#host.showThread(id, { surface, status, waiting, signal }),
+          )
+          .catch((error) => {
+            // The departure that rejected it has already promised the next document.
+            if (error.name !== "SampleDepartedError" || ready === this.#ready)
+              throw error;
+            return select(this.#ready);
+          });
+      return Promise.race([select(this.#ready), aborted(signal).then(() => false)]);
     }
 
     async reset() {

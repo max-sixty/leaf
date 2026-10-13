@@ -22,12 +22,6 @@ vars:
     The page directory is not reachable from here. Reply with the JavaScript module
     for the custom element, rather than writing a file.
 assert:
-- type: regex
-  metric: mounts-core-thread-views
-  value: mountThreadViews\s*\(
-- type: regex
-  metric: renders-mirrors
-  value: surfaces\.thread\s*\(
 - type: llm-rubric
   metric: judgment
   value: |
@@ -35,7 +29,7 @@ assert:
     outlets, uses `mountThreadViews` to receive the shared Thread collection and calls
     `surfaces.thread(thread.key, outlet)` for matching Threads. It must unregister on
     disconnect, and must not create another Leaf instance, post raw Thread events, or
-    use `placeThreads` (which would take a Thread away from its margin position).
+    declare `x-thread-surface` (which would take a Thread away from its margin position).
     The continuation must await `threadActions.open(thread.key, {part: "reply"})`, use its
     actual returned element for selection, and check that it still holds focus.
     It must not search for any visible mirrored editor or focus again after awaiting.

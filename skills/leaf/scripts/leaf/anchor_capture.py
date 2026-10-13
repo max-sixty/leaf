@@ -97,7 +97,7 @@ def capture_anchor(
     `decided` and `rewrites` make this the reading the user is looking at rather
     than the version as authored: a slot their decision retired is off the page, and a
     body their edit rewrote holds their words. `additions` supplies the declared
-    children of standing events, so user-created elements are reachable before
+    children of events in force, so user-created elements are reachable before
     an author incorporates them in source."""
     if part and not section:
         raise ValueError("--part needs --section to name its visual")
@@ -108,9 +108,7 @@ def capture_anchor(
     owner = passages.owner
     fences = passages.fences
     retired = passages.retired
-    rewritten = passages.rewritten
     gone = passages.gone
-    shown = passages.shown
     enclosing = passages.enclosing
     if section:
         # Against the structure, not the text: an element anchor is the one a click makes
@@ -156,28 +154,9 @@ def capture_anchor(
     where = "the page" if not section else f"§ {section}"
     hits = occurrences(text, wanted, lo_bound, hi_bound, fences)
     if not hits:
-        if occurrences(text, wanted, lo_bound, hi_bound):
-            raise ValueError(
-                f"{wanted!r} runs across separate reading regions. Widgets can generate "
-                "intervening words, and native editing fields hold mutable values. "
-                "Quote within one region, or name its section to point at the whole of it."
-            )
-        was = _removed_by(document, registry, wanted, section, decided or {}, rewritten)
-        if was:
-            raise ValueError(f"{where} said {wanted!r} until {was}")
-        holder = next((el for el, words in shown.items() if wanted in words), None)
-        if holder:
-            raise ValueError(
-                f"{wanted!r} is in § {holder}'s data body, which is the widget's source "
-                "and not its words — the page shows whatever its module made of that, "
-                f"and this reading holds nothing there to anchor on. Name § {holder} "
-                "as the section instead."
-            )
         raise ValueError(
-            f"{where} doesn't say {wanted!r} — quote the words this version of the page "
-            "shows. A widget's data body is the widget's source, not its words (a "
-            "diagram's body is a picture by the time it is read), so name that element "
-            "as the section instead."
+            f"{where} doesn't say {wanted!r}; quote the words this version shows, "
+            "or name the section"
         )
     if len(hits) > 1:
         around = [
@@ -212,34 +191,3 @@ def capture_anchor(
         **({"prefix": prefix} if prefix else {}),
         **({"suffix": suffix} if suffix else {}),
     }
-
-
-def _removed_by(document, registry, wanted: str, section: str, decided, rewritten):
-    """What took `wanted` off the user's page, when the version as authored still
-    holds it: the decision that retired the slot it sat in, or the edit that rewrote
-    the element saying it. Naming that act beats telling the writer the page never
-    said it."""
-    if not (decided or rewritten):
-        return None
-    p = page_passages(document, registry)
-    lo, hi = 0, len(p.text)
-    if section:
-        span = section_span(p.owner, section)
-        if span is None:
-            return None
-        lo, hi = span
-    for at in occurrences(p.text, wanted, lo, hi, p.fences):
-        for ids in p.owner[at : at + len(wanted)]:
-            sid = next((wid for wid in ids if wid in decided), None)
-            if sid:
-                return (
-                    f"the user chose to {decided[sid]} § {sid} — that decision "
-                    "retired these words from the page. Quote it as it now stands."
-                )
-            wid = next((wid for wid in ids if wid in rewritten), None)
-            if wid:
-                return (
-                    f"the user rewrote § {wid} — their {rewritten[wid]} replaced "
-                    "these words. Quote the text as they left it."
-                )
-    return None

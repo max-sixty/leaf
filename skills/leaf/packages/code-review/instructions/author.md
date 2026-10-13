@@ -18,5 +18,5 @@ native headings, tables and disclosures: identify the repository, reviewed
 revision, author, checks and source link. Bind external evidence through a
 page-owned data adapter when it must refresh. Standard code, table, and disclosure
 elements can carry a focused invariant, test result, or remaining uncertainty.
-Pose a Question when the user owes a specific decision
-(`references/authoring-questions.md`).
+Pose an ask when the user owes a specific decision
+(`references/authoring-asks.md`).

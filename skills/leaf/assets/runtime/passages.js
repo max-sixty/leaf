@@ -88,7 +88,8 @@
    until it finds the actual control.
 
    Hit testing asks two different questions. `elementFromPointAcross` and `markAt`
-   (anchor-resolution.js) may descend into a shadow root when the exact marked text matters.
+   (anchor-resolution.js) may descend into a declared shadow root when the exact marked
+   text matters.
    `aimedTarget` (composing/aim.js) may keep document retargeting when the host is the
    addressable element. Choose the reading by the question, not by convenience.
 
@@ -102,10 +103,12 @@
 
 import {
   SAID,
+  declaredRoot,
   UI_MARKS,
   hostIn,
   inUi,
   overIn,
+  refuseShadowRoot,
   pageShadowRoots,
   shadowHost,
   shadowRootsIn,
@@ -114,7 +117,8 @@ import {
   upFrom,
 } from "./shadow.js";
 import { decisionFor, registry } from "./registry.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
+import { reportPageError } from "./layer-client.js";
 import { readApplication } from "./semantic-state.js";
 import { COLLAPSE, TEXT_BLOCK } from "./passage-facts.js";
 import { textUnits } from "./text-alignment.js";
@@ -159,8 +163,8 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // and never back from the mark that paint leaves: a mark a module wrote where the log
 // decided nothing silences no words.
 //
-// `settlements` is that reading per holder id: its tag, and the tags its standing
-// outcome retires.
+// `settlements` is that reading per holder id: its tag, and the tags its outcome
+// in force retires.
 // It is rebuilt once per publication or registry, and `settledKey` names it, so the
 // page reading is forgotten exactly when it changes (`catchUpReading`).
 let settledFrom = [];
@@ -183,10 +187,10 @@ function settlements() {
   return settled;
 }
 // A slot its holder's decision took off the page: a child of the holder, in its light
-// tree or its shadow root, whose tag the standing outcome retires. Only this
+// tree or its shadow root, whose tag the outcome in force retires. Only this
 // document's holders are settled; a parsed revision's elements share their ids.
 function retiredSlot(el) {
-  const holder = el.parentElement ?? shadowHost(el.parentNode);
+  const holder = upFrom(el);
   if (!holder?.id || el.ownerDocument !== document) return false;
   const settlement = settlements().get(holder.id);
   return (
@@ -295,19 +299,51 @@ export const pageWords = (node) => Boolean(node) && !inChrome(node) && !inUi(nod
 // nothing at all — naming neither the widget that staged the text nor what was wrong
 // with it. A refusal whose message is a property name reaches its author as the runtime
 // being broken, which is the one thing it isn't.
-export const elementOver = (n) => {
-  if (n.parentElement) return n.parentElement;
-  const host = shadowHost(Node.prototype.getRootNode.call(n));
+const bareTextRefusal = (n) => {
+  const host = shadowHost(n.getRootNode());
   const at = host
     ? `<${host.localName}${host.id ? ` id="${host.id}"` : ""}>`
     : "a module";
-  throw new Error(
+  return new Error(
     `${at} staged bare text into a shadow root: ` +
       `${JSON.stringify(n.data.trim().slice(0, 40).trim())} has no element over it, ` +
       `so the page holds no block, cell or fence for it. Give a module's rendered ` +
       `words an element to sit in.`,
   );
 };
+export const elementOver = (n) => {
+  if (n.parentElement) return n.parentElement;
+  throw bareTextRefusal(n);
+};
+// The walk asks it of a declared root before crossing in, and the refusal is final: the
+// root is refused for good (`refuseShadowRoot`, shadow.js), and from then on every walk,
+// this one included, reads its host as it reads a host whose root the registry does not
+// declare, by the host's own children, which are the words the file holds. So the page
+// refuses the text once, here, whichever reader reaches it first, and no reader meets it
+// again. Thrown out of each reader instead, it was refused again on every repaint frame,
+// key and selection, each an uncaught error and each a report. The one refusal is
+// reported to the agent here, and before the page upgrades it is also the page's
+// startup failure, its own fault, which no server update fixes: it is declared
+// (`lf-startup-failed`, `page`), so the readable fallback shows at once, the notice says
+// the page has a problem, and the page never presents (leaf.js). A page already
+// upgraded keeps running without those words, and without the root: a mark or a
+// projection painted into it is never cleared, and an id inside it stops resolving,
+// since every sweep of declared roots (`shadowRootsIn`) has dropped it.
+function refusesBareText(root) {
+  let bare = root.firstChild;
+  while (bare && bare.nodeType !== Node.TEXT_NODE) bare = bare.nextSibling;
+  if (!bare) return false;
+  refuseShadowRoot(root);
+  const refusal = bareTextRefusal(bare);
+  reportPageError(refusal);
+  if (!pageUpgraded())
+    window.dispatchEvent(
+      new CustomEvent("lf-startup-failed", {
+        detail: { reason: refusal.message, error: refusal, page: true },
+      }),
+    );
+  return true;
+}
 // The widget a reading belongs to. `.lf-ui` says the runtime built this rather than the
 // author, and a reading rooted at the document takes that straight: everything the layer
 // holds is the layer's, which is the whole of what the anchor pass and the version diff
@@ -506,7 +542,8 @@ function walk(root, onText, skip = null, onBreak = null) {
     }
     for (let child = node.firstChild; child; child = child.nextSibling) {
       if (child.nodeType === Node.TEXT_NODE) {
-        // A shadow root's own text has no element over it, which elementOver refuses.
+        // A shadow root's own text has no element over it, which elementOver refuses:
+        // a root the walk crosses into was asked first, so this is a root handed in.
         if (node.nodeType !== Node.ELEMENT_NODE) elementOver(child);
         onText(child, ctx);
         continue;
@@ -525,11 +562,12 @@ function walk(root, onText, skip = null, onBreak = null) {
         // crosses exactly those — so a walk that entered any open root read
         // words the anchor side could never place, and a widget's undeclared
         // root anchored quotes astray instead of staying opaque. The render gate
-        // names an undeclared root; this leaves its words alone.
-        const declared = child.shadowRoot && registry[child.localName]?.["x-shadow"];
-        if (declared) {
+        // names an undeclared root; this leaves its words alone, as it does a root
+        // refused for its bare text.
+        const declared = declaredRoot(child);
+        if (declared && !refusesBareText(declared)) {
           passed.set(child, inner);
-          visit(child.shadowRoot, crossed(inner));
+          visit(declared, crossed(inner));
         } else visit(child, inner);
       }
     }
@@ -580,7 +618,7 @@ export function closestAcross(node, selector) {
   while (el) {
     const hit = el.closest(selector);
     if (hit) return hit;
-    el = shadowHost(Node.prototype.getRootNode.call(el));
+    el = shadowHost(el.getRootNode());
   }
   return null;
 }
@@ -621,10 +659,12 @@ export const authoredScope = (node) =>
 // elementFromPoint retargets to the host for a point over a shadow tree, so it names the
 // widget rather than the thing in it, and each root answers for its own. Mark hit testing
 // and item aim both use this exact reading, so a projected datum inside a declared shadow
-// tree can outrank its host.
+// tree can outrank its host. Only a declared root is entered: another library's tree is
+// its control's insides, whose ids (Web Awesome Copy's `#copy-button`) the page never
+// authored, so the hit stays at the control.
 export const elementFromPointAcross = (x, y) => {
   let el = document.elementFromPoint(x, y);
-  while (el?.shadowRoot) {
+  while (el && declaredRoot(el)) {
     const inner = el.shadowRoot.elementFromPoint(x, y);
     if (!inner || inner === el) break;
     el = inner;
@@ -666,11 +706,7 @@ export function pageRange(sel) {
   const [composed] = sel.getComposedRanges({ shadowRoots });
   if (!composed) return plain;
   const { startContainer, startOffset, endContainer, endOffset } = composed;
-  if (
-    Node.prototype.getRootNode.call(startContainer) !==
-    Node.prototype.getRootNode.call(endContainer)
-  )
-    return plain;
+  if (startContainer.getRootNode() !== endContainer.getRootNode()) return plain;
   const range = document.createRange();
   range.setStart(startContainer, startOffset);
   range.setEnd(endContainer, endOffset);
@@ -718,8 +754,7 @@ export function programmaticSelection(selection) {
 // the platform's direction for the range inside its declared shadow tree.
 export function selectionBackward(selection, range = pageRange(selection)) {
   if (
-    Node.prototype.getRootNode.call(selection.anchorNode) !==
-    Node.prototype.getRootNode.call(range.commonAncestorContainer)
+    selection.anchorNode.getRootNode() !== range.commonAncestorContainer.getRootNode()
   )
     return programmaticSelection(selection)
       ? writtenBackward
@@ -738,10 +773,7 @@ export function selectionBackward(selection, range = pageRange(selection)) {
 // it. The tree renders where its host stands, so the host is what the question is really
 // about: climb to whichever ancestor shares the range's root, and ask there.
 function coveredBy(range, node) {
-  const n = hostIn(
-    node,
-    Node.prototype.getRootNode.call(range.commonAncestorContainer),
-  );
+  const n = hostIn(node, range.commonAncestorContainer.getRootNode());
   if (!n || !range.intersectsNode(n)) return false;
   // A host represents its shadow words only while the range actually enters it.
   // intersectsNode includes an endpoint at the host's edge, even when no shadow
@@ -754,16 +786,14 @@ function coveredBy(range, node) {
   return true;
 }
 
-// The segments a selection covers, clipped to where it starts and ends.
+// The page reading's segments a range covers, clipped to where it starts and ends.
+// Callers place a passage in that reading (`spanIn`), so the segments are the reading's
+// own. A walk from the range's own root reads whatever that root holds: select-all
+// beside an x-shadow widget composes a range over <html>, and the reading has no
+// position for its <title>.
 export function segmentsIn(range) {
-  const root = range.commonAncestorContainer;
-  // A range spanning direct children of a shadow stage has the ShadowRoot itself as
-  // its common ancestor. It is a walkable root even though it has no parent element.
-  const whole = textNodesUnder(
-    root.nodeType === Node.TEXT_NODE ? root.parentNode : root,
-  );
   const segments = [];
-  for (const segment of whole) {
+  for (const segment of pageText().segments) {
     const { node } = segment;
     if (!coveredBy(range, node)) continue;
     const start = node === range.startContainer ? range.startOffset : 0;
@@ -1002,7 +1032,7 @@ export function neighbourhood(reading, at, want, before) {
 // The reading is a function of the document and the user's settlements, so those are
 // what say when it may change. Everything it is built out of is here: the page's words
 // and their shape, the markers those words are read through, the vocabulary the markers
-// mean something against, the slots the standing decisions retire (`settlements`), and
+// mean something against, the slots the decisions in force retire (`settlements`), and
 // the widget parts the cell walk fences on. The first two a MutationObserver reports;
 // the rest have one door each.
 //

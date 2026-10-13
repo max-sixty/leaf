@@ -10,10 +10,12 @@ widget's tag in the page's `registry.json` when needed.
 
 When `source.live` is false, the candidate in `index.html` differs from the live
 revision and `source.error` says why; reconcile the candidate by stable id and content
-before editing. `data_bindings` names each external source and the widgets that read
-it, and `data/<source>.json` holds its publication; change its value with
-`leaf data set`. `leaf page state <page> <id>` narrows the reading to what the id
-names: a page widget's element, standing actions, Questions and workflows, or a thread's
+before editing. Where `source.error` names `leaf page init`, this Leaf cannot serve or
+write the page as vendored, and the rest of the reading may misread it: run that
+command, then read the state again. `data_bindings` names each external source and
+the widgets that read it, and `data/<source>.json` holds its publication; change its
+value with `leaf data set`. `leaf page state <page> <id>` narrows the reading to what
+the id names: a page widget's element, actions in force, asks and workflows, or a thread's
 messages with their frozen HTML content, which changes only through that thread.
 
 ## Publish several authored files together
@@ -72,13 +74,14 @@ in the column and rank that `state` names. The registry's `$state`
 defines ranks. That placement becomes authored markup; later versions can
 revise it.
 
-Take in a user's answer to a page Question in a stamped version. Where the widget's
+Take in a user's answer to a page ask in a stamped version. Where the widget's
 `x-state` declares a `record` form, show that form when incorporating the answer:
-`chosen` on exactly the picked `lf-option` elements, with user-added options under
-their original ids and words, or the user's words as the body of a `needed`
-`lf-draft`. Where it declares no form, such as an accepted suggestion or submitted
-playground settings, the next stamp takes in the answer. Until then the answer
-waits on you, as its delivered `handling` says.
+`chosen` on exactly the picked authored `lf-option` elements, or the user's words as
+the body of a `needed` `lf-draft`. A user-added option stays in its group from the
+log, where the user put it, so leave it out of the markup; the stamped version
+takes in a pick of it. Where it declares no form, such as an accepted suggestion or
+submitted playground settings, the next stamp takes in the answer. Until then the
+answer waits on you, as its delivered `handling` says.
 
 When incorporating a decided suggestion into surrounding prose, retain its
 surviving branch and ids. A worker report also stays provisional until the
@@ -120,15 +123,15 @@ beside its successor; keep older material only where the current work still need
 context, collapsed the same way. Put deferred work in the list of work with enough
 context to resume it.
 
-A Question the user answered and you have acted on is finished work too. Move it whole
-to the finished work with the user's answer standing, and put anything still worth
-asking in a new Question under new ids. An `lf-options` group takes `settled` there,
-which collapses it to the pick. The answered Question is the record of what the user
+An ask the user answered and you have acted on is finished work too. Move it whole
+to the finished work with the user's answer in force, and put anything still worth
+asking in a new ask under new ids. An `lf-options` group takes `settled` there,
+which collapses it to the pick. The answered ask is the record of what the user
 was asked and chose: say what came of the choice beside it, and correct its words
 directly when needed. Use `$restated` when the decision itself should be withdrawn
-and asked again. Keep a Question live while it is being
+and asked again. Keep an ask live while it is being
 applied, and settle it only after the work no longer revisits it. Keep a section
 live while the user is still commenting there.
 
-Before handing the page back, check that its status, open tasks and outstanding
+Before handing the page back, check that its status, open to-dos and outstanding
 work agree with what you report to the user.

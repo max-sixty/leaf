@@ -1,6 +1,6 @@
 /* A native command control retains one activation across attachment and DOM lifetimes. */
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { beforeEach } from "node:test";
 import {
   commandScope,
   commandsOn,
@@ -11,7 +11,238 @@ import {
   reflectFirstScopes,
   reflectKeys,
 } from "../../skills/leaf/assets/runtime/keyboard/scopes.js";
-import { setQuickShortcuts } from "../../skills/leaf/assets/runtime/keyboard/bindings.js";
+import {
+  activeRows,
+  commandAvailable,
+  commandEntries,
+  commandReady,
+  savedReadingSettled,
+  setQuickShortcuts,
+} from "../../skills/leaf/assets/runtime/keyboard/bindings.js";
+import {
+  dispatchKey,
+  keyReady,
+} from "../../skills/leaf/assets/runtime/keyboard/dispatch.js";
+import { registerCoveringAuxiliarySurface } from "../../skills/leaf/assets/runtime/keyboard/register.js";
+import { applicationState } from "../../skills/leaf/assets/runtime/semantic-state.js";
+
+// Ordinary control tests begin with saved input available; startup tests withhold it.
+beforeEach(() => applicationState.setPhase("ready"));
+
+test("saved-reading commands retain their key until their input is known", async () => {
+  registerCoveringAuxiliarySurface(() => null);
+  const { applicationState, readApplication } =
+    await import("../../skills/leaf/assets/runtime/semantic-state.js");
+  const phase = readApplication().phase;
+  const owner = document.createElement("button");
+  document.body.append(owner);
+  const row = {
+    id: "readiness.saved-version",
+    ready: savedReadingSettled,
+    contextKeys: ["1"],
+    title: "Open saved version",
+    keys: ["Shift+v"],
+    when: () => readApplication().phase === "ready",
+    run: () => {},
+  };
+  keys(owner, "Saved version", [row], { when: row.when, ready: savedReadingSettled });
+  owner.focus();
+  const press = () =>
+    new window.KeyboardEvent("keydown", {
+      key: "V",
+      shiftKey: true,
+      cancelable: true,
+    });
+  try {
+    applicationState.setPhase("waiting");
+    document.body.setAttribute("data-lf-presented", "1");
+    assert.equal(commandReady(row), false);
+    assert.deepEqual(commandEntries(row), []);
+    assert.equal(keyReady(press()), false);
+    assert.equal(keyReady(new window.KeyboardEvent("keydown", { key: "1" })), false);
+    applicationState.setPhase("offline");
+    assert.equal(commandReady(row), true);
+    assert.equal(keyReady(press()), true);
+    assert.deepEqual(commandEntries(row), []);
+    applicationState.setPhase("ready");
+    document.body.removeAttribute("data-lf-presented");
+    assert.equal(commandReady(row), true);
+    assert.equal(keyReady(press()), true);
+  } finally {
+    applicationState.setPhase(phase);
+    document.body.removeAttribute("data-lf-presented");
+    owner.remove();
+  }
+});
+
+test("unavailable alternatives stay off the command line until they are live", () => {
+  const rows = [
+    {
+      id: "readiness.first",
+      title: "First",
+      keys: ["x"],
+      ready: savedReadingSettled,
+      when: () => true,
+    },
+    {
+      id: "readiness.second",
+      title: "Second",
+      keys: ["x"],
+      ready: savedReadingSettled,
+      when: () => false,
+    },
+  ];
+  applicationState.setPhase("waiting");
+  assert.deepEqual(activeRows(rows), []);
+  applicationState.setPhase("ready");
+  assert.deepEqual(activeRows(rows), [rows[0]]);
+  rows[1].when = () => true;
+  assert.throws(() => activeRows(rows), /two live meanings/);
+});
+
+test("unread command input defers its key without promising a native action", () => {
+  registerCoveringAuxiliarySurface(() => null);
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  owner.append(control);
+  document.body.append(owner);
+  let ready = false;
+  let available = false;
+  let runs = 0;
+  const row = {
+    id: "readiness.apply",
+    title: "Apply",
+    keys: ["x"],
+    control,
+    ready: () => ready,
+    when: () => available,
+    run: () => runs++,
+  };
+  keys(owner, commandScope("Readiness", [row]));
+  control.focus();
+  const press = () =>
+    new window.KeyboardEvent("keydown", { key: "x", cancelable: true });
+  try {
+    assert.equal(keyReady(press()), false);
+    assert.equal(commandAvailable(row), false);
+    control.click();
+    assert.equal(runs, 0);
+    ready = true;
+    assert.equal(keyReady(press()), true);
+    assert.equal(commandAvailable(row), false);
+    available = true;
+    assert.equal(commandAvailable(row), true);
+    dispatchKey(press(), {});
+    assert.equal(runs, 1);
+  } finally {
+    owner.remove();
+  }
+});
+
+test("a document-ready scope retains commands whose own input needs saved state", () => {
+  registerCoveringAuxiliarySurface(() => null);
+  const owner = document.createElement("button");
+  document.body.append(owner);
+  const runs = [];
+  const local = {
+    id: "readiness.local-search",
+    title: "Find local thread",
+    keys: ["a"],
+    run: () => runs.push("local"),
+  };
+  const saved = {
+    id: "readiness.saved-filter",
+    title: "Filter threads waiting on you",
+    keys: ["w"],
+    ready: savedReadingSettled,
+    when: savedReadingSettled,
+    run: () => runs.push("saved"),
+  };
+  keys(owner, commandScope("Local threads", [local, saved], { ready: () => true }));
+  owner.focus();
+  const press = (key) => new window.KeyboardEvent("keydown", { key, cancelable: true });
+  try {
+    applicationState.setPhase("waiting");
+    assert.equal(commandReady(local), true);
+    assert.equal(keyReady(press("a")), true);
+    dispatchKey(press("a"), {});
+    assert.equal(keyReady(press("w")), false);
+    dispatchKey(press("w"), {});
+    assert.deepEqual(runs, ["local"]);
+    applicationState.setPhase("ready");
+    assert.equal(keyReady(press("w")), true);
+    dispatchKey(press("w"), {});
+    assert.deepEqual(runs, ["local", "saved"]);
+  } finally {
+    owner.remove();
+  }
+});
+
+test("mixed routes and their context aliases retain each Decision's readiness", async () => {
+  registerCoveringAuxiliarySurface(() => null);
+  const { applicationState } =
+    await import("../../skills/leaf/assets/runtime/semantic-state.js");
+  const phase = applicationState.read().phase;
+  const owner = document.createElement("section");
+  const decision = document.createElement("button");
+  const inspect = document.createElement("button");
+  owner.append(decision, inspect);
+  document.body.append(owner);
+  const runs = [];
+  const row = {
+    id: "readiness.mixed",
+    title: "Mixed commands",
+    keys: ["x", "y"],
+    routes: [
+      {
+        id: "readiness.decide",
+        title: "Decide",
+        binding: "x",
+        contextKeys: ["1"],
+        decision: true,
+        control: decision,
+      },
+      {
+        id: "readiness.inspect",
+        title: "Inspect",
+        binding: "y",
+        contextKeys: ["2"],
+        control: inspect,
+      },
+    ],
+    run: (binding) => runs.push(binding),
+  };
+  keys(owner, commandScope("Mixed readiness", [row], { ready: () => true }));
+  const press = (key) => new window.KeyboardEvent("keydown", { key, cancelable: true });
+  try {
+    applicationState.setPhase("waiting");
+    decision.focus();
+    reflectFirstScopes();
+    for (const key of ["x", "1"]) {
+      assert.equal(keyReady(press(key)), false, key);
+      dispatchKey(press(key), {});
+    }
+    decision.click();
+    assert.deepEqual(runs, []);
+    for (const key of ["y", "2"]) {
+      assert.equal(keyReady(press(key)), true, key);
+      dispatchKey(press(key), {});
+    }
+    assert.deepEqual(runs, ["y", "y"]);
+    applicationState.setPhase("ready");
+    paintKeys();
+    reflectKeys();
+    for (const key of ["x", "1"]) {
+      assert.equal(keyReady(press(key)), true, key);
+      dispatchKey(press(key), {});
+    }
+    decision.click();
+    assert.deepEqual(runs, ["y", "y", "x", "x", "x"]);
+  } finally {
+    applicationState.setPhase(phase);
+    owner.remove();
+  }
+});
 
 test("quick shortcuts withdraw character routes while native commands and modified keys remain", () => {
   const owner = document.createElement("section");
@@ -523,6 +754,63 @@ test("each contribution publication validates its current activation capability"
   target.remove();
 });
 
+test("a margin entry refuses what its grammar and its owner cannot state", async () => {
+  const { registerContribution } =
+    await import("../../skills/leaf/assets/runtime/contributions.js");
+  const { contributionEntry } =
+    await import("../../skills/leaf/assets/runtime/contribution-controls.js");
+  const entry = { key: "cancel", icon: "cross", label: "Cancel" };
+  // Every axis has a default, so an axis named wrongly, the way a rename of this
+  // vocabulary reaches a call site, would otherwise state nothing and say nothing.
+  assert.throws(
+    () => contributionEntry({ ...entry, role: "escape" }),
+    /^TypeError: Unknown contribution entry option: role$/,
+  );
+  // Only the keyboard owner mints a scope projected onto shared controls.
+  assert.throws(
+    () => contributionEntry({ ...entry, scope: { scope: { title: "Counterfeit" } } }),
+    /^TypeError: A margin entry scope needs a commandScope capability$/,
+  );
+  const scope = commandScope("Status command", [
+    {
+      id: "fixture.status",
+      keys: ["x"],
+      title: "Act from status",
+      line: "act from status",
+      run: () => {},
+    },
+  ]);
+  assert.throws(
+    () =>
+      contributionEntry({
+        key: "sent",
+        icon: "sent",
+        label: "Sent",
+        behavior: "status",
+        scope,
+      }),
+    /^TypeError: A status contribution entry cannot have a command scope$/,
+  );
+  // One owner plus one entry key identifies one activation source.
+  const target = document.createElement("section");
+  document.body.append(target);
+  assert.throws(
+    () =>
+      registerContribution({
+        key: "ambiguous",
+        target,
+        read: () => ({
+          entries: ["First", "Second"].map((label) =>
+            contributionEntry({ key: "same", icon: "dot", label }),
+          ),
+        }),
+        activate: () => {},
+      }),
+    /^TypeError: Duplicate contribution entry key "same" in contribution "ambiguous"$/,
+  );
+  target.remove();
+});
+
 test("context aliases project the selected source route's availability", async () => {
   const { commandEntries, commandPresentations, bindings, live } =
     await import("../../skills/leaf/assets/runtime/keyboard/bindings.js");
@@ -757,6 +1045,130 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
   } finally {
     owner.remove();
   }
+});
+
+test("a scope's attachment and re-render run its latest callbacks and read only its own element", async () => {
+  const { html, render } = await import("/vendor/browser-runtime.js");
+  const other = document.createElement("button");
+  document.body.append(other);
+  keys(other, "Elsewhere", [{ id: "probe.elsewhere", keys: ["x"], title: "x" }]);
+  const root = document.createElement("section");
+  document.body.append(root);
+  const invoked = [];
+  const paint = (reading, available = true) =>
+    render(
+      html`<button
+        ${commandsOn("Template", [
+          {
+            id: "probe.template",
+            keys: ["y"],
+            title: "act",
+            when: () => available,
+            run: () => invoked.push(reading),
+          },
+        ])}
+      ></button>`,
+      root,
+    );
+  paint("first");
+  reflectFirstScopes();
+  reflectKeys();
+  const element = root.querySelector("button");
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y");
+
+  const read = other.getAttribute;
+  let otherReads = 0;
+  other.getAttribute = (...args) => (otherReads++, read.apply(other, args));
+  paint("second", false);
+  reflectFirstScopes();
+  reflectKeys();
+  assert.equal(otherReads, 0, "a re-render reads no other scoped element");
+  assert.equal(element.getAttribute("aria-keyshortcuts"), null);
+  paint("third");
+  reflectFirstScopes();
+  reflectKeys();
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y");
+  commandsWithin(root)[0].row.run();
+  assert.deepEqual(invoked, ["third"]);
+
+  const added = document.createElement("button");
+  root.append(added);
+  keys(added, "Added", [{ id: "probe.added", keys: ["z"], title: "z" }]);
+  reflectFirstScopes();
+  reflectKeys();
+  assert.equal(otherReads, 0, "an imperative attachment reads no other scoped element");
+  assert.equal(added.getAttribute("aria-keyshortcuts"), "z");
+  root.remove();
+  other.remove();
+});
+
+test("a template scope refused on re-render withdraws its shortcuts, and its aliases follow each reading", async () => {
+  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { scopesAt } =
+    await import("../../skills/leaf/assets/runtime/keyboard/scopes.js");
+  const root = document.createElement("section");
+  document.body.append(root);
+  const paint = (title, second) =>
+    render(
+      html`<button
+        ${commandsOn(title, [
+          {
+            id: "probe.first",
+            keys: ["y"],
+            contextKeys: ["1"],
+            title: "a",
+            run() {},
+          },
+          { id: "probe.second", keys: ["y"], title: "b", when: () => second, run() {} },
+        ])}
+      ></button>`,
+      root,
+    );
+  paint("First", false);
+  reflectFirstScopes();
+  reflectKeys();
+  const element = root.querySelector("button");
+  assert.equal(element.getAttribute("aria-keyshortcuts"), "y 1");
+  paint("Second", false);
+  reflectFirstScopes();
+  assert.deepEqual(
+    scopesAt(element).map(({ title }) => title),
+    ["Second", "Second"],
+  );
+
+  paint("Second", true);
+  assert.throws(() => reflectFirstScopes(), /y/);
+  reflectKeys();
+  assert.equal(commandsWithin(root).length, 0);
+  assert.equal(element.getAttribute("aria-keyshortcuts"), null);
+  root.remove();
+});
+
+test("a template scope's rows read the element the template renders", async () => {
+  const { html, render } = await import("/vendor/browser-runtime.js");
+  const { DISCLOSE } =
+    await import("../../skills/leaf/assets/runtime/keyboard/disclosure.js");
+  const root = document.createElement("section");
+  document.body.append(root);
+  render(
+    html`<details>
+      <summary
+        ${commandsOn("Disclosure", (summary) => [
+          { id: "probe.disclose", keys: () => DISCLOSE(summary), title: "toggle" },
+        ])}
+      ></summary>
+    </details>`,
+    root,
+  );
+  reflectFirstScopes();
+  reflectKeys();
+  const summary = root.querySelector("summary");
+  assert.match(summary.getAttribute("aria-keyshortcuts"), /ArrowRight/);
+  summary.parentElement.open = true;
+  paintKeys();
+  reflectKeys();
+  assert.match(summary.getAttribute("aria-keyshortcuts"), /ArrowLeft/);
+  root.remove();
 });
 
 test("template scopes follow current rows and retire without removing projected commands", async () => {

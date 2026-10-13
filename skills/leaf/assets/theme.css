@@ -193,6 +193,14 @@ html:not([data-lf-live]) {
     --lf-bottom-status-translate: none;
   }
 }
+html[data-lf-live][data-lf-floating-chrome] {
+  --lf-floating-row: max(48px, calc(var(--aim-floor) + 8px));
+  --lf-floating-gap: 14px;
+  --lf-banner-h: var(--lf-safe-top);
+  --lf-bottom-bar-h: calc(var(--lf-floating-row) + 2 * var(--lf-floating-gap) + var(--lf-safe-bottom));
+  --lf-bottom-status-bottom: calc(var(--lf-bottom-bar-h) + 4px);
+  --lf-bottom-status-translate: none;
+}
 @media (pointer: coarse) {
   :root {
     --aim-floor: 44px;
@@ -301,6 +309,10 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
       transition: none !important;
     }
     html[data-lf-interactive] body:not([data-lf-upgraded]) > main .lf-ui {
+      visibility: hidden !important;
+    }
+    html[data-lf-sample-connecting] {
+      opacity: 0 !important;
       visibility: hidden !important;
     }
   }
@@ -528,8 +540,7 @@ dd {
 figcaption,
 caption,
 th:not([scope=row]),
-.facts dt,
-.lf-error {
+.facts dt {
   font-family: var(--sans);
   font-variant-numeric: tabular-nums;
 }
@@ -686,7 +697,7 @@ td.num {
 ol.steps {
   list-style: none;
   counter-reset: step;
-  padding-left: 0;
+  padding-inline-start: 0;
 }
 ol.steps > li {
   counter-increment: step;
@@ -843,11 +854,8 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
     padding: 2px 10px;
     margin-top: 10px;
     --lf-block-frame: 1;
+    transition: padding var(--lf-motion-fold) ease;
   }
-}
-lf-old,
-lf-new {
-  transition: padding var(--lf-motion-fold) ease;
 }
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: none;
@@ -1071,25 +1079,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   color: var(--paper);
   font: 600 10px/14px var(--sans);
   text-align: center;
-}
-.lf-error {
-  border: 1px solid var(--danger);
-  background: var(--danger-tint);
-  color: var(--danger-ink);
-  border-radius: var(--r);
-  padding: 8px 12px;
-  font-size: var(--t-5);
-  white-space: normal;
-  --lf-block-frame: 1;
-}
-.lf-error pre {
-  margin: 8px 0 0;
-  white-space: pre;
-}
-@media print {
-  .lf-error pre {
-    white-space: pre-wrap;
-  }
 }
 [data-lf-reading-role=pane] > :not(header, footer)[data-lf-focus] {
   outline: none;

@@ -1,6 +1,6 @@
 import { declarationFor, inChrome } from "/runtime/widget-api.js";
 import { upFrom } from "/runtime/check-api.js";
-import { at } from "./locate.js";
+import { at, unique } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
 const generated = ".lf-ui, [data-lf-gen]";
@@ -257,21 +257,22 @@ export function splitEdges() {
 // A widget's own children are its module's to arrange, whether the layer declares it or
 // the page defines it, and so is everything inside one whose content is not the page's
 // markup or members; inside those containers, the page's elements are the page's again.
-// The developer gallery's section asks for the runtime's replay controls
-// (`data-interaction-gallery`), so its row is furniture the page requested. An inline box's children are
-// its run of words, where the question is not which block comes first or next, so a code
-// block's highlighting or the mark ending a link's words is not this.
+// An inline box's children are its run of words, where the question is not which block
+// comes first or next, so a code block's highlighting or the mark ending a link's words
+// is not this.
 export function apparatusAmongAuthored() {
-  const modules = (parent) => {
-    if (declared(parent) || parent.matches("[data-interaction-gallery]")) return true;
-    return moduleOwnsBox(parent);
-  };
-  const found = new Set();
+  const found = [];
   for (const el of document.querySelectorAll(`main :is(${generated})`)) {
     const parent = el.parentElement;
-    if (parent.closest(generated) || inChrome(parent) || modules(parent)) continue;
+    if (
+      parent.closest(generated) ||
+      inChrome(parent) ||
+      declared(parent) ||
+      moduleOwnsBox(parent)
+    )
+      continue;
     if (getComputedStyle(parent).display === "inline") continue;
-    found.add(`${at(el)} stands among the children of ${at(parent)}`);
+    found.push({ code: "apparatus-among-authored", at: at(el), parent: at(parent) });
   }
-  return [...found];
+  return unique(found);
 }

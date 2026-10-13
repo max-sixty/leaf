@@ -37,6 +37,7 @@ import tempfile
 import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import cached_property, lru_cache, partial
 from pathlib import Path
 from types import MappingProxyType
@@ -65,6 +66,8 @@ from leaf.structure import (
 )
 
 PUBLIC_MODULES = ("/runtime/widget-api.js",)
+
+
 RESOURCE_TYPES = {
     **CONTENT_TYPES,
     ".mjs": "application/javascript",
@@ -76,18 +79,10 @@ RESOURCE_TYPES = {
 _JAVASCRIPT = Language(tree_sitter_javascript.language())
 # The nodes `javascript_imports` reads, matched in the parser's own code rather than
 # by visiting every node of a vendored bundle in Python.
-_JSX_KINDS = sorted(
-    kind
-    for kind_id in range(_JAVASCRIPT.node_kind_count)
-    if (kind := _JAVASCRIPT.node_kind_for_id(kind_id))
-    and kind.startswith("jsx_")
-    and _JAVASCRIPT.node_kind_is_named(kind_id)
-)
 _IMPORT_NODES = Query(
     _JAVASCRIPT,
     "(import_statement) @node (export_statement) @node "
-    "(call_expression function: (import)) @node "
-    + " ".join(f"({kind}) @node" for kind in _JSX_KINDS),
+    "(call_expression function: (import)) @node",
 )
 JAVASCRIPT_SUFFIXES = frozenset(
     suffix
@@ -188,22 +183,14 @@ class RevisionArtifact:
         }
 
     @cached_property
-    def executable(self) -> str | None:
-        """What this revision is as executable code, or nothing where it predates the field.
-
-        A revision saved before capture recorded this carries a manifest without it, and
-        those revisions are immutable: the addresses that still serve them — every
-        stamped version and every revision URL — can never be repaired by saving the page
-        again. So the absence is a reading rather than a fault. A document that does not
-        say what it is as code is one an open page cannot take a revision from, which is
-        the reload path, and a historical document never activates anything at all.
-        """
-        return json.loads(self.manifest).get("executable")
+    def executable(self) -> str:
+        """The captured module graph's executable identity."""
+        return json.loads(self.manifest)["executable"]
 
     @cached_property
     def widgets(self) -> dict:
         """What each declared widget in this revision's page was written as."""
-        return json.loads(self.manifest).get("widgets", {})
+        return json.loads(self.manifest)["widgets"]
 
 
 def dependency_path(specifier: str, importer: str, *, module=False) -> str | None:
@@ -275,6 +262,9 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
     a CDN module named that way loads, and a page file it names is in the revision
     only if something imports it literally.
 
+    This reads imports, not syntax: the browser judges the module, and its error
+    reaches the agent through `page check` or the watcher.
+
     A layer's modules are the same bytes in every page that selects them, and parsing
     a vendored bundle takes about a second, so a process reads each module once."""
     try:
@@ -282,46 +272,27 @@ def javascript_imports(data: bytes, path: str) -> tuple[tuple[int, int, str], ..
     except UnicodeDecodeError as error:
         raise ArtifactError(f"{path}: JavaScript is not UTF-8") from error
     tree = Parser(_JAVASCRIPT).parse(data)
-    if tree.root_node.has_error:
-        pending = [tree.root_node]
-        while pending:
-            node = pending.pop()
-            if node.is_error or node.is_missing:
-                raise ArtifactError(
-                    f"{path}:{node.start_point[0] + 1}: invalid JavaScript"
-                )
-            pending.extend(reversed(node.children))
-        raise ArtifactError(f"{path}: invalid JavaScript")
     # Document order, a node before the nodes it holds, as a walk of the tree meets
-    # them, so the first problem in the file is the one reported.
+    # them, so the spans come back in the order the file states them.
     nodes = sorted(
         QueryCursor(_IMPORT_NODES).captures(tree.root_node).get("node", []),
         key=lambda node: (node.start_byte, -node.end_byte),
     )
     imports = []
     for node in nodes:
-        if node.type.startswith("jsx_"):
-            raise ArtifactError(
-                f"{path}:{node.start_point[0] + 1}: JSX is not executable JavaScript"
-            )
         literal = None
         if node.type in {"import_statement", "export_statement"}:
             literal = node.child_by_field_name("source")
-            if any(child.type == "import_attribute" for child in node.named_children):
-                raise ArtifactError(
-                    f"{path}:{node.start_point[0] + 1}: import attributes are not supported for JavaScript modules"
-                )
         elif node.type == "call_expression":
             function = node.child_by_field_name("function")
-            if function.type == "import":
-                arguments = node.child_by_field_name("arguments").named_children
-                if len(arguments) == 1 and arguments[0].type == "string":
-                    literal = arguments[0]
+            # A tree the parser recovered from may lack the arguments.
+            if function.type == "import" and (
+                arguments := node.child_by_field_name("arguments")
+            ):
+                named = arguments.named_children
+                if len(named) == 1 and named[0].type == "string":
+                    literal = named[0]
         if literal is not None:
-            if any(child.type != "string_fragment" for child in literal.named_children):
-                raise ArtifactError(
-                    f"{path}:{literal.start_point[0] + 1}: module URLs must be unescaped string literals"
-                )
             imports.append(
                 (
                     literal.start_byte,
@@ -542,6 +513,14 @@ def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     ) + tuple((logical, _path_stamp(path)) for logical, path in PROBE_SOURCES.items())
 
 
+def probe_resources() -> dict[str, Resource]:
+    """This Leaf's browser probe modules, as a capture holds them."""
+    return {
+        logical: Resource(source.read_bytes(), "application/javascript")
+        for logical, source in PROBE_SOURCES.items()
+    }
+
+
 def capture_artifact(
     page_dir: Path,
     document: SourceDocument,
@@ -705,12 +684,7 @@ def _capture_artifact(
     # Live observations and headless checks are browser code too. Capture their
     # source beside the runtime it reads, so a revision and an export have one
     # complete module graph, even when the serving checkout later changes.
-    resources.update(
-        {
-            logical: Resource(source.read_bytes(), "application/javascript")
-            for logical, source in PROBE_SOURCES.items()
-        }
-    )
+    resources.update(probe_resources())
 
     entries = []
     documents = [document]
@@ -768,7 +742,7 @@ def _capture_artifact(
         for tag, source in widget_sources.items()
     }
     layer = registry.get("$layer", {})
-    # Which of this capture's inputs a standing document cannot take on in place. A
+    # Which of this capture's inputs the current document cannot take on in place. A
     # module graph is evaluated once per document and a custom element is defined
     # once, so new bytes behind either need a new document. Stylesheets, media,
     # prose, and markup are absent because an open document can be given all of
@@ -1071,6 +1045,11 @@ class RevisionReading(SourceReading):
             vars(self).update(vars(adopted))
 
     @cached_property
+    def activated_at(self) -> str:
+        """The immutable marker's publication date, shared by every delivery."""
+        return datetime.fromtimestamp(self.marker.stat().st_mtime, UTC).isoformat()
+
+    @cached_property
     def document(self) -> SourceDocument:
         # Bytes, not text: universal newlines would turn CRLF into LF, and
         # `document.data` must be the captured bytes the digest and the
@@ -1210,10 +1189,10 @@ def _inventory_size(value):
 class _CompactReadings:
     """Compact revision readings with their own byte budget and page lifetime.
 
-    Element identities, Question registration and data consumers are small facts
+    Element identities, ask registration and data consumers are small facts
     about immutable documents. Keeping them separately prevents long-history scans
     from evicting their own completed work with full parses. Each owner charges its retained
-    representation; a Question source also reserves its last dynamic answer,
+    representation; an ask source also reserves its last dynamic answer,
     keyed by the event basis the canonical fold reads. Keys include the marker
     stamp. No document, full registry, SourceReading or event log is retained.
     """

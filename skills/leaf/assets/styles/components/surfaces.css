@@ -64,16 +64,20 @@
  * every font property it has, weight, slant, variants and stretch among them. Any declared value beats an inherited one,
  * so a rule that weighs nothing is enough to stop that, and it leaves every rule that
  * sets these on purpose winning: at a class's weight it took the pane header's 600 off
- * each playground's presets. */
+ * each playground's presets.
+ *
+ * A native control the page writes without either class takes the type from that
+ * weightless rule too, so a page that styles it anywhere still wins. Left to the
+ * browser it drew 13.33px Arial beside the page's own type (#2559). */
 :where(:root) :is(.lf-ui-face, .button, .field) { font-family: var(--sans); font-size: var(--t-5);
     line-height: var(--lf-ui-lh); color: var(--ink); }
-:where(:root .lf-ui-face, :root .button, :root .field) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+:where(:root .lf-ui-face, :root .button, :root .field,
+    :root main :is(button, input, select, textarea)) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
     font-feature-settings: normal; font-variation-settings: normal;
     letter-spacing: normal; word-spacing: normal; text-transform: none; }
 /* Words for a user listening, silent on screen: real text, the one thing every
    screen reader announces in every mode, clipped to nothing where paint already says
-   the same fact to the eye (renderQuiet, lf-code's highlighted lines, the status word
-   x-paints writes). Worn with
+   the same fact to the eye (renderQuiet, lf-code's highlighted lines). Worn with
    .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
    quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
    so it holds no room; the covered-words gate skips this class.
@@ -126,6 +130,18 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     position: absolute; width: 1px; height: 1px; overflow: hidden;
     clip-path: inset(50%); margin-right: 0; }
 }
+/* Where a widget upgrade fails, it fails soft into this box, in the document or in an
+ * x-shadow widget's stage (runtime/widget-upgrade.js). Its face is the sans the theme
+ * gives other labels (.tag, figcaption), with figures of one width. */
+.lf-error { border: 1px solid var(--danger); background: var(--danger-tint);
+            color: var(--danger-ink); border-radius: var(--r); padding: 8px 12px;
+            font-family: var(--sans); font-size: var(--t-5);
+            font-variant-numeric: tabular-nums; white-space: normal; --lf-block-frame: 1; }
+/* The box sets `white-space: normal`, so the source inside it restores preformatting,
+   and outranks the reading sheet's print wrap by specificity until it answers paper
+   itself. */
+.lf-error pre { margin: 8px 0 0; white-space: pre; }
+@media print { .lf-error pre { white-space: pre-wrap; } }
 /* A key badge has one face in the document, in the chrome, and in declared shadow
    trees: a binding's steps, a transient hint code, and a control's binding seat all
    wear it. Where it stands is each surface's. A seat a widget builds empty draws
@@ -296,7 +312,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    faces and version rows keep the padding floor described above. Inline offered words
    remain inline: like links in prose, their words determine their target.
 
-   .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
+   .lf-outline-chip is halved on how it is spelled, because the class dresses a plain
    chip as well as a press and a chip is not something to aim at. */
 [data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-skip)),
 .lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-msg-control,
@@ -394,11 +410,12 @@ summary { align-content: center; }
 /* Every message header holds the same control-height row, including sticky margin
    heads. Thread actions and reactions must not change its metadata-to-body gap.
    An author may ellipsize while time and receipt use their own intrinsic room. */
-.lf-msg-head { display: flex; align-items: center; gap: var(--sp-2);
+:is(.lf-msg-head, .lf-thread-working-head) { display: flex; align-items: center;
+          gap: var(--sp-2);
           min-block-size: var(--lf-msg-head-height); box-sizing: border-box;
           min-width: 0; overflow: hidden; white-space: nowrap;
           font-size: var(--t-6); --lf-msg-name-size: 13px; }
-.lf-msg-head .lf-msg-meta { flex: 0 1 auto; overflow: hidden; }
+:is(.lf-msg-head, .lf-thread-working-head) .lf-msg-meta { flex: 0 1 auto; overflow: hidden; }
 /* A primary reader's message part holds its thread's news notice at the head's end,
    beside the message's own control rather than under it (controls.css). */
 .lf-primary-message > .lf-msg-head { position: relative; --lf-msg-head-room: 5rem;
@@ -410,9 +427,9 @@ summary { align-content: center; }
           max-inline-size: 5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lf-msg-head .lf-msg-sending { min-width: 0; overflow: hidden;
           text-overflow: ellipsis; }
-/* Authors retain their natural width up to 40%, so delivery metadata cannot
-   abbreviate a short name while long names still leave metadata room. */
-.lf-msg-head b { flex: 0 0 auto; max-inline-size: 40%; min-width: 0; overflow: hidden;
+/* Keep short authors intact while long names leave room for delivery metadata. */
+:is(.lf-msg-head, .lf-thread-working-head) b { flex: 0 0 auto; max-inline-size: 40%; min-width: 0;
+          overflow: hidden;
           text-overflow: ellipsis; font-size: var(--lf-msg-name-size);
           font-weight: 600; color: var(--ink); }
 /* A checkpoint is agent-written reading context, followed by the retained originals
@@ -449,6 +466,37 @@ summary { align-content: center; }
 .lf-summary-originals { min-width: 0; }
 .lf-summary-originals[hidden] { display: none; }
 .lf-summary-originals > .lf-msg { margin-block: 8px; }
+/* The working message: the step of work in hand, at the transcript's foot just above
+   the reply box. It takes a message's head and body faces, but its words stay dim, and
+   while the work runs a sheen passes over them, as over a title being generated, so a
+   step reads as work under way rather than as a reply. A step is a line, and the
+   words keep to one, ellipsized, so each new step leaves the message's box, and what
+   stands below it, where it was. Its arrival and departure are held when they would
+   move what the reader sees (held-news.js). Assistive technology reads the whole line. */
+.lf-thread-working { margin-top: 16px;
+  --lf-working-dim: color-mix(in oklab, var(--muted) 80%, var(--paper)); }
+.lf-thread-working-words { margin-top: var(--lf-msg-body-gap);
+  inline-size: fit-content; max-inline-size: 100%;
+  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--lf-working-dim);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.lf-thread-working[data-lf-live] .lf-thread-working-words { color: transparent;
+  background: linear-gradient(110deg, var(--lf-working-dim) 42%, var(--ink) 50%,
+    var(--lf-working-dim) 58%);
+  background-size: 200% 100%; background-clip: text;
+  animation: lf-working-sheen 2s ease-in-out infinite alternate; }
+@keyframes lf-working-sheen {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lf-thread-working[data-lf-live] .lf-thread-working-words { animation: none;
+    background: none; color: var(--lf-working-dim); }
+}
+@media (forced-colors: active) {
+  .lf-thread-working-words,
+  .lf-thread-working[data-lf-live] .lf-thread-working-words { animation: none;
+    background: none; color: GrayText; }
+}
 .lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring); --lf-focus-ring: summary-fold;
   outline-offset: calc(-1 * var(--focus-ring-w)); }
@@ -537,3 +585,5 @@ button.lf-thread-notice[data-lf-focus] { outline: var(--focus-ring);
 .lf-msg-head :is(.lf-edited, .lf-msg-kept) { color: var(--muted-2); }
 /* A thread projected inline uses the same receipt emphasis as the panel. */
 .lf-msg-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }
+/* What an answer leaves standing reads beside its time like a receipt. */
+.lf-msg-head .lf-msg-leaves { color: var(--ink-2); font-weight: 600; }

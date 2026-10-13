@@ -60,6 +60,7 @@ import {
   once,
   PAGE_INTERFACE,
   PRESENTATION,
+  ref,
   render,
   repeat,
   scrollerFor,
@@ -67,6 +68,8 @@ import {
   sizeObserver,
   whileConnected,
   wrote,
+  focused,
+  standingIn,
 } from "/runtime/widget-api.js";
 
 const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
@@ -107,6 +110,9 @@ customElements.define(
       this.#measure();
     };
     #onPresentation = () => this.#measure();
+    #navRef = (nav) => (this.#nav = nav);
+    #rowsRef = (rows) => (this.#rows = rows);
+    #lensRef = (lens) => (this.#lens = lens);
     #onNavScroll = () => {
       // A resize may clamp scrollTop before the measurement that restores focus.
       if (this.#nav.getBoundingClientRect().height === this.#navHeight)
@@ -157,27 +163,47 @@ customElements.define(
         depth: Math.min(Number(heading.localName.slice(1)) - floor, 4),
       }));
       const title = (pageTitle ? wrote(pageTitle).trim() : "") || "Top";
-      const focused = this.#sections.find(
-        ({ link }) => link === document.activeElement,
-      );
-      const restore = focused && holdFocus(this.#nav);
+      const held = this.#sections.find(({ link }) => link === focused());
+      const restore = held && holdFocus(this.#nav);
+      // Each row and link binds itself to the item it renders, so a section holds the
+      // row it measures whatever order Lit keeps the rows in.
+      const start = { destination: startDestination };
       const outline = repeat(
         items,
         ({ heading }) => heading.id || heading,
-        ({ label, destination, depth }) => html`
-          <li data-lf-depth=${depth}>
-            <a href=${`#${destination.id}`}>${label}</a>
+        (item) => html`
+          <li data-lf-depth=${item.depth} ${ref((row) => (item.row = row))}>
+            <a href=${`#${item.destination.id}`} ${ref((link) => (item.link = link))}
+              >${item.label}</a
+            >
           </li>
         `,
       );
       render(
         html`
-          <nav class="lf-toc-nav lf-ui" data-lf-gen="1" aria-label="On this page">
+          <nav
+            class="lf-toc-nav lf-ui"
+            data-lf-gen="1"
+            aria-label="On this page"
+            ${ref(this.#navRef)}
+          >
             <p class="lf-toc-heading" data-lf-gen="1" data-lf-said>On this page</p>
-            <div class="lf-toc-rows">
-              <span class="lf-toc-window" aria-hidden="true"></span>
-              <div class="lf-toc-start" data-lf-depth="0">
-                <a href=${`#${startDestination.id}`}>${title}</a>
+            <div class="lf-toc-rows" ${ref(this.#rowsRef)}>
+              <span
+                class="lf-toc-window"
+                aria-hidden="true"
+                ${ref(this.#lensRef)}
+              ></span>
+              <div
+                class="lf-toc-start"
+                data-lf-depth="0"
+                ${ref((row) => (start.row = row))}
+              >
+                <a
+                  href=${`#${startDestination.id}`}
+                  ${ref((link) => (start.link = link))}
+                  >${title}</a
+                >
               </div>
               <ol>
                 ${outline}
@@ -187,24 +213,14 @@ customElements.define(
         `,
         this,
       );
-      this.#nav = this.querySelector(".lf-toc-nav");
-      this.#rows = this.#nav.querySelector(".lf-toc-rows");
-      this.#lens = this.#rows.querySelector(".lf-toc-window");
-      const rows = [...this.#rows.querySelectorAll(".lf-toc-start, ol > li")];
-      this.#sections = headings.length
-        ? [{ destination: startDestination }, ...items].map((item, index) => ({
-            ...item,
-            row: rows[index],
-            link: rows[index].querySelector("a"),
-          }))
-        : [];
+      this.#sections = headings.length ? [start, ...items] : [];
       // A new key still represents the user's place when its heading or destination
       // survives. The template renderer already retains focus through keyed moves.
       if (restore) {
         const continuation =
-          this.#sections.find(({ heading }) => heading === focused.heading) ??
+          this.#sections.find(({ heading }) => heading === held.heading) ??
           this.#sections.find(
-            ({ destination }) => destination.id === focused.destination.id,
+            ({ destination }) => destination.id === held.destination.id,
           );
         restore(continuation?.link);
       }
@@ -326,16 +342,12 @@ customElements.define(
 
     #rememberFocus() {
       const viewport = this.#nav.getBoundingClientRect();
-      const active = document.activeElement;
-      const focused = this.#nav.contains(active)
-        ? active.getBoundingClientRect()
-        : null;
+      const active = focused(document);
+      const shown = this.#nav.contains(active) ? active.getBoundingClientRect() : null;
       this.#navHeight = viewport.height;
       this.#focusedLink = active;
       this.#focusedVisible =
-        !!focused &&
-        focused.top >= viewport.top - 1 &&
-        focused.bottom <= viewport.bottom + 1;
+        !!shown && shown.top >= viewport.top - 1 && shown.bottom <= viewport.bottom + 1;
     }
 
     // Each fitted row's shift, by section index.
@@ -391,17 +403,17 @@ customElements.define(
         this.removeAttribute("data-lf-compact");
         this.setAttribute("data-lf-outline", "");
         if (
-          this.#nav.contains(document.activeElement) &&
-          this.#focusedLink === document.activeElement &&
+          standingIn(this.#nav) &&
+          this.#focusedLink === focused(document) &&
           this.#focusedVisible &&
           this.#nav.getBoundingClientRect().height < this.#navHeight - 1
         ) {
-          const focused = document.activeElement.getBoundingClientRect();
+          const link = focused(document).getBoundingClientRect();
           const viewport = this.#nav.getBoundingClientRect();
-          if (focused.bottom > viewport.bottom)
-            this.#nav.scrollTop += focused.bottom - viewport.bottom;
-          else if (focused.top < viewport.top)
-            this.#nav.scrollTop += focused.top - viewport.top;
+          if (link.bottom > viewport.bottom)
+            this.#nav.scrollTop += link.bottom - viewport.bottom;
+          else if (link.top < viewport.top)
+            this.#nav.scrollTop += link.top - viewport.top;
         }
         return shifts;
       }

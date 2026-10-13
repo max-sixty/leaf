@@ -17,7 +17,7 @@ from leaf.projection import folded_value, markup_value, page_reading
 from leaf.refusals import Refused
 from leaf.revisioning import planned_activation, publish_checked_event
 from leaf.service import PageTransaction
-from leaf.tasks import owed_tasks
+from leaf.todos import owed_todos
 from leaf.validation.admission import read_text_arg
 from leaf.validation.source import check_source
 
@@ -69,7 +69,9 @@ def _stamp_candidate(page_dir: Path, events: list):
     """Check the exact source and determine its revision without publishing it."""
     checked = check_source(page_dir, events)
     if checked.errors:
-        raise Refused(f"refusing to stamp index.html: {'; '.join(checked.errors)}")
+        raise Refused(
+            f"refusing to stamp index.html: {'; '.join(map(str, checked.errors))}"
+        )
     return checked, planned_activation(page_dir, checked)
 
 
@@ -88,30 +90,30 @@ def _completed_tasks(
     revision: int,
     completes: tuple[str, ...],
 ) -> list[str]:
-    """End only the open widget tasks explicitly named by ``completes``.
+    """End only the open widget to-dos explicitly named by ``completes``.
 
-    Removing a target leaves its task open in the queue; a page edit does not
-    establish that the task is complete.
+    Removing a target leaves its to-do open on Tasks; a page edit does not
+    establish that the to-do is complete.
     """
     if len(set(completes)) != len(completes):
         raise Refused("--completes names each widget at most once")
-    tasks = owed_tasks(events)
-    on_widgets = [task for task in tasks if task["subject"]["kind"] == "widget"]
-    unearned = sorted(set(completes) - {task["subject"]["id"] for task in on_widgets})
+    todos = owed_todos(events)
+    on_widgets = [todo for todo in todos if todo["subject"]["kind"] == "widget"]
+    unearned = sorted(set(completes) - {todo["subject"]["id"] for todo in on_widgets})
     if unearned:
         raise Refused(
-            "no open task on " + ", ".join(repr(widget) for widget in unearned)
+            "no open to-do on " + ", ".join(repr(widget) for widget in unearned)
         )
-    completed = [task for task in on_widgets if task["subject"]["id"] in completes]
+    completed = [todo for todo in on_widgets if todo["subject"]["id"] in completes]
     not_later = sorted(
-        {task["subject"]["id"] for task in completed if revision <= task["revision"]}
+        {todo["subject"]["id"] for todo in completed if revision <= todo["revision"]}
     )
     if not_later:
         raise Refused(
-            f"revision r{revision} is not later than the open task on "
+            f"revision r{revision} is not later than the open to-do on "
             + ", ".join(repr(widget) for widget in not_later)
         )
-    return sorted(task["id"] for task in completed)
+    return sorted(todo["id"] for todo in completed)
 
 
 def _settled_reports(projection, parser, spk: dict, registry: dict) -> list[str]:
@@ -145,7 +147,7 @@ def _stamp_event(
         event["restated"] = sorted(parser.restated)
     settlements = [
         *({"kind": "report", "id": identity} for identity in sorted(settled_reports)),
-        *({"kind": "task", "id": identity} for identity in completed),
+        *({"kind": "todo", "id": identity} for identity in completed),
     ]
     if settlements:
         event["settles"] = settlements

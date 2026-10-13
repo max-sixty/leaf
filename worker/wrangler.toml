@@ -14,9 +14,6 @@ directory = "../.tmp/site-assets"
 binding = "ASSETS"
 run_worker_first = true
 
-[vars]
-AGENT_PREWARM = "true"
-
 [secrets]
 required = ["OPENAI_API_KEY"]
 
@@ -25,7 +22,7 @@ required = ["OPENAI_API_KEY"]
 # namespace can hold only one. Wrangler matches the deployed application by name and
 # otherwise derives it from `<worker>-<class_name>`, so the v2 class rename below asked
 # it to create a second application against the namespace the first one already holds —
-# DURABLE_OBJECT_ALREADY_HAS_APPLICATION. Naming the standing application keeps the
+# DURABLE_OBJECT_ALREADY_HAS_APPLICATION. Naming the existing application keeps the
 # deploy on the modify path. Renaming it would mean deleting the application first,
 # which drops every seated user session.
 name = "leaf-website-leafexamplesession"
@@ -34,13 +31,13 @@ image = "../Dockerfile.website"
 # Product routes give every browser a private Leaf session. The container runs Codex
 # App Server as well as Leaf, so the smallest interactive instance is `basic`; `lite`
 # provides only 1/16 vCPU and 256 MiB. Cloudflare's account limit fits 6,000
-# concurrent basic instances; reserve ninety slots for the standing dev application
+# concurrent basic instances; reserve ninety slots for the persistent dev application
 # and leave ten slots free for rollout bookkeeping.
 max_instances = 5900
 instance_type = "basic"
 # A visible tab's freshness requests keep an active session alive. During a release,
-# Cloudflare may still replace it after this bounded drain window; website state is
-# explicitly ephemeral until it has a durable page-directory store.
+# Cloudflare may replace it after this bounded drain window; the session Durable
+# Object retains the canonical page record across container replacement.
 rollout_active_grace_period = 600
 
 [[durable_objects.bindings]]
@@ -74,7 +71,7 @@ enabled = true
 pattern = "leaf.page"
 custom_domain = true
 
-# One standing remote environment for testing an arbitrary checkout before it reaches
+# One persistent remote environment for testing an arbitrary checkout before it reaches
 # main. Production remains the top-level environment used by publish-site.yaml. The
 # developer command always names `--env dev`, so it cannot omit its target and replace
 # leaf.page by accident. Bindings are repeated because Wrangler environments
@@ -88,9 +85,6 @@ routes = []
   directory = "../.tmp/site-assets"
   binding = "ASSETS"
   run_worker_first = true
-
-  [env.dev.vars]
-  AGENT_PREWARM = "true"
 
   [env.dev.secrets]
   required = ["OPENAI_API_KEY"]

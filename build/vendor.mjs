@@ -30,6 +30,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyPatch, parsePatch } from "diff";
 import { build } from "esbuild";
+import { parse } from "acorn";
 import { bindToVendoredLit } from "./lit.mjs";
 import { patchTransitions } from "./webawesome/transition-patch.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./browser/shipped.mjs";
@@ -38,6 +39,32 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const assets = "skills/leaf/assets";
 const packageVendor = (name) => `skills/leaf/packages/${name}/vendor`;
 const input = (file) => path.join(root, "build", file);
+
+/** Expose selected installed exports without sharing a broad barrel's unused imports. */
+function selectedExports(source, entry) {
+  const options = { ecmaVersion: "latest", sourceType: "module" };
+  const names = parse(readFileSync(entry, "utf8"), options).body.flatMap((node) =>
+    node.specifiers.map((item) => item.local.name),
+  );
+  const body = parse(source, options).body;
+  const published = body
+    .filter((node) => node.type === "ExportNamedDeclaration")
+    .flatMap((node) => node.specifiers.map((item) => item.exported.name));
+  if (!names.every((name) => published.includes(name)))
+    throw new Error("Pierre public export seam changed");
+  const imports = body
+    .filter((node) => node.type === "ImportDeclaration")
+    .flatMap((node) =>
+      node.specifiers
+        .filter((item) => names.includes(item.local.name))
+        .map(
+          (item) =>
+            `export { ${item.imported.name} } from ${JSON.stringify(node.source.value)};`,
+        ),
+    );
+  if (imports.length !== names.length) throw new Error("Pierre export seam changed");
+  return imports.join("\n");
+}
 
 /** The installed version of a package, which is the one the lock resolved. */
 const version = (name) =>
@@ -204,14 +231,15 @@ const bundles = {
   // checked radio joining the source's group or a nested widget activating. The
   // optional cloneElement factory prepares compact native motion previews at both
   // creation sites. Existing dragEl relocations use the shared move primitive,
-  // preserving native state where supported and reordering by insertion elsewhere.
+  // preserving native state where supported and reordering by insertion elsewhere; as
+  // package payload, the bundle takes it from the public widget-api.js.
   // Keep the upstream ESM/autoscroll implementation otherwise intact: the module
   // entry mounts autoscroll, unlike core; complete adds unused swap and multi-drag.
   sortable: () => ({
     out: `${packageVendor("default")}/sortable.esm.js`,
     copy: "sortablejs/modular/sortable.esm.js",
     finish: (source) =>
-      'import {move as leafMove} from "/runtime/dom-move.js";\n' +
+      'import {move as leafMove} from "/runtime/widget-api.js";\n' +
       [
         [
           "ghostEl = dragEl.cloneNode(true);",
@@ -466,12 +494,40 @@ const bundles = {
     },
   }),
 
-  // Pierre's static renderer against the shared Leaf syntax engine: Shiki binds to
-  // `syntax.esm.js`, and Pierre's theme registry and unused WASM engine to Leaf's
-  // shims in `build/pierre/`.
+  // Parsing is needed before a metadata row appears; static rendering waits for
+  // textual evidence to open. One graph shares their common implementation.
+  // Pierre's static renderer uses the shared Leaf syntax engine: Shiki binds to
+  // `syntax.esm.js`, and Pierre's theme registry binds to Leaf's theme shim.
+  // The unused WASM import carries no binary or separate module.
   pierre: () => ({
     out: `${packageVendor("diff")}/pierre-diffs.esm.js`,
-    entryPoints: [input("pierre/entry.mjs")],
+    entryPoints: {
+      "pierre-diffs.esm": input("pierre/entry.mjs"),
+      "pierre-parser.esm": input("pierre/parser.mjs"),
+    },
+    outdir: packageVendor("diff"),
+    splitting: true,
+    chunkNames: "pierre/[name]-[hash]",
+    adapt: [
+      {
+        file: /@pierre\/diffs\/dist\/index\.js$/,
+        edit: (source) => selectedExports(source, input("pierre/parser.mjs")),
+      },
+      {
+        file: /@pierre\/diffs\/dist\/ssr\/index\.js$/,
+        edit: (source) => selectedExports(source, input("pierre/entry.mjs")),
+      },
+      {
+        file: /@pierre\/diffs\/dist\/highlighter\/shared_highlighter\.js$/,
+        edit: (source) =>
+          seam(
+            source,
+            'import("shiki/wasm")',
+            "Promise.resolve({default: undefined})",
+            "Pierre unused WASM import",
+          ),
+      },
+    ],
     platform: "browser",
     target: "chrome105",
     banner: {
@@ -482,9 +538,6 @@ const bundles = {
       {
         name: "leaf-pierre-shims",
         setup(builder) {
-          builder.onResolve({ filter: /^shiki\/wasm$/ }, () => ({
-            path: input("pierre/wasm-leaf.mjs"),
-          }));
           builder.onResolve({ filter: /^@pierre\/theming\/themes$/ }, () => ({
             path: input("pierre/themes-leaf.mjs"),
           }));

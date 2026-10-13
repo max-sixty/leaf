@@ -1,18 +1,23 @@
 (() => {
   // skills/leaf/packages/playground/initial.js
   var own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
-  var KINDS = /* @__PURE__ */ new Set(["range", "toggle", "choice", "color", "text"]);
-  var NAME = /^[a-z][a-z0-9-]*$/;
+  var belongsTo = (host, member) => member.parentElement.closest("lf-playground, [data-lf-exhibit]") === host;
+  var ownControls = (host, preview) => [
+    ...own(host, "lf-playground-control"),
+    ...[...preview?.querySelectorAll("lf-playground-control") ?? []].filter(
+      (control) => belongsTo(host, control)
+    )
+  ];
   var COPY_LABELS = [
     ["rest", "Copy instruction"],
     ["success", "Copied"],
     ["error", "Copy failed"]
   ];
   function render(host, { tabStore, offer, keeps }) {
-    const controls = own(host, "lf-playground-control");
     const presets = own(host, "lf-playground-preset");
     const outputs = own(host, "lf-playground-output");
     const previews = own(host, "lf-playground-preview");
+    const controls = ownControls(host, previews[0]);
     if (!controls.length || outputs.length !== 1 || previews.length !== 1)
       throw new Error("playground needs controls, one preview and one output");
     const output = outputs[0], preview = previews[0];
@@ -20,14 +25,9 @@
     const choicesByName = /* @__PURE__ */ new Map();
     for (const control of controls) {
       const name = control.getAttribute("name"), kind = control.getAttribute("kind");
-      if (!NAME.test(name ?? "") || controlByName.has(name) || !KINDS.has(kind))
-        throw new Error(`invalid or repeated playground control ${name}`);
       const choices = own(control, "lf-playground-choice");
       if (kind === "choice" !== Boolean(choices.length))
         throw new Error(`control ${name} needs choices only for kind choice`);
-      const choicesValues = choices.map((choice) => choice.getAttribute("value"));
-      if (new Set(choicesValues).size !== choicesValues.length)
-        throw new Error(`control ${name} repeats a choice`);
       choicesByName.set(name, choices);
       controlByName.set(name, control);
     }
@@ -36,7 +36,7 @@
       if (kind === "range") {
         const value = Number(raw), min = Number(control.getAttribute("min"));
         const max = Number(control.getAttribute("max")), step = Number(control.getAttribute("step") ?? "1");
-        if (![value, min, max, step].every(Number.isFinite) || min >= max || step <= 0 || value < min || value > max)
+        if (!Number.isFinite(value) || min >= max || value < min || value > max)
           throw new Error(`control ${name} has a value outside its range`);
         if (Math.abs((value - min) / step - Math.round((value - min) / step)) > 1e-9)
           throw new Error(`control ${name} has a value off its step`);
@@ -120,10 +120,6 @@
         const next = {};
         for (const setting of settings) {
           const name = setting.getAttribute("for");
-          if (!controlByName.has(name))
-            throw new Error(`preset names unknown control ${name}`);
-          if (Object.hasOwn(next, name))
-            throw new Error(`preset repeats control ${name}`);
           next[name] = parse(controlByName.get(name), setting.getAttribute("value"));
         }
         return [preset, Object.freeze(next)];
@@ -131,12 +127,13 @@
     );
     let submit = null, copy = null, reset = null;
     if (interactive) {
+      const railed = controls.filter((control) => control.parentElement === host);
       const panel = node("div", "lf-playground-controls");
       const panelTitle = node("p", "lf-playground-controls-title", "Controls");
       panelTitle.id = `${host.id}-controls-title`;
       panel.setAttribute("role", "group");
       panel.setAttribute("aria-labelledby", panelTitle.id);
-      panel.append(panelTitle, ...controls);
+      panel.append(panelTitle, ...railed);
       for (const control of controls) {
         const name = control.getAttribute("name"), kind = control.getAttribute("kind"), label = control.getAttribute("label");
         control.classList.add(`lf-playground-${kind}`);
@@ -183,7 +180,7 @@
       }
       let presetBar = null;
       if (presets.length) {
-        presetBar = node("header", "lf-playground-presets");
+        presetBar = node(railed.length ? "header" : "div", "lf-playground-presets");
         const title = node("span", "lf-playground-presets-title", "Starting points");
         title.id = `${host.id}-presets-title`;
         presetBar.setAttribute("role", "group");
@@ -238,7 +235,7 @@
       const split = node("div", "lf-playground-split");
       split.append(
         pane("preview", "Preview", null, previewBody),
-        pane("controls", "Controls", presetBar, panel),
+        ...railed.length ? [pane("controls", "Controls", presetBar, panel)] : presetBar ? [pane("controls", "Controls", null, presetBar)] : [],
         pane(
           "instruction",
           "Instruction to agent",
@@ -280,9 +277,9 @@
     };
     const renderValues = (next) => {
       for (const slot of output.querySelectorAll("lf-playground-value")) {
-        const name = slot.getAttribute("for"), control = controlByName.get(name);
-        if (!control) throw new Error(`output names unknown control ${name}`);
-        text(slot, formatted(control, next[name]));
+        if (!belongsTo(host, slot)) continue;
+        const name = slot.getAttribute("for");
+        text(slot, formatted(controlByName.get(name), next[name]));
       }
     };
     const paintPresets = (next) => {

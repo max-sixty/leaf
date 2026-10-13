@@ -1,11 +1,10 @@
 """Declaration-driven state and retirement projections."""
 
-import re
 from collections.abc import Callable, Iterable
 from typing import NamedTuple
 
 from leaf.events import (
-    action_retracted,
+    InForce,
     event_coordinate,
     report_settlements,
     retractions,
@@ -62,7 +61,7 @@ def _reports(projection) -> list[dict]:
                 "source": "report",
                 "action": event["action"],
                 "detail": event["detail"],
-                "text": event["detail"]["text"] if spec.get("report") else None,
+                "text": event["detail"]["text"] if spec.get("text") else None,
                 "ts": event["ts"],
                 "revision": event["revision"],
                 "seq": event["seq"],
@@ -131,7 +130,7 @@ def retirement_holders(parser: SourceDocument, registry: dict) -> list:
                 "retires": {outcome: set() for outcome in declared[rec["tag"]]},
                 "withdrawn_as": registry[rec["tag"]].get("x-withdrawn-as"),
             }
-    for wid, rec in parser.within.items():
+    for wid, rec in parser.holders.items():
         pair = enclosing_slot(rec, registry) if rec else None
         if pair is None:
             continue
@@ -144,12 +143,7 @@ def retirement_holders(parser: SourceDocument, registry: dict) -> list:
 
 NO_RECORD = object()
 
-# A position record's rank: a base-36 fraction written as its digits after the point,
-# never ending in 0, so string order is numeric order. The runtime's
-# `projection/model.js` owns the reasoning and computes the keys between neighbours;
-# these two rules are the ones both runtimes must read the same way, and
-# `tests/rank_cases.json` holds both runtimes to the same cases.
-RANK = re.compile(r"[0-9a-z]*[1-9a-z]")
+# The digits of a position record's rank (`registry.contract.RANK`).
 _RANK_DIGITS = "0123456789abcdefghijklmnopqrstuvwxyz"
 
 
@@ -167,7 +161,7 @@ class StateProjection(NamedTuple):
     wrote the unit where the move put it. An absorbed move still stands, as a
     written-back pick does, but no longer places its unit: the markup does.
 
-    `standing` holds every action that survives, neither taken back nor retracted;
+    `in_force` holds every action that survives, neither taken back nor retracted;
     `actions` is the newest of them at each coordinate. A browser withdrawing the one
     on top locally falls back to the next of these rather than judging survival
     again."""
@@ -178,7 +172,7 @@ class StateProjection(NamedTuple):
     report_settlements: dict
     classified: dict
     absorbed: frozenset
-    standing: frozenset
+    in_force: frozenset
 
 
 class PageReading(NamedTuple):
@@ -275,14 +269,13 @@ def state_projection(
     if withdrawn is None:
         withdrawn = taken_back(events)
     settled = report_settlements(events, upto)
-    actions = {}
-    standing = set()
     reports = {}
     settlement_versions = {}
     classified = {}
-    # Where each id sits: all the retraction test asks of a page, taken once for
-    # the walk rather than per event.
-    within = enclosing_of(spk)
+    # Where each id sits is all the retraction test asks of a page, taken once for
+    # the walk rather than per event; `InForce` decides each coordinate's winner.
+    in_force = InForce(enclosing_of(spk), floors, withdrawn)
+    specs = {}
     for event in events:
         if event["kind"] not in WRITERS:
             continue
@@ -308,10 +301,8 @@ def state_projection(
         entry = (event, spec)
         classified[event["id"]] = (coordinate, entry)
         if event["kind"] == "action":
-            if event["id"] in withdrawn or action_retracted(event, floors, within):
-                continue
-            actions[coordinate] = entry
-            standing.add(event["id"])
+            if in_force.admit(event):
+                specs[event["id"]] = spec
         elif settled_at := settled.get(event["id"]):
             settlement_versions[coordinate] = max(
                 settlement_versions.get(coordinate, 0), settled_at
@@ -319,6 +310,10 @@ def state_projection(
         else:
             reports.setdefault(coordinate, []).append(entry)
 
+    actions = {
+        coordinate: (winner, specs[winner["id"]])
+        for coordinate, winner in in_force.winners().items()
+    }
     desired = {coordinate: entries[-1] for coordinate, entries in reports.items()}
     desired.update(actions)
     orders = {}
@@ -335,14 +330,14 @@ def state_projection(
         settlement_versions,
         classified,
         absorbed,
-        frozenset(standing),
+        in_force.ids(),
     )
 
 
 def with_action(
     projection: StateProjection, event: dict, spec: dict
 ) -> StateProjection:
-    """The projection with one newer action standing at its admitted coordinate.
+    """The projection with one newer action in force at its admitted coordinate.
 
     An action made against the window this projection folds is the latest at its
     coordinate and no floor of that window can have retracted it, so admission
@@ -352,7 +347,7 @@ def with_action(
     return projection._replace(
         actions={**projection.actions, coordinate: entry},
         desired={**projection.desired, coordinate: entry},
-        standing=projection.standing | {event["id"]},
+        in_force=projection.in_force | {event["id"]},
     )
 
 
@@ -466,7 +461,7 @@ def folded_positions(
 ) -> dict[str, list[str]]:
     """Container id → its units in the order the fold leaves on this markup.
 
-    Authored units rank by authored index; each standing move this markup has not
+    Authored units rank by authored index; each move in force this markup has not
     absorbed (`move_absorbed`) puts its unit in its container at the rank it names,
     and a container lists its units by rank, ties by id. `projection/model.js`'s
     `foldWidgetStates` is the browser's reading of the same rule."""
@@ -476,9 +471,9 @@ def folded_positions(
         for units in order.values()
         for index, unit in enumerate(units)
     }
-    standing = sorted(projection.desired.items(), key=lambda item: item[1][0]["seq"])
+    in_force = sorted(projection.desired.items(), key=lambda item: item[1][0]["seq"])
     orders = {owner: authored_positions(owner, record, byid, spk, registry)}
-    for (widget, unit, action), (event, spec) in standing:
+    for (widget, unit, action), (event, spec) in in_force:
         if (
             widget != owner
             or action != verb
@@ -524,7 +519,7 @@ def recorded_state(
     registry: dict,
     projection: StateProjection,
 ):
-    """What one version's markup shows at a standing coordinate, beside the state
+    """What one version's markup shows at a coordinate in force, beside the state
     the fold leaves there: a pair the caller compares, or NO_RECORD for a verb with
     no record form. `markup` and `folded` are each a document's `(byid, spk)`; the
     fold is `projection` read on `folded`.
@@ -563,15 +558,13 @@ def folded_value(e: dict, spec: dict):
     return value
 
 
-def question_value(
-    owner, verb, spec, byid, spk, registry, projection, *, answered=False
-):
-    """Read a Question's typed value and presence from the canonical state fold.
+def ask_value(owner, verb, spec, byid, spk, registry, projection, *, answered=False):
+    """Read an ask's typed value and presence from the canonical state fold.
 
     Widget units use their declared record or custom action detail. Member units
     form one mapping; positions retain every container, including empty ones.
-    Empty authored values need completion to count as an answer; a standing value
-    action counts even while completion is outstanding. Null never holds a value.
+    Empty authored values need completion to count as an answer; a value
+    action in force counts even while completion is outstanding. Null never holds a value.
     """
     actions = {
         coordinate: held
@@ -618,7 +611,7 @@ def page_reading(
     its authored construction; a stored revision's is held across reads, so only
     the fold over the log is taken here. Revision history is optional transaction
     input: this owner selects predecessors newest first and reads each under its
-    captured vocabulary, lazily when Question registration needs it."""
+    captured vocabulary, lazily when ask registration needs it."""
     return PageReading(
         reading,
         revision,
@@ -644,7 +637,7 @@ def page_reading(
 
 
 def rewritten_bodies(actions: dict) -> dict:
-    """id → (verb, text): the user's standing rewrite of each element whose
+    """id → (verb, text): the user's current rewrite of each element whose
     element declaration records a verb as the body (x-state record kind "body"), as
     replay leaves it. The action projection is read here for the one record kind
     whose state is words rather than markup, so the passage reading can hold
@@ -657,10 +650,10 @@ def rewritten_bodies(actions: dict) -> dict:
 
 
 def generated_children(desired: dict, authored_ids: set) -> dict:
-    """Owner id → the children standing creating actions supply, in log order.
+    """Owner id → the children that creating actions in force supply, in log order.
 
     Each created child is its action's fold unit, so it stands on a coordinate of its
-    own: a later action of another verb leaves it standing, and only an undo or a
+    own: a later action of another verb leaves it in force, and only an undo or a
     retraction of that action takes it away. An authored element with the same id
     already supplies that construction and keeps its authored content.
     """
@@ -684,7 +677,7 @@ def record_members(
     owner: str, projection: StateProjection, byid: dict, spk: dict, registry: dict
 ) -> set:
     """The ids an attribute record on `owner` may name: the authored elements it
-    records, and the children its standing actions created."""
+    records, and the children its actions in force created."""
     authored = {
         oid
         for oid in byid
@@ -696,7 +689,7 @@ def record_members(
 
 
 def retirement_outcomes(actions: dict) -> dict:
-    """widget id → the outcome its standing deciding action names.
+    """widget id → the outcome its deciding action in force names.
 
     Which verb decides is the registry's word: the one whose detail declares the
     reserved `outcome` (`decides`), whose value `x-retired-when` and

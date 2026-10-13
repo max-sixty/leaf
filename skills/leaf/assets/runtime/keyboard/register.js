@@ -19,6 +19,7 @@ import {
   answersTouch,
   bindings,
   checked,
+  declareCommandReadiness,
   touchPresses as pressesOf,
   titleOf,
   descriptionOf,
@@ -59,8 +60,8 @@ const STACK = [
   // Among inner scopes the order is moot, since the modes and the Page Map stand it down
   // themselves.
   "standing",
-  // A task on the user that the walk stands on, whose Done this scope carries.
-  "task",
+  // A to-do on the user that the walk stands on, whose Done this scope carries.
+  "todo",
   "versions",
   "composer",
   "text entry",
@@ -87,6 +88,7 @@ const RUNG_LADDER = [
   "selection", // the selection, or the target a click captured
   "margin options", // the margin entry cluster the user unfolded
   "drawer", // the drawer that holds the edge
+  "floating panel", // the menu or view the floating panel opened above its row
   "narrowing", // the narrowing the user put on the thread list
   "panel", // the thread panel
   "draw mode", // the drawing surface over the page
@@ -124,6 +126,7 @@ const PAGE_COMMANDS = [
   "capture.region.open",
   "design.mode.enter",
   "annotations.toggle",
+  "panel.floating.fold",
   // The reference's own binding. Its place here is nominal: renderShortcutBar gives it the
   // permanent More control instead of spending a hint slot on it.
   COMMAND_REFERENCE,
@@ -150,6 +153,8 @@ const place = (where, name) => {
  * active. The returned function removes that instance's declaration. */
 export function pageScope(name, declaration) {
   place(STACK, name);
+  if (declaration.ready !== undefined)
+    declareCommandReadiness(declaration.rows, declaration.ready);
   const declarations = scopes.get(name) ?? [];
   declarations.push(declaration);
   scopes.set(name, declarations);

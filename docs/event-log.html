@@ -10,13 +10,7 @@
   </head>
   <body class="site-page">
     <main class="layout-column">
-      <nav class="sitenav" aria-label="Site">
-        <a class="brand" href="/">leaf</a>
-        <a href="/examples/">Examples</a>
-        <a href="/how-it-works/">How it works</a>
-        <a href="/extending/">Extending</a>
-        <a href="https://github.com/max-sixty/leaf">GitHub</a>
-      </nav>
+      <nav class="sitenav" aria-label="Site"></nav>
 
       <header id="top">
         <p class="eyebrow">how it works</p>
@@ -151,7 +145,7 @@ flowchart TD
         <h2>Verb declarations</h2>
         <p id="verbs-lede">
           This is everything <code>lf-options</code> tells Leaf about its three verbs
-          and when its question counts as answered.
+          and when its ask counts as answered.
         </p>
         <lf-code id="options-verbs" language="json" data-width="wide">
           <pre>
@@ -207,13 +201,13 @@ flowchart TD
             <code>multiple</code> group.</lf-note
           >
           <lf-note at="17"
-            >The Question's typed answer comes from the standing
+            >The ask's typed answer comes from the current
             <code>choose</code> value.</lf-note
           >
           <lf-note at="18"
             >A single-choice group is answered when an option is selected. A
             multiple-choice group is answered when the user presses Done. Undo can make
-            the Question unanswered again.</lf-note
+            the ask unanswered again.</lf-note
           >
         </lf-code>
         <p id="coordinate">
@@ -235,56 +229,7 @@ flowchart TD
                 <th>Record in markup</th>
               </tr>
             </thead>
-            <tbody>
-              <tr>
-                <td><code>lf-suggestion</code></td>
-                <td><code>decide</code></td>
-                <td>widget</td>
-                <td>none</td>
-              </tr>
-              <tr>
-                <td><code>lf-options</code></td>
-                <td><code>choose</code></td>
-                <td>widget</td>
-                <td><code>chosen</code> attribute</td>
-              </tr>
-              <tr>
-                <td><code>lf-options</code></td>
-                <td><code>add</code></td>
-                <td>option</td>
-                <td>creates an <code>lf-option</code></td>
-              </tr>
-              <tr>
-                <td><code>lf-options</code></td>
-                <td><code>answer</code></td>
-                <td>widget</td>
-                <td>none</td>
-              </tr>
-              <tr>
-                <td><code>lf-board</code></td>
-                <td><code>move</code></td>
-                <td>unit</td>
-                <td>position in an <code>lf-column</code></td>
-              </tr>
-              <tr>
-                <td><code>lf-draft</code></td>
-                <td><code>edit</code></td>
-                <td>widget</td>
-                <td>body</td>
-              </tr>
-              <tr>
-                <td><code>lf-playground</code></td>
-                <td><code>choose</code></td>
-                <td>widget</td>
-                <td>none</td>
-              </tr>
-              <tr>
-                <td><code>lf-visual-review</code></td>
-                <td><code>review</code></td>
-                <td>case</td>
-                <td>none</td>
-              </tr>
-            </tbody>
+            <tbody></tbody>
           </table>
         </details>
       </section>
@@ -347,7 +292,7 @@ flowchart TD
              page and printing its log with `leaf page events PAGE`. The suite replays
              these commands through the append door and fails, printing the records
              to paste here, when the door would store anything different:
-             tests/test_product_page.py::test_the_event_log_page_shows_the_records_the_door_writes -->
+             tests/model/test_product_page.py::test_the_event_log_page_shows_the_records_the_door_writes -->
         <lf-code id="captured-log" language="json" data-width="wide">
           <pre>
 {"kind": "action", "revision": 1, "widget": "ship", "action": "add",
@@ -363,7 +308,7 @@ flowchart TD
      "record": null,
      "creates": {"child": "lf-option", "words": "text"},
      "detail": {"type": "object",
-       "properties": {"option": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+       "properties": {"option": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "minLength": 1},
          "text": {"type": "string", "minLength": 1}},
        "required": ["option", "text"],
        "additionalProperties": false}},
@@ -381,7 +326,9 @@ flowchart TD
      "record": {"kind": "attribute", "attr": "chosen"},
      "creates": null,
      "detail": {"type": "object",
-       "properties": {"value": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}},
+       "properties": {"value": {"type": "array",
+           "items": {"type": "string", "minLength": 1},
+           "uniqueItems": true}},
        "required": ["value"],
        "additionalProperties": false}},
    "answer": null},
@@ -398,7 +345,9 @@ flowchart TD
      "record": {"kind": "attribute", "attr": "chosen"},
      "creates": null,
      "detail": {"type": "object",
-       "properties": {"value": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}},
+       "properties": {"value": {"type": "array",
+           "items": {"type": "string", "minLength": 1},
+           "uniqueItems": true}},
        "required": ["value"],
        "additionalProperties": false}},
    "answer": null},
@@ -430,12 +379,12 @@ flowchart TD
             >Leaf generates the eight-hex <code>id</code>; <code>seq</code> is the
             record's line in the log.</lf-note
           >
-          <lf-note at="35"
-            >This pick makes the Question's answered condition hold, so it completes the
-            Question. <code>null</code> means it closes no thread; a group with a
+          <lf-note at="37"
+            >This pick makes the ask's answered condition hold, so it completes the ask.
+            <code>null</code> means it closes no thread; a group with a
             <code>resolves</code> attribute would name one here.</lf-note
           >
-          <lf-note at="55"
+          <lf-note at="59"
             >An undo names the gesture to withdraw. Leaf excludes that gesture when
             deriving state, and both records stay in the log.</lf-note
           >

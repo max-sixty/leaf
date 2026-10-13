@@ -57,7 +57,7 @@ const declaredAncestors = (element) => {
 
 // Whether an element stands strictly inside an x-exhibit widget in the authored
 // document, so what it holds is quoted material rather than controls (`quoted` below).
-// The exhibit itself is no mention, as the server reads it (`questions.quoted_in`);
+// The exhibit itself is no mention, as the server reads it (`asks.quoted_in`);
 // `tests/exhibit_cases.json` holds both runtimes to one set of cases. Asked of
 // authored parents, so a widget layout has moved still answers for where it was
 // written.
@@ -76,14 +76,14 @@ export function stageWidgetDescriptors(
   for (const element of candidates(initialSource(root))) {
     if (!element.id) continue;
     const live = initialOrigin(element);
-    const standing = byElement.get(live);
+    const existing = byElement.get(live);
     if (
-      standing &&
-      standing.document.kind === documentContext.kind &&
+      existing &&
+      existing.document.kind === documentContext.kind &&
       (documentContext.kind === "thread" ||
-        standing.document.revision === documentContext.revision)
+        existing.document.revision === documentContext.revision)
     ) {
-      captured.set(element.id, standing);
+      captured.set(element.id, existing);
       continue;
     }
     const declaration = structuredClone(runtime.registry[element.localName]);

@@ -1,6 +1,6 @@
 """Semantic work with the live claim/turn evidence used by every transport.
 
-The durable reading remains separate from activity's liveness and response binding.
+The durable reading remains separate from activity's liveness and reply reservations.
 Delivery and status never need browser serialization, external data, or history.
 A serving context holds this result once; its browser selects the same objects.
 """
@@ -9,7 +9,7 @@ from typing import NamedTuple
 
 from ..activity import canonical_activity, canonical_stream_reply
 from ..projection import FrozenThreadReading, page_reading
-from ..tasks import TaskReading
+from ..todos import TodoReading
 from ..work_reading import WorkReading
 
 
@@ -106,7 +106,7 @@ def work_state(
     revision_reader=None,
 ) -> WorkState:
     """Fold exact admitted inputs, then enrich once with claim and stream evidence."""
-    log = TaskReading(events)
+    log = TodoReading(events)
     page = (
         page_reading(
             source,
@@ -129,8 +129,8 @@ def work_state(
         now,
         stream.get("activity"),
         reply,
-        stream.get("reply_bindings"),
-        task_reading=log,
+        stream.get("reply_reservations"),
+        todo_reading=log,
     )
     workflows = (
         served_workflows(activity["workflows"], durable.thread)

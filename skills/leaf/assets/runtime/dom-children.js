@@ -1,42 +1,25 @@
 /* Retained DOM child reconciliation. */
 import { diffArrays } from "/vendor/jsdiff.esm.js";
-import { render as renderTemplate } from "/vendor/browser-runtime.js";
-import { holdFocus } from "./focus.js";
 import { move } from "./dom-move.js";
 
-const detach = (node) => node.remove();
-
-// Engines without native state-preserving moves still need their editor restored.
-export function render(value, container, options) {
-  const restore = holdFocus(container);
-  const part = renderTemplate(value, container, options);
-  restore?.();
-  return part;
-}
-
-// Destructive replacement ends any template ownership, including directives. Lit's
-// public RootPart.setConnected(false) disposes that lifetime, but render() has no
-// public reset API. Its pinned, deliberately unminified cache key must be discarded
-// with the markers so either native or template recovery can start afresh. A bounded
-// render stores its cache on renderBefore, a direct child, rather than the container.
-export function replaceChildren(container, ...nodes) {
-  for (const owner of [container, ...container.childNodes]) {
-    const part = owner._$litPart$;
-    if (!part || (owner !== container && part.parentNode !== container)) continue;
-    part.setConnected(false);
-    delete owner._$litPart$;
-  }
-  container.replaceChildren(...nodes);
-}
-
 // Make `parent`'s children `nodes`, in order, without moving a node already in place.
-// Removing stale nodes first leaves each following survivor exactly one place forward.
-// One removed is its caller's to hand on, since only the caller knows what stands in
-// for it.
-export function setChildren(parent, nodes, remove = detach) {
-  const keep = new Set(nodes);
-  for (const child of [...parent.childNodes]) if (!keep.has(child)) remove(child);
-  order(parent, nodes);
+export function setChildren(parent, nodes) {
+  setChildLists([[parent, nodes]]);
+}
+
+// `setChildren` for several `[parent, nodes]` lists at once, where a node can change
+// lists: it moves straight from the parent it leaves to the one it joins, keeping the
+// user standing in it, where one list at a time would remove it before the next placed
+// it. Ordering walks past a stale node, so no survivor moves for it; once every list is
+// placed, what still stands in a list's parent is a node no list holds, and is removed.
+// Lists are placed in the order given, so name a parent before any list inside it: a
+// node then moves into a parent that is already connected.
+export function setChildLists(lists) {
+  for (const [parent, nodes] of lists) orderChildren(parent, nodes);
+  for (const [parent, nodes] of lists) {
+    const keep = new Set(nodes);
+    for (const child of [...parent.childNodes]) if (!keep.has(child)) child.remove();
+  }
 }
 
 // Order this renderer's children without taking ownership of their siblings.
@@ -78,7 +61,7 @@ function order(parent, nodes, passed = () => false) {
   }
 }
 
-/* Apply the difference between two authored revisions to the page standing between them.
+/* Apply the difference between two authored revisions to the live page between them.
 
    `setChildren` answers for a list its caller already holds. This answers a question the
    live tree cannot be asked at all: what did the author change. Diffing the page against
@@ -298,8 +281,8 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
     const held = before && rules.pairs.get(before);
     // An unmatched source node is new, and so is one whose live counterpart has left
     // every tree. One a page module moved elsewhere is still that element: the author's
-    // change reaches it where it stands, and placement leaves it there. Standing is a
-    // parent rather than a connection, since a template's content is never connected.
+    // change reaches it where it stands, and placement leaves it there. Being there is having
+    // a parent rather than a connection, since a template's content is never connected.
     const live = held?.parentNode ? held : null;
     if (!live) {
       placed.push(rules.arrive(node, liveParent));
@@ -317,8 +300,8 @@ function patchChildren(liveParent, beforeParent, afterParent, rules) {
     rules.pairs.set(node, live);
     if (live.parentNode === liveParent) placed.push(live);
   }
-  // `setChildren`'s ordering pass, walking past what the runtime put here. A node
-  // already standing in its place is left alone, which is the whole point: the common
+  // `orderChildren`'s ordering pass, walking past what the runtime put here. A node
+  // already in its place is left alone, which is the whole point: the common
   // revision moves nothing at all. A kept node the revision moves keeps the user
   // standing in it, as nothing else would: the carry restores only replaced nodes.
   order(liveParent, placed, rules.generated);

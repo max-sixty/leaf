@@ -11,7 +11,7 @@
  * synchronously settles the visual on a state whose inventory holds that part,
  * including cancelling a pending replacement of an already visible destination. A declared
  * part missing from the current inventory then stands in for the whole visual until
- * travel or the render gate asks for it, rather than detaching. A label reader can
+ * travel asks for it, rather than detaching. A label reader can
  * name an absent part in Threads without changing the visual's state. */
 
 import { exceptionText } from "./layer-client.js";
@@ -40,14 +40,6 @@ export function registerVisualParts(
   read,
   { reveal = null, label = null } = {},
 ) {
-  if (!(source instanceof Element))
-    throw new TypeError("Visual parts need an Element source");
-  if (typeof read !== "function")
-    throw new TypeError("Visual parts need an ordered reading function");
-  if (reveal !== null && typeof reveal !== "function")
-    throw new TypeError("A visual part reveal must be a function");
-  if (label !== null && typeof label !== "function")
-    throw new TypeError("A visual part label must be a function");
   if (registrations.has(source))
     throw new TypeError("A visual source may register its parts only once");
   registrations.set(source, { read, reveal, label });
@@ -56,28 +48,14 @@ export function registerVisualParts(
 
 const hasVisualParts = (source) => registrations.has(source);
 
-/** How one visual's `x-visual` declaration admits the part ids its module registers.
- *
- * `declared` is the ids authored in its `parts` attribute, which the registration must
- * be able to show; `prefixes` declares kinds rather than ids, so it names none. `rank(id)`
- * is an id's place in the declaration, which orders the visual's targets: its authored
- * token's index, 0 for a prefixed id or an `all` sentinel admitting the complete
- * inventory so those keep registration order, and -1 for an id it does not admit. Null for a
- * declaration that names no parts (`whole`, or none). Only an admitted id becomes a
- * durable coordinate; the `registered…` readers below report the whole inventory. */
+/** The part ids admitted by a whole-inventory opt-in or generated-id prefixes.
+ * Registered inventory order is also the order of the visual's targets. */
 export function visualPartAdmission(visual, declaration) {
   if (!declaration || typeof declaration !== "object") return null;
   const { prefixes } = declaration;
   if (prefixes)
-    return {
-      declared: [],
-      rank: (id) => (prefixes.some((p) => id !== p && id.startsWith(p)) ? 0 : -1),
-    };
-  const value = visual.getAttribute(declaration.parts)?.trim();
-  if (declaration.all && value === declaration.all)
-    return { declared: [], rank: (id) => (id && !/\s/.test(id) ? 0 : -1) };
-  const declared = value?.split(/\s+/).filter(Boolean) ?? [];
-  return { declared, rank: (id) => declared.indexOf(id) };
+    return (id) => prefixes.some((prefix) => id !== prefix && id.startsWith(prefix));
+  return visual.hasAttribute(declaration.parts) ? () => true : null;
 }
 
 /** Whether a part absent from the current inventory can still be drawn on request. */
@@ -91,55 +69,19 @@ export function revealRegisteredVisualPart(source, id) {
   return registeredVisualPart(source, id);
 }
 
-/** Why one source's registration breaks its `x-visual` declaration: an authored part
- * it does not register, and under `prefixes` a registered id no prefix admits. Under
- * `parts` the module may register more than the author named unless the declaration
- * requires a complete list. The current state's inventory is read; a declared part it lacks
- * is a problem only when the visual cannot reveal it, and `unrevealedVisualParts` asks
- * the reveal once nothing else needs the state the page opened in. */
+/** Invalid registrations or ids outside a provider's declared prefixes. */
 export function visualPartProblems(source, declaration) {
-  const admission = visualPartAdmission(source, declaration);
-  if (!admission) return [];
-  if (!hasVisualParts(source)) return ["did not call registerVisualParts"];
+  if (!declaration || typeof declaration !== "object") return [];
+  if (!hasVisualParts(source)) return [{ kind: "unregistered" }];
   try {
-    const ids = registeredVisualParts(source).map((part) => part.id);
-    const missing = revealsVisualParts(source)
-      ? []
-      : admission.declared.filter((id) => !ids.includes(id));
+    const parts = registeredVisualParts(source);
+    const admission = visualPartAdmission(source, declaration);
     const outside = declaration.prefixes
-      ? ids.filter((id) => admission.rank(id) < 0)
+      ? parts.filter((part) => !admission(part.id)).map((part) => part.id)
       : [];
-    const unlisted =
-      declaration.complete && admission.declared.length
-        ? ids.filter((id) => admission.rank(id) < 0)
-        : [];
-    return [
-      ...(missing.length
-        ? [`did not register declared parts ${missing.join(", ")}`]
-        : []),
-      ...(outside.length
-        ? [`registered parts its prefixes do not admit ${outside.join(", ")}`]
-        : []),
-      ...(unlisted.length
-        ? [`leaves nameable parts unlisted ${unlisted.join(", ")}`]
-        : []),
-    ];
+    return outside.length ? [{ kind: "unadmitted-parts", parts: outside }] : [];
   } catch (error) {
-    return [exceptionText(error, "could not read visual parts")];
-  }
-}
-
-// Settle each declared part. This moves the visual off the
-// state it opened in, so a caller asks it last.
-export function unrevealedVisualParts(source, declaration) {
-  const declared = visualPartAdmission(source, declaration)?.declared ?? [];
-  try {
-    const missing = declared.filter((id) => !revealRegisteredVisualPart(source, id));
-    return missing.length
-      ? [`did not reveal declared parts ${missing.join(", ")}`]
-      : [];
-  } catch (error) {
-    return [exceptionText(error, "could not reveal visual parts")];
+    return [{ kind: "unreadable", error: exceptionText(error) }];
   }
 }
 
@@ -175,6 +117,16 @@ export function registeredVisualParts(source) {
   });
 }
 
+// An invalid package inventory is reported by visualPartProblems at page check.
+// The live page can still upgrade and expose its other controls for that reading.
+export function usableVisualParts(source) {
+  try {
+    return registeredVisualParts(source);
+  } catch {
+    return [];
+  }
+}
+
 export const registeredVisualPart = (source, id) =>
   registeredVisualParts(source).find((part) => part.id === id) ?? null;
 
@@ -185,9 +137,9 @@ export const registeredVisualPartLabel = (source, id) => {
   return words(label) || null;
 };
 
-export function registeredVisualPartAt(source, target, admits = () => true) {
+export function usableVisualPartAt(source, target, admits = () => true) {
   const byElement = new Map(
-    registeredVisualParts(source)
+    usableVisualParts(source)
       .filter(admits)
       .map((part) => [part.element, part]),
   );

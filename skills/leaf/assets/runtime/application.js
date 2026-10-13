@@ -12,7 +12,7 @@ import {
   presentDocument,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
-import { readQuestions } from "./questions/model.js";
+import { readAsks } from "./asks/model.js";
 import { paintKeys } from "./keyboard/scopes.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
@@ -38,9 +38,9 @@ import { showHeld } from "./thread/held-news.js";
 import { threadBox as buildThreadBox } from "./thread/box.js";
 import { isMessageEvent } from "./pending/model.js";
 import {
-  placeThreads as registerConsumer,
   placePageThreads as registerPageConsumer,
   renderSurfaces,
+  watchThreadSurfaces as watchSurfaces,
 } from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
 import { createStateFeed } from "./state-feed.js";
@@ -55,7 +55,8 @@ const app = () => {
 
 export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
-  setPresentationFailureReporter(reportPageError);
+  // A renderer's rejection reaches the coordinator after a paint may have reported it.
+  setPresentationFailureReporter(reportCarried);
   const { ledger } = commandDispatch;
   watchPendingTraffic(applicationState.select((root) => root.effective.sending));
   const hasPending = () => ledger.snapshot().length > 0;
@@ -91,7 +92,7 @@ export function mountApplication(dependencies) {
         ),
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "thread", "questions", "queue"],
+        ["projection:chrome", "thread", "asks", "queue"],
         stillCurrent,
       ),
     ]);
@@ -100,7 +101,7 @@ export function mountApplication(dependencies) {
     const released = ledger
       .releasable()
       .filter((entry) => attempts.has(entry.event.attempt));
-    // Widget updates and the thread, projection, and Question owners have now committed
+    // Widget updates and the thread, projection, and ask owners have now committed
     // this surviving semantic reading. Paint its command surface while the same pending
     // records still stand; removing an accounted record is then a semantic no-op.
     if (!released.length) return false;
@@ -250,10 +251,10 @@ export function mountApplication(dependencies) {
   };
 
   const annotations = createAnnotationInventory({
-    readQuestions,
+    readAsks,
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
-    goToQuestion: dependencies.annotationCommands.goToQuestion,
+    goToAsk: dependencies.annotationCommands.goToAsk,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);
@@ -344,26 +345,21 @@ export function mountApplication(dependencies) {
       }),
     read,
   });
-  const registerThreadPanel = ({ controller, threadsBox, view, required = false }) => {
-    let registration;
-    registration = threadPresenter.registerPanel({
+  const registerThreadPanel = ({ controller, threadsBox, view }) =>
+    threadPresenter.registerPanel({
       controller,
       threadsBox,
-      required,
       view: {
         ...view,
         card: {
           ...cardView,
-          nativeAuthored: (message) =>
-            required && !threadPresenter.primaryOwnsMessage(message),
+          nativeAuthored: (message) => !threadPresenter.primaryOwnsMessage(message),
           travel: { ...cardView.travel, ...view.travel },
         },
         placedAt: dependencies.anchorPlacement.placedAt,
-        repaintThread: required ? refreshThread : () => registration.update(),
+        repaintThread: refreshThread,
       },
     });
-    return registration;
-  };
 
   const accountPending = (receipts) => {
     const left = ledger.present(receipts);
@@ -474,8 +470,9 @@ export function mountApplication(dependencies) {
       throw error;
     }
   };
-  const placeThreads = (owner, render) =>
-    registerConsumer(owner, render, threadSurfaceCommands);
+  // The widgets declaring x-thread-surface, registered for as long as they stand, once
+  // the registry that names them has loaded.
+  const watchThreadSurfaces = () => watchSurfaces(threadSurfaceCommands);
   const placePageThreads = (owner, render) => {
     requirePageAnnotations();
     return registerPageConsumer(owner, render, threadSurfaceCommands);
@@ -483,11 +480,21 @@ export function mountApplication(dependencies) {
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
-  const registerThreadPresentation = (owner, { render, reveal }) => {
-    if (typeof reveal !== "function")
-      throw new TypeError("A Thread presentation needs a reveal callback");
-    const reader = createPrimaryReader(owner, render, inlineView, () =>
-      threadPresenter.present(),
+  // One reader is the page's primary at a time (thread/destination.js). Leaf's own
+  // chrome registers one that yields (`registerChromeThreadPresentation`, which the
+  // runtime alone is handed): a reader the page's package registers
+  // takes the place while it stands, since the author's presentation outranks Leaf's
+  // defaults, and the chrome's returns when it leaves. `primary` says which holds it. The
+  // chrome's `yielded`, asked before its reader goes, returns how to hand the reader
+  // taking its place the conversation it shows, which runs once the package holds its
+  // registration, as that reader may ask it to present.
+  const attachPresentation = (owner, { render, reveal, replyBox = null }) => {
+    const reader = createPrimaryReader(
+      owner,
+      render,
+      inlineView,
+      () => threadPresenter.present(),
+      replyBox,
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;
@@ -498,17 +505,66 @@ export function mountApplication(dependencies) {
       reader.unregister();
       throw error;
     }
+    return {
+      reader,
+      detach() {
+        detachDestination();
+        detachPresentation();
+      },
+    };
+  };
+  let yielding = null;
+  let authored = null;
+  const restoreYielding = () => {
+    if (yielding && !yielding.attached)
+      yielding.attached = attachPresentation(yielding.owner, yielding.spec);
+  };
+  const presentThreads = (owner, spec, yields) => {
+    const entry = { owner, spec, attached: null };
+    if (yields) {
+      if (yielding)
+        throw new Error("The page already has a yielding Thread presentation");
+      yielding = entry;
+      // A package's reader registered first keeps the place.
+      if (!authored) entry.attached = attachPresentation(owner, spec);
+    } else {
+      const displaced = yielding?.attached;
+      const handOff = displaced ? yielding.spec.yielded() : null;
+      if (displaced) {
+        displaced.detach();
+        yielding.attached = null;
+      }
+      try {
+        entry.attached = attachPresentation(owner, spec);
+      } catch (error) {
+        if (displaced) restoreYielding();
+        throw error;
+      }
+      authored = entry;
+      if (handOff)
+        queueMicrotask(() => {
+          if (authored === entry) handOff();
+        });
+    }
     let active = true;
     return Object.freeze({
+      get primary() {
+        return Boolean(entry.attached);
+      },
       update: ({ release = false } = {}) => {
-        if (release) reader.release();
+        if (release) entry.attached?.reader.release();
         return threadPresenter.present();
       },
       unregister() {
         if (!active) return;
         active = false;
-        detachDestination();
-        detachPresentation();
+        entry.attached?.detach();
+        entry.attached = null;
+        if (yielding === entry) yielding = null;
+        if (authored === entry) {
+          authored = null;
+          restoreYielding();
+        }
       },
     });
   };
@@ -528,14 +584,16 @@ export function mountApplication(dependencies) {
     read,
     mountThread: threadPresenter.mount,
     mountRead: read.mount,
-    registerThreadPresentation,
+    registerThreadPresentation: (owner, spec) => presentThreads(owner, spec, false),
+    registerChromeThreadPresentation: (owner, spec) =>
+      presentThreads(owner, spec, true),
     navigateToDatum: dependencies.anchorTravel.navigateToDatum,
     post,
     projectData: dataProjection.projectData,
     readAndApply: feed.readAndApply,
     refreshThread,
     presentThread,
-    placeThreads,
+    watchThreadSurfaces,
     placePageThreads,
     consumeAnnotations,
     mountThreadViews,
@@ -543,22 +601,21 @@ export function mountApplication(dependencies) {
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     queueActions,
-    openQuestion(id) {
-      const question = readQuestions().all.find((item) => item.id === id);
-      if (!question) return Promise.resolve(false);
-      if (question.source.kind === "approval")
-        return queueActions.open(JSON.stringify(["question", question.id]));
-      if (question.source.kind === "reply") {
-        showHeld(question.thread);
-        return threadDestinations.openPageThread(question.message, {
+    openAsk(id) {
+      const ask = readAsks().all.find((item) => item.id === id);
+      if (!ask) return Promise.resolve(false);
+      if (ask.source.kind === "approval")
+        return queueActions.open(JSON.stringify(["ask", ask.id]));
+      if (ask.source.kind === "reply") {
+        showHeld(ask.thread);
+        return threadDestinations.openPageThread(ask.message, {
           part: "message",
         });
       }
-      return dependencies.annotationCommands.goToQuestion(
-        question,
-        readQuestions().all,
-      );
+      return dependencies.annotationCommands.goToAsk(ask, readAsks().all);
     },
+    // The Questions walk within one region (queue-walk.js), the walk an `lf-tally` steps.
+    nextAsk: (options) => dependencies.nextAskWithin(options),
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,
   };
@@ -578,7 +635,6 @@ export const post = commandDispatch.post;
 export const projectData = (...args) => app().projectData(...args);
 export const readAndApply = (...args) => app().readAndApply(...args);
 export const refreshThread = (...args) => app().refreshThread(...args);
-export const placeThreads = (...args) => app().placeThreads(...args);
 export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 export const mountThreadViews = (...args) => app().mountThreadViews(...args);
@@ -593,8 +649,9 @@ export const threadActions = Object.freeze({
   reopen: (...args) => app().threadActions.reopen(...args),
   setReaction: (...args) => app().threadActions.setReaction(...args),
 });
-export const questionActions = Object.freeze({
-  open: (...args) => app().openQuestion(...args),
+export const askActions = Object.freeze({
+  open: (...args) => app().openAsk(...args),
+  next: (...args) => app().nextAsk(...args),
 });
 export const queueActions = Object.freeze({
   open: (...args) => app().queueActions.open(...args),

@@ -37,8 +37,9 @@ from .files import (
     version_num,
     version_revisions,
 )
+from .findings import Rejected
 from .interaction_log import append_interactions, client_records
-from .layer import incompatible_layer
+from .layer import incompatible_layer, incompatible_revision, running_leaf, same_leaf
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
 from .passages import SourceReading
@@ -158,6 +159,7 @@ def page_delivery(
     page_root: str = "",
     asset_root: str | None = None,
     share_url: str | None = None,
+    probe: str | None = None,
 ) -> Delivery:
     """How an HTTP host delivers a page's document: supervised before anything loads.
 
@@ -168,6 +170,11 @@ def page_delivery(
     themselves. A keyed top-level page declares its share address here, including
     on a bare-URL reload. Disposable samples and public website documents have no
     such address. `write_live_shell` delivers published documents the same way.
+
+    `probe` is where a tab asks whether its source has moved on to another layer or
+    release (`layer-client.js`, `sourceMovedOn`, and `bootstrap.js`'s startup
+    recovery), so its answer must name the layer or release a fresh document would
+    start under. It defaults to the kernel's registry, whose answer names its release.
     """
     assets = asset_root if asset_root is not None else page_root
     address = DeliveryAddress(page_root, assets)
@@ -188,7 +195,7 @@ def page_delivery(
         f'data-lf-layer="{layer_id}"{release}{share} '
         f'data-lf-page-root="{html.escape(page_root, quote=True)}" '
         f'data-lf-entry="{html.escape(address("/leaf.js"), quote=True)}" '
-        f'data-lf-probe="{html.escape(address("/registry.json"), quote=True)}">'
+        f'data-lf-probe="{html.escape(probe or address("/registry.json"), quote=True)}">'
         f"{bootstrap}</script>"
     )
 
@@ -411,8 +418,15 @@ class PageEndpoint:
         write this response itself made, and the tab would be told to ask again for
         what it was just handed. Between the two, the worst case is a token already
         stale on arrival, which costs one more request and no news.
+
+        Where the Leaf this server runs is another than the one that vendored the
+        page, `leaf` names it, and the banner shows it beside the page's own
+        (`AGENTS.md`, "Pages across Leaf updates").
         """
-        return self._state_service().page_state(view_revision)
+        state = self._state_service().page_state(view_revision)
+        if not same_leaf(state["layer"].get("producer", {}), self.server.leaf):
+            state["leaf"] = self.server.leaf
+        return state
 
     def page_browser_view(self, view_revision: int, through_seq: int) -> dict:
         """One revision projected at an exact already-observed log boundary."""
@@ -693,7 +707,7 @@ class PageEndpoint:
     def _refuse(self, error: str, status: int = 400) -> Response:
         """Answer a refusal in the shape spoken by the route that produced it."""
         if self._speaks_events():
-            status, body = event_rejection(self.posted, error, status)
+            status, body = event_rejection(self.posted, Refused(error), status)
             return self._json(body, status)
         return self._json({"error": error}, status)
 
@@ -784,7 +798,6 @@ class PageEndpoint:
             self.server,
             parent=self,
             path=inside or "/",
-            passive=sample.passive,
             asset_root=sample.asset_root,
             page_dir=sample.directory,
             layer_identity=sample.layer,
@@ -858,7 +871,10 @@ class PageEndpoint:
     def _serve_document(
         self, artifact: RevisionArtifact, revision: int, version: int | None
     ) -> Response:
-        """Serve one immutable document under the current delivery boundary."""
+        """Serve one immutable document under the current delivery boundary, unless
+        it was saved at another protocol (`incompatible_revision`)."""
+        if refusal := incompatible_revision(revision, artifact.registry):
+            return self._json({"error": str(refusal)}, 409)
         self.response_layer = artifact.registry["$layer"]["generation"]
         projected = compose_document(
             artifact.html.decode("utf-8"),
@@ -883,6 +899,11 @@ class PageEndpoint:
             release_id=self.release,
             page_root=self.page_root,
             asset_root=self._document_asset_root(revision),
+            probe=(
+                self.page_root.rstrip("/") + "/registry.json"
+                if self.release is None
+                else None
+            ),
             share_url=(
                 str(
                     self.request.url.replace(
@@ -1139,11 +1160,7 @@ class PageEndpoint:
         entries = self.posted.get("entries")
         if not isinstance(session, str) or not session:
             return self._refuse("interaction requires a nonempty session")
-        if (
-            not isinstance(entries, list)
-            or not entries
-            or any(not isinstance(entry, dict) for entry in entries)
-        ):
+        if not isinstance(entries, list) or not entries:
             return self._refuse("interaction requires a nonempty array of entries")
         # Every sample directory is temporary, including a nested sample's
         # parent. Retain all descendants in the authored page's trace, with
@@ -1163,15 +1180,11 @@ class PageEndpoint:
 
     def _create_sample(self) -> Response:
         template = self.posted.get("template")
-        passive = self.posted.get("passive", False)
-        if (
-            not isinstance(template, str)
-            or not template
-            or not isinstance(passive, bool)
-        ):
-            return self._refuse(
-                "sample requires a template id and a boolean passive value"
-            )
+        if not isinstance(template, str) or not template:
+            return self._refuse("sample requires a template id")
+        message = self.posted.get("message")
+        if message is not None and (not isinstance(message, str) or not message):
+            return self._refuse("a sample's message must be a message id")
         revision = self.layer_revision
         if revision is None:
             return self._refuse("sample requires an active parent revision")
@@ -1187,7 +1200,7 @@ class PageEndpoint:
                 events,
                 data,
                 template,
-                passive,
+                message,
                 asset_root,
             )
         except ValueError as error:
@@ -1252,7 +1265,6 @@ class SampleEndpoint(PageEndpoint):
         *,
         parent: PageEndpoint,
         path: str,
-        passive: bool,
         asset_root: str | None,
         **binding,
     ) -> None:
@@ -1260,7 +1272,6 @@ class SampleEndpoint(PageEndpoint):
         self.parent = parent
         # The address inside the child, below the capability its parent matched.
         self.path = path
-        self.passive = passive
         self.asset_root = asset_root
 
     def authorized(self) -> bool:
@@ -1282,17 +1293,16 @@ class SampleEndpoint(PageEndpoint):
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         # Every child arrives inert, so its startup cannot take focus from the page;
-        # the host releases a live one once it presents. A passive replay never takes
-        # input. Whether the child lays out as a block or a window is its frame's to
-        # say (sample.js), which its bootstrap asks before it paints.
+        # the host releases it once it presents. Whether the child lays out as a
+        # block or a window is its frame's to say (sample.js), which its bootstrap
+        # asks before it paints.
         return replace(
             super()._delivery(artifact, revision),
             html_attributes={
                 "data-lf-user-scope": self.page_root + "/",
                 "data-lf-sample": "",
             },
-            body_attributes={"inert": ""}
-            | ({"data-lf-sample-passive": ""} if self.passive else {}),
+            body_attributes={"inert": ""},
         )
 
 
@@ -1309,7 +1319,7 @@ def page_endpoint(
     request: they are facts about the vendored page this server was started over. So
     is whether this Leaf can serve that page at all: every one-page server, durable
     or temporary, passes here before it binds, and refuses naming the re-vendor when
-    the page was vendored at another protocol (`incompatible_layer`).
+    the page's layer is one this Leaf cannot serve (`incompatible_layer`).
     The key has no default: every server over a page directory is reachable by
     whatever reached the machine, so there is no construction that should quietly go
     without one."""
@@ -1324,7 +1334,7 @@ def page_endpoint(
         else load_registry(page_dir)
     )
     if refusal := incompatible_layer(page_dir, registry):
-        raise Refused(refusal)
+        raise Rejected([refusal])
     return partial(
         endpoint,
         page_dir=page_dir,
@@ -1343,9 +1353,12 @@ def page_app(endpoint, server):
     between two of them. The routes are ordinary blocking code — page transactions,
     log reads, atomic writes — so they run on the serving loop's worker threads.
     Each answer completes rather than keeping a per-document HTTP connection open.
+    The Leaf the server runs is read here, as it is built, rather than at its first
+    request, after which its checkout may have moved on (`layer.running_leaf`).
     """
 
     server.samples = Samples()
+    server.leaf = running_leaf()
 
     async def app(scope, receive, send) -> None:
         if scope["type"] != "http":

@@ -73,7 +73,7 @@ test("workflow labels retain exact input progress and positive conditions", () =
   );
 });
 
-test("thread attention gives a standing user Question precedence over agent work", () => {
+test("thread attention gives an open user ask precedence over agent work", () => {
   const work = workflow("a", "working");
   const recovery = workflow("recovery", "sent", {
     condition: { kind: "failed" },
@@ -82,31 +82,31 @@ test("thread attention gives a standing user Question precedence over agent work
   const thread = {
     resolved: null,
     workflows: [recovery, work],
-    attention: { kind: "needs_user", reason: "question", workflow: "recovery" },
+    attention: { kind: "needs_user", reason: "ask", workflow: "recovery" },
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "needs_user",
-    label: "On you to answer",
+    label: "My turn to answer",
     workflow: recovery,
     secondary: "Working",
   });
 });
 
-test("a thread an open task holds waits on the agent under the task's title", () => {
-  // The server's reading once the reply settled the comment and the task stood.
+test("a thread an open to-do holds waits on the agent under the to-do's title", () => {
+  // The server's reading once the reply settled the comment and the to-do stood.
   const thread = {
     resolved: null,
     workflows: [],
     attention: {
       kind: "waiting",
-      reason: "task",
+      reason: "todo",
       workflow: null,
-      task: { id: "t1", title: "Rebuild the banner quieter" },
+      todo: { id: "t1", title: "Rebuild the banner quieter" },
     },
   };
   assert.deepEqual(threadAttention(thread), {
     kind: "waiting",
-    label: "Task open",
+    label: "To-do open",
     workflow: null,
     secondary: "Rebuild the banner quieter",
   });
@@ -120,7 +120,7 @@ test("a frozen move that owes nothing leaves an owed thread on the user alone", 
   const [record] = readThreadRecords(threads, FROZEN_BOARD, new Map(), workflows);
   assert.deepEqual(threadAttention(record), {
     kind: "needs_user",
-    label: "On you to answer",
+    label: "My turn to answer",
     workflow: null,
     secondary: "",
   });
@@ -187,10 +187,10 @@ test("a thread the user is still sending waits on that send", () => {
   });
 });
 
-test("a local prose answer clears accepted user attention until refusal", () => {
+test("a pending reply shows on its message and leaves whose turn it is to the log", () => {
   const thread = servedThread(
     [{ id: "root", kind: "comment", author: "agent", text: "Which one?", ts: "now" }],
-    { attention: { kind: "needs_user", reason: "recovery", workflow: "failed" } },
+    { attention: { kind: "needs_user", reason: "resend", workflow: "failed" } },
   );
   const reply = {
     id: "pending:retry",
@@ -215,18 +215,18 @@ test("a local prose answer clears accepted user attention until refusal", () => 
       workflow("pending:retry", "sending"),
     ],
   );
-  assert.deepEqual(record.attention, {
-    kind: "waiting",
-    reason: "workflow",
-    workflow: "pending:retry",
-  });
-  assert.equal(awaitsUser(record), false);
-  assert.equal(awaitsAgent(record), true);
-  assert.equal(awaitsUser({ ...record, attention: thread.attention }), true);
-  assert.equal(awaitsAgent({ ...record, attention: thread.attention }), false);
+  assert.deepEqual(
+    record.msgs.map((message) => [message.id, message.workflows.map(({ id }) => id)]),
+    [
+      ["root", []],
+      ["pending:retry", ["pending:retry"]],
+    ],
+  );
+  assert.deepEqual(record.attention, thread.attention);
+  assert.equal(awaitsUser(record), true);
 });
 
-test("a local rewrite shows on its message and hands a closed thread to the agent", () => {
+test("a local rewrite shows on its message and reopens a closed thread", () => {
   const asked = {
     id: "root",
     kind: "comment",
@@ -275,11 +275,10 @@ test("a local rewrite shows on its message and hands a closed thread to the agen
     [["pending:rewrite"], []],
   );
   assert.equal(record.resolved, null);
-  assert.equal(awaitsAgent(record), true);
   assert.equal(thread.msgs[0].text, "Chart 2024.", "the served thread stays as served");
 });
 
-test("a local rewrite leaves a question asked since with the user", () => {
+test("pending thread gestures fold in the order the user made them, as the log will", () => {
   const asked = { id: "root", kind: "comment", author: "user", text: "A", ts: "then" };
   const question = {
     id: "question",
@@ -290,7 +289,6 @@ test("a local rewrite leaves a question asked since with the user", () => {
     text: "Which year?",
     ts: "then",
   };
-  const owed = { kind: "needs_user", reason: "question", workflow: null };
   const rewrite = {
     id: "pending:rewrite",
     kind: "edit",
@@ -299,56 +297,28 @@ test("a local rewrite leaves a question asked since with the user", () => {
     text: "B",
     ts: "now",
   };
-  const [folded] = foldThreads(
-    [servedThread([asked, question], { attention: owed })],
-    [rewrite],
-  );
-  assert.deepEqual(folded.attention, owed);
-  // A reply answers the question, so the thread goes to the agent.
   const reply = { ...rewrite, id: "pending:reply", kind: "reply", parent: "question" };
-  const [replied] = foldThreads(
-    [servedThread([asked, question], { attention: owed })],
-    [reply],
-  );
-  assert.equal(replied.attention.workflow, "pending:reply");
-});
-
-test("pending thread gestures fold in the order the user made them, as the log will", () => {
-  const asked = { id: "root", kind: "comment", author: "user", text: "A", ts: "then" };
-  const answer = {
-    id: "answer",
-    kind: "reply",
-    parent: "root",
-    author: "agent",
-    agent: "Indexer",
-    text: "Done.",
-    ts: "then",
-  };
-  const rewrite = {
-    id: "pending:rewrite",
-    kind: "edit",
-    author: "user",
-    message: "root",
-    text: "B",
-    ts: "now",
-  };
-  const reply = {
-    id: "pending:reply",
-    kind: "reply",
-    parent: "root",
-    author: "user",
-    text: "C",
-    ts: "now",
-  };
+  const keep = { ...reply, id: "pending:keep", text: undefined, token: "keep" };
+  const undo = { id: "pending:undo", kind: "undo", author: "user", undoes: "kept" };
   const resolve = { kind: "resolve", parent: "root", author: "user" };
-  const fold = (...gestures) =>
-    foldThreads([servedThread([asked, answer])], gestures)[0];
+  const unresolve = { ...resolve, kind: "unresolve" };
+  const owed = { kind: "needs_user", reason: "ask", workflow: null };
+  const fold = (changes, ...gestures) =>
+    foldThreads([servedThread([asked, question], changes)], gestures)[0];
 
-  // The newest turn is the one the agent answers, whichever kind it is.
-  assert.equal(fold(rewrite, reply).attention.workflow, "pending:reply");
-  assert.equal(fold(reply, rewrite).attention.workflow, "pending:rewrite");
-  // A resolve after a rewrite closes the thread the rewrite reopened.
-  assert.deepEqual(fold(rewrite, resolve).resolved, { author: "user", pending: true });
+  // Whose turn the thread is stays as the server read it, whatever the user sends,
+  // until the log answers.
+  for (const gesture of [reply, rewrite, keep, undo, resolve, unresolve])
+    assert.deepEqual(fold({ attention: owed }, gesture).attention, owed, gesture.id);
+  // A resolve after a turn closes the thread the turn reopened, and a turn after a
+  // resolve reopens it; a reaction is no turn, so it leaves a resolve in force.
+  const closed = { author: "user", pending: true };
+  const resolved = { resolved: { id: "closed", kind: "resolve", author: "user" } };
+  assert.deepEqual(fold({}, rewrite, resolve).resolved, closed);
+  assert.equal(fold(resolved, resolve, reply).resolved, null);
+  assert.deepEqual(fold({}, resolve, keep).resolved, closed);
+  assert.equal(fold(resolved, unresolve).resolved, null);
+  assert.equal(fold(resolved, unresolve).settling, "unresolve");
 });
 
 test("a frozen message widget keeps its exact workflow in the message and thread", () => {

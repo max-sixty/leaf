@@ -1,7 +1,8 @@
 # https://pre-commit.com/
 #
-# Hooks check without rewriting files, so lint can share a checkout with readers.
-# Captures and generated files are excluded: their source lives elsewhere.
+# Formatters and fixers rewrite files in place, and pre-commit then fails with "files
+# were modified by this hook"; re-stage the rewrite. Captures and generated files are
+# excluded: their source lives elsewhere.
 #
 # The vendored bundles are what `pnpm run build:browser` builds; a formatted copy
 # conflicts on the next run of it.
@@ -17,32 +18,15 @@
 exclude: ^(skills/leaf/packages/default/shadow\.css$|skills/leaf/(assets/vendor|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$|evals/ui-review-detection/fixtures/)
 
 repos:
-  - repo: local
-    hooks:
-      # Native pygrep checks preserve the whitespace rules without a fixer or
-      # another tool dependency. Empty files are valid; nonempty files end in
-      # exactly one LF, CRLF, or CR, matching end-of-file-fixer's contract.
-      - id: trailing-whitespace
-        name: check trailing whitespace
-        language: pygrep
-        # pygrep reads LF-delimited lines: preserve a CRLF terminator, but a bare
-        # CR or the extra CR before CRLF is trailing whitespace.
-        entry: '[\t \v\f](?=\r?\n?\Z)|\r(?=\r\n\Z|\Z)'
-        types: [text]
-      - id: final-newline
-        name: check final newline
-        language: pygrep
-        entry: '\A\Z|[^\r\n](?:\r\n|\r|\n)\Z'
-        args: [--multiline, --negate]
-        types: [text]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
       - id: check-yaml
       - id: check-json
       - id: check-toml
       - id: mixed-line-ending
-        args: [--fix=no]
       # Every tracked byte ships in every install (AGENTS.md, "The install runs this
       # tree"). It checks only files a commit adds, past the exclude above.
       - id: check-added-large-files
@@ -50,8 +34,8 @@ repos:
     rev: v0.16.1
     hooks:
       - id: ruff-check
+        args: [--fix]
       - id: ruff-format
-        args: [--check]
   # Definitions nothing reaches. The hook reads the whole Python tree whatever
   # changed, since a definition dies in the change that removes its last caller,
   # in another file; `[tool.vulture]` in pyproject.toml holds the scope and patterns.
@@ -65,13 +49,13 @@ repos:
   # <pre>, which is the one thing prettier's own table reads as untouchable; a bare
   # custom element's body it would reflow into a paragraph, stylesheet be damned.
   #
-  # Explicit formatting must use the version pinned below: an unpinned prettier
-  # disagrees about `</pre>` placement and rewrites every authored example.
+  # Format through this hook (`pre-commit run prettier`), not a bare `npx prettier`:
+  # an unpinned prettier disagrees with the rev below about `</pre>` placement and
+  # rewrites every authored example.
   - repo: https://github.com/rbubley/mirrors-prettier
     rev: v3.9.6
     hooks:
       - id: prettier
-        entry: prettier --check --ignore-unknown
         types_or: [javascript, html]
   # Parse every JavaScript module and enforce the rules a module's own source answers:
   # which specifiers an owner may name, who may write the document root, who may
@@ -94,9 +78,9 @@ repos:
         name: dependency-cruiser
         language: node
         additional_dependencies: [dependency-cruiser@18.3.1]
-        entry: depcruise --output-type err skills/leaf/assets/runtime skills/leaf/packages/default/runtime
+        entry: depcruise --output-type err skills/leaf/assets/runtime
         pass_filenames: false
-        files: ^(skills/leaf/assets/(leaf\.js|runtime/.*\.js)|skills/leaf/packages/[^/]+/runtime/.*\.js|\.dependency-cruiser(?:-resolve)?\.mjs)$
+        files: ^(skills/leaf/assets/(leaf\.js|runtime/.*\.js)|\.dependency-cruiser\.mjs)$
   - repo: https://github.com/adhtruong/mirrors-typos
     rev: v1.48.0
     hooks:

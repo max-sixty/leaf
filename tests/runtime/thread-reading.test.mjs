@@ -76,8 +76,8 @@ test("two Thread panels own separate controls and list state", () => {
   first.findInput.value = "different filter";
   first.threadsBox.scrollTop = 72;
 
-  assert.deepEqual(firstList.openThreads({ panelOpen: true }), [card]);
-  assert.deepEqual(secondList.openThreads({ panelOpen: true }), []);
+  assert.deepEqual(firstList.openThreadsInPageOrder(), [card]);
+  assert.deepEqual(secondList.openThreadsInPageOrder(), []);
   assert.notEqual(second.findInput.value, first.findInput.value);
   assert.equal(second.threadsBox.scrollTop, 0);
   assert.notEqual(first.panel, second.panel);
@@ -153,12 +153,12 @@ test("a thread's unread is the server reading less what this tab is acknowledgin
   const read = (acknowledging) =>
     readThreadRecords(threads, NO_DOCUMENT, new Map(), [], acknowledging)[0];
 
-  const standing = read([]);
+  const unread = read([]);
   assert.deepEqual(
-    standing.msgs.map((message) => message.unread),
+    unread.msgs.map((message) => message.unread),
     [true, true],
   );
-  assert.equal(standing.unread.length, 2);
+  assert.equal(unread.unread.length, 2);
 
   // Acknowledging the reply's earlier version leaves its current one unread.
   const stale = read([{ message: "reply", version: "reply" }]);
@@ -204,20 +204,20 @@ test("attention names the outstanding question rather than the latest message", 
     seq: 2,
   });
   const source = servedThread([question, followup], {
-    attention: { kind: "needs_user", reason: "question", workflow: null },
+    attention: { kind: "needs_user", reason: "ask", workflow: null },
     user_prompt: { message: "question", version: "question" },
   });
   const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
   const attention = threadAttention(thread);
-  assert.equal(attention.label, "On you to answer");
+  assert.equal(attention.label, "My turn to answer");
   assert.equal(
     threadAttention({ ...thread, user_prompt: null }).label,
-    "On you to answer",
+    "My turn to answer",
   );
   assert.equal(
     threadAttention({
       ...thread,
-      attention: { kind: "needs_user", reason: "recovery", workflow: "send" },
+      attention: { kind: "needs_user", reason: "resend", workflow: "send" },
       workflows: [
         servedWorkflow({
           id: "send",
@@ -226,12 +226,12 @@ test("attention names the outstanding question rather than the latest message", 
         }),
       ],
     }).label,
-    "On you to resend",
+    "My turn to resend",
   );
   assert.equal(
     threadAttention({
       ...thread,
-      attention: { kind: "needs_user", reason: "recovery", workflow: "move" },
+      attention: { kind: "needs_user", reason: "resend", workflow: "move" },
       workflows: [
         servedWorkflow({
           id: "move",
@@ -240,7 +240,7 @@ test("attention names the outstanding question rather than the latest message", 
         }),
       ],
     }).label,
-    "On you to retry",
+    "My turn to retry",
   );
   assert.equal(
     threadAttention({
@@ -314,7 +314,7 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(transition(resolved, "waiting", "user").status, "open");
   assert.equal(transition(DEFAULT_INTENT, "status", "open"), DEFAULT_INTENT);
 
-  const onUser = { kind: "needs_user", reason: "question" };
+  const onUser = { kind: "needs_user", reason: "ask" };
   // A thread the agent has started a move in: the card says Working, so the agent
   // filter lists it.
   const claimed = { kind: "waiting", reason: "workflow", workflow: "working" };
@@ -344,6 +344,12 @@ test("narrowing transitions reset what they contradict and counts name each subs
   assert.equal(amounts["waiting:user"], 1);
   assert.equal(amounts["waiting:agent"], 1);
   assert.equal(model.presentation.userAvailable, true);
+  const incomplete = narrowingReading(DEFAULT_INTENT, threads, places, false);
+  assert.deepEqual(incomplete.shown, model.shown);
+  assert.equal(incomplete.presentation.summary, "");
+  assert.equal(incomplete.presentation.userAvailable, false);
+  for (const group of incomplete.presentation.groups)
+    for (const choice of group.choices) assert.equal(choice.amount, null);
 });
 
 test("a fold without prose is searchable by its visible label", () => {
@@ -437,14 +443,14 @@ test("panel narrowing controllers keep independent intent over shared threads", 
 
   // Revealing a destination already in this view keeps the intent that retained
   // arrivals use to distinguish repainting from a deliberate change of view.
-  const standing = second.narrowing.model(threads, places).intent;
+  const kept = second.narrowing.model(threads, places).intent;
   await second.narrowing.revealThread("open");
-  assert.equal(second.narrowing.model(threads, places).intent, standing);
+  assert.equal(second.narrowing.model(threads, places).intent, kept);
   assert.equal(second.narrowing.widen(), false);
-  assert.equal(second.narrowing.model(threads, places).intent, standing);
+  assert.equal(second.narrowing.model(threads, places).intent, kept);
 
   await second.narrowing.revealThread("resolved");
-  assert.notEqual(second.narrowing.model(threads, places).intent, standing);
+  assert.notEqual(second.narrowing.model(threads, places).intent, kept);
   assert.deepEqual(second.narrowing.model(threads, places).shown, [resolved]);
   first.narrowing.widen();
   assert.deepEqual(first.narrowing.model(threads, places).shown, [open]);

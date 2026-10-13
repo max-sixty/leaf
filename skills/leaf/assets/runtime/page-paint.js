@@ -1,5 +1,5 @@
-/* Import-free vocabulary of runtime-painted attributes, and the reader of the
-   presented stamp. Readers of a paint name do not start presentation, import widgets
+/* Import-free vocabulary of runtime-painted attributes, and the readers of the
+   readiness stamps. Readers of a paint name do not start presentation, import widgets
    or reach transport through its writers. */
 
 // Attributes the runtime may paint onto elements the page owns: the source each runtime
@@ -9,7 +9,7 @@
 // must see it.
 export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   class: "class",
-  question: "data-lf-question",
+  ask: "data-lf-ask",
   done: "data-lf-done",
   restated: "data-lf-restated",
   retired: "data-lf-retired",
@@ -33,6 +33,9 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   goto: "data-lf-go-to-active",
   traffic: "data-lf-traffic",
   indicated: "data-lf-indicated",
+  // A breakout in a box the page arranged itself, which keeps to that box
+  // (prepaint.js, `indents`).
+  arranged: "data-lf-arranged",
   // Delivery's, not a runtime writer's: the size of the page media an element names
   // (revision_delivery.py, `mark_declared`).
   mediaWidth: "data-lf-media-width",
@@ -43,3 +46,7 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
 // never takes back.
 export const pagePresented = () =>
   document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented);
+
+// Whether widgets and anchor preparation have finished, independently of state.
+export const pageUpgraded = () =>
+  document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.upgraded);

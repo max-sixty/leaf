@@ -30,8 +30,15 @@
    a composition change with the same
    watchers, as `before` and `after`, retaining only scrollers inside that composition
    when regions become hidden or visible. Hidden connected regions remain registered and
-   return null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an
-   id.
+   return null bounds. A region whose body is a closed `<details>` is concealed though
+   its summary shows: none of what it holds does, so there is no place in it to read.
+   Cleanup removes live DOM bindings, so a replacement can reclaim an id.
+
+   A region can show one subject of several in turn, as a trace's saved tree shows one
+   checkpoint's elements at a time. Its owner replaces the body's contents through
+   `showReadingSubject(id, subject, render)`, which tells watchers the subject is
+   `leaving` and then `showing`, so a continuity owner keeps the reader's place in each
+   subject and returns them to it.
 
    `onReadingInput` tells a reader where the user explicitly clicked or stepped by Tab.
    It includes unfocusable words, which update the reading region without a focus
@@ -63,7 +70,8 @@ const live = (region) => region?.host?.isConnected && region.body?.isConnected;
 // whether the region has bounds to give now, concealed or clipped away entirely.
 const concealed = (region) =>
   region.host.hidden ||
-  region.host.closest?.("[hidden], [aria-hidden='true']") !== null;
+  region.host.closest?.("[hidden], [aria-hidden='true']") !== null ||
+  region.body.matches("details:not([open])");
 
 const hidden = (region) =>
   !live(region) || concealed(region) || shownRect(region.host, new Map()) === null;
@@ -72,6 +80,7 @@ const regionRecord = (region) => ({
   id: region.id,
   host: region.host,
   body: region.body,
+  subject: region.subject,
 });
 
 export function compoundReadingRegionId(owner, localName) {
@@ -85,7 +94,15 @@ export function registerReadingRegion({ id, host, body }) {
     throw new Error("leaf: a reading region needs id, host, and body");
   if (live(regions.get(id)))
     throw new Error(`leaf: reading region ${id} is already live`);
-  const region = { id, host, body, scroller: null, width: null };
+  const region = {
+    id,
+    host,
+    body,
+    subject: undefined,
+    scroller: null,
+    width: null,
+    away: false,
+  };
   const stopReaching = reachReadingScroller(body);
   regions.set(id, region);
   sizes.observe(host);
@@ -96,30 +113,64 @@ export function registerReadingRegion({ id, host, body }) {
   };
 }
 
-// The box a page's Layout makes scroll, which no widget owns: the workspace's body,
-// which scrolls as a whole where a pane in it does not bound itself (layouts.css). The
-// stylesheet marks it (`--lf-reading-region: layout`) and it is registered like any
-// other region, so a flowing pane inside it is carried by it rather than by the page.
-// Chrome layout asks on every pass, since a revision can replace `main`'s children.
-let layoutRegion = null;
+// The boxes a page's Layout makes scroll, which no widget owns: the workspace's body,
+// which scrolls as a whole where a pane in it does not bound itself, a column page's
+// sidebar standing in the margin, and the one block a sidebar page's track holds, which
+// scrolls while it stands beside the body (layouts.css). The stylesheet marks each one
+// (`--lf-reading-region: layout`): a child of `main`, or the only child of one that is
+// not itself marked. Each is registered like any other region, so what it holds is
+// carried by it rather than by the page, and its posture is read from whether it
+// scrolls. Its id is the authored id of the box or, for an only child, of the child of
+// `main` holding it, as a sidebar's `aside` names the block it holds, so a neighbour's
+// arrival or removal never renames it; an unnamed one takes its place among the unnamed
+// ones, in a namespace of its own. Chrome layout asks on every pass, since a revision can
+// replace `main`'s children and a resize can change which of them the stylesheet marks.
+const layoutRegions = new Map();
+const marked = (box) =>
+  box.checkVisibility() &&
+  getComputedStyle(box).getPropertyValue("--lf-reading-region").trim() === "layout";
 export function syncLayoutRegion() {
   const main = pageDocument();
-  const body = main
-    ? [...main.children].find(
-        (child) =>
-          child.checkVisibility() &&
-          getComputedStyle(child).getPropertyValue("--lf-reading-region").trim() ===
-            "layout",
-      )
-    : undefined;
-  if (body === layoutRegion?.body) return;
-  layoutRegion?.stop();
-  layoutRegion = body
-    ? {
-        body,
-        stop: registerReadingRegion({ id: "lf-region:layout", host: body, body }),
-      }
-    : null;
+  const bodies = main
+    ? [...main.children].flatMap((child) => {
+        if (marked(child)) return [[child, child.id]];
+        const only = child.childElementCount === 1 ? child.firstElementChild : null;
+        return only && marked(only) ? [[only, only.id || child.id]] : [];
+      })
+    : [];
+  let unnamed = 0;
+  const ids = new Map(
+    bodies.map(([body, name]) => [
+      body,
+      name ? `lf-region:layout#${name}` : `lf-region:layout@${unnamed++}`,
+    ]),
+  );
+  for (const [body, region] of layoutRegions)
+    if (ids.get(body) !== region.id) {
+      region.stop();
+      layoutRegions.delete(body);
+    }
+  for (const [body, id] of ids)
+    if (!layoutRegions.has(body))
+      layoutRegions.set(body, {
+        id,
+        stop: registerReadingRegion({ id, host: body, body }),
+      });
+}
+
+// Replace a region's contents with another subject's (see the header). A region not
+// registered yet has no place to keep, so the render runs alone.
+export function showReadingSubject(id, subject, render) {
+  const region = regions.get(id);
+  if (!live(region) || region.subject === subject) {
+    if (region) region.subject = subject;
+    return render();
+  }
+  notify({ phase: "leaving", region: regionRecord(region) });
+  region.subject = subject;
+  const rendered = render();
+  notify({ phase: "showing", region: regionRecord(region) });
+  return rendered;
 }
 
 export const readingRegion = (id) => {
@@ -291,7 +342,7 @@ export function* scrollersOf(node) {
 
 // The boxes a scroll passes to once each inner one is spent, as native input chains it
 // at a box whose overscroll-behavior lets it go: `scrollersOf`'s, then the page's. A
-// fixed box ends `scrollersOf` because the page's scroll leaves it standing, but its
+// fixed box ends `scrollersOf` because the page's scroll leaves it in place, but its
 // scroll still chains to the page, the box its containing block, the viewport, scrolls.
 export function* scrollChainOf(node) {
   let last = null;
@@ -401,14 +452,19 @@ function measureRegions() {
     if (!live(region) || !shown(region)) continue;
     const scroller = effectiveScroller(region);
     const width = region.host.offsetWidth;
+    // A region concealed when last measured, as a closed disclosure's, returns: its
+    // words stood in no scroller meanwhile, though one carried its box.
+    const away = concealed(region);
     if (region.scroller && (viewportChanged || !asSeen(region, scroller, width)))
       shifted.push({
         region: regionRecord(region),
         from: region.scroller,
         to: scroller,
+        returned: Boolean(region.away) && !away,
       });
     region.scroller = scroller;
     region.width = width;
+    region.away = away;
   }
   const now = pageGeometry();
   if (pageMoved(now)) shifted.push({ region: null, band: now.band - pageSeen.band });

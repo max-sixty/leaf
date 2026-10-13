@@ -1,7 +1,7 @@
 /* This module owns the target picker and whole-page text search. Its transient hints,
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { anchoringIsReady } from "../anchor-resolution.js";
-import { bindings, bindingEnabled } from "../keyboard/bindings.js";
+import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
 import { el, LAYOUT, reserve, searchField } from "../widget-elements.js";
 import { coarsePointer } from "../pointer.js";
 import { html, nothing, render } from "../../vendor/browser-runtime.js";
@@ -16,7 +16,8 @@ import {
   selectEnds,
   segmentBlock,
 } from "../passages.js";
-import { bannerFoot, shownBox, shownParts } from "../geometry.js";
+import { bannerFoot, shownBox } from "../geometry.js";
+import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { intersect, union } from "../rect.js";
 import { anchorFor } from "../css-anchors.js";
@@ -92,7 +93,10 @@ const searchCount = (position, total) => `${position} of ${total}`;
 // walk, the scroll freeze, and the paint. What this module declares is which members the
 // map holds and where each chip sits among them. An ancestor and descendant painting the
 // same visible box name one target, and the innermost remains, matching direct aim. A
-// target's chip sits outside its own box, keeping controls and their labels readable. Shared hint seating separates those faces without moving page content.
+// target's chip sits outside its own box, keeping controls and their labels readable.
+// Shared hint seating separates those faces without moving page content, and steps
+// each chip before a nest of targets out by its level in that nest, so a group's chip
+// and its members' chips read as an outline (`nestOutsets`, hints.js).
 // Admission and clipping stay with key-badge-placement.js.
 //
 // `/` opens a real search input over the whole page reading, either directly from the
@@ -118,6 +122,7 @@ export function createTargetPicker({
   let pickerOpen = false;
   let pageSearchOpen = false;
   let matches = [];
+  let matchesIn = null; // the reading `matches` were found in
   let active = -1;
   let searchReturnsToHints = false;
   let repeatedSearch = null;
@@ -150,11 +155,7 @@ export function createTargetPicker({
     );
   const targetShown = (target) => {
     const element = hintElement(target);
-    return (
-      element.checkVisibility() ||
-      (getComputedStyle(element).display === "contents" &&
-        shownParts(element).some((part) => part.checkVisibility()))
-    );
+    return visibleTargetParts(element).length > 0;
   };
 
   function firstShown(range, owner, reading) {
@@ -367,26 +368,39 @@ export function createTargetPicker({
     };
   }
 
-  // Page text is the one walk source too expensive to rebuild on every chrome paint.
-  // Layout invalidation is its mechanical source, so refresh only while this
-  // owner is standing; the read handed to the shared walk remains a cheap cached lookup.
-  function refreshMatchWalk() {
-    if (walkPosition()?.kind !== "page-search") return;
+  function find(query) {
+    matchesIn = pageText();
+    return findText(matchesIn, query);
+  }
+
+  // A match is a run of one reading's segments, placed in the reading it came from. A
+  // change to the page's words, such as a revision landing while the search stands open,
+  // makes a new reading with no position for the old nodes. So each reader finds the
+  // matches again first, keeping the active one where it still stands.
+  function refreshMatches() {
     const query = pageSearchOpen ? pageSearchInput.value.trim() : repeatedSearch?.query;
     const current = matches[active];
-    if (!query || !current) return;
-    const found = findText(pageText(), query);
+    if (!query || !current || pageText() === matchesIn) return false;
+    const found = find(query);
     const same = found.findIndex((candidate) => sameMatch(candidate, current));
     active = same >= 0 ? same : found.length ? Math.min(active, found.length - 1) : -1;
     matches = found;
     if (repeatedSearch && !pageSearchOpen && active >= 0) repeatedSearch.index = active;
-    if (pageSearchOpen) presentSearchStatus();
+    return true;
+  }
+
+  // Layout invalidation is the mechanical source of an active walk's refresh: a reflow
+  // moves the marked line boxes even where the words stand, so the walk repaints either
+  // way. The read handed to the shared walk remains a cheap cached lookup.
+  function refreshMatchWalk() {
+    if (walkPosition()?.kind !== "page-search") return;
+    if (refreshMatches() && pageSearchOpen) presentSearchStatus();
     repaint();
   }
 
   function search() {
     const query = pageSearchInput.value.trim();
-    matches = query ? findText(pageText(), query) : [];
+    matches = query ? find(query) : [];
     active = matches.length ? startingMatch(matches) : -1;
     presentSearchStatus();
     showMatch();
@@ -400,12 +414,14 @@ export function createTargetPicker({
   }
 
   function moveMatch(direction) {
-    if (!matches.length) return;
-    active = (active + direction + matches.length) % matches.length;
+    refreshMatches();
+    if (!matches.length) return presentSearchStatus();
+    const { row, wrapped } = cycledRow(matches, matches[active], direction);
+    active = matches.indexOf(row);
     presentSearchStatus();
     showMatch();
     const query = pageSearchInput.value.trim();
-    beginWalk("page-search", "Match", () => matchWalkPosition(query));
+    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
     announce(
       `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
     );
@@ -427,6 +443,7 @@ export function createTargetPicker({
   }
 
   function chooseMatch() {
+    refreshMatches();
     const segments = matches[active];
     if (!segments) return;
     const quote = quoteFrom(matches[active]);
@@ -436,7 +453,7 @@ export function createTargetPicker({
     announce(
       `Selected match: ${quote}. ${
         coarsePointer.matches || !bindingEnabled("c")
-          ? "Comment on selection on the banner comments on it."
+          ? "Comment on selection comments on it."
           : "Press n for next, Shift+n for previous, or c to comment."
       }`,
     );
@@ -453,7 +470,7 @@ export function createTargetPicker({
   }
 
   function repeatSearch(direction) {
-    matches = findText(pageText(), repeatedSearch.query);
+    matches = find(repeatedSearch.query);
     if (!matches.length) {
       repeatedSearch = null;
       active = -1;
@@ -461,12 +478,13 @@ export function createTargetPicker({
       return repaint();
     }
     const from = Math.min(repeatedSearch.index, matches.length - 1);
-    active = (from + direction + matches.length) % matches.length;
+    const { row, wrapped } = cycledRow(matches, matches[from], direction);
+    active = matches.indexOf(row);
     repeatedSearch.index = active;
     showMatch();
     selectMatch(matches[active]);
     const query = repeatedSearch.query;
-    beginWalk("page-search", "Match", () => matchWalkPosition(query));
+    beginWalk("page-search", "Match", () => matchWalkPosition(query), wrapped);
     announce(
       `Match ${active + 1} of ${matches.length}: ${matchDescription(matches[active])}.`,
     );
@@ -578,6 +596,7 @@ export function createTargetPicker({
     id: "page.search.open",
     // A finger can select words it can see, but not find them elsewhere on a long page.
     touch: "Search page",
+    menu: "navigate",
     keys: ["/"],
     description: "Search all the text on the page",
     title: "search page",
@@ -666,34 +685,13 @@ export function createTargetPicker({
     claims: targetingClaims,
     rows: [
       TARGET_HINT_TYPE,
-      {
-        id: "target.picker.hint.walk",
-        keys: ["Tab", "Shift+Tab"],
-        routes: [
-          {
-            id: "target.picker.hint.next",
-            binding: "Tab",
-            title: "Hear the next visible target",
-          },
-          {
-            id: "target.picker.hint.previous",
-            binding: "Shift+Tab",
-            title: "Hear the previous visible target",
-          },
-        ],
-        title: "browse hints",
-        repeat: true,
-        when: () => hints.candidates().length > 0,
-        run: (binding) => hints.walk(binding === "Tab" ? 1 : -1),
-      },
-      {
-        id: "target.picker.target.choose",
-        keys: ["Enter"],
-        description: "Choose the target just announced",
-        title: "choose target",
-        when: hints.walking,
-        run: hints.choose,
-      },
+      ...hints.walkRows({
+        id: "target.picker.hint",
+        choose: {
+          description: "Choose the target just announced",
+          title: "choose target",
+        },
+      }),
       TARGETING_BACK,
     ],
   };
@@ -764,6 +762,7 @@ export function createTargetPicker({
         : "Choose an element by pressing it or browsing targets with Tab and Enter, then comment",
     title: "select element",
     touch: "Select element",
+    menu: "annotate",
     // Once the field is open, its typing scope owns character keys. This gate also keeps
     // the route off the short line while a target is in hand.
     lineWhen: () => !Boolean(fabAnchorAt()),

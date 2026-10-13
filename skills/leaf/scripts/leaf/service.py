@@ -3,12 +3,15 @@
 The transaction holds the page's append lease; what may be appended under it is
 `event_contracts`' to say. Cold harness hooks read claims, and Codex's tool hook
 opens a transaction after every tool call, so process inspection and page-event
-semantics are imported only by their callers. A transaction imports the page model
-only to finish an interrupted publication."""
+semantics are imported only by their callers. A transaction finishes interrupted
+publications before admitting a reader. Hosts may declare LEAF_PAGE_COMMIT as a
+module:function provider; successful completion calls it under the same append
+lease, and provider failure prevents the caller from acknowledging success."""
 
 from __future__ import annotations
 
 import hashlib
+import importlib
 import os
 import secrets
 import sys
@@ -70,7 +73,7 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
     """Prepare discovery, then commit ownership in the canonical payload.
 
     Discovery validates the payload's owner against the partition. A transfer's
-    old locator therefore stops standing at the canonical commit, which also
+    old locator therefore stops being current at the canonical commit, which also
     admits the prepared new locator. Failed preparation leaves ownership intact.
     Resident writers retain the same flat payload path, so their atomic updates
     cannot destroy discovery.
@@ -181,6 +184,15 @@ def claim_names_session(claim: dict | None, session_id: str) -> bool:
     return record is not None and record["ended"] is None
 
 
+def may_receive(claim: dict | None, session_id: str | None) -> bool:
+    """Whether `session_id` may take receipt of the page's input under `claim`
+    (`delivery.receive_batch`): the claim names it, or, for a reader with no
+    session, no session holds the page."""
+    if session_id is None:
+        return not claim_is_active(claim)
+    return claim_names_session(claim, session_id)
+
+
 def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
     """Whether the record names this harness, or neither names a claimant.
 
@@ -271,7 +283,12 @@ class PageTransaction:
         return self
 
     def __exit__(self, exc_type, exc, traceback):
-        return self._lock.__exit__(exc_type, exc, traceback)
+        try:
+            if exc_type is None and (provider := os.environ.get("LEAF_PAGE_COMMIT")):
+                module, name = provider.split(":", 1)
+                getattr(importlib.import_module(module), name)(self)
+        finally:
+            self._lock.__exit__(exc_type, exc, traceback)
 
     @property
     def claim(self) -> dict | None:
@@ -282,18 +299,19 @@ class PageTransaction:
         claim = self.claim
         return claim if claim_is_active(claim) else None
 
-    def standing_reply_binding(self, responds: str) -> dict | None:
-        """The response reservation while its claimant's exact turn remains open."""
-        from leaf.activity import reply_binding_stands
+    def open_reply_reservation(self, responds: str) -> dict | None:
+        """The reply reservation on `responds` while the claim turn it names is open
+        (`delivery` header)."""
+        from leaf.activity import reply_reservation_stands
 
-        binding = ((self.status.get("stream") or {}).get("reply_bindings") or {}).get(
-            responds
-        )
+        reservation = (
+            (self.status.get("stream") or {}).get("reply_reservations") or {}
+        ).get(responds)
         claim = self.active_claim
-        if claim and reply_binding_stands(
-            binding, claim["id"], claim["turn"], claim["turn_closed"]
+        if claim and reply_reservation_stands(
+            reservation, claim["id"], claim["turn"], claim["turn_closed"]
         ):
-            return binding
+            return reservation
         return None
 
     @property
@@ -301,7 +319,8 @@ class PageTransaction:
         """The last logical owner, even after release, end or process restart.
 
         Another session's claim supersedes delivered authorizations; liveness
-        and process generations do not. Provider reservations fence automatic finals.
+        and process generations do not. Reply reservations fence provider finals
+        (`delivery`).
         """
         claim = self.claim
         return claim["id"] if claim else None
@@ -390,7 +409,7 @@ class PageTransaction:
 
         The work the agent has in hand is no status: it is the log's `start` events,
         and the `put_down` that `leaf status` writes beside a declaration takes them
-        back (`tasks`). The stream the harness observes carries across a `waiting`,
+        back (`todos`). The stream the harness observes carries across a `waiting`,
         and `idle` clears it with the leaf."""
         status = {"state": state, "detail": detail, "ts": now_iso()}
         if state != "idle" and (stream := self.status.get("stream")):
@@ -408,7 +427,7 @@ class PageTransaction:
         stream = dict(status.get("stream") or {})
         now = now_iso()
         after = self.events[-1]["seq"] if self.events else 0
-        standing = stream.get("activity")
+        previous = stream.get("activity")
         observed = {
             "session": session_id,
             "turn": turn_id,
@@ -418,13 +437,13 @@ class PageTransaction:
             "after": after,
         }
         if (
-            standing
+            previous
             and (
-                standing["session"],
-                standing["turn"],
-                standing.get("kind"),
-                standing.get("detail"),
-                standing["after"],
+                previous["session"],
+                previous["turn"],
+                previous.get("kind"),
+                previous.get("detail"),
+                previous["after"],
             )
             == (
                 observed["session"],
@@ -433,7 +452,7 @@ class PageTransaction:
                 observed.get("detail"),
                 observed["after"],
             )
-            and datetime.fromisoformat(now) - datetime.fromisoformat(standing["ts"])
+            and datetime.fromisoformat(now) - datetime.fromisoformat(previous["ts"])
             < STREAM_ACTIVITY_RENEWAL
         ):
             return
@@ -475,10 +494,10 @@ class PageTransaction:
         """Replace the provisional reply owned by one delivered response."""
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
-        standing = stream.get("reply") or {}
+        previous = stream.get("reply") or {}
         timestamp = (
-            standing.get("ts")
-            if standing.get("session") == session_id and standing.get("turn") == turn_id
+            previous.get("ts")
+            if previous.get("session") == session_id and previous.get("turn") == turn_id
             else None
         )
         updated_at = now_iso()
@@ -496,15 +515,15 @@ class PageTransaction:
             "ts": timestamp or updated_at,
             "updated_at": updated_at,
         }
-        bindings = self._bound(stream, session_id, responds, attempt, turn_id)
-        if standing == reply and bindings == stream.get("reply_bindings"):
+        reservations = self._reserved(stream, session_id, responds, attempt, turn_id)
+        if previous == reply and reservations == stream.get("reply_reservations"):
             return
         stream["reply"] = reply
-        stream["reply_bindings"] = bindings
+        stream["reply_reservations"] = reservations
         status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
 
-    def bind_delivery_reply(
+    def reserve_delivery_reply(
         self,
         session_id: str,
         responds: str,
@@ -513,21 +532,21 @@ class PageTransaction:
         """Reserve one response address before its provider can produce output.
 
         The reservation names the claim's turn as it stands, since the delivery's
-        own turn does not exist yet; that turn takes the binding over when its
+        own turn does not exist yet; that turn takes the reservation over when its
         reply opens (`set_stream_reply`). Reserving again, as a retried start
         does, names the claim's turn as it stands then."""
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
-        bindings = self._bound(
+        reservations = self._reserved(
             stream, session_id, responds, attempt, self.claim["turn"]
         )
-        if bindings == stream.get("reply_bindings"):
+        if reservations == stream.get("reply_reservations"):
             return
-        stream["reply_bindings"] = bindings
+        stream["reply_reservations"] = reservations
         status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
 
-    def _bound(
+    def _reserved(
         self,
         stream: dict,
         session_id: str,
@@ -535,21 +554,21 @@ class PageTransaction:
         attempt: str,
         turn_id: str,
     ) -> dict:
-        """The stream's bindings with one response address bound to `attempt`
-        in `turn_id`, refusing an address another delivery's binding holds while
-        it stands (`activity.reply_binding_stands`)."""
-        bindings = dict(stream.get("reply_bindings") or {})
-        standing = self.standing_reply_binding(responds)
-        if standing is not None and not _held_by(standing, session_id, attempt):
+        """The stream's reservations with one response address reserved for `attempt`
+        in `turn_id`, refusing an address another delivery's reservation holds while
+        it stands (`activity.reply_reservation_stands`)."""
+        reservations = dict(stream.get("reply_reservations") or {})
+        reserved = self.open_reply_reservation(responds)
+        if reserved is not None and not _held_by(reserved, session_id, attempt):
             raise RuntimeError(
-                f"response {responds!r} is already bound to another delivery"
+                f"response {responds!r} is already reserved by another delivery"
             )
-        bindings[responds] = {
+        reservations[responds] = {
             "session": session_id,
             "attempt": attempt,
             "turn": turn_id,
         }
-        return bindings
+        return reservations
 
     def set_stream_reply_state(
         self,
@@ -559,7 +578,7 @@ class PageTransaction:
         text: str,
         state: str,
     ) -> bool:
-        """Finish the matching displayed draft without changing its binding."""
+        """Finish the matching displayed draft without changing its reservation."""
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
         reply = stream.get("reply") or {}
@@ -584,7 +603,7 @@ class PageTransaction:
         write_json(self.page_dir / STATUS_FILE, status)
         return True
 
-    def clear_delivery_reply_binding(
+    def clear_delivery_reply_reservation(
         self,
         session_id: str,
         responds: str,
@@ -593,14 +612,14 @@ class PageTransaction:
         """Release one response address without changing its visible draft."""
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
-        bindings = dict(stream.get("reply_bindings") or {})
-        if not _held_by(bindings.get(responds), session_id, attempt):
+        reservations = dict(stream.get("reply_reservations") or {})
+        if not _held_by(reservations.get(responds), session_id, attempt):
             return
-        bindings.pop(responds)
-        if bindings:
-            stream["reply_bindings"] = bindings
+        reservations.pop(responds)
+        if reservations:
+            stream["reply_reservations"] = reservations
         else:
-            stream.pop("reply_bindings", None)
+            stream.pop("reply_reservations", None)
         if stream:
             status["stream"] = stream
         else:
@@ -617,13 +636,13 @@ class PageTransaction:
         if turn_id is not None and reply.get("turn") != turn_id:
             return
         stream.pop("reply")
-        bindings = dict(stream.get("reply_bindings") or {})
-        if _held_by(bindings.get(reply["responds"]), session_id, reply["attempt"]):
-            bindings.pop(reply["responds"])
-        if bindings:
-            stream["reply_bindings"] = bindings
+        reservations = dict(stream.get("reply_reservations") or {})
+        if _held_by(reservations.get(reply["responds"]), session_id, reply["attempt"]):
+            reservations.pop(reply["responds"])
+        if reservations:
+            stream["reply_reservations"] = reservations
         else:
-            stream.pop("reply_bindings", None)
+            stream.pop("reply_reservations", None)
         if stream:
             status["stream"] = stream
         else:
@@ -663,12 +682,13 @@ class PageTransaction:
         return "ended" if self.status["state"] == "idle" else "watching"
 
 
-def _held_by(binding: dict | None, session_id: str, attempt: str) -> bool:
-    """Whether one reply binding is this delivery attempt's, whatever turn it names."""
+def _held_by(reservation: dict | None, session_id: str, attempt: str) -> bool:
+    """Whether one reply reservation is this delivery attempt's, whatever turn it
+    names."""
     return bool(
-        binding
-        and binding.get("session") == session_id
-        and binding.get("attempt") == attempt
+        reservation
+        and reservation.get("session") == session_id
+        and reservation.get("attempt") == attempt
     )
 
 
@@ -695,7 +715,7 @@ def take_page_claim(page_dir: Path) -> tuple[dict | None, dict] | None:
     """Make the harness session the page's watcher, if a harness supplied one.
 
     `server start` and `page claim` claim; waiting and authoring commands do not.
-    A bare-shell serve makes no claim and therefore starts as standing.
+    A bare-shell serve makes no claim and therefore starts as persistent.
     """
     from leaf.harness import session_harness
 

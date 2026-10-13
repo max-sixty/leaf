@@ -2,6 +2,11 @@
 
 ## Biggest current challenges
 
+- **Improve our outputs against a standard HTML output.** Agents given plain
+  HTML wrote pages judges preferred on every configuration and some queues, at a
+  third to a half of Leaf's cost ([comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)).
+  Make Leaf's pages at least as good, and find which widgets and instructions
+  help an author rather than constrain one.
 - **Simplify the harness, host, and CLI workflow.** Make feedback delivery and
   agent wake-up reliable, including Codex's message back into the session and
   Claude Code's potentially overcomplicated state machine.
@@ -20,7 +25,8 @@
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
-evidence and detailed briefs. Numbered items keep the ids shared with `notes/`.
+evidence and detailed briefs. A `#N` id names one item across this file and `notes/`;
+a new item takes a number neither uses.
 Completed work and rejected ideas live in git history or the relevant research note.
 An item marked **Unconfirmed** rests on a reading nobody has run or a design nobody
 has tried; settle that before building it.
@@ -50,10 +56,10 @@ has tried; settle that before building it.
   `PiHarness` has no `title_generator`, so a Pi page's thread is named only by the
   agent's reply. Give the page server a request on Pi's configured model, such as
   a print-mode run with tools, extensions and hooks off, and measure it.
-- **Keep a long Thread's standing visible.** Summary checkpoints already condense
+- **Keep a long Thread's current status visible.** Summary checkpoints already condense
   older messages. Test a current one-line reading of what is decided and what remains
   open, distinct from a historical summary, and decide how a revision invalidates it.
-  See the [Thread plan](notes/threads.md#current-standing).
+  See the [Thread plan](notes/threads.md#current-status).
 - **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
   search in Threads and use Page Map on narrow pages; show only one margin treatment
@@ -66,25 +72,17 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Questions,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **Keep Tab off page content a panel beside the page covers.** Threads and the
-  Questions panel leave the page live beside them while standing over part of it. Max's rule
-  (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
-  standing panel, focus never lands on page content a panel covers, and Threads still
-  stands beside a full-width workspace. A comment box already refuses a covered seat
-  (`underOccluder`, geometry.js). Tab walked onto page content under Threads, or the
-  Questions panel that shares its right edge, at 1440×900 on an example since retired;
-  no surviving page has been checked for it. Making what a panel covers inert was built and withdrawn: it left the visible
-  part of a partly covered element dead to clicks and selection, and focus still reached
-  chrome markers, sample frames, overflowing children and content an attribute revealed.
-  Decide between laying the page out in the width a panel leaves beside it, which
-  reverses "auxiliary surfaces never change the page's geometry"
-  (`skills/leaf/assets/AGENTS.md`), and Leaf owning Tab beside a panel, skipping stops
-  `hides` says it covers.
+- **#28 — Finish the floating panel.** The opt-in floating panel
+  (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
+  user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Work
+  through its remaining list (status in the field, opened sizes, one home per thread,
+  the menu's rows, waiting marks, phone, motion) before making it the default or
+  removing the banner, bottom bar, and preference.
 
 ### Agent and author experience
 
 - **Decide whether `page check` should still refuse an `lf-ask` without a leading
-  heading.** The heading is the Question's title in the Questions panel, the banner
+  heading.** The heading is the ask's title in the Questions panel, the banner
   and the `q` announcement, which all show an empty title without one, and the
   `lf-ask` instructions already ask for it. Wait until the other narrow checks
   removed in October 2026 have been gone a while; if pages written since still
@@ -95,18 +93,19 @@ has tried; settle that before building it.
   currently remain unrestricted; decide whether such a reminder helps before
   adding one.
 
-- **#3 — Prevent an obsolete execution from closing continued work.** A later
-  `task start` records a new execution, but admission still accepts an older
-  session's `task_end`. Test competing continuations and keep the delayed result
-  from closing the newer work ([comparison proposal](notes/comparisons.md#concrete-follow-up-proposals-2026-10-04-revised-2026-10-05)).
-
-- **Compare Leaf authoring with plain HTML (#19).** The
-  [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
-  now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a
-  shared data source, and calls for no new interface. Compare authoring and a feedback
-  cycle with plain HTML before improving Leaf's authoring instructions;
-  **#20** then [teaches the compositions that prove useful](notes/workspace-followups.md#item-20),
-  including how authors discover diagram comparison suggestions.
+- **#20 — Act on the plain HTML comparison.** The
+  [comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)
+  found Leaf authors write much less CSS and script but spend 2–3 times the cost,
+  over more turns with the skill and references in context. Judges preferred
+  plain HTML's configurations, which put each alert's controls beside its evidence,
+  and Leaf's documents, which put decisions on the page.
+  [Teach the compositions that prove useful](notes/workspace-followups.md#item-20),
+  starting with progress through a queue; per-item controls for configuration
+  landed in #2711.
+- **Give a recommendation's reason beside the options, not in its card.** The
+  default registry's `lf-options` example writes the reason into the recommended
+  card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
+  options on 2026-10-12. Score the change with `evals/` before and after.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
@@ -133,14 +132,6 @@ has tried; settle that before building it.
   establish overall page acceptance. Author delegation traces and independent
   judge cost are separate evidence.
 
-### Prose
-
-- **[Rewrite Leaf's prose for its readers](notes/prose-review.md).** The maintainer
-  rewrite is written and awaits independent review and landing. Agent instructions are
-  the next phase, scored with `evals/`. Site structure, UI vocabulary and example
-  selection wait on the five decisions in the note. Judge each rewrite by reader
-  usefulness and preserved behavior; word counts describe the cut, not its quality.
-
 ## Next
 
 ### User continuity and mobile access
@@ -149,6 +140,12 @@ has tried; settle that before building it.
   in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
   way back, such as `g D` restoring the last discarded rewrite into its editor (the
   user's suggestion, 2026-10-06).
+- **Decide how far back `z` reaches.** `z` takes back the user's newest gesture
+  however old, so on a page left for weeks it can reopen a thread resolved then,
+  below the fold, and nothing puts back what an undo took. The
+  [undo-reach playground](notes/undo-reach/README.md) compares limits on that reach
+  with additions such as redo and a panel of the user's changes, and waits on the
+  user's pick.
 - **Decide when a page merits a separate phone composition.** Many pages are
   ephemeral and authored for a user reading on a large screen, so a bespoke phone
   animation may not repay its cost. Decide how the agent weighs the user's viewing
@@ -178,7 +175,23 @@ has tried; settle that before building it.
   gesture closes nothing (the Escape ladder could answer it), Draw mode blocks scrolling
   and zoom, and an `lf-draft` has no close that keeps the edit.
 - **Reconsider thread navigation.** Decide how the Threads panel should change
-  before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling").
+  before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling"). The
+  redesign also settles how focus stays off page content a panel covers (Max,
+  2026-10-10). His rule (2026-10-06): the panels dominate focus, so moving focus never
+  closes or changes an open panel, and focus never lands on content a panel covers.
+  Tab walked onto page content under Threads, or under the Questions panel that shares
+  its right edge, at 1440×900 on an example since retired; no surviving page has been
+  checked for it. Making covered content inert
+  was built and withdrawn: the visible part of a partly covered element went dead to
+  clicks and selection, and focus still reached chrome markers, sample frames,
+  overflowing children and content an attribute revealed. A comment box already
+  refuses a covered seat (`underOccluder`, `geometry.js`). The two routes weighed
+  before were laying the page out in the width a panel leaves, which reverses
+  "auxiliary surfaces never change the page's geometry", and Leaf owning Tab beside a
+  panel. The redesign also gives a thread's header controls a box no wider than they
+  are: `.lf-thread-controls` stands transparent over the first message's author and
+  time, so axe reads no contrast for those words, and the chrome's axe sweep cannot
+  hold the overlap check the feature gallery's does (`overlapped_words`).
 
 ### Layout
 
@@ -193,7 +206,7 @@ and its chrome coordinate.
   current reading.
 - **Fit `rust-sort`'s stage pane.** At 720px it runs 100px past its region, which
   `page-authoring.md` asks an author to trim or split
-  ([plan](notes/chrome-and-covers.md)).
+  ([why a workspace doesn't scroll](notes/chrome-and-covers.md#decided-a-workspace-is-a-screen)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
   without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).
@@ -249,13 +262,12 @@ and its chrome coordinate.
   them to revise the results: turn a report into a report with live status while
   keeping its comments. They hold if revisions happen by ordinary composition. Include
   a cold agent asked for "a dashboard", the likeliest trigger for over-tiling. Run it
-  with the agent-usability baseline (#19), by extending the document, dashboard and
+  with the agent-usability baseline, by extending the document, dashboard and
   queue tasks in `evals/`. For a workspace, also measure what a screenshot of the
   document cannot show: each pane's contents through its own scroll, how much of each
   pane is empty, and whether a reader reaches every pane by key. The arrangement
   judge sees only the first screen of a pane that scrolls and is told not to infer
-  interaction, so no case yet measures whether a workspace works as a screen. The
-  plain-HTML control (`--condition html`) has never run.
+  interaction, so no case yet measures whether a workspace works as a screen.
 - **Layout values that wait for a task:** a selection-and-detail component whose phone
   form shows one side at a time; canvas regions, whose reading position is
   two-dimensional; slides as a presentation of `lf-tabs`.
@@ -263,6 +275,22 @@ and its chrome coordinate.
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
+- **Keep a playground's rail in view beside a tall preview.** With controls beside
+  each item in the preview (#2711), the user works down a long stage while the
+  page-wide controls, the instruction and the submit button scroll away above it.
+  Bound the rail to the window's height, as the sidebar's sticky panel is (#2636).
+- **Decide whether a sidebar built from several blocks sticks.** A sidebar panel
+  sticks only when it is a single block, so existing multi-panel pages keep
+  flowing; dropping that condition makes every sidebar page's panel stick.
+- **Decide whether a too-narrow table fails a page at the fixed widths.** It is
+  advice at every width, the two fixed viewports included, where it once refused
+  the page.
+- **Report a control clipped anywhere in the width sweep.** The clipped-control
+  check runs only at the two fixed viewports, so a control cut off only between
+  360 and 440px goes unreported.
+- **Clear a quoted playground's empty item boxes.** A playground quoted in a static
+  sample hides its controls, those written beside items in its preview included,
+  but leaves the author's settings boxes standing empty.
 
 ### Layout stability
 
@@ -293,8 +321,8 @@ A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, 
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Start `q` from the open item's Question.** From a row, `q` goes to the queue's first
-  open Question, and `1` then picks for an item the user isn't looking at. The walk
+- **Start `q` from the open item's ask.** From a row, `q` goes to the queue's first
+  open ask, and `1` then picks for an item the user isn't looking at. The walk
   measures from focus (`queue-walk.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
   the walks (`standing-target.js`), while `c` on a row still names the row.
@@ -304,12 +332,21 @@ height and where a switch lands wait on the workspace decision under Layout.
   label sticky at the row's start, stepping clear of the start press while stuck
   (`scroll-state(stuck)`, Chrome 133+), keeps it named, but `#showTab` then has to
   bring a tab in clear of a label whose width changes once it sticks.
+- **Close the tally's small gaps.** On a phone the workspace header, tally
+  included, scrolls away after Next; Undo's announcement doesn't name what it
+  undid; the `q` help text is ambiguous; and a row's ○ mark has no legend.
 
 ### Recorded interaction review
 
 Keep the optional Leaf timeline alongside Playwright's viewer, as Max chose
 on 2026-10-07.
 
+- **Start videos without a flash or oversized play animation.** Provide shared,
+  quiet video controls with compact play/pause and a timeline, keeping the image
+  stable during startup. Firefox's native controls expand the initial play button
+  to three times its size while fading it out over 400 ms; rewinding and replaying
+  skips that effect. Verify first play and replay, including keyboard and touch
+  access ([Firefox implementation](https://github.com/mozilla-firefox/firefox/blob/main/toolkit/content/widgets/videocontrols.js)).
 - **Explore DOM selection in the imported timeline.** The optional `playwright`
   package imports native actions, checkpoint images, captured frames and saved
   accessibility elements; following their comments restores the moment. Reuse
@@ -320,6 +357,9 @@ on 2026-10-07.
 
 ### The agent's text interface
 
+- **Answer a comment that arrived before the page changed hands.** Its new owner
+  has no delivery to answer it from. A command that hands out a fresh recovery
+  delivery for it would give one.
 - **Keep a blocked stop from hiding the agent's answer.** When Leaf's Stop hook blocks
   a stop, the agent writes one more message, and where the harness shows only the last
   message (Claude Code's focus mode) that message replaces the answer: a user who typed
@@ -366,23 +406,14 @@ on 2026-10-07.
   them, but nothing runs them first. Write `evals/` cases in which agents author each
   kind and measure how often what they write fails to draw, then run the kinds agents
   get wrong and stop running those they reliably get right.
-- **Derive the waiting banner from the page's open Question.** Consider using the Question's
+- **Derive the waiting banner from the page's open ask.** Consider using the ask's
   words when no explicit waiting detail is needed. **Unconfirmed:** try pages with
-  several open Questions and an informational page before choosing how the banner
+  several open asks and an informational page before choosing how the banner
   explains who owes the next move. Keep explicit agent status available when the
-  Question alone does not explain the wait.
+  ask alone does not explain the wait.
 
 ### Development velocity
 
-- **Make test tiering much simpler.** Cost tiers went in as a stopgap to cut the
-  suite's cost quickly: a test's tier is the later of its `main`/`nightly` marks and
-  the tier its measured CI cost names in `tests/cost_tiers.json` (307 KB), with a
-  `landing` pin, a `leaf-dev cost-tiers` refresh, and a junit property to feed it
-  (`dev/leaf_dev/cost_tiers.py`). That is three encodings of one decision, and a
-  test's tier is invisible where the test is written. Find one encoding a reader can
-  see beside the test, likely by making browser tests cheap enough that fewer need
-  moving, and by decoupling shift watching from tier marks
-  (`render_harness.watches_shifts`), which is what kept these tiers out of source.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
@@ -392,6 +423,14 @@ on 2026-10-07.
   broad selection is about 3,700 s of test time on a CI runner. If the rate rose,
   look at which escapes a cheap fixed set of tests would have caught, and choose
   that set by measured catches per second rather than by kind.
+- **Resume the thread appearance gate.** Since 2026-10-12 the message-delivery
+  journey and acceptance tests in `tests/*/test_render_thread_snapshots.py` are
+  skipped to save test time while development moves fast; the references had already
+  drifted twice unnoticed, since only a manual macOS run compares them. Once
+  development slows, remove the skips, then capture, review and accept current images
+  (`leaf-dev thread-snapshots`), and have landing run the comparison so it cannot
+  drift again, such as `wt merge`'s macOS pre-merge when the thread runtime or theme
+  changes.
 - **Guard thread appearance on CI again.** The thread snapshot gate compares images
   on macOS only (`dev/leaf_dev/thread_snapshots.py`), so a pull request's Linux CI
   checks the delivery journey but not how it looks. Fonts and antialiasing differ by
@@ -457,7 +496,10 @@ Revisit these when their stated trigger becomes real; they are not an active que
   `AGENTS.md` rather than treating it as a web domain. Establish how that context
   reaches Markdown before inferring a destination from the filename alone.
 
-- **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
+- **Decide the site's structure before release.** Choose how much of the status
+  derivation the site explains, and whether to reorganize its pages by reader
+  ([proposal](notes/site-structure.md)). Trigger: preparing a release.
+- **Assess whether automatic measurement freshness is useful.**
   Keep the current `lf-num` source/write-time reminder for now. Look for cases where
   its warnings lead an author to update a stale claim, and weigh that benefit against
   the source binding, timestamp and special markup authors maintain. Consider
@@ -475,34 +517,27 @@ Revisit these when their stated trigger becomes real; they are not an active que
 - **Explore independent jobs.** Work out their identity, observer, continuation
   owner, and outcomes across background commands, delegates, and external waits.
   See the [Thread plan](notes/threads.md#independent-jobs-delegation-and-continuation).
-- **Model how work breaks into pieces.** A task links only to its thread, widget or
+- **Model how work breaks into pieces.** A to-do links only to its thread, widget or
   page. Most real work forms a fuzzy hierarchy: much of planning is breaking a goal into
   pieces, and the breakdown changes as the work teaches what the goal needs, with
   pieces split, merged, dropped or moved under another parent. Fixed trees, like Pi's
   owned subtasks or a tracker's parent and child tickets, are too brittle for that.
   Find a shape that holds a changing breakdown, and say what it means for the queues:
   whether a parent ends when its children do, and whose queue shows a child. Two links
-  are already planned: none for a task answering the user's comment, and one back to
+  are already planned: none for a to-do answering the user's comment, and one back to
   the dispatcher for work handed to another session (step 7 of
   [What needs you](notes/what-needs-you/page.html#task-hierarchy)). Trigger: a page
   whose work the user wants to see broken down.
-- **Tell the agent when to ask before ending its own task.** The agent ends its tasks
-  itself, and asks first, with a Question or a thread question, when the result needs the
-  user's sign-off
+- **Tell the agent when to ask before ending its own to-do.** The agent ends its to-dos
+  itself, and asks first, with a widget ask or a prose ask in a thread, when the result
+  needs the user's sign-off
   ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
-  instructions don't yet say when that is. Trigger: an agent ends a task as done that
+  instructions don't yet say when that is. Trigger: an agent ends a to-do as done that
   the user wanted to see first.
 - **Let the user edit items in the Questions panel.** The user's only edit today is Done
-  on a task the agent put on them, so dropping a task, renaming it or ending one of the
+  on a to-do the agent put on them, so dropping a to-do, renaming it or ending one of the
   agent's means asking in a thread. Editing the row directly in the panel would record the user's change as
   their own move. Trigger: a user writes a comment only to close or adjust an item.
-- **Name the record both queues share.** The page calls what's on the user Questions
-  and what's on the agent Tasks, while the code, the event log, `leaf page state` and
-  `leaf task open --on user` still call the shared record a task. "Task" also means
-  the harness's unit of work, as in a task claim. Obligation, commitment and item are
-  the candidates weighed
-  ([What needs you](notes/what-needs-you/page.html#internal-name)). Trigger: the
-  two meanings of task confuse an agent or a reader of the code.
 - **Multiplayer:** let several users share a page, each recorded as themselves.
   Every browser event is `author: "user"` today, so the log cannot say who moved,
   commented or voted, and nothing records who has the page open. Claude Code
@@ -511,7 +546,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   building a feed or presence on it.
 - **Show which pane has focus, and move between panes by key.** A terminal marks
   its active pane and one key moves to the next. In a workspace today the arrow keys
-  walk a side list, `q` reaches the next open Question, and a pane body that scrolls is a
+  walk a side list, `q` reaches the next item on Questions, and a pane body that scrolls is a
   Tab stop, but nothing marks the active pane and no key moves from one pane to the
   next. The runtime already tracks it: `userReadingRegion` (`reading-regions.js`) is the
   pane holding focus, or else the last one pressed, wheeled or touched, and `j`/`k`/`d`/`u`
@@ -530,6 +565,15 @@ Revisit these when their stated trigger becomes real; they are not an active que
   user steps through notices one by one to catch up.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   users return and how much customization Leaf should own.
+- **Let a user add, remove and edit table rows.** A creating action carries only the
+  new child's id and words, not a record of several fields. The
+  [datastore review](notes/datastore-review.md) lists what a row feature must
+  support; test that list on a real table task before extending the protocol.
+  Trigger: a page whose table the user needs to edit.
+- **#16 — Named widget interfaces:** let a typed reference name the interface its
+  target implements rather than a role in its package's role table, such as
+  `$work.widgets` ([proposal](notes/named-widget-interfaces.md)). Trigger: a second
+  package implements the command `goal` or `readings` interface.
 - **Visual review beside Leaf:** coordinate a real browser target through the harness
   when review work needs it; expand inspection only when focused workspaces fail a
   real task.
@@ -572,9 +616,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   A disposable full-history rewrite saved about 27 MiB. Coordinate the rewrite
   across remote refs and local worktrees, retaining the commit mapping and testing
   that updates preserve active work without restoring the removed history.
-- **Consider dragging thread cards and comment boxes.** Once both share placement,
-  try temporary, passage-relative movement from a handle. Keep it only if scrolling,
-  typing, and resizing stay predictable and the implementation stays simple.
 - **Calibrate agent-driven UI diagnosis.** Try one known miss and one intentional or
   invalid control with a bounded explorer and cold user. The
   [quality brief](notes/agent-driven-ui-quality.md) also proposes a Tend acceptance-policy
@@ -584,7 +625,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   pasted text, and selection), and retention/deletion for page-local files and
   hosted Workers Logs. Page-local traces currently record raw input for this
   single-user stage; the public site keeps interaction metadata only.
-- **#6 — Codex supervision:** separate hosted and local turn supervision only
+- **#26 — Codex supervision:** separate hosted and local turn supervision only
   if hosted delivery becomes a product priority; the App Server protocol is
   already shared.
 - **Make a leaf.page dispatch survive its container.** The Worker acknowledges an
@@ -593,7 +634,20 @@ Revisit these when their stated trigger becomes real; they are not an active que
   container's Durable Object, and nothing recovers a dispatch whose container
   disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that
   way.
-- **#7 — Runtime fold tests:** add focused Node tests as rules change; extend
+- **Start each release's containers on its own image.** The Worker goes live on a
+  release before Cloudflare rolls its image out, so for up to ten minutes after a
+  deploy a session's new container can start on the previous image. The Worker
+  holds requests behind `503 Retry-After` (`rollingOut` in `worker/src/index.ts`),
+  and only event sends retry it, so a sample opened then fails until a reload.
+  Cloudflare's `durable_object` scheduling policy uploads the image map with the
+  Worker version and lets the session pick its image at start
+  ([docs](https://developers.cloudflare.com/containers/configuration/scheduling-policy/)),
+  which removes the window, `rollingOut`, the retry, and `verify-site`'s rollout
+  wait. Moving costs a new container application, a port off the `Container` class
+  (pings, sleep, outbound interception) and `standard-1` in place of `basic`.
+  Trigger: the policy leaves beta, or leaf.page gains visitors a deploy would
+  interrupt.
+- **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding
   pages if status evaluations show that agent declarations are insufficient.

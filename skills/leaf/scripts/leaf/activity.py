@@ -1,7 +1,7 @@
 """Canonical page availability and agent work projected from durable evidence.
 
 Status is the agent's waiting or idle declaration, a start in the log is the item it
-has in hand (`tasks`), claims prove ownership and turn lifetime, and pickup events
+has in hand (`todos`), claims prove ownership and turn lifetime, and pickup events
 prove delivery. Delivery remains interaction evidence rather than becoming the
 page's execution state. This module is the one fold that orders those facts and
 supplies every reader — browser chrome, hooks, and agent-facing state — with one
@@ -9,6 +9,7 @@ answer.
 """
 
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import NamedTuple
 
 WORKING_GRACE = timedelta(minutes=15)
@@ -31,14 +32,8 @@ AWAITING_KINDS = {"awaiting_approval", "awaiting_input", "awaiting_user"}
 
 
 def _moment(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(value)
-    except ValueError:
-        # Old page-local status files were not schema-validated. They remain
-        # evidence with no usable age rather than taking the whole state route down.
-        return None
+    # Every stamp read here is Leaf's own `now_iso`, or None where nothing was stamped.
+    return datetime.fromisoformat(value) if value else None
 
 
 def _quiet(ts: str | None, now: datetime, grace: timedelta) -> bool:
@@ -86,6 +81,25 @@ def _reply_evidence(reply: dict) -> dict:
     }
 
 
+def _bind_receipt_refs(workflows: list[dict], present: dict) -> None:
+    """Give each owed answer the `ref` its update's receipts recorded under the
+    page's current claim (`workflows`, `receipt_refs`).
+
+    A reference authorizes only the claim its delivery was captured under, and
+    `post_reply` refuses it once another session claims the page, so a ref
+    captured under an earlier owner is withheld. An answer whose update the page's
+    cursor has passed without a usable ref is marked `received`, since `leaf wait`
+    will not hand that update out again (`reply_command`)."""
+    for item in workflows:
+        usable = item.pop("receipt_refs", {}).get(present.get("claim_session"))
+        if item["answer"] is None:
+            continue
+        if usable is not None:
+            item["answer"] = {**item["answer"], "ref": usable}
+        elif item["seq"] <= present["cursor"]:
+            item["answer"] = {**item["answer"], "received": True}
+
+
 def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
     """Bind provisional response progress only to the exact input it names.
 
@@ -122,40 +136,73 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
     )
 
 
-def reply_binding_stands(
-    binding: dict | None, session: str | None, turn: str | None, closed: str | None
+def reply_reservation_stands(
+    reservation: dict | None, session: str | None, turn: str | None, closed: str | None
 ) -> bool:
     """Whether the exact claim turn still reserves an automatic provider answer.
 
-    Before the provider reply opens, its binding names the claim turn standing
+    Before the provider reply opens, its reservation names the claim turn current
     at reservation; afterward it names the delivery's turn. A different or closed
     claim turn cannot retain that reservation. A client still following its turn
     commits before closing it (`codex.TurnFold.commit`).
     """
     return bool(
-        binding
+        reservation
         and closed is None
-        and binding.get("session") == session
-        and binding.get("turn") == turn
+        and reservation.get("session") == session
+        and reservation.get("turn") == turn
     )
 
 
-def answer_command(answer: dict) -> str:
-    """The one operation that writes an answer, with the id it is addressed to."""
-    if answer["kind"] == "reply" and answer.get("writer") != "turn":
-        return f"`leaf response reply <answer.ref>` for {answer['for']}"
+def answer_command(answer: dict, page_dir: Path) -> str:
+    """The one operation that writes an answer on the page at `page_dir`, as every
+    refusal and reminder naming an owed update says it."""
+    if answer["kind"] != "reply":
+        return f"a stamped version whose markup records action {answer['action']}"
     if answer.get("writer") == "turn":
-        return (
-            f"your turn's final message or `leaf response reply <answer.ref>` "
-            f"for {answer['for']}"
-        )
-    return f"a stamped version whose markup records action {answer['action']}"
+        return f"your turn's final message or {reply_command(answer, page_dir)}"
+    return reply_command(answer, page_dir)
 
 
-def unanswered(obligations: list[dict], of: str = "") -> str:
-    """Say how many user updates have no answer and name what answers each. `of`
-    narrows which updates these are, such as the acknowledged ones."""
-    commands = "; ".join(answer_command(item["answer"]) for item in obligations)
+def reply_command(answer: dict, page_dir: Path) -> str:
+    """The `leaf response reply` that answers a reply `answer`.
+
+    It names the exact `ref` its update's receipt recorded where the page's owner can
+    still use it (`_bind_receipt_refs`). An update the page has not received has
+    none, and minting one would deliver the page's whole pending batch and mark its
+    other input Picked up unseen, so the command names the `leaf wait` that
+    delivers it, after the claim its receipt needs where this command's session
+    does not hold the page (`service.may_receive`). An update received without a
+    reference the owner can use, as one received while it was owed nothing or under
+    a claim another session has since taken, is named by id: `leaf wait` will not
+    hand it out again, and only a hook's recovery reading mints its reference."""
+    if "ref" in answer:
+        return f"`leaf response reply {answer['ref']}`"
+    if answer.get("received"):
+        return f"`leaf response reply <answer.ref>` for {answer['for']}"
+    from .harness import session_harness
+    from .service import may_receive, page_claim
+
+    harness = session_harness()
+    claim = (
+        ""
+        if may_receive(page_claim(page_dir), harness.session if harness else None)
+        else f" (`leaf page claim {page_dir}` first, since this session does "
+        "not hold the page)"
+    )
+    return (
+        "`leaf response reply <answer.ref>` with the `answer.ref` that "
+        f"`leaf wait {page_dir}` delivers for {answer['for']}{claim}"
+    )
+
+
+def unanswered(obligations: list[dict], page_dir: Path, of: str = "") -> str:
+    """Say how many user updates on the page at `page_dir` have no answer and name
+    what answers each. `of` narrows which updates these are, such as the
+    acknowledged ones."""
+    commands = "; ".join(
+        answer_command(item["answer"], page_dir) for item in obligations
+    )
     updates = f"user update{'s' if len(obligations) != 1 else ''}"
     return (
         f"{len(obligations)} {of + ' ' if of else ''}{updates} with no answer "
@@ -209,7 +256,7 @@ def blocking_obligations(state: dict, *, watched: bool) -> list[dict]:
 
 
 def started_in_turn(obligation: dict, state: dict) -> bool:
-    """Whether the claimant's open turn took this update in hand (`tasks.take_in_hand`)
+    """Whether the claimant's open turn took this update in hand (`todos.take_in_hand`)
     after it was delivered: a start covering the update
     (`workflows.canonical_workflows`, `started_by`) that turn wrote since the update's
     pickup.
@@ -311,8 +358,8 @@ def claimant_turn(
 
 def declared_at(present: dict, events: list) -> str | None:
     """When the agent last declared anything about the page: its newest status, or
-    the newest start in the log (`tasks.last_start`)."""
-    from .tasks import last_start
+    the newest start in the log (`todos.last_start`)."""
+    from .todos import last_start
 
     moments = [
         moment
@@ -409,29 +456,29 @@ def _canonical_workflows(
     return result, aging
 
 
-def _canonical_tasks(
-    tasks: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
+def _canonical_todos(
+    todos: list[dict], present: dict, now: datetime, *, held: bool, turn: Turn
 ) -> tuple[list[dict], dict[str, tuple[dict, bool, bool]]]:
-    """Age the start running on each open task as a Working update's is aged, and
-    return beside them, for each task a start ran on, that start and how quiet and
-    whether dropped it is. A task's `running` is the start that holds it: one gone
-    quiet holds nothing, so every reader of the task finds it open with nothing
+    """Age the start running on each open to-do as a Working update's is aged, and
+    return beside them, for each to-do a start ran on, that start and how quiet and
+    whether dropped it is. A to-do's `running` is the start that holds it: one gone
+    quiet holds nothing, so every reader of the to-do finds it open with nothing
     running, while the page reading below still dates its stall by that start.
-    Nobody holding the page has nothing in hand, so an unheld page's tasks run
+    Nobody holding the page has nothing in hand, so an unheld page's to-dos run
     nothing."""
     result = []
     aging = {}
-    for raw in tasks:
-        task = dict(raw)
-        start = task["running"]
+    for raw in todos:
+        todo = dict(raw)
+        start = todo["running"]
         if start is not None and held:
             quiet, dropped = _start_age(start, present, now, turn)
-            aging[task["id"]] = (start, quiet, dropped)
+            aging[todo["id"]] = (start, quiet, dropped)
             if quiet:
-                task["running"] = None
+                todo["running"] = None
         else:
-            task["running"] = None
-        result.append(task)
+            todo["running"] = None
+        result.append(todo)
     return result, aging
 
 
@@ -442,24 +489,24 @@ def canonical_activity(
     now_iso: str,
     stream: dict | None = None,
     reply: dict | None = None,
-    bindings: dict | None = None,
+    reservations: dict | None = None,
     *,
-    task_reading=None,
+    todo_reading=None,
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 
     `interaction_evidence` are the page's workflows (`workflows.canonical_workflows`)
-    and `events` the log they were read from, which holds the agent's open tasks and
-    the starts running on them (`tasks.TaskReading`). Both come back aged, as
-    `workflows` and `tasks`.
+    and `events` the log they were read from, which holds the agent's open to-dos and
+    the starts running on them (`todos.TodoReading`). Both come back aged, as
+    `workflows` and `todos`.
 
-    `bindings` reserve automatic replies from the claimant's exact App Server
-    turn (`reply_binding_stands`). Their workflows keep the `reply` answer kind
-    and add `writer: "turn"` and the binding's attempt. An explicit addressed
+    `reservations` reserve automatic replies from the claimant's exact App Server
+    turn (`reply_reservation_stands`). Their workflows keep the `reply` answer kind
+    and add `writer: "turn"` and the reservation's attempt. An explicit addressed
     answer may commit first; the automatic final then yields to it."""
-    from .tasks import TaskReading
+    from .todos import TodoReading
 
-    log = task_reading or TaskReading(events)
+    log = todo_reading or TodoReading(events)
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
     declared = declared_at(present, events)
@@ -482,15 +529,16 @@ def canonical_activity(
     workflows, aging = _canonical_workflows(
         interaction_evidence, present, now, held=held, turn=turn
     )
-    tasks, task_aging = _canonical_tasks(log.owed, present, now, held=held, turn=turn)
+    todos, todo_aging = _canonical_todos(log.owed, present, now, held=held, turn=turn)
+    _bind_receipt_refs(workflows, present)
     _bind_reply(workflows, reply)
     for item in workflows:
-        binding = (bindings or {}).get(item.get("input"))
+        reservation = (reservations or {}).get(item.get("input"))
         if (
             item["answer"] is not None
             and item["answer"]["kind"] == "reply"
-            and reply_binding_stands(
-                binding,
+            and reply_reservation_stands(
+                reservation,
                 present.get("claim_session"),
                 present.get("claim_turn"),
                 present.get("turn_closed"),
@@ -499,17 +547,17 @@ def canonical_activity(
             item["answer"] = {
                 **item["answer"],
                 "writer": "turn",
-                "attempt": binding["attempt"],
+                "attempt": reservation["attempt"],
             }
 
-    # The items in hand: each Working update, by the start that holds it, and each task
+    # The items in hand: each Working update, by the start that holds it, and each to-do
     # a start runs on, each beside how quiet and whether dropped that start is. Their
     # newest start is the line the banner shows.
     in_hand = [
         (aging[item["id"]][0], aging[item["id"]][1:])
         for item in workflows
         if item["stage"] == "working"
-    ] + [(start, age) for start, *age in task_aging.values()]
+    ] + [(start, age) for start, *age in todo_aging.values()]
 
     # Every moment at which some belief above lapses, each as a moment and the
     # grace that runs from it. Status age and the turn's ending can change ownership
@@ -657,7 +705,7 @@ def canonical_activity(
             "active": len(active_updates),
             "handling": len(handling),
             # Of those, the updates in a thread: comments. The rest are widget actions in
-            # an answered Question, the only widget actions that owe an answer.
+            # an answered ask, the only widget actions that owe an answer.
             "handling_comments": sum(
                 item["subject"]["kind"] == "thread" for item in handling
             ),
@@ -670,7 +718,7 @@ def canonical_activity(
         "ts": ts,
         "next_transition_at": min(deadlines).isoformat() if deadlines else None,
         "workflows": workflows,
-        "tasks": tasks,
+        "todos": todos,
         "obligations": obligations,
         **({"reply": _reply_evidence(reply)} if reply is not None else {}),
     }

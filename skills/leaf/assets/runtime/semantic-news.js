@@ -11,21 +11,22 @@
    not read is news on the first reading too, since it arrived while they were away.
    Every other kind of news is a change between readings, so the first reading
    establishes it without announcing it. */
+import { agentLabel } from "./semantic-state.js";
 import { moved } from "./thread/model.js";
 
 const identity = (record) => record.attempt ?? record.id;
 
 // News reads the shown revision's view: the one the page just presented, whose Questions
 // the drawer and banner count paint. While an activation waits (a gesture defers it, or
-// the document is a pinned version), a Question the active revision adds is not on this
+// the document is a pinned version), an ask the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
 export function semanticNewsReading(root) {
-  const page = root.effective.view?.document;
-  if (!page) throw new Error("The shown page has no browser reading");
+  const view = root.effective.view;
+  if (!view) throw new Error("The shown page has no browser reading");
   const state = root.authoritative;
   return {
-    page,
-    thread: state.browser.thread,
+    page: view.document,
+    thread: view.thread,
     workflows: state.workflows,
     activity: state.activity,
   };
@@ -48,16 +49,16 @@ function unreadContent(threadView) {
 
 function userObligations(page, threadView) {
   const held = new Map();
-  for (const question of page.questions.user)
-    held.set(JSON.stringify(["page", question.id]), {
-      source: question.id,
+  for (const ask of page.asks.user)
+    held.set(JSON.stringify(["page", ask.id]), {
+      source: ask.id,
       thread: null,
     });
-  for (const question of threadView.questions.user) {
-    const version = question.source.kind === "reply" ? question.source.version : null;
-    held.set(JSON.stringify(["thread", question.thread, question.id, version]), {
-      source: question.id,
-      thread: question.thread,
+  for (const ask of threadView.asks.user) {
+    const version = ask.source.kind === "reply" ? ask.source.version : null;
+    held.set(JSON.stringify(["thread", ask.thread, ask.id, version]), {
+      source: ask.id,
+      thread: ask.thread,
     });
   }
   return held;
@@ -228,8 +229,8 @@ export function semanticNewsNotice(news) {
     clauses.push(
       obligations.length === 1
         ? "Input needed"
-        : `${plural(obligations.length, "item")} need your input`,
+        : `${plural(obligations.length, "item")} waiting on me`,
     );
-  if (availability.length) clauses.push("Agent active on this page");
+  if (availability.length) clauses.push(`${agentLabel()} active on this page`);
   return clauses.join("; ");
 }

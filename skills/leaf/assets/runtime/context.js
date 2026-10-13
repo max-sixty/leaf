@@ -34,13 +34,13 @@ export const DELIVERY = Object.freeze({
 });
 // The public website declares the release it serves; a local server declares none.
 export const WEBSITE_DELIVERY = DELIVERY.release !== undefined;
-// Where a delivered document's layer, and so its captured resources, is addressed: the
-// directory its registry probe names, the revision's own root, as the document writes
-// it. Empty where nothing declared one, and the layer is at the document's own root.
+// Where a delivered document's captured layer is addressed. The entry names the
+// immutable revision; the registry probe may instead name the mutable page root so
+// startup can detect a newer layer. Empty where nothing declared an entry.
 export const layerRoot = (doc) =>
   doc
-    .querySelector("script[data-lf-runtime][data-lf-probe]")
-    ?.dataset.lfProbe.replace(/registry\.json$/, "") ?? "";
+    .querySelector("script[data-lf-runtime][data-lf-entry]")
+    ?.dataset.lfEntry.replace(/leaf\.js$/, "") ?? "";
 // A keyed transport declares its share address even on a cookie-authorized reload.
 // Samples and the public website have no share address. Preserve the current
 // version path, query and passage while taking access from the transport's URL.
@@ -66,16 +66,6 @@ const offlineMarker = document.querySelector(
 const offlinePayload = offlineMarker
   ? JSON.parse(offlineMarker.textContent || "null")
   : null;
-if (
-  offlineMarker &&
-  (!offlinePayload ||
-    typeof offlinePayload !== "object" ||
-    !offlinePayload.state ||
-    !offlinePayload.data ||
-    !offlinePayload.resources)
-)
-  throw new TypeError("Leaf's interactive export payload is incomplete");
-
 // This declaration participates in executable identity: changing it replaces this
 // document realm rather than switching initialized physical owners in place.
 export const annotationMode =
@@ -168,10 +158,5 @@ export const runtime = {
     return readApplication().effective.view;
   },
 };
-
-// A sample arrives without the surrounding user's arrangements. Passive gallery
-// replays stay inert and take one state reading; operable samples run the ordinary
-// live feed.
-export const passiveSample = document.body.hasAttribute("data-lf-sample-passive");
 
 export const revisionLabel = (revision) => runtime.state.revision_labels[revision];

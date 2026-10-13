@@ -71,13 +71,18 @@ report.
 An ordinary document's thread namespace is the thread ids its log holds,
 including a thread whose opening comment the log lost. A sample template's
 namespace comes from its initial history. `sample_content.initial_sample_events`
-constructs it once for both static validation and allocation. `data-sample-events`
-names an inline inert JSON script in the captured parent document: its ordinary event
+constructs it once for static validation, message admission and allocation. A
+template is declared in the page's document or in a message's frozen markup, and
+`validation.source.sample_errors` checks its child as a page wherever it is declared:
+`check_source` for the page's templates, the shared message-markup gate for a
+message's. `data-sample-events` names an inline inert JSON script in the markup
+declaring the template: its ordinary event
 commands are admitted against the child, including file-side anchor capture and the
 shared message-markup gate. The resulting history defines the child's thread namespace
 before presentation and never writes the parent's log.
 
-Alternatively, `data-sample-threads` selects from the parent's available history.
+Alternatively, `data-sample-threads` selects from the parent page's available history,
+for a message's template as for the page's.
 A first version may name threads whose seed log has not been written yet; a thread
 the log does not hold leaves the child without it rather than refusing the page.
 Corpus generation selects against the shipped log it is composing from, where a
@@ -112,9 +117,8 @@ shadow tree, one in an embedded frame placed at that frame (a widget failing sof
 is a console error, since the page reports it);
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
-declarations honored; no sideways scroll, clipped control, squeezed table, or
-misplaced box; space below words and controls for a horizontal overlay scrollbar;
-and standing state that replays without conflict and idempotently.
+declarations honored; no sideways scroll, clipped control, or misplaced box; space below words and controls for a horizontal overlay scrollbar;
+and current state that replays without conflict and idempotently.
 `render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
 resized through the widths from 360px to 1920px and sideways overflow, misplaced boxes,
@@ -126,9 +130,11 @@ run again there in the light scheme, where each resident has the least room it w
 ever have. It reads, too, how each flex or grid box the page wrote splits its children
 into rows, and the swept widths where that changes.
 At each swept width it also reads, as advice, each drawing whose fit to its box draws
-labels under 10px, and reports each unbroken run of widths where one appears, with its
-reading at the narrowest of them. Swept sideways faults are reported by run the same
-way.
+labels under 10px and each table that scrolls with a cell wrapped, and reports each
+unbroken run of widths where one appears, with its reading at the narrowest of them.
+A squeezed table is advice at every width, the two the gate renders among them: the
+table still scrolls with every word in reach, and the remedy is a choice of
+composition. Swept sideways faults are reported by run the same way.
 
 A version that passes gets screens for the author to read (`render_gate/screens.py`):
 the page's first eight screens down from its top at the desktop viewport, at the
@@ -148,18 +154,25 @@ Playwright's driver runs under its bundled Node, or `PLAYWRIGHT_NODEJS_PATH` whe
 set. Driver startup failures report the cause, the Node executable, and that
 variable; `render_gate/browser.py` owns browser and driver launch diagnostics.
 
+Every check behind `page check` reports what it finds as a record
+(`findings.py`): a code, the element it names, what it measured, and
+whether it refuses the version or advises. The browser probes return those records
+rather than sentences, and the words are written once, at the command boundary,
+which prints them, or with `--json` prints the records.
+
 The browser checks that rendering the same complete state twice is idempotent.
-A standing decision may paint over a changed authored baseline; this is the
+A decision in force may paint over a changed authored baseline; this is the
 state fold's behavior, not a reason to refuse the revision. `restated` explicitly
 retracts a decision when the agent needs a fresh answer.
 
-The render gate serves its probe modules from the Leaf running the command and the
-runtime those modules import from the page, so the ephemeral server it opens refuses
-a page whose recorded `$layer.runtime` is not the identity this payload's kernel
-runtime carries — the refusal every page server makes (`layer-registry.md`, `runtime`).
-Without it the mismatch arrives as a missing export in the probe module, which reads
-as a defect in the page. The vendored layer is the page's to keep, so the gate does
-not re-vendor on its behalf.
+The render gate serves its probe modules from the Leaf running the command, whichever
+Leaf captured the revision it reads, since its own readers call them, and the runtime
+those modules import from the page. A page another Leaf vendored at the same protocol
+is read whenever its runtime has every name the probes import
+(`layer-registry.md`, "Page protocol"). Where it lacks one, the probes fail to link,
+and the gate refuses with the browser's reason and the re-vendor that cures it, rather
+than reporting a missing export as if the page were at fault. The vendored layer is the page's to keep, so
+the gate does not re-vendor on its behalf. `page picture` loads no probe module.
 
 ## Passages
 
@@ -179,8 +192,8 @@ later in the user's browser. Anchor on an opaque widget's element instead
 The render gate pairs each preserving owner with the file by its source and
 document-order occurrence, captured before upgrade. Page markup and each frozen thread
 event are separate sources, so this pairing does not require authored ids. It compares
-the rendered owner with the same projected passage a user can point at: standing
-user body rewrites replace authored words, retired slots contribute none, and
+the rendered owner with the same projected passage a user can point at: the
+user body rewrites in force replace authored words, retired slots contribute none, and
 declared generated children join their owner. Reports do not license a body rewrite.
 Page expectations stop at the rendered revision; frozen thread markup has no later
 authored version and uses the thread's whole action window.

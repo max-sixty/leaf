@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 
 import turbohtml
 
+from .findings import Finding
 from .schema import EVENT_ID, MEDIA_DIR
 
 DELIVERY_ENCODING_META = '<meta charset="utf-8" data-lf-runtime>'
@@ -76,7 +77,7 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # overlay rail or keeps that margin for its own residents. Delivery honours a width,
 # bound or height only where it means something (`authored_on`, schema.DECLARED_MARKS).
 AUTHORED_ALLOCATIONS = {
-    "data-width": ("column", "wide", "available"),
+    "data-width": ("wide", "available"),
     "data-bound": ("start", "end"),
     "data-height": re.compile("[1-9][0-9]*"),
     "data-rail": ("right", "none"),
@@ -86,13 +87,12 @@ AUTHORED_ALLOCATIONS = {
 PAGE_ALLOCATIONS = frozenset({"data-rail", "data-annotations"})
 
 
-def allocation_expects(attr: str, value: str) -> str | None:
-    """What an authored allocation's value should have been, or None where it is
-    one of the values `attr` takes."""
+def allocation_valid(attr: str, value: str) -> bool:
+    """Whether an authored allocation's value is one of the values `attr` takes."""
     values = AUTHORED_ALLOCATIONS[attr]
     if isinstance(values, re.Pattern):
-        return None if values.fullmatch(value) else "a whole number of CSS pixels"
-    return None if value in values else f"one of {', '.join(values)}"
+        return values.fullmatch(value) is not None
+    return value in values
 
 
 # Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
@@ -326,11 +326,13 @@ class SourceDocument:
         # {tag, line, attrs, parent, direct, children, text, body, holder}
         self.lf_elements = []
         self.samples = []
-        # id → the innermost lf-* element standing around it, an element's own id
-        # standing in itself. Where an id lives is structure; which of those elements is
-        # a slot a decision retires and which widget holds it is the registry's word,
-        # read by whoever has one, so this parse need not know a widget by name.
-        self.within = {}
+        # id → the record of the innermost lf-* element standing around it, an
+        # element's own id standing in itself. Where an id lives is structure; which of
+        # those elements is a slot a decision retires and which widget holds it is the
+        # registry's word, read by whoever has one, so this parse need not know a widget
+        # by name. Containment as enclosing ids, which liveness reads, is
+        # `passages.enclosing_ids`.
+        self.holders = {}
         # {tag, line, under} per id-less pointable block, where under is the nearest
         # ancestor carrying an id. This is where a user's aim would otherwise land.
         self.bare_blocks = []
@@ -360,12 +362,17 @@ class SourceDocument:
             current = current.parent
         return (1, 0)
 
+    def offsets(self, span) -> tuple[int, int]:
+        """Where one of the parser's source spans starts and ends in this source, so
+        a caller can splice the source at an element's own tags."""
+        return (
+            self._source_index(span.start_line, span.start_col),
+            self._source_index(span.end_line, span.end_col),
+        )
+
     def _span_source(self, span) -> str:
-        return self._source[
-            self._source_index(span.start_line, span.start_col) : self._source_index(
-                span.end_line, span.end_col
-            )
-        ]
+        start, end = self.offsets(span)
+        return self._source[start:end]
 
     @staticmethod
     def _source_element(element) -> bool:
@@ -421,9 +428,7 @@ class SourceDocument:
                 token = starts.get((error.line, error.col))
                 tag = token.tag if token is not None else "element"
                 self.errors.append(
-                    f"<{tag}/> at line {error.line} is self-closing: HTML ignores the "
-                    f"slash and the element would swallow what follows — write "
-                    f"<{tag} …></{tag}>"
+                    Finding("self-closing", f"<{tag}>", {"line": error.line})
                 )
 
     def _record_element(
@@ -448,7 +453,7 @@ class SourceDocument:
         identity = attrs.get("id")
         if identity:
             self.all_ids.append(identity)
-            self.within[identity] = holder
+            self.holders[identity] = holder
 
         in_head = "head" in ancestors
         in_main = "main" in ancestors
@@ -521,17 +526,14 @@ class SourceDocument:
             if reference.startswith(("/page/", "page/", "./page/"))
         )
 
-        if tag == "noscript" or (tag == "template" and "data-sample" not in attrs):
-            self.errors.append(
-                f"<{tag}> at line {line}: the browser renders none of its content; "
-                "write it plainly or leave it out"
-            )
+        if tag == "noscript":
+            self.errors.append(Finding("noscript", "<noscript>", {"line": line}))
         if (
             not in_main
             and tag not in DOCUMENT_WRAPPERS
             and not (in_head and tag in HEAD_METADATA_TAGS)
         ):
-            self.outside_main.append(f"<{tag}> at line {line}")
+            self.outside_main.append({"tag": tag, "line": line, "text": False})
 
         if tag.startswith("lf-"):
             record = {
@@ -547,7 +549,7 @@ class SourceDocument:
             }
             self.lf_elements.append(record)
             if identity:
-                self.within[identity] = record
+                self.holders[identity] = record
             return record
         return None
 
@@ -581,9 +583,7 @@ class SourceDocument:
         )
         if not attrs.get("id"):
             line, _ = self._position(template)
-            self.errors.append(
-                f"<template data-sample> at line {line}: needs a stable id"
-            )
+            self.errors.append(Finding("unnamed-sample", "<template>", {"line": line}))
         body = "".join(
             f' {name}="{escape(value)}"'
             for name, value in attrs.items()
@@ -733,7 +733,9 @@ class SourceDocument:
                     and "main" not in next_ancestors
                     and element.tag not in {"script", "style", "title"}
                 ):
-                    self.outside_main.append(f"text in <{element.tag}> at line {line}")
+                    self.outside_main.append(
+                        {"tag": element.tag, "line": line, "text": True}
+                    )
 
         if element.tag == "template" and "data-sample" in attrs:
             self._sample_resources(element)
@@ -781,7 +783,7 @@ class SourceDocument:
     @property
     def overruled(self) -> set:
         """Ids this version declares it keeps its own state on, over a worker's
-        standing report — the agent writer's mirror of `restated`."""
+        report in force — the agent writer's mirror of `restated`."""
         return {
             rec["attrs"]["id"]
             for rec in self.lf_elements

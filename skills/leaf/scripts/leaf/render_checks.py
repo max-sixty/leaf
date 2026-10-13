@@ -79,6 +79,13 @@ def _ensure_driver(page) -> None:
         page.evaluate(DRIVER_SOURCE.read_text(encoding="utf-8"))
 
 
+class ProbesUnlinked(Exception):
+    """The probe modules failed to load with a `SyntaxError`: how a module importing a
+    name the page's runtime lacks fails to link, as on a page another Leaf vendored,
+    and how malformed probe code fails too. Its message is the browser's reason, which
+    tells the two apart (`render-checks/driver.js`)."""
+
+
 def _load_probes(page, timeout_ms: int) -> None:
     """Start the module load and observe its result from a bounded driver wait.
 
@@ -91,19 +98,21 @@ def _load_probes(page, timeout_ms: int) -> None:
     if loaded is None:
         _ensure_driver(page)
         loaded = page.evaluate(_LOAD_PROBES, PROBE_ROUTE)
-    if loaded:
-        return
-    try:
-        # Probe readiness is independent of animation frames. A complete child
-        # document in a closed disclosure or inactive tab still needs inspection,
-        # but browsers suspend its requestAnimationFrame callbacks.
-        page.wait_for_function(
-            _LOAD_PROBES, arg=PROBE_ROUTE, timeout=timeout_ms, polling=PROBE_POLL_MS
-        )
-    except PlaywrightTimeout as error:
-        raise PlaywrightError(
-            f"Leaf browser probes did not load from {PROBE_ROUTE} within {timeout_ms}ms"
-        ) from error
+    if not loaded:
+        try:
+            # Probe readiness is independent of animation frames. A complete child
+            # document in a closed disclosure or inactive tab still needs inspection,
+            # but browsers suspend its requestAnimationFrame callbacks.
+            loaded = page.wait_for_function(
+                _LOAD_PROBES, arg=PROBE_ROUTE, timeout=timeout_ms, polling=PROBE_POLL_MS
+            ).json_value()
+        except PlaywrightTimeout as error:
+            raise PlaywrightError(
+                f"Leaf browser probes did not load from {PROBE_ROUTE} "
+                f"within {timeout_ms}ms"
+            ) from error
+    if isinstance(loaded, dict):
+        raise ProbesUnlinked(loaded["unlinked"])
 
 
 def evaluate_probe(page, name: str, *args):
@@ -193,6 +202,15 @@ _READINESS = """({held, through}) => {
   return readiness ? readiness(held, through ?? undefined) : 'started';
 }"""
 _READY = f"asked => ({_READINESS})(asked) === null"
+# The reason a page declared it cannot start (an incomplete startup fault, prepaint.js),
+# or null. Such a page upgrades nothing more until a replacement server reloads it
+# (bootstrap.js).
+_REFUSED = """() => {
+  const root = document.documentElement;
+  return root.hasAttribute('data-lf-startup-error')
+    && !root.hasAttribute('data-lf-interactive') ? root.dataset.lfStartupError : null;
+}"""
+_READY_OR_REFUSED = f"asked => ({_READY})(asked) || ({_REFUSED})() !== null"
 _OUTSTANDING = f"asked => ({_READINESS})(asked) ?? 'ready'"
 # How a failure words each stage `pageReadiness` names. `state` fails only against an
 # answer the caller holds.
@@ -211,7 +229,8 @@ _STAGE_READ_MS = 5_000
 
 
 class PageNotReady(TimeoutError):
-    """A page that never stated one of its readiness facts; `stage` names which."""
+    """A page that never stated one of its readiness facts; `stage` names which, or is
+    `refused` where the page declared it cannot start (`wait_until_ready`)."""
 
     def __init__(self, stage: str, message: str):
         super().__init__(message)
@@ -224,6 +243,7 @@ def wait_until_ready(
     *,
     through: str | None = None,
     timeout_ms: int | None = None,
+    fixed_server: bool = False,
 ) -> None:
     """Wait until the page says a reader outside it may read its final boxes and press
     its keys, or raise `PageNotReady` naming the first fact it never stated.
@@ -237,6 +257,11 @@ def wait_until_ready(
     caller that wants the answer taken in while the page is still mid-gesture. Finite
     animation is not readiness; the render gate asks `pageSettled` for that on its own.
     The deadline is `HANDOVER_DEADLINE_MS` unless the caller states one.
+
+    A caller whose server nothing replaces while it waits, such as a check reading a
+    preview of one candidate, passes `fixed_server`: a page that declares it cannot
+    start is then refused at once, as stage `refused` with the page's own reason,
+    rather than at the deadline, since the reload it waits for never comes.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -250,10 +275,14 @@ def wait_until_ready(
     }
     timeout_ms = timeout_ms or HANDOVER_DEADLINE_MS
     try:
-        page.wait_for_function(_READY, arg=asked, timeout=timeout_ms)
+        page.wait_for_function(
+            _READY_OR_REFUSED if fixed_server else _READY, arg=asked, timeout=timeout_ms
+        )
     except PlaywrightTimeout:
         pass
     else:
+        if fixed_server and (reason := page.evaluate(_REFUSED)) is not None:
+            raise PageNotReady("refused", f"the runtime could not start: {reason}")
         return
     # Read the stage through a bounded wait too, since `evaluate` takes no deadline: a
     # page whose own code holds its main thread answers neither.
@@ -275,13 +304,29 @@ def wait_for_theme(page) -> None:
     page.wait_for_function(_THEME_READY)
 
 
-def pre_upgrade_findings(page) -> list[str]:
-    """Read authored structure before the held Leaf entry is released."""
+def pre_upgrade_findings(page) -> list[dict]:
+    """Read authored structure before the held Leaf entry is released, as finding
+    records (`leaf.findings`)."""
     _ensure_driver(page)
     return page.evaluate(_PRE_UPGRADE_FINDINGS)
 
 
-def install_window_errors(page) -> None:
-    """Install the pre-navigation error channel shared by the gate and suite."""
+def install_window_errors(page, heard) -> None:
+    """Hand `heard` each error the page's windows raise with no exception behind it,
+    as `{"text": ..., "resizeLoop": ...}`, from navigation on.
+
+    Chrome writes those to no console: a ResizeObserver loop notice is one, which the
+    gate and the suite each judge over a confirming reading rather than at once, so
+    `init.js` says which a report is where it reads the event. One channel per page,
+    shared by every reader installed on it, since a binding is registered once."""
     install_driver(page)
-    page.add_init_script(path=WINDOW_ERRORS_SOURCE)
+    page = getattr(page, "page", page)
+    listeners = getattr(page, "_leaf_window_error_listeners", None)
+    if listeners is None:
+        listeners = page._leaf_window_error_listeners = []
+        page.expose_binding(
+            "__leafWindowError",
+            lambda _source, error: [listener(error) for listener in listeners],
+        )
+        page.add_init_script(path=WINDOW_ERRORS_SOURCE)
+    listeners.append(heard)

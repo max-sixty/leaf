@@ -1,21 +1,36 @@
 Give each design decision one selection surface. For a choice among visible, fixed
-candidates, put the candidates in `lf-options` inside `lf-ask` so the user selects
-the example they want. Use `lf-playground` when the user needs to tune a configuration
-before choosing it, and include exactly one preview and one output. Use `lf-ask`
-to frame the question and context when they live outside the playground.
+candidates, put the candidates in `lf-options` inside `lf-ask` so the user selects the
+example they want. Each `lf-option` draws its candidate. When the choice changes an
+existing interface, a figure of today's interface between the question and the options
+sets them side by side under it (`references/authoring-asks.md`). A page-local control
+that steps every candidate through the same states or cases sits in that ask too. Use
+`lf-playground` when the user needs to tune a configuration before choosing it, and
+include exactly one preview and one output. Use `lf-ask` to frame the question and
+context when they live outside the playground.
 
 Interactive behavior does not by itself justify a package; `references/packages.md`
 says where page-only and reused behavior belong. A page module can define custom
 elements, register structured state with its playground, and derive the output.
 
-The playground draws its own regions: the preview is a stage, and the controls and the
-instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks as a
-wide page's body and rail, wherever it has 43.5rem; narrower, they stack. A preview that needs
-width, such as two candidates side by side, belongs on a wide page (`<main
-class="layout-wide">`), or on a workspace page (`<main class="layout-workspace density-working">`) whose
-body is the playground's `lf-ask` context, where the stage grows to the window's height.
-An `lf-ask` keeps the prose's width on either page, so give that context
-`data-width="available"`. Draw candidates directly on the stage without separate cards.
+The playground draws its own regions: the preview is a stage, and the instruction to the
+agent stands in a rail beside it, on the same `2fr 1fr` tracks as a sidebar page's body
+and aside, wherever it has 43.5rem; narrower, they stack.
+
+Put each control as close as it can stand to what it changes, so the user never has to
+match a setting to its item. A control that changes the whole preview, as most do, is a
+direct child of `lf-playground` and stands in the rail above the instruction. When the
+preview holds several items that each take their own settings, such as alerts that each
+need a threshold, write each item's controls inside the preview beside that item, in
+markup and CSS you arrange, and leave only the settings shared by every item in the
+rail. A control belongs to its playground wherever it stands: its value joins the
+submitted map, and presets and Reset set it.
+
+A preview that needs width, such as two candidates side by side, takes the room beside
+the column: give the `lf-playground` `data-width="available"`, so it widens while the
+question and premise in its `lf-ask` keep the prose's width. On a workspace page (`<main
+class="layout-workspace density-working">`) whose body is that `lf-ask`, the stage also
+grows to the window's height. Draw candidates directly on the stage without separate
+cards.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
 mounted there with the same configuration and starting content. Candidates that stand
@@ -78,9 +93,10 @@ leaves out keeps the user's last value. Name the outcome—`Status strip`, not `
 In this comparison, `format` identifies which of the two candidates to build:
 
 ```html
-<lf-ask id="notification-ask" data-width="available">
+<lf-ask id="notification-ask">
   <h2>Which deployment notification should we build?</h2>
-  <lf-playground id="notification-playground" submit-label="Create notification">
+  <lf-playground id="notification-playground" submit-label="Create notification"
+    data-width="available">
     <lf-playground-control name="format" label="Format" kind="choice" value="banner">
       <lf-playground-choice value="banner" label="Banner"></lf-playground-choice>
       <lf-playground-choice

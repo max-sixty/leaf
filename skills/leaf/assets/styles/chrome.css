@@ -1,3 +1,4 @@
+@import "./floating-panel.css";
 /* The comment layer's private stylesheet: everything the runtime draws that is not
    the document, from banner to shortcut bar. The boot module (leaf.js) adopts it as a
    constructed sheet, so it stands in no head node and a version activation's head
@@ -62,7 +63,7 @@
    stroked SVG vocabulary as target margin entries; only authored reaction tokens supply text
    glyphs. */
 /* Page-attached chrome is absolute against the initial containing block, not against
-   body. Body is the page shell and may move or narrow for standing auxiliary surfaces; the
+   body. Body is the page shell and may move or narrow for open auxiliary surfaces; the
    document coordinate system does neither, and root scrolling still carries absolute
    chrome with the passage it stands beside. */
 /* Rules at this level are the shared vocabulary: classes whose whole job is
@@ -189,7 +190,7 @@ html[data-lf-draw-mode] main,
 html[data-lf-draw-mode] main * { cursor: crosshair !important; }
 html[data-lf-draw-mode] main [data-lf-runtime],
 html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
-/* The glyphs of the reactions standing on a target — a margin entry per reaction,
+/* The glyphs of the reactions in force on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
 .lf-ins-block { background: var(--add-tint); box-shadow: 0 0 0 4px var(--add-tint); border-radius: 2px; }
@@ -217,12 +218,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
    keeps its place for nothing, being the element's own paint rather than a box in
    the chrome that would have to chase it down every scroll, reflow and drag. A widget
    that carries the location itself while the user works inside it stands the band down
-   by declaring `--lf-question-ring: none` on the decision: its theme is in a cascade layer
+   by declaring `--lf-ask-ring: none` on the decision: its theme is in a cascade layer
    this sheet outranks whatever the selector, and a declaration still reaches it. */
 /* The ring stands outside the decision, so a landing keeps its room at the scroller's
-   edge, as a margin entry's does (theme.css): a Question landed at the top of a scrolling
+   edge, as a margin entry's does (theme.css): an ask landed at the top of a scrolling
    pane stood flush with it, the top of its ring cut off under the pane's header rule. */
-[data-lf-question] { outline: var(--lf-question-ring, var(--focus-ring)); --lf-focus-ring: question;
+[data-lf-ask] { outline: var(--lf-ask-ring, var(--focus-ring)); --lf-focus-ring: ask;
                 outline-offset: var(--focus-ring-gap);
                 scroll-margin-block: var(--focus-ring-room); }
 /* Paper takes no input, so what a widget injects to be worked goes: the control,
@@ -456,6 +457,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     cursor: pointer; }
   :is(.lf-preview, .lf-layer-reference):hover { color: var(--ink); }
   .lf-layer-version { font-family: var(--mono); font-size: inherit; }
+  .lf-layer-line { display: block; overflow: hidden; text-overflow: ellipsis; }
   /* The quiet summary is a native disclosure; complete activity wording remains
      reachable by keyboard and touch without consuming the reading row. The press is only
      as wide as its words, so its ring and its hit box are the sentence's, not the empty
@@ -531,12 +533,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   :is(.lf-banner-menu, .lf-version-menu, .lf-status-detail) {
     top: calc(var(--lf-banner-h) + var(--lf-banner-panel-gap, 6px)); }
   /* The row's own .lf-btn rule states a display, and an author's display outranks the
-     UA's for [hidden], so a door with nothing behind it goes on standing there. Said
+     UA's for [hidden], so a door with nothing behind it stays there. Said
      here for the same reason the Page Map says it: hidden is a display of its own. */
   .lf-banner-more[hidden] { display: none; }
   /* The open auxiliary surface wears the same accent face, from the state it already
      publishes: setOpenDrawer and the Threads toggle keep aria-expanded true on exactly
-     the one surface standing, so the tint is that fact painted rather than a
+     the one surface open, so the tint is that fact painted rather than a
      second class to keep in step. Scoped, because lf-auxiliary-toggle is worn only by the
      banner's own controls — All leaves, Questions, Threads — and a rule for it at
      document level would widen the shared vocabulary by a name no widget wears. */
@@ -753,8 +755,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* A covering auxiliary surface takes the whole window: the banner is one of the inert siblings,
      not an available strip above it. Its shared scrim therefore stands above the banner
      and below the active surface. Chrome-owned targeting and native top-layer dialogs
-     keep their higher planes so a command inside the auxiliary surface can still show its aim. */
-  .lf-auxiliary-envelope { position: absolute; inset: 0 auto auto 0; width: 100vw; height: 100vh;
+     keep their higher planes so a command inside the auxiliary surface can still show its aim.
+     The envelope itself is an empty box at the document's origin, so what it holds
+     positions itself against the window (fixed) or that origin (absolute, by top and
+     left), never by a right or bottom inset, a percentage or a wrapping width that
+     would read the envelope's size. A window-sized transparent box stood over the
+     page's first screen for anything reading the page by hit-testing, so axe measured
+     the contrast of none of the words under it. */
+  .lf-auxiliary-envelope { position: absolute; inset: 0 auto auto 0; width: 0; height: 0;
     max-width: none; max-height: none; margin: 0; padding: 0; border: 0; overflow: visible;
     background: transparent; color: inherit; pointer-events: none; }
   .lf-auxiliary-envelope::backdrop { background: transparent; }
@@ -818,16 +826,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     border-radius: 6px; background: none; color: inherit; font: inherit;
     cursor: pointer; }
   .lf-queue-row:hover { background: var(--chip); }
-  /* A task the user ends with Done carries its Done beside the row, at the row's top so
+  /* A to-do the user ends with Done carries its Done beside the row, at the row's top so
      it stands level with the kind; the row gives up the width it takes. */
   .lf-queue-item { display: flex; align-items: flex-start; gap: 4px; }
   .lf-queue-item > .lf-queue-row { flex: 1 1 auto; min-width: 0; }
   .lf-queue-finish { flex: none; margin: 4px 6px 0 0; }
   /* Both rings this row can wear, inset together. A control packed into a list states
      its own inset (theme.css, --focus-ring), because the list clips to its padding box.
-     The second ring is the standing Question's (markHere), which the row naming that Question
+     The second ring is the standing ask's (markHere), which the row naming that ask
      mirrors while the panel is open. Done's door is a stop in the same list. */
-  .lf-queue-row:is([data-lf-focus], [data-lf-question]),
+  .lf-queue-row:is([data-lf-focus], [data-lf-ask]),
   .lf-queue-done > summary[data-lf-focus] {
     outline: var(--focus-ring); --lf-focus-ring: queue-row;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
@@ -1387,15 +1395,20 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-media-viewer-actions { display: flex; align-items: center; gap: 12px; }
   .lf-media-viewer-original { display: inline-flex; align-items: center; justify-content: center; }
   .lf-media-viewer-zoom { min-width: 4em; }
+  /* The stage's content box is the image's fit area, which PhotoSwipe's padding reads
+     (media.js). */
   .lf-media-viewer-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
-    display: grid; place-items: center; padding: 16px; box-sizing: border-box; background: transparent; }
-  /* Match PhotoSwipe's default backdrop while its manipulation module loads.
+    padding: 16px; box-sizing: border-box; background: transparent; }
+  /* Match PhotoSwipe's default backdrop while its module loads and the image decodes.
      Once it takes over, its backdrop alone dims the page. */
-  .lf-media-viewer-stage:has(> img) {
+  .lf-media-viewer-stage:has(> .lf-media-viewer-probe) {
     background: color-mix(in srgb, var(--paper) 80%, transparent); }
-  .lf-media-viewer-stage > img { display: block; max-width: 100%; max-height: 100%;
-    object-fit: contain; }
-  .lf-media-viewer-stage > img, .lf-media-viewer .pswp__img {
+  /* Reads the image's size and whether its file states one (media.js). */
+  .lf-media-viewer-probe { position: absolute; width: 1px; height: 0; overflow: hidden;
+    visibility: hidden; }
+  .lf-media-viewer-probe > img { display: block; width: auto; height: auto; min-width: 0;
+    max-width: none; max-height: none; }
+  .lf-media-viewer .pswp__img {
     outline: 1px solid var(--border-2); box-shadow: 0 8px 24px var(--shade); }
   .lf-media-viewer .pswp { position: absolute; --pswp-bg: var(--paper); --pswp-root-z-index: 0; }
   .lf-media-viewer-caption { position: relative; z-index: 1501; background: var(--card);
@@ -1543,7 +1556,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      overlay and leaves the bar's reservation where it was. Hints are the eye's copy of
      facts spoken elsewhere and stay aria-hidden; More is a real control. Useful
      transient state — a semantic walk's live ordinal, or a brief command or arrival
-     notice in its place — stands at the bar's other end, and a standing one pads the
+     notice in its place — stands at the bar's other end, and a fixed one pads the
      line's end (--lf-status-room) so the row stops short of it. syncLayout keeps the bar
      out of the thread panel, which stands over the page's right edge. A covering
      thread panel makes it inert background; a covering drawer stands under it, as a
@@ -1607,7 +1620,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     .lf-bottom-status:has(> .lf-notice.show) > :is(.lf-go-to-status, .lf-walk-position) {
       display: none; }
   }
-  @container style(--lf-notice-seat: banner) {
+  /* A notice seated elsewhere (the banner, or the floating panel's field) leaves the
+     foot only a walk's position. */
+  @container style(--lf-notice-seat: banner) or style(--lf-notice-seat: panel) {
     .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]),
         > .lf-walk-position:not([hidden]))) { display: none; }
   }
@@ -1704,7 +1719,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-chip-seat { position: absolute; left: 0; top: 0; width: 0; height: 0;
     pointer-events: none; }
   .lf-chip-seat > .lf-key-badge { position: absolute; left: 0; top: 0; display: block; }
-  /* Question binding badges sit on the answer control's upper-left corner: the single digit is
+  /* Ask binding badges sit on the answer control's upper-left corner: the single digit is
      a local label for the control it touches. */
   .lf-command-binding-badge { transform: translate(-50%, -50%); }
   /* The Target picker and Go-to sequence both give visible targets generated, prefix-free

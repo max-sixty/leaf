@@ -1,11 +1,13 @@
 """Initial histories for disposable samples, read from their captured parent.
 
-A template imports live parent thread closures with `data-sample-threads`, or
-names a parent-local inert JSON script with `data-sample-events`. The latter is
-an array of ordinary event commands, admitted against the child's initial
-document and vocabulary before allocation. It never writes the parent log.
-Source validation and allocation use this same construction. Fixtures are
-history, not a second state store: subsequent gestures use the ordinary log.
+A template's holder is the markup it is written in: its parent page's document, or
+the frozen markup of a message in that page's log. A template imports live parent
+thread closures with `data-sample-threads`, or names an inert JSON script in its
+holder with `data-sample-events`. The latter is an array of ordinary event
+commands, admitted against the child's initial document and vocabulary before
+allocation. It never writes the parent log. Source validation, message admission
+and allocation use this same construction. Fixtures are history, not a second
+state store: subsequent gestures use the ordinary log.
 """
 
 import json
@@ -17,14 +19,15 @@ from .data_contracts import data_document_errors, initial_data_document_readings
 from .event_contracts import admitted_event, command_error
 from .event_log import EventRefused
 from .event_meaning import AdmissionReadings
+from .findings import Rejected
 from .page_view import InitialPageView
 from .projection import generated_children, retirement_outcomes, rewritten_bodies
 from .registry.kernel import kernel_event_kinds
 from .registry.schema import aware_instant, json_value
 from .state import now_iso
 from .structure import SourceDocument
-from .thread_context import sample_events, thread_structure
-from .validation.admission import message_markup_error
+from .thread_context import sample_events, thread_names, thread_structure
+from .validation.admission import message_markup_errors
 from .validation.markup import text_media_errors
 
 
@@ -37,7 +40,7 @@ def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
 
     Browser admission receives targets already captured in a rendered document.
     A fixture has no such observation, so the existing file-side capture proves
-    its section and passage against the same standing projection instead.
+    its section and passage against the same current projection instead.
     """
     page = readings.page(1)
     document, projection = page.document, page.projection
@@ -84,11 +87,15 @@ def initial_sample_events(
     page_dir: Path,
     parent: SourceDocument,
     parent_events: list,
+    holder: SourceDocument,
     template: dict,
     registry: dict,
     contracts: dict,
 ) -> list[dict]:
-    """Construct the child's admitted log without mutating any captured input."""
+    """Construct the child's admitted log without mutating any captured input.
+
+    `parent` is the document `parent_events` is the log of, and `holder` the markup
+    declaring `template`: `parent` itself, or one of its log's messages."""
     attrs = template["attrs"]
     reference = attrs.get("data-sample-events")
     if "data-sample-events" not in attrs:
@@ -105,12 +112,13 @@ def initial_sample_events(
         )
     scripts = [
         script
-        for script in [*parent.inline_scripts, *parent.external_scripts]
+        for script in [*holder.inline_scripts, *holder.external_scripts]
         if script["attrs"].get("id") == reference
     ]
     if not reference or len(scripts) != 1:
         raise ValueError(
-            f"data-sample-events {reference!r} must name one script in its parent document"
+            f"data-sample-events {reference!r} must name one script in the markup "
+            "declaring its template"
         )
     script = scripts[0]
     if (
@@ -154,7 +162,7 @@ def initial_sample_events(
             if "revision" in spec["properties"]:
                 event["revision"] = 1
             if error := command_error(event, kinds):
-                raise ValueError(error)
+                raise ValueError(str(error))
             if aware_instant(event["ts"]) is None:
                 raise ValueError("ts must be an ISO timestamp with a time zone")
             if any(logged["id"] == event["id"] for logged in events):
@@ -170,24 +178,27 @@ def initial_sample_events(
             if "text" in event and (
                 errors := text_media_errors(event["text"], page_dir)
             ):
-                raise ValueError("; ".join(errors))
+                raise ValueError("; ".join(map(str, errors)))
             if "markup" in event:
                 fragment = SourceDocument(event["markup"])
                 readings = initial_data_document_readings(child, events, registry)
                 readings.append(
                     (fragment.lf_elements, f"incoming {kind} markup", registry)
                 )
-                if error := message_markup_error(
+                if errors := message_markup_errors(
                     page_dir,
-                    kind,
                     fragment,
                     events,
                     registry,
                     child,
                     set(),
                     data_document_errors(readings),
+                    contracts,
+                    event["id"]
+                    if kind == "comment"
+                    else thread_names(events).get(event.get("parent")),
                 ):
-                    raise ValueError(error)
+                    raise Rejected(errors, f"{kind} markup doesn't validate")
                 if collision := fragment.ids & (
                     {logged["id"] for logged in events} | {event["id"]}
                 ):
@@ -195,7 +206,7 @@ def initial_sample_events(
                         f"message widget ids already taken by events: {json_value(sorted(collision))}"
                     )
             events.append(admitted_event(view, events, event))
-        except (ValueError, EventRefused) as error:
+        except (ValueError, EventRefused, Rejected) as error:
             raise ValueError(
                 f"data-sample-events {reference!r}, event {seq}: {error}"
             ) from error

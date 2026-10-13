@@ -42,12 +42,18 @@
   // fallback the themes give a page without the runtime, such as a tab set's stacked
   // panels or a diagram's source in the column. An uncaught error in code that did
   // load, before the page presents, is a fault too, but the page may still present
-  // with everything it has, so its widgets keep their boxes. Each fault is said once
-  // more as `lf-startup-fault`, which a served page's bootstrap answers by waiting for
-  // a server that can start the page (bootstrap.js); an export has no server to wait
-  // for.
-  const fault = (reason, incomplete, error = null) => {
+  // with everything it has, so its widgets keep their boxes. A declared fault may be
+  // the page's own (`page`), as a module that staged words the page cannot read
+  // (passages.js, `refusesBareText`): incomplete too, but no server fixes it. The
+  // first fault names the page and is said once more as `lf-startup-fault`, which a
+  // served page's bootstrap answers by saying the page has a problem where it is the
+  // page's own, and otherwise by waiting for a server that can start the page
+  // (bootstrap.js); an export has no server to wait for. A later fault only takes the
+  // mark off where it is incomplete. The first is the earliest evidence and a later one
+  // is often its consequence; the bootstrap's report keeps the first as well.
+  const fault = (reason, incomplete, error = null, page = false) => {
     if (incomplete) root.toggleAttribute("data-lf-interactive", false);
+    if (root.hasAttribute("data-lf-startup-error")) return;
     root.dataset.lfStartupError = reason;
     // The attribute is the short display reason; this record retains the actual
     // exception before modules load, including for an opaque sample's private port.
@@ -60,7 +66,7 @@
             stack: error.stack,
           };
     window.dispatchEvent(
-      new CustomEvent("lf-startup-fault", { detail: { reason, incomplete } }),
+      new CustomEvent("lf-startup-fault", { detail: { reason, incomplete, page } }),
     );
   };
   window.addEventListener(
@@ -77,7 +83,7 @@
         target.matches("[rel=stylesheet][data-lf-runtime]")
       )
         fault("theme stylesheet did not load", true);
-      else if (target === window && !document.body?.hasAttribute("data-lf-presented"))
+      else if (target === window && !document.body?.hasAttribute("data-lf-upgraded"))
         // A browser that treats the script as another origin gives "Script error." and
         // nothing else, so the file and line ride along: between them they are enough
         // to find the fault in a build nobody here can run.
@@ -94,6 +100,7 @@
       event.detail?.reason || "the page reported it could not start",
       true,
       event.detail?.error ?? null,
+      event.detail?.page === true,
     ),
   );
 
@@ -194,6 +201,65 @@
       quick = on;
       userStore.set(quickKey, String(on));
       document.dispatchEvent(new CustomEvent("lf-keyboard-preference"));
+    },
+  };
+
+  // Which chrome the user reads the page with: the banner and bottom bar (`classic`,
+  // the default) or the floating panel (`floating`, floating-panel.js), with the size the
+  // panel was left at (`row`, the comment field and its counts, or `mark`, the leaf
+  // alone in the window's corner). One preference for every page on
+  // the origin, read here because the classic bars' room is reserved before the
+  // first paint (theme.css). `?lf-chrome=floating` or `?lf-chrome=classic` sets it. A
+  // sample child takes its parent's choice, or its element's, in its settings
+  // (sample.js), since its store is its own.
+  const chromeKeys = {
+    mode: "lf-chrome",
+    rest: "lf-chrome-rest",
+  };
+  const chromeValues = {
+    mode: ["classic", "floating"],
+    rest: ["row", "mark"],
+  };
+  const chrome = {};
+  const paintChrome = () => {
+    const floating = chrome.mode === "floating";
+    const write = (name, value) => {
+      if (root.getAttribute(name) !== value)
+        if (value === null) root.removeAttribute(name);
+        else root.setAttribute(name, value);
+    };
+    write("data-lf-floating-chrome", floating ? "" : null);
+  };
+  for (const [name, key] of Object.entries(chromeKeys)) {
+    const value = userStore.get(key);
+    chrome[name] = chromeValues[name].includes(value) ? value : chromeValues[name][0];
+  }
+  // The bootstrap takes the parameter out of the address with its other marks.
+  const askedMode = new URL(location.href).searchParams.get("lf-chrome");
+  if (chromeValues.mode.includes(askedMode)) {
+    chrome.mode = askedMode;
+    userStore.set(chromeKeys.mode, askedMode);
+  }
+  paintChrome();
+  root.lfChrome = {
+    get mode() {
+      return chrome.mode;
+    },
+    get rest() {
+      return chrome.rest;
+    },
+    // A sample's settings choose for it alone, so nothing is stored.
+    adopt(mode) {
+      if (!chromeValues.mode.includes(mode) || chrome.mode === mode) return;
+      chrome.mode = mode;
+      paintChrome();
+    },
+    set(name, value) {
+      if (!chromeValues[name]?.includes(value) || chrome[name] === value) return;
+      chrome[name] = value;
+      userStore.set(chromeKeys[name], value);
+      paintChrome();
+      document.dispatchEvent(new CustomEvent("lf-chrome-preference"));
     },
   };
 
@@ -372,7 +438,7 @@
     if (box.localName === "details") return !box.open && child.localName !== "summary";
     return getComputedStyle(box).contentVisibility === "hidden";
   };
-  const residency = () => {
+  const seat = () => {
     const body = document.body;
     if (!body) return false;
     // The page's `main` (passages.js, `pageDocument`), read here before any module runs.
@@ -457,13 +523,13 @@
       currentInputs.every((input, at) => input === priorFailure[at]);
     const allocate = (room, movable) => {
       const taken = { left: 0, right: 0 };
-      const standing = [];
+      const granted = [];
       if (
         (document.body.dataset.annotations ?? "overlay") === "overlay" &&
         document.body.getAttribute("data-rail") !== "none" &&
         room.right >= need("--rail")
       ) {
-        standing.push("rail");
+        granted.push("rail");
         taken.right = need("--rail");
       }
       for (const postures of preferences)
@@ -473,7 +539,7 @@
           if (wants.left + wants.right > room.left + room.right + 0.5) continue;
           if (!movable && (wants.left > room.left || wants.right > room.right))
             continue;
-          standing.push(posture);
+          granted.push(posture);
           Object.assign(taken, wants);
           break;
         }
@@ -487,7 +553,7 @@
       // Auto margins can centre the column only while its track still holds it.
       const reach = Math.max(0, (shell.width - column.width) / 2);
       const shift = movable ? Math.max(-reach, Math.min(reach, requested)) : 0;
-      return { taken, standing, shift };
+      return { taken, granted, shift };
     };
     let allocation = allocate(
       sameFailure
@@ -522,8 +588,8 @@
     } else if (!sameFailure) {
       failedPlacements.delete(main);
     }
-    const { shift, standing } = allocation;
-    const tokens = standing.join(" ");
+    const { shift, granted } = allocation;
+    const tokens = granted.join(" ");
     const seated = (main.getAttribute("data-lf-margin") ?? "") !== tokens;
     if (!seated && shift === shellWritten) return shellChanged;
     // Source copies keep the authored shell before initial geometry writes to it;
@@ -536,6 +602,228 @@
     // Module-time adoption announces changed seats to reading-region discovery;
     // before upgrade the same attributes already provide the final authored box.
     return true;
+  };
+  // How far each breakout's holder stands in from the column on each side
+  // (`--lf-indent-l`, `--lf-indent-r`), which the breakout's room counts as its own
+  // (layouts.css): a list item, a list the page resets, a page's own indented block,
+  // whatever moved it, read off the boxes rather than declared by each kind of holder.
+  // Only a column grows a breakout past its holder, so a page whose `main` requests no
+  // column shell (`seat`) carries no reading, and a breakout inside another takes its
+  // holder's width and none of this room. A breakout the browser is not drawing, such
+  // as one in a tab not chosen, is not read, since reading skipped content forces its
+  // style and layout: it keeps its last reading, and one never read stands as if its
+  // holder were the column. Every edge is read before any is written, so the page is
+  // laid out once however many breakouts it holds. Read with the column, so a breakout
+  // parsed before first paint is placed before it paints; one inserted, revealed or
+  // moved later is read as it arrives or moves (content-layout.js).
+  //
+  // A breakout grows out of the column only down a chain of block flow: each box from
+  // the breakout up to `main` a block-level box its holder lays out one under another.
+  // Where the breakout, or a box between it and the column, is an item of a grid, a
+  // flex line, a table or one of a holder's columns, is an inline block, floats or is
+  // positioned, the page arranged that box itself, and the room beside it is the page's
+  // own, such as a sibling track's text: grown into it, a wide block in a grid cell
+  // stood over the other cell's words, and a table widened its own track and crushed
+  // the other to 30px. A link or other inline around a block is no such box, since the
+  // browser sets the block in its holder's flow (`holderOf`). Such a breakout
+  // wears `data-lf-arranged` and keeps to the box it is laid out in (layouts.css), so
+  // the indent is read only where the holder's content box is the breakout's block.
+  const contentEdges = (element) => {
+    const box = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      left:
+        box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
+      right:
+        box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
+    };
+  };
+  const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+  const ARRANGED = "data-lf-arranged";
+  // The box a breakout is laid out in: its slot's where a widget slots it, past any
+  // ancestor that draws no box of its own (shadow-tree.js, `renderedParent`), and past
+  // an inline one, such as a link around a chart or an unknown element, since the
+  // browser sets a block inside an inline in an anonymous block of the inline's own
+  // holder's flow.
+  const holderOf = (breakout, main) => {
+    let holder = breakout;
+    let display;
+    do {
+      // `renderedParent` spelled out: this classic script runs before any module loads.
+      holder = holder.assignedSlot ?? holder.parentElement ?? holder.getRootNode().host;
+      if (holder === main) break;
+      display = getComputedStyle(holder).display;
+    } while (display === "contents" || display === "inline");
+    return holder;
+  };
+  // A holder whose inner display is flow or flow-root, and which sets no columns, lays
+  // its children out one under another at its full width; the computed display names
+  // that by its short keyword or in full. One that sets columns computes as a block too,
+  // and a wide block in its second column stood over the first's words.
+  const FLOWS =
+    /^(block|flow-root|list-item|inline-block|table-cell|table-caption)$|\bflow\b|\bflow-root\b|\blist-item\b/;
+  const inFlow = (box, holder) => {
+    const style = getComputedStyle(box);
+    const held = getComputedStyle(holder);
+    return (
+      FLOWS.test(held.display) &&
+      held.columnCount === "auto" &&
+      held.columnWidth === "auto" &&
+      !/^(inline|table-|ruby)/.test(style.display) &&
+      style.float === "none" &&
+      style.position !== "absolute" &&
+      style.position !== "fixed"
+    );
+  };
+  // Whether the page arranged `holder` or a box above it, once per holder a reading
+  // meets however many breakouts it holds.
+  const arrangedAbove = (holder, main, verdicts) => {
+    if (holder === main) return false;
+    if (!verdicts.has(holder)) {
+      const above = holderOf(holder, main);
+      verdicts.set(
+        holder,
+        !inFlow(holder, above) || arrangedAbove(above, main, verdicts),
+      );
+    }
+    return verdicts.get(holder);
+  };
+  // Returns whether any breakout's indent or arrangement changed, every breakout it
+  // answers for, and the holders it measured, each with its content box's width and
+  // the breakouts it holds, for content-layout.js to watch: a class or style that pads
+  // a holder changes its breakouts' room without inserting anything, and a box that
+  // moves moves its breakout. The reading keeps none of them.
+  const indents = () => {
+    const holders = new Map();
+    const breakouts = [];
+    const main = document.querySelector("body > main");
+    if (!main) return { changed: false, breakouts, holders };
+    const grows = document.body.hasAttribute("data-lf-column-shell");
+    const readings = [];
+    const verdicts = new Map();
+    let column = null;
+    for (const breakout of main.querySelectorAll(BREAKOUT)) {
+      if (breakout.parentElement.closest(BREAKOUT)) continue;
+      if (!grows) {
+        readings.push([breakout, 0, 0, false]);
+        continue;
+      }
+      breakouts.push(breakout);
+      if (!breakout.checkVisibility()) continue;
+      const holder = holderOf(breakout, main);
+      if (!inFlow(breakout, holder) || arrangedAbove(holder, main, verdicts)) {
+        readings.push([breakout, 0, 0, true]);
+        continue;
+      }
+      column ??= contentEdges(main);
+      const edges = contentEdges(holder);
+      const held = holders.get(holder);
+      if (held) held.breakouts.push(breakout);
+      else
+        holders.set(holder, {
+          width: edges.right - edges.left,
+          breakouts: [breakout],
+        });
+      readings.push([
+        breakout,
+        Math.max(0, Math.round(edges.left - column.left)),
+        Math.max(0, Math.round(column.right - edges.right)),
+        false,
+      ]);
+    }
+    let changed = false;
+    for (const [breakout, left, right, arranged] of readings) {
+      const writes = [
+        ["--lf-indent-l", left],
+        ["--lf-indent-r", right],
+      ].filter(
+        ([property, length]) =>
+          breakout.style.getPropertyValue(property) !== (length ? `${length}px` : ""),
+      );
+      const rearranged = breakout.hasAttribute(ARRANGED) !== arranged;
+      if (!writes.length && !rearranged) continue;
+      if (!sourceShells.has(breakout))
+        sourceShells.set(breakout, breakout.cloneNode(false));
+      for (const [property, length] of writes)
+        if (length) setRuntimeRootStyle(breakout, property, `${length}px`);
+        else removeRuntimeRootStyle(breakout, property);
+      if (rearranged) setRuntimeRootAttribute(breakout, ARRANGED, arranged ? "" : null);
+      changed = true;
+    }
+    return { changed, breakouts, holders };
+  };
+  // Whether each track (`--lf-resident: track`, a sidebar page's `aside`, layouts.css)
+  // stands beside the body, which it says as `data-lf-beside` so the Layout keeps the
+  // block it holds in view only there. Flex wrapping places it, from the window's width,
+  // the shares the page gives the track and the body, and the minimum the body's content
+  // declares, and no query reads that. A track stands beside the body when one of the
+  // other boxes `main` lays out in its flex lines shares its line and stands wholly to
+  // one side of it: a box `main` lays out is a child that draws a box and is not taken
+  // out of the flow, or one inside a child that draws none (`display: contents`), and
+  // another track does not count. A track holding one block runs its line's height
+  // (layouts.css), and a line holds its items' margin boxes whatever margins a page gives
+  // them, so a box on the line is level with the track and one on another line, such as
+  // the header, the footer or a stacked body, is above or below it or spans it. Sticking
+  // moves only the block inside the track, so the track's own box is where the flex line
+  // put it. Every box is read before any track is written.
+  const BESIDE = "data-lf-beside";
+  const items = (element) => {
+    const style = getComputedStyle(element);
+    if (style.display === "contents")
+      return [...element.children].flatMap((child) => items(child));
+    if (!element.checkVisibility() || ["absolute", "fixed"].includes(style.position))
+      return [];
+    const { left, right, top, bottom, width } = element.getBoundingClientRect();
+    return [
+      {
+        element,
+        track: style.getPropertyValue("--lf-resident").trim() === "track",
+        left,
+        right,
+        width,
+        top: top - parseFloat(style.marginTop),
+        bottom: bottom + parseFloat(style.marginBottom),
+      },
+    ];
+  };
+  const stand = () => {
+    const main = document.querySelector("body > main");
+    if (!main) return false;
+    const tracks = [...main.children].filter(
+      (child) =>
+        getComputedStyle(child).getPropertyValue("--lf-resident").trim() === "track",
+    );
+    if (!tracks.length) return false;
+    const laid = [...main.children].flatMap((child) => items(child));
+    const own = laid.filter((item) => !item.track);
+    const readings = tracks.map((track) => {
+      const line = laid.find((item) => item.element === track);
+      return [
+        track,
+        line !== undefined &&
+          own.some(
+            (box) =>
+              box.width > 0 &&
+              box.top < line.bottom - 0.5 &&
+              box.bottom > line.top + 0.5 &&
+              (box.right <= line.left + 0.5 || box.left >= line.right - 0.5),
+          ),
+      ];
+    });
+    let changed = false;
+    for (const [track, beside] of readings) {
+      if (track.hasAttribute(BESIDE) === beside) continue;
+      if (!sourceShells.has(track)) sourceShells.set(track, track.cloneNode(false));
+      track.toggleAttribute(BESIDE, beside);
+      changed = true;
+    }
+    return changed;
+  };
+  const residency = () => {
+    const seated = seat();
+    const stood = stand();
+    const reading = indents();
+    return { ...reading, changed: reading.changed || seated || stood };
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from
@@ -562,6 +850,7 @@
     runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),
     authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
     residency,
+    indents,
     skipped,
     register(tag, render) {
       // The widget loader imports unregistered producers for later revisions and

@@ -17,7 +17,6 @@ import { keeps } from "../keeps.js";
 import { reportPageError } from "../layer-client.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
 import { threadState, readThreads } from "./state.js";
-import { watchThreads } from "./watch.js";
 import { holdReply } from "./focus.js";
 import { holdReplyCompositions } from "./replies.js";
 import {
@@ -26,7 +25,6 @@ import {
   commitThreadSeats,
   retainThreadSeats,
 } from "./inline.js";
-import { RetainedThreadListError, retainedThreadListProof } from "./thread-list.js";
 import {
   applicationPresenter,
   applicationState,
@@ -76,7 +74,6 @@ export function createThreadPresentation({
     // the panel says while it waits is this region's to draw, and a user who opens it
     // then is asking for exactly that.
     current: () => (available ? readApplication().effective.thread : null),
-    failSoft: retainedThreadListProof,
     paint: async (value, current) => {
       const phase = readApplication().phase;
       // A pass reads the latest root. Clock changes claim another pass through the
@@ -84,7 +81,7 @@ export function createThreadPresentation({
       if (phase === "ready") await paintCurrent(current);
       else {
         paintCurrent.stop();
-        await startRender(current, phase);
+        await startRender(current);
       }
       return value;
     },
@@ -94,36 +91,33 @@ export function createThreadPresentation({
 
   // Every epoch owes a fresh generated presentation, because this owner reads more of
   // the root than its own fold: thread receipts come from canonical activity and the
-  // margin draws the Question rows beside them. The claim registers that obligation inside
+  // margin draws the ask rows beside them. The claim registers that obligation inside
   // the publication that seals membership; the pass paints it.
   //
-  // Every epoch the page has read the log for, that is. Before it has, each one draws
-  // the same line about waiting, and repainting the margin and the anchors to say it
-  // again is work done ahead of the first paint the user is waiting on. A user who
-  // opens the panel in that window asks for the reading directly, and gets it.
+  // Empty startup epochs need no repeated thread paint. Once a local thread is
+  // drawn, its removal still owes a paint, including refusal of the last send.
+  let waitingEmpty = true;
   applicationState
-    .select((snapshot) =>
-      snapshot.phase === "waiting" ? null : snapshot.semanticEpoch,
-    )
-    .subscribe((value) => {
-      if (value !== null) void present();
+    .select((snapshot) => snapshot.semanticEpoch)
+    .subscribe(() => {
+      const snapshot = readApplication();
+      const empty =
+        snapshot.phase === "waiting" && !snapshot.effective.thread.all.length;
+      if (empty && waitingEmpty) return;
+      waitingEmpty = empty;
+      void present();
     });
-
-  function finishListRecovery(candidates) {
-    for (const candidate of candidates)
-      if (candidate?.recovered)
-        throw new RetainedThreadListError(candidate.recovered, candidate.proof);
-  }
 
   let surfaceGeneration = 0;
   let cancelCurrentRender = () => {};
-  const startRender = (presenting, phase = "ready") => {
+  const startRender = (presenting) => {
     cancelCurrentRender();
-    const cancelled = new Promise((resolve) => (cancelCurrentRender = resolve));
-    return renderReading(phase, cancelled, presenting);
+    const { promise: cancelled, resolve } = Promise.withResolvers();
+    cancelCurrentRender = resolve;
+    return renderReading(cancelled, presenting);
   };
 
-  async function renderReading(phase, cancelled, presenting) {
+  async function renderReading(cancelled, presenting) {
     const generation = ++surfaceGeneration;
     read.begin();
     const current = () => generation === surfaceGeneration && presenting();
@@ -132,12 +126,11 @@ export function createThreadPresentation({
     // (thread/focus.js, `holdReply`).
     const restoreReply = holdReply(openThread);
     let prepared = null;
-    const livePanels = [...panels].filter((panel) => panel.required);
+    const livePanels = [...panels].filter((panel) => panel.threadsBox.isConnected);
     let surfaces = null;
     try {
-      const { all } = threadState();
+      const { all: threads } = threadState();
       const collection = readThreads();
-      const threads = phase === "ready" ? all : [];
       const listed = collection.threads;
       const continueReplies = holdReplyCompositions(threads, continueThread);
       renderHolds(threads);
@@ -163,14 +156,7 @@ export function createThreadPresentation({
         if (!current()) return;
         prepared = Promise.all(
           livePanels.map(({ controller, view }) =>
-            phase === "ready"
-              ? controller.renderThreads(collection, view)
-              : controller.renderThreadListUnavailable(
-                  phase === "offline"
-                    ? "Current threads are unavailable while the server is offline."
-                    : "Loading current threads…",
-                  view,
-                ),
+            controller.renderThreads(collection, view),
           ),
         );
         void prepared.catch(() => {});
@@ -203,7 +189,6 @@ export function createThreadPresentation({
           surfaceView.composition.finishPlacement();
           renderAnnotations();
           pageGeometry.pageShifted();
-          finishListRecovery(candidates);
           read.present();
           // Continuity may reveal a route needing this very presenter. Its work starts
           // after the cohort commits, and never joins the ticket it is completing.
@@ -218,8 +203,10 @@ export function createThreadPresentation({
     } catch (error) {
       surfaces?.cancel();
       if (!current()) throw error;
+      // Placement and control preparation both read visual coordinates. A failure
+      // in either invalidates the proxies retained from the previous reading.
+      anchorControls.withholdVisualActions();
       read.abort();
-      if (error instanceof RetainedThreadListError) throw error;
       primary?.cancel();
       // A synchronous sibling failure may leave the panel's widget preparation in
       // flight. Invalidate its private generation before restoring the whole reading.
@@ -262,58 +249,20 @@ export function createThreadPresentation({
     panel.detach = () => panel.threadsBox.removeEventListener("lf-reveal", listener);
   }
 
-  function registerPanel({ controller, threadsBox, view, required = false }) {
-    const panel = { controller, threadsBox, view, required, detach: () => {} };
+  function registerPanel({ controller, threadsBox, view }) {
+    const panel = { controller, threadsBox, view, detach: () => {} };
     panels.add(panel);
-    const renderOptional = async (collection) => {
-      try {
-        const candidate =
-          collection.phase === "ready"
-            ? await controller.renderThreads(collection, view)
-            : await controller.renderThreadListUnavailable(
-                collection.phase === "offline"
-                  ? "Current threads are unavailable while the server is offline."
-                  : "Loading current threads…",
-                view,
-              );
-        if (!panels.has(panel) || !candidate) return;
-        candidate.commit();
-        finishListRecovery([candidate]);
-        pageGeometry.pageShifted();
-      } catch (error) {
-        if (!panels.has(panel)) return;
-        let failure = error;
-        try {
-          await controller.restoreThreadList();
-        } catch (restoring) {
-          failure = new AggregateError(
-            [error, restoring],
-            "Thread panel presentation and retention failed",
-          );
-        }
-        reportPageError(
-          failure,
-          `Thread panel ${threadsBox.closest(".lf-thread-panel")?.id} failed`,
-        );
-      }
-    };
-    const paintOptional = required
-      ? null
-      : clocked(threadsBox, () => renderOptional(readThreads()));
-    const stopWatching = required
-      ? () => {}
-      : watchThreads(threadsBox, () => void paintOptional());
-    if (mounted) attach(panel);
-    if (required && mounted) void present();
+    if (mounted) {
+      attach(panel);
+      void present();
+    }
     return {
-      update: required ? present : paintOptional,
+      update: present,
       unregister() {
         if (!panels.delete(panel)) return;
         panel.detach();
         controller.cancel();
-        stopWatching();
-        paintOptional?.stop();
-        if (required && mounted) void present();
+        if (mounted) void present();
       },
     };
   }

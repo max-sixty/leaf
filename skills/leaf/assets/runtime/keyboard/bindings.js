@@ -8,6 +8,10 @@
    and letter case do not make distinct presses in the dispatcher.
 
    A row has these meanings:
+   - `ready` says when the command's input has arrived, overriding its scope's
+     reading. Commands otherwise use the shown document immediately. Saved-reading
+     consumers declare their input; Decision commands always await saved state.
+     A false reading keeps a startup key queued; `when` describes ordinary availability.
 
    - `id` is its stable dotted identity. Words and keys may change without changing the
      route the command reference and the other projections use.
@@ -20,7 +24,7 @@
      row's, so the row's says what every route shares ("Filter visible targets by kind"),
      never what tells them apart ("Next / previous match").
    - `title` is the command's required concise name, or a function when state changes
-     it. `description` optionally explains information the title cannot carry. The Question,
+     it. `description` optionally explains information the title cannot carry. The ask,
      shortcut bar, reference, and announcements read these same words. `line` overrides
      the bar's word only when it needs a shorter name; false makes a reference-only row.
    - `label` overrides the compact keycap, independently of the action name. A keyless
@@ -30,7 +34,7 @@
      including on an exact editor scope. A route declares its own aliases when one row
      owns several results. No caller allocates or renumbers another widget's bindings.
    - `control` is the visible element activating the command. `decision: true` marks a
-     command that starts, advances, answers, or revises a Question; the role does not assign
+     command that starts, advances, answers, or revises an ask; the role does not assign
      bindings. `bindingBadge` independently requests an inline hint: an Element lends
      the widget's seat, null requests a corner badge, absence requests none. A route
      inherits its row's seat only when its own field is undefined.
@@ -62,7 +66,7 @@
      a control, and the row's own `touch` can only be `false`. Every page command
      answers it, `false` where a finger reaches the result directly.
    - A command that enters a layer declares no way back out of it. The layer's own
-     owner declares that step, against the layer standing rather than against the press
+     owner declares that step, against the open layer rather than against the press
      that opened it, so one state has one way out however the user reached it.
    - `native: true` performs `run` without preventing the platform default. Use it when
      Leaf must change state before the browser completes the same press, not to leave an
@@ -106,6 +110,7 @@
    command reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
 import { coarsePointer } from "../pointer.js";
+import { readApplication } from "../semantic-state.js";
 
 // Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
@@ -321,7 +326,36 @@ function controlAvailable(control) {
   return !disabled && !ariaDisabled;
 }
 export const declaredCommandAvailable = (row, route = null) =>
-  (!row.when || row.when()) && (!route?.when || route.when());
+  commandReady(row, route) &&
+  (!row.when || row.when()) &&
+  (!route?.when || route.when());
+// Unlike `when`, readiness says a command's input has not arrived yet. A queued
+// startup key keeps its place until that input can be read rather than disappearing
+// as an ordinary unavailable command would.
+const scopeReadiness = new WeakMap();
+// Terminal absence is known input too. Availability still comes from the owner's
+// `when` (widget actions require a complete reading); only unfinished input queues.
+export const savedReadingSettled = () => readApplication().phase !== "waiting";
+// A scope supplies a shared input contract without replacing its rows or their identity.
+export function declareCommandReadiness(rows, ready) {
+  if (ready !== undefined && typeof ready !== "function")
+    throw new TypeError("leaf: scope readiness must be a function");
+  if (ready) for (const row of rows) scopeReadiness.set(row, ready);
+}
+export const commandReady = (row, route = null) => {
+  const saved = savedReadingSettled();
+  if ((row.decision || route?.decision) && !saved) return false;
+  const reference = routedCommand(route);
+  if (reference) {
+    const entry = referencedCommandEntry(reference, { includeUnavailable: true });
+    if (entry && !commandReady(reference.row, entry.route)) return false;
+  }
+  const ready = route?.ready ?? row.ready ?? scopeReadiness.get(row);
+  return ready ? ready() : true;
+};
+// A pending scope keeps its declarations until its capability input can be read.
+export const scopeAvailable = (scope) =>
+  !commandReady(scope) || !scope.when || scope.when();
 export const commandAvailable = (row, route = null) => {
   const control = route?.control ?? row.control;
   const reference = routedCommand(route);
@@ -331,15 +365,15 @@ export const commandAvailable = (row, route = null) => {
     (!reference || referencedCommandEntry(reference) !== null)
   );
 };
-export function referencedCommandEntry(reference) {
+export function referencedCommandEntry(reference, options) {
   if (
     !reference.source.isConnected ||
     !reference.scope.rows.includes(reference.row) ||
-    (reference.scope.when && !reference.scope.when())
+    !scopeAvailable(reference.scope)
   )
     return null;
   return (
-    commandEntries(reference.row, allBindings(reference.row)).find(
+    commandEntries(reference.row, allBindings(reference.row), options).find(
       ({ id, binding }) =>
         id === reference.id && (binding ?? null) === reference.binding,
     ) ?? null
@@ -443,13 +477,13 @@ export function activeRows(rows, where = "a scope") {
   return validateActive(active, where, (row) => availableBindings(row, bindings(row)));
 }
 
-// The controls one ordered command set contributes to a Question. `decision: true` marks
-// its answering role; the command's title supplies its name. Question reads these controls
+// The controls one ordered command set contributes to an ask. `decision: true` marks
+// its answering role; the command's title supplies its name. The ask view reads these controls
 // for arrival and visibility, while the shared compiler forwards context bindings from
 // the original declarations. Routes may name distinct controls when one compact row
 // owns a family of parameterized bindings. Each result retains its scoped identity so
 // two declarations cannot present different meanings through the same control.
-export function decisionControls(commands, where = "a Question") {
+export function decisionControls(commands, where = "an ask") {
   const controls = new Map();
   for (const { source, scope, row } of commands) {
     const routes = commandRoutes(row);
@@ -472,7 +506,7 @@ export function decisionControls(commands, where = "a Question") {
         : allBindings(row);
       // A semantic command may temporarily have no presented control: a compact
       // margin cluster can give its seat to another contribution, or the owning
-      // widget can replace one state with the next. The Question projects only controls
+      // widget can replace one state with the next. The ask projects only controls
       // that exist in this reading; a non-Element value is still a malformed
       // declaration and fails at its owner.
       if (control == null) continue;
@@ -583,7 +617,8 @@ export function answers(binding, ev) {
 // canonical key spelling at registration. Computed titles and live conflicts are
 // validated when read, under the owner's current state. A title is mandatory;
 // bar wording defaults to it and additional reference detail is optional.
-export function checked(rows, where) {
+export function checked(rows, where, ready) {
+  declareCommandReadiness(rows, ready);
   const ids = new Map();
   const named = (command) => {
     if (typeof command.id !== "string" || !COMMAND_ID.test(command.id))
@@ -608,6 +643,8 @@ export function checked(rows, where) {
       typeof command.description !== "function"
     )
       throw new Error(`leaf: ${command.id} has invalid command description`);
+    if (command.ready !== undefined && typeof command.ready !== "function")
+      throw new TypeError(`leaf: ${command.id} readiness must be a function`);
     if (command.decision !== undefined && typeof command.decision !== "boolean")
       throw new Error(
         `leaf: ${command.id} has invalid Decision role; expected a boolean`,
@@ -665,10 +702,6 @@ export function checked(rows, where) {
       if (missing.length)
         throw new Error(`leaf: ${row.id} has no route for ${missing.join(", ")}`);
     }
-    if (row.sequenceControl != null && row.sequenceControl !== true)
-      throw new Error(
-        `leaf: row ${i} of ${where} has invalid sequence-control presentation ${String(row.sequenceControl)}`,
-      );
     for (const binding of allBindings(row)) {
       for (const mod of parsed(binding).mods)
         if (!MODIFIERS.includes(mod))
@@ -707,8 +740,9 @@ export const rowArrows = (node) =>
     : ["ArrowLeft", "ArrowRight"];
 
 // The one-dimensional list policy. Every step inside the list clamps; a caller may name
-// the row where its own off-list arrival enters. Tabs and spatial grids own their cyclic
-// policies instead of passing through this primitive.
+// the row where its own off-list arrival enters. The page walks cycle (`cycledRow`), and
+// tabs and spatial grids own their cyclic policies instead of passing through this
+// primitive.
 export const clampedRow = (
   rows,
   current,
@@ -719,4 +753,16 @@ export const clampedRow = (
   const at = rows.indexOf(current);
   const next = at < 0 ? entry : at + dir;
   return rows[Math.max(0, Math.min(rows.length - 1, next))];
+};
+
+// The page walks' policy (`t`, `q`, `n`): a step past either end comes round to the
+// other. `wrapped` says it came round, which the landing's ordinal alone does not, so
+// the walk can mark it (walk-position.js, `beginWalk`). Entry from off the list takes
+// the end the step faces and comes round nothing.
+export const cycledRow = (rows, current, dir) => {
+  if (!rows.length) return { row: undefined, wrapped: false };
+  const at = rows.indexOf(current);
+  const next = at < 0 ? (dir > 0 ? 0 : rows.length - 1) : at + dir;
+  const wrapped = next < 0 || next >= rows.length;
+  return { row: rows[(next + rows.length) % rows.length], wrapped };
 };

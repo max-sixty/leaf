@@ -30,7 +30,7 @@ reading it returns is caused by the markup and the log the test wrote and by
 nothing else on the machine.
 """
 
-from interact_support import ModelPage, model_layer
+from interact_support import ModelPage, model_layer, served_thread
 from leaf.event_contracts import admitted_event
 from leaf.files import document_descriptor, version_descriptors
 from leaf.passages import SourceReading
@@ -58,14 +58,19 @@ UNCLAIMED = {
     "session_cwd": None,
 }
 
+# The Layouts that shape `main` (layouts.css), and None for a `main` with none.
+PAGE_LAYOUTS = ("column", "sidebar", "workspace", None)
+
 
 def leaf_page(
     title: str, body: str, *, head: str = "", layout: str | None = "column"
 ) -> str:
     """A complete page carrying the presentation boundary every fixture shares. `layout`
-    names the Layout `main` takes (`wide` is `<main class="layout-wide">`): the column,
+    names the Layout `main` takes (`sidebar` is `<main class="layout-sidebar">`): the column,
     the Layout most pages take, unless the test says otherwise, and None for a `main`
     with no Layout at all."""
+    if layout not in PAGE_LAYOUTS:
+        raise ValueError(f"no page Layout layout-{layout}; one of {PAGE_LAYOUTS}")
     extra_head = f"{head}\n" if head else ""
     main = f'<main class="layout-{layout}">' if layout else "<main>"
     return f"""<!doctype html>
@@ -192,7 +197,7 @@ def reading(
 
 def threads(state: dict) -> dict:
     """Threads by id, as the panel is handed them."""
-    return {thread["id"]: thread for thread in state["thread"]["threads"]}
+    return {thread["id"]: thread for thread in served_thread(state)["threads"]}
 
 
 def projected(state: dict, revision: int) -> dict:

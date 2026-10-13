@@ -1,10 +1,26 @@
 /* The playground's one initial DOM producer. It runs as the parser finishes the
  * widget and again only for an arriving widget that has no initial drawing. Native
  * fields and the viewer's tab-local values determine the actual first layout;
- * upgrade adopts these nodes and adds Leaf commands, projection and delivery. */
+ * upgrade adopts these nodes and adds Leaf commands, projection and delivery.
+ *
+ * Every authored playground has passed validation, page source and message markup
+ * alike, so what the registry states is not checked again here: control names and
+ * kinds, unique control names, choice values and preset settings (x-unique), and each
+ * setting's and value slot's `for` naming a control of this playground (a keyed
+ * x-refers). This producer checks only what needs the values themselves, such as a
+ * range value against its bounds or a choice control's value among its choices. */
 const own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
-const KINDS = new Set(["range", "toggle", "choice", "color", "text"]);
-const NAME = /^[a-z][a-z0-9-]*$/;
+const belongsTo = (host, member) =>
+  member.parentElement.closest("lf-playground, [data-lf-exhibit]") === host;
+// A control stands in the rail as a direct child, or where the preview's markup puts
+// it, beside the item it changes (x-within). Nested playgrounds and quotations
+// enclose their own content rather than supplying controls to this playground.
+const ownControls = (host, preview) => [
+  ...own(host, "lf-playground-control"),
+  ...[...(preview?.querySelectorAll("lf-playground-control") ?? [])].filter((control) =>
+    belongsTo(host, control),
+  ),
+];
 const COPY_LABELS = [
   ["rest", "Copy instruction"],
   ["success", "Copied"],
@@ -12,10 +28,10 @@ const COPY_LABELS = [
 ];
 
 function render(host, { tabStore, offer, keeps }) {
-  const controls = own(host, "lf-playground-control");
   const presets = own(host, "lf-playground-preset");
   const outputs = own(host, "lf-playground-output");
   const previews = own(host, "lf-playground-preview");
+  const controls = ownControls(host, previews[0]);
   if (!controls.length || outputs.length !== 1 || previews.length !== 1)
     throw new Error("playground needs controls, one preview and one output");
   const output = outputs[0],
@@ -25,14 +41,9 @@ function render(host, { tabStore, offer, keeps }) {
   for (const control of controls) {
     const name = control.getAttribute("name"),
       kind = control.getAttribute("kind");
-    if (!NAME.test(name ?? "") || controlByName.has(name) || !KINDS.has(kind))
-      throw new Error(`invalid or repeated playground control ${name}`);
     const choices = own(control, "lf-playground-choice");
     if ((kind === "choice") !== Boolean(choices.length))
       throw new Error(`control ${name} needs choices only for kind choice`);
-    const choicesValues = choices.map((choice) => choice.getAttribute("value"));
-    if (new Set(choicesValues).size !== choicesValues.length)
-      throw new Error(`control ${name} repeats a choice`);
     choicesByName.set(name, choices);
     controlByName.set(name, control);
   }
@@ -44,13 +55,7 @@ function render(host, { tabStore, offer, keeps }) {
         min = Number(control.getAttribute("min"));
       const max = Number(control.getAttribute("max")),
         step = Number(control.getAttribute("step") ?? "1");
-      if (
-        ![value, min, max, step].every(Number.isFinite) ||
-        min >= max ||
-        step <= 0 ||
-        value < min ||
-        value > max
-      )
+      if (!Number.isFinite(value) || min >= max || value < min || value > max)
         throw new Error(`control ${name} has a value outside its range`);
       if (Math.abs((value - min) / step - Math.round((value - min) / step)) > 1e-9)
         throw new Error(`control ${name} has a value off its step`);
@@ -146,10 +151,6 @@ function render(host, { tabStore, offer, keeps }) {
       const next = {};
       for (const setting of settings) {
         const name = setting.getAttribute("for");
-        if (!controlByName.has(name))
-          throw new Error(`preset names unknown control ${name}`);
-        if (Object.hasOwn(next, name))
-          throw new Error(`preset repeats control ${name}`);
         next[name] = parse(controlByName.get(name), setting.getAttribute("value"));
       }
       return [preset, Object.freeze(next)];
@@ -159,12 +160,13 @@ function render(host, { tabStore, offer, keeps }) {
     copy = null,
     reset = null;
   if (interactive) {
+    const railed = controls.filter((control) => control.parentElement === host);
     const panel = node("div", "lf-playground-controls");
     const panelTitle = node("p", "lf-playground-controls-title", "Controls");
     panelTitle.id = `${host.id}-controls-title`;
     panel.setAttribute("role", "group");
     panel.setAttribute("aria-labelledby", panelTitle.id);
-    panel.append(panelTitle, ...controls);
+    panel.append(panelTitle, ...railed);
     for (const control of controls) {
       const name = control.getAttribute("name"),
         kind = control.getAttribute("kind"),
@@ -213,7 +215,9 @@ function render(host, { tabStore, offer, keeps }) {
     }
     let presetBar = null;
     if (presets.length) {
-      presetBar = node("header", "lf-playground-presets");
+      // The presets head the rail's controls, or are the whole pane when every
+      // control stands in the preview.
+      presetBar = node(railed.length ? "header" : "div", "lf-playground-presets");
       const title = node("span", "lf-playground-presets-title", "Starting points");
       title.id = `${host.id}-presets-title`;
       presetBar.setAttribute("role", "group");
@@ -266,9 +270,16 @@ function render(host, { tabStore, offer, keeps }) {
     const previewBody = node("div", "lf-playground-preview-body");
     previewBody.append(preview);
     const split = node("div", "lf-playground-split");
+    // The rail's controls pane holds the controls written there and the presets; a
+    // playground whose every control stands in its preview and that offers no preset
+    // has none.
     split.append(
       pane("preview", "Preview", null, previewBody),
-      pane("controls", "Controls", presetBar, panel),
+      ...(railed.length
+        ? [pane("controls", "Controls", presetBar, panel)]
+        : presetBar
+          ? [pane("controls", "Controls", null, presetBar)]
+          : []),
       pane(
         "instruction",
         "Instruction to agent",
@@ -319,10 +330,9 @@ function render(host, { tabStore, offer, keeps }) {
   };
   const renderValues = (next) => {
     for (const slot of output.querySelectorAll("lf-playground-value")) {
-      const name = slot.getAttribute("for"),
-        control = controlByName.get(name);
-      if (!control) throw new Error(`output names unknown control ${name}`);
-      text(slot, formatted(control, next[name]));
+      if (!belongsTo(host, slot)) continue;
+      const name = slot.getAttribute("for");
+      text(slot, formatted(controlByName.get(name), next[name]));
     }
   };
   const paintPresets = (next) => {

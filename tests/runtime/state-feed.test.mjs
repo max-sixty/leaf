@@ -19,7 +19,7 @@ const { readingIsContinuous, readingReturn, completeReadingReturn } =
 
 let taken = 0;
 const emptyProjection = () => ({ entries: [], actions: [], reports: [], desired: [] });
-const noQuestions = () => ({ all: [], user: [], unanswered: [] });
+const noAsks = () => ({ all: [], user: [], unanswered: [] });
 const state = (reading) => ({
   taken: ++taken,
   reading,
@@ -31,13 +31,13 @@ const state = (reading) => ({
   browser: {
     basis: { through_seq: 0 },
     receipts: [],
-    thread: { threads: [], projection: emptyProjection(), questions: noQuestions() },
     views: {
       1: {
         basis: { revision: 1, through_seq: 0 },
+        thread: { threads: [], projection: emptyProjection(), asks: noAsks() },
         coverage: [],
         undo: [],
-        document: { questions: noQuestions(), projection: emptyProjection() },
+        document: { asks: noAsks(), projection: emptyProjection() },
       },
     },
   },

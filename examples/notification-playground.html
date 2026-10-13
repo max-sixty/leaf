@@ -236,7 +236,6 @@
           "div",
           `notification-demo-feed notification-demo-${format.replace(" ", "-")}`,
         );
-        feed.setAttribute("aria-label", `${name} candidate`);
         figure.append(caption, feed);
         return { figure, feed, metric: caption.lastElementChild };
       }
@@ -339,7 +338,7 @@
               this.#values.format === "status strip",
             );
             // The cards read only the event count, the first title and the owner line;
-            // a colour or a radius leaves them standing.
+            // a colour or a radius leaves them unchanged.
             const cards = JSON.stringify([
               this.#values.events,
               this.#values.title,
@@ -374,9 +373,13 @@
   </head>
   <body>
     <main class="layout-workspace density-working" id="notification-workspace">
-      <lf-ask id="notification-ask" data-width="available">
+      <lf-ask id="notification-ask">
         <h1>Stress-test the deployment notification</h1>
-        <lf-playground id="notification-playground" submit-label="Create notification">
+        <lf-playground
+          id="notification-playground"
+          submit-label="Create notification"
+          data-width="available"
+        >
           <lf-playground-control
             name="events"
             label="Concurrent release events"

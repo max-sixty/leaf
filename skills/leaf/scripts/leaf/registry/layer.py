@@ -1,30 +1,25 @@
 """Layer registry composition and contract validation."""
 
 import json
-import re
 from copy import deepcopy
 
 import jmespath
 import turbohtml
 from jmespath.exceptions import JMESPathError
-from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
-from leaf.schema import (
-    ANSWER_KINDS,
-    DATA_CONTRACT_NAME,
-    DECLARED_MARKS,
-    EXTENSION_SCHEMA,
-    HTML_NAME,
-    INSTRUCTIONS_SCHEMA,
-)
+from leaf.schema import DECLARED_MARKS, EXTENSION_SCHEMA, LAYER_FACTS_SCHEMA
 
-from .contract import RegistryError, is_element_name, stamp_decisions, stamp_states
+from .contract import (
+    is_element_name,
+    registry_error,
+    stamp_decisions,
+    stamp_states,
+)
 from .schema import (
     check_schema,
     json_validator,
-    json_value,
-    schema_error_message,
+    schema_reading,
     unresolved_schema_reference,
 )
 
@@ -60,10 +55,7 @@ def merge_layer_declarations(merged: dict, declarations: dict) -> None:
             # `1.0` is not taken for a protocol of 1, and the kernel's copy is kept.
             for key in entry.keys() - LAYER_OWNED_EVENTS:
                 if _canonical(entry[key]) != _canonical(earlier.get(key)):
-                    raise RegistryError(
-                        f"$events.{key} is Leaf's fixed transport contract and cannot be "
-                        "changed by a layer"
-                    )
+                    raise registry_error("fixed-events", key=key)
             entry = {key: entry[key] for key in entry.keys() & LAYER_OWNED_EVENTS}
         combined = {**earlier, **entry}
         for key, value in entry.items():
@@ -94,62 +86,39 @@ def stamp_composition(registry: dict) -> dict:
     return registry
 
 
-def required_layer_declarations(registry: dict, path):
-    try:
-        kinds = registry["$events"]["kinds"]
-        names = registry["$languages"]["names"]
-        paths = registry["$languages"]["paths"]
-        tones = registry["$tones"]["names"]
-        data = registry["$data"]
-        tokens = registry["$reactions"]["tokens"]
-    except (KeyError, TypeError):
-        raise RegistryError(
-            f"{path}: registry must declare $events.kinds, $languages.names/paths, "
-            "$tones.names, $data, and $reactions.tokens"
-        ) from None
-    return kinds, names, paths, tones, data, tokens
+def check_layer_facts(registry: dict, path) -> None:
+    """Refuse a vocabulary whose shared layer facts depart from `LAYER_FACTS_SCHEMA`,
+    naming where and how."""
+    error = min(
+        json_validator(LAYER_FACTS_SCHEMA).iter_errors(registry), key=str, default=None
+    )
+    if error is not None:
+        raise registry_error("layer-facts", path, **schema_reading(error))
 
 
-def validate_event_handling(events: dict, kinds: dict, path) -> None:
-    """`$events.handling` and `$events.answering` are read directly by every event
-    a delivery carries, so a layer that restates a kind is held to the shape the
-    consumer assumes: a declared event kind or answer kind, a non-empty list of
-    clauses, each a non-empty `text` and an optional `when` that is a valid JSON
-    Schema. The complete vendored registry must carry both maps; individual kind
-    instructions remain optional."""
-    for key, known in (("handling", kinds), ("answering", ANSWER_KINDS)):
-        declared = events.get(key)
-        if not isinstance(declared, dict) or any(
-            kind not in known or not _valid_clauses(clauses)
-            for kind, clauses in declared.items()
-        ):
-            what = "declared kinds" if key == "handling" else "answer kinds"
-            raise RegistryError(
-                f"{path}: $events.{key} must map {what} to a non-empty list "
-                "of clauses, each a non-empty `text` and an optional `when` schema"
-            )
-
-
-def _valid_clauses(clauses) -> bool:
-    if not isinstance(clauses, list) or not clauses:
-        return False
-    for clause in clauses:
-        if not isinstance(clause, dict) or set(clause) - {"text", "when"}:
-            return False
-        text = clause.get("text")
-        if not isinstance(text, str) or not text.strip():
-            return False
-        if "when" in clause:
-            try:
-                check_schema(clause["when"])
-            except SchemaError:
-                return False
-    return True
-
-
-def validate_layer_declarations(
-    registry: dict, path, names, paths, tones, data, tokens
-) -> None:
+def validate_layer_declarations(registry: dict, path) -> None:
+    """The layer facts' shape (`LAYER_FACTS_SCHEMA`), then what the schema cannot
+    say: each name one fact gives another, each `when` and contract `schema` a JSON
+    Schema, each `resources` entry JMESPath, the documented keys, and the idioms."""
+    check_layer_facts(registry, path)
+    events = registry["$events"]
+    for key in ("handling", "answering"):
+        for kind, clauses in events[key].items():
+            if key == "handling" and kind not in events["kinds"]:
+                raise registry_error("undeclared-event-kind", path, kind=kind)
+            for clause in clauses:
+                if "when" not in clause:
+                    continue
+                try:
+                    check_schema(clause["when"])
+                except SchemaError as error:
+                    raise registry_error(
+                        "invalid-when",
+                        path,
+                        key=key,
+                        kind=kind,
+                        **schema_reading(error),
+                    ) from error
     # $keys documents exactly the x- keys the lint admits, one string per key: the
     # keys are closed here (EXTENSION_SCHEMA), so a member for a key that cannot be
     # declared is documentation of nothing, and a key with no member is one an author
@@ -164,10 +133,11 @@ def validate_layer_declarations(
         or not all(isinstance(text, str) and text for text in keys.values())
         or documented != admitted
     ):
-        raise RegistryError(
-            f"{path}: $keys must carry a description and one paragraph per x- key the "
-            f"lint admits — missing {json_value(sorted(admitted - documented))}, "
-            f"unadmitted {json_value(sorted(documented - admitted))}"
+        raise registry_error(
+            "keys-documentation",
+            path,
+            missing=sorted(admitted - documented),
+            unadmitted=sorted(documented - admitted),
         )
     # Idioms share author-facing fields with elements; only marks whose readers
     # consume delivery's paint can be declared on selectors. Validate every selector,
@@ -181,8 +151,8 @@ def validate_layer_declarations(
         try:
             probe.matches(selector)
         except turbohtml.SelectorSyntaxError as error:
-            raise RegistryError(
-                f"{path}: idiom {selector!r} selector cannot be matched: {error}"
+            raise registry_error(
+                "idiom-selector", path, selector=selector, error=str(error)
             ) from None
         if (
             not isinstance(entry, dict)
@@ -192,142 +162,45 @@ def validate_layer_declarations(
             or not isinstance(entry.get("x-example"), str)
             or not entry["x-example"].strip()
         ):
-            raise RegistryError(
-                f"{path}: idiom {selector!r} must carry a non-empty description and "
-                "x-example, with optional x-instructions and "
-                + ", ".join(sorted(marks))
+            raise registry_error(
+                "idiom-fields", path, selector=selector, marks=sorted(marks)
             )
         for key in set(entry) - {"description"}:
-            if not Draft202012Validator(EXTENSION_SCHEMA["properties"][key]).is_valid(
+            if not json_validator(EXTENSION_SCHEMA["properties"][key]).is_valid(
                 entry[key]
             ):
-                raise RegistryError(
-                    f"{path}: idiom {selector!r} declares {key}={json_value(entry[key])}; "
-                    "the value must satisfy its $keys declaration"
+                raise registry_error(
+                    "idiom-value", path, selector=selector, key=key, value=entry[key]
                 )
-    if (
-        not isinstance(names, list)
-        or not all(isinstance(name, str) for name in names)
-        or len(names) != len(set(names))
+    languages = registry["$languages"]
+    if strays := sorted(
+        extension
+        for extension, language in languages["paths"].items()
+        if language not in languages["names"]
     ):
-        raise RegistryError(
-            f"{path}: $languages.names must be a unique list of strings"
-        )
-    if not isinstance(paths, dict) or not all(
-        isinstance(extension, str) and language in names
-        for extension, language in paths.items()
-    ):
-        raise RegistryError(
-            f"{path}: $languages.paths must map extensions to declared languages"
-        )
-    # Shape, not just presence, because `declared_word_errors` asks a list for membership
-    # and a string answers the same question by substring: a layer declaring
-    # `"names": "ok"` would pass every one-letter tone and paint none of them, which is
-    # exactly the invisible failure the check exists to catch.
-    if (
-        not isinstance(tones, list)
-        or not all(isinstance(tone, str) for tone in tones)
-        or len(tones) != len(set(tones))
-    ):
-        raise RegistryError(f"{path}: $tones.names must be a unique list of strings")
-    if (
-        not isinstance(data, dict)
-        or set(data) != {"description", "contracts"}
-        or not isinstance(data.get("description"), str)
-        or not data["description"]
-        or not isinstance(data.get("contracts"), dict)
-    ):
-        raise RegistryError(
-            f"{path}: $data must carry a description and a contracts object"
-        )
-    for contract, declaration in data["contracts"].items():
-        if (
-            not isinstance(contract, str)
-            or re.fullmatch(DATA_CONTRACT_NAME, contract) is None
-        ):
-            raise RegistryError(f"{path}: $data has invalid contract name {contract!r}")
-        if (
-            not isinstance(declaration, dict)
-            or not {"description", "schema"} <= set(declaration)
-            or set(declaration)
-            - {"description", "schema", "instructions", "records", "resources"}
-            or not isinstance(declaration.get("description"), str)
-            or not declaration["description"]
-            or not isinstance(declaration.get("schema"), dict)
-        ):
-            raise RegistryError(
-                f"{path}: $data contract {contract!r} must carry a description and "
-                "schema, with optional instructions, records and resources"
-            )
-        resources = declaration.get("resources", [])
-        if not isinstance(resources, list) or any(
-            not isinstance(expression, str) or not expression
-            for expression in resources
-        ):
-            raise RegistryError(
-                f"{path}: $data contract {contract!r} resources must be a list of "
-                "non-empty JMESPath expressions"
-            )
-        for expression in resources:
+        raise registry_error("undeclared-language", path, extensions=strays)
+    for contract, declaration in registry["$data"]["contracts"].items():
+        for expression in declaration.get("resources", []):
             try:
                 jmespath.compile(expression)
             except JMESPathError as error:
-                raise RegistryError(
-                    f"{path}: $data contract {contract!r} resource expression "
-                    f"{expression!r} is invalid: {error}"
+                raise registry_error(
+                    "contract-resource",
+                    path,
+                    contract=contract,
+                    expression=expression,
+                    error=str(error),
                 ) from error
-        records = declaration.get("records")
-        if records is not None and (
-            not isinstance(records, dict)
-            or not {"items", "key"} <= set(records) <= {"items", "key", "deferred"}
-            or any(
-                not isinstance(field, str) or not field for field in records.values()
-            )
-            or len(set(records.values())) != len(records)
-        ):
-            raise RegistryError(
-                f"{path}: $data contract {contract!r} records must name distinct "
-                "non-empty items and key fields, and optionally a deferred field"
-            )
-        instructions_errors = sorted(
-            json_validator(INSTRUCTIONS_SCHEMA).iter_errors(
-                declaration.get("instructions", {})
-            ),
-            key=str,
-        )
-        if instructions_errors:
-            raise RegistryError(
-                f"{path}: $data contract {contract!r} instructions are invalid: "
-                f"{schema_error_message(instructions_errors[0])}"
-            )
+        records = declaration.get("records") or {}
+        if len(set(records.values())) != len(records):
+            raise registry_error("contract-records", path, contract=contract)
         try:
             check_schema(declaration["schema"])
         except SchemaError as error:
-            raise RegistryError(
-                f"{path}: $data contract {contract!r} has an invalid JSON Schema: "
-                f"{schema_error_message(error)}"
+            raise registry_error(
+                "contract-schema", path, contract=contract, **schema_reading(error)
             ) from error
         if reference := unresolved_schema_reference(declaration["schema"]):
-            raise RegistryError(
-                f"{path}: $data contract {contract!r} schema reference {reference!r} "
-                "does not resolve within the package; data contracts must be "
-                "self-contained"
+            raise registry_error(
+                "contract-reference", path, contract=contract, reference=reference
             )
-    # Each token whole: the runtime paints `glyph` and the panel's narrowing reads
-    # `settles`. A missing glyph or misspelled behavior would otherwise fail silently.
-    if not isinstance(tokens, dict) or not all(
-        isinstance(name, str)
-        and re.fullmatch(HTML_NAME, name)
-        and isinstance(entry, dict)
-        and not set(entry) - {"glyph", "settles"}
-        and isinstance(entry.get("glyph"), str)
-        and entry["glyph"].strip()
-        and len(entry["glyph"]) <= 4
-        and isinstance(entry.get("settles", False), bool)
-        for name, entry in tokens.items()
-    ):
-        raise RegistryError(
-            f"{path}: $reactions.tokens must map lowercase token names to entries "
-            "with a short `glyph` of at most four code points and optionally a "
-            "boolean `settles`"
-        )

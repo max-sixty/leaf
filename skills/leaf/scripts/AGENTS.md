@@ -32,8 +32,8 @@ transport boundary exits, prints, or answers HTTP.
 - `event_endpoint`: the browser's HTTP transport onto the door;
 - `event_meaning`: admitted widget-command meaning and layer compatibility;
 - `interaction_log`: page-local diagnostics of browser gestures and requests;
-- `events`, `projection`, `document_reading`, `construction`: standing event and
-  durable state folds, the shared document and decision reading, and a thread's
+- `events`, `projection`, `document_reading`, `construction`: folds of the events
+  in force and durable state, the shared document and decision reading, and a thread's
   frozen markup as effective content with its origins;
 - `page_snapshot`: the transaction-consistent reading one browser preview serves;
 - `agent_state`, `read_state`, `gesture_words`, `history`, `transcript`: agent-facing
@@ -44,14 +44,14 @@ transport boundary exits, prints, or answers HTTP.
 - `work_reading`: the transaction-scoped durable work reading shared by admission,
   serving and delivery;
 - `workflows`, `activity`: unsettled updates with their evidence, and the
-  page-level fold over workflows, tasks, starts, status, claim, turn, and watcher;
-- `questions`: the canonical inventory of widget and prose Questions, including typed
+  page-level fold over workflows, to-dos, starts, status, claim, turn, and watcher;
+- `asks`: the canonical inventory of widget and prose asks, including typed
   answers, completion, withdrawal and attention, which every surface selects;
-- `work`: the subjects work stands on: what an id names, which widgets seat a task,
-  and which widget tasks a version would leave without a target;
-- `tasks` (experimental, expected to change a lot): explicit committed work on either
-  side, held by the log until ended, and the `start` that takes an update or task in
-  hand; their folds, admission gate, and `leaf task`. Questions never become Tasks;
+- `work`: the subjects work stands on: what an id names, which widgets seat a to-do,
+  and which widget to-dos a version would leave without a target;
+- `todos` (experimental, expected to change a lot): explicit committed work on either
+  side, held by the log until ended, and the `start` that takes an update or to-do in
+  hand; their folds, admission gate, and `leaf task`. Asks never become to-dos;
 - `delivery`, `session`, `hooks`, `hook_transport`, `harness`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the harness hooks' entry, the
   prompt and Stop hooks as a session's transport, and harness declarations;
@@ -81,6 +81,7 @@ transport boundary exits, prints, or answers HTTP.
 - `structure`, `styles`: authored-page gates and the complete source reading;
 - `passages`, `anchor_capture`: the file-side text reading and anchor construction;
 - `render_checks`: browser probes;
+- `findings`: the record every check behind `page check` reports, and its words;
 - `exporting`: a stamped version as one offline file;
 - `data`, `data_contracts`: typed snapshot storage, bindings, and contract checks;
 - `media`, `publishing`, `live_shell`: page-bound media, public version stamps, and
@@ -94,7 +95,7 @@ declarations and provenance, `storage` owns the vendored-file cache, and
 `reactions` owns reaction descriptions.
 
 Within `served_state/`, `context` owns the live or captured inputs every fold reads;
-`work` enriches the shared durable reading with live activity and response bindings;
+`work` enriches the shared durable reading with live activity and reply reservations;
 `wire` serializes one declared fold, `thread` and `document`
 own their scoped readings, `queues` selects the work queues each view serves and
 `page state` prints, `browser` assembles the requested views, `page` composes
@@ -102,9 +103,9 @@ the served response, `reading` names filesystem changes for freshness reads, and
 `service` owns the page source every route reads through (the live directory, or a
 `page_snapshot` capture) and its state transaction.
 
-Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings` owns
-the probe readings and their findings, `version` owns retry policy, `page_code` owns
-the run plain `page check` takes, `preview` owns ephemeral servers, `browser` owns the
+Within `render_gate/`, `scheme` owns one browser and color lifecycle, `readings`
+owns the probe readings and the findings they become, `version` owns retry policy,
+`page_code` owns the run plain `page check` takes, `preview` owns ephemeral servers, `browser` owns the
 browser's launch and end, `screens` owns the screens a passing check saves for the
 author, `picture` owns the picture `page picture` draws of a drawing comment,
 `command` owns the CLI boundary, and `widget_quality` owns the report

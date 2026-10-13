@@ -86,9 +86,9 @@ PART_DIAGRAM_PAGE = leaf_page(
     "diagram parts",
     """
 <h1 id="t">Request path</h1>
-<lf-diagram id="flow" parts="node:S node:H"><pre>
+<lf-diagram id="flow" parts="all"><pre>
 graph LR
-  S[Start request] --> H[Handle request] --> U[Unlisted result]
+  S[Start request] --> H[Handle request] --> U[Result]
 </pre></lf-diagram>
 """,
 )
@@ -96,7 +96,7 @@ GENERIC_VISUAL_PAGE = leaf_page(
     "registered visual parts",
     """
 <h1 id="title">Registered visual parts</h1>
-<lf-test-visual id="visual" parts="outer inner html"></lf-test-visual>
+<lf-test-visual id="visual" parts="all"></lf-test-visual>
 """,
 )
 GENERIC_VISUAL_LAYER = {
@@ -105,35 +105,34 @@ GENERIC_VISUAL_LAYER = {
         "type": "object",
         "properties": {
             "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "parts": {"type": "string", "minLength": 1},
+            "parts": {"const": "all"},
         },
         "required": ["id", "parts"],
         "additionalProperties": False,
         "x-content": "empty",
         "x-upgrade": True,
         "x-visual": {"parts": "parts"},
-        "x-example": '<lf-test-visual id="visual" parts="outer inner html"></lf-test-visual>',
+        "x-example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
     }
 }
 
 
 def visual_widgets(
     *,
+    tag="lf-test-visual",
     staged=False,
-    opening_fill="#dbeafe",
-    repair_fill_on_reveal=False,
     outside_surface_for=None,
 ):
-    """Serve one visual implementation with each case's declared state and faults."""
+    """Serve one visual implementation with each case's declared state and faults,
+    defined as `tag` so several cases can stand on one page."""
     configuration = {
+        "tag": tag,
         "staged": staged,
-        "openingFill": opening_fill,
-        "repairFillOnReveal": repair_fill_on_reveal,
         "outsideSurfaceFor": outside_surface_for,
     }
     return {
         "visual-fixture.js": browser_source("widgets/visual-fixture.js"),
-        "lf-test-visual.js": (
+        f"{tag}.js": (
             "import { defineVisualFixture } from './visual-fixture.js';\n"
             f"defineVisualFixture({json.dumps(configuration)});\n"
         ),
@@ -146,9 +145,8 @@ GENERIC_VISUAL_WIDGETS = visual_widgets()
 STAGED_VISUAL_WIDGETS = visual_widgets(staged=True)
 
 
-# The same visual with its part ids declared by prefix rather than authored: the
-# element names none of them, and the module's inventory is bounded by the prefixes.
-PREFIXED_VISUAL_PAGE = GENERIC_VISUAL_PAGE.replace(' parts="outer inner html"', "")
+# Generated identities can instead be bounded by the provider's prefixes.
+PREFIXED_VISUAL_PAGE = GENERIC_VISUAL_PAGE.replace(' parts="all"', "")
 
 
 def prefixed_visual_layer(*prefixes):
@@ -168,7 +166,7 @@ SHADOW_VISUAL_PAGE = leaf_page(
     "shadow visual clipping",
     """
 <h1 id="title">Shadow visual clipping</h1>
-<lf-test-shadow-visual id="shadow-visual" parts="wide"></lf-test-shadow-visual>
+<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>
 """,
 )
 SHADOW_VISUAL_LAYER = {
@@ -177,7 +175,7 @@ SHADOW_VISUAL_LAYER = {
         "type": "object",
         "properties": {
             "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
-            "parts": {"type": "string", "minLength": 1},
+            "parts": {"const": "all"},
         },
         "required": ["id", "parts"],
         "additionalProperties": False,
@@ -185,7 +183,7 @@ SHADOW_VISUAL_LAYER = {
         "x-upgrade": True,
         "x-shadow": True,
         "x-visual": {"parts": "parts"},
-        "x-example": '<lf-test-shadow-visual id="shadow-visual" parts="wide"></lf-test-shadow-visual>',
+        "x-example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
     }
 }
 SHADOW_VISUAL_WIDGETS = {
@@ -195,14 +193,14 @@ SHADOW_SCROLLER_PAGE = leaf_page(
     "shadow scroller",
     """
 <h1 id="title">Shadow scroller</h1>
-<lf-test-shadow-scroller id="shadow-scroller" parts="part"></lf-test-shadow-scroller>
+<lf-test-shadow-scroller id="shadow-scroller" parts="all"></lf-test-shadow-scroller>
 """,
 )
 SHADOW_SCROLLER_LAYER = {
     "lf-test-shadow-scroller": {
         **SHADOW_VISUAL_LAYER["lf-test-shadow-visual"],
         "description": "A visual part in a shadow-stage scroller.",
-        "x-example": '<lf-test-shadow-scroller id="shadow-scroller" parts="part">'
+        "x-example": '<lf-test-shadow-scroller id="shadow-scroller" parts="all">'
         "</lf-test-shadow-scroller>",
     }
 }
@@ -216,7 +214,7 @@ TYPED_PARTS_PAGE = leaf_page(
     "typed diagram parts",
     """
 <h1 id="t">One runner</h1>
-<lf-diagram id="life" parts="node:Queued node:Working node:Fetch node:Build node:Done"><pre>
+<lf-diagram id="life" parts="all"><pre>
 stateDiagram-v2
   [*] --&gt; Queued
   Queued --&gt; Working
@@ -225,7 +223,7 @@ stateDiagram-v2
   }
   Working --&gt; Done
 </pre></lf-diagram>
-<lf-diagram id="shape" parts="node:RUNNER node:JOB"><pre>
+<lf-diagram id="shape" parts="all"><pre>
 erDiagram
   RUNNER {
     string id PK
@@ -233,17 +231,17 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="path" parts="node:A node:B"><pre>
+<lf-diagram id="path" parts="all"><pre>
 graph LR
   A["Bold and plain"] --&gt; B[after]
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="node:User node:Server"><pre>
+<lf-diagram id="exchange" parts="all"><pre>
 sequenceDiagram
   participant User
   participant Server
   User-&gt;&gt;Server: Request
 </pre></lf-diagram>
-<lf-diagram id="model" parts="node:Job node:Runner"><pre>
+<lf-diagram id="model" parts="all"><pre>
 classDiagram
   class Job {
     +run()
@@ -266,7 +264,7 @@ TYPED_PARTS_V2 = leaf_page(
     "typed diagram parts",
     """
 <h1 id="t">One runner</h1>
-<lf-diagram id="life" parts="node:Fresh node:Queued node:Working node:Fetch node:Build node:Done"><pre>
+<lf-diagram id="life" parts="all"><pre>
 stateDiagram-v2
   [*] --&gt; Fresh
   Fresh --&gt; Queued
@@ -276,7 +274,7 @@ stateDiagram-v2
   }
   Working --&gt; Done
 </pre></lf-diagram>
-<lf-diagram id="shape" parts="node:RUNNER node:JOB"><pre>
+<lf-diagram id="shape" parts="all"><pre>
 erDiagram
   RUNNER {
     string id PK
@@ -284,13 +282,13 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="node:User node:Server"><pre>
+<lf-diagram id="exchange" parts="all"><pre>
 sequenceDiagram
   participant User
   participant Server
   User-&gt;&gt;Server: Request
 </pre></lf-diagram>
-<lf-diagram id="model" parts="node:Job node:Runner"><pre>
+<lf-diagram id="model" parts="all"><pre>
 classDiagram
   class Job {
     +run()
@@ -311,9 +309,9 @@ PART_DIAGRAM_V2 = leaf_page(
     "diagram parts",
     """
 <h1 id="t">Request path</h1>
-<lf-diagram id="flow" parts="node:S node:H"><pre>
+<lf-diagram id="flow" parts="all"><pre>
 graph LR
-  U[Unlisted result]
+  U[Result]
   H[Handle request]
   S[Start request]
   S --> H
@@ -531,7 +529,6 @@ BAD_CHARTS = {
     "bad-syntax": '{ariaLabel: "merged", marks: [}',
     "bad-label": "{marks: [Plot.ruleY([0])]}",
     "bad-mark": '{ariaLabel: "merged", marks: [Plot.barz([{n: 1}], {y: "n"})]}',
-    "bad-shape": '[{ariaLabel: "merged", marks: []}]',
     "bad-drawn": 'Plot.plot({ariaLabel: "merged", marks: [Plot.ruleY([0])]})',
     "bad-height": '{ariaLabel: "merged", height: 200, marks: [Plot.ruleY([0])]}',
 }
@@ -785,7 +782,7 @@ DIFF_ROW_PLACEMENT = """() => {
     const root = document.querySelector('lf-diff').shadowRoot;
     const files = [...root.querySelectorAll('.lf-diff-file')];
     const lifts = files.map((file) => {
-        const row = file.querySelector(':scope > details, :scope > .lf-diff-rename');
+        const row = file.querySelector(':scope > details, :scope > .lf-diff-metadata');
         return Math.round(row.getBoundingClientRect().top
                           - file.getBoundingClientRect().top);
     });

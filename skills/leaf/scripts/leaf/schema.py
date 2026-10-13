@@ -7,20 +7,20 @@ from .state import EVENTS_FILE
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
-# source; a standing lifetime ignores it and remains enabled until `server stop`.
+# source; a persistent lifetime ignores it and remains enabled until `server stop`.
 ORPHAN_GRACE_SECS = 1
 # The harness-neutral name of an agent nothing names: a page's when no claimant
 # supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
 UNNAMED_AGENT = "Agent"
 # Non-message gesture kinds eligible for withdrawal; events.undo_error handles
 # reactions. The complete eligibility contract is events.md, "Undo".
-UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done", "task_end"}
+UNDOABLE_KINDS = {"resolve", "unresolve", "action", "done", "todo_end"}
 MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report"}
 # The operations that settle an update the agent owes, as `workflows` and
-# `activity` address them and `$events.answering` explains them. Reply writer custody
-# is separate: a provider turn may own its opening and final messages.
+# `activity` address them and `$events.answering` explains them. Which writer posts a
+# reply is separate: a reply reservation (`delivery`) gives it to a provider turn.
 ANSWER_KINDS = ("reply", "markup")
 ANSWER_ASK_INSTRUCTION = (
     "Each update takes the answer named for it. Read current obligations with "
@@ -86,7 +86,7 @@ _RECORD_VALUE = {
 }
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
-# present or absent). One condition shape serves Questions and threads because they
+# present or absent). One condition shape serves asks and threads because they
 # ask the same question of the same authored attributes.
 AWAITING_CONDITION = {
     "type": "object",
@@ -99,11 +99,11 @@ AWAITING_CONDITION = {
     },
 }
 
-# When a local Question is answered: a map from each answering x-state verb to the
-# condition its standing state meets. An empty condition means the verb's state stands
-# (a non-empty attribute or value record, otherwise a standing action). `when` narrows
+# When a local ask is answered: a map from each answering x-state verb to the
+# condition its current state meets. An empty condition means the verb's state stands
+# (a non-empty attribute or value record, otherwise an action in force). `when` narrows
 # the verb to instances whose attributes match; `empty` holds when the one member
-# container it names inside the widget is left with no members by the standing
+# container it names inside the widget is left with no members by the current
 # positions. One map, so every answer is a reading of state the fold already keeps.
 ANSWERED_SCHEMA = {
     "type": "object",
@@ -141,7 +141,10 @@ ACTION_CREATES = {
 # any authored element. A typed relation selects a package registry map
 # and an equality predicate within that map; the names and values remain vocabulary.
 # `owns` makes the relation one-to-one within a document: the referrer fills its
-# target (`validation.instances.reference_errors`).
+# target (`validation.instances.reference_errors`). A keyed relation names a member,
+# not an element id: the `tag` member whose `key` attribute holds the value, which
+# that tag declares unique within an owner (x-unique), looked up in the referrer's own
+# enclosing owner.
 REFERENCE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -161,8 +164,17 @@ REFERENCE_SCHEMA = {
                 },
             },
             "owns": {"const": True},
+            "tag": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+            "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
-        "dependentRequired": {"via": ["where"], "where": ["via"], "owns": ["via"]},
+        "dependentRequired": {
+            "via": ["where"],
+            "where": ["via"],
+            "owns": ["via"],
+            "tag": ["key"],
+            "key": ["tag"],
+        },
+        "dependentSchemas": {"key": {"not": {"required": ["via"]}}},
         "additionalProperties": False,
     },
 }
@@ -190,8 +202,8 @@ STATE_SCHEMA = {
             },
             "writer": {"const": "agent"},
             "creates": ACTION_CREATES,
-            # The effect owns the payload; report adds required nonempty detail.text.
-            "report": {"const": True},
+            # The effect owns the payload; `text` adds a required non-empty detail.text.
+            "text": {"const": True},
         },
         "required": ["unit"],
         "allOf": [
@@ -208,7 +220,7 @@ STATE_SCHEMA = {
         # shows the user. Its record is required: the gate compares record forms,
         # and a recordless report would be a claim nothing could check a version
         # against. Only the user adds children, and only an agent verb
-        # declares `report` text.
+        # declares `text`.
         "if": {"required": ["writer"]},
         "then": {
             "required": ["record"],
@@ -217,7 +229,7 @@ STATE_SCHEMA = {
                 "creates": False,
             },
         },
-        "else": {"properties": {"report": False}},
+        "else": {"properties": {"text": False}},
     },
 }
 AWAITS_SCHEMA = {
@@ -268,16 +280,11 @@ MEASURED_SCHEMA = {
     "additionalProperties": False,
 }
 
-_ATTRIBUTE_LIST = {
-    "type": "array",
-    "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-    "minItems": 1,
-}
 _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
 EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
-        "x-question-context": {"const": True},
+        "x-ask-context": {"const": True},
         "x-awaits": AWAITS_SCHEMA,
         "x-thread-seat": {
             "type": "object",
@@ -299,10 +306,6 @@ EXTENSION_SCHEMA = {
         "x-reading-role": {"enum": ["pane"]},
         "x-resident": {"enum": ["map"]},
         "x-measured": MEASURED_SCHEMA,
-        # Attributes the theme renders as paint alone — a status marker's tint or an
-        # event's kind. The runtime speaks each as a clipped word (renderQuiet), the
-        # value or, where a flag carries no value, the attribute's own name.
-        "x-paints": _ATTRIBUTE_LIST,
         "x-patch": {"enum": ["members"]},
         "x-owners": {
             "type": "array",
@@ -320,6 +323,12 @@ EXTENSION_SCHEMA = {
         "x-state": STATE_SCHEMA,
         "x-thread-surface": {"const": True},
         "x-tone": _ATTRIBUTE_NAME,
+        "x-unique": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "additionalProperties": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+        },
         "x-upgrade": {"type": "boolean"},
         "x-verbatim": {"type": "boolean"},
         "x-visual": {
@@ -329,8 +338,6 @@ EXTENSION_SCHEMA = {
                     "type": "object",
                     "properties": {
                         "parts": _ATTRIBUTE_NAME,
-                        "all": {"type": "string", "pattern": "^\\S+$"},
-                        "complete": {"const": True},
                     },
                     "required": ["parts"],
                     "additionalProperties": False,
@@ -399,6 +406,11 @@ EXTENSION_SCHEMA = {
         },
         "x-views": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "x-within": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+            "minItems": 1,
+        },
         "x-word": {"enum": ["module"]},
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-work": {"const": True},
@@ -406,6 +418,7 @@ EXTENSION_SCHEMA = {
     "required": ["x-content", "x-upgrade"],
     "dependentRequired": {
         "x-retired-when": ["x-owners"],
+        "x-within": ["x-owners"],
         "x-measured": ["x-data"],
     },
     # Only an upgraded container has members its module could leave in place.
@@ -414,6 +427,114 @@ EXTENSION_SCHEMA = {
         "properties": {"x-content": {"const": "members"}, "x-upgrade": {"const": True}}
     },
     "additionalProperties": False,
+}
+_NONEMPTY = {"type": "string", "minLength": 1}
+_UNIQUE_NAMES = {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
+# A delivered event's handling or answering instructions: what every batch carries.
+_CLAUSES = {
+    "type": "array",
+    "minItems": 1,
+    "items": {
+        "type": "object",
+        "properties": {"text": {"type": "string", "pattern": r"\S"}, "when": {}},
+        "required": ["text"],
+        "additionalProperties": False,
+    },
+}
+# The shape of the shared layer facts a complete vocabulary carries, each read
+# directly by its consumers: a string `$tones.names` would answer the tone check's
+# membership test by substring, and a token without a `glyph` paints nothing. What
+# names another fact, or needs more than a shape (a clause's `when` and a contract's
+# `schema` are JSON Schemas, `resources` are JMESPath), `registry.layer` checks.
+LAYER_FACTS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "$events": {
+            "type": "object",
+            "properties": {
+                "kinds": {"type": "object"},
+                "handling": {"type": "object", "additionalProperties": _CLAUSES},
+                "answering": {
+                    "type": "object",
+                    "propertyNames": {"enum": list(ANSWER_KINDS)},
+                    "additionalProperties": _CLAUSES,
+                },
+            },
+            "required": ["kinds", "handling", "answering"],
+        },
+        "$languages": {
+            "type": "object",
+            "properties": {
+                "names": _UNIQUE_NAMES,
+                "paths": {"type": "object", "additionalProperties": {"type": "string"}},
+            },
+            "required": ["names", "paths"],
+        },
+        "$tones": {
+            "type": "object",
+            "properties": {"names": _UNIQUE_NAMES},
+            "required": ["names"],
+        },
+        "$data": {
+            "type": "object",
+            "properties": {
+                "description": _NONEMPTY,
+                "contracts": {
+                    "type": "object",
+                    "propertyNames": {"pattern": f"^(?:{DATA_CONTRACT_NAME})$"},
+                    "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                            "description": _NONEMPTY,
+                            "schema": {"type": "object"},
+                            "instructions": INSTRUCTIONS_SCHEMA,
+                            # Null reads as absent (`data.deferred_records`).
+                            "records": {
+                                "type": ["object", "null"],
+                                "properties": {
+                                    "items": _NONEMPTY,
+                                    "key": _NONEMPTY,
+                                    "deferred": _NONEMPTY,
+                                },
+                                "required": ["items", "key"],
+                                "additionalProperties": False,
+                            },
+                            "resources": {"type": "array", "items": _NONEMPTY},
+                        },
+                        "required": ["description", "schema"],
+                        "additionalProperties": False,
+                    },
+                },
+            },
+            "required": ["description", "contracts"],
+            "additionalProperties": False,
+        },
+        "$reactions": {
+            "type": "object",
+            "properties": {
+                "tokens": {
+                    "type": "object",
+                    "propertyNames": {"pattern": f"^(?:{HTML_NAME})$"},
+                    "additionalProperties": {
+                        "type": "object",
+                        # A glyph is a mark: at most four code points.
+                        "properties": {
+                            "glyph": {
+                                "type": "string",
+                                "pattern": r"\S",
+                                "maxLength": 4,
+                            },
+                            "settles": {"type": "boolean"},
+                        },
+                        "required": ["glyph"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["tokens"],
+        },
+    },
+    "required": ["$events", "$languages", "$tones", "$data", "$reactions"],
 }
 # The keys whose value names attributes of the widget's own schema, in whichever shape
 # each carries the names: a list, a mapping keyed by them, or one name. One rule for all
@@ -427,10 +548,10 @@ EXTENSION_SCHEMA = {
 ATTRIBUTE_KEYS = (
     "x-language",
     "x-name",
-    "x-paints",
     "x-refers",
     "x-says",
     "x-tone",
+    "x-unique",
 )
 # The declarations a stylesheet reads, each painted on the element as `paint`: the room
 # it takes (x-space), whether it sets inline among words (x-inline), quotes what it holds
@@ -454,7 +575,7 @@ ATTRIBUTE_KEYS = (
 # `idiom` says a selector entry may declare the mark for the elements its selector
 # matches, as `.callout` declares the room: the mark's every reader reads its paint and
 # nothing paints it in a message, so delivery's paint is the whole of it. The others
-# are also read by tag (the Questions fold, the render checks, the runtime's descriptors).
+# are also read by tag (the asks fold, the render checks, the runtime's descriptors).
 #
 # Delivery paints a page's document from this (`revision_delivery.mark_declared`).
 # Composition stamps it into the vocabulary as `$marks` (`registry.layer.
@@ -554,7 +675,6 @@ WAITER_LOCK = "waiter.lock"
 SESSION_FILES = (
     STATUS_FILE,
     WAITER_LOCK,
-    CURSOR_FILE,
     VIEWED_FILE,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
@@ -562,10 +682,15 @@ SESSION_FILES = (
     SERVER_LOCK,
     PREVIEW_FILE,
 )
+# Acknowledgement belongs to the log, and survives replacement of its reader.
+LOG_STATE_FILES = (CURSOR_FILE,)
+# Process declarations, leases, browser observations and diagnostics are disposable.
+PAGE_PROCESS_FILES = (*SESSION_FILES, INTERACTIONS_FILE)
 # The files Leaf writes in a page directory as it runs. With the author's index.html,
 # the vendored files, and PAGE_OWNED_DIRS, the whole of page-storage.md's "Files".
 PAGE_STATE_FILES = (
     EVENTS_FILE,
+    *LOG_STATE_FILES,
     INTERACTIONS_FILE,
     DATA_FILE,
     FILE_BINDINGS_FILE,

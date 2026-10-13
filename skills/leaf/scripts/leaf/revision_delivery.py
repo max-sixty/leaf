@@ -591,7 +591,7 @@ def delivered_resource(
 
 
 def delivery_identity(
-    revision: int, version: int | None, executable: str | None, widgets: dict
+    revision: int, version: int | None, executable: str, widgets: dict
 ) -> str:
     """State which revision a delivered document is, and what it is made of.
 
@@ -608,18 +608,11 @@ def delivery_identity(
     Every delivered document carries this (`compose_document`). A document that says
     part of it is a document the next reader of the contract has to guess about.
     """
-    # A revision captured before these were recorded says neither, rather than saying it
-    # is something called "None". A document that does not state its executable identity
-    # is one an open page cannot take a revision from, which is the reload path.
     return (
         f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
-        + (
-            f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
-            f'<meta name="lf-widgets" data-lf-runtime '
-            f'content="{html.escape(json.dumps(widgets, separators=(",", ":")), quote=True)}">'
-            if executable is not None
-            else ""
-        )
+        f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
+        f'<meta name="lf-widgets" data-lf-runtime '
+        f'content="{html.escape(json.dumps(widgets, separators=(",", ":")), quote=True)}">'
         + (
             f'<meta name="lf-version" data-lf-runtime content="{version}">'
             if version is not None
@@ -675,7 +668,7 @@ def delivery_prelude(
     document: SourceDocument,
     revision: int,
     version: int | None,
-    executable: str | None,
+    executable: str,
     widgets: dict,
 ) -> str:
     """Declare encoding, a device-width viewport, and immutable Leaf identity.
@@ -728,7 +721,7 @@ def compose_document(
     revision: int,
     version: int | None,
     *,
-    executable: str | None,
+    executable: str,
     widgets: dict,
     resources: Mapping[str, Resource],
     registry: Mapping,

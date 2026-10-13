@@ -8,6 +8,8 @@ from functools import lru_cache
 
 import tinycss2
 
+from .findings import Finding
+
 # tinycss2 reads every stylesheet and style="" here. Patterns over the text came first,
 # and each was right only about the grammar it was written against: a brace walk that
 # knew a comment's braces are not braces still read a `}` inside `content: "}"` as the
@@ -52,8 +54,10 @@ def _css_unclosed_blocks(css: str) -> int:
 
 
 @lru_cache(maxsize=32)
-def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[str, ...]:
-    """Every parse error in a stylesheet or declaration block, including nested rules."""
+def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[Finding, ...]:
+    """Every parse error in a stylesheet or declaration block, including nested rules.
+    `source` names the sheet as its author finds it: a file, the page's <style>, or
+    one element's style attribute."""
     parse = (
         css_block
         if block
@@ -64,11 +68,7 @@ def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[str, ...]:
     errors = []
     seen = set()
     if not block and (depth := _css_unclosed_blocks(css)):
-        errors.append(
-            f"{source}: {depth} block(s) left open at end of file — every rule "
-            "after the unclosed brace, this stylesheet's or a later layer's, "
-            "lands inside its scope"
-        )
+        errors.append(Finding("css-unclosed", values={"sheet": source, "depth": depth}))
 
     def record(node):
         key = (node.source_line, node.source_column, node.message)
@@ -76,8 +76,15 @@ def css_syntax_errors(css: str, source: str, *, block=False) -> tuple[str, ...]:
             return
         seen.add(key)
         errors.append(
-            f"{source} syntax error at "
-            f"{node.source_line}:{node.source_column}: {node.message}"
+            Finding(
+                "css-syntax",
+                values={
+                    "sheet": source,
+                    "row": node.source_line,
+                    "column": node.source_column,
+                    "message": node.message,
+                },
+            )
         )
 
     def walk_tokens(tokens):

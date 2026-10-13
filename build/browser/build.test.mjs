@@ -40,19 +40,15 @@ test("locked source reproduces the complete committed output", async () => {
     "directive",
     "guard",
     "html",
-    "ifDefined",
     "keyed",
     "live",
-    "mathml",
     "noChange",
     "nothing",
     "ref",
     "render",
     "repeat",
     "styleMap",
-    "svg",
     "unsafeHTML",
-    "when",
   ]);
   const lit = exportsOf(read("lit.js"));
   for (const name of ["LitElement", "html", "classMap", "property", "staticHtml"])
@@ -255,7 +251,7 @@ test("publisher replaces one immutable reading before subscribers run", () => {
 
 test("publisher secures shallow-frozen inputs and complete selected collections", () => {
   const key = { id: "thread" };
-  const collection = Object.freeze(new Map([[key, { words: ["standing"] }]]));
+  const collection = Object.freeze(new Map([[key, { words: ["kept"] }]]));
   const document = Object.freeze({ collection });
   const publisher = createApplicationPublisher({
     document,

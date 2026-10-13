@@ -2,23 +2,23 @@
  *
  * This registration consumes the directory after the Thread cohort commits. Its
  * synchronous paint joins that existing presentation proof and immediate contribution
- * updates. Source-linked rows use the existing standing owner; native contribution
+ * updates. Source-linked rows use their existing owner; native contribution
  * controls use the one shared cache, activation and focus directory. No view collects
  * annotations, resolves their anchors, folds events or publishes an application root.
  * The owner retains its rows and layout, and unregisters when its document leaves.
  */
 import { contributionSource } from "./contributions.js";
-import { compareContributions } from "./contribution-model.js";
 import {
   activateContributionControl,
   clearContributionControls,
   contributionControlKey,
   contributionEntryRecord,
   materializeContributionControls,
+  presentContributionReceipts,
 } from "./contribution-controls.js";
 import { declareSide } from "./standing-target.js";
 import { under } from "./shadow.js";
-import { annotationItems } from "./margin-model.js";
+import { annotationItems, entryControls } from "./margin-model.js";
 
 export function createAnnotationView(owner, render, inventory, invalidate, retire) {
   if (!(owner instanceof Element))
@@ -75,20 +75,25 @@ export function createAnnotationView(owner, render, inventory, invalidate, retir
         },
         controls(entry) {
           admit(entry);
-          return entry.offers
-            .map(contributionSource)
-            .sort(compareContributions)
-            .flatMap((offered) => {
+          const retained = new Map(
+            entry.offers.map((model) => {
+              const offered = contributionSource(model);
               nextOffers.add(offered);
-              const controls = materializeContributionControls(
-                offered,
-                "page",
-                activateContributionControl,
-              );
-              return offered.reading.entries
-                .filter((item) => item.visible)
-                .map((item) => controls.get(item.key));
-            });
+              return [
+                model,
+                materializeContributionControls(
+                  offered,
+                  "page",
+                  activateContributionControl,
+                ),
+              ];
+            }),
+          );
+          return entryControls(entry).map(({ offered, record, receipt }) => {
+            const control = retained.get(offered).get(record.key);
+            presentContributionReceipts(control, receipt, false);
+            return control;
+          });
         },
       });
       if (result?.then)

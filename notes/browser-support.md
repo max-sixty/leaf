@@ -117,7 +117,7 @@ what fails and what still works.
   even while the child already owns focus. Native dialog close can return focus
   after the parent has reclaimed input, including into another modal that escapes
   ancestor inertness. Temporarily making the opening layer, or the document and
-  standing modal roots during close, inert prevents these transfers before they
+  open modal roots during close, inert prevents these transfers before they
   occur. Leaf then places its own intended arrival without native scrolling.
 - **Reproduction:** serve a window sample with a tall body, a focusable SVG
   link, a dialog containing an autofocus input, and a popover containing an
@@ -224,10 +224,11 @@ what fails and what still works.
 - **Impact: state preservation; functional fallback implemented.** Retained-node
   reordering uses [`move` in `dom-move.js`](../skills/leaf/assets/runtime/dom-move.js).
   Within one composed root it uses `moveBefore` when available; new nodes,
-  cross-root transfers, and engines without the API use `insertBefore`.
+  cross-root transfers, and engines without the API use `insertBefore` and restore
+  the user's focus and caret in the moved node.
 - **Consumers:** authored revisions and renderer child reconciliation, board
-  placement, the vendored Sortable move sites, and lit-html’s keyed and child-part
-  insertions. Both vendor adaptations fail if their pinned upstream seams change.
+  placement, the response bar's seats, the vendored Sortable move sites, and
+  lit-html’s keyed and child-part insertions. Both vendor adaptations fail if their pinned upstream seams change.
 - **Browser support, checked 2026-10-10:** Chrome/Edge 133+ and Firefox 144+
   support the API. Safari, including iOS Safari, is listed as unsupported in
   [MDN's compatibility data](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore#browser_compatibility).
@@ -235,14 +236,14 @@ what fails and what still works.
   tracks the missing native capability.
 - **Observed:** the focused browser test
   `test_retained_moves_keep_native_editor_and_frame_state` exercises retained-node
-  ordering and direct placement in Chrome, including named form controls. Native
+  ordering and direct placement in Chrome with no focus hold of the caller's. Native
   moves retain focus, caret, typed text, and the embedded iframe document without a
-  blur. Disabling the capability exercises ordinary insertion with explicit focus
-  retention. Playwright's WebKit 26.6 has no `moveBefore`; a direct probe confirms
-  retained nodes reorder and a new fragment arrives through the shared primitive.
+  blur. Disabling the capability exercises ordinary insertion, after which `move`
+  puts focus and caret back. Playwright's WebKit 26.6 has no `moveBefore`; a direct
+  probe confirms retained nodes reorder and a new fragment arrives through the
+  shared primitive.
 - **Lit adoption:** `build/browser/build.mjs` routes keyed and child-part moves
-  through the shared primitive, including the initial root marker so named form
-  controls cannot shadow native insertion. The Chrome test above exercises both
+  through the shared primitive. The Chrome test above exercises both
   child reconciliation and Lit rendering, with native moves and forced fallback.
   The thread list retains the measured allocation of a passively withdrawn root
   while its removal would disturb the reader. It disconnects the former content
@@ -250,11 +251,9 @@ what fails and what still works.
   threads. Selection stays with that allocation until dismissal, another choice,
   a view change, or safe departure. Complete-list rollback restores native content
   and editors from the same committed reading.
-- **Fallback limit:** insertion reorders content but can blur a focused descendant
-  and reload an iframe. Leaf’s focus-holding `render` wrapper remains for these
-  engines; it restores focus and caret,
-  but cannot preserve iframe documents. The native guarantee for Leaf's retained
-  moves is described in the
+- **Fallback limit:** insertion blurs a focused descendant and reloads an iframe.
+  `move` restores the focus and caret, but cannot preserve iframe documents. The
+  native guarantee for Leaf's retained moves is described in the
   [API's state-preservation contract](https://developer.mozilla.org/en-US/docs/Web/API/Element/moveBefore#description).
 
 To check the installed test engine without downloading a browser:
@@ -346,5 +345,5 @@ application. Recheck the affected Leaf journey when resolving this entry.
 - **Recheck:** run
   `test_a_region_capture_keeps_scrolled_shadow_pixels_and_its_comment_anchor`
   and `test_touch_capture_can_cancel_and_reopen_before_attaching` in
-  `tests/test_render_threads.py`. Compare the rasterizer's same crop with a
+  `tests/*/test_render_threads.py`. Compare the rasterizer's same crop with a
   native screenshot in each installed engine when updating SnapDOM.

@@ -22,9 +22,12 @@
    checkbox, Escape, or unrelated function keys merely because they are form-related.
    Radio and slider navigation has its own narrow claim at the focused control, so
    an arrow changes that control without also moving its containing widget. Open select
-   options retain typeahead when focus moves into their list. An exact element scope
-   stands before these native claims, so a wired text field keeps its own Escape or submit
-   binding; the claims then stand before ancestor widget scopes.
+   options retain typeahead when focus moves into their list. Native activation, such as
+   Enter on a link or Space on a button, is the narrowest claim: it withholds its press
+   from every outer row that would run something else and leaves the rows that only name
+   the press (`nativeActivationAt`). An exact element scope stands before these native
+   claims, so a wired text field keeps its own Escape or submit binding; the claims then
+   stand before ancestor widget scopes.
 
    One box inside another scope states only what it does differently. The find box
    registers Enter on the exact input to enter the first search result. Its Escape uses
@@ -32,7 +35,7 @@
    rows stand before the general text-entry claim, which stands before ancestor widgets.
 
    A page command that a covering surface should not drop says so with `covering`, and
-   gates its own liveness on what it can reach there, rather than standing as a copy in
+   gates its own liveness on what it can reach there, rather than living as a copy in
    the surface's scope. `c` answers that way from a covering Threads panel, reading the
    one comment destination the page reads. `activeCommandLabel` projects the
    dispatcher's live result into the destination composition box's placeholder. Each
@@ -60,13 +63,15 @@
    reference is the boundary's one route through to another layer.
 
    A popover hands focus back to whatever had it when the popover showed — not to its
-   invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
-   relationship and nothing about focus. So a key that opens a layer runs the press from
+   invoker, and not to `showPopover({source})`, which buys the anchor and the nesting of
+   popovers and nothing about focus. So a key that opens a layer runs the press from
    the control itself rather than opening it from the page, and every door leaves the same
    way out. Where Leaf has to hand focus back itself, scope that to the door that needs it
    rather than to focus landing on the body: a light dismissal restores nothing on
    purpose, and a user who pressed away into the page is not asking to be moved to the
-   control they pressed away from.
+   control they pressed away from. Nor does a `source` spare its own press from light
+   dismissal; only a declared invoker (`popovertarget`, `commandfor`) is spared, so a
+   control whose second press puts its layer away declares itself the invoker.
 
    A declared native button's click and keyboard route invoke the same semantic `run`.
    Native inputs and links retain their platform activation. Arrival may focus or reveal
@@ -83,6 +88,8 @@ import {
   descriptionOf,
   commandEntries,
   commandRoutes,
+  commandReady,
+  scopeAvailable,
   live,
   routedCommand,
   referencedCommandEntry,
@@ -95,17 +102,17 @@ import {
   textEntryScope,
   universalCommandReference,
 } from "./register.js";
-import { EVERYTHING, nativeClaimAt } from "./text-entry.js";
+import { EVERYTHING, nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import { takesLetters, focused, recoveredLabelFocus } from "../focus.js";
 import { scopesAt, scopesFor, scopeIdentity } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
-import { shadowHost, renderedUnder, excludedByInert } from "../shadow.js";
+import { composedParentNode, renderedUnder, excludedByInert } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
 // is standing in it, while the dispatcher and the line want both at once. Spelled `!x || x()`
 // in three places before, which is a rule written three times and named nowhere.
-const pageHas = (scope) => !scope.when || scope.when();
+const pageHas = scopeAvailable;
 export const userIn = (scope) => {
   // Native modality excludes everything below its layer floor. An explicitly inert
   // subtree can also stand inside that floor (the suspended bottom bar in Threads),
@@ -137,13 +144,7 @@ const scopeRoot = (scope) => {
   const declared = scope.root ?? scope.el ?? document;
   return typeof declared === "function" ? declared() : declared;
 };
-const innerEscape = (scope, active) => {
-  if (scope.escape !== undefined && scope.escape !== "inner")
-    throw new TypeError(
-      `leaf: ${scope.title ?? "a scope"} has invalid Escape ownership ${String(scope.escape)}`,
-    );
-  return scope.escape === "inner" || scope.el === active;
-};
+const innerEscape = (scope, active) => scope.escape === "inner" || scope.el === active;
 // Every scope the user is standing in, innermost first. The whole list: what a nearer
 // scope takes out of reach is the walk's own business, and both walkers say it the same
 // way — a binding some nearer row has already named, or one a nearer scope claims. Cutting
@@ -154,7 +155,7 @@ const innerEscape = (scope, active) => {
 // document is above every user, at the top of the walk.
 const above = (node, active) => {
   let depth = 0;
-  for (let up = active; up; up = up.parentNode ?? shadowHost(up)) {
+  for (let up = active; up; up = composedParentNode(up)) {
     if (up === node) return depth;
     depth += 1;
   }
@@ -201,12 +202,14 @@ export function stack(binding = null) {
   const typing = takesLetters(active);
   const TYPING = textEntryScope();
   const nativeClaims = nativeClaimAt(active);
+  const activation = nativeActivationAt(active);
   const controlScope =
-    nativeClaims && !typing
+    (nativeClaims || activation) && !typing
       ? {
           root: active,
           rows: [],
           claims: nativeClaims,
+          activation,
         }
       : null;
   const expanded = pageScopes().flatMap((scope) => {
@@ -272,19 +275,44 @@ export function stack(binding = null) {
 // next live return. Static page scopes are ordered contributors at one outer level rather
 // than DOM ancestors, so their rows retain the existing live-command resolution instead
 // of shadowing siblings.
+//
+// Native activation at the focused control is narrower. It takes its press from every
+// row beyond the control that would run something else, whether its own `run`, a routed
+// command, or a click on another `control`, and leaves the rows that only name the press.
+// A scope rooted at the focused control speaks for that control, as its exact element
+// scope does: a disclosure's toggle or a thread title's reply keeps its press. A page
+// scope rooted at focus that stands over a whole surface, as the thread scope does,
+// therefore keeps its Enter and Space rows dead anywhere but on its own subject. A
+// contextual alias follows native activation as it follows native editing. So `takes`
+// asks about the row and its scope where it has them, and an ancestor's implemented
+// binding that activation took owns nothing further out: a link's Follow still names the
+// press under a container's Enter.
 const ownsLeafInvocation = (row) =>
   Boolean(row.run) || commandRoutes(row).some((route) => routedCommand(route));
+const runsElsewhere = (row, scope, control) => {
+  if (!scope.contextual && scopeRoot(scope) === control) return false;
+  const controls = [row, ...commandRoutes(row)].map((part) => word(part.control));
+  if (controls.includes(control)) return false;
+  return ownsLeafInvocation(row) || controls.some((each) => each != null);
+};
 export const shadow = () => {
   const claims = [];
+  let activation = null;
   return {
-    takes: (binding) => claims.some((c) => c(binding)),
+    takes: (binding, row, scope) =>
+      claims.some((c) => c(binding)) ||
+      (row !== undefined &&
+        Boolean(activation?.claims(binding)) &&
+        runsElsewhere(row, scope, activation.control)),
     past: (scope) => {
       if (scope.claims) claims.push(scope.claims);
+      if (scope.activation)
+        activation = { claims: scope.activation, control: scope.root };
       const owned = scope.el
         ? scope.rows
             .filter(ownsLeafInvocation)
             .flatMap(bindings)
-            .filter((binding) => binding !== "Escape")
+            .filter((binding) => binding !== "Escape" && !activation?.claims(binding))
         : [];
       if (owned.length) claims.push((binding) => owned.includes(binding));
     },
@@ -295,7 +323,7 @@ export const shadow = () => {
 // callback. Resolve that reference at invocation time so replacement, disconnection,
 // scope liveness, row liveness, and dynamic routes have the same meaning as they do for
 // an intrinsic key press. The source scope need not be where focus stands: that is the
-// point of an ancestor projection such as Question.
+// point of an ancestor projection such as an ask.
 function referencedInvocation(reference) {
   if (!reference) return null;
   const current = referencedCommandEntry(reference);
@@ -378,7 +406,7 @@ export function lineOwner(binding) {
     const owners = scope.rows.filter(
       (row) =>
         bindings(row).includes(binding) &&
-        !nearer.takes(binding) &&
+        !nearer.takes(binding, row, scope) &&
         commandEntries(row, [binding]).length > 0 &&
         lineOf(row) !== false,
     );
@@ -412,25 +440,23 @@ function unclaimedScopes(binding) {
 }
 
 // ---------- the dispatcher ----------
-// One listener. Scoping is still the DOM's — an element scope holds while focus is inside
-// it — but the walk is the stack's rather than the bubble's, so which scope wins is a
-// statement here instead of an ordering between nine listeners. `isComposing` is the one
-// guard that stays an event's rather than a scope's: an IME's own Escape is not the
-// runtime's to take.
-export function dispatchKey(ev, { beforeCommand }) {
+// One resolver decides the invocation, a command still waiting for its input, or
+// an ordinary declined key. Startup capture and real dispatch share every scope,
+// claim, contribution, and native-control check.
+const INPUT_PENDING = Symbol("command input pending");
+function resolveKey(ev) {
   const recovered = recoveredLabelFocus(ev);
   const nearer = shadow();
   for (const scope of stack(answers("Escape", ev) ? "Escape" : null)) {
     let matched = null;
+    let pending = false;
     for (const row of scope.rows) {
-      // The key first, then the claim, then the liveness: a `when` may be the whole event
-      // log folded (`a` asks what the page is still waiting on), and asking it of every row
-      // the press is not for makes the cost of a keystroke the size of the table rather
-      // than the size of the match. A dead matching row contributes no invocation here;
-      // `nearer.past(scope)` still records its ordinary declarations before the walk
-      // reaches an outer scope, while Escape continues to the next live unwind.
+      // Match the key before reading availability: its predicate may fold the whole
+      // event log. A sibling route cannot make this contribution ready or live.
       const binding = bindings(row).find((b) => answers(b, ev));
-      if (!binding || nearer.takes(binding) || !live(row)) continue;
+      if (!binding || nearer.takes(binding, row, scope)) continue;
+      const entries = commandEntries(row, [binding], { includeUnavailable: true });
+      pending ||= entries.some(({ route }) => !commandReady(row, route));
       const entry = commandEntries(row, [binding])[0];
       const invocation = invocationFor(row, binding, entry, recovered);
       if (!invocation) continue;
@@ -441,28 +467,27 @@ export function dispatchKey(ev, { beforeCommand }) {
         );
       matched = invocation;
     }
-    if (matched) {
-      // A held key repeats keydown where a real button fires once, so a row says whether
-      // it repeats: a held `]` was a page navigation per repeat and a held pick a `choose`
-      // per repeat, where a walk wants the repeat and is the reason the flag exists. The
-      // repeat is still consumed — a non-repeatable command must not be fired again merely
-      // because its key remains held after the first press.
-      //
-      // A `native` row is the narrow converse: Leaf has a result to perform before the
-      // platform completes the same press. The versions menu closes at its Tab boundary,
-      // for example, and the browser then carries focus forward from its stable door. It
-      // remains a registered press — and therefore visible, scoped and shadowed like every
-      // other one — but does not claim the platform's half of it.
-      if (!matched.native) ev.preventDefault();
-      if (ev.repeat && !matched.row.repeat) return true;
-      beforeCommand?.(matched.row);
-      announceInvocation(matched);
-      matched.run();
-      return true;
-    }
+    if (matched) return matched;
+    if (pending) return INPUT_PENDING;
     nearer.past(scope);
   }
-  return false;
+  return null;
+}
+export const keyReady = (ev) => resolveKey(ev) !== INPUT_PENDING;
+
+// Scoping is the DOM's, but the resolver's stack, rather than listener order, says
+// which command wins. The controller leaves composing input to the IME.
+export function dispatchKey(ev, { beforeCommand }) {
+  const matched = resolveKey(ev);
+  if (!matched || matched === INPUT_PENDING) return false;
+  // Repeats are consumed even for a command that runs once. A native row performs
+  // its own half before leaving the browser's half of the same press intact.
+  if (!matched.native) ev.preventDefault();
+  if (ev.repeat && !matched.row.repeat) return true;
+  beforeCommand?.(matched.row);
+  announceInvocation(matched);
+  matched.run();
+  return true;
 }
 
 // An action chosen from the reference has no keydown to match, but it still belongs to
@@ -476,7 +501,7 @@ const reachableBindings = (row, scope, nearer, unclaimedEscape, commands) =>
       ? true
       : binding === "Escape"
         ? unclaimedEscape.has(scopeIdentity(scope))
-        : !nearer.takes(binding),
+        : !nearer.takes(binding, row, scope),
   );
 function commandMatching(matches, commands = false) {
   const unclaimedEscape = unclaimedScopes("Escape");
@@ -514,7 +539,7 @@ export function activeCommandLabel(ids) {
   return command?.binding != null ? spell(command.binding) : "";
 }
 // Snapshot executable bindings by row while focus is still on the page. A widget's
-// intrinsic key and a Question alias can share a command id while only one is shadowed.
+// intrinsic key and an ask alias can share a command id while only one is shadowed.
 // The reference is a modal scope and shadows the page once it opens, so callers take
 // this snapshot before opening it.
 export function availableCommandRoutes({ commands = false } = {}) {

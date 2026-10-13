@@ -1,16 +1,13 @@
 """Shared interaction browser-integration cases and readings."""
 
 import json
-import re
 from datetime import datetime, timedelta
 
-import tinycss2
 from browser_sources import browser_source
 from interact_support import add_test_widget, append_carried_log_record, append_command
 from leaf.schema import ELEMENT_ID
 from render_harness import (
     EXAMPLES,
-    FEATURE_GALLERY,
     TOKEN,
     leaf_page,
 )
@@ -66,13 +63,32 @@ def panel_comment(d, text, anchor=None, author="user"):
     return append_carried_log_record(d, event)["id"]
 
 
+def answered_comment(d, text, anchor):
+    """A user's thread the agent has replied to, so an ask it is about waits on the
+    user again rather than on that reply (`asks.sections_with_agent`)."""
+    root = panel_comment(d, text, anchor)
+    append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "text": "Noted.",
+        },
+    )
+    return root
+
+
 # What the list is holding, from the one query that answers both halves of the
 # question a departing thread raises: what stands where, and what the keys can still
 # reach. The two lists differ by exactly the thread on its way out.
 LIST_STATE = """() => {
   const list = document.querySelector(".lf-threads");
   return {
-    standing: [...list.children].filter((n) => !n.hidden)
+    listed: [...list.children].filter((n) => !n.hidden)
       .map((n) => n.dataset.id).filter(Boolean),
     walkable: [...list.querySelectorAll(":scope > .lf-thread:not([hidden])")].map(
       (n) => n.dataset.id,
@@ -215,7 +231,7 @@ mornings last winter.</p></section>
 # cell in the page and the row in the panel — which is the whole of what those tests
 # compare. `jobs` names the seat, so the `say:jobs` draft key and a comment anchored to
 # `{section: "jobs"}` are the one coordinate the panel and the page share.
-SEATED_QUESTION_PAGE = leaf_page(
+SEATED_ASK_PAGE = leaf_page(
     "seated question",
     """
 <h1 id="h">Three jobs</h1>
@@ -289,17 +305,6 @@ CHIP_PAGE = leaf_page(
 </lf-options></lf-ask>
 <dl class="facts"><dt>Owner</dt><dd id="owner-fact"><span class="tag">finch</span></dd></dl>
 """,
-)
-PAINTED_PAGE = leaf_page(
-    "painted",
-    """
-<h1 id="h">What the paint says</h1>
-<lf-test-signal id="painted" status="blocked"><strong>Fit squirrel baffles</strong>
-  Waiting on the brackets.</lf-test-signal>
-""",
-).replace(
-    "</head>",
-    "<style>lf-test-signal[status=blocked] { color: #9d2525; }</style></head>",
 )
 SETTLED_ASK_PAGE = ASK_PAGE.replace(
     '<lf-options id="jobs" choose multiple>',
@@ -463,7 +468,7 @@ SHORT_SUGGESTION = leaf_page(
 # started one motion", an index is "the motion this gesture started", and a sweep over it
 # steps or releases the frame the test is holding. A motion the test has already let go of
 # — a fold it finished on the way to the gesture under test — answers none of those, and
-# left standing it makes the count one too many, the index one place out, and a sweep
+# left in place it makes the count one too many, the index one place out, and a sweep
 # rewind a finished motion into the middle of a move the page has made. So a motion drops out of the list when it finishes. Cancelling
 # is the other way to end one, and it stays: `motion()` cancels its own last frame after
 # the caller's cleanup, and a cancelled motion is the positive control for a gesture the
@@ -584,8 +589,8 @@ ASK_WITH_CONTEXT_PAGE = leaf_page(
 
 # An ask that cannot declare an arrival region of its own: the change is a phrase inside a
 # sentence, and what explains it is that sentence and the heading over it. One ask, so the
-# clamped walk stays on it and a second press can be asked what it does to a page the
-# user has already adjusted.
+# walk stays on it and a second press can be asked what it does to a page the user has
+# already adjusted.
 SUGGESTION_IN_CONTEXT_PAGE = leaf_page(
     "suggestion with context",
     f"""
@@ -663,7 +668,7 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
 # main because the Questions panel's row mirrors the same fact in the chrome.
-STANDING_ASK = "main [data-lf-question]:not([data-lf-question] [data-lf-question])"
+STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
 # The shipped board measures its grip from a live box. Author it into the page and
 # send it in a reply with the same words, so the two readings can be compared.
 ROOM_WIDGETS = """<lf-board id="{id}-b">
@@ -1051,13 +1056,13 @@ def backdate_note(page_dir, version, hours):
 
 
 # One instance for every verb the vocabulary declares an action or a report for, so a
-# log holding one event apiece leaves the whole of it standing at once. `choose` and
+# log holding one event apiece leaves the whole of it in force at once. `choose` and
 # `answer` share one option-group unit but are distinct verbs, so both stand; two
 # suggestions let both of `decide`'s outcomes stand. The floor below derives the list
 # from the registry, so a newly declared verb fails here rather than passing
 # unexercised.
-STANDING_PAGE = leaf_page(
-    "standing state",
+IN_FORCE_PAGE = leaf_page(
+    "state in force",
     """
 <h1 id="ab-t">The v1 cutover</h1>
 <lf-ask id="ab-pick-decision"><h2>How should the schema migrate?</h2>
@@ -1122,16 +1127,16 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 """,
 )
 
-# The event that leaves each declared verb standing, written out because a detail is
+# The event that leaves each declared verb in force, written out because a detail is
 # the verb's own shape and a schema is no help in inventing one.
 #
 # Two moves into one column, both to its head, because one move cannot say what this
-# gate has to get right. `move` folds by card, so each is its own standing entry with
+# gate has to get right. `move` folds by card, so each is its own entry in force with
 # its own rank: the column holds the second above the first, and re-applying either
 # set of them puts each card where its own rank says, whichever other moves stand. The
 # ranks are the ones lf-board sends: importer before the authored notes ("1"), then
 # notes before importer.
-STANDING_ACTIONS = [
+ACTIONS_IN_FORCE = [
     ("ab-pick", "choose", {"value": ["ab-stage"]}),
     ("ab-pick", "answer", {}),
     ("ab-pick", "add", {"option": "ab-rewrite", "text": "Rewrite the callers first"}),
@@ -1343,15 +1348,14 @@ THREAD_ASKS = [
 ]
 
 # A widget the shipped packages no longer have: one the user owes an answer on that
-# also seats a thread of its own. Those two facts together are what produce the
-# layer's one split between the user's list and the unanswered decisions — a thread
-# standing in the seat while the agent has the next word takes the widget off the list
-# without answering it (`seat_with_agent`, `seatWithAgent`). `lf-options` supplied the
-# pair until 292de9c made the user's cell an add form and dropped `x-thread-seat`, and
-# both halves of the split are still implemented, still described, and reachable by any
-# package that declares both. So the guard is declared here rather than borrowed from
-# whichever shipped entry happens to carry it: the reading under test is the layer's, and
-# the tag it runs on is the layer's business rather than the test's.
+# also seats a thread of its own. A thread anchored on any ask splits the user's list
+# from the unanswered decisions while the agent has the next word, taking the ask off
+# the list without answering it (`asks.sections_with_agent`); a seat is where a
+# user most often starts one. `lf-options` supplied the pair until 292de9c made the
+# user's cell an add form and dropped `x-thread-seat`, so the pair is declared here
+# rather than borrowed from whichever shipped entry happens to carry it: the reading
+# under test is the layer's, and the tag it runs on is the layer's business rather than
+# the test's.
 SEATED_ASK_TAG = "lf-verdict"
 SEATED_ASK_ENTRY = {
     "description": (
@@ -1393,21 +1397,12 @@ SEATED_ASK_ENTRY = {
 # reason the browser door matters as much as the POST one: with the wrong list read here
 # the answer is already on the page, so a refusal is not a refusal the user can see —
 # the control flips, nothing is logged, and the next poll puts it back saying nothing.
-def seated_ask_module(*, seat_attribute=None):
-    """Build a seated Ask with the optional attribute its case's registry requires."""
-    configuration = {"seatAttribute": seat_attribute}
-    return (
-        browser_source("widgets/seated-ask.js")
-        + f"\ndefineSeatedAsk({json.dumps(configuration)});\n"
-    )
-
-
-SEATED_ASK_MODULE = seated_ask_module()
+SEATED_ASK_MODULE = browser_source("widgets/seated-ask.js") + "\ndefineSeatedAsk();\n"
 SEATED_ASK_LAYER = {SEATED_ASK_TAG: SEATED_ASK_ENTRY}
 SEATED_ASK_WIDGETS = {f"{SEATED_ASK_TAG}.js": SEATED_ASK_MODULE}
 
 
-# A block proposal whose new text holds a Question of its own.
+# A block proposal whose new text holds an ask of its own.
 NESTED_PROPOSAL_PAGE = leaf_page(
     "nested proposal",
     """
@@ -1521,76 +1516,3 @@ WORKSHOP_THREAD_EVENTS = tuple(
         },
     )
 )
-
-
-GALLERY_THREAD_TEXT = "Gallery thread: I moved the practice exercise before lunch"
-
-
-def serve_interaction_gallery(serve):
-    """Serve the feature gallery's interaction runner and only what it reads.
-
-    The runner's subject is its own section, so the rest of the gallery, a thousand
-    elements and nine other live samples, is load these tests pay for nothing. The
-    section is read from the gallery's source, so the replays are the gallery's own,
-    and it stands in a page view behind another one, as it does there: a view
-    selected or scrolled to is the crossing the runner plays from. The first view
-    holds the paragraph the Send-a-comment and Threads replays import their thread
-    from, with that thread seeded on it. The stage's size and scale, which every
-    replay's geometry rests on, are the gallery's own rules, so they come along: each
-    top-level rule or block of its style sheet, as tinycss2 parses it, that names an
-    interaction class. An `@import` has no block, so the gallery's theme stays behind.
-    """
-    source = FEATURE_GALLERY.read_text(encoding="utf-8")
-    section = re.search(
-        r'<section\s+class="interaction-gallery".*?</section>', source, re.DOTALL
-    )
-    assert section is not None, "the feature gallery lost its interaction section"
-    sheet = re.search(r"<style>(.*?)</style>", source, re.DOTALL)[1]
-    rules = "\n".join(
-        tinycss2.serialize([rule])
-        for rule in tinycss2.parse_stylesheet(
-            sheet, skip_comments=True, skip_whitespace=True
-        )
-        if rule.type in {"qualified-rule", "at-rule"}
-        and rule.content is not None
-        and "interaction" in tinycss2.serialize([rule])
-    )
-    assert ".interaction-frame[data-interaction-ready]" in rules, rules
-    html = leaf_page(
-        "Interaction gallery",
-        head=f"<style>{rules}</style>",
-        body=f"""
-<h1>Interaction gallery</h1>
-<lf-tabs id="bg-gallery-tabs">
-  <lf-tab id="bg-view-threads" label="Threads">
-    <p id="bg-thread-text">The sample agenda has room for one more topic.</p>
-  </lf-tab>
-  <lf-tab id="bg-view-interactions" label="Interactions">{section[0]}</lf-tab>
-</lf-tabs>
-""",
-    )
-    return serve(
-        html,
-        events=[
-            {
-                "kind": "comment",
-                "author": "agent",
-                "agent": "Codex",
-                "revision": 1,
-                "text": f"{GALLERY_THREAD_TEXT} and left the rest of the fictional "
-                "agenda unchanged. React to this reply or answer with a note.",
-                "anchor": {
-                    "section": "bg-thread-text",
-                    "quote": "The sample agenda has room for one more topic.",
-                },
-                "id": PHOTO_THREAD,
-            },
-            {
-                "kind": "thread_title",
-                "author": "agent",
-                "agent": "Codex",
-                "thread": PHOTO_THREAD,
-                "title": "Workshop room photo",
-            },
-        ],
-    )

@@ -22,7 +22,7 @@
    it, where holding the next item grows it up into the room scrolled past. Without a
    preferred reading, the item the band's top cuts holds the place only where no item
    begins in view. Every candidate is recorded, so when the
-   first leaves, hides, or is renamed out of `items`, the next one still standing holds
+   first leaves, hides, or is renamed out of `items`, the next one still present holds
    the place without recovering an old position. A candidate the render replaced is
    handed across to the node now rendered under its identity; that is how a keyed
    re-render keeps the place it was holding (repository AGENTS.md: whatever replaces a
@@ -32,7 +32,8 @@
    its content offset, which a user's scroll does not change, so a wheel, a key, or a
    deliberate landing during the hold is never fought. A scroll-limit clamp the browser
    applied because content shrank is identified by the falling limit and the scroller
-   standing exactly on it, and is not paid for twice.
+   standing exactly on it, and is not paid for twice. A correction keeps the reader's
+   place rather than choosing one (scrolling.js, `placeKept`).
 
    A mutation that spans tasks takes its hold with `take` and ends it with `finish`, which
    corrects once, then follows frame by frame while `following()` says the mutation is
@@ -58,7 +59,7 @@
    the readers outside a hold that take focus as that place. */
 import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 import { headerInset, seenRect, stuckBox, visibleBand } from "./geometry.js";
-import { scrollLimit } from "./scrolling.js";
+import { placeKept, scrollLimit } from "./scrolling.js";
 import { pointerAt } from "./pointer.js";
 import { recentPlaceInput, focused } from "./focus.js";
 
@@ -115,7 +116,7 @@ export function placeKeeper(
   scroller,
   { items, identity, active = () => true, preferred = () => null },
 ) {
-  let standing = null;
+  let current = null;
   const limit = () => scrollLimit(scroller);
   // The box a node can hold the place by, or null where it holds nothing.
   const heldBox = (node) => {
@@ -146,29 +147,29 @@ export function placeKeeper(
   };
 
   // Native anchoring is off while a hold that spans tasks stands, and comes back at the
-  // next rendering pass with none standing, before that frame lays anything out. A
+  // next rendering pass with none in place, before that frame lays anything out. A
   // same-value property set writes nothing.
   let returning = 0;
   function claim() {
-    if (standing?.spans) {
+    if (current?.spans) {
       cancelRender(returning);
       returning = 0;
       scroller.style.setProperty("overflow-anchor", "none");
     } else if (!returning && scroller.style.getPropertyValue("overflow-anchor"))
       returning = nextRender(() => {
         returning = 0;
-        if (!standing?.spans) scroller.style.removeProperty("overflow-anchor");
+        if (!current?.spans) scroller.style.removeProperty("overflow-anchor");
       });
   }
 
   function release(hold) {
-    if (standing !== hold) return;
-    standing = null;
+    if (current !== hold) return;
+    current = null;
     claim();
   }
 
   function correct(hold) {
-    if (standing !== hold || !active()) return false;
+    if (current !== hold || !active()) return false;
     const reference = hold.references.find(live);
     if (!reference) return false;
     const now = heldBox(reference.node).top + scroller.scrollTop;
@@ -180,7 +181,10 @@ export function placeKeeper(
       held: hold.at,
       withinTask: !hold.spans,
     });
-    if (delta) scroller.scrollTop += delta;
+    if (delta) {
+      scroller.scrollTop += delta;
+      placeKept(scroller);
+    }
     // Every candidate observed this reflow too; refresh their baselines after the
     // correction, or a later hand-off pays again for movement the first one absorbed.
     for (const candidate of hold.references) {
@@ -192,11 +196,11 @@ export function placeKeeper(
   }
 
   function take({ spans = true } = {}) {
-    const prior = standing;
+    const prior = current;
     if (prior) correct(prior);
-    standing = heldPlace(prior, spans);
+    current = heldPlace(prior, spans);
     claim();
-    return standing;
+    return current;
   }
 
   // The place as it stands now, carrying on from `prior` where one stood.

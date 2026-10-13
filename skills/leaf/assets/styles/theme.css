@@ -195,7 +195,7 @@
      A number local to a component's own stacking context stays where it is written. */
   --lf-z-page-paint: 8890;        /* paint on a page element */
   --lf-z-margin-raised: 8895;     /* the margin item under pointer or focus */
-  --lf-z-surface: 8900;           /* a standing drawer or thread panel */
+  --lf-z-surface: 8900;           /* an open drawer or thread panel */
   --lf-z-margin-preview: 8920;    /* the thread card, under the bars it scrolls beneath */
   --lf-z-page-hints: 8930;        /* a key chip naming a page target, under the bars */
   --lf-z-shortcut-bar: 8940;
@@ -319,7 +319,7 @@
      from the shell and its occupied margins, so a widget stands clear of both. An
      `available` surface is not held to this number. */
   --wide: 1080px;
-  /* The widest a page on one of the wide Layouts (layouts.css) grows.
+  /* The widest a sidebar page (layouts.css) grows.
      Past it a board's columns and a dashboard's tiles stop gaining anything but the
      distance between them. */
   --wide-page-max: 1600px;
@@ -512,6 +512,19 @@ html:not([data-lf-live]) {
   --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
   --lf-bottom-status-translate: none;
 } }
+/* The floating panel replaces both bars (prepaint.js, `lfChrome`): the page reserves no
+   banner, and its foot keeps the panel's resting row and the gap below it, so the end
+   of the page can scroll clear of the panel as it could of the bottom bar. A walk's
+   position stands at the window's head (floating-panel.css). */
+html[data-lf-live][data-lf-floating-chrome] {
+  --lf-floating-row: max(48px, calc(var(--aim-floor) + 8px));
+  --lf-floating-gap: 14px;
+  --lf-banner-h: var(--lf-safe-top);
+  --lf-bottom-bar-h: calc(var(--lf-floating-row) + 2 * var(--lf-floating-gap)
+    + var(--lf-safe-bottom));
+  --lf-bottom-status-bottom: calc(var(--lf-bottom-bar-h) + 4px);
+  --lf-bottom-status-translate: none;
+}
 /* The other half of --aim-floor and --entry-floor, and the whole of what a coarse pointer
    changes about how small a control, or the words typed in one, may be. Every rule that
    states a floor reads its token, so a control joins both answers by joining one of them. */
@@ -667,7 +680,7 @@ html { background: var(--paper); }
  * part of the document's final layout. The render-blocking theme reserves that room so
  * the useful initial HTML paints where it will remain. The root stays the document
  * scrollport. Its definite height lets the body's percentage minimum fill a short
- * viewport while a longer body still overflows it. A standing scrollbar prevents a
+ * viewport while a longer body still overflows it. A permanent scrollbar prevents a
  * later height change from recentering the page. A served page's bootstrap marks it
  * live before its graph has loaded (runtime/bootstrap.js); an export draws no chrome,
  * and paper has no fixed chrome. */
@@ -769,7 +782,7 @@ body {
 :has(> .lf-markdown-body[data-lf-prepaint]) > pre { display: none; }
 html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { display: none; }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
- * parse while JavaScript upgrades widgets and reads the standing log. Generated page
+ * parse while JavaScript upgrades widgets and reads the current log. Generated page
  * interface joins it as soon as widget and page-interface upgrade gives that apparatus
  * its settled upgrade geometry; durable controls still guard mutation until presentation.
  * Ordinary prose, links, scrolling, and layout remain available.
@@ -789,6 +802,11 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { disp
     html[data-lf-interactive] body:not([data-lf-upgraded]) > main .lf-ui {
       visibility: hidden !important;
     }
+    /* A sample document paints once its containing page has said what it wears
+     * (runtime/bootstrap.js). Opacity, because a descendant can make itself visible
+     * again (a markdown body's prepaint does) but cannot undo its root's opacity;
+     * visibility, so what the hold hides takes no press or focus. */
+    html[data-lf-sample-connecting] { opacity: 0 !important; visibility: hidden !important; }
   }
 }
 /* The keys a served page's bootstrap holds until presentation (runtime/bootstrap.js).
@@ -829,7 +847,7 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { disp
    button's height, so a row of them beside .lf-btn reads as one set of controls. With
    no face the browser drew its own: a 2px inset border and square corners, 21px tall
    beside 30px buttons. At a class's weight, so a component rule naming its own field
-   still wins by standing later. */
+   still wins by coming later. */
 :where(select, input:not([type=checkbox], [type=radio], [type=range], [type=color],
        [type=file], [type=button], [type=submit], [type=reset], [type=image])):is(.lf-ui, .field) {
   box-sizing: border-box; min-height: max(var(--aim-floor), calc(1em * var(--lf-ui-lh) + 10px));
@@ -918,11 +936,10 @@ main {
  * however wide the box around it. So does a block allocated the column
  * (`data-lf-space="column"`): a widget whose content is read as lines of text, or a box
  * that frames prose (an Ask, a callout, which declares it as an idiom), declares it
- * (`x-space: column`), and an occurrence asks for it with `data-width`. Both start at
- * their holder's start edge, so in a flow wider than the column (a wide page, a pane, a
- * sidebar Layout's body) the widget's box and the prose around it share one left edge
- * and one width. It caps the width and sets no margin, so a widget's own arrangement,
- * such as an Ask's options track, still places the box. Package captions may span their
+ * (`x-space: column`). It starts at its holder's start edge, so in a flow wider than the
+ * column (a pane, a sidebar page's body) the widget's box and the prose around it share one left edge
+ * and one width. It caps the width and sets no margin, so a widget's own arrangement
+ * still places the box. Package captions may span their
  * own frame, so this rule shares their base layer at zero specificity. */
 @media screen {
   :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6,
@@ -975,7 +992,7 @@ h2 { font-size: var(--t-2); line-height: 1.25; letter-spacing: -0.008em;
      margin: 48px 0 12px; text-wrap: balance; }
 h3 { font-size: var(--t-3); line-height: 1.3; margin: 32px 0 8px;
      text-wrap: balance; }
-/* A page as wide as the window (`--lf-wide-page`, set by the wide Layouts on `main`)
+/* A page as wide as the window (`--lf-wide-page`, set by the sidebar Layout)
  * sets its title a size up and tighter, to hold its line above panels as wide as the
  * window. The Layout says how wide the page is; the size is answered here. */
 @container style(--lf-wide-page: 1) {
@@ -1077,8 +1094,7 @@ dd { margin: 0 0 8px 0; }
  * to one width, so the same four strings measure identically with the property and
  * without it, and stating it there would be a declaration that could never be
  * wrong and never do anything. */
-.eyebrow, .tag, figcaption, caption, th:not([scope="row"]), .facts dt,
-.lf-error {
+.eyebrow, .tag, figcaption, caption, th:not([scope="row"]), .facts dt {
   font-family: var(--sans); font-variant-numeric: tabular-nums; }
 
 /* The compact face a small label rides in, set in the chip tokens (:root) that every
@@ -1134,7 +1150,7 @@ dd { margin: 0 0 8px 0; }
    token, true and inert, and a second place the body's size had to be kept. */
 .callout { background: var(--field); border: 1px solid var(--rule);
            border-radius: var(--r); padding: 12px 16px; margin: 18px 0; --lf-block-frame: 1; }
-/* A panel is one titled region of a wide page: the checks, the log, the steps. Every region
+/* A panel is one titled region of a sidebar page: the checks, the log, the steps. Every region
    on a dashboard is drawn the same way, so the eye reads the page as a set of like things
    laid on a grid, where a mix of raised tiles, tinted fields, bare tables and bordered logs
    read as a pile. The title is the tile label's voice (a headline value), small and set in
@@ -1193,7 +1209,7 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
    declare: "60" and "60 sessions" are one shape and two different things, and a
    pass that read the text would be guessing at the difference. */
 th.num, td.num { text-align: right; }
-ol.steps { list-style: none; counter-reset: step; padding-left: 0; }
+ol.steps { list-style: none; counter-reset: step; padding-inline-start: 0; }
 ol.steps > li { counter-increment: step; position: relative; padding-left: 34px;
                 margin: 10px 0; }
 /* The step's own number, off the ladder for the reason the ladder states: it is set
@@ -1348,22 +1364,30 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
     :where([data-lf-inline]))) {
   display: block;
   & > :is(lf-old, lf-new) {
-    display: block; padding: 2px 10px; margin-top: 10px; --lf-block-frame: 1; }
+    display: block; padding: 2px 10px; margin-top: 10px; --lf-block-frame: 1;
+    transition: padding var(--lf-motion-fold) ease; }
 }
 /* Decided: the surviving slot is plain prose, the other one gone. The retired one is
- * folded away by the widget rather than dropped in a frame (lf-suggestion.js), and the
- * survivor gives up its padding over the same span — a block slot's 10px is the sentence
- * the user is looking at stepping sideways, which is the jerk the fold is there to
- * remove, only smaller. Declared on the slot rather than on the decided state, because a
- * transition is read from the state the element is leaving; the shared reduced-motion
- * guard in shadow.css takes it with everything else.
+ * folded away by the widget rather than dropped in a frame (lf-suggestion.js). A block
+ * survivor gives up its padding over the same span: its 10px is the sentence the user is
+ * looking at stepping sideways, which is the jerk the fold is there to remove, only
+ * smaller. The transition is declared on the block slot rather than on the decided
+ * state, because a transition is read from the state the element is leaving; the shared
+ * reduced-motion guard in shadow.css takes it with everything else.
+ *
+ * An inline survivor gives up its 3px in the frame the decision lands. Its width is
+ * what the margin seats the suggestion's pin by, and an inline box resizing over a
+ * transition tells no observer, so the pin was seated mid-fold and the next unrelated
+ * layout pass, such as an agent's comment arriving, moved it a few pixels with no
+ * input. The other route, following the transition frame by frame, slid the pin beside
+ * the control just pressed, which Stability forbids. Settling at once moves the words
+ * by the padding as part of the gesture, and the pin takes its final seat once.
  *
  * Padding alone. The tint going is paint, which a state change may do freely, and a
  * transitioned background is the thing the choose group's own comment above warns
  * about: the tokens themselves move when the user's system flips to dark, so every
  * slot on the page would animate from one palette to the other for a change nobody
  * made. */
-lf-old, lf-new { transition: padding var(--lf-motion-fold) ease; }
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   background: none; color: inherit; text-decoration: none; padding: 0; }
 /* The visible label becomes transient hover and focus chrome once the runtime's
@@ -1452,7 +1476,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 .lf-margin-entry.lf-react[aria-pressed="true"] {
   background: var(--chip);
 }
-/* Opening a standing reaction leaves its familiar face in place and reveals the
+/* Opening a reaction in force leaves its familiar face in place and reveals the
    separately named removal action beside it. Its existing contour takes the shared
    disclosure accent (above), stated beside it so the two meet on their selectors; the
    mark does not gain a second ring or pretend the reaction itself changed. */
@@ -1557,15 +1581,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;
     border: 1px solid var(--paper); background: var(--ink); color: var(--paper);
     font: 600 10px/14px var(--sans); text-align: center; }
-/* Where a widget upgrade fails, it fails soft into this box. */
-.lf-error { border: 1px solid var(--danger); background: var(--danger-tint);
-            color: var(--danger-ink); border-radius: var(--r); padding: 8px 12px;
-            font-size: var(--t-5); white-space: normal; --lf-block-frame: 1; }
-/* The box sets `white-space: normal`, so the source inside it restores preformatting —
-   and, being later and equally specific, outranks the sheet's print wrap above until it
-   answers paper itself. */
-.lf-error pre { margin: 8px 0 0; white-space: pre; }
-@media print { .lf-error pre { white-space: pre-wrap; } }
 
 /* A pane is one task region: an optional header, one body element, an optional footer,
  * with no generated wrappers. It is whatever element declares `x-reading-role: pane`,

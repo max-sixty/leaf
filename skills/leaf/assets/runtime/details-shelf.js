@@ -31,7 +31,9 @@
  * nothing (chrome.css). Focus on a note stands at its element (standing-target.js).
  */
 import { chromeRoot } from "./chrome.js";
+import { move } from "./dom-move.js";
 import { declareSide } from "./standing-target.js";
+import { upFrom } from "./shadow.js";
 import { offer } from "./widget-elements.js";
 
 // element -> { notes, authored }; a note's element, read back.
@@ -40,7 +42,7 @@ const owners = new WeakMap();
 let shelf = null;
 
 declareSide((node) => {
-  for (let at = node; at && at !== shelf; at = at.parentElement) {
+  for (let at = node; at && at !== shelf; at = upFrom(at)) {
     const element = owners.get(at);
     if (element) return element;
   }
@@ -74,7 +76,7 @@ function name(element, record) {
 export function shelve(element, note) {
   shelf ??= offer("div", "lf-details-shelf");
   if (!shelf.isConnected) chromeRoot.append(shelf);
-  if (note.parentNode !== shelf) shelf.append(note);
+  if (note.parentNode !== shelf) move(shelf, note, null);
   owners.set(note, element);
   let record = records.get(element);
   if (!record) {

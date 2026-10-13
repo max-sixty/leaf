@@ -244,21 +244,19 @@ export class MessageEditor {
   constructor(
     id,
     view,
-    { wireInput, said, base: standing, send, land, paint, previous, reveal },
+    { wireInput, said, base: currentBase, send, land, paint, previous, reveal },
   ) {
     const ctx = editContext(id);
     // The revision these words are written over, which the log holds the rewrite to: the
     // message as it stands now. Words kept from an earlier opening carry the revision
     // they were written over; where the message has changed since, the user is told what
     // it says now before the kept words go over it.
-    let base = standing();
+    let base = currentBase();
     const keptOver = loadDraftPayload(ctx)?.over;
     // Words kept over the user's own edit still sending name it by its pending id, which
     // is no change of anyone else's.
     if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
-      notice(
-        `This message changed since you wrote your edit. It now says: “${said()}”`,
-      );
+      notice(`This message changed since this edit began. It now says: “${said()}”`);
     this.#reveal = reveal;
     this.node = offer("div", "lf-msg-editor");
     this.input = offer(TEXT_FIELD);
@@ -267,7 +265,7 @@ export class MessageEditor {
     const save = offer("button", "lf-msg-control lf-msg-edit-save");
     const cancel = offer("button", "lf-msg-control lf-msg-edit-cancel");
     cancel.type = "button";
-    cancel.title = "Cancel, discarding your changes";
+    cancel.title = "Cancel, discarding my changes";
     cancel.textContent = "Cancel";
     actions.append(cancel);
     // The box's last line, where the caret stands on opening: the field's own lines are
@@ -284,9 +282,9 @@ export class MessageEditor {
     // the log refuses.
     let opened = this.input.value;
     this.#follow = () => {
-      if (base === standing() || draftHasContent(ctx) || this.input.value !== opened)
+      if (base === currentBase() || draftHasContent(ctx) || this.input.value !== opened)
         return;
-      base = standing();
+      base = currentBase();
       this.input.value = opened = said();
     };
     // Words the message already says, exactly, and no words, are no change. Leading and
@@ -320,7 +318,7 @@ export class MessageEditor {
     this.#putAside = putAside;
     const sync = wireInput(this.input, {
       hint: "Edit message",
-      accessibleName: () => `Edit your message: ${said().slice(0, 60)}`,
+      accessibleName: () => `Edit my message: ${said().slice(0, 60)}`,
       sends: "save",
       icon: null,
       sendBtn: save,
@@ -356,7 +354,7 @@ export class MessageEditor {
           id: "message.edit.previous",
           keys: ["ArrowUp"],
           description:
-            "From the start of an unchanged box, edit your message before this one",
+            "From the start of an unchanged box, edit my message before this one",
           title: "edit previous message",
           // A walk passes over words as they stand: words the user changed hold ↑ for
           // the caret, as a reply box holding words does, until Save or Escape. It

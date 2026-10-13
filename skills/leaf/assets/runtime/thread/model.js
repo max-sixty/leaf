@@ -11,12 +11,10 @@
    obligation outranks concurrent agent work, which stays the card's secondary
    status.
 
-   A thread's `id` is its one identity: the id the server keys it by, which every Question,
-   workflow, placement, and view names it by. Its `root` is the first message it still
-   holds, a message like any other, and what a reply or settlement addresses as its
-   `parent`. The two differ where the log lost a thread's opening message
-   (`events.build_threads`), and for a thread this tab opened, whose id is its pending
-   message's until the log answers. */
+   A thread's `id` is its one identity: the id the server keys it by, which every ask,
+   workflow, placement, and view names it by. Its `root` is its opening message, a
+   message like any other, and what a reply or settlement addresses as its `parent`. A
+   thread this tab opened goes by its pending message's id until the log answers. */
 import { sameAnchor } from "../anchor-coordinate.js";
 import { PENDING } from "./identity.js";
 
@@ -28,18 +26,20 @@ import { PENDING } from "./identity.js";
 /** @param {{token?: string}} message */
 export const isReaction = (message) => Boolean(message.token);
 /** @param {Pick<Message, "addressable">} message */
-export const isAddressable = (message) => message.addressable !== false;
+const isAddressable = (message) => message.addressable !== false;
 
-/** @param {Thread} thread @param {boolean} ready */
-const threadOffers = (thread, ready) => ({
-  open: ready,
-  reply: ready && !thread.settling,
-  resolve: ready && !thread.resolved && !thread.settling,
-  reopen: ready && Boolean(thread.resolved) && !thread.settling,
+// A known thread can be opened and answered before the saved inventory arrives.
+// Its own settlement, rather than the collection's completeness, owns these offers.
+/** @param {Thread} thread */
+const threadOffers = (thread) => ({
+  open: true,
+  reply: !thread.settling,
+  resolve: !thread.resolved && !thread.settling,
+  reopen: Boolean(thread.resolved) && !thread.settling,
 });
 
 // The publisher supplies the vocabulary; controls and commands read these same
-// choices, including the exact standing reaction an explicit removal withdraws.
+// choices, including the exact reaction in force an explicit removal withdraws.
 /** @template {Pick<Message, "id" | "author" | "parent" | "token" | "addressable" | "agent"> & {key: string}} T
  * @param {{key: string, resolved: Thread["resolved"], msgs: T[]}} thread
  * @param {T} message
@@ -56,7 +56,7 @@ function reactionChoices(thread, message, tokens) {
   const latest = thread.msgs.findLast(
     (item) => item.author === "agent" && isAddressable(item),
   );
-  const standing = thread.msgs.filter(
+  const inForce = thread.msgs.filter(
     (item) => isReaction(item) && item.author === "user" && item.parent === message.id,
   );
   return {
@@ -64,23 +64,23 @@ function reactionChoices(thread, message, tokens) {
     message: message.key,
     latest: latest?.id === message.id,
     agent: message.agent,
-    choices: tokenChoices(tokens, standing),
+    choices: tokenChoices(tokens, inForce),
   };
 }
 
-// The declared reaction tokens as choices on one target, each with the standing reaction
+// The declared reaction tokens as choices on one target, each with the reaction in force
 // a press takes back. The bar, a reply's strip and the margin form render these; each
 // surface keeps its own face, and the token names the control on all of them.
 /** @template {{token?: string}} S
  * @param {Record<string, {glyph: string}>} tokens
- * @param {S[]} standing
+ * @param {S[]} inForce
  */
-export const tokenChoices = (tokens, standing) =>
+export const tokenChoices = (tokens, inForce) =>
   Object.entries(tokens).map(([name, entry]) => ({
     name,
     glyph: entry.glyph,
     label: name,
-    standing: standing.find((item) => item.token === name) ?? null,
+    inForce: inForce.find((item) => item.token === name) ?? null,
   }));
 /** @param {Thread} thread */
 const spoken = (thread) => thread.msgs.filter((message) => !isReaction(message));
@@ -146,17 +146,17 @@ const pendingSeat = (message) =>
 // The user's own pending gestures, folded into the server's threads in the order this
 // tab made them, as `events.build_threads` folds the log. A comment opens a thread where
 // it was written; a reply joins the thread it answers; a rewrite shows as its message's
-// new words; settlement changes the thread's state; taking back a reaction, the one
-// message the user can withdraw, drops it from its thread, and a thread it opened goes
-// with it. They leave again when the server accepts or refuses them, so this is a
-// reading of the same outbox and log the server projects rather than a second store
-// beside it.
+// new words; settlement changes the thread's state, and a turn reopens a resolved one;
+// taking back a reaction, the one message the user can withdraw, drops it from its
+// thread, and a thread it opened goes with it. They leave again when the server accepts
+// or refuses them, so this is a reading of the same outbox and log the server projects
+// rather than a second store beside it.
 //
-// The derived facts a pending thread carries are the ones the user just made true: a
-// thread the user opened with words is a thread rather than a mark, and its attention
-// waits on the newest turn sent, words or a rewrite of them, whose local workflow
-// shares its pending id, so the agent owes the next word and the user none. Every other
-// thread keeps the attention the server derived.
+// The fold draws only what a gesture settles by itself. Whose turn a served thread is
+// depends on what the rest of the log leaves in force, so it keeps the attention the
+// server read until the log answers the gesture. A thread the user opened with words has
+// no log beyond the gesture: it waits on the agent for its send, under the pending id its
+// local workflow shares, and asks nothing yet.
 /** @param {{id: string}} turn @returns {import("../../../../../build/browser/domain.ts").Attention} */
 const sending = (turn) => ({
   kind: "waiting",
@@ -209,6 +209,7 @@ export function foldThreads(threads, gestures) {
         summaries: [],
         unread: [],
         attention: reaction ? null : sending(gesture),
+        todos: [],
       };
       opened.push(thread);
       byName.set(gesture.id, thread);
@@ -219,12 +220,11 @@ export function foldThreads(threads, gestures) {
       // user's message joins the thread above it and its acceptance moves nothing.
       const streaming = thread.msgs.at(-1)?.provisional ? 1 : 0;
       thread.msgs.splice(thread.msgs.length - streaming, 0, gesture);
-      if (isReaction(gesture)) continue;
-      thread.resolved = null;
-      thread.attention = sending(gesture);
+      // A reaction is no turn, so it reopens nothing.
+      if (!isReaction(gesture)) thread.resolved = null;
     } else if (gesture.kind === "edit") {
-      // An edit shows as its message's new words, and hands the thread to the agent as
-      // a reply would, under the edit's own pending id (`events.exchange`).
+      // An edit shows as its message's new words, and is a turn as a reply is, under
+      // the edit's own pending id (`events.exchange`).
       const thread = byName.get(gesture.message);
       const at = thread?.msgs.findIndex(({ id }) => id === gesture.message) ?? -1;
       const message = thread?.msgs[at];
@@ -242,9 +242,6 @@ export function foldThreads(threads, gestures) {
       });
       if (thread.root.id === gesture.message) thread.root = thread.msgs[at] ?? message;
       thread.resolved = null;
-      // A question asked since still waits on the user: new words for an older message
-      // answer none (`events.exchange`), so the user stays first, as the log will say.
-      if (thread.attention?.reason !== "question") thread.attention = sending(gesture);
     } else if (gesture.kind === "resolve" || gesture.kind === "unresolve") {
       const thread =
         byName.get(gesture.parent) ??
@@ -266,7 +263,7 @@ export function foldThreads(threads, gestures) {
   return [...copies, ...opened];
 }
 
-// The bare reactions standing on exactly this anchor — the bar's own question, asked
+// The bare reactions in force on exactly this anchor — the bar's own question, asked
 // so its chips can say which tokens are already there. Anchors are compared as
 // records, the way the file compares them.
 /** @param {Thread[]} threads @param {Anchor} anchor */
@@ -426,11 +423,12 @@ export function readThreadRecords(
       settling: thread.settling ?? null,
       user_prompt: thread.user_prompt,
       attention: thread.attention,
+      todos: thread.todos,
       workflows: workflows.filter((workflow) => workflow.thread === thread.id),
       bare_reaction: thread.bare_reaction,
       seat: thread.seat,
       summaries: thread.summaries,
-      offers: threadOffers(thread, ready),
+      offers: threadOffers(thread),
     };
   });
 }

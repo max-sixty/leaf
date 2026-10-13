@@ -30,10 +30,10 @@
    `lfReadiness`.
 
    Presentation is not the end of the page's arrival. An owner may deliberately keep work
-   off the presentation path — a widget's progressive upgrade, a developer surface's
-   contained documents — and that work still moves boxes when it lands. `deferredArrival`
-   is where such an owner says so, and the `arrived` stage of `pageReadiness` answers
-   whether any of it is still outstanding. Startup waits for these arrivals before
+   off the presentation path, such as a widget's progressive upgrade, and that work
+   still moves boxes when it lands. `deferredArrival` is where such an owner says so,
+   and the `arrived` stage of `pageReadiness` answers whether any of it is still
+   outstanding. Startup waits for these arrivals before
    its final retained fragment landing, so late geometry keeps the requested place.
    A reader outside the page waits on the
    page rather than on a widget it had to know about. Without it the only thing outside
@@ -51,6 +51,11 @@ import { renderingState } from "./rendering.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./page-paint.js";
 
+export const UPGRADE = "lf-upgraded";
+export function markPageUpgraded() {
+  setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.upgraded, "1");
+  document.dispatchEvent(new Event(UPGRADE));
+}
 // The stamp is written here and nowhere else, and never taken back, so the promise it
 // resolves answers every later waiter too.
 const { promise: presented, resolve: resolvePresented } = Promise.withResolvers();
@@ -155,14 +160,13 @@ export function pageReadiness(held = null, through = "rendering") {
 // exists only to replace a provisional startup reading synchronously.
 export const PRESENTATION = "lf-presentation";
 
-// Optional runtime-owned page interface joins the same settlement boundary as the
-// widget modules it composes. Initial startup and an in-place version activation both
-// pass here, so a dynamically imported surface cannot appear after either page is
-// already in front of the user.
+// Interface derived from authored structure joins the same settlement boundary as the
+// widget modules that compose it. Initial startup and an in-place version activation
+// both pass here, so such a surface cannot appear after either page is already in
+// front of the user.
 export const PAGE_INTERFACE = "lf-page-interface";
-// Prepare optional interface owners over the current DOM. This joins their imports and
-// installation, separately from the semantic document's canonical presentation proof.
-// A gallery's contained sample documents remain deliberately deferred arrivals.
+// Prepare interface owners over the current DOM. This joins their reconciliation,
+// separately from the semantic document's canonical presentation proof.
 export async function settlePageInterface() {
   const pending = [];
   const present = (promise) => {

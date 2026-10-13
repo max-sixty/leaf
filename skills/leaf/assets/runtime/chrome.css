@@ -1,4 +1,778 @@
 /* Generated from skills/leaf/assets/styles/chrome.css by build/styles.mjs. */
+/* skills/leaf/assets/styles/floating-panel.css */
+@scope (.lf-chrome) {
+  html[data-lf-floating-chrome] :scope {
+    --lf-notice-seat: panel;
+    .lf-banner,
+    .lf-shortcut-bar {
+      display: none !important;
+    }
+    .lf-bottom-status {
+      top: calc(12px + var(--lf-safe-top));
+      bottom: auto;
+      right: auto;
+      left: 50%;
+      translate: -50% 0;
+    }
+  }
+  :is(.lf-floating-panel, .lf-fp-ground) {
+    --lf-fp-surface: light-dark( var(--paper), color-mix(in srgb, var(--paper) 95%, white) );
+    --lf-fp-ring: light-dark( color-mix(in srgb, var(--ink) 13%, transparent), color-mix(in srgb, var(--ink) 19%, transparent) );
+    --lf-fp-muted: color-mix(in srgb, var(--ink) 60%, transparent);
+    --lf-fp-faint: color-mix(in srgb, var(--ink) 8%, transparent);
+    --lf-fp-hover: color-mix(in srgb, var(--ink) 5%, transparent);
+    --lf-fp-radius: 12px;
+    --lf-fp-folded: 42px;
+    --lf-fp-width: min( 540px, calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right)) );
+    --lf-fp-view-height: min(440px, calc(100dvh - var(--lf-bottom-bar-h) - 96px));
+  }
+  .lf-fp-ground {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--lf-z-banner) - 1);
+    pointer-events: none;
+    filter: drop-shadow(0 12px 14px color-mix(in srgb, var(--shade) 70%, transparent)) drop-shadow(0 1px 1px color-mix(in srgb, var(--shade) 30%, transparent));
+  }
+  .lf-fp-ring,
+  .lf-fp-fill {
+    position: absolute;
+    inset: 0;
+    clip-path: inset(50%);
+  }
+  .lf-fp-ring {
+    background: var(--lf-fp-ring);
+  }
+  .lf-fp-fill {
+    background: var(--lf-fp-surface);
+  }
+  .lf-floating-panel {
+    position: fixed;
+    z-index: var(--lf-z-banner);
+    pointer-events: auto;
+    bottom: calc(var(--lf-floating-gap) + var(--lf-safe-bottom));
+    left: 0;
+    right: 0;
+    margin-inline: auto;
+    width: var(--lf-fp-width);
+    font: 13px / 1.45 var(--sans);
+    color: var(--ink);
+  }
+  .lf-fp-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    overflow: clip;
+    border-radius: var(--lf-fp-radius);
+  }
+  .lf-fp-inner {
+    display: flex;
+    flex-direction: column;
+  }
+  :where(.lf-floating-panel) :is(button, input) {
+    font: inherit;
+    color: inherit;
+  }
+  :where(.lf-floating-panel) button {
+    background: none;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    padding: 0 8px;
+    min-height: 28px;
+  }
+  :where(.lf-floating-panel) button:hover {
+    background: var(--lf-fp-hover);
+  }
+  :where(.lf-floating-panel) button:is(:disabled, [aria-disabled=true]) {
+    color: var(--lf-fp-muted);
+    cursor: default;
+    background: none;
+  }
+  :where(.lf-floating-panel) :is(button, input):focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: -2px;
+    --lf-focus-ring: floating-panel;
+  }
+  .lf-floating-panel .lf-action-icon {
+    width: 16px;
+    height: 16px;
+  }
+  .lf-fp-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    min-height: 44px;
+    padding: 6px;
+    box-sizing: border-box;
+  }
+  .lf-fp-leaf {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    min-height: 32px;
+    padding: 0;
+  }
+  .lf-fp-leaf .lf-dot {
+    --lf-mark-w: 19px;
+  }
+  .lf-fp-field {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-self: stretch;
+    align-items: flex-end;
+  }
+  .lf-fp-box,
+  .lf-fp-box .lf-compose-field {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    border: 0;
+    background: none;
+    padding: 0;
+    margin: 0;
+    box-shadow: none;
+  }
+  .lf-fp-box leaf-text {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    padding: 5px 6px;
+    min-height: 32px;
+    max-height: 30dvh;
+    box-sizing: border-box;
+    font: 14px / 22px var(--sans);
+  }
+  .lf-fp-box leaf-text[data-lf-focus] {
+    outline: none;
+  }
+  .lf-fp-box .lf-compose-placeholder {
+    color: var(--lf-fp-muted);
+  }
+  .lf-floating-panel[data-notice] .lf-fp-box .lf-compose-placeholder {
+    color: var(--ink);
+  }
+  .lf-fp-box .lf-compose-placeholder kbd {
+    display: none;
+  }
+  .lf-fp-box .lf-compose-submit {
+    flex: none;
+    display: none;
+    place-items: center;
+    width: 32px;
+    min-height: 32px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--ink);
+    color: var(--lf-fp-surface);
+  }
+  .lf-fp-box .lf-compose-submit:hover {
+    background: var(--ink);
+  }
+  .lf-floating-panel[data-typing] .lf-fp-box .lf-compose-submit {
+    display: grid;
+  }
+  .lf-floating-panel[data-typing] .lf-fp-quick:not([data-steps]) {
+    display: none;
+  }
+  .lf-fp-box .lf-compose-dictate:not([hidden]) {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    min-height: 32px;
+    padding: 0;
+  }
+  .lf-fp-box:not(:has(leaf-text[data-lf-focus])) .lf-compose-dictate {
+    display: none;
+  }
+  .lf-fp-quick {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .lf-fp-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 32px;
+    min-height: 32px;
+    padding: 0 7px;
+    color: var(--lf-fp-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .lf-fp-chip:hover,
+  .lf-fp-chip[aria-pressed=true] {
+    color: var(--ink);
+  }
+  .lf-fp-chip[aria-pressed=true] {
+    background: var(--lf-fp-faint);
+  }
+  .lf-fp-questions,
+  .lf-fp-threads {
+    min-width: calc(16px + 4px + 2ch + 14px);
+    justify-content: flex-start;
+  }
+  .lf-fp-questions[data-due] .lf-fp-num {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .lf-fp-news {
+    position: absolute;
+    top: 6px;
+    left: 19px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 1.5px var(--lf-fp-surface);
+  }
+  .lf-fp-news[hidden] {
+    display: none;
+  }
+  .lf-fp-step {
+    color: var(--ink);
+    box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
+    padding-inline: 10px;
+  }
+  .lf-fp-context {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 14px 0;
+    color: var(--lf-fp-muted);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .lf-fp-context[hidden] {
+    display: none;
+  }
+  .lf-fp-dest {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lf-fp-dest[data-notice] {
+    color: var(--ink);
+  }
+  .lf-fp-keys {
+    flex: none;
+  }
+  .lf-floating-panel[data-rest=mark] {
+    width: var(--lf-fp-folded);
+    left: auto;
+    right: calc(20px + var(--lf-safe-right));
+    margin: 0;
+    .lf-fp-field,
+    .lf-fp-quick,
+    .lf-fp-context,
+    .lf-fp-head,
+    .lf-fp-stage {
+      display: none;
+    }
+    .lf-fp-row {
+      min-height: 0;
+      padding: 0;
+    }
+    .lf-fp-leaf {
+      width: var(--lf-fp-folded);
+      min-width: 0;
+      height: var(--lf-fp-folded);
+      min-height: 0;
+      border-radius: var(--lf-fp-radius);
+    }
+    .lf-fp-leaf .lf-dot {
+      --lf-mark-w: 20px;
+    }
+    :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
+      animation: lf-fp-arrive 160ms linear 140ms backwards;
+    }
+  }
+  @keyframes lf-fp-arrive {
+    from {
+      opacity: 0;
+    }
+  }
+  .lf-fp-badge,
+  .lf-fp-news-dot {
+    position: absolute;
+    display: none;
+    pointer-events: none;
+    box-shadow: 0 0 0 2px var(--paper);
+  }
+  .lf-fp-badge {
+    top: -6px;
+    right: -6px;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 5px;
+    box-sizing: border-box;
+    border-radius: 9px;
+    background: var(--pin-fill);
+    color: white;
+    font: 600 10.5px / 17px var(--sans);
+    text-align: center;
+  }
+  .lf-fp-news-dot {
+    top: -3px;
+    left: -3px;
+  }
+  .lf-fp-badge:not([data-shown]) ~ .lf-fp-news-dot {
+    left: auto;
+    right: -3px;
+  }
+  .lf-fp-news-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .lf-floating-panel[data-rest=mark] :is(.lf-fp-badge, .lf-fp-news-dot)[data-shown] {
+    display: block;
+  }
+  .lf-fp-head {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 42px;
+    padding: 6px 6px 0 14px;
+    box-sizing: border-box;
+  }
+  .lf-fp-head:empty {
+    display: none;
+  }
+  .lf-fp-crumb {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .lf-fp-title {
+    min-width: 0;
+    margin: 0;
+    font: inherit;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lf-fp-back {
+    flex: none;
+    min-height: 0;
+    padding: 0;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-back:hover {
+    background: none;
+    color: var(--ink);
+  }
+  .lf-fp-sep,
+  .lf-fp-where {
+    flex: none;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-where {
+    font-size: 12px;
+  }
+  .lf-fp-aux {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .lf-fp-filters {
+    display: flex;
+    gap: 2px;
+  }
+  .lf-fp-filters button {
+    color: var(--lf-fp-muted);
+    font-size: 12px;
+    min-height: 26px;
+  }
+  .lf-fp-filters button:hover,
+  .lf-fp-filters [aria-pressed=true] {
+    color: var(--ink);
+  }
+  .lf-fp-filters [aria-pressed=true] {
+    background: var(--lf-fp-faint);
+  }
+  .lf-fp-count {
+    display: inline-block;
+    min-width: 1.2ch;
+    margin-left: 1px;
+    text-align: start;
+    font-variant-numeric: tabular-nums;
+  }
+  .lf-fp-icon-btn {
+    display: grid;
+    place-items: center;
+    min-width: 28px;
+    padding: 0;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-icon-btn:hover,
+  .lf-fp-icon-btn[aria-pressed=true] {
+    color: var(--ink);
+  }
+  .lf-fp-settle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-settle:hover {
+    color: var(--ink);
+  }
+  .lf-fp-settle .lf-action-icon {
+    width: 14px;
+    height: 14px;
+  }
+  .lf-fp-search {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: none;
+    padding: 0;
+    font: 13px / 26px var(--sans);
+  }
+  .lf-fp-search::placeholder {
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-search:focus-visible {
+    outline: none;
+  }
+  .lf-fp-stage {
+    position: relative;
+    display: grid;
+    min-height: 0;
+  }
+  .lf-fp-stage:empty {
+    display: none;
+  }
+  .lf-fp-view {
+    grid-area: 1 / 1;
+    min-height: 0;
+    max-height: var(--lf-fp-view-height);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 4px 6px 6px;
+    box-sizing: border-box;
+    scrollbar-width: thin;
+  }
+  .lf-fp-view:is(:focus, [data-lf-focus]) {
+    outline: none;
+    box-shadow: none;
+  }
+  .lf-fp-view[data-leaving] {
+    pointer-events: none;
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+  }
+  .lf-fp-view[data-view=threads] {
+    height: min(var(--lf-fp-view-height), calc(10px + max(var(--lf-fp-rows), 3) * 34px));
+  }
+  .lf-fp-view[data-view=thread] {
+    padding-top: 8px;
+    mask-image:
+      linear-gradient(
+        to bottom,
+        transparent 0,
+        #000 12px);
+  }
+  .lf-fp-list {
+    display: grid;
+  }
+  .lf-fp-item,
+  .lf-fp-thread {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 12px;
+    width: 100%;
+    min-height: 30px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    text-align: start;
+  }
+  .lf-fp-thread {
+    grid-template-columns: 6px minmax(0, 1fr) auto;
+    gap: 8px;
+    min-height: 34px;
+  }
+  .lf-fp-label {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lf-fp-value {
+    color: var(--lf-fp-muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .lf-fp-key {
+    color: var(--lf-fp-muted);
+    font: 12px var(--sans);
+  }
+  .lf-fp-item[data-lf-urgent] .lf-fp-value {
+    color: var(--accent);
+  }
+  .lf-fp-news-mark {
+    align-self: center;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .lf-fp-thread[data-unread] .lf-fp-news-mark {
+    background: var(--accent);
+  }
+  .lf-fp-thread[data-yours] .lf-fp-value {
+    color: var(--accent);
+  }
+  .lf-fp-thread[data-resolved] .lf-fp-label {
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-version {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .lf-fp-version .lf-fp-item {
+    flex: 1;
+    min-width: 0;
+  }
+  .lf-fp-version[data-current] .lf-fp-label {
+    font-weight: 600;
+  }
+  .lf-fp-compare {
+    flex: none;
+    font-size: 12px;
+  }
+  .lf-fp-compare[aria-pressed=true] {
+    color: var(--accent);
+  }
+  .lf-floating-panel hr {
+    border: 0;
+    height: 1px;
+    background: var(--lf-fp-faint);
+    margin: 4px 8px;
+  }
+  .lf-fp-empty {
+    margin: 14px 8px;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-quiet {
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-quiet:hover {
+    color: var(--ink);
+  }
+  .lf-fp-question {
+    padding: 10px 8px 12px;
+  }
+  .lf-fp-question + .lf-fp-question {
+    border-top: 1px solid var(--lf-fp-faint);
+  }
+  .lf-fp-qtitle {
+    margin: 0 0 2px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--lf-fp-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lf-fp-prompt {
+    margin: 0;
+    font: 15px / 1.45 var(--serif);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    overflow: hidden;
+  }
+  .lf-fp-answers {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 9px;
+    min-height: 28px;
+  }
+  .lf-fp-answer {
+    box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
+    padding-inline: 11px;
+  }
+  .lf-fp-answer[aria-pressed=true] {
+    color: var(--ok-ink);
+    background: var(--ok-tint);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 45%, transparent);
+  }
+  .lf-fp-answer[aria-pressed=true]::before {
+    content: "✓";
+    margin-right: 6px;
+  }
+  .lf-fp-said {
+    color: var(--lf-fp-muted);
+    font-size: 12px;
+    margin-right: 4px;
+  }
+  .lf-fp-messages {
+    padding: 0 8px;
+  }
+  .lf-fp-menu {
+    position: fixed;
+    position-anchor: --lf-fp-leaf;
+    top: calc(12px + var(--lf-safe-top));
+    bottom: calc(anchor(top) + 8px);
+    left: anchor(left);
+    align-self: end;
+    max-height: -webkit-fill-available;
+    max-height: stretch;
+    overflow-y: auto;
+    width: 248px;
+    padding: 6px;
+    box-sizing: border-box;
+    border-radius: var(--lf-fp-radius);
+    background: var(--lf-fp-surface);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), 0 12px 24px -12px var(--shade);
+  }
+  .lf-floating-panel:not([data-menu]) .lf-fp-menu {
+    display: none;
+  }
+  .lf-floating-panel[data-menu] .lf-fp-menu {
+    @starting-style {
+      opacity: 0;
+      translate: 0 6px;
+    }
+    transition: opacity 120ms linear, translate 200ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .lf-fp-state {
+    display: grid;
+    gap: 1px;
+    padding: 6px 8px 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--lf-fp-faint);
+    color: var(--lf-fp-muted);
+    font-size: 12px;
+  }
+  .lf-fp-state b {
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .lf-fp-explain {
+    margin-top: 3px;
+    white-space: normal;
+    text-wrap: pretty;
+  }
+  .lf-fp-state[data-tone=working] b {
+    color: var(--accent);
+  }
+  .lf-fp-state[data-tone=listening] b {
+    color: var(--ok);
+  }
+  .lf-fp-state[data-tone=away] b {
+    color: var(--warn);
+  }
+  .lf-fp-state[data-tone=offline] b {
+    color: var(--danger);
+  }
+  .lf-fp-leaf {
+    anchor-name: --lf-fp-leaf;
+  }
+  .lf-fp-peek {
+    position: fixed;
+    position-anchor: --lf-fp-leaf;
+    bottom: calc(anchor(top) + 14px);
+    right: anchor(right);
+    max-width: min(320px, calc(100vw - 32px));
+    box-sizing: border-box;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: var(--lf-fp-surface);
+    box-shadow: 0 0 0 1px var(--lf-fp-ring), 0 8px 20px -10px var(--shade);
+    color: var(--lf-fp-muted);
+    font-size: 12px;
+    pointer-events: none;
+    display: none;
+    transition: opacity 120ms;
+  }
+  .lf-fp-peek[data-shown] {
+    display: block;
+    opacity: 1;
+    @starting-style {
+      opacity: 0;
+    }
+  }
+  @media screen and (width <= 480px) {
+    :is(.lf-floating-panel, .lf-fp-ground) {
+      --lf-fp-width: calc(100vw - 20px - var(--lf-safe-left) - var(--lf-safe-right));
+    }
+    .lf-fp-annotate,
+    .lf-fp-keys {
+      display: none;
+    }
+    .lf-floating-panel[data-rest=mark] {
+      right: calc(16px + var(--lf-safe-right));
+    }
+  }
+  @media (pointer: coarse) {
+    :is(.lf-floating-panel, .lf-fp-ground) {
+      --lf-fp-folded: 46px;
+    }
+    .lf-fp-row {
+      min-height: 48px;
+      padding: 7px;
+    }
+    .lf-fp-item,
+    .lf-fp-thread {
+      min-height: 44px;
+    }
+    :where(.lf-floating-panel) button {
+      min-height: 34px;
+    }
+    .lf-fp-leaf,
+    .lf-fp-chip {
+      min-width: 34px;
+      min-height: 34px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lf-floating-panel[data-rest=mark] :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
+      animation: none;
+    }
+    .lf-fp-peek,
+    .lf-floating-panel[data-menu] .lf-fp-menu {
+      transition: none;
+    }
+  }
+  @media (forced-colors: active) {
+    .lf-fp-fill {
+      background: Canvas;
+    }
+    .lf-fp-ring {
+      background: CanvasText;
+    }
+    .lf-fp-menu,
+    .lf-fp-peek {
+      border: 1px solid CanvasText;
+    }
+  }
+}
+
 /* skills/leaf/assets/styles/chrome.css */
 .lf-ui {
   box-sizing: border-box;
@@ -109,9 +883,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   background: var(--del-tint);
   color: var(--danger-ink);
 }
-[data-lf-question] {
-  outline: var(--lf-question-ring, var(--focus-ring));
-  --lf-focus-ring: question;
+[data-lf-ask] {
+  outline: var(--lf-ask-ring, var(--focus-ring));
+  --lf-focus-ring: ask;
   outline-offset: var(--focus-ring-gap);
   scroll-margin-block: var(--focus-ring-room);
 }
@@ -370,6 +1144,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-layer-version {
     font-family: var(--mono);
     font-size: inherit;
+  }
+  .lf-layer-line {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .lf-status-button {
     display: flex;
@@ -814,8 +1593,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-auxiliary-envelope {
     position: absolute;
     inset: 0 auto auto 0;
-    width: 100vw;
-    height: 100vh;
+    width: 0;
+    height: 0;
     max-width: none;
     max-height: none;
     margin: 0;
@@ -959,7 +1738,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     flex: none;
     margin: 4px 6px 0 0;
   }
-  .lf-queue-row:is([data-lf-focus], [data-lf-question]),
+  .lf-queue-row:is([data-lf-focus], [data-lf-ask]),
   .lf-queue-done > summary[data-lf-focus] {
     outline: var(--focus-ring);
     --lf-focus-ring: queue-row;
@@ -1817,22 +2596,28 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-    display: grid;
-    place-items: center;
     padding: 16px;
     box-sizing: border-box;
     background: transparent;
   }
-  .lf-media-viewer-stage:has(> img) {
+  .lf-media-viewer-stage:has(> .lf-media-viewer-probe) {
     background: color-mix(in srgb, var(--paper) 80%, transparent);
   }
-  .lf-media-viewer-stage > img {
-    display: block;
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
+  .lf-media-viewer-probe {
+    position: absolute;
+    width: 1px;
+    height: 0;
+    overflow: hidden;
+    visibility: hidden;
   }
-  .lf-media-viewer-stage > img,
+  .lf-media-viewer-probe > img {
+    display: block;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    max-width: none;
+    max-height: none;
+  }
   .lf-media-viewer .pswp__img {
     outline: 1px solid var(--border-2);
     box-shadow: 0 8px 24px var(--shade);
@@ -2223,7 +3008,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       display: none;
     }
   }
-  @container style(--lf-notice-seat: banner) {
+  @container style(--lf-notice-seat: banner) or style(--lf-notice-seat: panel) {
     .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]), > .lf-walk-position:not([hidden]))) {
       display: none;
     }

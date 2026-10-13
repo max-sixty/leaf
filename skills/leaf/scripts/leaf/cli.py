@@ -57,12 +57,37 @@ def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None
     ctx.exit()
 
 
+# Where a command's `--json` says the caller reads JSON, in the context every
+# command's context shares (`click.Context.meta`).
+JSON_REQUESTED = "leaf.json"
+
+
+def _json_requested(ctx: click.Context, _param: click.Parameter, value: bool) -> bool:
+    ctx.meta[JSON_REQUESTED] = value
+    return value
+
+
+def json_option(help: str, *, expose_value: bool = True):
+    """A command's `--json`: what it prints becomes JSON, a refusal included
+    (`LeafGroup`)."""
+    return click.option(
+        "--json",
+        "as_json",
+        is_flag=True,
+        expose_value=expose_value,
+        callback=_json_requested,
+        help=help,
+    )
+
+
 class LeafGroup(click.Group):
     """Present a domain refusal (`refusals.Refused`) as a Click error.
 
-    This is the command line's one translation of a refusal. Exit statuses
-    (including a package script's) keep their meaning and output, and any other
-    exception surfaces with its traceback.
+    This is the command line's one translation of a refusal: its words on stderr, or,
+    where the command was given `--json` (`json_option`), one JSON object on stdout,
+    `Refused.json`, whose `findings` carry each refusal's code and fields. Either way
+    the command exits 1. Exit statuses (including a package script's) keep their
+    meaning and output, and any other exception surfaces with its traceback.
     """
 
     def invoke(self, ctx: click.Context):
@@ -71,7 +96,28 @@ class LeafGroup(click.Group):
         try:
             return super().invoke(ctx)
         except Refused as error:
+            if ctx.meta.get(JSON_REQUESTED):
+                click.echo(json.dumps(error.json(), ensure_ascii=False))
+                ctx.exit(1)
             raise click.ClickException(str(error)) from error
+
+
+class RecordsCommand(click.Command):
+    """A write that prints each record it appended as one JSON line, as `page
+    events` prints it, and with `--json` its refusal as one JSON object."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        json_option(
+            "print a refusal as one JSON object: its error and the findings it rests on",
+            expose_value=False,
+        )(self)
+
+
+class RecordsGroup(click.Group):
+    """A group of `RecordsCommand` writes."""
+
+    command_class = RecordsCommand
 
 
 @click.group(cls=LeafGroup)
@@ -81,7 +127,7 @@ class LeafGroup(click.Group):
     expose_value=False,
     is_eager=True,
     callback=_leaf_version,
-    help="Print this running Leaf payload's source version.",
+    help="Print the commit this Leaf runs from, with its commit or install date.",
 )
 @click.option(
     "--root",
@@ -133,24 +179,20 @@ def codex_start(
 
 @codex.command("run", hidden=True)
 @click.option("--codex-path", required=True)
-@click.option("--handshake", type=int)
+@click.option("--handshake", type=int, required=True)
 @click.option("--app-server", hidden=True)
 def codex_run(
     codex_path: str,
-    handshake: int | None,
+    handshake: int,
     app_server: str | None,
 ) -> None:
     """Run the detached adapter child."""
-    from contextlib import nullcontext
-
     from leaf.codex_adapter import run_adapter
     from leaf.detached import Handshake
     from leaf.leases import release_on_termination
 
     release_on_termination()
-
-    # Tests run the adapter in the foreground, where nobody waits on a handshake.
-    with Handshake(handshake) if handshake is not None else nullcontext() as answer:
+    with Handshake(handshake) as answer:
         sys.exit(run_adapter(codex_path, answer, app_server))
 
 
@@ -239,17 +281,19 @@ def package_init(package_path: Path, widget: str | None) -> None:
     is_flag=True,
     help="also report on the package's widgets as its worked examples render",
 )
-def package_check(package_path: Path, render: bool) -> None:
+@json_option("print the findings as one JSON object instead of lines")
+def package_check(package_path: Path, render: bool, as_json: bool) -> None:
     """Check the package as one composed unit.
 
     --render also draws each worked example the package's own widgets declare in
     the host's browser, the one `page check --render` finds, and prints what the
     widget quality checks find there. A finding is advice for the widgets' author
-    and leaves the exit status alone.
+    and leaves the exit status alone. --json prints one object instead, in the
+    shape `page check --json` prints.
     """
     from leaf.packages import cmd_package_check
 
-    sys.exit(cmd_package_check(package_path, render))
+    sys.exit(cmd_package_check(package_path, render, as_json))
 
 
 @package.command("install", short_help="Install a package for selection by name.")
@@ -294,17 +338,20 @@ def package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:
 @click.option(
     "--render", is_flag=True, help="also check the rendered page in the host's browser"
 )
-def check(dir: str, render: bool) -> None:
+@json_option("print the findings as one JSON object instead of lines")
+def check(dir: str, render: bool, as_json: bool) -> None:
     """Check PAGE/index.html.
 
     Runs deterministic markup checks. --render also checks the drawn page in the
     host's browser: whichever executable LEAF_BROWSER_EXECUTABLE, CHROME_PATH, or
     CHROME_BIN names, else the installed Chrome, else the first browser on PATH.
-    A host with no browser gets a note in place of each browser check.
+    A host with no browser gets a note in place of each browser check. --json prints
+    one object instead: the exit status, every finding with its code, element,
+    measured values and severity, and what each browser check ran in.
     """
     from leaf.validation.command import cmd_check
 
-    sys.exit(cmd_check(resolve_dir(dir), render))
+    sys.exit(cmd_check(resolve_dir(dir), render, as_json))
 
 
 @page.command()
@@ -361,16 +408,16 @@ def instructions(
     help="how many of a thread's messages to print (default: 50)",
 )
 def state(dir: str, target: str | None, after: int | None, limit: int | None) -> None:
-    """Fold the log onto the active revision and print the result as one JSON
-    object: the active revision's file, standing state, reports, open Questions,
-    thread summaries, versions, presence, and bound data. Read the active
+    """Print the page as it is now, as one JSON object: the active revision's
+    file, the current widget actions and workers' reports, the Questions and Tasks
+    lists, thread summaries, versions, presence, and bound data. Read the active
     revision's HTML beside it for the document.
 
-    ID narrows the reading to what it names. A message, or a widget frozen into
-    one, names its thread: the reading is that thread with a page of its messages,
-    their frozen markup, and the state on its widgets, paged by --after and
-    --limit. A widget on the page names itself: its element, the actions and reports
-    standing on it, its Questions, and its workflows."""
+    ID narrows the output to what it names. A message, or a widget frozen into
+    one, names its thread: the output is that thread with a page of its messages,
+    their frozen markup, and the state of its widgets, paged by --after and
+    --limit. A widget on the page names itself: its element, its current actions
+    and reports, its asks and to-dos, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
     if target is None and (after is not None or limit is not None):
@@ -378,7 +425,9 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     cmd_page_state(resolve_dir(dir), target, after=after, limit=limit)
 
 
-@page.command(short_help="Stamp the current source as the next version.")
+@page.command(
+    cls=RecordsCommand, short_help="Stamp the current source as the next version."
+)
 @click.argument("dir", metavar="PAGE")
 @click.option("--text", help="changelog text (default: stdin)")
 @click.option(
@@ -394,7 +443,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     "--completes",
     multiple=True,
     metavar="WIDGET",
-    help="a widget whose open tasks this version completes (repeatable)",
+    help="a widget whose open to-dos this version completes (repeatable)",
 )
 def stamp(
     dir: str,
@@ -406,8 +455,8 @@ def stamp(
     """Stamp PAGE/index.html with a changelog.
 
     Checks the exact source first, then records it as the next public version. Repeat
-    --completes for each widget whose open tasks this version completes, which ends
-    them done, citing the version. A task otherwise remains open, including when a
+    --completes for each widget whose open to-dos this version completes, which ends
+    them done, citing the version. A to-do otherwise remains open, including when a
     revision removes its widget. --from-directory replaces index.html and the
     complete page/ tree atomically with stamping; --if-source is the authored-input
     digest read through leaf.publishing, refusing a competing edit.
@@ -468,7 +517,10 @@ def picture(dir: str, message: str) -> None:
     sys.exit(cmd_picture(resolve_dir(dir), message))
 
 
-@page.command(short_help="Report a state change onto a page widget, as a worker.")
+@page.command(
+    cls=RecordsCommand,
+    short_help="Report a state change onto a page widget, as a worker.",
+)
 @click.argument("dir", metavar="PAGE")
 @click.argument("widget", metavar="WIDGET")
 @click.argument("verb", metavar="VERB")
@@ -533,12 +585,7 @@ def events(dir: str, after: int, follow: bool) -> None:
     multiple=True,
     help="Select an observation type; repeat to select several.",
 )
-@click.option(
-    "--json",
-    "as_json",
-    is_flag=True,
-    help="Print complete reconstructed records as JSON lines.",
-)
+@json_option("Print complete reconstructed records as JSON lines.")
 def interactions(
     dir: str,
     session: str | None,
@@ -594,12 +641,17 @@ def transcript(dir: str) -> None:
     cmd_transcript(resolve_dir(dir))
 
 
-@cli.group(short_help="Read input delivered by any Leaf harness.")
+@cli.group(short_help="Read a delivery by its id, and confirm you received it.")
 def delivery() -> None:
-    """Handle transport-independent Leaf deliveries."""
+    """Read a delivery that Leaf names by its id instead of printing it, as a
+    `<leaf-delivery>` pointer, and confirm you received it.
+
+    Run `leaf delivery read <id>`, and each part's `next` command until none is
+    left, then follow the `acknowledge` instruction the last part carries.
+    Confirming a delivery marks its updates Picked up for the user."""
 
 
-@delivery.command("read", short_help="Read bounded immutable delivery input.")
+@delivery.command("read", short_help="Print a delivery, one part at a time.")
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 @click.option(
     "--part",
@@ -608,22 +660,28 @@ def delivery() -> None:
     help="Read this numbered part of a large delivery.",
 )
 def delivery_read(delivery_id: str, part: int) -> None:
-    """Read input without confirming it. Follow its next and acknowledgement instructions."""
+    """Print DELIVERY_ID, or one part of a large one, without confirming it.
+
+    Each part except the last gives the command for the next part in `next`; the
+    last gives in `acknowledge` how to confirm the delivery."""
     from leaf.delivery import cmd_delivery_read
 
     cmd_delivery_read(delivery_id, part=part)
 
 
-@delivery.command("ack", short_help="Confirm complete delivery input reached context.")
+@delivery.command("ack", short_help="Confirm you have read a whole delivery.")
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 def delivery_ack(delivery_id: str) -> None:
-    """Attest complete receipt after reading every part of DELIVERY_ID."""
+    """Confirm that every part of DELIVERY_ID is in your context, so its updates
+    read Picked up. Reread any part whose output is missing first."""
     from leaf.delivery import cmd_delivery_ack
 
     cmd_delivery_ack(delivery_id)
 
 
-@cli.group(short_help="Open, answer, edit, summarize, or resolve a thread.")
+@cli.group(
+    cls=RecordsGroup, short_help="Open, answer, edit, summarize, or resolve a thread."
+)
 def thread() -> None:
     """Open and answer threads as the agent, and maintain them.
 
@@ -699,18 +757,8 @@ def data_set(dir: str, source: str, input_file) -> None:
     """Validate and replace SOURCE with one complete JSON value."""
     from leaf.data import cmd_data_set
 
-    text = input_file.read()
-    if not text.strip():
-        # Usually a producer upstream in the pipe failed and wrote nothing, and
-        # its own error is the one to read; a JSON parse error would bury it.
-        raise click.ClickException(
-            "no value arrived on stdin; if a command piped into this one, it "
-            "likely failed, and its error above says why"
-            if input_file.name == "<stdin>"
-            else f"{input_file.name} is empty; it holds no JSON value"
-        )
     try:
-        value = json.loads(text)
+        value = json.loads(input_file.read())
     except json.JSONDecodeError as error:
         raise click.ClickException(
             f"invalid JSON ({error.msg}, line {error.lineno})"
@@ -739,7 +787,7 @@ def serve_flags(command):
     it spawns, so one spelling is what keeps the pair from drifting."""
     for option in (
         click.option(
-            "--standing",
+            "--persistent",
             is_flag=True,
             help="decline the session claim, so the server outlives this session "
             "and only `leaf server stop` ends it — for a page kept up across "
@@ -759,18 +807,18 @@ def serve_flags(command):
 @server.command(short_help="Start a page's server and print its URL.")
 @click.argument("dir", metavar="PAGE")
 @serve_flags
-def start(dir: str, host: str | None, standing: bool) -> None:
+def start(dir: str, host: str | None, persistent: bool) -> None:
     """Start a page's server and print its URL.
 
     Returns once the server and this harness's watcher are ready; the server
     itself keeps running in a session of its own. `leaf server stop` takes one
     down, and a session server goes down with the session that claimed it
     besides. A page already served reconnects delivery and prints that server's
-    URL. `--standing` claims no page and prepares no agent delivery.
+    URL. `--persistent` claims no page and prepares no agent delivery.
     """
     from leaf.hosting import claim_and_start
 
-    with claim_and_start(resolve_dir(dir), host, standing) as started:
+    with claim_and_start(resolve_dir(dir), host, persistent) as started:
         pass
     print(json.dumps({"url": started.url}))
     print(started.note, file=sys.stderr)
@@ -784,7 +832,7 @@ def start(dir: str, host: str | None, standing: bool) -> None:
     is_flag=True,
     help="serve on loopback for this command only, without claiming the page",
 )
-def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
+def run(dir: str, host: str | None, persistent: bool, temporary: bool) -> None:
     """Serve a page in the foreground, printing its URL and running until stopped.
 
     Run this in a terminal of your own to hold a page up where you can watch it.
@@ -799,13 +847,13 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
     release_on_termination()
     page_dir = resolve_dir(dir)
     if temporary:
-        if standing:
-            raise click.UsageError("choose --temporary or --standing")
+        if persistent:
+            raise click.UsageError("choose --temporary or --persistent")
         if host:
             raise click.UsageError("--temporary is loopback-only; omit --host")
         cmd_serve_temporary(page_dir)
         return
-    cmd_serve(page_dir, host, standing, harness=session_harness(), acquire=True)
+    cmd_serve(page_dir, host, persistent, harness=session_harness(), acquire=True)
 
 
 @server.command("_serve", hidden=True)
@@ -819,7 +867,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
 def _serve(
     dir: str,
     host: str | None,
-    standing: bool,
+    persistent: bool,
     revive: bool,
     acquire: bool,
     claim: str | None,
@@ -840,7 +888,7 @@ def _serve(
         cmd_serve(
             resolve_dir(dir),
             host,
-            standing,
+            persistent,
             revive,
             harness=harness_from_argument(harness),
             handshake=answer,
@@ -866,9 +914,11 @@ def status(dir: str, state: str, detail: str) -> None:
     """Say the page waits on its user, or that you are done with it.
 
     Use waiting with DETAIL naming the answer you want from the user; waiting
-    without DETAIL invites text comments. Either puts down every item you started
-    before it. Use idle when finished; unacknowledged input, unanswered user updates
-    and open tasks prevent it. Work in hand is no status: name it with
+    without DETAIL invites text comments. Use idle when you are finished; it is
+    refused while the page has updates, workers' reports or page errors nobody has
+    picked up, updates you owe an answer, or to-dos of yours still open. Either one clears every
+    `leaf task start` you made, so no update or to-do reads Working; your to-dos
+    stay open. Status has no working state: to show what you are working on, run
     `leaf task start`.
     """
     from leaf.activity import unanswered
@@ -883,7 +933,8 @@ def status(dir: str, state: str, detail: str) -> None:
     print(json.dumps(written, ensure_ascii=False))
     if state == "waiting" and owed:
         click.echo(
-            f"{unanswered(owed)}; the page reads waiting once each has one", err=True
+            f"{unanswered(owed, page_dir)}; the page reads waiting once each has one",
+            err=True,
         )
 
 
@@ -971,14 +1022,14 @@ def _reply_options(command):
             "--markup", default="", help="frozen HTML fragment after the text"
         ),
         click.option(
-            "--question",
+            "--ask",
             is_flag=True,
-            help="the reply asks the user a question, which waits on them",
+            help="the reply asks the user something, which waits on them as an ask",
         ),
         click.option(
-            "--task",
+            "--todo",
             metavar="TITLE",
-            help="the reply promises work it doesn't deliver; opens that task on the "
+            help="the reply promises work it doesn't deliver; opens that to-do on the "
             "thread, ended by `leaf task end` with the reply's id",
         ),
         click.option(
@@ -990,17 +1041,27 @@ def _reply_options(command):
     return command
 
 
-@cli.group(short_help="Answer exact response references carried by a delivery.")
+@cli.group(
+    cls=RecordsGroup,
+    short_help="Reply to an update by the reference its delivery gave.",
+)
 def response() -> None:
-    """A response reference selects its page, input and frozen thread destination."""
+    """Reply to a user update with the reference its delivery printed as
+    `answer.ref`."""
 
 
-@response.command("reply", short_help="Author a complete addressed reply.")
+@response.command("reply", short_help="Reply to the update a reference names.")
 @click.argument("reference", metavar="REFERENCE")
 @click.option(
-    "--attempt", help="retry identity (ordinary replies default to the reference)"
+    "--attempt",
+    help="retry key: a rerun with the same key posts nothing new (default: the "
+    "reference, except with --ephemeral)",
 )
-@click.option("--failure", help="failure code when no answer is coming")
+@click.option(
+    "--failure",
+    help="failure code when no answer is coming; refused while your turn's final "
+    "message is to be the reply",
+)
 @click.option(
     "--done", is_flag=True, help="the reply delivers what the message asked for"
 )
@@ -1008,19 +1069,19 @@ def response() -> None:
 def response_reply(
     reference: str, attempt: str | None, failure: str | None, done: bool, **options
 ) -> None:
-    """Answer the exact REFERENCE printed in a delivery's answer.ref.
+    """Reply to the update REFERENCE names: the `answer.ref` its delivery printed.
 
     An answer says what it leaves the thread with: --done when it delivers what the
-    message asked for, --question when it asks the user something back, or --task
-    TITLE when it promises work it doesn't deliver, which stays on you as a task.
+    message asked for, --ask when it asks the user something back, or --todo
+    TITLE when it promises work it doesn't deliver, which stays on you as a to-do.
     Progress (--ephemeral) and failure receipts (--failure) take none of them.
 
-    Text, frozen HTML, titles and anchor moves share this command.
-    It validates and activates saved page edits, then commits the reply immediately.
-    A provider's later final yields to the recorded answer; failure receipts are
-    refused while that provider still owns the answer.
-    Repeating a committed reply's reference returns its earlier record;
-    --attempt names retries of progress.
+    The same command sets text, frozen HTML, the thread's title and a new anchor.
+    It validates and activates saved page edits, then posts the reply at once. Once
+    an answer posts, your turn's final message is not posted as a second reply;
+    progress (--ephemeral) does not stop that. Rerunning a reply
+    that posted prints the earlier reply instead of posting again; give a retried
+    --ephemeral progress line an --attempt so it posts once.
     """
     from leaf.thread import post_response
 
@@ -1028,8 +1089,8 @@ def response_reply(
         flag
         for flag, given in (
             ("--done", done),
-            ("--question", options["question"]),
-            ("--task", options["task"] is not None),
+            ("--ask", options["ask"]),
+            ("--todo", options["todo"] is not None),
         )
         if given
     ]
@@ -1044,7 +1105,7 @@ def response_reply(
     if not declared and answers:
         raise click.UsageError(
             "say what the answer leaves: --done when it delivers what was asked, "
-            "--question when it asks the user something back, or --task TITLE when "
+            "--ask when it asks the user something back, or --todo TITLE when "
             "it promises work it doesn't deliver"
         )
     if attempt is not None:
@@ -1059,8 +1120,8 @@ def response_reply(
 def thread_reply(dir: str, thread: str, **options) -> None:
     """Post a new agent message to THREAD (--text or stdin).
 
-    A message is refused while the thread owes a response; answer its
-    delivery reference with `leaf response reply`. --ephemeral posts progress.
+    A message is refused while the thread owes a response; answer it with
+    `leaf response reply <answer.ref>`. --ephemeral posts progress.
     Saved page edits are validated and activated before posting.
     """
     from leaf.thread import post_reply
@@ -1107,23 +1168,25 @@ def thread_resolve(dir: str, thread: str) -> None:
     _print_records(cmd_resolve(resolve_dir(dir), thread))
 
 
-@cli.group(short_help="Open, start, or end tasks on the page, yours or the user's.")
+@cli.group(
+    cls=RecordsGroup, short_help="Open or end to-dos, and start work on your Tasks."
+)
 def task() -> None:
-    """Show the work you owe on the page, the item you have in hand, and what you
-    put on the user.
+    """Open and end to-dos, and say which of your Tasks you are working on.
 
-    An item on your queue is a user update you owe an answer, named by the update's
-    event id, or a task you opened. `leaf task start` takes one in hand for this
-    turn, with the line the banner shows. A task stays on your queue through
-    replies, resolutions, versions and the end of the session that opened it;
-    `leaf task end`, or a stamp that `--completes` its widget, ends it. A task you
-    open `--on user` is on the user's queue instead, until they press its Done or you
-    end it. Every write prints the record it appended, one JSON line, as `page events`
-    prints it.
+    Your Tasks hold each user update you owe an answer, named by the update's event
+    id, and each to-do you opened. Before working on one, run `leaf task start`
+    with a line saying what you are doing: the item reads Working with that line,
+    beside it and in the banner. A to-do stays on your Tasks through replies,
+    resolutions, versions and the end of the session that opened it, until
+    `leaf task end` or a stamp that `--completes` its widget ends it. A to-do you
+    open `--on user` goes on the user's Questions instead, until they press its
+    Done or you end it. Every write prints the record it appended, one JSON line,
+    as `page events` prints it.
     """
 
 
-@task.command("open", short_help="Take on work, or put a task on the user.")
+@task.command("open", short_help="Open a to-do, yours or the user's.")
 @click.argument("dir", metavar="PAGE")
 @click.argument("subject", metavar="SUBJECT")
 @click.argument("title", metavar="TITLE")
@@ -1133,48 +1196,51 @@ def task() -> None:
     type=click.Choice(["agent", "user"]),
     default="agent",
     show_default=True,
-    help="Whose queue the task is on: yours, or the user's.",
+    help="Whose list the to-do is on: your Tasks, or the user's Questions.",
 )
 def task_open(dir: str, subject: str, title: str, owner: str) -> None:
-    """Open a task titled TITLE on SUBJECT: a page widget, which for your own task
+    """Open a to-do titled TITLE on SUBJECT: a page widget, which for your own to-do
     must declare x-work or hold an unsettled update; any other element of the page by
     its id, such as a section; or `page` for the page as a whole. With `--on user`
-    the task is on the user: it ends at their Done, and you can end it too. Its id is
+    the to-do is on the user: it ends at their Done, and you can end it too. Its id is
     the printed record's `id`. In a thread, the reply that promises work opens it
-    (`--task`), and one that asks the user is their Question (`--question`)."""
-    from leaf.tasks import cmd_open
+    (`--todo`), and one that asks the user is their ask (`--ask`)."""
+    from leaf.todos import cmd_open
 
     _print_records(cmd_open(resolve_dir(dir), subject, title, owner))
 
 
 @task.command(
-    "start", short_help="Start work on an update or task, with the banner's line."
+    "start", short_help="Start work on an update or to-do, with the banner's line."
 )
 @click.argument("dir", metavar="PAGE")
 @click.argument("item", metavar="ID")
 @click.argument("text", metavar="LINE")
 def task_start(dir: str, item: str, text: str) -> None:
-    """Take ID in hand for this turn: the event id of a user update you owe, as its
-    delivery names it, or an open task's id. LINE names the work and its subject in
-    one sentence; it reads Working beside the update or task and in the banner. Your
-    answer to the update, or the task's end, ends it; left in hand after your turn
-    ends, it reads stalled until you answer it or start it again."""
-    from leaf.tasks import cmd_start
+    """Mark ID Working for this turn, with LINE saying what you are doing.
+
+    ID is the event id of a user update you owe, as its delivery names it, or an
+    open to-do's id. LINE names the work and its subject in one sentence; it shows
+    beside the update or to-do and in the banner. Your answer to the update, or the
+    to-do's end, ends the start. If your turn ends first, the item reads stalled
+    until you answer it or start it again."""
+    from leaf.todos import cmd_start
 
     _print_records(cmd_start(resolve_dir(dir), item, text))
 
 
-@task.command("end", short_help="End a task: done, failed, or dropped.")
+@task.command("end", short_help="End a to-do: done, failed, or dropped.")
 @click.argument("dir", metavar="PAGE")
-@click.argument("task_id", metavar="TASK")
+@click.argument("task_id", metavar="TODO")
 @click.argument("outcome", type=click.Choice(["done", "failed", "dropped"]))
 @click.argument("detail", metavar="[DETAIL]", required=False)
 def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
-    """End TASK with OUTCOME. DETAIL says where the result is, such as the
-    version or reply holding it, or why there is none. TASK may be an explicit task
-    on either side. A prose Question id (`reply:<message-id>`)
-    withdraws that request without creating a user answer. Widget Questions end
-    through their declared state or an authored withdrawal."""
-    from leaf.tasks import cmd_end
+    """End TODO with OUTCOME. DETAIL says where the result is, such as the
+    version or reply holding it, or why there is none. TODO may be a to-do on
+    either side. A prose ask's id (`reply:<message-id>`) ends that request
+    without creating a user answer: `done` records it answered elsewhere, DETAIL
+    saying where, and `dropped` records it withdrawn. Widget asks end through
+    their declared state or an authored withdrawal."""
+    from leaf.todos import cmd_end
 
     _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))

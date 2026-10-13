@@ -21,9 +21,14 @@ from .file_changes import (
     page_change,
     page_targets,
 )
-from .files import file_stamp, read_json
+from .files import file_stamp
 from .harness import Harness, claim_harness, session_harness
-from .leases import release_lease, take_lease, waiter_lease_path
+from .leases import (
+    end_if_terminated,
+    release_lease,
+    take_lease,
+    waiter_lease_path,
+)
 from .locations import path_location, paths_same
 from .machine import state_home
 from .presence import nudge_unwatched
@@ -31,11 +36,10 @@ from .refusals import Refused
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     MESSAGE_KINDS,
-    SERVICE_FILE,
     VIEWED_FILE,
 )
 from .served_state.reading import page_reading
-from .server import running_server
+from .server import read_service, running_server
 from .service import (
     PageTransaction,
     owned_pages,
@@ -57,11 +61,11 @@ STOP_HOOK_S = 20
 
 def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
     """Declare the page waiting on its user, putting down every start that stands
-    (`tasks.put_down`), and return the declaration, with the updates still owed an
+    (`todos.put_down`), and return the declaration, with the updates still owed an
     answer, which the page goes on showing over it."""
     from .revisioning import activate_source
     from .served_state.context import read_page
-    from .tasks import put_down
+    from .todos import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
@@ -76,16 +80,16 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
 
     Idling over an event nobody has answered ends the leaf on a user still
     owed one — unread, or read and left. The watcher's whole batch, not the
-    user-facing count, so a worker's report cannot be left standing as
+    user-facing count, so a worker's report cannot be left in place as
     provisional state forever either. The answers it holds the page for are
     `activity.blocking_obligations`, a started update's included: the Stop hook lets
     the turn that started one end over it, but closing the page answers nothing. It
-    holds the page for every open task too, which only its ending discharges.
+    holds the page for every open to-do too, which only its ending discharges.
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
     from .served_state.context import read_page
-    from .tasks import put_down
+    from .todos import put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
@@ -111,15 +115,15 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
         )
         if owed:
             raise Refused(
-                f"{unanswered(owed, 'acknowledged')}; answer before idling. "
+                f"{unanswered(owed, page_dir, 'acknowledged')}; answer before idling. "
                 + ANSWER_ASK_INSTRUCTION
             )
-        # A task is work the agent still owes, which closing the page would leave
-        # standing on a page nobody holds.
-        if tasks := work.durable.log.owed:
-            named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
+        # A to-do is work the agent still owes, which closing the page would leave
+        # open on a page nobody holds.
+        if todos := work.durable.log.owed:
+            named = "; ".join(f"{todo['id']} ({todo['title']})" for todo in todos)
             raise Refused(
-                f"{len(tasks)} open task{'s' if len(tasks) != 1 else ''}: {named}. "
+                f"{len(todos)} open to-do{'s' if len(todos) != 1 else ''}: {named}. "
                 "End each before idling with "
                 '`leaf task end <page> <id> done "<where the result is>"`, or '
                 '`dropped "<why>"`.'
@@ -278,6 +282,9 @@ class Watch:
             if self.reading() != before:
                 return True
             remaining = deadline - time.monotonic()
+            # A stop whose raise a finalizer discarded ends the watch here, since
+            # nothing would interrupt the wait (`release_on_termination`).
+            end_if_terminated()
             if remaining <= 0 or not self.changes.wait(generation, remaining):
                 return False
             # Native APIs may coalesce diagnostics with their parent directory,
@@ -343,10 +350,10 @@ class Watch:
         watch_state = page.watch_state(self.harness)
         status = observed if watch_state == "lost" else page.status
         live = status["state"] != "idle"
-        batch = (
-            unacknowledged(page.events, page.cursor) if watch_state != "lost" else []
-        )
-        service = read_json(page_dir / SERVICE_FILE)
+        from .delivery import deliverable
+
+        batch = deliverable(page) if watch_state != "lost" else []
+        service = read_service(page_dir)
         enabled = bool(service and service["enabled"])
         key, now, revive = str(page_dir), time.time(), False
         # Desired service state owns revival. Status says what the page is doing;
@@ -559,8 +566,6 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
     the next immutable delivery; exit 2 names why the watch ended. A refused
     receipt raises before a watch starts, leaving that page's cursor unchanged.
     """
-    if page_dir is not None and ack is not None:
-        raise ValueError("PAGE and --ack cannot be used together")
     received = []
     if ack is not None:
         from .delivery import receive_delivery
@@ -677,10 +682,12 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
             watch.await_news(mark)
     finally:
         watch.release()
+    from .delivery import deliverable
+
     # Input admitted while this watch held the lease was not nudged, so now the
     # lease is gone, any such input is nudged as admission would have.
     for page_dir in owned_pages(harness.session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
-            if wake_inputs(page, unacknowledged(page.events, page.cursor)):
+            if wake_inputs(page, deliverable(page)):
                 nudge_unwatched(page)
     return None

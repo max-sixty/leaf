@@ -1,34 +1,44 @@
 """Registry-declared markup instance validation."""
 
+from leaf.asks import asking, local_ask_entry, quoted_in
+from leaf.findings import Finding, element_at
 from leaf.projection import enclosing_widgets
-from leaf.questions import asking, local_question_entry, quoted_in
 from leaf.registry.contract import (
     is_element_name,
     registry_path,
     retirement_slots,
-    visual_parts,
 )
-from leaf.registry.schema import json_validator, json_value, schema_error_message
+from leaf.registry.schema import json_validator, schema_reading
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
-from .markup import at, structure_errors
+from .markup import found_at, structure_errors
 
 
-def thread_markup_contract_errors(parser, registry: dict) -> list:
+def member_holders(rec: dict, registry: dict):
+    """An element's enclosing widgets within its quotation, innermost first.
+
+    A quotation cannot supply members to an owner outside it. An owner quoted as
+    a whole still holds its own members, since they reach it before the boundary.
+    """
+    for node in enclosing_widgets(rec):
+        if registry.get(node["tag"], {}).get("x-exhibit"):
+            break
+        yield node
+
+
+def thread_markup_contract_errors(parser, registry: dict) -> list[Finding]:
     """Registry-derived errors shared by admission and re-vendoring."""
     errors = fragment_errors(parser, registry)
     settled = retirement_slots(registry)
     errors.extend(
-        f"<{rec['tag']}> is a settlement holder, but thread markup is frozen in "
-        "the log and no version could ever settle it; put the change in the next "
-        "version instead"
+        found_at("frozen-settlement", rec)
         for rec in parser.lf_elements
         if rec["tag"] in settled
     )
     return errors
 
 
-def widget_errors(lf_elements: list, registry: dict) -> list:
+def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """Validate parsed lf-* elements against the registry: schema over the
     attribute instance, x-owners nesting, and the x-content model."""
     errors = []
@@ -41,12 +51,10 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
             members_of.setdefault(owner, set()).add(tag)
 
     for rec in lf_elements:
-        tag, where = rec["tag"], at(rec)
+        tag = rec["tag"]
         entry = registry.get(tag)
         if entry is None:
-            errors.append(
-                f"{where}: unknown widget — not in the vendored registry.json"
-            )
+            errors.append(found_at("unknown-widget", rec))
             continue
         # The element validates as the instance built from its attributes:
         # values as strings, flag attributes as True. HTML's two flag spellings
@@ -61,12 +69,30 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
             is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"
             instance[name] = True if value in (None, "") and is_flag else (value or "")
         for err in sorted(json_validator(entry).iter_errors(instance), key=str):
-            errors.append(f"{where}: {schema_error_message(err)}")
+            errors.append(found_at("attribute-schema", rec, **schema_reading(err)))
+        # A member stands directly in an owner; one declaring x-within may also stand
+        # at any depth inside one of the regions it names. It belongs to its nearest
+        # owner, so going outward it must meet such a region before any owner.
         want_owners = entry.get("x-owners", [])
-        if want_owners and rec["parent"] not in want_owners:
-            actual = f", found <{rec['parent']}>" if rec["parent"] else ""
-            wanted = " or ".join(f"<{owner}>" for owner in want_owners)
-            errors.append(f"{where}: must be a direct member of {wanted}{actual}")
+        within = entry.get("x-within", [])
+        nearest = next(
+            (
+                node["tag"]
+                for node in member_holders(rec, registry)
+                if node["tag"] in within or node["tag"] in want_owners
+            ),
+            None,
+        )
+        if want_owners and rec["parent"] not in want_owners and nearest not in within:
+            errors.append(
+                found_at(
+                    "not-member",
+                    rec,
+                    owners=want_owners,
+                    parent=rec["parent"],
+                    within=within,
+                )
+            )
         # Tags that name this declaration in x-owners are its admissible members under
         # any content model. "data" takes one <pre>, "members" takes element members
         # only, and "empty" takes nothing at all.
@@ -74,30 +100,24 @@ def widget_errors(lf_elements: list, registry: dict) -> list:
         allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})
         if content == "empty" and (rec["children"] or rec["text"]):
-            errors.append(f"{where}: takes no content — write <{tag} …></{tag}>")
+            errors.append(found_at("content-empty", rec))
         elif content == "data":
             others = [c for c in stray if c != "pre"]
             if rec["children"].count("pre") != 1 or others:
-                found = ", ".join(f"<{c}>" for c in rec["children"]) or "nothing"
-                errors.append(
-                    f"{where}: its body is one <pre> holding the text "
-                    f"(escape < and >), found {found}"
-                )
+                errors.append(found_at("data-body", rec, children=rec["children"]))
             if rec["text"]:
-                errors.append(
-                    f"{where}: text outside its <pre> — the whole body goes inside it"
-                )
+                errors.append(found_at("text-outside-pre", rec))
         elif content == "members":
             if stray:
                 errors.append(
-                    f"{where}: admits only {json_value(sorted(allowed))} members, found {json_value(stray)}"
+                    found_at("stray-members", rec, admits=sorted(allowed), found=stray)
                 )
             if rec["text"]:
-                errors.append(f"{where}: loose text between its members isn't allowed")
+                errors.append(found_at("loose-text", rec))
     return errors
 
 
-def layout_errors(lf_elements: list, registry: dict) -> list:
+def layout_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """Validate the direct grammar of registry-declared structural elements: a pane is an
     optional header, exactly one body element, and an optional footer."""
     errors = []
@@ -105,51 +125,26 @@ def layout_errors(lf_elements: list, registry: dict) -> list:
         role = registry.get(rec["tag"], {}).get("x-reading-role")
         if role is None:
             continue
-        where = at(rec)
         direct = rec["direct"]
         headers = [i for i, child in enumerate(direct) if child == "header"]
         footers = [i for i, child in enumerate(direct) if child == "footer"]
         if len(headers) > 1 or len(footers) > 1:
-            errors.append(
-                f"{where}: x-reading-role {role} admits at most one direct <header> "
-                "and one direct <footer>"
-            )
+            errors.append(found_at("pane-ends", rec, role=role))
         if headers and headers[0] != 0:
-            errors.append(
-                f"{where}: x-reading-role {role} direct <header> must be first"
-            )
+            errors.append(found_at("pane-header-first", rec, role=role))
         if footers and footers[0] != len(direct) - 1:
-            errors.append(
-                f"{where}: x-reading-role {role} direct <footer> must be last"
-            )
+            errors.append(found_at("pane-footer-last", rec, role=role))
         body = [child for child in direct if child not in {"header", "footer"}]
         if len(body) != 1 or body[0] == "#text":
-            errors.append(
-                f"{where}: x-reading-role {role} must contain exactly one direct body "
-                f"element between its header and footer, found {json_value(body) if body else 'nothing'}; wrap "
-                "several blocks in one <div> or <section>"
-            )
+            errors.append(found_at("pane-body", rec, role=role, body=body))
     return errors
 
 
-def visual_part_errors(lf_elements: list, registry: dict) -> list:
-    """A visual's authored part tokens each name one stable generated target."""
-    errors = []
-    for rec in lf_elements:
-        parts = visual_parts(rec, registry).tokens
-        duplicates = sorted({part for part in parts if parts.count(part) > 1})
-        if duplicates:
-            errors.append(
-                f"{at(rec)}: visual part ids must be unique, repeated {json_value(duplicates)}"
-            )
-    return errors
+def unasked(rec: dict, entry: dict) -> dict:
+    """The `x-awaits.when` conditions a widget never met, as attribute and the values
+    it would ask at, or none where it asks, was asked, or can be made to ask.
 
-
-def unasked(rec: dict, entry: dict) -> str:
-    """The `x-awaits.when` conditions a widget never met, worded for the author, or
-    "" where it asks, was asked, or can be made to ask.
-
-    The flag `x-awaits.retired` names is how an author ends a Question already
+    The flag `x-awaits.retired` names is how an author ends an ask already
     asked, such as a settled decision kept with its context, so failing on it alone
     leaves the widget counted. A condition a recorded value writes can still be met
     by a gesture."""
@@ -160,24 +155,19 @@ def unasked(rec: dict, entry: dict) -> str:
         for spec in entry.get("x-state", {}).values()
         if (spec.get("record") or {}).get("kind") == "value"
     }
-    return " and ".join(
-        " or ".join(
-            f"{attr} is {'present' if value else 'absent'}"
-            if isinstance(value, bool)
-            else f"{attr}={json_value(value)}"
-            for value in values
-        )
+    return {
+        attr: values
         for attr, values in when.items()
         if attr != awaits.get("retired")
         and attr not in recorded
         and not asking(rec["attrs"], {attr: values})
-    )
+    }
 
 
-def question_context_errors(lf_elements: list, registry: dict) -> list:
-    """A context supplies a leading title and arrival region for nested Questions.
+def ask_context_errors(lf_elements: list, registry: dict) -> list[Finding]:
+    """A context supplies a leading title and arrival region for nested asks.
 
-    Context never owns Question identity or registration. Any number of sources
+    Context never owns ask identity or registration. Any number of sources
     can select it, and each source retains its independent answer and lifecycle.
     A context framing no source asks nothing: the page shows a question the banner
     never counts and the user can't answer, so the error names what each framed
@@ -189,24 +179,19 @@ def question_context_errors(lf_elements: list, registry: dict) -> list:
             (
                 holder
                 for holder in enclosing_widgets(rec)
-                if registry.get(holder["tag"], {}).get("x-question-context")
+                if registry.get(holder["tag"], {}).get("x-ask-context")
             ),
             None,
         )
 
-    def named(rec):
-        return f"id={json_value(rec['attrs']['id'])}" if "id" in rec["attrs"] else ""
-
     regions = [
-        rec
-        for rec in lf_elements
-        if registry.get(rec["tag"], {}).get("x-question-context")
+        rec for rec in lf_elements if registry.get(rec["tag"], {}).get("x-ask-context")
     ]
     framed = {id(region): [] for region in regions}
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
         region = context_of(rec)
-        if local_question_entry(entry) and region and not quoted_in(rec, registry):
+        if local_ask_entry(entry) and region and not quoted_in(rec, registry):
             framed[id(region)].append((rec, unasked(rec, entry)))
     errors = []
     for region in regions:
@@ -214,39 +199,34 @@ def question_context_errors(lf_elements: list, registry: dict) -> list:
         if not quoted_in(region, registry) and all(
             lacks for _, lacks in framed[id(region)]
         ):
-            widgets = "; ".join(
-                f"{at(rec, named(rec))} asks only where {lacks}"
+            widgets = [
+                {
+                    "at": element_at(rec["tag"], rec["attrs"].get("id", "")),
+                    "line": rec["line"],
+                    "lacks": lacks,
+                }
                 for rec, lacks in framed[id(region)]
-            )
-            errors.append(
-                f"{at(region)}: a Question context registers no Question: "
-                + (widgets or "it holds no widget that declares x-awaits")
-            )
+            ]
+            errors.append(found_at("empty-ask-context", region, widgets=widgets))
         headings = [
             child
             for child in region["children"]
             if child in {f"h{n}" for n in range(1, 7)}
         ]
         if len(headings) != 1:
-            errors.append(
-                f"{at(region)}: a Question context must have exactly one direct heading, "
-                f"found {json_value(headings) if headings else 'none'}"
-            )
+            errors.append(found_at("ask-context-headings", region, headings=headings))
         elif region["direct"][0] != headings[0]:
-            first = (
-                "text" if region["direct"][0] == "#text" else f"<{region['direct'][0]}>"
-            )
             errors.append(
-                f"{at(region)}: a Question context's direct heading must be its first content, "
-                f"found {first} first"
+                found_at("ask-context-heading-first", region, first=region["direct"][0])
             )
     return errors
 
 
-def target_reference_contract_error(
+def relation_mismatch(
     reference: dict, target_record: dict | None, registry: dict
-) -> str | None:
-    """Why one resolved target fails a package-declared relation, if it does."""
+) -> dict | None:
+    """How one resolved target fails a package-declared relation, if it does: the
+    relation, its predicate, and what the target declares of it."""
     via = reference.get("via")
     if via is None:
         return None
@@ -261,36 +241,62 @@ def target_reference_contract_error(
         declaration.get(key) == value for key, value in predicate.items()
     ):
         return None
-    expected = ", ".join(
-        f"{key}={json_value(value)}" for key, value in predicate.items()
-    )
-    found = (
-        ", ".join(f"{key}={json_value(declaration.get(key))}" for key in predicate)
+    return {
+        "via": via,
+        "where": predicate,
+        "target_tag": target_record["tag"] if target_record is not None else None,
+        "found": {key: declaration.get(key) for key in predicate}
         if isinstance(declaration, dict)
-        else "no declaration"
-    )
-    actual = (
-        f"<{target_record['tag']}> has {found}"
-        if target_record is not None
-        else "the target is not a registered widget"
-    )
-    return f"must name a {via} widget where {expected}; {actual}"
+        else None,
+    }
 
 
-def reference_contract_error(
-    record: dict, attribute: str, target_record: dict | None, registry: dict
-) -> str | None:
-    """Why one existing x-refers target fails its declared relation, if it does."""
-    reference = registry[record["tag"]]["x-refers"][attribute]
-    error = target_reference_contract_error(reference, target_record, registry)
-    return (
-        f'{at(record)}: {attribute}="{record["attrs"].get(attribute)}" {error}'
-        if error
-        else None
+def enclosing(rec: dict, tag: str, registry: dict) -> dict | None:
+    """The nearest member owner of `tag` within `rec`'s quotation, if any."""
+    return next(
+        (node for node in member_holders(rec, registry) if node["tag"] == tag), None
     )
 
 
-def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -> list:
+def keyed_members(lf_elements: list, registry: dict) -> dict:
+    """Every member a keyed reference may name, as `(id(owner), tag, key, value)` mapped
+    to the members holding it, in document order; the owner is the member's nearest
+    enclosing element of the tag its x-unique declaration names for that key. A member
+    standing in no such owner is left out: x-owners reports where it stands."""
+    members = {}
+    for rec in lf_elements:
+        for key, scope_tag in registry.get(rec["tag"], {}).get("x-unique", {}).items():
+            value = rec["attrs"].get(key)
+            scope = enclosing(rec, scope_tag, registry)
+            if value is not None and scope is not None:
+                members.setdefault((id(scope), rec["tag"], key, value), []).append(rec)
+    return members
+
+
+def unique_errors(lf_elements: list, registry: dict) -> list[Finding]:
+    """Each member whose x-unique attribute repeats an earlier member's value within
+    their shared owner: two playground controls with one name, or two choices of one
+    control with one value. Asked of one document, since an owner and its members
+    always stand in the same one."""
+    return [
+        found_at(
+            "repeated-key",
+            extra,
+            key=key,
+            value=value,
+            first_line=first["line"],
+            scope=registry[tag]["x-unique"][key],
+        )
+        for (_, tag, key, value), (first, *extras) in keyed_members(
+            lf_elements, registry
+        ).items()
+        for extra in extras
+    ]
+
+
+def reference_errors(
+    lf_elements: list, registry: dict, ids: set, by_id: dict
+) -> list[Finding]:
     """An attribute the registry marks as naming another element (x-refers) that names
     nothing this version holds. The user follows it, so a typo is a reference to
     nowhere and the markup around it is perfectly well-formed — visible to them and to
@@ -302,28 +308,47 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
     browser looks for that target in the referrer's own document: each names an
     element of `lf_elements`' own document, and each element there that the
     contract's predicate selects is named by exactly one referrer, as each readings
-    seat is filled by one command."""
+    seat is filled by one command.
+
+    A keyed reference names a member rather than an id: the `tag` member, inside the
+    referrer's own nearest owner of the tag its `key` is unique within (x-unique),
+    whose `key` attribute holds the value, as a playground preset's setting names a
+    control of the same playground."""
     errors = []
     own = {rec["attrs"].get("id") for rec in lf_elements}
     owners = {}
+    keyed = None
     for rec in lf_elements:
         for attr, reference in registry.get(rec["tag"], {}).get("x-refers", {}).items():
             target = rec["attrs"].get(attr)
             if not target:
                 continue
-            if target not in ids:
+            reference_to = {"attr": attr, "target": target}
+            if member := reference.get("tag"):
+                if keyed is None:
+                    keyed = keyed_members(lf_elements, registry)
+                key = reference["key"]
+                scope_tag = registry[member]["x-unique"][key]
+                scope = enclosing(rec, scope_tag, registry)
+                if (id(scope), member, key, target) not in keyed:
+                    errors.append(
+                        found_at(
+                            "unmatched-member",
+                            rec,
+                            **reference_to,
+                            member=member,
+                            key=key,
+                            scope=scope_tag,
+                        )
+                    )
+            elif target not in ids:
+                errors.append(found_at("unknown-reference", rec, **reference_to))
+            elif mismatch := relation_mismatch(reference, by_id.get(target), registry):
                 errors.append(
-                    f'{at(rec)}: {attr}="{target}" names no element in this version'
+                    found_at("reference-contract", rec, **reference_to, **mismatch)
                 )
-            elif error := reference_contract_error(
-                rec, attr, by_id.get(target), registry
-            ):
-                errors.append(error)
             elif reference.get("owns") and target not in own:
-                errors.append(
-                    f'{at(rec)}: {attr}="{target}" names an element outside its own '
-                    "document, which it fills"
-                )
+                errors.append(found_at("outside-reference", rec, **reference_to))
             elif reference.get("owns"):
                 owners.setdefault((rec["tag"], attr, target), []).append(rec)
     owned = [
@@ -335,24 +360,30 @@ def reference_errors(lf_elements: list, registry: dict, ids: set, by_id: dict) -
     ]
     for rec in lf_elements:
         for tag, attr, reference in owned:
-            if target_reference_contract_error(reference, rec, registry):
+            if relation_mismatch(reference, rec, registry):
                 continue
             target = rec["attrs"].get("id")
             named = owners.get((tag, attr, target), [])
             if not named:
-                errors.append(f"{at(rec)}: no <{tag}> names it in `{attr}`")
+                errors.append(found_at("unowned", rec, referrer=tag, attr=attr))
             if len(named) > 1:
-                first = at(named[0], f"id={named[0]['attrs'].get('id')!r}")
+                first = named[0]
                 errors.extend(
-                    f'{at(extra)}: {attr}="{target}" is already named by {first}; '
-                    "only one element may name it"
+                    found_at(
+                        "owned-twice",
+                        extra,
+                        attr=attr,
+                        target=target,
+                        first=element_at(first["tag"], first["attrs"].get("id", "")),
+                        first_line=first["line"],
+                    )
                     for extra in named[1:]
                 )
     return errors
 
 
-def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
-    """Conditional Questions and thread seats need an id when they are live.
+def addressable_instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
+    """Conditional asks and thread seats need an id when they are live.
 
     Requiring every instance globally would outlaw inert option groups; checking the
     declared predicate here gives the runtime exactly the addressability it consumes.
@@ -367,13 +398,14 @@ def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
                 and asking(rec["attrs"], declaration.get("when"))
                 and not rec["attrs"].get("id")
             ):
-                errors.append(f"{at(rec)}: a matching {role} instance requires an id")
+                errors.append(found_at("needs-id", rec, role=role))
     return errors
 
 
-# A word a widget declares that its layer has to know, as three things: the x- key
-# naming the attribute that carries it, the layer-wide fact listing the words the layer
-# has, and what the layer does with one that is on the list.
+# A word a widget declares that its layer has to know, as two things: the x- key
+# naming the attribute that carries it, and the layer-wide fact listing the words the
+# layer has. What the layer does with one that is on the list is the finding's words
+# (`findings._HONORED`).
 #
 # One reader for both, because they are one failure — a misspelt language colors nothing
 # and a misspelt tone paints nothing, and each renders as a page that otherwise looks
@@ -386,29 +418,34 @@ def addressable_instance_errors(lf_elements: list, registry: dict) -> list:
 # attribute carries the word is the entry's to say — so nothing here knows which widget
 # takes a language or a tone, and the thirteenth that colors something is covered the day
 # it declares one. A third such word is a row in this table.
-DECLARED_WORDS = (
-    ("x-language", "$languages", "a language this page's layer speaks"),
-    ("x-tone", "$tones", "a tone this page's layer paints"),
-)
+DECLARED_WORDS = (("x-language", "$languages"), ("x-tone", "$tones"))
 
 
-def declared_word_errors(lf_elements: list, registry: dict) -> list:
+def declared_word_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """Every word the page declares that its layer has no entry for (DECLARED_WORDS)."""
     errors = []
-    for key, fact, honored in DECLARED_WORDS:
+    for key, fact in DECLARED_WORDS:
         known = registry[fact]["names"]
         for rec in lf_elements:
             attr = (registry.get(rec["tag"]) or {}).get(key)
             word = rec["attrs"].get(attr) if attr else None
             if word is not None and word not in known:
-                named = f'{attr}="{word}"'
                 errors.append(
-                    f"{at(rec, named)}: not {honored} — known: {json_value(known)}"
+                    found_at(
+                        "unknown-word",
+                        rec,
+                        attr=attr,
+                        value=word,
+                        declares=key,
+                        known=known,
+                    )
                 )
     return errors
 
 
-def suggestion_errors(lf_elements: list, registry: dict, thread_ids: set) -> list:
+def suggestion_errors(
+    lf_elements: list, registry: dict, thread_ids: set
+) -> list[Finding]:
     """What the registry's schema can't say about a suggestion: it holds at most
     one of each slot and at least one of them, it doesn't nest, and `resolves`
     names a thread in the document's thread namespace. A family lint, named
@@ -423,42 +460,39 @@ def suggestion_errors(lf_elements: list, registry: dict, thread_ids: set) -> lis
     for rec in lf_elements:
         if rec["tag"] != "lf-suggestion":
             continue
-        where = at(rec, f"id={rec['attrs'].get('id')!r}")
+        own = rec["attrs"].get("id", "")
         if any(w["tag"] == "lf-suggestion" for w in enclosing_widgets(rec)):
-            errors.append(f"{where}: suggestions don't nest")
+            errors.append(found_at("nested-suggestion", rec, own))
         carried = [tag for tag in rec["children"] if tag in tags]
         if not carried:
-            errors.append(
-                f"{where}: needs a <lf-old> (what it replaces), a <lf-new> "
-                f"(what it proposes), or both"
-            )
+            errors.append(found_at("empty-suggestion", rec, own))
         for tag in sorted(tags):
             if carried.count(tag) > 1:
                 errors.append(
-                    f"{where}: carries {carried.count(tag)} <{tag}> children, one at most"
+                    found_at(
+                        "repeated-slot", rec, own, slot=tag, count=carried.count(tag)
+                    )
                 )
         resolves = rec["attrs"].get("resolves")
         if resolves and resolves not in thread_ids:
-            errors.append(
-                f"{where}: resolves={resolves!r} names no thread in this document"
-            )
+            errors.append(found_at("unknown-thread", rec, own, resolves=resolves))
     return errors
 
 
-def instance_errors(lf_elements: list, registry: dict) -> list:
+def instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """Every instance check that needs only the registry, no id namespace, so a new
     check of that kind reaches page source and message markup alike."""
     return (
         widget_errors(lf_elements, registry)
         + layout_errors(lf_elements, registry)
-        + visual_part_errors(lf_elements, registry)
         + addressable_instance_errors(lf_elements, registry)
-        + question_context_errors(lf_elements, registry)
+        + ask_context_errors(lf_elements, registry)
         + declared_word_errors(lf_elements, registry)
+        + unique_errors(lf_elements, registry)
     )
 
 
-def fragment_errors(parser: SourceDocument, registry: dict) -> list:
+def fragment_errors(parser: SourceDocument, registry: dict) -> list[Finding]:
     """Structural + registry validation of an HTML fragment:
     the discussion-side analog of `page check`. The declared-word
     checks come along because the schema stopped carrying the lists: a reply's

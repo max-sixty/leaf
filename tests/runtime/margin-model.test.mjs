@@ -176,7 +176,7 @@ test("threads aggregate into one control and retain captured thread order", () =
   const entry = inventory({
     items: [
       marker("z-newest", "comment"),
-      marker("question", "question"),
+      marker("ask", "ask"),
       marker("a-older", "comment"),
       marker("revision", "change"),
     ],
@@ -184,14 +184,14 @@ test("threads aggregate into one control and retain captured thread order", () =
   const choices = readingChoices(entry);
   assert.deepEqual(
     choices.map((choice) => choice.kind),
-    ["change", "comment", "question"],
+    ["change", "comment", "ask"],
   );
   assert.deepEqual(
     choices[1].items.map((item) => item.id),
     ["z-newest", "a-older"],
   );
   const cluster = clusterProjection(entry, { expandedKey: entry.key });
-  assert.deepEqual(choiceNames(cluster.options.visible), ["threadList", "question"]);
+  assert.deepEqual(choiceNames(cluster.options.visible), ["threadList", "ask"]);
 });
 
 test("an open thread stays reachable while Page Map retains every action in order", () => {
@@ -216,12 +216,12 @@ test("an open thread stays reachable while Page Map retains every action in orde
   );
 });
 
-test("thread aggregation preserves canonical user attention and Question precedence", () => {
+test("thread aggregation preserves canonical user attention and ask precedence", () => {
   const recovery = marker("recovery", "comment", {
     userAttention: { label: "Not answered", reason: "workflow" },
   });
   const ask = marker("question", "comment", {
-    userAttention: { label: "On you", reason: "question" },
+    userAttention: { label: "On you", reason: "ask" },
   });
   assert.equal(awaitingUser([recovery]), true);
   assert.equal(readingContext({ items: [recovery] }), "Not answered");
@@ -240,10 +240,16 @@ test("declared representation and a workflow carrier suppress only duplicate rea
     marker("other-work", "activity", { workflowFace: KINDS.activity }),
     marker("thread", "comment"),
   ];
+  const reviewReceipt = Object.freeze({ id: "review" });
   const entry = inventory({
     items,
     workflowReceipt,
-    offers: [offer("widget", [control("apply")])],
+    offers: [
+      offer("widget", [
+        control("apply"),
+        control("review", { workflowReceipt: reviewReceipt }),
+      ]),
+    ],
   });
   assert.deepEqual(
     entry.items.map((item) => item.id),
@@ -255,8 +261,43 @@ test("declared representation and a workflow carrier suppress only duplicate rea
     receipt: workflowReceipt,
   });
   assert.deepEqual(
-    map([entry])[0].actions.map((action) => action.record?.key ?? action.item.id),
-    ["thread", "other-work", "apply"],
+    map([entry])[0].actions.map((action) => [
+      action.record?.key ?? action.item.id,
+      action.receipt,
+    ]),
+    [
+      ["thread", undefined],
+      ["other-work", undefined],
+      ["apply", workflowReceipt],
+      ["review", reviewReceipt],
+    ],
+  );
+  // A control's own receipt returns when another control takes the primary seat, and
+  // the margin's cluster, its focused options, and the Page Map all read it the same.
+  const displaced = inventory({
+    items,
+    workflowReceipt,
+    offers: [
+      offer("widget", [
+        control("apply", { workflowReceipt: reviewReceipt }),
+        control("approve", { rank: "complete" }),
+      ]),
+    ],
+  });
+  const expected = { approve: workflowReceipt, apply: reviewReceipt };
+  const receipts = (controls) =>
+    Object.fromEntries(controls.map((item) => [item.record.key, item.receipt]));
+  assert.deepEqual(receipts(displaced.controls), expected);
+  assert.deepEqual(
+    receipts(
+      clusterProjection(displaced, { expandedKey: "target", expandedOwner: "widget" })
+        .options.items,
+    ),
+    expected,
+  );
+  assert.deepEqual(
+    receipts(map([displaced])[0].actions.filter((action) => action.kind === "control")),
+    expected,
   );
   const withoutControl = inventory({ items, workflowReceipt });
   assert.equal(withoutControl.workflowCarrier, null);
@@ -316,7 +357,7 @@ test("placement counts every secondary control beside the primary", () => {
       offer("direct", [control("primary"), control("peer")]),
       offer("after", [control("after-peer")], { side: "after" }),
     ],
-    items: [marker("question", "question")],
+    items: [marker("ask", "ask")],
   });
   assert.equal(secondaryCount(entry, choosePrimary(entry)), 3);
   assert.equal(entryHasMarginHost(entry), true);
@@ -330,7 +371,7 @@ test("placement counts every secondary control beside the primary", () => {
 test("focused owner exposes only its complete declared controls", () => {
   const entry = inventory({
     offers: [
-      offer("standing", [control("primary")]),
+      offer("main", [control("primary")]),
       offer(
         "reaction",
         Array.from({ length: 6 }, (_, index) => control(String(index))),
@@ -358,9 +399,7 @@ test("focused owner exposes only its complete declared controls", () => {
 
 test("reading IDs belong to their contribution in both margin and Page Map", () => {
   const entry = inventory({
-    items: [null, "first", "second"].map((owner) =>
-      marker("same", "question", { owner }),
-    ),
+    items: [null, "first", "second"].map((owner) => marker("same", "ask", { owner })),
   });
   const choices = readingChoices(entry);
   assert.equal(new Set(choices.map((choice) => choice.key)).size, 3);

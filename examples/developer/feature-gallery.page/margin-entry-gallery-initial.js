@@ -61,11 +61,11 @@
     },
     {
       heading: "Turn and agent workflow",
-      summary: "On you · awaiting agent · picked up · working · awaiting continuation",
+      summary: "My turn · awaiting agent · picked up · working · awaiting continuation",
       samples: [
         {
-          name: "On you",
-          detail: "Thread · your answer is needed",
+          name: "My turn",
+          detail: "Thread · my answer is needed",
           icon: "comment",
           behavior: "disclosure",
           rank: "reading",

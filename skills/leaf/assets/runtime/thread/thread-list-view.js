@@ -29,18 +29,26 @@
    the user's words, its semantic membership ends, and a selected allocation holds off
    fallback disclosure. Dismissal or choosing another card releases it at once, outside
    the geometry rule (#2387's choice): the allocation has no closed form to shrink to
-   when another card opens. The model builder asks both questions while it builds the
+   when another card opens, and the list's place hold keeps the chosen card where it
+   stood, as it does for an open card closing above it (thread-list.js,
+   `holdThroughDisclosure`). The model builder asks both questions while it builds the
    reading (thread-list.js), so a kept allocation is a row of that reading, committed
    and restored with the cards beside it. Rejected: deciding withdrawals by a copy of
    the rule beside `keeping`, as paint the list spliced into each reading it drew
    (#2387), which every later change to when a card leaves had to repeat and which
    committing had to rebuild from the drawn rows. */
 import { html, repeat, ref } from "../../vendor/browser-runtime.js";
-import { holdFocus, onStanding, focusDestination, focused } from "../focus.js";
+import {
+  holdFocus,
+  onStanding,
+  focusDestination,
+  focused,
+  standingIn,
+} from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { threadHoldsDraft } from "./replies.js";
-import { forwardToThread } from "./focus.js";
+import { forwardToThread, threadFocusStop } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { isFolding } from "./folding.js";
@@ -68,6 +76,10 @@ const turnOnItsWay = (thread) =>
     (message) =>
       (message.id.startsWith(PENDING) && !message.token) || message.edited?.pending,
   );
+
+// The focus stop of drawn card or notice `row`: a card's title, a notice's Dismiss.
+const rowStop = (row) =>
+  row.kind === "thread" ? threadFocusStop(row.node) : row.node.querySelector("button");
 
 class ThreadListView extends RetainedFace {
   #commands = null;
@@ -246,8 +258,19 @@ class ThreadListView extends RetainedFace {
         );
   }
 
-  navigationThreads() {
-    return this.#visibleRows().map((row) => row.node);
+  // The rows the list's walks step through, in its order, each as its focus `stop` and
+  // the card it shows, `thread`, null for a withdrawn notice: every shown card, a card
+  // the list keeps outside the view included, and each withdrawn notice. A card folding
+  // out is in none of them, since its room is about to go. The arrows walk the stops
+  // (panel.js), and `t`/`T` and every walk position count the threads (navigation.js).
+  walkRows() {
+    const shown = new Set(this.#visibleRows());
+    return this.#rows
+      .filter((row) => (row.kind === "withdrawn" ? row.node : shown.has(row)))
+      .map((row) => ({
+        stop: rowStop(row),
+        thread: row.kind === "thread" ? row.node : null,
+      }));
   }
 
   // The shown cards in the page's order, whichever order the list stands in.
@@ -314,7 +337,7 @@ class ThreadListView extends RetainedFace {
   // Forward gestures paint their complete generated result in their sending turn.
   async present(model) {
     const generation = ++this.#generation;
-    if (!this.#rollbackFocus && this.contains(focused())) {
+    if (!this.#rollbackFocus && standingIn(this)) {
       const node = focused();
       this.#rollbackFocus = {
         node,
@@ -331,9 +354,9 @@ class ThreadListView extends RetainedFace {
     const wanted = new Set(
       model.rows.filter((row) => row.kind === "thread").map((row) => row.key),
     );
-    // Unknown counts describe unavailable placeholders, not removed identities.
-    // Candidate fallback is only paint; the complete committed reading retires
-    // departed choices and adopts the choice its narrowing left visible.
+    // An unavailable reading has no complete identity inventory from which to
+    // retire a choice or a dismissal. Its visible fallback also cannot replace
+    // the choice: a local thread may stand while saved history is unavailable.
     if (model.count !== null) {
       const present = new Set(this.#rows.map((row) => row.key));
       this.#selection = this.#selection.filter((key) => present.has(key));
@@ -342,9 +365,9 @@ class ThreadListView extends RetainedFace {
           .filter((row) => row.kind === "withdrawn" && this.#dismissed.has(row.key))
           .map((row) => row.key),
       );
-      const chosen = this.#expandedRow();
-      if (chosen) this.#select(chosen.key);
     }
+    const chosen = this.#expandedRow();
+    if (chosen && model.count !== null) this.#select(chosen.key);
     for (const [key, view] of this.#views) {
       if (wanted.has(key)) view.commit();
       else {
@@ -385,7 +408,8 @@ class ThreadListView extends RetainedFace {
       if (row.kind !== "thread") {
         if (row.kind === "withdrawn") {
           const previous = this.#rows.find((drawn) => drawn.key === row.key);
-          if (previous?.node?.contains(focused())) this.#withdrawnFocus = row.key;
+          if (previous?.node && standingIn(previous.node))
+            this.#withdrawnFocus = row.key;
           rows.push({ ...row, node: null });
         } else rows.push(row);
         continue;

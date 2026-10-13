@@ -38,7 +38,7 @@
    thread panel makes the line inert background. A coarse pointer is drawn no hint line
    at all — there is no keyboard to advertise, and every hint would name a key the user
    cannot press — and states no bar height. The status stands at the bar's far end, and
-   the line's row ends short of a standing one. The line, status, and chips take no
+   the line's row ends short of a fixed one. The line, status, and chips take no
    pointer events; the More control does, because it is the pointer route to the
    reference. Brief user feedback replaces an ordinal and then restores its live reading;
    background arrivals queue behind user feedback and persistent command context.
@@ -58,6 +58,7 @@ import {
   commandEntries,
   commandPresentations,
   commandRoutes,
+  commandReady,
   lineOf,
   titleOf,
   spell,
@@ -90,8 +91,8 @@ import {
 } from "../notifications.js";
 import { repaint } from "../repaint.js";
 import { walkPosition } from "../walk-position.js";
-import { declareBottomBar } from "../geometry.js";
-import { pagePresented } from "../page-paint.js";
+import { declareWindowChrome } from "../geometry.js";
+import { pageUpgraded } from "../page-paint.js";
 import { closeLayer, focusDestination } from "../focus.js";
 import {
   BANNER_CONTROL_RANK,
@@ -201,29 +202,26 @@ const boxesOf = (nodes) =>
 
 // Fixed boxes that Go-to hints and target-picker hints must not cover. The bottom-only
 // subset also bounds composers and floating cards. A transient notice
-// alone does not change page geometry; over a standing walk or command context it keeps
+// alone does not change page geometry; over an active walk or command context it keeps
 // that surface's last stable footprint rather than making a four-second message reflow
 // the page and its hints.
-const standingStatus = () => !walkPositionEl.hidden || !goToStatusEl.hidden;
-let standingStatusBox = null;
-export const standingStatusBoxes = () => {
-  if (!standingStatus()) {
-    standingStatusBox = null;
+const fixedStatus = () => !walkPositionEl.hidden || !goToStatusEl.hidden;
+let fixedStatusBox = null;
+const fixedStatusBoxes = () => {
+  if (!fixedStatus()) {
+    fixedStatusBox = null;
     return [];
   }
-  if (!noticeVisible()) [standingStatusBox = null] = boxesOf([bottomStatusEl]);
-  return standingStatusBox ? [standingStatusBox] : [];
+  if (!noticeVisible()) [fixedStatusBox = null] = boxesOf([bottomStatusEl]);
+  return fixedStatusBox ? [fixedStatusBox] : [];
 };
-export const bottomChromeBoxes = () => [
-  ...boxesOf([shortcutBarEl]),
-  ...standingStatusBoxes(),
-];
-declareBottomBar(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
+const bottomChromeBoxes = () => [...boxesOf([shortcutBarEl]), ...fixedStatusBoxes()];
+declareWindowChrome(bottomChromeBoxes, [shortcutBarEl, bottomStatusEl]);
 
 // ---------- the shortcut bar ----------
 // The rows the line shows, innermost scope first: the ones carrying a word for it. Each
 // keeps only bindings no nearer scope has named, so an inner meaning wins while a grouped
-// row's other presses remain visible — for example, a Question's numbered pick replaces the
+// row's other presses remain visible — for example, an ask's numbered pick replaces the
 // page's ordinary digit meaning without hiding the option row's other keys.
 const sourceRows = new WeakMap();
 const sourceRow = (row) => sourceRows.get(row) ?? row;
@@ -241,6 +239,7 @@ const effectiveRow = (row, declared, active) => {
   const route = routes.length === 1 ? routes[0] : null;
   const projected = {
     ...row,
+    ready: () => commandReady(row),
     keys: active,
     routes,
     // A custom group label cannot describe a binding removed by a nearer scope. A route
@@ -276,14 +275,14 @@ function lineRows(scopes) {
           ? escape?.visible &&
             scopeIdentity(escape.scope) === scopeIdentity(scope) &&
             escape.row === row
-          : !named.has(binding) && !nearer.takes(binding),
+          : !named.has(binding) && !nearer.takes(binding, row, scope),
       );
       return active.length ? [effectiveRow(row, bound, active)] : [];
     });
     for (const row of activeRows(reachable, scope.title ?? "the page's keys")) {
       if (!lineOf(row)) continue;
       const active = bindings(row).filter(
-        (binding) => commandEntries(row, [binding]).length,
+        (binding) => !named.has(binding) && commandEntries(row, [binding]).length,
       );
       if (!active.length) continue;
       const source = sourceRow(row);
@@ -348,9 +347,17 @@ registerBannerControl({
   control: keyboardSettings,
   rank: BANNER_CONTROL_RANK.keyboard,
   seat: "menu",
+  row: { label: "Keyboard shortcuts", shortcut: "?", group: "page" },
 });
+// The first `?` expands the bar where the bar is drawn; where it is not, under the
+// floating panel or a finger, there is nothing to expand, and `?` opens the reference.
 function advanceShortcutHelp() {
-  if (!shortcutHelpAvailable() || shortcutBarIsExpanded) return openCompleteReference();
+  if (
+    !shortcutHelpAvailable() ||
+    shortcutBarIsExpanded ||
+    !shortcutBarEl.checkVisibility()
+  )
+    return openCompleteReference();
   const scopes = stack();
   const { candidates, short } = arrange(lineRows(scopes));
   const shown = completeLine(scopes, candidates)?.rows ?? short;
@@ -368,11 +375,9 @@ export function collapseShortcutBar({ silent = false } = {}) {
   if (!silent) announce("Shortcut bar collapsed.");
 }
 export function renderShortcutBar(goToStatus) {
-  // The line says what the page's keys do, and until the page presents none of them does
-  // anything: the bootstrap holds every press for the presented page (controller.js). A
-  // line drawn from the commands live before then named a different pair, and More moved
-  // when presentation replaced it, so the band stands empty until its first true reading.
-  if (!pagePresented()) return;
+  // The document's line starts at upgrade and names commands available now.
+  // Keys whose input is still loading have their own held-key feedback.
+  if (!pageUpgraded()) return;
   // One walk, read twice: `at` and `when` are the page's own state and a second walk would
   // ask every one of them again for the same frame.
   const scopes = stack();
@@ -480,14 +485,14 @@ export function renderShortcutBar(goToStatus) {
     presentation,
     span: rowSpans[index],
   }));
-  // The status stands at the bar's far end, level with the one row, so a standing status
+  // The status stands at the bar's far end, level with the one row, so a fixed status
   // pads the row's end and More and the way out stop short of it. A transient notice
-  // keeps the footprint of what it stands over (standingStatusBoxes) rather than trimming
+  // keeps the footprint of what it stands over (fixedStatusBoxes) rather than trimming
   // the line for the seconds it shows. The expanded bar's upper row is not level with the
   // status, so it reserves nothing.
   const barStyle = getComputedStyle(shortcutBarEl);
   const gap = parseFloat(barStyle.columnGap);
-  const [status] = expanded ? [] : standingStatusBoxes();
+  const [status] = expanded ? [] : fixedStatusBoxes();
   const reserved = status ? status.width + gap : 0;
   // Which rows fit is worked out from widths the line already has, not by showing a row
   // to see whether it wraps: a row the line leaves keeps its width out of flow

@@ -9,12 +9,13 @@
  * fetches a document, chooses a version, or decides what a comparison means.
  */
 import { closeNativeLayer } from "./keyboard/layer-stack.js";
+import { isNativeLayer } from "./shadow-tree.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 
 import { dismissBannerControls } from "./banner-toolbar.js";
 import { el } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
-import { focusDestination, canPlaceFocus, inputCount } from "./focus.js";
+import { focusDestination, canPlaceFocus, inputCount, focused } from "./focus.js";
 import { scrollIntoView } from "./landing-scroll.js";
 
 const LATEST_FAILED = "Latest edit couldn't be shown";
@@ -106,7 +107,7 @@ class VersionPickerView {
   }
 
   isOpen() {
-    return this.menu.matches(":popover-open");
+    return isNativeLayer(this.menu);
   }
 
   close() {
@@ -124,7 +125,7 @@ class VersionPickerView {
   }
 
   atBoundary(end) {
-    return document.activeElement === this.stops().at(end);
+    return focused() === this.stops().at(end);
   }
 
   #selectedRow() {
@@ -151,8 +152,26 @@ class VersionPickerView {
       }));
   }
 
+  // The picker's reading and commands for another presentation of the same versions,
+  // the floating panel's Versions view, which draws its own rows from them.
+  #listeners = new Set();
+  get model() {
+    return this.#model;
+  }
+  watch(listener) {
+    this.#listeners.add(listener);
+    return () => this.#listeners.delete(listener);
+  }
+  activate(entry) {
+    this.#activate?.(entry);
+  }
+  compare(version) {
+    this.#compare?.(version);
+  }
+
   present(model) {
     this.#model = model;
+    for (const listener of this.#listeners) listener(model);
     const { picker, latest } = model;
     if (!picker.offered) this.close();
 

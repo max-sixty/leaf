@@ -1,0 +1,34 @@
+# Added when an Ask came to keep the prose's width on a wide page as in a column, as
+# playground-ask-takes-the-room: the Ask framing a playground had to be granted the
+# page's room for its stage (Claude Code: base 0/3 and 0/2, candidate 3/3 and 2/2,
+# across two wordings). Since layout-wide was retired the room goes on the playground
+# itself, so the Ask's question and premise keep the prose's width; the prompt leaves
+# the page's Layout to the agent. On this wording, Claude Code: base 0/2 (both granted
+# the lf-ask on a layout-wide page), candidate 2/2 (layout-column, the room on the
+# lf-playground).
+description: playground-takes-the-room
+metadata:
+  purpose: 'Playground: a playground whose candidates stand side by side takes data-width="available" itself.'
+  tags:
+  - playground
+  - layout
+vars:
+  prompt: |
+    The user wants to choose between two empty-state designs for the project list:
+    an illustration with one "Create project" button, or a checklist of three setup
+    steps. Build a Leaf playground page where they can see both candidates side by
+    side at full size, toggle whether the list has a search bar above it, and submit
+    which design to build.
+
+    Read packages/playground/instructions/author.md inside the leaf skill's base
+    directory. The page directory is not reachable here, so reply with the page's
+    HTML and any page module it needs.
+assert:
+- type: llm-rubric
+  metric: playground-takes-the-room
+  value: |
+    Pass only if the `lf-playground` itself carries `data-width="available"`, so
+    its side-by-side candidates take the page's room while the Ask's question and
+    premise keep the prose's width. Fail if the room goes to the `lf-ask` or the
+    whole page (such as a wide Layout on `main`) instead of the playground, or if
+    the playground takes no extra room.

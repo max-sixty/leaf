@@ -6,14 +6,15 @@ import { drawerEdge, sideEdge } from "./drawn-edge.js";
 import { slide } from "./motion.js";
 import { declareOccluder } from "./geometry.js";
 import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
-import { letGo, openLayer, openerOf } from "./focus.js";
+import { focused, letGo, openLayer, openerOf } from "./focus.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageRung } from "./keyboard/register.js";
-import { rowWalk } from "./walk-position.js";
+import { listWalkPosition, rowWalk } from "./walk-position.js";
 import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-toolbar.js";
 import { createQueueList, shownItems, walkStops } from "./queue-list.js";
 import { keeps } from "./keeps.js";
+import { move } from "./dom-move.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { registerReadingRegion } from "./reading-regions.js";
 // Two drawers, each a head over a list of rows, selected one at a time with every other
@@ -100,11 +101,11 @@ export const queueList = queueFurniture.list;
 export const queueNextBtn = el("button", "lf-btn lf-queue-next", "Next question");
 queueNextBtn.type = "button";
 queueNextBtn.hidden = true;
-queueNextBtn.title = "Go to the next question waiting on you (q)";
+queueNextBtn.title = "Go to the next question waiting on me (q)";
 // The walk steps on from where the user stands, so a press leaves them standing there
 // rather than moving focus onto the button, as a gesture step on the banner does.
 queueNextBtn.addEventListener("mousedown", (event) => event.preventDefault());
-queueFurniture.head.insertBefore(queueNextBtn, queueFurniture.close);
+move(queueFurniture.head, queueNextBtn, queueFurniture.close);
 
 // Furniture is local to this owner; selection belongs to the auxiliary-surface owner.
 const drawers = new Map();
@@ -174,7 +175,7 @@ export function createDrawers({
         // surfaces' owner read it (`opener`) before this hide.
         openLayer(panel, null);
         // Slid out before hidden, and hidden only if still closed on arrival — a
-        // reopen mid-slide leaves the panel standing rather than racing the finish.
+        // reopen mid-slide leaves the panel open rather than racing the finish.
         const out = swap ? null : slide(panel, side, "out");
         const hide = () => {
           if (drawerIsOpen(key)) return; // reopened mid-slide; it stays up, list and all
@@ -246,12 +247,12 @@ export function createDrawers({
         noun: "Item",
         plural: "items",
         rows: queueRows,
-        items: () => shownItems(queueList),
+        position: () => listWalkPosition(shownItems(queueList), focused()),
       }),
       () => queueRows().length > 0,
     );
   }
-  // A standing drawer is one layer of the page the user put on by pressing its button, so
+  // An open drawer is one layer of the page the user put on by pressing its button, so
   // Escape takes it off again. Whichever drawer stands is named by the step, so the user
   // is told what the press will take rather than "close the drawer", by the word its door
   // in the banner says. Rooted at the open drawer, so

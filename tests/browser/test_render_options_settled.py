@@ -1,0 +1,347 @@
+"""Settled-options disclosure and presentation tests."""
+
+import re
+
+import pytest
+from interact_support import append_carried_log_record
+from leaf import render_checks as render_checks_model
+from playwright.sync_api import expect
+from render_cases_interaction import (
+    ASK_SHAPES_PAGE,
+    SETTLED_ASK_PAGE,
+    live_url,
+)
+from render_cases_navigation import (
+    _publish,
+    composer_quote,
+)
+from render_harness import (
+    SETTLED_PAGE,
+    command_reference_rows,
+    compare_with,
+    consume_browser_errors,
+    open_page,
+    page_registry,
+    panel_settled,
+    round_trip,
+    said,
+    select,
+    undo,
+    write,
+)
+
+pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def test_a_reconnected_settled_ask_restores_its_diff_watcher(browser, serve):
+    """Tabs and settled answers count the comparison, including after reconnection."""
+    first = SETTLED_PAGE.replace(
+        '<lf-ask id="transport-decision">',
+        '<lf-tabs id="views"><lf-tab id="decision" label="Decision">'
+        '<lf-ask id="transport-decision">',
+        1,
+    ).replace(
+        "</lf-ask>",
+        '</lf-ask></lf-tab><lf-tab id="notes" label="Notes">'
+        "<p>Notes.</p></lf-tab></lf-tabs>",
+        1,
+    )
+    second = first.replace("Lax cookie", "Gentle cookie")
+    url = serve(first)
+    _publish(serve.page_dir, 2, second, "Revise the settled answer")
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    compare_with(page, 1)
+    expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
+    expect(page.locator('[aria-controls="decision"] .lf-tabdiff')).to_have_text("Δ1")
+    expect(page.locator('[aria-controls="notes"] .lf-tabdiff')).to_have_text("")
+
+    page.evaluate("""() => {
+        window.detachedViews = document.getElementById('views');
+        window.detachedViews.remove();
+    }""")
+    compare_with(page, 1)
+    assert (
+        page.evaluate(
+            "() => window.detachedViews.querySelector('.lf-settled-diff').textContent"
+        )
+        == "Δ1"
+    ), "a detached comparison consumer painted"
+    page.evaluate("() => document.querySelector('main').append(window.detachedViews)")
+    expect(page.locator("#transport > .lf-settled")).to_have_count(1)
+    expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
+    expect(page.locator('[aria-controls="decision"] .lf-tabdiff')).to_have_text("")
+
+
+def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
+    browser, serve
+):
+    """A comparison watcher whose paint throws on its owner's return reports that once
+    and still paints the next comparison: the failed reading stands, not the failure."""
+    first = SETTLED_PAGE.replace(
+        '<lf-ask id="transport-decision">',
+        '<lf-tabs id="views"><lf-tab id="decision" label="Decision">'
+        '<lf-ask id="transport-decision">',
+        1,
+    ).replace(
+        "</lf-ask>",
+        '</lf-ask></lf-tab><lf-tab id="notes" label="Notes">'
+        "<p>Notes.</p></lf-tab></lf-tabs>",
+        1,
+    )
+    url = serve(first)
+    _publish(
+        serve.page_dir,
+        2,
+        first.replace("Lax cookie", "Gentle cookie"),
+        "Revise the settled answer",
+    )
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    mark = page.locator('[aria-controls="decision"] .lf-tabdiff')
+    compare_with(page, 1)
+    expect(mark).to_have_text("Δ1")
+    # Turn off the settled comparison while the tabs are away. Returning to that
+    # changed reading throws once; the next comparison must still update its mark.
+    page.evaluate("""() => {
+        const views = document.getElementById('views');
+        const tab = views.querySelector('[aria-controls="decision"]');
+        tab.querySelector(':scope > .lf-tabdiff').textContent = 'stale';
+        tab.querySelector = () => {
+          delete tab.querySelector;
+          throw new Error('the marks failed once');
+        };
+        window.detachedViews = views;
+        views.remove();
+    }""")
+    compare_with(page, 1)
+    page.evaluate("() => document.querySelector('main').append(window.detachedViews)")
+    expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
+    # The paint reports the failure, and nothing else does: no uncaught throw.
+    errors = consume_browser_errors(page, "the marks failed once")
+    assert len(errors) == 1 and said(errors[0]).startswith("leaf: paint failed"), errors
+    compare_with(page, 1)
+    expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
+    expect(mark).to_have_text("Δ1")
+
+
+def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
+    """A settled decision reads as one line and the cards behind it stop spending
+    the page's height — but they are hidden, not gone, so everything that used to
+    reach them still does: the disclosure opens them, and a comment anchored in
+    one opens the group on its way to the passage. A collapse a comment can't see
+    through is worse than no collapse at all, because the thread still lists the
+    quote and clicking it lands nowhere.
+
+    The line itself is in reach too, which is the harder half: while the group is
+    collapsed it is the only place the decision is stated, and it is written into a
+    disclosure — chrome, and a control. And naming the card there means the page now
+    says the card's lede twice, so the third part asks the one thing that buys: a
+    comment made on the card lands on the card.
+
+    Which way the disclosure stands is the row's own expanded state and nothing
+    besides: the group's markup is the author's, and opening a settled decision is
+    reading rather than editing, so no version and no log has a word to say about
+    it.
+    """
+    page = open_page(
+        browser, serve(SETTLED_PAGE, anchored=[("opt-strict", "arrives logged out")])
+    )
+    group = page.locator("#transport")
+    height = "el => Math.round(el.getBoundingClientRect().height)"
+
+    collapsed = group.evaluate(height)
+    assert page.locator("#transport lf-option:visible").count() == 0
+    row = page.locator("#transport .lf-settled")
+    assert row.inner_text().startswith("Settled: Lax cookie")
+    assert row.get_attribute("aria-expanded") == "false"
+
+    row.focus()
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    settled_help = command_reference_rows(page, "On a disclosure")
+    expect(settled_help.get_by_text("Open", exact=True)).to_have_count(1)
+    expect(
+        settled_help.get_by_text(re.compile(r"decision", re.IGNORECASE))
+    ).to_have_count(0)
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+
+    row.press("ArrowRight")
+    opened = group.evaluate(height)
+    assert page.locator("#transport lf-option:visible").count() == 3
+    assert opened > collapsed * 3, (
+        f"collapsing saved {opened - collapsed}px of {opened}px — a settled group "
+        f"that still costs most of its open height isn't a sweep"
+    )
+    # Open is the row's own expanded state and nothing else. The group wore an `open`
+    # attribute here too, in a namespace its entry closes, which no version carries and
+    # no consumer reads — while shallowSigs, whose exclusion list is exactly what no
+    # version can assert, counted it as state the author had written. The render gate
+    # asks the same of every example and cannot reach this moment: a group arrives
+    # closed, and nothing it does opens one.
+    assert row.get_attribute("aria-expanded") == "true"
+    assert (
+        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
+        == []
+    ), "opening the group left an attribute on a widget its entry never declared"
+
+    row.click()  # closed again, so the reveal below has something to open
+
+    # While it is closed the row is the decision's only visible statement, so the part of
+    # it naming the card has to be quotable — and a drag across it must not toggle the
+    # disclosure it lives in, which is the mouseup of that drag.
+    title = page.locator("#transport .lf-settled [data-lf-said]")
+    box = title.bounding_box()
+    y = box["y"] + box["height"] / 2
+    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
+    expect(page.locator("#lf-composer-quote")).to_have_text("“Settled: Lax cookie”")
+    expect(page.locator(".lf-fab-input")).not_to_be_focused()
+    assert composer_quote(page)["text"].strip("“”") == "Settled: Lax cookie"
+    expect(page.locator("#opt-strict")).to_be_hidden()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    assert composer_quote(page)["text"].strip("“”") == "Settled: Lax cookie"
+    page.keyboard.press("Escape")
+
+    # The row names the chosen card, so the page now says "Lax cookie" twice and both
+    # copies are quotable. A comment on the card's own lede has to land on the card —
+    # the row comes first in document order, which is where a search on the quote alone
+    # would put it.
+    #
+    # Dropping the selection first is the user's own next move: a press that lands
+    # inside a live selection is that selection's, so the row would not open under it.
+    page.locator("#lede").click()
+    row.click()
+    expect(page.locator("#opt-lax")).to_be_visible()
+    lede = page.locator("#opt-lax > strong")
+    box = lede.bounding_box()
+    y = box["y"] + box["height"] / 2
+    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
+    page.locator(".lf-fab-input").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    write(page.locator(".lf-composer leaf-text"), "which copy is this on?")
+    page.keyboard.press("ControlOrMeta+Enter")
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 2")
+    assert sorted(
+        page.evaluate(
+            "() => [...CSS.highlights.get('lf-mark')].map(r => "
+            "r.startContainer.parentElement.closest('[id]').id)"
+        )
+    ) == [
+        "opt-lax",
+        "opt-strict",
+    ], "the comment landed on the summary line rather than the card it was made on"
+    row.click()
+
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(
+        ".lf-thread", has=page.locator(".lf-quote", has_text="arrives logged out")
+    )
+    thread.locator(".lf-thread-summary").click()
+    thread.locator(".lf-quote").click()
+    assert page.locator("#opt-strict").is_visible(), (
+        "clicking a thread's quote must open the group holding it"
+    )
+
+
+def test_a_settled_ask_reconciles_added_options_into_its_disclosure(browser, serve):
+    """A replayed option stays inside the settled disclosure it belongs to.
+
+    The disclosure's count and controls describe the complete current option set,
+    including options reconstructed from their `add` in force, and follow the undo
+    that takes that `add` back.
+    """
+    page = open_page(browser, serve(SETTLED_ASK_PAGE))
+    group = page.locator("#jobs")
+    row = group.locator(":scope > .lf-settled")
+
+    row.click()
+    field = group.get_by_role("textbox", name="Another option", exact=True)
+    write(field, "Insulate the camera battery")
+    group.get_by_role("button", name="Add and select option", exact=True).click()
+    round_trip(page)
+    added = group.locator(":scope > lf-option[data-lf-added]")
+    added_id = added.get_attribute("id")
+    expect(added).to_be_visible()
+
+    row.click()
+    page.reload(wait_until="load")
+    page.wait_for_function(
+        "() => document.body.getAttribute('data-lf-presented') === '1'"
+    )
+    row = group.locator(":scope > .lf-settled")
+    expect(row).to_have_attribute("aria-expanded", "false")
+    expect(group.locator(":scope > lf-option:visible")).to_have_count(0)
+    expect(row.locator(".lf-settled-count")).to_have_text("4 options")
+    assert row.get_attribute("aria-controls").split() == [
+        "job-mounts",
+        "job-heater",
+        "job-camera",
+        added_id,
+    ]
+
+    # The first undo takes back the pick; the option stays in the disclosure.
+    undo(page)
+    expect(group.locator(":scope > lf-option[data-lf-added]")).to_have_count(1)
+    expect(row.locator(".lf-settled-count")).to_have_text("4 options")
+    undo(page)
+    expect(group.locator(":scope > lf-option[data-lf-added]")).to_have_count(0)
+    expect(row.locator(".lf-settled-count")).to_have_text("3 options")
+    assert row.get_attribute("aria-controls").split() == [
+        "job-mounts",
+        "job-heater",
+        "job-camera",
+    ]
+
+
+def test_a_printed_page_says_which_option_carries_the_pick(browser, serve):
+    """Print drops the dead controls but retains the selected option's check."""
+    page = open_page(browser, serve(SETTLED_PAGE))
+    row = page.locator("#transport .lf-settled")
+    expect(row).to_contain_text("Settled: Lax cookie")
+    expect(page.locator(".lf-banner")).to_be_visible()
+
+    pick = page.locator("#opt-lax .lf-pick")
+    page.emulate_media(media="print")
+    expect(page.locator(".lf-banner")).to_be_hidden()
+    expect(row).to_be_hidden()
+    expect(pick).to_be_hidden()
+    expect(page.locator("#opt-strict .lf-pick")).to_be_hidden()
+    after = "el => getComputedStyle(el, '::after').content"
+    assert page.locator("#opt-lax").evaluate(after) == '"✓"'
+    assert page.locator("#opt-strict").evaluate(after) == "none"
+
+
+def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
+    """A settled answer still follows the authored question, on-page and in a reply."""
+    url = serve(ASK_SHAPES_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "And settled in here.",
+            "markup": '<lf-ask id="th-done-decision"><h3>Where, again?</h3>'
+            '<lf-options id="th-done" choose settled>'
+            '<lf-option id="th-redis" chosen><strong>Redis</strong></lf-option>'
+            '<lf-option id="th-pg"><strong>Postgres</strong></lf-option>'
+            "</lf-options></lf-ask>",
+        },
+    )
+    page = open_page(browser, live_url(url))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
+    page.locator(".lf-thread", has=page.locator("#th-done")).locator(
+        ".lf-thread-summary"
+    ).click()
+
+    top = "el => el.getBoundingClientRect().top"
+    for ask, group in (("done-decision", "done"), ("th-done-decision", "th-done")):
+        expect(page.locator(f"#{group} .lf-settled")).to_have_count(1)
+        question = page.locator(f"#{ask} > :is(h1, h2, h3, h4, h5, h6)").evaluate(top)
+        summary = page.locator(f"#{group} .lf-settled").evaluate(top)
+        assert question < summary, (
+            f"#{group}'s question is drawn at {question:.0f} and its answer at "
+            f"{summary:.0f}, so the group states what it settled before what it asked"
+        )

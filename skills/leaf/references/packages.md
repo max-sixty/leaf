@@ -73,7 +73,7 @@ The optional bundled packages are:
 | `diff` | `lf-diff`, its `unified-diff` data contract and Pierre renderer, and `lf-call-diff` with links to exact patch evidence. |
 | `file-editor` | `lf-file-editor`, a CodeMirror editor for an explicitly bound local text file, with quiet automatic saving and inline conflict recovery. |
 | `playground` | Controls and structured state with shared reset, restore, preview, output, and typed configuration submission. |
-| `monitoring` | Release-workspace instructions for current state, checks, a run log, and a rollback Question. |
+| `monitoring` | Release-workspace instructions for current state, checks, a run log, and a rollback ask. |
 | `visual-review` | Ordered website cases with aligned before-and-after evidence, automatic comparison orientation, authored focus and full-frame context, flip and overlay, fit and captured-size inspection, exact preview links, and dispositions. |
 | `playwright` | Native trace import and `lf-trace` review of actions, checkpoint images, captured frames and saved accessibility elements, with comments that restore their recorded moment and a link to Playwright's full viewer. |
 
@@ -133,6 +133,8 @@ unlayered stylesheet outrank these defaults. Within a tier, specificity, native 
 proximity, then source order decide. `!important` reverses layer priority, and inline
 styles outrank ordinary stylesheet declarations; neither is a customization API.
 Runtime chrome and annotation marks remain unlayered and own their apparatus paint.
+The generic indication contour is a default in `lf-base`, so a widget can style its
+indicated parts in its own sheets.
 `page-authoring.md`, "Theme and vocabulary", describes how page selectors opt into
 Leaf controls; broad content selectors leave that apparatus alone. Inherited theme
 inputs are the supported way to change its shared colors and type.
@@ -177,7 +179,7 @@ a typography or color override does not remove those requirements.
 
 Icon, widget,
 and vendor files replace by path. Runtime modules add package-owned paths; they
-cannot replace the kernel or default package's JavaScript, including `leaf.js`.
+cannot replace the kernel's JavaScript, including `leaf.js`.
 Those modules are private, and the website compiles them together into one kernel.
 Package checks refuse imports of private kernel modules as well as replacements,
 so source modules and the compiled kernel expose the same extension contract.
@@ -273,7 +275,8 @@ How wide the page is, and how its blocks are arranged, is the page's choice, mad
 Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's element fills
 the box it is given, and its `x-space` states the width it prefers, which a page may
 override. Declare `column` for an element whose content is read as lines of text, such
-as a list of choices or a timeline, so on a wide page it keeps the measure the prose
+as a list of choices or a timeline, so in a flow wider than the column, such as a
+sidebar page's body or a workspace pane, it keeps the measure the prose
 around it keeps instead of stretching its rows across the page.
 A widget that needs a minimum width to stay usable, such as a board's columns at a
 readable size, states it as `min-inline-size` capped by the box it stands in:
@@ -306,9 +309,9 @@ Startup behavior and transition protection follow
 The element declaration is JSON Schema over the element's attributes, plus the `x-` keys that
 say how the layer treats the tag — its content model, whether a module upgrades it, which
 attributes the user sees as words, its action verbs and their record forms, whether it
-stands as one of the page's Questions. The merged registry's `$keys` entry defines each key,
+stands as one of the page's asks. The merged registry's `$keys` entry defines each key,
 and `$state` defines each `x-state` verb member, including `creates` for user-added
-children, while `$awaits` defines its Question's typed value and completion. Every element
+children, while `$awaits` defines its ask's typed value and completion. Every element
 declaration carries a non-empty `description`: short prose stating the widget's
 purpose and when to use it. The attribute schema and valid `x-example` describe
 its form. Optional `x-instructions` states the authoring choices and obligations
@@ -380,8 +383,8 @@ coordinate. At each coordinate the latest surviving action stands, and different
 coordinates stand side by side. Moving a card again therefore replaces that card's
 earlier position, while positions of different cards coexist. Recorded body, attribute,
 and value verbs use `unit: "widget"`; position verbs use `unit: "unit"`, naming the
-canonical detail field for the moved element. `record` says how the standing state reads in markup: here, the
-card's position inside a column. Standing decisions supply the current state;
+canonical detail field for the moved element. `record` says how the current state reads in markup: here, the
+card's position inside a column. Decisions in force supply the current state;
 `restated` explicitly retracts a decision, and revisions may change their authored
 baseline without a historical-state veto. The `$keys`
 entries in `assets/registry.json` define each key exactly.
@@ -396,27 +399,28 @@ are refused. Their fields come from the effect:
 | `value` | `{value}` | The schema of the destination in the widget's `properties`; `record.attr` names that attribute. |
 | `position` | `{unit, value, rank}` | Strings naming the owned element, valid destination container, and rank key; `record.within` names the container tag. |
 
-`report: true` on an agent-written verb adds required nonempty `text` for its news.
-Omit `report` when the verb has no news. The effect determines the complete payload;
-a recorded verb cannot add contextual fields or independent schema refinements.
+`text: true` on an agent-written verb requires each report to carry non-empty
+`detail.text`, the report's news. Omit `text` when the verb has no news. The effect
+determines the complete payload; a recorded verb cannot add contextual fields or
+independent schema refinements.
 
 A verb with no record declares its own closed `detail` JSON Schema. Its `unit` is
 `"widget"` or a required detail field naming the element it changes. This supports
 custom actions, such as a playground's submitted settings, and generated children.
 
-`x-awaits` registers a Question automatically for each matching widget. Its
+`x-awaits` registers an ask automatically for each matching widget. Its
 required `value` names one `x-state` verb: recorded state supplies that verb's
 typed value, and a verb without a record supplies its admitted action detail.
 For example, `"value": "choose"` exposes selected option ids; a playground's
 recordless `choose` exposes its submitted configuration. The source widget
 continues to own that state and admit its commands.
 
-`x-awaits.retired` names the flag an author sets to end a Question already
-asked, such as a decision kept collapsed with its options; `when` must require
-that flag absent. A Question context, such as `lf-ask`, must frame at least one
+`x-awaits.retired` names the flag an author sets to end an ask already
+posed, such as a decision kept collapsed with its options; `when` must require
+that flag absent. An ask context, such as `lf-ask`, must frame at least one
 source that asks or was retired, and `page check` refuses one that frames none.
 
-`x-awaits.answered` separately says when the Question is complete. `{}` holds
+`x-awaits.answered` separately says when the ask is complete. `{}` holds
 while the verb's state stands, `when` narrows a verb to instances with matching
 attributes, and `empty` holds while the named container has no members. A
 page-owned queue can declare:
@@ -430,25 +434,25 @@ page-owned queue can declare:
 }
 ```
 
-The Question is answered when the marked column is empty; returning a card
+The ask is answered when the marked column is empty; returning a card
 reopens it. The package declares its own columns and cards, whose `x-owners`
 name their containers. The default board's `lf-column` belongs only to
-`lf-board`; ordinary boards pose no Question unless they declare one.
+`lf-board`; ordinary boards pose no ask unless they declare one.
 
 A draft declares `"value": "edit", "answered": {"edit": {}}`. An options group
 keeps `"value": "choose"` for both forms, while `answered` selects `choose` for
 single choice and `answer` for multiple choice's Done. Completion never depends
 on the answer's truthiness: partial choices can be open, and an empty selected
-set can be complete. If the Question's `when` stops holding, a complete source
+set can be complete. If the ask's `when` stops holding, a complete source
 remains answered and an incomplete one becomes withdrawn.
 
-`x-question-context` contributes the leading heading and arrival target to a
-nested Question. It does not replace its source identity or own the answer.
+`x-ask-context` contributes the leading heading and arrival target to a
+nested ask. It does not replace its source identity or own the answer.
 `lf-ask` is the default context adapter. The module's `static answerWords(value,
 element)` formats values for presentation ([module-authoring.md, "Declared widget
-state"](module-authoring.md#declared-widget-state)); `readQuestions()` exposes
-typed values directly ([module-authoring.md, "Reading Questions and obligation
-queues"](module-authoring.md#reading-questions-and-obligation-queues)).
+state"](module-authoring.md#declared-widget-state)); `readAsks()` exposes
+typed values directly ([module-authoring.md, "Reading asks and obligation
+queues"](module-authoring.md#reading-asks-and-obligation-queues)).
 
 The module reads and writes through `widgetController(owner)`, described in
 [module-authoring.md, "The widget controller"](module-authoring.md#the-widget-controller): `subscribe` delivers the authored baseline with the fold applied, and
@@ -469,8 +473,8 @@ A verb whose state the agent writes rather than the user declares `"writer": "ag
 beside its `unit` and `record`. A worker posts it with
 `leaf page report`, the page paints it live, and it stands until a version
 answers it; the user has no control for it. It uses `unit: "widget"` and a required
-`attribute` or `value` record. It declares `report: true` when each report also supplies short human-readable
-news in `detail.text`. Every verb has exactly one
+`attribute` or `value` record. It declares `text: true` when each report must also
+carry short human-readable news in `detail.text`. Every verb has exactly one
 writer, so a coordinate never holds a user's action and an agent's report at once.
 The Atlas example's page-owned task `status` is one example. A widget declaring
 such a verb also declares the boolean `overruled` attribute a version keeps its own
@@ -497,6 +501,26 @@ Add `"owns": true` to a typed contract whose referrer fills its target, as a com
 fills the readings seat it names. `page check` then requires the target in the
 referrer's own document, and every element there that the predicate selects named by
 exactly one referrer, so no seat stands empty or holds two commands' readings.
+
+Where members of one owner name each other by a word rather than an id, declare the
+word unique within the owner with `x-unique`, a map from the member's attribute to the
+owner's tag, and refer to it with a keyed contract, `{tag, key}`:
+
+```json
+{
+  "lf-playground-control": { "x-unique": { "name": "lf-playground" } },
+  "lf-playground-setting": {
+    "x-refers": { "for": { "tag": "lf-playground-control", "key": "name" } }
+  }
+}
+```
+
+`page check` and message markup validation then refuse two controls of one playground
+sharing a `name`, and a setting whose `for` names no control of its own playground. A
+keyed contract resolves inside the referrer's nearest enclosing owner of the tag its
+target's `x-unique` names for `key`, so the same name in another playground never
+answers it. Rules that need the content itself, such as a range value within its
+bounds, stay with the widget and `page check --render`.
 
 Leaf validates the generic relation; the package owns the map, roles, and participating
 widget tags. A later package can therefore add another goal or worker widget by merging
@@ -590,9 +614,9 @@ Each source is one JSON publication at `data/<source>.json`, holding its opaque
 `run` receipt, `updated` instant, and complete `value`; `data.json` records its
 contract. Write a value through `leaf data set`, which checks the binding, validates
 the value and replaces the publication atomically. A rejected value leaves it
-untouched. Every reading validates the publication and value against the contract,
-so corrupted data reaches users as that source's error, and `page check` and
-`page state` report it. Tabs hear a new publication as they hear any page change.
+untouched. Every reading validates the value against the contract the source is
+bound to now, so a value that no longer fits it reaches users as that source's error,
+and `page check` and `page state` report it. Tabs hear a new publication as they hear any page change.
 
 A contract that carries media URLs declares `resources`, a list of
 [JMESPath expressions](https://jmespath.org/tutorial.html) selecting each URL string
@@ -619,7 +643,7 @@ to be derived from a file — a text excerpt, a patch split into files — is th
 producer's to build, and a contract that needs more than `jq` says how in its
 producer `instructions`. A package may ship that tool
 as a Python file under `scripts/`, declaring its dependencies in inline script metadata
-(PEP 723) with floors and no cap. `leaf package run NAME SCRIPT [ARGS]...` finds the
+(PEP 723). `leaf package run NAME SCRIPT [ARGS]...` finds the
 package by the name `--package` selects it by, bundled or installed, and runs the
 script with `uv run --script` in the environment its header declares, apart from
 Leaf's own. The script owns stdin, stdout, and the exit status, so the instructions state the
@@ -630,11 +654,10 @@ git diff main... | leaf package run diff patch_manifest.py | leaf data set PAGE 
 ```
 
 `package check` and `package install` refuse a `scripts/*.py` without that header,
-since uv would run it in whatever project the caller's directory reaches, and refuse a
-constraint other than a `>=` floor. A subdirectory of `scripts/` holds helpers and is
-not checked or run. A page never vendors `scripts/`. When a producer upstream of `data set` fails and
-writes nothing, `data set` refuses the empty input and points back at that producer's
-own error.
+since uv would run it in whatever project the caller's directory reaches. A
+subdirectory of `scripts/` holds helpers and is not checked or run. A page never
+vendors `scripts/`. When a producer upstream of `data set` fails and writes nothing,
+`data set` refuses the empty input and points back at that producer's own error.
 
 A revision may replace a source's contract, including its schema, record declaration,
 and resource selectors. `data set` validates against the current binding and replaces
@@ -650,8 +673,9 @@ paint. Do not put credentials or private host state in it.
 A contract whose value holds keyed rows declares `records`: the top-level array field
 and each row's key field. A source replacement is accepted only when every row has a
 non-empty, unique string key. Rows that each carry a large, independently useful
-payload may name that field `deferred`. The source file still holds the complete value,
-and readings validate all of it, but `/api/state` sends each row with that field
+payload may name that field `deferred`; the item schema decides which rows carry it.
+The source file still holds the complete value, and readings validate all of it,
+but `/api/state` sends each row with that field
 omitted; a widget uses `loadDeferred(snapshot, key)` to fetch one row's payload
 using the delivery `watchData` handed it. A request naming a source revision the file
 no longer holds is refused instead of combining a new payload with an old manifest.
@@ -694,54 +718,20 @@ nothing, and the exit status ignores it. The command fails only where the packag
 check does or the examples cannot be drawn; where no browser launches, it says the
 examples were not drawn. Examples share a
 page where their ids allow, so one example may point at an element another declares,
-and a blank image stands in for any media an example names. The checks:
+and a blank image stands in for any media an example names. `--json` prints the
+result as one object in the shape `page check --json` prints, each finding a record
+with its `code`, the element it names as `at`, and the measured `values`; a package
+the check refuses is reported as its one `package` finding. The checks:
 
 - `example`: no worked example shows the tag, so no other check reads it.
 - `keeps-first-box`: the widget's box once the page presents differs from its box at
-  first paint. Upgrade should add behavior and move nothing, so size the widget in
-  the package theme, under `html[data-lf-interactive]`, which Leaf sets before first
-  paint wherever its runtime will run, in a served page or an export, as its module
-  will draw it. Where the module draws a structure of its own whose shape the log does
-  not change, such as a row of count tiles, declare that structure as `x-prepaint`
-  rather than summing its line heights in the theme: delivery writes it into each
-  occurrence for the first paint, the browser sizes and wraps it as it will the
-  drawing, and the module removes it (`:scope > [data-lf-prepaint]`) in the same step
-  that draws its replacement. Where the structure depends on the instance's authored
-  members or remembered tab values, declare `x-initial` instead: the rooted path of a
-  captured classic JavaScript bundle. It registers one synchronous producer with
-  `document.documentElement.lfInitial.register(tag, render)`. Delivery inlines each
-  bundle used by the document once. It holds each outer host in an inert template
-  until its source is complete, then inserts and draws it in one synchronous turn,
-  nested hosts deepest-first. Prose before that host can paint while its source is
-  still arriving; the widget first appears with its complete real structure and values.
-  The parser opens that template only while scripts run; a scripts-disabled reading
-  keeps the single original authored host, with no generated drawing or copied fallback.
-  `render(host, {tabStore, offer, offerElement, keeps})` builds the drawing and returns
-  the node references and mechanical state its behavior module needs. It may move
-  authored nodes within its host; Leaf retains their original source and node routes
-  for semantic intake, anchoring fences, and version comparison. Its `keeps` is the
-  helper surface's attribute door, for a later pass over nodes already drawn. The producer does
-  no asynchronous or network work and consumes no log-derived state. The module
-  calls `initialRender(host)` from the helper surface:
-  that call adopts the existing drawing, or produces it for a later revision or
-  thread arrival. Leaf loads its declared initial bundle before the behavior module
-  only if it has not already registered. Add behavior to those nodes without rebuilding
-  their structure.
-  The theme styles their actual initial layout; neither the producer nor the module
-  reserves an estimated height. `x-initial` requires `x-upgrade: true` and cannot
-  accompany `x-prepaint`. Build its classic bundle during development and commit it;
-  installation, serving, and export run the captured bundle without a compiler.
-  Where the markup cannot say how tall the drawing will
-  be, declare `x-height`, add the class `lf-rendered` once the drawing is in, and
-  draw at the stated height where the drawing can take any; `page check --render`
-  advises a page's author the height to state for one that cannot. Where the widget
-  shows one of its members at a time, declare `x-views`, open on `openingView`'s
-  member, and show only the member marked `data-lf-opening` until the module upgrades
-  the element, as `lf-tabs` does. A widget holding
-  others is named only for the change left once the changed widgets inside it are put
-  back to their first sizes. An inline widget's old lines are more than a size, so a
-  widget holding a changed inline one is named beside it. A widget the page hides once
-  presented, such as an inactive tab, is left to the widget that hid it.
+  first paint. Size the widget for first paint as
+  [module-authoring.md, "First paint"](module-authoring.md#first-paint) describes. A
+  widget holding others is named only for the change left once the changed widgets
+  inside it are put back to their first sizes. An inline widget's old lines are more
+  than a size, so a widget holding a changed inline one is named beside it. A widget
+  the page hides once presented, such as an inactive tab, is left to the widget that
+  hid it.
 - `grows-with-content`: a box in the widget holds its own height and scrolls inside
   it. In ordinary flow a widget grows with what it holds, and a long one is read in
   the page's scroll (`page-authoring.md`, "Bounds and widths"). The check names a box
@@ -760,7 +750,7 @@ and a blank image stands in for any media an example names. The checks:
   command a face, or ask for a corner badge with `bindingBadge: null`
   (module-authoring.md, "Commands and keyboard routes"). The check reads the commands
   the example declares, so a command only another state declares, such as a
-  multiple-choice Question's Done, needs an example in that state to be read.
+  multiple-choice ask's Done, needs an example in that state to be read.
 
 After `leaf page init` re-vendors the page (`serving-pages.md`, "Re-vendoring and
 layer epochs"), run `leaf page check <page> --render` on the version that uses

@@ -1,8 +1,27 @@
 /* This module owns declared shadow roots, the shadow.css rules they render under, and
  * the shared highlight rules. */
-import { tagsDeclaring } from "./registry.js";
-import { shadowHost, upFrom, renderedParent } from "./shadow-tree.js";
-export { shadowHost, upFrom, renderedParent };
+import { registry, tagsDeclaring } from "./registry.js";
+import {
+  byRenderedOrder,
+  composedParentNode,
+  nativeLayerKind,
+  renderedOrder,
+  renderedParent,
+  renderedUnder,
+  shadowHost,
+  under,
+  upFrom,
+} from "./shadow-tree.js";
+export {
+  byRenderedOrder,
+  composedParentNode,
+  renderedOrder,
+  renderedParent,
+  renderedUnder,
+  shadowHost,
+  under,
+  upFrom,
+};
 
 // The open shadow roots under some root that hold the page's own words, from what the
 // registry declares rather than from a sweep of every element: an x-shadow widget is
@@ -14,23 +33,35 @@ export { shadowHost, upFrom, renderedParent };
 // answer: a message arriving in the panel carries widget markup that upgrades in a
 // subtree, so a pass over that subtree has the same boundary to cross and no document
 // to ask about.
+//
+// A root refused for holding bare text (passages.js, `refusesBareText`) leaves the list for
+// good, so its host reads as one with no declared root: by its own children.
+const refusedRoots = new WeakSet();
+export const refuseShadowRoot = (root) => refusedRoots.add(root);
+// The declared root `host` holds the page's words in, or null.
+export const declaredRoot = (host) =>
+  host.shadowRoot &&
+  registry[host.localName]?.["x-shadow"] &&
+  !refusedRoots.has(host.shadowRoot)
+    ? host.shadowRoot
+    : null;
 export const shadowRootsIn = (root) =>
   tagsDeclaring((entry) => entry["x-shadow"])
     .flatMap((tag) => [
       ...(root.nodeType === Node.ELEMENT_NODE && root.matches(tag) ? [root] : []),
       ...root.querySelectorAll(tag),
     ])
-    .map((host) => host.shadowRoot)
+    .map(declaredRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);
-// Explicit inertness excludes a node through its composed ancestry. A standing native
+// Explicit inertness excludes a node through its composed ancestry. An open native
 // modal escapes inherited inertness outside itself, but an inert modal or descendant
 // remains excluded. Read node kind rather than realm-specific Element: a sample asks
 // this of the frame its containing document holds too.
 export function excludedByInert(node) {
   for (let owner = node; owner; owner = renderedParent(owner)) {
     if (owner.inert) return true;
-    if (owner.nodeType === Node.ELEMENT_NODE && owner.matches(":modal")) break;
+    if (nativeLayerKind(owner) === "modal") break;
   }
   return false;
 }
@@ -40,26 +71,6 @@ export const renderedChildren = (node) =>
   node.localName === "slot"
     ? node.assignedNodes({ flatten: true })
     : (node.shadowRoot ?? node).childNodes;
-// Containment in the rendered tree includes slots and their shadow ancestors.
-export const renderedUnder = (node, root) => {
-  for (let at = node; at; at = renderedParent(at)) if (at === root) return true;
-  return false;
-};
-
-// Which layer a node stands in — the runtime's chrome, a declared label, or the
-// document — is asked by every reading that climbs out of a widget, so it is answered
-// here, beside the climb, where geometry.js and widget-elements.js can ask it without
-// importing the passage readings back.
-// Is `node` inside `root`, or `root` itself? `Element.contains` stops at a shadow
-// boundary and these readings walk through one, so the climb is the same one
-// `closestAcross` makes. The boundary decides whether a quote is found at all: a section
-// holding an x-shadow widget does not `contains` the words that widget renders, so
-// narrowing a search to that section threw away every candidate inside it and the
-// passage resolved to nothing — the anchor captured, the mark never painted.
-export const under = (node, root) => {
-  for (let a = node; a; a = a.parentNode ?? shadowHost(a)) if (a === root) return true;
-  return false;
-};
 
 // What stands for `node` in the tree `root` roots (a Document or a ShadowRoot): the node
 // itself when it is in that tree, else the host of the shadow tree holding it, climbed
@@ -68,11 +79,14 @@ export const under = (node, root) => {
 // questions, which the platform answers only within one tree, are asked of this.
 export const hostIn = (node, root) => {
   let at = node;
-  while (at && Node.prototype.getRootNode.call(at) !== root)
-    at = shadowHost(Node.prototype.getRootNode.call(at));
+  while (at && at.getRootNode() !== root) at = shadowHost(at.getRootNode());
   return at;
 };
 
+// Which layer a node stands in — the runtime's chrome, a declared label, or the
+// document — is asked by every reading that climbs out of a widget, so it is answered
+// here, beside the climb, where geometry.js and widget-elements.js can ask it without
+// importing the passage readings back.
 // The chrome over a node, read within one frame: above the frame it is nobody's, and with
 // no frame at all it is the document's own reading, unchanged.
 export const overIn = (el, selector, frame) => {

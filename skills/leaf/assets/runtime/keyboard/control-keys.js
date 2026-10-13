@@ -2,7 +2,7 @@
 
    A control the keyboard reaches names its shortcut from the row, never from a sentence
    written beside it: `control` is where a row says which control it duplicates, and this
-   projection follows liveness too, so a disabled Question does not advertise a shortcut the
+   projection follows liveness too, so a disabled ask does not advertise a shortcut the
    dispatcher has withdrawn. A row inside a sequence scope carries that sequence's steps,
    so a destination reached through `g` says the whole shortcut.
 
@@ -10,7 +10,7 @@
    in `data-lf-key-title`, and a static control's first title is taken as that name, so
    the owner and this pass never take turns rewriting the one attribute.
 
-   The pass runs in the standing chrome's frame, so every name it writes goes through
+   The pass runs in the fixed chrome's frame, so every name it writes goes through
    `keeps` and says nothing where the control already says it. Restated title or shortcut
    metadata is news to whatever is reading the page — the mutation stream a screen reader
    rebuilds its buffer from — and these controls stand on the banner the margin projection

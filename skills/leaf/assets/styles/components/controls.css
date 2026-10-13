@@ -78,7 +78,7 @@
           background: var(--ink); color: var(--paper); box-shadow: 0 2px 8px var(--shade);
           font: 500 var(--t-6)/1.2 var(--sans); white-space: nowrap; pointer-events: none; }
 /* A reaction surface offers one quiet trigger. It disappears when its list opens;
-   a standing token remains visible in a closed message strip as the user's receipt
+   a token in force remains visible in a closed message strip as the user's receipt
    and eraser. */
 .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .lf-react-open > .lf-react-trigger { display: none; }
@@ -137,7 +137,7 @@
    is not a press outside it, and its anchor, named here since a source sets none. Hung
    below the trigger, or above where the window has no room below, it follows the
    message as the list scrolls, and closes once the trigger is out of view
-   (reactions.js). Closed, it is the strip's own row of standing reactions, in flow,
+   (reactions.js). Closed, it is the strip's own row of reactions in force, in flow,
    so the popover's UA box is taken off; whether it is open is read off the popover
    alone, so a light dismiss leaves no frame between. */
 .lf-react-strip > .lf-react-palette[popover] {
@@ -298,7 +298,7 @@
    one thing.
 
    The gap is its own, because these shapes stand at different densities and the ring
-   may not reach its neighbour: the standing gap is what a box with room around it
+   may not reach its neighbour: the default gap is what a box with room around it
    takes, the composer's row puts 6px between two buttons, a chip takes 1px below, and
    margin entries sit 4px apart out in the margin.
 

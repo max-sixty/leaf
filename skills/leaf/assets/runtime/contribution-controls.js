@@ -2,17 +2,11 @@
    retains their command scopes and presented controls, independently of the renderer
    that seats them. Every projection uses this directory for control, focus and
    containment, so a producer updates one registration whichever surface shows it. */
-import {
-  Directive,
-  PartType,
-  directive,
-  html,
-  nothing,
-  render,
-} from "../vendor/browser-runtime.js";
+import { html, render } from "../vendor/browser-runtime.js";
 import { iconElement } from "./icons.js";
-import { offer } from "./widget-elements.js";
+import { elementDirective, offer } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
+import { pressIsKeyboardActivation } from "./pointer.js";
 import { focusDestination } from "./focus.js";
 import { agentArrivalDuration, reducedMotion } from "./motion.js";
 import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
@@ -234,7 +228,7 @@ function syncAgentDescriptionBase(control, description, title) {
   paintAgentDescription(control);
 }
 
-export function syncContributionAgentWorkflow(control, receipt) {
+function syncContributionAgentWorkflow(control, receipt) {
   const workflowStage = receipt?.stage ?? null;
   const stage = workflowStage === "replying" ? "working" : workflowStage;
   const paintedStage =
@@ -264,7 +258,7 @@ export function syncContributionSelection(control, selected) {
 // carrier that stops waiting loses it rather than keeping a stale colour. Only the
 // user's turn is named, because that is the one a page has to point at; a thread with
 // the agent already says so through pickup and work.
-export function syncContributionTurn(control, awaitsUser) {
+function syncContributionTurn(control, awaitsUser) {
   keeps(control, "data-lf-turn", awaitsUser ? "user" : null);
 }
 
@@ -294,8 +288,6 @@ export function presentContributionHost(
     writesSeat = true,
   } = {},
 ) {
-  if (!(control instanceof Element))
-    throw new TypeError("A margin presentation needs an Element control");
   const record = isContributionEntry(offered) ? offered : contributionEntry(offered);
   if (control instanceof HTMLButtonElement && record.behavior === "status")
     throw new TypeError("A status margin entry needs a stable span host");
@@ -365,53 +357,35 @@ export function presentContributionHost(
   return record;
 }
 
-// Template hosts use the same writer as retained margin controls. Templates own the
-// body and event bindings; this directive owns the record's host attributes and scope.
-export const contributionHost = directive(
-  class extends Directive {
-    constructor(part) {
-      super(part);
-      if (part.type !== PartType.ELEMENT)
-        throw new TypeError("contributionHost belongs in a template's element part");
-    }
-    render() {
-      return nothing;
-    }
-    update(part, [record, options, paint]) {
-      presentContributionHost(part.element, record, options);
-      paint?.(part.element);
-      return nothing;
-    }
+// Template hosts use the same writer as retained margin controls, and are tracked on
+// their surface as every presented control is: `${contributionHost(source, "map",
+// record, options)}`. Templates own the body and event bindings; this directive owns
+// the record's host attributes and scope.
+export const contributionHost = elementDirective(
+  "contributionHost",
+  (control, source, surface, record, options) => {
+    presentContributionHost(control, record, options);
+    trackContributionControl(source, surface, record.key, control);
   },
 );
 
-// Items and entry hosts share receipt paint, independently of entry semantics.
-export const contributionReceipts = directive(
-  class extends Directive {
-    constructor(part) {
-      super(part);
-      if (part.type !== PartType.ELEMENT)
-        throw new TypeError(
-          "contributionReceipts belongs in a template's element part",
-        );
-    }
-    render() {
-      return nothing;
-    }
-    update(part, [receipt, awaitsUser]) {
-      syncContributionAgentWorkflow(part.element, receipt);
-      syncContributionTurn(part.element, awaitsUser);
-      return nothing;
-    }
-  },
+// A control's receipts are seat state, not entry semantics: the seat that shows a
+// control paints what its projection chose, on every pass, so a control keeps no
+// receipt from the seat or the projection it last stood in. Retained controls call
+// it directly; templates bind `${contributionReceipts(receipt, awaitsUser)}`.
+export function presentContributionReceipts(control, receipt, awaitsUser) {
+  syncContributionAgentWorkflow(control, receipt);
+  syncContributionTurn(control, awaitsUser);
+}
+export const contributionReceipts = elementDirective(
+  "contributionReceipts",
+  presentContributionReceipts,
 );
 
 export function presentContributionEntry(control, offered, options = {}) {
   const record = presentContributionHost(control, offered, options);
   if (Object.hasOwn(options, "selected"))
     syncContributionSelection(control, options.selected);
-  if (Object.hasOwn(options, "awaitsUser"))
-    syncContributionTurn(control, options.awaitsUser);
   control.classList.toggle("lf-margin-entry", true);
   const priorClasses = contributorClasses.get(control) ?? [];
   const nextClasses = record.className?.split(/\s+/).filter(Boolean) ?? [];
@@ -442,8 +416,6 @@ export function presentContributionEntry(control, offered, options = {}) {
       }`,
     control,
   );
-  if (record.workflowReceipt !== undefined)
-    syncContributionAgentWorkflow(control, record.workflowReceipt);
   return control;
 }
 
@@ -520,7 +492,7 @@ export function activateContributionControl(
   return offered.registration.activate(entry.key, {
     origin: control,
     surface,
-    input: event.detail === 0 ? "keyboard" : "pointer",
+    input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer",
     focus: (key) => {
       const destination = offered.registration.control(key, surface, true);
       if (!destination) return false;

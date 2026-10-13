@@ -9,6 +9,7 @@ process may have removed or replaced the shared path while it was opening it.
 """
 
 import contextlib
+import fcntl
 import functools
 import os
 import signal
@@ -23,15 +24,9 @@ from leaf.state import (
     HOOKS_SUFFIX,
     STEP_HOOK_SUFFIX,
     TITLES_SUFFIX,
-    require_cross_process_locking,
     session_file,
     still_named,
 )
-
-try:
-    import fcntl
-except ImportError:  # pragma: no cover - rejected before a lease is read or taken
-    fcntl = None
 
 
 def lock_is_held(path: Path) -> bool:
@@ -45,7 +40,6 @@ def lock_is_held(path: Path) -> bool:
     answered by another reading's probe as readily as by a lease, so two
     processes asking at once would tell each other a lease was held.
     """
-    require_cross_process_locking()
     try:
         with open(path, "r+b") as probe:
             try:
@@ -80,7 +74,6 @@ def take_lease(path: Path, *, prepare: Callable[[BinaryIO], None] | None = None)
     The caller serializes those preparations; promotion waits for the momentary
     shared probes rather than refusing a legitimate lease.
     """
-    require_cross_process_locking()
     while True:
         record = open(path, "a+b")  # noqa: SIM115 - returned and held by the caller
         if prepare is not None:
@@ -127,14 +120,37 @@ def release_lease(lease) -> None:
     lease.close()
 
 
+# The terminating signal this process received, kept for `end_if_terminated`.
+_terminated: list[int] = []
+
+
 def release_on_termination() -> None:
     """Unwind process-owned resources when SIGTERM or SIGHUP ends a command.
 
     Kernel leases release even without unwinding, but a command may also own
     reply reservations and pending work that its `finally` blocks must retire.
-    SIGKILL still skips that application cleanup."""
+    SIGKILL still skips that application cleanup.
+
+    The handler raises the exit wherever the main thread is, since only a raise
+    ends a blocked lock or condition wait; a handler that returns resumes it.
+    Python discards a raise that lands in a weakref callback, `__del__` or a GC
+    callback, such as a page memory's finalizer joining its watcher threads, so
+    the handler also records the signal, and each loop that blocks under it calls
+    `end_if_terminated` before it waits."""
     for terminating in (signal.SIGTERM, signal.SIGHUP):
-        signal.signal(terminating, lambda signum, _frame: sys.exit(128 + signum))
+        signal.signal(terminating, _terminate)
+
+
+def _terminate(signum: int, _frame) -> None:
+    _terminated.append(signum)
+    sys.exit(128 + signum)
+
+
+def end_if_terminated() -> None:
+    """Exit as `release_on_termination`'s handler would have, if its raise was
+    lost."""
+    if _terminated:
+        sys.exit(128 + _terminated[0])
 
 
 @contextlib.contextmanager
@@ -149,7 +165,6 @@ def page_locked(page_dir: Path):
     it. A page deleted and made again at its path while this waited is another
     directory, so the lock is taken again on whichever the path names once it is
     held; a page deleted for good raises FileNotFoundError."""
-    require_cross_process_locking()
     while True:
         held = os.open(page_dir, os.O_RDONLY | os.O_DIRECTORY)
         try:

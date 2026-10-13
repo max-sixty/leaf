@@ -1,11 +1,11 @@
 /* An obligation's subject, shared by the Questions panel and package lists.
    Membership remains with the publisher. A title reads the current conversation
-   or the rendered Question/widget it names, without interpreting events. */
+   or the rendered ask/widget it names, without interpreting events. */
 import { addressableLabel } from "./addressable-names.js";
 import { elementById } from "./passages.js";
-import { questionHolding } from "./standing-target.js";
-import { questionPlace } from "./questions/place.js";
-import { readQuestions } from "./questions/model.js";
+import { askHolding } from "./standing-target.js";
+import { askPlace } from "./asks/place.js";
+import { readAsks } from "./asks/model.js";
 import { readThreads } from "./thread/state.js";
 import { threadSummary } from "./thread/model.js";
 
@@ -16,9 +16,9 @@ export function queueTitle(item) {
   if (item.title) return item.title;
   if (item.kind === "work" && item.detail) return item.detail;
   if (item.subject.kind === "widget") {
-    const question = own && questionHolding(readQuestions().all, own);
+    const ask = own && askHolding(readAsks().all, own);
     return (
-      (question && addressableLabel(questionPlace(question).context)) ||
+      (ask && addressableLabel(askPlace(ask).context)) ||
       addressableLabel(own) ||
       topic ||
       item.id

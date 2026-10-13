@@ -47,7 +47,7 @@ Undo is one-way. Nothing puts back what an undo took:
 - The append door's `UndoReading.error` (`events.py`) refuses an undo whose
   target isn't an unwithdrawn gesture of the user's own, so an undo can't name an
   undo. `UNDOABLE_KINDS` (`skills/leaf/scripts/leaf/schema.py`) is resolve,
-  unresolve, action, done, and task_end; an unanswered reaction is also undoable.
+  unresolve, action, done, and todo_end; an unanswered reaction is also undoable.
 - `events.md` states "An undo cannot itself be undone."
 
 ## The candidates
@@ -111,11 +111,11 @@ Ctrl-R" (newest + name + redo), "Show, then take, with redo", and "Changes panel
 
 ## Redo in the event model
 
-Redo is an `undo` naming the user's own standing `undo`. Nothing leaves the log
+Redo is an `undo` naming the user's own `undo` in force. Nothing leaves the log
 and no counter-event is invented, so the root `AGENTS.md` invariant ("An `undo`
 event names the gesture withdrawn; it never deletes or invents a counter-event")
 holds as written. `taken_back` changes so that an undo counts only while no
-standing undo names it, which makes it a parity fold over the chain rather than a
+undo in force names it, which makes it a parity fold over the chain rather than a
 flat set.
 
 It has three costs:
@@ -140,7 +140,7 @@ It has three costs:
    cancelling out") needs a clause for a redo.
 
 The rest of the redo change: `UndoReading.error` admits an undo naming the user's
-own standing undo when folding without it changes the page; `document.py` serves a
+own undo in force when folding without it changes the page; `document.py` serves a
 redo list; `projection/model.js` lets a local redo override the server's reading
 that the target is withdrawn, as a pending forward action does; `undo.js`
 binds `Z`; `lf-activity.js`'s "undone" label
@@ -149,7 +149,7 @@ binds `Z`; `lf-activity.js`'s "undone" label
 
 Vim's undo tree is a different thing: `g-` and `g+` restore any past state,
 superseded branches included, where this redo restores only what would still
-show. The Changes panel offers selective undo instead, any standing gesture in any
+show. The Changes panel offers selective undo instead, any gesture in force in any
 order.
 
 ## The playground

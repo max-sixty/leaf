@@ -3,7 +3,9 @@
    A package names a stable Thread key and the meaning of its gesture; this owner
    resolves the current message target and constructs the event. Core controls call
    these same commands. The application ledger remains the one optimistic and
-   admission path, so a stale or unavailable command returns null. */
+   admission path, so a stale or unavailable command returns null. A new comment
+   defaults to the active revision; a resumed draft supplies the revision captured
+   with its anchor, even after the active document has changed. */
 import { randomId } from "../ids.js";
 import { editable } from "./model.js";
 import { readThreads } from "./state.js";
@@ -19,20 +21,17 @@ export function createThreadActions({
     const {
       text,
       anchor,
+      revision = currentRevision(),
       attempt = randomId(),
       holds,
       about,
       drawing,
       suggestion,
     } = command;
-    if (text !== undefined && typeof text !== "string")
-      throw new TypeError("A Thread comment needs text");
-    if (typeof attempt !== "string" || !attempt)
-      throw new TypeError("A Thread comment attempt must be a non-empty string");
     if (!text && !drawing) return null;
     const delivery = post({
       kind: "comment",
-      revision: currentRevision(),
+      revision,
       ...(text !== undefined && { text }),
       ...(anchor !== undefined && { anchor: structuredClone(anchor) }),
       ...(attempt !== undefined && { attempt }),
@@ -43,18 +42,12 @@ export function createThreadActions({
     });
     return delivery ? Object.freeze({ key: attempt, delivery }) : null;
   };
-  const find = (key) => {
-    const collection = readThreads();
-    return collection.phase === "ready"
-      ? collection.threads.find((thread) => thread.key === key)
-      : null;
-  };
+  // A visible local thread is a current root while saved history is loading too.
+  // Its replies and settlement use the same ledger dependency on that opening send.
+  const find = (key) => readThreads().threads.find((thread) => thread.key === key);
 
   const reply = (key, text, { attempt } = {}) => {
-    if (typeof text !== "string") throw new TypeError("A Thread reply needs text");
     if (!text) return null;
-    if (attempt !== undefined && (typeof attempt !== "string" || !attempt))
-      throw new TypeError("A Thread reply attempt must be a non-empty string");
     const thread = find(key);
     if (!thread?.offers.reply) return null;
     return post({
@@ -69,8 +62,6 @@ export function createThreadActions({
   // The user rewriting a message of their own (`message-edit.js`), written over the
   // revision `base` names. Words the message already says, and none, send nothing.
   const edit = (key, messageId, text, { attempt, base } = {}) => {
-    if (typeof text !== "string") throw new TypeError("A message edit needs text");
-    if (typeof base !== "string") throw new TypeError("A message edit needs its base");
     const thread = find(key);
     if (!thread || thread.settling) return null;
     const message = thread.msgs.find((item) => item.id === messageId);
@@ -100,13 +91,13 @@ export function createThreadActions({
   // reading. A concurrent change that already achieved it sends nothing.
   const setReaction = (key, messageKey, token, active) => {
     if (typeof active !== "boolean")
-      throw new TypeError("A reaction needs its desired standing state");
+      throw new TypeError("A reaction needs its desired state");
     const thread = find(key);
     const message = thread?.msgs.find((item) => item.key === messageKey);
     const choice =
       message && message.reactions?.choices.find((item) => item.name === token);
-    if (!choice || active === Boolean(choice.standing)) return null;
-    if (choice.standing) return withdraw(choice.standing);
+    if (!choice || active === Boolean(choice.inForce)) return null;
+    if (choice.inForce) return withdraw(choice.inForce);
     return sendReaction(
       {
         kind: "reply",

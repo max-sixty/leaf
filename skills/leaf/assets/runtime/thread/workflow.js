@@ -4,8 +4,8 @@
    an input, and derives each thread's attention from them. It also serves which thread
    each workflow stands in (`thread`), whether it holds that thread the agent's turn
    (`holds_thread`), and the workflows strongest first (`served_workflows`). The
-   application publisher adds the unresolved local send, with the attention it implies,
-   after the served ones. Every message, compact thread row and margin entry reads
+   application publisher adds the unresolved local send after the served ones; only a
+   thread the user opened takes its attention from it. Every message, compact thread row and margin entry reads
    these values; none reclassifies receipts, streams, turn ownership, whose turn a
    thread is, or which workflow is stronger. `strongestWorkflow` only places this tab's
    own sends against the served order. */
@@ -81,7 +81,7 @@ export function threadAttention(thread) {
       ) ?? null)
     : null;
   if (thread.attention?.kind === "needs_user") {
-    const answering = thread.attention.reason === "question";
+    const answering = thread.attention.reason === "ask";
     const nextMove = answering
       ? "answer"
       : workflow?.subject.kind === "thread"
@@ -97,21 +97,21 @@ export function threadAttention(thread) {
     );
     return Object.freeze({
       kind: "needs_user",
-      label: `On you to ${nextMove}`,
+      label: `My turn to ${nextMove}`,
       workflow,
       secondary: [answering ? "" : workflowLabel(workflow), workflowLabel(secondary)]
         .filter(Boolean)
         .join(" · "),
     });
   }
-  // A task the agent opened on the thread holds it after the update it answered has
+  // A to-do the agent opened on the thread holds it after the update it answered has
   // settled; its title says what the agent still owes, and while a start runs on it,
   // that start's line says what the agent is doing about it.
-  if (thread.attention?.kind === "waiting" && thread.attention.reason === "task") {
-    const { title, line } = thread.attention.task;
+  if (thread.attention?.kind === "waiting" && thread.attention.reason === "todo") {
+    const { title, line } = thread.attention.todo;
     return Object.freeze({
       kind: "waiting",
-      label: line ? "Working" : "Task open",
+      label: line ? "Working" : "To-do open",
       workflow: null,
       secondary: line ?? title,
     });

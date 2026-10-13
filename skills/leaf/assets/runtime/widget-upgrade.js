@@ -7,7 +7,8 @@
    asynchronous presentation. */
 import { reportPageError } from "./layer-client.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { render, replaceChildren } from "./dom-children.js";
+import { render } from "../vendor/browser-runtime.js";
+import { shadowStage } from "./shadow-stage.js";
 
 const initialized = new WeakSet();
 
@@ -44,15 +45,22 @@ export const bodyText = (el) => dataBody(el).replace(/^\n+/, "").trimEnd();
 // fails on wherever it runs the page. Both name the widget the failing element belongs to, and the report adds its
 // id, since that is how the agent finds it.
 export function failSoft(el, err, source) {
+  reportFailure(el, err);
+  showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`, source);
+}
+
+// The report alone, for a widget that shows a part's failure its own way, such as a
+// diff file whose patch it cannot draw beside the files it can.
+export function reportFailure(el, err) {
   const owner = widgetOf(el);
-  const tag = owner.localName;
-  const message = err?.message || err;
-  reportPageError(err, `<${tag}${owner.id ? ` id="${owner.id}"` : ""}> failed`);
-  showFailure(el, `<${tag}> failed: ${message}`, source);
+  reportPageError(
+    err,
+    `<${owner.localName}${owner.id ? ` id="${owner.id}"` : ""}> failed`,
+  );
 }
 
 // The box alone, for the presentation coordinator's fallback: the coordinator reports
-// every failure it falls back from itself, so this path must not report it again.
+// any failure it falls back from that no paint reported, so this path reports nothing.
 export function failSoftUnreported(el, err) {
   showFailure(el, `<${widgetOf(el).localName}> failed: ${err?.message || err}`);
 }
@@ -73,8 +81,26 @@ function showFailure(el, text, source) {
     pre.textContent = source;
     box.append(pre);
   }
-  // A native renderer may have recovered since the previous error, or moved its
-  // error nodes into a shadow stage. Discard that part before starting this fallback.
-  replaceChildren(el);
+  // An x-shadow widget shows only what its stage holds, so the box stands there, and
+  // the widget's next stage replaces it.
+  if (el.shadowRoot) {
+    shadowStage(el, [box]);
+    return;
+  }
+  // Rendered as a template value, so the widget's next template render replaces it.
+  // A native renderer may have replaced the children since a template last owned them,
+  // leaving Lit's cached part pointing at markers no longer here.
+  releaseTemplate(el);
+  el.replaceChildren();
   render(box, el);
+}
+
+// End a template's ownership of `el`: Lit's public RootPart.setConnected(false)
+// disconnects its directives, but render() has no public reset, so its pinned,
+// deliberately unminified cache key goes too, letting the next render start afresh.
+function releaseTemplate(el) {
+  const part = el._$litPart$;
+  if (!part) return;
+  part.setConnected(false);
+  delete el._$litPart$;
 }

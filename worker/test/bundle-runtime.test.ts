@@ -40,7 +40,6 @@ describe("published runtime bundle", () => {
         'export const moduleUrl = import.meta . url; export const prose = "import.meta.url";',
       );
       for (const entry of [
-        "interaction-gallery-frame",
         "layer-client",
         "media",
         "widget-api",

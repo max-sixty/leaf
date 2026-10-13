@@ -4,8 +4,11 @@
    `renderThreads` drives, receipt updates among them, and the disclosure the browser
    drives when a user opens a card and the named group closes the one that was open.
    The hold is `user-place.js`'s, keyed by each card's thread; this module decides only
-   which changes take one. A resolution fold is followed frame by frame until it ends,
-   and its completion removes its node through `renderThreads`, under the same hold.
+   which changes take one. The open conversation stays the list's reading place even
+   when its title has scrolled above the visible band; a later card the user names by
+   pointer or focus takes precedence. A resolution fold is followed frame by frame
+   until it ends, and its completion removes its node through `renderThreads`, under
+   the same hold.
    A new agent turn, or growth of the last one, follows while the user has not named
    another card and the previous last message is visible in the panel's landing band.
    Where the list scrolls, that thread's tail must still reach the landing edge.
@@ -58,36 +61,13 @@ import { inPageOrder, inRecentOrder, pageOutline, threadSection } from "./placem
 import { threadSearchReading } from "./narrowing.js";
 import { threadReading } from "./thread-card.js";
 
-// A failed candidate can leave a coherent list on screen; the outer thread paint
-// promotes the retained proof only after its sibling surfaces have finished.
-export class RetainedThreadListError extends Error {
-  constructor(reason, proof) {
-    super(reason?.message ?? String(reason), { cause: reason });
-    this.name = "RetainedThreadListError";
-    this.proof = proof;
-  }
-}
-
-export function retainedThreadListProof(reason) {
-  if (!(reason instanceof RetainedThreadListError)) throw reason;
-  return reason.proof;
-}
-
-// The open threads, in the order t/T walk either surface. The panel's children are the
-// canonical list: folding a settled thread renames it out of this list in that frame.
-// With the panel shut the walk is the page's, whichever order the panel was left in.
+// A folding card is renamed out of the list's cards in the frame its thread settles.
 export function createThreadListController({ panel, threadsBox, narrowingView }) {
-  const openThreads = ({
-    visibleOnly = true,
-    panelOpen = threadsBox.checkVisibility(),
-  } = {}) => {
-    const threads = [...threadsBox.querySelectorAll(":scope > .lf-thread")].filter(
-      (thread) =>
-        (!visibleOnly || !thread.hidden) &&
-        (panelOpen || thread.dataset.resolved !== "true"),
+  const threadCards = () => [...threadsBox.querySelectorAll(":scope > .lf-thread")];
+  const openThreadsInPageOrder = () =>
+    threadsBox.inPageOrder(
+      threadCards().filter((thread) => thread.dataset.resolved !== "true"),
     );
-    return panelOpen ? threads : threadsBox.inPageOrder(threads);
-  };
 
   const emptyText =
     "No threads yet. Select any text on the page to comment on it, or comment on the whole page from the banner.";
@@ -114,7 +94,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // The list's place through every change to its content (user-place.js). A card is
   // rendered under its thread's root id, so a card the render rebuilt hands the place to
   // its successor node, and a folding card, renamed out of `.lf-thread`, hands it to the
-  // next card still standing.
+  // next card still present.
   let place = null;
   const listPlace = (panelIsOpen) =>
     (place ??= placeKeeper(threadsBox, {
@@ -178,10 +158,11 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     if (by > 0) threadsBox.scrollBy({ top: by, behavior: "instant" });
   }
 
-  const rowModel = (all, commands) => {
+  const rowModel = (collection, commands) => {
     // The threads. A bare reaction is paint on the page and a chip on the page
     // row, and counts for nothing here: no card, no destination, no place in the walk.
-    const threads = all.filter(discussed);
+    const threads = collection.threads.filter(discussed);
+    const ready = collection.phase === "ready";
     const open = threads.filter((t) => !t.resolved);
     // The page's outline, read once for the whole reconcile: every thread asks it which
     // part of the page it stands in, which the narrowing's search and Placement read.
@@ -203,7 +184,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     // and go on saying what the log says. What the panel shows is the panel's business,
     // and so is the order it shows it in. The page's order is kept either way for the
     // walk with the panel shut.
-    const narrowing = commands.narrowing.model(threads, places);
+    const narrowing = commands.narrowing.model(threads, places, ready);
     const kept = new Map(
       threads
         .filter((thread) => !narrowing.shown.includes(thread))
@@ -278,18 +259,32 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     }
     // The list says it shows nothing only where no card or kept room stands.
     if (!rows.some((row) => row.kind === "withdrawn")) {
-      if (!threads.length)
+      if (ready && !threads.length)
         rows.unshift(Object.freeze({ kind: "empty", key: "empty", text: emptyText }));
-      else if (!shown.length)
+      else if (threads.length && !shown.length)
         rows.unshift(
           Object.freeze({ kind: "empty", key: "no-match", text: narrowing.emptyText }),
         );
     }
+    // A local send is a real row while history loads, but it says nothing about the
+    // saved inventory. Keep that uncertainty after the known cards, so its removal
+    // cannot carry them up when the list has no scroll room to absorb the change.
+    if (!ready)
+      rows.push(
+        Object.freeze({
+          kind: "empty",
+          key: "history",
+          text:
+            collection.phase === "offline"
+              ? "Current threads are unavailable while the server is offline."
+              : "Loading current threads…",
+        }),
+      );
     return Object.freeze({
       rows: Object.freeze(rows),
       intent: narrowing.intent,
-      count: open.length,
-      unread: threads.filter((t) => t.unread.length).length,
+      count: ready ? open.length : null,
+      unread: ready ? threads.filter((t) => t.unread.length).length : null,
       narrowing: narrowing.presentation,
       pageSeats: new Map(inPage.map((t, i) => [t.id, i])),
     });
@@ -300,7 +295,6 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       {
         card: {
           ...commands.card,
-          openThreads,
           listRoot: threadsBox,
           repaintThread: commands.repaintThread,
         },
@@ -339,6 +333,8 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     if (current()) reachScrollers(threadsBox);
   }
 
+  // A renderer exception puts the committed list back, so the panel stands on a coherent
+  // tree while the failure leaves its region pending.
   async function retainCommitted(current, candidate, reason) {
     if (!current()) return;
     try {
@@ -351,53 +347,22 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     }
   }
 
-  // A renderer exception can be transient (for example, a custom element upgrading in
-  // the same turn). Restore the committed list before one retry so a second render starts
-  // from a coherent tree. Only a retry that fully paints the candidate can prove the
-  // surrounding thread reading; a second failure leaves the region pending.
-  async function presentList(model, current) {
-    try {
-      if (!(await threadsBox.present(model)) || !current()) return null;
-      return { recovered: null };
-    } catch (error) {
-      if (!current()) return null;
-      await retainCommitted(current, model, error);
-      if (!current()) return null;
-      try {
-        if (!(await threadsBox.present(model)) || !current()) return null;
-      } catch (retrying) {
-        if (!current()) return null;
-        const failure = new AggregateError(
-          [error, retrying],
-          "Thread list presentation retry failed",
-        );
-        await retainCommitted(current, model, failure);
-        throw failure;
-      }
-      return { recovered: error };
-    }
-  }
-
   // The Lit update, its geometry-dependent paint, and newly connected frozen widgets are
   // one proof for the existing thread presentation ticket. Only the newest call can
   // run post-paint work, capture authored values, or commit a fallback.
   async function renderThreads(collection, commands) {
-    const all = collection.threads;
     const generation = ++renderGeneration;
     const current = () => generation === renderGeneration;
-    let reading = rowModel(all, commands);
+    let reading = rowModel(collection, commands);
     configureList(commands);
     const hold = takeScrollHold(commands.panelIsOpen);
     const incoming = incomingAtLatest(reading, commands.panelIsOpen, hold?.named);
     let held = true;
-    let recovered = null;
     try {
-      const candidate = await presentList(reading, current);
-      if (!candidate) return;
-      recovered = candidate.recovered;
+      if (!(await threadsBox.present(reading)) || !current()) return;
       // Newly connected frozen markup can supply the words a different thread's
       // quote names. Re-derive that batch reading through the same descriptor owner.
-      const connected = rowModel(all, commands);
+      const connected = rowModel(collection, commands);
       const changedQuotes = connected.rows.some((row, index) => {
         if (row.kind !== "thread") return false;
         const prior = reading.rows[index];
@@ -409,9 +374,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       });
       if (changedQuotes) {
         reading = connected;
-        const refreshed = await presentList(reading, current);
-        if (!refreshed) return;
-        recovered ??= refreshed.recovered;
+        if (!(await threadsBox.present(reading)) || !current()) return;
       }
       // The surrounding thread batch commits this complete list with its sibling
       // seats. Frozen descendants already entered the application as authored source;
@@ -431,36 +394,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     } finally {
       if (held) finishScrollHold(hold, commands.panelIsOpen);
     }
-    return {
-      recovered,
-      proof: threadsBox,
-      commit: () => threadsBox.commit(reading),
-    };
-  }
-
-  async function renderThreadListUnavailable(text, commands) {
-    const generation = ++renderGeneration;
-    const current = () => generation === renderGeneration;
-    configureList(commands);
-    const model = Object.freeze({
-      rows: Object.freeze([Object.freeze({ kind: "empty", key: "unavailable", text })]),
-      count: null,
-      narrowing: commands.narrowing.model([], new Map()).presentation,
-      pageSeats: new Map(),
-    });
-    const hold = takeScrollHold(commands.panelIsOpen);
-    let recovered = null;
-    try {
-      const candidate = await presentList(model, current);
-      if (!candidate) return;
-      recovered = candidate.recovered;
-    } catch (error) {
-      await retainCommitted(current, model, error);
-      throw error;
-    } finally {
-      finishScrollHold(hold, commands.panelIsOpen);
-    }
-    return { recovered, proof: threadsBox, commit: () => threadsBox.commit(model) };
+    return { commit: () => threadsBox.commit(reading) };
   }
 
   const cancel = () => {
@@ -473,9 +407,9 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   }
 
   return {
-    openThreads,
+    threadCards,
+    openThreadsInPageOrder,
     renderThreads,
-    renderThreadListUnavailable,
     restoreThreadList,
     cancel,
   };

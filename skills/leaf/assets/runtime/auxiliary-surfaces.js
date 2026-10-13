@@ -8,6 +8,8 @@
    changes the page's geometry. A surface whose rows need the first server reading
    declares presentation-time arrival, so its rendering and covering boundary wait for
    that reading.
+   A delayed restored surface keeps document-arrival intent: newer input supersedes
+   that arrival, so saved chrome cannot cover a page the reader has begun using.
 
    Selecting a surface ordinarily keeps the user's place beside it. A navigation
    activation requests `focus` and enters the surface's declared destination; the
@@ -22,7 +24,7 @@
    The selected surface is seated in one native dialog, nonmodal beside the page and
    modal where it covers. Its actual nodes and the chrome foreground permitted above
    the scrim have permanent homes in that dialog: changing posture never disconnects
-   editors, disclosures, embedded documents or standing native layers. The browser excludes
+   editors, disclosures, embedded documents or open native layers. The browser excludes
    every background subtree, including one a page revision adds. The retained visual
    scrim stays inside the dialog so page and chrome targeting keep their paint planes.
 
@@ -36,26 +38,28 @@
    `data-lf-over-covering` for the stylesheet to raise it over the scrim and the
    surface. The thread panel carries its own foot, and the band yields to it instead.
 
-   Native modality owns background pointer and programmatic-focus exclusion. This owner
-   keeps the existing Tab wrap, because native forward Tab can leave for browser chrome,
-   and suppresses native opening focus while a restored sample has no document focus.
-   Boundary focus returns to the retained surface, so delegated focus keeps its reading
-   position. Explicit navigation still enters the surface's declared destination.
-   Entering the covering boundary dismisses pre-existing outside popovers. Native dialogs
-   and popovers opened inside the foreground then join the browser's own layer order. */
+   Native modality owns background pointer, programmatic-focus and Tab exclusion: Tab
+   walks the covering surface and the foreground standing live over the scrim with it,
+   in the browser's own order. This owner suppresses native opening focus while a
+   restored sample has no document focus. Boundary focus returns to the retained surface, so delegated focus
+   keeps its reading position. Explicit navigation still enters the surface's declared
+   destination. Entering the covering boundary dismisses pre-existing popovers outside
+   the surface, before the envelope's descendants are re-seated over the new floor.
+   Native dialogs and popovers opened inside the foreground then join the browser's own
+   layer order. */
 
 import {
-  openPopovers,
+  dismissPopoversOutside,
   transitionNativeAncestor,
   showNativeLayer,
   closeNativeLayer,
 } from "./keyboard/layer-stack.js";
+import { nativeLayerHolding, nativeLayerKind } from "./shadow-tree.js";
 import { registerCoveringAuxiliarySurface } from "./keyboard/register.js";
 import { hides, placeHolder } from "./geometry.js";
 import { under } from "./shadow.js";
 import {
   deepFocus,
-  tabStops,
   holdFocus,
   focusDestination,
   closeLayer,
@@ -65,6 +69,7 @@ import {
 } from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./page-paint.js";
+import { retainUserIntent } from "./user-intent.js";
 import { keeps, keepsHidden } from "./keeps.js";
 import { nextRender } from "./rendering.js";
 
@@ -97,26 +102,25 @@ export function createAuxiliarySurfaces({
   envelope.setAttribute("role", "presentation");
   envelope.append(scrim);
   let active = null;
-  let standing = null;
+  let seated = null;
   let mounted = false;
   let arriving = null;
+  let arrivalIntent = null;
 
   // The node a surface lands the user on, or the surface itself.
   const landingIn = (controller) => controller.landing() ?? controller.surface;
   function seat(selected) {
     const next = selected?.covers() ? selected : null;
-    if (standing === selected && active === next) return;
+    if (seated === selected && active === next) return;
     const previous = active;
     const changedPosture = Boolean(active) !== Boolean(next);
-    if (next)
-      for (const popover of openPopovers())
-        if (!under(popover, next.surface)) closeNativeLayer(popover);
+    if (next) dismissPopoversOutside(next.surface);
     const held = holdFocus(document);
     closeLayer(
       () => {
         if (previous) previous.surface.removeAttribute("data-lf-covered");
         active = next;
-        standing = selected;
+        seated = selected;
         keeps(band, "inert", next && !next.underBand ? "" : null);
         if (next) keeps(next.surface, "data-lf-covered", "");
         if (changedPosture || !envelope.open) {
@@ -141,7 +145,7 @@ export function createAuxiliarySurfaces({
         next &&
         document.hasFocus() &&
         !restored &&
-        !document.activeElement?.closest(":popover-open")
+        nativeLayerKind(nativeLayerHolding(deepFocus())) !== "popover"
       )
         focusDestination(landingIn(next), "return");
     });
@@ -245,6 +249,7 @@ export function createAuxiliarySurfaces({
       !pagePresented()
         ? selected
         : null;
+    arrivalIntent = arriving ? retainUserIntent({ since: 0 }) : null;
     // The native boundary lifts before the previous surface hides, so the focus it
     // hands back lands on a live page. The selected surface takes the boundary at sync.
     if (!selected || arriving || Boolean(active) !== selected.covers()) seat(null);
@@ -276,8 +281,13 @@ export function createAuxiliarySurfaces({
 
   function present() {
     if (!arriving) return;
+    if (!arrivalIntent()) {
+      select(null, { remember: false });
+      return;
+    }
     const surface = arriving;
     arriving = null;
+    arrivalIntent = null;
     surface.show({ phase: "arrival" });
     sync();
     syncLayout();
@@ -289,40 +299,12 @@ export function createAuxiliarySurfaces({
     mounted = true;
     scrim.addEventListener("pointerdown", (event) => event.preventDefault());
     scrim.addEventListener("click", () => select(null));
-    document.addEventListener(
-      "keydown",
-      (event) => {
-        if (
-          !active ||
-          event.key !== "Tab" ||
-          event.altKey ||
-          event.ctrlKey ||
-          event.metaKey
-        )
-          return;
-        const available = tabStops(active.surface);
-        if (!available.length) {
-          event.preventDefault();
-          focusDestination(active.surface, "step");
-          return;
-        }
-        const at = available.indexOf(deepFocus());
-        if (
-          (!event.shiftKey && at === available.length - 1) ||
-          (event.shiftKey && at === 0)
-        ) {
-          event.preventDefault();
-          focusDestination(event.shiftKey ? available.at(-1) : available[0], "step");
-        }
-      },
-      true,
-    );
   }
 
   // Travel that promises to show a destination clears the selected surface hiding it:
   // one covering the page, for anything outside it, or one standing over most of the
   // destination where it lands (geometry.js, `hides`). A destination inside the surface
-  // is the surface's own to show. The one owner of this, so a trip to a thread, a Question
+  // is the surface's own to show. The one owner of this, so a trip to a thread, an ask
   // or a datum each clears whatever surface happens to stand.
   function clearFor(where) {
     const selected = controllers.get(selectedKey);

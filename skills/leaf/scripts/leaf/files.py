@@ -7,7 +7,6 @@ import re
 import sys
 import time
 from collections.abc import Callable, Collection
-from datetime import UTC, datetime
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
 
@@ -296,8 +295,8 @@ def active_descriptor(page_dir: Path, events: list) -> dict | None:
         revision,
         events,
         url=f"/revisions/{path.name}",
-        executable=reading.manifest.get("executable"),
-        activated_at=datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(),
+        executable=reading.manifest["executable"],
+        activated_at=reading.activated_at,
     )
 
 
@@ -306,7 +305,7 @@ def document_descriptor(
     events: list,
     *,
     url: str,
-    executable: str | None,
+    executable: str,
     activated_at: str,
 ) -> dict:
     """One revision's live address, public stamp or draft label, and captured identity.

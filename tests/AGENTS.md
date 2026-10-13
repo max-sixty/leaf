@@ -65,40 +65,87 @@ A plain clone does not fire Worktrunk's creation hook; start its background setu
 
 ```sh
 wt setup
-uv run pytest tests/test_render_widgets.py -q -n0 -k board   # the tests a change needs
+uv run pytest tests/browser/test_render_widgets.py -q -n0 -k board   # the tests a change needs
 pnpm run test:runtime                 # tests/runtime/, under Node
 uv run pytest tests                  # broad selection; the landing gate runs it
 uv run pytest --lf --lfnf=none -x -n0
 uv run pytest --regtest-reset -n0 <node-id>
 ```
 
-A test's tier is named for when CI runs it, and a test runs in the later of the tier
-its marks name and the tier its cost names (`run_tier` in `conftest.py`):
+A test's tier is the directory under `tests/` it lives in, which says which boundary
+it crosses and when CI runs it (`TIERS` in `conftest.py`):
 
-- **The first tier** runs in every run, both landing gates and broad discovery
-  included. It holds the tests that cost under three seconds on CI's runner, about what
-  opening a page costs, and those marked `landing`, which pins a test there whatever it
-  costs; `test_smoke.py` is the browser journeys the gates keep.
-- **`main`** runs on each push to main. It holds the tests that cost under eight
-  seconds, and the cheaper ones marked `main`: mark a test `main` when a pull request
-  can land without it whatever it costs, such as a test that needs the network.
-- **`nightly`** runs only in the daily scheduled run and a manual dispatch. It holds
-  every test over eight seconds, and those marked `nightly`, such as a sweep over the
-  whole example corpus.
+- **`model/`**: nothing outside pytest, such as folds, admission, page files, and the
+  CLI run in process. Every run, both landing gates and broad discovery included.
+- **`process/`**: a real server or subprocess. Every run.
+- **`smoke/`**: the browser journeys both landing gates keep. Every run.
+- **`browser/`**: a browser, its pages and gestures. Each push to main.
+- **`journeys/`**: any test over its directory's budget, as restarts, sweeps over the
+  example corpus and journeys across several pages usually are, and the tests of the
+  site build, which share one build. Only the daily scheduled run and a manual
+  dispatch.
 
-Cost tiers are the user's choice (2026-10-11), replacing the rule that expense alone
-never took a test out of the landing gates: a suite whose gate grows with every test
-stops a pull request's CI and a local landing from keeping pace with the work. A
-change that wants a test back in an earlier tier makes it cheaper rather than marking
-it: `tests/cost_tiers.json` records each test whose cost puts it past the first tier,
-and `leaf-dev cost-tiers` rewrites it from a daily run's report
-(`dev/leaf_dev/cost_tiers.py`), so a faster test moves earlier at the next refresh. A
-new test runs in its marked tier until a refresh measures it.
+A test in `model/` or `process/` takes under three seconds on CI's runner, about what
+opening a page costs, and one in `browser/` under eight (`BUDGETS` in
+`leaf_dev/suite_profile.py`). A new test goes in the directory of the boundary it
+crosses, or in `journeys/` when it is over that budget or must not gate a pull
+request, as a test that needs the external network must not. Mark that dependency
+`network` too. Each `test` job's summary lists the tests over their directory's
+budget and the journeys within the browser budget, and tend's weekly pass moves
+them or makes them faster. A change that wants a test in an earlier tier makes it
+cheaper rather than moving it.
 
-Broad discovery skips both later tiers; `--run-main` adds `main` and `--run-nightly`
-runs every tier. An explicit file, node id, `-k`, `-m`, or `--lf` runs what it names.
+Directory tiers are the user's choice (2026-10-11), replacing the rule that expense
+alone never took a test out of the landing gates: a suite whose gate grows with every
+test stops a pull request's CI and a local landing from keeping pace with the work.
+They replaced a per-test record of measured cost, kept beside the suite and refreshed
+weekly, so that a test's tier shows where it is written.
+
+A subject whose tests cross different boundaries has a module of the same name in
+each directory it needs, such as `browser/test_render_margin.py` and
+`journeys/test_render_margin.py`. The module holding most of them keeps the subject's
+helpers, and the others import what they use from it; a module fixture they take is
+declared with `name=` and imported as `<name>_fixture`, since a parameter that shadows
+an imported name reads as a redefinition. Each directory is a package, so two modules
+of one name are distinct, and the helpers at `tests/`'s root import as before.
+`model/` and `process/` run in the same tier, so a subject's tests of both kinds stay
+in one module, in the directory most of them belong to, rather than splitting for the
+label alone.
+
+Broad discovery skips both later tiers; `--run-main` adds `browser/` and
+`--run-nightly` runs every tier. An explicit tier directory, file, node id, `-k`, `-m`,
+or `--lf` runs what it names.
 Both landing gates pass `--changed-since`, which adds the tests of either later tier
-whose own lines the change edits.
+whose own source the change edits; a test moved to another module or directory
+unchanged is no edit. Tests marked `network` require an explicit selection or
+`--run-nightly`; broad discovery and `--changed-since` never add them.
+
+### Without external network access
+
+Setup needs network access to install Python/Node dependencies, browser engines and
+pinned image assets. After setup, use the installed dependencies and cache for the
+ordinary offline selection:
+
+```sh
+UV_OFFLINE=1 uv run pytest tests
+```
+
+`UV_OFFLINE` keeps uv and its child uv invocations on the setup cache. It controls uv,
+not the network permissions of Python or browsers. Local sockets must remain
+available: the suite serves pages on loopback and connects to browser drivers.
+The `network` marker isolates tests that deliberately download from external
+services, such as installation with an empty package cache. To include every tier
+while excluding those tests, use:
+
+```sh
+UV_OFFLINE=1 uv run pytest tests --run-nightly -m 'not network'
+```
+
+These selections have the same local compute constraints as online execution.
+Selecting by `-m` includes every tier. For focused local checks, name the needed
+node ids or use `-k`, with the same environment variable.
+
+### Selecting checks
 
 Before handing over, run the tests that hold the behavior you changed, in any file and
 any tier, named by node id or `-k`; find them by reading which tests
@@ -125,8 +172,8 @@ not show, such as one only macOS reproduces, is left to a local session. Check w
 a live session, worktree or open pull request already covers it; if none does, start a
 separate session (for example with `/dispatch`) to fix it and land the change.
 
-CLI output and agent-facing text are regtest recordings in
-`tests/_regtest_outputs/`, normalized for temporary paths and generated identities but
+CLI output and agent-facing text are regtest recordings in each tier directory's
+`_regtest_outputs/`, normalized for temporary paths and generated identities but
 never for instruction text. Review the affected recordings when changing interaction
 instructions, and after an intentional change reset only the affected test and read the
 diff.
@@ -239,7 +286,7 @@ Take each resource from its owner: a child process from `spawn`, a page server f
 `_no_page_outlives_its_test`, a preview from `preview_slot` and `start_preview`, an
 in-process HTTP server from `running_http_server`, a Unix socket directory from
 `socket_dir` (`test_the_resources_a_fixture_owns_are_taken_from_that_fixture`). A test
-of a standing server stops it explicitly, since a `Popen` handle does not own a
+of a persistent server stops it explicitly, since a `Popen` handle does not own a
 detached server's tree. The cleanup sweep reads only `isolated_session`'s state home
 and `tmp_path`, never the developer's.
 
@@ -275,9 +322,13 @@ over `browser.unwatched`.
 ### Browser errors
 
 The `browser` fixture instruments every page it makes and fails the test on any
-problem left at the end; do not install a second collector. Consume an expected fault
-at its causal point with `consume_browser_errors`, or `reported_browser_errors` when
-its report arrives in parts. For a recurring fault, close the page first and then
+problem left at the end; do not install a second collector. Each problem is a record
+(`leaf/findings.py`), and the health sensors below hand theirs over as data
+rather than as console sentences. Consume an expected fault at its causal point with
+`consume_browser_errors`, or `reported_browser_errors` when its report arrives in parts,
+naming it by its fields (`{"code": "failed-load", "status": 400}`), or by a fragment of
+what the page itself said where the fault is a console entry or an exception
+(`render_harness.is_problem`). For a recurring fault, close the page first and then
 consume. Otherwise close a page only when closing is part of the journey. Filtering
 the collector is not an assertion.
 
@@ -290,10 +341,10 @@ inside `lfUnwatched`.
 
 A layout shift the "Stability" rule in `skills/leaf/assets/AGENTS.md` forbids is one
 of those problems (`shift_watch.js`): a box that moves on screen without input, and
-typing that carries the field it types in, so every unmarked test checks both, in
-whichever tier its cost runs it. Surveyed tests marked `main` or `nightly` opt in with
-`watch_shifts`; the rest await a fresh survey after the widget prepaint fixes (`render_harness.watches_shifts`). The
-watcher still
+typing that carries the field it types in, so every test checks both, in every tier,
+but those in a module marked `shifts_unsurveyed`, which await a fresh survey after the
+widget prepaint fixes. Surveyed tests in those modules opt in with `watch_shifts`
+(`render_harness.watches_shifts`). The watcher still
 exempts first presentation, whose remaining defects the widget quality check records
 in `known_widget_findings.py`. Playwright's clicks and keys are input, as is a
 viewport resize; a script's `click()`, a `value` written by script, and the server's
@@ -492,7 +543,7 @@ refused it.
 
 The corpus has these matrices. Return state is anchored on a first visit
 (`arrival_findings`); semantic replay is anchored on a static authored state, applying
-standing actions or reports twice and checking the visible state and idempotence; a
+the actions or reports in force twice and checking the visible state and idempotence; a
 scroll's writes (`scroll_writes`, read by `scroll_followers`) fail where a place is
 written on every step; a page left alone (`at_rest`) fails anything it does; a
 surface's round trips fail where one leaves a different `reader_state` than the first

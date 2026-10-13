@@ -199,9 +199,7 @@ export function createDrawingController({
       announce(
         on
           ? `Draw mode: draw anywhere on the page; each stroke adds to one drawing, and z takes one back. ${
-              coarsePointer.matches
-                ? "Exit Draw mode on the banner leaves."
-                : "Escape leaves."
+              coarsePointer.matches ? "Exit Draw mode leaves." : "Escape leaves."
             }`
           : "Draw mode off",
       );
@@ -700,6 +698,7 @@ export function createDrawingController({
     description: "Draw on the page and attach the drawing to a comment",
     title: "draw mode",
     touch: "Draw mode",
+    menu: "annotate",
     when: () => anchoringIsReady() && !drawModeOn,
     run: () => setDrawMode(true),
   });

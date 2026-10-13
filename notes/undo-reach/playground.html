@@ -385,7 +385,7 @@
       const cap = (s) => s[0].toUpperCase() + s.slice(1);
 
       /* The log is the only state. Everything drawn is folded from it: a gesture
-         stands unless a standing undo names it, and an undo naming an undo is a redo. */
+         stands unless an undo in force names it, and an undo naming an undo is a redo. */
       function fold(log) {
         const byId = new Map(log.map((e) => [e.id, e]));
         const withdrawn = new Set();
@@ -405,7 +405,7 @@
             since.set(undo.undoes, Math.max(since.get(undo.undoes), e.idx));
         }
         // Each effect reads at its own log position, as Leaf's folds do: the last
-        // standing event on a unit decides it, and any reply reopens its thread.
+        // event in force on a unit decides it, and any reply reopens its thread.
         const unit = (e) => e.target;
         const effects = log.filter((e) => UNDOABLE.has(e.kind) || e.kind === "reply");
         const winner = (target) =>
@@ -1050,13 +1050,13 @@
                 } else if (stands) {
                   keys.append("superseded");
                 } else if (this.#values.redo && state.wouldPaint(e)) {
-                  const standingUndo = this.#log.findLast(
+                  const undoInForce = this.#log.findLast(
                     (u) => u.kind === "undo" && u.undoes === e.id && state.stands(u),
                   );
                   keys.append(
                     this.#button(
                       "Redo",
-                      () => this.#restore(standingUndo),
+                      () => this.#restore(undoInForce),
                       `toggle-${e.id}`,
                     ),
                   );
@@ -1151,7 +1151,7 @@
             );
           if (values.redo)
             parts.push(
-              "Add redo on Shift+Z as an undo naming your own standing undo: taken_back counts an undo only while no standing undo names it, the append door admits a redo only when folding without the undo changes what the page shows, the served state carries a redo list beside the undo list, Z takes its head until you make a new gesture, as Vim's Ctrl-R does, and the readers that follow undoes one level (gesture words, browser coverage, the delivery's answer) follow the chain.",
+              "Add redo on Shift+Z as an undo naming your own undo in force: taken_back counts an undo only while no undo in force names it, the append door admits a redo only when folding without the undo changes what the page shows, the served state carries a redo list beside the undo list, Z takes its head until you make a new gesture, as Vim's Ctrl-R does, and the readers that follow undoes one level (gesture words, browser coverage, the delivery's answer) follow the chain.",
             );
           if (values.panel)
             parts.push(
@@ -1170,7 +1170,7 @@
     </script>
   </head>
   <body>
-    <main class="layout-wide">
+    <main class="layout-column">
       <header>
         <h1>How far back should <kbd>z</kbd> reach?</h1>
         <p class="lede">
@@ -1391,10 +1391,10 @@
           <code>taken_back</code> is a flat set, and the undo list skips undos.
         </p>
         <p>
-          Redo is an <code>undo</code> naming your own standing <code>undo</code>.
+          Redo is an <code>undo</code> naming your own <code>undo</code> in force.
           Nothing leaves the log and no counter-event is invented, so the invariant in
           <code>AGENTS.md</code> holds as written. <code>taken_back</code> changes so
-          that an undo counts only while no standing undo names it. The playground's
+          that an undo counts only while no undo in force names it. The playground's
           log, under the simulated page, folds exactly this way: turn on redo, press
           <kbd>z</kbd> then <kbd>Z</kbd>, and the second undo strikes through the first.
         </p>
@@ -1421,8 +1421,8 @@
         <p>
           Vim's undo tree differs in kind. <kbd>g-</kbd> and <kbd>g+</kbd> restore any
           past state, superseded branches included, where this redo restores only what
-          would still show. The Changes panel offers selective undo instead: any
-          standing gesture, in any order.
+          would still show. The Changes panel offers selective undo instead: any gesture
+          in force, in any order.
         </p>
       </section>
 
@@ -1468,7 +1468,7 @@
           <dt>Redo on <kbd>Z</kbd></dt>
           <dd>
             <code>taken_back</code> counts an undo only while it stands;
-            <code>UndoReading.error</code> admits an undo naming your own standing undo
+            <code>UndoReading.error</code> admits an undo naming your own undo in force
             when folding without it changes what the page shows;
             <code>document.py</code> serves a redo list;
             <code>projection/model.js</code> lets a local redo override the server's

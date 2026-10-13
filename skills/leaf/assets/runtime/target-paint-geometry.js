@@ -12,12 +12,13 @@ import {
   anchorHolder,
   anchorName,
   anchorReading,
-  inTopLayer,
   nameAnchor,
   scrollsWith,
 } from "./css-anchors.js";
+import { nativeLayerHolding } from "./shadow-tree.js";
 import { nearObserver, nearWindow, paintClips, shownBox } from "./geometry.js";
 import { hasArea, intersect } from "./rect.js";
+import { move } from "./dom-move.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
 import {
   followScroll,
@@ -214,7 +215,7 @@ function reaches(anchor, root) {
   return (
     Boolean(order & Node.DOCUMENT_POSITION_FOLLOWING) &&
     !(order & Node.DOCUMENT_POSITION_CONTAINED_BY) &&
-    !inTopLayer(holder)
+    !nativeLayerHolding(holder)
   );
 }
 
@@ -502,7 +503,7 @@ export function paintSet(root, { onNear = () => {} } = {}) {
         continue;
       }
       if (cursor === node) cursor = node.nextElementSibling;
-      else carrier.insertBefore(node, cursor);
+      else move(carrier, node, cursor);
       if (seating.has(member))
         standBox(node, entry.rect, entry.stood, entry.anchor, entry.at);
     }
@@ -604,7 +605,7 @@ export function paintSet(root, { onNear = () => {} } = {}) {
       stands.set(key, stand);
       keeps(stand.root, "data-lf-paint-plane", plane);
       const next = previous ? previous.root.nextElementSibling : root.firstElementChild;
-      if (next !== stand.root) root.insertBefore(stand.root, next);
+      if (next !== stand.root) move(root, stand.root, next);
       const how = standIn(stand, placed, Boolean(anchor));
       stood.set(key, {
         stand,

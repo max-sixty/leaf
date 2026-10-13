@@ -1,0 +1,47 @@
+# Added when a playground control could stand inside the preview beside the item it
+# changes, after judges of the plain HTML comparison preferred configuration pages that
+# kept each alert's settings beside its evidence over a rail of fourteen settings.
+# Claude Code: base 0/2 (every control in the rail), candidate 2/2.
+# playground-presets-are-whole-designs holds the other side: controls that change the
+# whole preview stay in the rail.
+description: playground-controls-stand-by-their-item
+metadata:
+  purpose: 'Playground: a control that changes one item of several stands beside that item in the preview, and a setting shared by every item stays in the rail.'
+  tags:
+  - playground
+  - layout
+vars:
+  prompt: |
+    The user runs four alerts for the checkout service and wants to retune them. For
+    each alert we have a 30-day replay: how often it would have fired, and how many of
+    those were real incidents, at three or four candidate thresholds.
+
+    - checkout-error-rate (today over 1%): over 0.5% fired 28, real 3; over 1% fired
+      11, real 3; over 2% fired 4, real 3; over 5% fired 1, real 1.
+    - checkout-p99-latency (today over 800 ms): over 600 ms fired 40, real 2; over
+      800 ms fired 17, real 2; over 1,500 ms fired 4, real 2.
+    - payment-provider-timeouts (today over 3%): over 1% fired 19, real 1; over 3%
+      fired 6, real 1; over 10% fired 1, real 1.
+    - cart-abandon-spike (today over 2×): over 1.5× fired 12, real 0; over 2× fired 5,
+      real 1; over 3× fired 1, real 1.
+
+    Each alert either pages on-call, opens a ticket, or is off. On-call wants at most
+    a set number of pages a month, 10 today, and the user may change that budget.
+    Build a Leaf playground page where the user sets each alert's threshold and route,
+    sees the month's page count against the budget as they go, and submits the
+    settings for me to apply.
+
+    Read packages/playground/instructions/author.md inside the leaf skill's base
+    directory. The page directory is not reachable here, so reply with the page's
+    HTML and any page module it needs.
+assert:
+- type: llm-rubric
+  metric: controls-stand-by-their-item
+  value: |
+    Pass only if each alert's threshold and route are `lf-playground-control`
+    elements written inside `lf-playground-preview`, next to that alert's own replay,
+    and the page budget is an `lf-playground-control` that is a direct child of
+    `lf-playground`, outside the preview. Fail if every control is a direct child of
+    `lf-playground` (so all of them stand together in the rail), if the per-alert
+    settings are hand-built inputs rather than playground controls, or if the budget
+    is repeated beside each alert.

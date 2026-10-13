@@ -130,6 +130,7 @@ leaf-website = { workspace = true }
 [tool.pytest.ini_options]
 addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin -p leaf_dev.suite_profile"
 markers = [
+  "network: requires external network access after development setup",
   "shifts_unsurveyed: its browser tests await a shift survey, so they do not reject unsolicited layout shifts",
   "watch_shifts: a surveyed test marked `shifts_unsurveyed` rejects unsolicited layout shifts and typing that carries its field",
 ]

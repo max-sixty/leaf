@@ -785,8 +785,8 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     # payload naming one — in the project file, or in a `uv.toml` beside it —
     # so that is what this forbids. Read off the lines rather than a parsed
     # table because a comment is free to discuss an index where a setting is
-    # not. The `main` test below drives the same claim through a real
-    # resolve against a closed port; this is the half every run sees.
+    # not. The loopback launcher test below drives the same claim through a real
+    # resolve against a closed port.
     configured = [
         line
         for line in (PLUGIN_ROOT / "pyproject.toml").read_text().splitlines()
@@ -799,6 +799,43 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         for path in shipped_payload()
         if path.suffix == ".lock"
     ] == ["uv.lock"]
+
+
+def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
+    """A closed local index fails without falling back to the shipped lock's URLs.
+
+    A fresh cache makes uv consult the index. Allow uv's local HTTP request even
+    when the rest of the suite uses UV_OFFLINE; forbid interpreter downloads and
+    ignore host index configuration so this test needs only loopback networking.
+    """
+    installed = install_payload(tmp_path / "leaf")
+    unconfigured = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith("UV_INDEX")
+        and name
+        not in {"UV_DEFAULT_INDEX", "UV_FIND_LINKS", "UV_NO_INDEX", "UV_OFFLINE"}
+    }
+    mirrored = subprocess.run(
+        [installed / "bin" / "leaf", "--help"],
+        cwd=tmp_path,
+        env={
+            **unconfigured,
+            "UV_CACHE_DIR": str(tmp_path / "mirror-cache"),
+            "UV_DEFAULT_INDEX": "http://127.0.0.1:1/simple",
+            "UV_NO_CONFIG": "1",
+            "UV_PYTHON": sys.executable,
+            "UV_PYTHON_DOWNLOADS": "never",
+            "UV_HTTP_RETRIES": "0",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = mirrored.stdout + mirrored.stderr
+    assert mirrored.returncode != 0, output
+    assert "127.0.0.1:1" in output, output
+    assert "pypi.org" not in output and "pythonhosted.org" not in output, output
 
 
 def test_a_run_keeps_its_temporary_tree_out_of_the_candidate_payload(tmp_path):

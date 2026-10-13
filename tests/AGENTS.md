@@ -89,10 +89,11 @@ A test in `model/` or `process/` takes under three seconds on CI's runner, about
 opening a page costs, and one in `browser/` under eight (`BUDGETS` in
 `leaf_dev/suite_profile.py`). A new test goes in the directory of the boundary it
 crosses, or in `journeys/` when it is over that budget or must not gate a pull
-request, as a test that needs the network must not. Each `test` job's summary lists
-the tests over their directory's budget and the journeys within the browser budget,
-and tend's weekly pass moves them or makes them faster. A change that wants a test in
-an earlier tier makes it cheaper rather than moving it.
+request, as a test that needs the external network must not. Mark that dependency
+`network` too. Each `test` job's summary lists the tests over their directory's
+budget and the journeys within the browser budget, and tend's weekly pass moves
+them or makes them faster. A change that wants a test in an earlier tier makes it
+cheaper rather than moving it.
 
 Directory tiers are the user's choice (2026-10-11), replacing the rule that expense
 alone never took a test out of the landing gates: a suite whose gate grows with every
@@ -117,6 +118,33 @@ or `--lf` runs what it names.
 Both landing gates pass `--changed-since`, which adds the tests of either later tier
 whose own source the change edits; a test moved between directories unchanged is no
 edit.
+
+### Without external network access
+
+Setup needs network access to install Python/Node dependencies, browser engines and
+pinned image assets. After setup, use the installed dependencies and cache for the
+ordinary offline selection:
+
+```sh
+UV_OFFLINE=1 uv run pytest tests
+```
+
+`UV_OFFLINE` keeps uv and its child uv invocations on the setup cache. It controls uv,
+not the network permissions of Python or browsers. Local sockets must remain
+available: the suite serves pages on loopback and connects to browser drivers.
+The `network` marker isolates tests that deliberately download from external
+services, such as installation with an empty package cache. To include every tier
+while excluding those tests, use:
+
+```sh
+UV_OFFLINE=1 uv run pytest tests --run-nightly -m 'not network'
+```
+
+These selections have the same local compute constraints as online execution.
+Selecting by `-m` includes every tier. For focused local checks, name the needed
+node ids or use `-k`, with the same environment variable.
+
+### Selecting checks
 
 Before handing over, run the tests that hold the behavior you changed, in any file and
 any tier, named by node id or `-k`; find them by reading which tests

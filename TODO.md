@@ -72,11 +72,12 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Questions,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **#28 — Overhaul the floating panel's appearance.** The opt-in floating panel
+- **#28 — Finish the floating panel.** The opt-in floating panel
   (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
-  user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Once
-  the user accepts it, the panel becomes the only chrome: the banner, the bottom bar
-  and the preference go.
+  user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Work
+  through its remaining list (status in the field, opened sizes, one home per thread,
+  the menu's rows, waiting marks, phone, motion) before making it the default or
+  removing the banner, bottom bar, and preference.
 
 ### Agent and author experience
 

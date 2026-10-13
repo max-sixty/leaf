@@ -91,8 +91,17 @@ export function setThreadCounts(open, unread) {
 }
 const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.id = "lf-approve";
-// The queue arrives at the one approval control, including its overflow seat.
-export const approvalTarget = () => (signoff ? approveBtn : null);
+// Another chrome that presents the approval in this control's place, as the floating
+// panel's Questions view does, names the control it shows and brings the user to it.
+let approvalPresentation = null;
+export function registerApprovalPresentation(presentation) {
+  approvalPresentation = presentation;
+}
+export const presentedApproval = () => approvalPresentation;
+// The queue arrives at the one approval control shown, including the banner's overflow
+// seat.
+export const approvalTarget = () =>
+  signoff ? (approvalPresentation ? approvalPresentation.target() : approveBtn) : null;
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version

@@ -122,7 +122,7 @@ function quoteReading(thread, anchors) {
 // The thread's working message: what the agent is doing about the work it has in hand
 // here, while no answer has come. Its words are the line the agent last gave for that
 // work, which is the request's state (a start, `todos.py`), so they agree with the
-// banner and Tasks. The work is read from the thread's workflows and to-dos, not from
+// page's status and Tasks. The work is read from the thread's workflows and to-dos, not from
 // whose turn the thread is, since the agent can be working on one message while an ask
 // in the same thread waits on the user. A message's work speaks before a to-do's, and
 // a proactive progress message, which takes no request in hand, gives its own words.

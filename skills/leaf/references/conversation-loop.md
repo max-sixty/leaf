@@ -145,8 +145,8 @@ leaf page stamp <page> --text "…" --completes <widget-id>
 `--completes` names a widget with an open to-do, and ends each to-do on it `done`,
 citing the version. `leaf task open` takes a page widget that declares `x-work` or
 holds an unsettled action, any other element of the page, or `page`; work in a thread
-is opened by the reply that promises it (`--todo`). A to-do on a widget survives unrelated versions, and a
-version cannot drop that widget while the to-do stands.
+is opened by the reply that promises it (`--todo`). A to-do on a widget survives
+unrelated versions and removal of its widget.
 
 ## Long-running work
 
@@ -192,8 +192,10 @@ resolving it and the end of your session. A turn-written reply carries no to-do,
 answer such a promise with this command. Wherever
 the result lands, the to-do ends there: `leaf task end <page> <todo> done "<where the
 result is>"`, or `failed` or `dropped` with the reason, so work that won't come back
-to you takes the page and the to-do's id in its brief. While you work on it, start it,
-so the panel's status and the thread show your line.
+to you takes the page and the to-do's id in its brief. Start it in the session
+continuing the work: the start transfers completion authority to that session
+and gives the panel's status and the thread its line. That session can finish on a
+later turn; another session takes over by starting the same to-do.
 Work on an update that finishes inside the turn needs no to-do.
 
 ## Questions and Tasks
@@ -201,9 +203,11 @@ Work on an update that finishes inside the turn needs no to-do.
 Everything you need from the user belongs in **Questions**, whether an answer,
 decision, permission, review, or action elsewhere. Ask a direct question and register
 it by one of the routes below. Prose in the page, a status line, and a question in
-chat alone do not register it. A recommendation leaves its decision open. An
-optional invitation to comment creates no obligation; if you need feedback before
-continuing, make it an ask.
+chat alone do not register it. Keep every independently answerable proposal you
+present for the user's judgment in Questions until decided or withdrawn.
+Recommending one to do next leaves the others open. A request for review needs an
+ask even when preparation is already your work or other work can continue. An
+optional invitation to comment on information creates no obligation.
 
 The Questions count on Leaf's panel, and its Questions view, show everything waiting on the
 user: these requests, and any update whose send failed and needs sending again.

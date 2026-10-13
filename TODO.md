@@ -94,11 +94,6 @@ has tried; settle that before building it.
   currently remain unrestricted; decide whether such a reminder helps before
   adding one.
 
-- **#3 — Prevent an obsolete execution from closing continued work.** A later
-  `task start` records a new execution, but admission still accepts an older
-  session's `todo_end`. Test competing continuations and keep the delayed result
-  from closing the newer work ([comparison proposal](notes/comparisons.md#concrete-follow-up-proposals-2026-10-04-revised-2026-10-05)).
-
 - **#20 — Act on the plain HTML comparison.** The
   [comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)
   found Leaf authors write much less CSS and script but spend 2–3 times the cost,

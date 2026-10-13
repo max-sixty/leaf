@@ -211,8 +211,9 @@ document or keeps its widgets (`revision_artifact.py`).
 `layer` object, shared with `/api/state`, reports the vendored generation,
 fingerprint, server identity, packages, and producer;
 `source` names `index.html`, whether that candidate is live, and any validation
-error. `active.file` names the immutable revision the live root actually
-shows when one exists; `data` names the contract file, the value directory, and any source whose
+error, including the refusal of a layer this Leaf cannot serve
+(`layer.incompatible_layer`). `active.file` names the immutable revision the live
+root actually shows when one exists; `data` names the contract file, the value directory, and any source whose
 value fails its contract.
 `active.executable`, shared with `/api/state`, gives the active revision's
 nullable executable digest. Delivery emits `<meta name="lf-executable">` when a

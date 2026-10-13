@@ -1709,12 +1709,14 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         "    assert json.loads((plugin / '.agents/plugins/marketplace.json').read_text())['name'] == 'leaf'\n"
         "    assert not (plugin / '.venv').exists()\n"
         "    assert not record.exists()\n"
+        "    response = {}\n"
         "else:\n"
         "    assert args == ['plugin', 'add', 'leaf@leaf', '--json']\n"
         "    assert len(record.read_text().splitlines()) == 1\n"
+        "    response = {'installedPath': str(home / 'plugins/cache/leaf/leaf/local')}\n"
         "with record.open('a') as output:\n"
         "    output.write(json.dumps(args) + '\\n')\n"
-        "print(json.dumps({'installed': args}, indent=2))\n"
+        "print(json.dumps(response, indent=2))\n"
     )
     codex.chmod(0o755)
     serve_site = tmp_path / "serve_site.py"

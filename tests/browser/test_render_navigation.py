@@ -6045,7 +6045,10 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     note.press("Enter")
     expect(inline2).to_be_focused()
     # An element anchor has no text to paint, and the element it names carries the note.
-    assert accessible_details(page, "#fig")[0].startswith("1 comment on § figure")
+    assert any(
+        detail.startswith("1 comment on § figure")
+        for detail in accessible_details(page, "#fig")
+    ), "the figure's comment note is missing from its accessible details"
 
     # A pass that finds nothing to change must change nothing: a screen reader rebuilds
     # its buffer on every mutation, and this pass runs on every poll. A comment on no

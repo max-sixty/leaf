@@ -169,7 +169,9 @@ export function createFloatingPanel({
   peek.setAttribute("role", "tooltip");
   inner.append(head, stage, context, row);
   card.append(inner);
-  host.append(menu, card, badge, newsDot, peek);
+  // The menu and the peek stand over the leaf by anchoring to it, which they can only
+  // do from after it in the tree.
+  host.append(card, menu, badge, newsDot, peek);
 
   const leaf = el("button", "lf-fp-leaf");
   leaf.type = "button";

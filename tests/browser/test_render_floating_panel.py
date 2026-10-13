@@ -182,6 +182,26 @@ def test_threads_filter_in_place_and_hold_news_until_asked(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(3)
 
 
+def test_the_leaf_s_menu_stays_in_the_window_over_a_tall_view(browser, serve):
+    """The leaf's menu stands over the leaf, its trigger, however tall the view open
+    above the row, and within a short window it keeps every row reachable."""
+    page = floating(browser, serve(LONG_PAGE, comments=20))
+    page.set_viewport_size({"width": 1280, "height": 360})
+    page.locator(".lf-fp-threads").click()
+    expect(page.locator(".lf-fp-view[data-view='threads']")).to_be_visible()
+    settled(page)
+    page.locator(".lf-fp-leaf").click()
+    menu = page.locator(".lf-fp-menu")
+    expect(menu.locator(".lf-fp-item").first).to_be_visible()
+    box = menu.bounding_box()
+    leaf = page.locator(".lf-fp-leaf").bounding_box()
+    assert box["y"] >= 0, f"the menu's top stands {-box['y']:.0f}px above the window"
+    assert box["y"] + box["height"] <= leaf["y"], "the menu covers the leaf"
+    last = menu.locator(".lf-fp-item").last
+    last.scroll_into_view_if_needed()
+    expect(last).to_be_in_viewport()
+
+
 def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     """Folding to the leaf, from the leaf's menu or its key, is a choice the panel
     keeps across a reload, until the leaf is pressed again; `c` still reaches the

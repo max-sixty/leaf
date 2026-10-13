@@ -628,9 +628,15 @@
     padding: 0 8px;
   }
   .lf-fp-menu {
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 0;
+    position: fixed;
+    position-anchor: --lf-fp-leaf;
+    top: calc(12px + var(--lf-safe-top));
+    bottom: calc(anchor(top) + 8px);
+    left: anchor(left);
+    align-self: end;
+    max-height: -webkit-fill-available;
+    max-height: stretch;
+    overflow-y: auto;
     width: 248px;
     padding: 6px;
     box-sizing: border-box;

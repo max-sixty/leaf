@@ -36,8 +36,8 @@ def leaf_versions(page_dir: Path) -> list[Finding]:
 
     Between protocol bumps an update can still break an older page (`AGENTS.md`,
     "Pages across Leaf updates"), and nothing compares the page's files with this
-    Leaf's to say so. Both versions and their dates let the agent judge whether a
-    page that misbehaves wants re-vendoring."""
+    Leaf's to say so. Both versions and their dates are informational; the protocol
+    compatibility check owns the instruction to update the page's runtime."""
     try:
         page_leaf = layer_metadata(page_dir).get("producer", {})
     except RegistryError:

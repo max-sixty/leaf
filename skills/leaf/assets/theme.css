@@ -405,8 +405,6 @@ main {
   :where([data-lf-space=column]:has(> [data-lf-space=available])) {
     max-inline-size: none;
   }
-}
-@media screen {
   [data-lf-bound] {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
@@ -501,7 +499,7 @@ figcaption {
 img,
 svg,
 video {
-  max-width: var(--lf-media-max);
+  max-width: 100%;
   height: auto;
 }
 img {

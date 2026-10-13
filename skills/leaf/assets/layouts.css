@@ -20,8 +20,8 @@
    * the body drops its margin and, on a live page other than a block sample (whose frame
    * takes the body's height, theme.css), fills the window's height. On `main` it sets its
    * gutter, its room above and below its blocks, whether its first and last blocks'
-   * margins trim, and the widths text and media keep (`--lf-measure`, `--lf-media-max`),
-   * which theme.css reads at the base layer, where a widget's own rule outranks them. */
+   * margins trim, and the measure its text keeps (`--lf-measure`), which theme.css reads
+   * at the base layer, where a widget's own rule outranks it. */
   /* The pane role's grammar (theme.css, where its look and the rest of its contract
    * are): which row each child stands in, and a body held to the pane's width with no
    * margin of its own. It is not a Layout a page pulls on, but it resets what a widget
@@ -69,7 +69,6 @@
     padding-block: var(--page-pad-start) var(--page-pad-end);
     --lf-block-frame: trim;
     --lf-measure: var(--col);
-    --lf-media-max: 100%;
     --lf-width: min(var(--col), max(0px, 100cqi - 2 * var(--col-pad)));
     --lf-beside: calc((100cqi - var(--lf-width)) / 2);
     --lf-shift: var(--lf-column-shift, 0px);
@@ -499,7 +498,6 @@
     padding-block: var(--page-pad-start) var(--page-pad-end);
     --lf-block-frame: trim;
     --lf-measure: var(--col);
-    --lf-media-max: 100%;
     max-width: var(--wide-page-max);
     margin-inline: auto;
     --lf-room: 100%;
@@ -586,7 +584,6 @@
     padding-block: var(--sp-2) var(--page-pad-end);
     --lf-block-frame: trim;
     --lf-measure: var(--col);
-    --lf-media-max: 100%;
     --lf-room: 100%;
   }
   /* The header takes the window's height before the panes do, so it is one row: the

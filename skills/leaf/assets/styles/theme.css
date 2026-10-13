@@ -972,8 +972,6 @@ main {
   :where([data-lf-space="column"]:has(> [data-lf-space="available"])) {
     max-inline-size: none;
   }
-}
-@media screen {
   /* A bounded block scrolls within its stated height. A widget can assign that bound to
    * an inner reader instead, keeping its own caption outside the scroller. */
   [data-lf-bound] {
@@ -1041,8 +1039,10 @@ p { margin: 13px 0; }
 :where(.density-working) :is(th, td) { padding: 4px 10px; }
 figure { margin: 22px 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
-/* Media keeps the width its page's Layout states (`--lf-media-max`, layouts.css). */
-img, svg, video { max-width: var(--lf-media-max); height: auto; }
+/* Media fits its container on every page, with a Layout or without, and in a thread: the
+ * live root clips what overflows sideways (html[data-lf-live], above), so an image wider
+ * than its container would otherwise lose its far side with no way to scroll to it. */
+img, svg, video { max-width: 100%; height: auto; }
 /* An image's width and height attributes already hold its box open before it loads,
  * but Chrome flags a lazy image as unsized unless a stylesheet gives its height or
  * ratio, and `height: auto` above overrides the attribute. Restating the attributes

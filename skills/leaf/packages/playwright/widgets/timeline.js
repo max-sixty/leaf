@@ -234,8 +234,10 @@ export class RecordingTimeline {
     // The narrowest window spans 10 ms of recording, within the widest box
     // Chrome lays out (33.5M px). The width is the one the size observer last
     // reported (`#resized`), so asking whether the timeline can zoom in, as its
-    // command's liveness does, forces no layout.
-    const width = Math.max(1, this.#width || (this.scroller?.clientWidth ?? 1));
+    // command's liveness does, forces no layout. A timeline not yet laid out with a
+    // width, such as one in a closed disclosure, is bounded by its recording alone
+    // until the observer's first report clamps the zoom to its box.
+    const width = Math.max(1, this.#width);
     return Math.max(1, Math.min((this.#model?.duration ?? 0) / 10, 16e6 / width));
   }
   #trackWidth() {

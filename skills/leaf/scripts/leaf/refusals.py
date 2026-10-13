@@ -10,7 +10,8 @@ and an exception that is not a refusal keeps its traceback rather than printing 
 
 A gate that refuses on what it found raises `findings.Rejected`, whose `findings` are
 records with a code and fields; any other refusal has none. A boundary that answers
-in JSON writes `json()`, as the event door's refusal answer does.
+in JSON writes `json()`, so the event door's refusal answer and a command's `--json`
+refusal have one shape.
 
 Imports nothing from Leaf, so the lowest module can raise it.
 """

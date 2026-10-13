@@ -36,6 +36,7 @@ from interact_support import (
     publish,
     receive_through,
     record_claim,
+    refused_on,
     release_codex_command,
     release_held,
     serving,
@@ -1228,13 +1229,14 @@ def test_an_uncertain_app_server_start_recovers_by_delivery_identity(
     [payload] = attempted
     [(path, queue)] = codex_records("codex-thread")
     assert queue["state"] == "offering"
-    with pytest.raises(Refused, match="answered by this turn's messages"):
+    with pytest.raises(Refused) as refused:
         thread_model.post_reply(
             page,
             {"to": comment["id"], "for": comment["id"]},
             "Competing reply",
             identity={"agent": "Codex", "session": "codex-thread"},
         )
+    assert refused_on(refused.value).code == "reserved-answer"
     monkeypatch.setattr(
         codex_adapter_model,
         "queue_delivery",

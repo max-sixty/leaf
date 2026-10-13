@@ -108,8 +108,11 @@ def environment(**extra: str) -> dict[str, str]:
     and settings. An inherited LEAF_HOST_LAUNCHER would override the arm's launcher.
     `CLAUDE_CONFIG_DIR` stays, since it names where the login lives.
 
-    A child names the pinned headless shell as its browser, as the suite does
-    (`shell_executable`), unless this process already named one."""
+    A child names the pinned headless shell as its browser through
+    LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
+    set. It outranks CHROME_PATH and CHROME_BIN, which hosts set for other tools
+    (GitHub's runner image sets CHROME_BIN to its Chrome), so leaf-dev's children
+    draw with the build `headless_shell` drives, as the suite's fixture arranges."""
     env = {
         key: value
         for key, value in os.environ.items()

@@ -179,7 +179,7 @@ def attribute(trace: Path, profile: Profile) -> dict:
         for e in spans
         if e["name"] == "RunTask" and inside(e) >= TASK_MIN_MS * 1000
     ]
-    render, forced, recalcs = Counter(), Counter(), Counter()
+    render, forced, recalcs, recalc_time = Counter(), Counter(), Counter(), Counter()
     open_spans = []  # (name, end) of the spans enclosing the current one
     for e in spans:
         while open_spans and open_spans[-1][1] <= e["ts"]:
@@ -199,7 +199,9 @@ def attribute(trace: Path, profile: Profile) -> dict:
                     count = args.get("elementCount") or (args.get("endData") or {}).get(
                         "elementCount"
                     )
-                    recalcs[(stack_label(frames, 4), count)] += 1
+                    site = (stack_label(frames, 4), count)
+                    recalcs[site] += 1
+                    recalc_time[site] += inside(e)
         open_spans.append((e["name"], e["ts"] + e.get("dur", 0)))
     invalidations = Counter()
     for e in events:
@@ -224,6 +226,7 @@ def attribute(trace: Path, profile: Profile) -> dict:
         "render": render,
         "forced": forced,
         "recalcs": recalcs,
+        "recalc_time": recalc_time,
         "invalidations": invalidations,
         "own": own,
         "inclusive": inclusive,
@@ -273,9 +276,12 @@ def show(runs: list) -> None:
             for k, v in render.most_common()
         )
     )
-    click.echo("  forced style recalculations (count, elements, forced by):")
-    for (where, count), n in total("recalcs").most_common(TOP):
-        click.echo(f"    {n:4}  {count or '?':>5}  {where}")
+    click.echo("  forced style recalculations (ms, count, elements, forced by):")
+    recalcs = total("recalcs")
+    for (where, count), spent in total("recalc_time").most_common(TOP):
+        click.echo(
+            f"    {per_run(spent):6.1f}  {recalcs[(where, count)]:4}  {count or '?':>5}  {where}"
+        )
     click.echo("  style invalidations (count, event, cause, node, written by):")
     for (event, cause, node, where), n in total("invalidations").most_common(TOP):
         click.echo(f"    {n:4}  {event} | {cause} | {node} | {where}")

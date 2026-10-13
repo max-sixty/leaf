@@ -623,17 +623,17 @@ function partsOf(target) {
 // pin counts whole, so the pane's scroll never moves the pin's seat.
 const OPAQUE = "img, svg, canvas, video, iframe, object, embed";
 
-// Every control in a shadow host's composed subtree: its own children, slotted or not,
-// and every shadow tree beneath it.
+// Every control that paints inside a shadow host: the rendered tree beneath it, through
+// its shadow trees and whatever their slots are assigned, forwarded slots included.
 function controlsIn(host) {
   const found = [];
-  const visit = (root) => {
-    for (const el of root.querySelectorAll("*")) {
-      if (el.matches(TAB_STOP)) found.push(el);
-      if (el.shadowRoot) visit(el.shadowRoot);
+  const visit = (el) => {
+    for (const node of renderedChildren(el)) {
+      if (node.nodeType !== Node.ELEMENT_NODE) continue;
+      if (node.matches(TAB_STOP)) found.push(node);
+      visit(node);
     }
   };
-  visit(host.shadowRoot);
   visit(host);
   return found;
 }

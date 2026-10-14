@@ -74,6 +74,10 @@ test("authored activity detail retains its exact source only in the words that s
     stalled.explanationParts.filter((part) => part.source),
     [{ text: "checking the roof", source }],
   );
+  assert.deepEqual(
+    stalled.addsParts.filter((part) => part.source),
+    [{ text: "checking the roof", source }],
+  );
   const generic = statusModel(
     pageStatus(state({ ...activity, detail_source: null })),
     NO_QUEUES,

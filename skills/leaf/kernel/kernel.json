@@ -1,8 +1,8 @@
 {
   "inputs": {
-    "leaf.js": "4ac8076aa6bfa58994eef3fe3ed7d4ffdfbba145ad00233fdfe9aa6ba76a5c24",
+    "leaf.js": "11effa5212d2b451f87f06f2a15e0213f9f0847af51adf75287af4e79569bd91",
     "runtime/abort.js": "a95360fd44e7614c6faa7d08a527b95a26646a52602d4908c786b97106d7f254",
-    "runtime/activity-words.js": "4aa6d5b04cd4a3b27c966a305e4a4840cc6371780618a624858a6e2c5a064b65",
+    "runtime/activity-words.js": "50177429d987fa0aa096ad315dc2ea90c35021d3fcb9542c469ba11b076c381f",
     "runtime/addressable-names.js": "f046860acce0e5826218a814dea904581924b59bcbfdaa36bd59fa88ce68d7b3",
     "runtime/anchor-controls.js": "51cf2a6414f35d283f57e88e65668e71a3835cef7fd85f23f781032329d45376",
     "runtime/anchor-coordinate.js": "6dce53e1d9f3b17259a6d2ef8194ab8c62c0bea84a814f6a664274e153dc6959",
@@ -57,7 +57,7 @@
     "runtime/composing/drawing-schema.js": "d997712a7fc8183f4384f926f746056b115a6d877b7e8811b9799460f5b426ba",
     "runtime/composing/drawing.js": "439b1bb1cd685b29d1656c07cf8daa706d6063c92d25f11f45a0114cd4f5a87c",
     "runtime/composing/engagement.js": "20400ec66c7f307e44244c2779a695ba00fdeaf2053d4c49341500bad04164ab",
-    "runtime/composing/input.js": "bc2c6e2ab45d6938f997d99db156f7ae1c0bb565f62635d7a3e09f207d5e8c2f",
+    "runtime/composing/input.js": "465e3ce135d1f7a31b801e8b1f1fc50464bcf29fe9e6ede4f550d5a3c8da4b56",
     "runtime/composing/page-image.js": "ad0385fbce5e99ceb5c424d2aeef3183d9cb56533f67ee42f8832554d01a3ad3",
     "runtime/composing/region-capture.js": "046ec661a1270f23640c7b17691ee8559928c5c64a13c15fa19cc8164d069905",
     "runtime/composing/region-selector.js": "4b6a34975d39acb7b176071f2e0033d2c5ce971626057b97e5fbe479b81eb555",
@@ -90,7 +90,7 @@
     "runtime/editor-view.js": "5e2bb9ba68b8043e18d43f6bc66dfd1259d3198d9b27471b5b694760e9e2e28a",
     "runtime/element-frame.js": "566db419bd53bfc17c3d0920e3def1664a582390c5ad362ba5f3420e6173b0cc",
     "runtime/file-api.js": "bb2768e9c8790868940f387093af789469fdbdd345188782ae4cdc9f623157fe",
-    "runtime/floating-panel.js": "4e93badee9b9378353ab4bbca833615d492777906f56d1ed1304bc8a562a7e95",
+    "runtime/floating-panel.js": "f22ea5a8272085c07c4718ecf1489f2fec0d444d996589a33e8a487d994b14e6",
     "runtime/focus.js": "efe68b1991d68be8f901ba0630cd9863fdf21a773c413c5a0fd851d618c36faa",
     "runtime/geometry.js": "126c7da4bd4ece84a62927e5519e8e1dc9d463d45ee16b2e8babc4b3f88f673a",
     "runtime/held-word.js": "c7d09fc54a1201ac9e5b009bddac0148c0eb5705041ae0879c4f56ce91e6b912",

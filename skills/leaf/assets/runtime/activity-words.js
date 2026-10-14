@@ -110,6 +110,10 @@ const textParts = (words) =>
     .filter(Boolean)
     .map((part) => (typeof part === "string" ? { text: part } : part));
 const textOf = (parts) => parts.map((part) => part.text).join("");
+const appendWords = (parts, words, step = false) => {
+  const head = textOf(parts);
+  parts.push({ text: after(head, words, step).slice(head.length) });
+};
 
 // Both levels of wording follow server-owned activity. Short summaries retain the
 // actionable distinction: working, listening, away, or nobody holding the page. How many
@@ -184,7 +188,12 @@ function statusWords({
         ...(detail ? [": ", { text: detail, source: detailSource }] : []),
         `. ${saved}`,
       ],
-      `${detail ? `Last said: ${detail}. ` : ""}${saved}`,
+      [
+        ...(detail
+          ? ["Last said: ", { text: detail, source: detailSource }, ". "]
+          : []),
+        saved,
+      ],
     ];
   // Away is only worth a nudge once input has stalled (`counts.overdue`): the
   // session's next turn picks up whatever it finds, and Leaf messages a harness it
@@ -274,11 +283,10 @@ export function pageStatus(state, { reach = "reached" } = {}) {
   const summaryParts = textParts(summaryWords);
   const explanationParts = textParts(explanationWords);
   if (age) explanationParts.push({ text: ` (${age})` });
-  let adds = beyond;
+  const addsParts = textParts(beyond);
   const append = (words, step = false) => {
-    const head = textOf(explanationParts);
-    explanationParts.push({ text: after(head, words, step).slice(head.length) });
-    adds = after(adds, words, step);
+    appendWords(explanationParts, words, step);
+    appendWords(addsParts, words, step);
   };
   // What a transport can watch for itself, when the sentence beside it was written by
   // the agent: two facts about one turn, so the row keeps the one meant for the user
@@ -299,7 +307,8 @@ export function pageStatus(state, { reach = "reached" } = {}) {
     summaryParts,
     explanation: textOf(explanationParts),
     explanationParts,
-    adds,
+    adds: textOf(addsParts),
+    addsParts,
     asks: asked || waitsThere,
     actionableWork,
   };
@@ -366,14 +375,15 @@ export function statusModel(status, queues, agent) {
   const { kind, tone, summary, asks = false, publication = null } = status;
   let { explanation, adds } = status;
   let explanationParts = [...(status.explanationParts ?? textParts(explanation))];
+  let addsParts = [...(status.addsParts ?? textParts(adds))];
   const counted = WITHOUT_QUEUES.has(kind)
     ? { summary: "", explanation: "", widest: "" }
     : queueWords(queues, agent);
   if (counted.explanation) {
-    const previous = explanation;
-    explanation = after(explanation, counted.explanation);
-    explanationParts.push({ text: explanation.slice(previous.length) });
-    adds = after(adds, counted.explanation);
+    appendWords(explanationParts, counted.explanation);
+    appendWords(addsParts, counted.explanation);
+    explanation = textOf(explanationParts);
+    adds = textOf(addsParts);
   }
   let publicationModel = null;
   if (publication) {
@@ -382,6 +392,7 @@ export function statusModel(status, queues, agent) {
     explanation = said + (examples ? `${examples} ` : "") + installs;
     adds = explanation;
     explanationParts = textParts(explanation);
+    addsParts = textParts(explanation);
     publicationModel = Object.freeze({
       copy: said,
       examples,
@@ -395,6 +406,7 @@ export function statusModel(status, queues, agent) {
     summary,
     summaryParts: status.summaryParts ?? textParts(summary),
     explanationParts,
+    addsParts,
     asks,
     queues: counted.summary,
     queuesWidest: counted.widest,

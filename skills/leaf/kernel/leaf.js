@@ -910,6 +910,9 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
   };
   function wireInput(ta, {
     hint,
+    // A structured visual hint can mark the exact words its owner observes. It
+    // shares the existing placeholder slot and send key; null keeps the plain hint.
+    hintParts = null,
     accessibleName = null,
     save,
     send,
@@ -1078,8 +1081,10 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       const word2 = status || label2();
       const placeholder = suffix && !status ? `${word2} ${suffix}` : word2;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
-      if (suffix && !status) {
-        keepsText(hintLabel, word2);
+      const parts = status ? null : hintParts?.();
+      if (hintParts) render(parts ?? word2, hintLabel);
+      if (suffix && !status || parts !== null && parts !== void 0) {
+        if (!hintParts) keepsText(hintLabel, word2);
         keepsText(hintKey, suffix);
         if (visibleHint.parentNode !== ta) move(ta, visibleHint, null);
       } else visibleHint.remove();
@@ -5862,6 +5867,10 @@ function pickedUpWords({ comments, answers }) {
 }
 var textParts = (words) => (Array.isArray(words) ? words : [words]).filter(Boolean).map((part) => typeof part === "string" ? { text: part } : part);
 var textOf = (parts) => parts.map((part) => part.text).join("");
+var appendWords = (parts, words, step = false) => {
+  const head = textOf(parts);
+  parts.push({ text: after(head, words, step).slice(head.length) });
+};
 function statusWords({
   age,
   agent,
@@ -5910,7 +5919,10 @@ function statusWords({
         ...detail ? [": ", { text: detail, source: detailSource }] : [],
         `. ${saved}`
       ],
-      `${detail ? `Last said: ${detail}. ` : ""}${saved}`
+      [
+        ...detail ? ["Last said: ", { text: detail, source: detailSource }, ". "] : [],
+        saved
+      ]
     ];
   return overdue ? [
     `Nudge ${agent} in terminal`,
@@ -5977,11 +5989,10 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
   const summaryParts = textParts(summaryWords);
   const explanationParts = textParts(explanationWords);
   if (age) explanationParts.push({ text: ` (${age})` });
-  let adds = beyond;
+  const addsParts = textParts(beyond);
   const append = (words, step = false) => {
-    const head = textOf(explanationParts);
-    explanationParts.push({ text: after(head, words, step).slice(head.length) });
-    adds = after(adds, words, step);
+    appendWords(explanationParts, words, step);
+    appendWords(addsParts, words, step);
   };
   if (activity.observed && activity.observed !== detail)
     append(activity.observed, true);
@@ -5997,7 +6008,8 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
     summaryParts,
     explanation: textOf(explanationParts),
     explanationParts,
-    adds,
+    adds: textOf(addsParts),
+    addsParts,
     asks: asked || waitsThere,
     actionableWork
   };
@@ -6036,12 +6048,13 @@ function statusModel(status, queues, agent) {
   const { kind, tone, summary, asks: asks2 = false, publication = null } = status;
   let { explanation, adds } = status;
   let explanationParts = [...status.explanationParts ?? textParts(explanation)];
+  let addsParts = [...status.addsParts ?? textParts(adds)];
   const counted = WITHOUT_QUEUES.has(kind) ? { summary: "", explanation: "", widest: "" } : queueWords(queues, agent);
   if (counted.explanation) {
-    const previous = explanation;
-    explanation = after(explanation, counted.explanation);
-    explanationParts.push({ text: explanation.slice(previous.length) });
-    adds = after(adds, counted.explanation);
+    appendWords(explanationParts, counted.explanation);
+    appendWords(addsParts, counted.explanation);
+    explanation = textOf(explanationParts);
+    adds = textOf(addsParts);
   }
   let publicationModel = null;
   if (publication) {
@@ -6050,6 +6063,7 @@ function statusModel(status, queues, agent) {
     explanation = said + (examples ? `${examples} ` : "") + installs;
     adds = explanation;
     explanationParts = textParts(explanation);
+    addsParts = textParts(explanation);
     publicationModel = Object.freeze({
       copy: said,
       examples,
@@ -6063,6 +6077,7 @@ function statusModel(status, queues, agent) {
     summary,
     summaryParts: status.summaryParts ?? textParts(summary),
     explanationParts,
+    addsParts,
     asks: asks2,
     queues: counted.summary,
     queuesWidest: counted.widest,
@@ -7347,6 +7362,7 @@ function createFloatingPanel({
   wireInput,
   threadActions,
   registerChromeThreadPresentation,
+  observeFeedback,
   asks: askView,
   queueActions,
   withdraw
@@ -7399,11 +7415,32 @@ function createFloatingPanel({
   const CONNECTING = {
     tone: "",
     summary: "Connecting\u2026",
+    summaryParts: [{ text: "Connecting\u2026", source: null }],
     explanation: "Connecting\u2026",
+    explanationParts: [{ text: "Connecting\u2026", source: null }],
     adds: "",
+    addsParts: [],
     asks: false
   };
   const status = () => statusReading() ?? CONNECTING;
+  const statusParts = (parts) => parts.map((part) => {
+    if (!part.source) return part.text;
+    let stop = null;
+    return html`<span
+        class="lf-fp-status-feedback"
+        ${ref((node) => {
+      stop?.();
+      stop = node ? observeFeedback(node, {
+        input_id: part.source.item,
+        reply_id: part.source.event_id,
+        reply_kind: "work",
+        presentation_kind: "banner_words",
+        surface: "panel"
+      }) : null;
+    })}
+        >${part.text}</span
+      >`;
+  });
   let trail = [];
   let leaving = null;
   let menuOpen = false;
@@ -7440,6 +7477,10 @@ function createFloatingPanel({
     input.value = loadDraft(PAGE_DRAFT) ?? "";
     const sync = wireInput(input, {
       hint: () => fieldReading(null, input).words,
+      hintParts: () => {
+        const parts = status().summaryParts;
+        return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? statusParts(parts) : null;
+      },
       accessibleName: "Comment on the page",
       sends: "send",
       sendBtn: send,
@@ -7926,7 +7967,7 @@ function createFloatingPanel({
     const groups = Object.keys(GROUPS).filter(
       (group2) => all.some((entry) => groupOf(entry) === group2 && listed(entry))
     );
-    const { tone, summary, adds } = status();
+    const { tone, summary, summaryParts, adds, addsParts } = status();
     const word2 = TONE_WORDS[tone];
     const part = (name2, text) => (held ? held[name2] : text) ? html`<span
             class="lf-fp-${name2}"
@@ -7959,10 +8000,10 @@ function createFloatingPanel({
         data-tone=${tone || nothing}
         ?data-held=${held !== null}
       >
-        <b>${word2 ?? summary}</b>${part("summary", word2 ? summary : "")}${part(
-      "explain",
-      adds
-    )}
+        <b>${word2 ?? (summaryParts ? statusParts(summaryParts) : summary)}</b>${part(
+      "summary",
+      word2 ? summaryParts ? statusParts(summaryParts) : summary : ""
+    )}${part("explain", adds && addsParts ? statusParts(addsParts) : adds)}
       </div>
       ${seats2.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
@@ -8024,7 +8065,9 @@ function createFloatingPanel({
       )}${entry.comparable ? html`<button
                     type="button"
                     class="lf-fp-quiet lf-fp-compare"
-                    aria-pressed=${String(selection.on && selection.base === entry.version)}
+                    aria-pressed=${String(
+        selection.on && selection.base === entry.version
+      )}
                     aria-label=${`Compare with ${entry.name}`}
                     @click=${() => putAwayThen(() => versionPicker.compare(entry.version))}
                   >
@@ -8730,9 +8773,14 @@ function createFloatingPanel({
     const folded = host.dataset.rest === "mark";
     const notice2 = noticeReading();
     const telling = folded && notice2.visible;
-    keepsText(
-      peek,
-      telling ? notice2.message : status().explanation || status().summary
+    const reading = status();
+    render(
+      telling ? notice2.message : statusParts(
+        reading.explanationParts ?? [
+          { text: reading.explanation || reading.summary }
+        ]
+      ),
+      peek
     );
     keeps(peek, "data-shown", folded && (peekAsked || telling) ? "" : null);
   }
@@ -13523,6 +13571,7 @@ pageComment = createPageComment({
 });
 var floatingPanel = document.documentElement.lfChrome?.mode === "floating" ? createFloatingPanel({
   wireInput: inputs.wireInput,
+  observeFeedback: app.read.observeFeedback,
   threadActions: app.threadActions,
   registerChromeThreadPresentation: app.registerChromeThreadPresentation,
   asks: {

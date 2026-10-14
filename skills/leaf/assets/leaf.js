@@ -599,6 +599,7 @@ const floatingPanel =
   document.documentElement.lfChrome?.mode === "floating"
     ? createFloatingPanel({
         wireInput: inputs.wireInput,
+        observeFeedback: app.read.observeFeedback,
         threadActions: app.threadActions,
         registerChromeThreadPresentation: app.registerChromeThreadPresentation,
         asks: {

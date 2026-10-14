@@ -38,12 +38,13 @@ from render_harness import (
 )
 
 THREAD_READER = r"""
-import {keepsText, watchThreads, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
+import {keepsText, watchProjection, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
 customElements.define('lf-thread-reader', class extends HTMLElement {
   connectedCallback() {
     this.output = document.createElement('pre');
     this.append(this.output);
-    this.stop = watchThreads(this, collection => {
+    this.stop = watchProjection(this, () => {
+      const collection = readThreads();
       this.reading = collection;
       this.sameReading = collection === readThreads();
       keepsText(this.output, collection.threads.map(thread =>
@@ -68,7 +69,7 @@ THREAD_READER_DECLARATION = {
 }
 
 THREAD_FILTER = r"""
-import {keepsText, threadActions, readThreads, threadSummary, watchThreads} from '/runtime/widget-api.js';
+import {keepsText, threadActions, readThreads, threadSummary, watchProjection} from '/runtime/widget-api.js';
 customElements.define('lf-thread-filter', class extends HTMLElement {
   connectedCallback() {
     if (!this.input) {
@@ -79,7 +80,8 @@ customElements.define('lf-thread-filter', class extends HTMLElement {
       this.input.addEventListener('input', () => this.paint());
       this.append(this.input, this.list);
     }
-    this.stop ??= watchThreads(this, collection => {
+    this.stop ??= watchProjection(this, () => {
+      const collection = readThreads();
       this.reading = collection;
       this.sameReading = collection === readThreads();
       this.updates = (this.updates ?? 0) + 1;
@@ -1689,13 +1691,13 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
 
 
 THREAD_ACTIONS = r"""
-import {keeps, threadActions, watchThreads} from '/runtime/widget-api.js';
+import {keeps, readThreads, threadActions, watchProjection} from '/runtime/widget-api.js';
 customElements.define('lf-thread-actions', class extends HTMLElement {
   connectedCallback() {
     this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +
       '<button>Resolve</button><button>Reopen</button><button>React</button>';
-    this.stop = watchThreads(this, collection => {
-      this.thread = collection.threads[0];
+    this.stop = watchProjection(this, () => {
+      this.thread = readThreads().threads[0];
       keeps(this, 'data-resolved', Boolean(this.thread?.resolved));
       keeps(this, 'data-reacted', Boolean(this.thread?.msgs.find(msg => msg.author === 'agent')?.reactions?.choices.find(choice => choice.name === 'keep')?.inForce));
     });

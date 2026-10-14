@@ -7,7 +7,7 @@ import {
   keepsText,
   once,
   readWork,
-  watchWork,
+  watchProjection,
   widgetController,
   workAncestor,
 } from "/runtime/widget-api.js";
@@ -38,7 +38,7 @@ customElements.define(
         if (thread) this.append(thread);
       }
       this.#controller.subscribe(() => {});
-      watchWork(this, () => {
+      watchProjection(this, () => {
         const row = readWork(
           workAncestor(this, "scope") ?? this.parentElement,
         ).goals.find((row) => row.element === this);

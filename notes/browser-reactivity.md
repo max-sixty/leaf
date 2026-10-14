@@ -13,10 +13,12 @@ open questions; each owning module's header states the current contract.
   only when its part does.
 - **Watchers collect what they read.** `watchProjection(owner, paint)` collects every
   part of the publication its paint reads synchronously (`collectReads`, `snapshot.ts`)
-  and repaints when one of those parts moves (`runtime/projection-watch.js`). The named
-  watchers (`watchAsks`, `watchReports`, `watchWork` and the rest) are that watcher
-  around a reader, and a widget callback that also calls `readWork` or a controller's
-  `read()` is subscribed to those parts too. Only reads of the publication count. A
+  and repaints when one of those parts moves (`runtime/projection-watch.js`). It is the
+  one watcher packages use too: a reading has a reader (`readAsks`, `readQueues`,
+  `readThreads`, `readWork`, `reportSequence`, `readHistory`, a controller's `read()`)
+  and no watcher of its own, so a paint that reads several needs one watcher, and a
+  paint that narrates reports passes `reportsPresented` as the watcher's proof. Only
+  reads of the publication count. A
   Preact effect also subscribes the paint to private signals it reads, such as where
   the user stands, which a paint may also write: tracked by an effect, the annotation
   inventory's paint re-ran itself without end and hung the page.
@@ -113,12 +115,6 @@ and approved state (not every ask). No check finds the rest;
 
 ## Simplifications this opens
 
-- **One watcher.** With tracking, `watchAsks(owner, cb)` is
-  `watchProjection(owner, () => cb(readAsks()))`, and each named watcher is that
-  composition. The repository asks for one canonical API per capability: the named
-  watchers could go, leaving one watcher and the readers. That changes the public
-  widget API across the packages and examples, and `module-authoring.md`'s "Page
-  readings" section.
 - **One record of what a paint read.** `clockValue` and `clocked`
   (`runtime/presence.js`) keep their own record of which paints read the time, and the
   watcher separately compares the projection deferral (`projectionDeferred`) and the

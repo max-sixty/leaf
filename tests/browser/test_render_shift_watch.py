@@ -671,6 +671,12 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
     [
         ("", None),
         ("sticky_tail", None),
+        ("tail_growth", None),
+        ("undeclared_tail_growth", "button#reply"),
+        ("region_growth", "button#reply"),
+        ("tail_and_region_growth", "button#reply"),
+        ("growing_port", None),
+        ("overgrown_port", "button#later"),
         ("sticky_extra", "button#reply"),
         ("prepend", "p#old"),
         ("old_growth", "button#reply"),
@@ -685,17 +691,31 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
 def test_append_reflow_credits_only_its_measured_suffix_growth(
     browser, fault, protected
 ):
-    """An arrival may move its reply and later cards, preserving the transcript."""
+    """An arrival, or a last child declared the growing tail growing where none
+    arrives, may move its reply and later cards, preserving the transcript; so may a
+    port sized to what it holds that grows at its foot with it, as a floating card does,
+    and no further."""
+    # A floating port: nothing follows it in flow, so its foot is free to grow.
+    floating = (
+        "position:fixed;top:0;left:0;"
+        if fault in {"growing_port", "overgrown_port"}
+        else ""
+    )
+    tail = (
+        " data-lf-append-tail"
+        if fault in {"tail_growth", "region_growth", "tail_and_region_growth"}
+        else ""
+    )
     page = browser.new_page()
     page.goto(
         "data:text/html,"
         + quote(
             '<!doctype html><body style="margin:0;font:16px monospace">'
-            '<div id="port" data-lf-runtime style="width:360px;height:300px;'
+            f'<div id="port" data-lf-runtime style="{floating}width:360px;height:300px;'
             'padding:5px;box-sizing:border-box;overflow:auto;overflow-anchor:none">'
             '<section style="overflow:clip">'
             '<div id="source" data-lf-reflow="append">'
-            '<p id="old" style="margin:0;height:40px">Already reading.</p></div>'
+            f'<p id="old"{tail} style="margin:0;height:40px">Already reading.</p></div>'
             '<button id="reply" style="display:block;position:sticky;bottom:0">Reply</button></section>'
             '<article><p style="margin:0">Another conversation.</p>'
             '<button id="later">Later thread</button></article></div>'
@@ -724,7 +744,16 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           next.textContent = 'The newly appended reply.';
           next.style.cssText = `margin:0;height:${fault.startsWith('sticky_') ? 400 : 40}px`;
           if (fault === 'prepend') source.prepend(next);
+          else if (fault.endsWith('tail_growth'))
+            document.getElementById('old').style.height = '80px';
+          else if (fault === 'region_growth') source.style.paddingBottom = '40px';
+          else if (fault === 'tail_and_region_growth') {
+            document.getElementById('old').style.height = '60px';
+            source.style.paddingBottom = '40px';
+          }
           else source.append(next);
+          if (fault === 'growing_port') document.getElementById('port').style.height = '340px';
+          if (fault === 'overgrown_port') document.getElementById('port').style.height = '350px';
           if (fault === 'old_growth') document.getElementById('old').style.height = '60px';
           if (fault === 'extra_carry') document.getElementById('later').style.marginTop = '7px';
           if (fault === 'sticky_extra') document.getElementById('reply').style.bottom = '7px';
@@ -735,7 +764,11 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     )
     judge_watches()
     if not protected:
-        assert page.locator("#old").bounding_box() == before
+        grown = page.locator("#old").bounding_box()
+        if fault == "tail_growth":
+            assert grown == {**before, "height": before["height"] + 40}
+        else:
+            assert grown == before
         if fault == "sticky_tail":
             port = page.locator("#port").bounding_box()
             assert page.locator("#reply").bounding_box()["y"] == (

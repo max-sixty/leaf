@@ -805,10 +805,13 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # than whatever project the caller's directory sits in. `--no-dev` because
     # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
-    # payload path turns the console script into a `/bin/sh` trampoline.
+    # payload path turns the console script into a `/bin/sh` trampoline. The
+    # checkout's environment exists, so uv skips its cache, which an agent's
+    # sandbox refuses; the hook registration tests run a payload with none.
     assert dispatched == [
         "run",
         "-q",
+        "--no-cache",
         "--no-dev",
         "--project",
         str(PLUGIN_ROOT),
@@ -1721,6 +1724,43 @@ def test_layout_style_and_widgets_never_read_each_other():
         readers
     )
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
+
+
+def test_every_token_a_sheet_reads_is_set_somewhere():
+    """A `var(--name)` with no fallback reads a property something sets: a sheet's
+    declaration or `@property`, or a module or delivery writing it by name. One nothing
+    sets makes its declaration invalid, so the property falls back to what it inherits or
+    its initial value, and the page shows no sign of it: a hover background that never
+    painted, an empty state with no padding, a size the scale has no step for."""
+    # Anything that names a property as a declaration, an `@property` or a string sets
+    # it, a vendored component's sheet included; what is read is Leaf's own sheets.
+    written, prefixes, reads = set(), set(), []
+    for source in sorted(schema_model.ASSETS.parent.rglob("*")):
+        if source.suffix not in (".css", ".js", ".py"):
+            continue
+        text = source.read_text()
+        written |= set(re.findall(r"(--[\w-]+)\s*:", text))
+        written |= set(re.findall(r"@property\s+(--[\w-]+)", text))
+        written |= set(re.findall(r"[\"'`](--[\w-]+)[\"'`]", text))
+        prefixes |= set(re.findall(r"`(--[\w-]+)\$\{", text))
+        if (
+            source.suffix != ".css"
+            or "vendor" in source.parts
+            or text.startswith("/* Generated from ")
+        ):
+            continue
+        for _conditions, _enclosing, selector, declarations in _style_rules(source):
+            reads += [
+                (name, f"{source.relative_to(schema_model.ASSETS.parent)}: {selector}")
+                for _property, value in declarations
+                for name in re.findall(r"var\(\s*(--[\w-]+)\s*\)", value)
+            ]
+    unset = sorted(
+        f"{where} reads {name}"
+        for name, where in set(reads)
+        if name not in written and not name.startswith(tuple(prefixes))
+    )
+    assert not unset, "a token nothing sets:\n" + "\n".join(unset)
 
 
 def _pseudo_arguments(compound, pseudos):
@@ -4744,6 +4784,12 @@ def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
     assert browser_model.discovered_executable() is None
     hint = browser_model.browser_hint()
     assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
+
+    # Inside an agent's sandbox no browser starts however the host names one, so
+    # the line sends the check outside the sandbox instead.
+    monkeypatch.setenv("CODEX_SANDBOX", "seatbelt")
+    hint = browser_model.browser_hint()
+    assert "CODEX_SANDBOX=seatbelt" in hint and "outside the sandbox" in hint
 
 
 def test_producer_instructions_names_a_package_script_the_run_door_reaches(tmp_path):

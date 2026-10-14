@@ -7749,7 +7749,7 @@ def test_the_on_me_control_opens_open_and_answered_asks(browser, serve):
     assert said["widget:t-baffles-review"]["title"].startswith(
         "Are the baffles ready?"
     ), said
-    assert said["widget:honored"]["where"].startswith("Answered Two-tier gates"), said
+    assert said["widget:honored"]["where"].startswith("Answered: Two-tier gates"), said
 
     # Answered, and the row moves to Done as the route back, saying its current answer.
     # The pick is a move the agent now owes a reply, which is its row and not the Ask's.
@@ -7759,7 +7759,7 @@ def test_the_on_me_control_opens_open_and_answered_asks(browser, serve):
     answered = {r["at"]: r for r in page.evaluate(QUEUE_ROW_SAYS)}
     assert answered["widget:live-question"]["list"] == "done", answered
     assert answered["widget:live-question"]["where"].startswith(
-        "Answered Signed tokens"
+        "Answered: Signed tokens"
     ), answered
 
     page.locator("[data-lf-margin-for='sug-refill'] .lf-sug-accept").click()
@@ -7768,7 +7768,7 @@ def test_the_on_me_control_opens_open_and_answered_asks(browser, serve):
         row for row in page.evaluate(QUEUE_ROW_SAYS) if row["at"] == "widget:sug-refill"
     )
     assert suggestion["list"] == "done", suggestion
-    assert suggestion["where"].startswith("Answered Accepted"), suggestion
+    assert suggestion["where"].startswith("Answered: Accepted"), suggestion
 
     # And closing takes the rest with it, for the reason the docstring gives: a panel
     # that is down is not a list, so it holds nothing to reach and nothing to press.
@@ -7856,7 +7856,7 @@ Adds --dry-run to every mutating command.
     for at, words in answers.items():
         expect(
             page.locator(f'.lf-queue-row[data-lf-at="{at}"] .lf-queue-where')
-        ).to_contain_text(f"Answered {words}")
+        ).to_contain_text(f"Answered: {words}")
 
 
 def test_ask_rows_keep_identity_and_publisher_order_when_the_live_dom_moves(
@@ -7981,7 +7981,7 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     round_trip(page)
     page.wait_for_function("() => __lfReadAskApplication().unresolved.length === 0")
     expect(row.locator(".lf-queue-where")).to_contain_text(
-        "Answered Pause offline editing"
+        "Answered: Pause offline editing"
     )
 
 
@@ -8185,7 +8185,7 @@ def test_a_completed_ask_persists_and_its_done_row_can_revise_by_keyboard(
     )
     expect(row).to_be_focused()
     expect(row.locator(".lf-queue-where")).to_contain_text(
-        "Answered Pause offline editing"
+        "Answered: Pause offline editing"
     )
 
     page.keyboard.press("Enter")
@@ -8196,7 +8196,7 @@ def test_a_completed_ask_persists_and_its_done_row_can_revise_by_keyboard(
     expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
     expect_asks_answered(page, "1/1")
     expect(row.locator(".lf-queue-where")).to_contain_text(
-        "Answered Drop the oldest documents"
+        "Answered: Drop the oldest documents"
     )
 
 
@@ -8215,7 +8215,7 @@ def test_an_answered_boxless_ask_reopens_on_its_visible_revision_control(
 
     banner_control(page, ".lf-queue").click()
     row = page.locator('.lf-queue-row[data-lf-at="widget:sug-delete"]')
-    expect(row.locator(".lf-queue-where")).to_contain_text("Answered Accepted")
+    expect(row.locator(".lf-queue-where")).to_contain_text("Answered: Accepted")
     page.locator(".lf-queue-done > summary").click()
     row.click()
     expect(page.locator(".lf-queue-panel")).to_be_hidden()

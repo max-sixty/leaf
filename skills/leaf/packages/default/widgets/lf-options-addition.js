@@ -44,6 +44,8 @@ export class OptionAddition {
     whileConnected(this.#host, () =>
       watchDraft(this.#context, (value) => this.#syncInput.load(value ?? ""), {
         input: this.#input,
+        // Resume writing (`g i`) comes back to the field, which stands in the group.
+        resume: () => ({ where: this.#input, input: () => this.#input }),
       }),
     );
   }

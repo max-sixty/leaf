@@ -786,6 +786,11 @@ def ask_by_keyboard(page: Page) -> None:
     page.locator("lf-ask").first.wait_for()
 
 
+def steps_in_view(page: Page) -> None:
+    """A list of steps in body prose, each number beside its first line."""
+    page.locator("#security-contract-list").scroll_into_view_if_needed()
+
+
 def go_to(page: Page) -> None:
     """The Go-to sequence armed from the keyboard, its destinations on the line."""
     page.keyboard.press("g")
@@ -1340,6 +1345,12 @@ STATES = (
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
     State("progress-callout", "live-progress", at_rest),
+    State(
+        "steps",
+        "security-boundary",
+        steps_in_view,
+        region="#security-contract-list",
+    ),
     State(
         "alert-options-in-pane-touch",
         "alert-review",

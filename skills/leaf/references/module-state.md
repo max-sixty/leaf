@@ -8,7 +8,10 @@ A registry-declared widget reads and records its state through
 `widgetController(owner)`, whose methods are `read`, `subscribe`, `dispatch`, `defer`
 and `present`. Leaf records the widget's id and declaration before upgrade; if the
 element's `id` changes afterwards, `read()` reports every action unavailable and
-`dispatch()` returns `null`.
+`dispatch()` returns `null`. Only a widget written in page or message markup has a
+controller. A member the user adds through a `creates` verb, such as a new option, has
+none: its parent reads and draws it from its own state, and passes the member's
+asynchronous drawing to `controller.present(promise)`.
 
 Subscribe once, during initialization, never in the connection callbacks. While the
 widget has a subscriber, the controller calls the module's `renderState(state)` with
@@ -18,9 +21,12 @@ to draw. `subscribe` returns a function that ends the subscription. Leaf itself 
 what the declaration alone decides, such as hiding a suggestion's `lf-old` once it is
 accepted (`x-retired-when`).
 
-`read()` returns an immutable `{authored, state, thread, provenance, actions}`.
-`authored` is the state the page's markup sets, and `state` that with every recorded
-action applied, including the user's latest gestures before the server admits them.
+`read()` returns an immutable `{authored, state, memberships, thread, provenance,
+actions}`. `authored` is the state the page's markup sets, and `state` that with every
+recorded action applied, including the user's latest gestures before the server admits
+them. `memberships` maps each attribute an `attribute` record marks to the ids of the
+members the widget currently owns, so a reading changes when a member moves even if the
+marked ids don't.
 `thread.heldBy` is the id of the open Thread whose opening message holds this widget, or
 `null`. Each entry in `actions` says whether the action is available and what Undo can
 take back; check it before changing anything for the action. Before the document has

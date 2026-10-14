@@ -114,7 +114,10 @@ representative desktop viewport.
   may grow within its stationary scrollport while existing messages stay put: new
   children, or, where none joins, a last child declared its growing tail
   (`data-lf-append-tail`), the working message or a streaming reply. The idle reply row and later cards may move by that growth, and no
-  other change may. A scrollport sized to what it holds, as the margin's floating card
+  other change may. Where the growth would carry a reply row the user just sent from past
+  its scroller's landing band, the row stops at the band's foot and the scroller takes
+  the rest, so Send and the caret stay in view (`thread/reply-landing.js`,
+  `sendLanding`). A scrollport sized to what it holds, as the margin's floating card
   is, counts as stationary while it grows only at its foot, by that growth. Declare the
   box that owns the room, not an auto-sized inner label group or a boxless wrapper. A
   nested region holds its own boundary and every enclosing declaration's guarantees,
@@ -267,7 +270,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
 | Revision installs and continuity | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
-| Repaint and geometry | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `element-frame.js`, `scroll-motion.js`, `css-anchors.js`, `rect.js`, `pointer.js` |
+| Repaint and geometry | `rendering.js`, `repaint.js`, `page-geometry.js`, `geometry.js`, `element-frame.js`, `css-anchors.js`, `rect.js`, `pointer.js` |
 | Chrome and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |

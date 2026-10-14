@@ -950,24 +950,27 @@ def test_arrival_reading_reports_a_deterministic_transition(browser, serve):
     )
 
 
-def test_shadow_stage_withholds_package_transitions_until_presentation(browser, serve):
+def test_shadow_stage_withholds_package_transitions_until_presentation(
+    browser, serve, tmp_path
+):
     """The shared shadow stage suppresses a package transition during arrival."""
+    theme = tmp_path / "transition-theme"
+    theme.mkdir()
+    (theme / "shadow.css").write_text("details { transition: color 60s linear; }\n")
     page = browser.new_page()
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
-    page.goto(serve(PANEL_PAGE), wait_until="load")
+    page.goto(
+        serve(PANEL_PAGE, packages=(*EXAMPLE_PACKAGES, "./transition-theme")),
+        wait_until="load",
+    )
     render_checks_model.wait_for_probe(page, "upgraded")
     assert held, "the state read completed before the shadow guard was observed"
     assert page.locator("body").get_attribute("data-lf-presented") is None
     assert (
         page.evaluate(
-            """() => {
-                  const root = document.querySelector("#how-patch").shadowRoot;
-                  const style = document.createElement("style");
-                  style.textContent = "details { transition: color 60s linear; }";
-                  root.append(style);
-                  return getComputedStyle(root.querySelector("details")).transitionProperty;
-                }"""
+            """() => getComputedStyle(document.querySelector("#how-patch")
+                  .shadowRoot.querySelector("details")).transitionProperty"""
         )
         == "none"
     )

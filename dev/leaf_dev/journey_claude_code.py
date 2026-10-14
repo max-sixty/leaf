@@ -464,12 +464,12 @@ def answering(
             }
         }
         if sandbox:
-            # The README's settings ("Agent sandboxes"), which run Leaf's own
-            # commands outside the sandbox the rest of the session stays in.
+            # The README's settings ("Agent sandboxes"), which let Leaf's sandboxed
+            # commands reach the bridge its hooks keep outside the sandbox.
             settings["sandbox"] = {
                 "enabled": True,
                 "failIfUnavailable": True,
-                "excludedCommands": ["leaf *"],
+                "network": {"allowedDomains": ["127.0.0.1"]},
             }
         # The session's id is the journey's from the start, so Claude Code's record
         # of it answers `approve` before the page is claimed.

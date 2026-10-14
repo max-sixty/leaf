@@ -43,15 +43,30 @@ The record kind fixes the event's payload, a closed object with every field requ
 
 These verbs use `unit: "widget"`, except position verbs, whose `unit: "unit"` names the
 detail field holding the moved element. A verb with no record declares its own closed
-`detail` JSON Schema, with `unit` either `"widget"` or a required detail field naming
-the element it changes, as a playground's submitted settings do.
+`detail` JSON Schema, with `unit` either `"widget"` or a required string detail field
+naming what the verb's state is about, by element id or by data key, as a playground's
+submitted settings do.
+
+Only one widget records each attribute. A member's `value` record can't use the same
+attribute as an `attribute` record on a widget around it; `page check` refuses that in
+the markup, and Leaf refuses a move that would put the member under such a widget.
+Records on different attributes don't interact.
 
 A verb that lets the user add a child element declares `creates`, as `lf-options`' `add`
 does with `{"child": "lf-option", "words": "text"}`. Its `unit` names the detail field
-holding the new child's id, which must be one the document doesn't hold, and `words`
-the field holding its text; its detail schema has just those two fields. Each added
-child is its own key, so undoing the add removes it. The child's tag lists the widget in
-`x-owners`, requires only an `id`, and has `x-content: markup`.
+holding the new child's id, which must be one no page or Thread markup holds, created
+members included, and `words` the field holding its text; its detail schema has just
+those two fields. Each added child is its own key, so undoing the add removes it. The
+child's tag lists the widget in `x-owners`, requires only an `id`, and has
+`x-content: markup`.
+
+The added child belongs to its parent. Its entry may have a module and a shadow root for
+presentation, but `package check` refuses one that declares state, asks, work, history,
+data, visual parts, or a thread seat or surface of its own; the parent's controller
+records and presents
+it. Removing the child doesn't withdraw the parent's actions, so a parent selection
+still in force selects the same id if it returns. A widget that needs its own actions
+or services belongs in authored markup.
 
 A verb the agent writes, such as the task `status` on the Atlas example page, declares
 `"writer": "agent"`, `unit: "widget"`, and an `attribute` or `value` record. A worker sets

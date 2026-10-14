@@ -194,8 +194,6 @@ function streamOrigins(trace) {
 const nodeName = (node) =>
   [node.role, node.name || node.text].filter(Boolean).join(" · ") ||
   "Unnamed saved element";
-// A call's short name: its method, or the title past a class prefix.
-const callName = (action) => action.title.replace(/^[A-Z][A-Za-z]*\./, "");
 const seconds = (ms) => `${(ms / 1000).toFixed(3)} s`;
 // During playback a plain image shows each capture in time; the inspectable
 // Viewer surface takes over again when playback stops. The canvas is the part;
@@ -1681,7 +1679,7 @@ customElements.define(
         } else
           calls.push({
             ...mark,
-            label: callName(action),
+            label: action.method,
             error: !!action.error,
             title: `${action.title} · ${span(action)}${action.error ? ` · ${action.error}` : ""}`,
           });

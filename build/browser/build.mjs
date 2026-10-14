@@ -10,9 +10,11 @@
  * the initial renderers (`build/initial.mjs`), the stylesheets (`build/styles.mjs`),
  * the modules generated from the registry (`build/registry.mjs`), the kernel
  * event contract and the protocol baseline `protocol.test.ts` holds it to
- * (`event-types.mjs`), and the third-party bundles (`build/vendor.mjs`). The layer's `vendor/` and each package's
- * hold nothing else, so a file there that no build writes is stale. Leaf
- * installation, vendoring, activation, and export never invoke this tool.
+ * (`event-types.mjs`), the third-party bundles (`build/vendor.mjs`), and last the
+ * kernel compiled from all of them (`build/runtime-bundle.mjs`). The kernel's
+ * directory, the layer's `vendor/` and each package's hold nothing else, so a file
+ * there that no build writes is stale. Leaf installation, vendoring, activation, and
+ * export never invoke this tool.
  *
  * Each TypeScript module compiles to one JavaScript module, its types blanked to
  * whitespace, so every line keeps its source line number and two branches conflict
@@ -20,9 +22,8 @@
  * facade `vendor/browser-runtime.js`, and the modules it reaches sit in
  * `vendor/browser-runtime/`. Their imports are rewritten to the layer paths a page
  * serves: runtime modules stay native, so a page holds one instance of each, and
- * packages bind to the vendored builds below. Delivery compiles the whole framework
- * into the kernel (`build/runtime-bundle.mjs`), so its file count costs a
- * development checkout requests and nothing else.
+ * packages bind to the vendored builds below. The kernel compiles the whole framework
+ * in, so its file count costs requests only where a page serves source modules.
  *
  * The framework's third-party packages are minified builds from the lock and the
  * adaptations below. `vendor/lit.js` is the page's one copy of Lit (`build/lit.mjs`);
@@ -32,7 +33,8 @@
  * that reached them, as it does for every vendored bundle.
  */
 import { readFileSync } from "node:fs";
-import { readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, readdir, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -44,11 +46,14 @@ import { initialOutputs } from "../initial.mjs";
 import { litNamespace, litPath } from "../lit.mjs";
 import { registryOutputs } from "../registry.mjs";
 import { styleOutputs } from "../styles.mjs";
+import { kernelOutputs } from "../runtime-bundle.mjs";
 import { adapt, seam, vendorOutputs } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const assets = "skills/leaf/assets";
+/** The committed kernel, which installs serve while it matches the tree's modules. */
+const kernelDirectory = "skills/leaf/kernel";
 const sourceRoot = "build/browser";
 const facade = "vendor/browser-runtime.js";
 const frameworkDirectory = "vendor/browser-runtime";
@@ -320,7 +325,35 @@ export async function buildOutputs() {
   );
   for (const producer of [initialOutputs, styleOutputs, registryOutputs, vendorOutputs])
     for (const [name, bytes] of await producer()) outputs.set(name, bytes);
+  for (const [name, bytes] of await kernelOf(outputs))
+    outputs.set(`${kernelDirectory}/${name}`, bytes);
   return outputs;
+}
+
+/**
+ * The kernel (`runtime-bundle.mjs`, `kernelOutputs`) compiled from the layer this
+ * build leaves: the tracked modules with every output above in place, and the
+ * layer's `vendor/` as the build writes it, so one build both moves a module the
+ * kernel reads and compiles the kernel from it.
+ */
+async function kernelOf(outputs) {
+  const layer = await mkdtemp(path.join(tmpdir(), "leaf-kernel-layer-"));
+  try {
+    for (const name of ["leaf.js", "runtime", "widgets"])
+      await cp(path.join(root, assets, name), path.join(layer, name), {
+        recursive: true,
+      });
+    await mkdir(path.join(layer, "vendor"));
+    for (const [name, bytes] of outputs) {
+      if (!name.startsWith(`${assets}/`)) continue;
+      const destination = path.join(layer, name.slice(assets.length + 1));
+      await mkdir(path.dirname(destination), { recursive: true });
+      await writeFile(destination, bytes);
+    }
+    return await kernelOutputs(layer);
+  } finally {
+    await rm(layer, { force: true, recursive: true });
+  }
 }
 
 const missing = (error) => {
@@ -329,12 +362,14 @@ const missing = (error) => {
 };
 
 /**
- * The directories this build owns whole: the layer's `vendor/` and each package's.
- * Every file in them is an output, so one the build no longer writes is stale.
+ * The directories this build owns whole: the kernel, the layer's `vendor/` and each
+ * package's. Every file in them is an output, so one the build no longer writes is
+ * stale.
  */
-async function vendorDirectories(directory) {
+async function ownedDirectories(directory) {
   const packages = "skills/leaf/packages";
   return [
+    kernelDirectory,
     `${assets}/vendor`,
     ...(
       await readdir(path.join(directory, packages), { withFileTypes: true }).catch(
@@ -348,7 +383,7 @@ async function vendorDirectories(directory) {
 
 export async function checkOutputs(outputs, directory = root) {
   const stale = [];
-  for (const owned of await vendorDirectories(directory))
+  for (const owned of await ownedDirectories(directory))
     for (const file of await readdir(path.join(directory, owned), {
       recursive: true,
       withFileTypes: true,
@@ -369,9 +404,10 @@ export async function checkOutputs(outputs, directory = root) {
     }
     if (!actual?.equals(expected)) stale.push(name);
   }
+  // After a merge, a conflicted kernel file is one of these: the rebuild resolves it.
   if (stale.length)
     throw new Error(
-      `Stale browser output; run pnpm run build:browser:\n${stale.join("\n")}`,
+      `Stale browser output; rebuild it with \`pnpm install --frozen-lockfile && pnpm run build:browser\`:\n${stale.join("\n")}`,
     );
 }
 
@@ -396,7 +432,7 @@ async function main(args) {
   if (args[0] !== "--check") await writeFile(protocolContractPath, protocol.text);
   if (args[0] === "--check") await checkOutputs(outputs);
   else {
-    for (const owned of await vendorDirectories(root))
+    for (const owned of await ownedDirectories(root))
       await rm(path.join(root, owned), { force: true, recursive: true });
     for (const [name, bytes] of outputs) {
       const destination = path.join(root, name);

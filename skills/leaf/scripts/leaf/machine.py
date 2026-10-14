@@ -60,15 +60,15 @@ def sandbox_remedy() -> str | None:
     """Where an agent harness's sandbox confines this command, the clause a refusal
     the sandbox explains ends with, or None where no harness says so: the variable
     that says it, and to rerun the command outside the sandbox, so the agent does
-    not read the refusal as the host's. It points at the README's settings that run
-    `leaf` outside the sandbox without asking, for the agent to pass on."""
+    not read the refusal as the host's. It points at the README's section on running
+    `leaf` from each harness's sandbox without asking, for the agent to pass on."""
     for name in SANDBOX_VARIABLES:
         if value := os.environ.get(name):
             readme = Path(__file__).resolve().parents[4] / "README.md"
             return (
                 f"this command runs in an agent's sandbox ({name}={value}), so rerun "
-                f'it outside the sandbox; "Agent sandboxes" in {readme} gives the '
-                "settings that run leaf outside it without asking"
+                f'it outside the sandbox; "Agent sandboxes" in {readme} says how '
+                "leaf runs from that sandbox without asking"
             )
     return None
 

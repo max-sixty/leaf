@@ -277,7 +277,9 @@ ${offered("lf-btn")}>` does the same, with an input's `type` binding placed befo
 A control whose label is the page's own words, such as a tab's name, must stay
 selectable, so build it with `selectableOffer(role, className, label)`, a focusable span
 for which the widget supplies the keyboard behavior. `el(tag, className, text)` makes a
-plain element for structure that isn't injected UI.
+plain element for structure that isn't injected UI. Printing drops every offer, in a
+shadow stage too, so build a box holding what the widget shows, such as an editor's
+file, with `el`.
 
 `relabel(node, label, {says})` writes a generated control's label. Set `says: true`
 where the label is the page speaking, as a pick mark reading "chosen" does, `false` for an

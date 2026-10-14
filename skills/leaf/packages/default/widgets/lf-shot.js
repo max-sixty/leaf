@@ -23,10 +23,16 @@
  * press. `difference` is that reading, in the images' own pixels, or null for a pair the widget refused;
  * a parent that hides the rail states it from there. Plain, Outlines and Pixels are
  * mutually exclusive comparison views, offered where available. Outlines is the
- * default where authored and regions exist; otherwise Plain is. With `pixels`,
- * Pixels shows the after image greyed with each changed pixel painted
- * through `changedPixels`' mask in the theme's warning colour. The mask is built
- * on the first press, since most readers never open it. Selecting the active view
+ * default where authored and regions exist; Pixels is where authored alone, since an
+ * author who asked for pixels and not outlines is showing a change that one picture
+ * of both images says best, such as a mark that moved; otherwise Plain is. With
+ * `pixels`, Pixels shows the after image greyed with each changed pixel painted
+ * through `changedPixels`' masks: what only before drew there in the theme's danger
+ * colour, what only after drew in its accent, and what both drew, as a recolour, in its
+ * warning colour, so a moved mark reads as where it was and where it went in one
+ * picture. Beside Outlines, the masks are built on the first press, since most readers
+ * never open them. An inspector's `inspect()` leaves Pixels for the last comparison
+ * view, and a shot it inspects does not open in Pixels. Selecting the active view
  * is idempotent. Clicking the pixel picture or choosing an endpoint returns to the
  * last comparison view and retains the divider. The view group has one Tab stop;
  * arrows move and select, while Enter and Space select the focused view.
@@ -112,6 +118,7 @@ customElements.define(
     #view = "plain";
     #returnView = "plain";
     #pixelsView;
+    #pixelsPainted;
     #viewOptions = new Map();
     #frames = [];
     #inspection;
@@ -162,6 +169,10 @@ customElements.define(
     }
 
     inspect(configuration) {
+      if (this.#view === "pixels") {
+        this.#setView(this.#returnView, { quiet: true });
+        this.#paint();
+      }
       const next = { ...this.#inspection, ...configuration };
       const controlsChanged = this.#controlsEnabled !== (next.mode === "flip");
       this.#inspection = next;
@@ -579,7 +590,15 @@ customElements.define(
         count.append(views);
       }
       this.#openers.get("before").after(count);
-      this.#paint();
+      // An inspector chooses its own presentation, so only a shot standing on its own
+      // opens in Pixels, and the reading waits for that paint.
+      if (
+        this.hasAttribute("pixels") &&
+        !this.hasAttribute("outlines") &&
+        !this.#inspection
+      )
+        await this.#showPixels(shots, { quiet: true });
+      else this.#paint();
       return reading;
     }
 
@@ -592,60 +611,73 @@ customElements.define(
       }
     }
 
-    #setView(view) {
+    #setView(view, { quiet = false } = {}) {
       this.#view = view;
-      announce(`Showing ${VIEW_READINGS[view]}`);
+      if (!quiet) announce(`Showing ${VIEW_READINGS[view]}`);
     }
 
     #leavePixels() {
       if (this.#view === "pixels") this.#setView(this.#returnView);
     }
 
-    // The Pixels view: the after image greyed, under the changed pixels that a mask
-    // paints in the theme's colour. The view stands in the press's turn; the mask is
-    // read on the next frame and its paint lands when encoded.
-    #showPixels(shots) {
+    // The Pixels view: the after image greyed, under the changed pixels that three masks
+    // paint in the theme's colours: what only before drew, what only after drew, and
+    // what both did. The view stands in the press's turn; the masks are read on the
+    // next frame, and the promise this returns settles once their paint is set.
+    #showPixels(shots, { quiet = false } = {}) {
       this.#returnView = this.#view;
-      this.#setView("pixels");
-      if (!this.#pixelsView) {
-        const view = document.createElement("div");
-        view.className = "lf-shotpixels";
-        view.dataset.lfGen = "1";
-        view.role = "img";
-        keeps(view, "aria-label", `changed pixels: ${this.#alt}`);
-        const ground = document.createElement("img");
-        ground.alt = "";
-        ground.crossOrigin = "anonymous";
-        ground.src = shots[1].src;
-        const paint = document.createElement("span");
-        view.append(ground, paint);
-        view.addEventListener("click", (event) => {
-          if (!plainPress(event)) return;
-          this.#leavePixels();
-          this.#paint();
-        });
-        // Before the rail in the tree, so the sticky rail, at the same z-index, stands
-        // over it.
-        this.prepend(view);
-        this.#pixelsView = view;
-        nextFrame(() => {
-          const { width, height, data } = compareImagePixels(...shots);
-          const canvas = new OffscreenCanvas(width, height);
-          canvas
-            .getContext("2d")
-            .putImageData(new ImageData(data, width, height), 0, 0);
-          void canvas
-            .convertToBlob({ type: "image/png" })
-            .then((blob) =>
-              paint.style.setProperty(
-                "--lf-shot-pixels",
-                `url("${URL.createObjectURL(blob)}")`,
-              ),
-            )
-            .catch((reason) => failSoft(this, reason));
-        });
+      this.#setView("pixels", { quiet });
+      if (this.#pixelsView) {
+        this.#paint();
+        return this.#pixelsPainted;
       }
+      const view = document.createElement("div");
+      view.className = "lf-shotpixels";
+      view.dataset.lfGen = "1";
+      view.role = "img";
+      keeps(view, "aria-label", `changed pixels: ${this.#alt}`);
+      const ground = document.createElement("img");
+      ground.alt = "";
+      ground.crossOrigin = "anonymous";
+      ground.src = shots[1].src;
+      const paints = ["both", "before", "after"].map((side) => {
+        const paint = document.createElement("span");
+        paint.dataset.lfShotSide = side;
+        return paint;
+      });
+      view.append(ground, ...paints);
+      view.addEventListener("click", (event) => {
+        if (!plainPress(event)) return;
+        this.#leavePixels();
+        this.#paint();
+      });
+      // Before the rail in the tree, so the sticky rail, at the same z-index, stands
+      // over it.
+      this.prepend(view);
+      this.#pixelsView = view;
       this.#paint();
+      this.#pixelsPainted = new Promise((read) => nextFrame(read)).then(() => {
+        const { width, height, ...masks } = compareImagePixels(...shots);
+        return Promise.all(
+          paints.map(async (paint) => {
+            const canvas = new OffscreenCanvas(width, height);
+            canvas
+              .getContext("2d")
+              .putImageData(
+                new ImageData(masks[paint.dataset.lfShotSide], width, height),
+                0,
+                0,
+              );
+            const blob = await canvas.convertToBlob({ type: "image/png" });
+            paint.style.setProperty(
+              "--lf-shot-pixels",
+              `url("${URL.createObjectURL(blob)}")`,
+            );
+          }),
+        );
+      });
+      void this.#pixelsPainted.catch((reason) => failSoft(this, reason));
+      return this.#pixelsPainted;
     }
 
     #show(state) {

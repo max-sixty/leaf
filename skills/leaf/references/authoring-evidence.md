@@ -204,10 +204,14 @@ change, or say that nothing changed. Where it reads "only slight changes", the
 reader will hardly see the change, so name it in the prose, or say that nothing but
 redrawing changed.
 Add `pixels` where the reader needs to see exactly which pixels changed, as when
-the change is a shift of a few pixels or a recolour that flipping barely shows, or
-when the claim is that nothing else changed. Pixels joins the rail's view selector,
-showing the after image greyed with every changed pixel painted over it, so build no
-difference image of your own. Without available outlines, the selector starts in Plain.
+the change is a shift of a few pixels, a recolour that flipping barely shows, or a mark
+that moved, or when the claim is that nothing else changed. Pixels joins the rail's
+view selector, showing the after image greyed with every changed pixel painted over it:
+red where only the before image drew something, blue where only the after image did,
+and amber where both did, as a recolour, so a moved mark reads as where it was and
+where it went in one picture; build no difference image of your own. With `pixels`
+alone the selector starts in Pixels, and with `outlines` too it starts in Outlines
+where the pair has outlines to show.
 Arrow keys select a view; selecting the current view keeps it selected. Choosing
 Plain or Outlines preserves the divider, and clicking the pixel picture or a
 Before/After endpoint returns to the previous comparison view. It combines with

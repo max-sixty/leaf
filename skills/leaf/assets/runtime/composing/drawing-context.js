@@ -4,6 +4,8 @@
  * The dependency clones computed presentation, including open shadow roots and scrolled
  * content; it excludes Leaf's apparatus so the preview cannot contain itself. Rendering
  * is requested only for a changed drawing, never on scroll or ordinary input repaint.
+ * The compact thumbnail retains bounded native pixels for the shared image inspector;
+ * opening it serializes this frozen canvas, never captures the current page again.
  * The optional renderer loads at the first preview, outside page presentation.
  */
 import { leafSurface } from "../passages.js";
@@ -14,8 +16,8 @@ import { renderedParent, under } from "../shadow.js";
 import { drawingGeometry } from "./drawing-geometry.js";
 
 const CONTEXT_PAD = 24;
-const PREVIEW_WIDTH = 320;
-const PREVIEW_HEIGHT = 240;
+const PREVIEW_WIDTH = 2048;
+const PREVIEW_HEIGHT = 1536;
 
 // Capture the painted island that contains the crop, rather than making every widget
 // and offscreen image in a long page participate in one tiny attachment. Positioned
@@ -98,6 +100,7 @@ function readPicture(drawing, target) {
 export function drawingThumbnail(drawing, target) {
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
+  canvas.dataset.lfDrawingContext = "pending";
   canvas.style.color = "var(--accent)";
   let picture = readPicture(drawing, target);
   const sizeCanvas = () => {

@@ -6,7 +6,9 @@
    change or Send reads the draft. Each appended block carries its own two-newline
    separator; removing that suffix preserves every newline the user wrote.
    Draft, sent-message, and authored links to their own image open one native modal
-   viewer. PhotoSwipe supplies image zoom, pan, and touch gestures on demand; native
+   viewer. A local drawing supplies its frozen canvas pixels at the press; its
+   temporary image URL belongs only to that opening, never to the durable draft.
+   PhotoSwipe supplies image zoom, pan, and touch gestures on demand; native
    modality, retained controls, and focus return remain Leaf's. An authored figure
    caption, an inspection link's explicit caption, or a table cell's column and row
    heads stay outside the image in a readable footer; alt text stays with the image.
@@ -91,6 +93,7 @@ caption.className = "lf-media-viewer-caption";
 let inspector = null;
 let loading = null;
 let opening = 0;
+let canvasUrl = null;
 
 function imageTools() {
   if (!loading) {
@@ -216,16 +219,16 @@ const cellHeads = (from) => {
 
 // The viewer hands the user back to the image they opened it from (focus.js,
 // `openLayer`) once the platform has closed it, by its button, Escape or a press outside.
-const open = (url, alt, from) => {
+const open = async (source, alt, from) => {
   const attempt = ++opening;
   inspector?.destroy();
   inspector = null;
+  if (canvasUrl) URL.revokeObjectURL(canvasUrl);
+  canvasUrl = null;
+  const canvas = source instanceof window.HTMLCanvasElement;
   openLayer(mediaViewer, from);
-  presentViewer({ url, alt });
-  render(
-    html`<span class="lf-media-viewer-probe"><img src=${url} alt="" /></span>`,
-    stage,
-  );
+  presentViewer(canvas ? null : { url: source, alt });
+  render(canvas ? html`<p>Preparing image…</p>` : null, stage);
   const figureCaption = from.closest("figure")?.querySelector("figcaption");
   const description =
     from.dataset.lfMediaCaption ||
@@ -236,6 +239,28 @@ const open = (url, alt, from) => {
   keepsText(viewerZoom, "100%");
   if (!mediaViewer.open) showNativeLayer(mediaViewer);
   focusDestination(viewerClose, "move");
+  let url = source;
+  if (canvas) {
+    // Native encoding snapshots the pixels at this press. A late completion cannot
+    // reopen a closed viewer or replace an image the reader opened since.
+    let blob;
+    try {
+      blob = await new Promise((resolve) => source.toBlob(resolve));
+      if (!blob) throw new Error("the drawing could not be encoded");
+    } catch (error) {
+      if (attempt !== opening || !mediaViewer.open) return;
+      render(html`<p>Image preview unavailable: ${error.message}.</p>`, stage);
+      return;
+    }
+    if (attempt !== opening || !mediaViewer.open) return;
+    canvasUrl = URL.createObjectURL(blob);
+    url = canvasUrl;
+    presentViewer({ url, alt });
+  }
+  render(
+    html`<span class="lf-media-viewer-probe"><img src=${url} alt="" /></span>`,
+    stage,
+  );
   /** @type {HTMLImageElement} */
   const probe = stage.querySelector(".lf-media-viewer-probe > img");
   Promise.all([imageTools(), probe.decode()]).then(
@@ -329,6 +354,8 @@ mediaViewer.addEventListener("close", () => {
   ++opening;
   inspector?.destroy();
   inspector = null;
+  if (canvasUrl) URL.revokeObjectURL(canvasUrl);
+  canvasUrl = null;
   const origin = openerOf(mediaViewer);
   openLayer(mediaViewer, null);
   closeLayer(
@@ -348,7 +375,10 @@ document.addEventListener("click", (event) => {
       .composedPath()
       .find(
         (node) =>
-          node instanceof Element && node.matches(".lf-media-open[data-lf-media-url]"),
+          node instanceof Element &&
+          node.matches(
+            ".lf-media-open[data-lf-media-url], .lf-media-open[data-lf-media-canvas]",
+          ),
       )
   );
   const link = event.composedPath().find((node) => node instanceof HTMLAnchorElement);
@@ -362,7 +392,10 @@ document.addEventListener("click", (event) => {
   if (trigger || imageLink) {
     event.preventDefault();
     open(
-      trigger?.dataset.lfMediaUrl || link.href,
+      (trigger?.hasAttribute("data-lf-media-canvas") &&
+        trigger.querySelector("canvas")) ||
+        trigger?.dataset.lfMediaUrl ||
+        link.href,
       trigger?.dataset.lfMediaAlt ||
         (trigger?.querySelector("img") || image)?.alt ||
         "Image",

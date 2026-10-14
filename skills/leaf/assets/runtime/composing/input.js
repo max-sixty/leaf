@@ -110,12 +110,34 @@ class AttachedMediaShelf extends LitElement {
       drawing
         ? html`
             <span class="lf-composer-media-item lf-composer-drawing">
-              <span
-                class="lf-composer-media-open"
-                role="img"
-                aria-label=${`Drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
-                >${this.picture(drawing)}</span
+              <button
+                type="button"
+                class="lf-media-open lf-composer-media-open"
+                data-lf-media-canvas
+                aria-label=${`Inspect drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
+                title="Inspect drawing"
+                @click=${(event) => {
+                  const canvas = this.picture(drawing);
+                  keeps(
+                    event.currentTarget,
+                    "data-lf-media-alt",
+                    canvas.dataset.lfDrawingContext === "ready"
+                      ? "Drawing over its frozen page context"
+                      : "Drawing",
+                  );
+                  keeps(
+                    event.currentTarget,
+                    "data-lf-media-caption",
+                    canvas.dataset.lfDrawingContext === "ready"
+                      ? ""
+                      : canvas.dataset.lfDrawingContext === "pending"
+                        ? "Drawing only; page preview was not ready when opened."
+                        : "Drawing only; page preview unavailable.",
+                  );
+                }}
               >
+                ${this.picture(drawing)}
+              </button>
               <button
                 type="button"
                 aria-label="Undo last stroke"

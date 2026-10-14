@@ -1716,7 +1716,9 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
     table's `container-type: inline-size scroll-state` whole, so the width its fill
     reads (100cqi) was the window's: an Ask's two-column table laid its rows out 1728px
     wide in a 720px column and cut its second column off."""
-    sentence = "When a new copy is installed, the update copies each commit and records it. "
+    sentence = (
+        "When a new copy is installed, the update copies each commit and records it. "
+    )
     row = f"<tr><td>{sentence * 2}</td><td>{sentence}</td></tr>"
     table = '<table id="{id}"><thead><tr><th>Decides</th><th>Can do</th></tr></thead>'
     table += f"<tbody>{row * 2}</tbody></table>"

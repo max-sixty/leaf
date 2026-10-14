@@ -932,7 +932,9 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
     assert all(abs(short) <= 1 for short in measured["allocated"]), measured
     assert measured["bareShort"] > 100, "the bare table fills its column"
     assert measured["ownShort"] > 100 and measured["ownStart"] == 0, measured
-    assert all(a["short"] > 100 and a["scrolls"] == 0 for a in measured["asked"]), measured
+    assert all(a["short"] > 100 and a["scrolls"] == 0 for a in measured["asked"]), (
+        measured
+    )
     assert measured["wideScrolls"] > 0 and measured["wideInside"] >= 0, measured
     assert measured["codeRatio"] == pytest.approx(0.9, abs=0.01), measured
     assert root_overflow(page) == 0

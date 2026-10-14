@@ -1786,7 +1786,7 @@ export function createFloatingPanel({
           title=${onUserName}
           @click=${openOnMe}
         >
-          ${iconTemplate("question", "lf-action-icon")}<span class="lf-fp-num"
+          ${iconTemplate("inbox", "lf-action-icon")}<span class="lf-fp-num"
             >${onUser || ""}</span
           ></button
         ><button

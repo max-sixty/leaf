@@ -178,14 +178,6 @@
   }
 }
 
-.lf-vr-inspector[hidden] {
-  display: none;
-}
-
-.lf-vr-inspector-group[hidden] {
-  display: none;
-}
-
 .lf-vr-inspector-group {
   min-width: 0;
 }
@@ -253,8 +245,11 @@
   padding: var(--sp-2) var(--sp-3);
 }
 
-.lf-vr-case[hidden] {
-  display: none;
+/* One case stands on screen at a time; paper prints them all, one to a page. */
+@media screen {
+  .lf-vr-case:not([data-selected]) {
+    display: none;
+  }
 }
 
 .lf-vr-case-head {
@@ -373,7 +368,7 @@
   font: var(--t-6) / 1.4 var(--sans);
 }
 
-.lf-vr-detail:not([hidden]) {
+.lf-vr-detail {
   display: grid;
   align-content: start;
   gap: 1px;
@@ -527,10 +522,6 @@
   .lf-vr-queue,
   .lf-vr-inspection {
     display: none !important;
-  }
-
-  .lf-vr-case[hidden] {
-    display: grid !important;
   }
 
   .lf-vr-case + .lf-vr-case {

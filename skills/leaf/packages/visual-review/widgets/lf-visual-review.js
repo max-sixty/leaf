@@ -683,7 +683,7 @@ customElements.define(
         data-classification=${record.classification}
         data-disposition=${disposition ?? ""}
         aria-label=${`Visual review case ${index + 1} of ${total}`}
-        ?hidden=${!selected}
+        ?data-selected=${selected}
         ${ref(place)}
       >
         <header class="lf-vr-case-head">

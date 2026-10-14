@@ -1040,7 +1040,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     fit_reading = """node => {
           const body = node.querySelector('.lf-vr-cases');
           const frames = [...node.querySelectorAll(
-            '.lf-vr-case:not([hidden]) .lf-shotframe')];
+            '.lf-vr-case[data-selected] .lf-shotframe')];
           return {bodyBottom: body.getBoundingClientRect().bottom,
                   framesBottom: Math.max(...frames.map(
                     frame => frame.getBoundingClientRect().bottom)),
@@ -1055,7 +1055,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     page.wait_for_function(
         """node => {
           const body = node.querySelector('.lf-vr-cases').getBoundingClientRect();
-          return [...node.querySelectorAll('.lf-vr-case:not([hidden]) .lf-shotframe')]
+          return [...node.querySelectorAll('.lf-vr-case[data-selected] .lf-shotframe')]
             .every(frame => frame.getBoundingClientRect().bottom <= body.bottom + 0.5);
         }""",
         arg=widget.element_handle(),
@@ -1064,7 +1064,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert opened["image"] < contained["image"], opened
     widget.get_by_text("Inspect comparison", exact=True).click()
     page.wait_for_function(
-        "(args) => args.node.querySelector('.lf-vr-case:not([hidden]) img')"
+        "(args) => args.node.querySelector('.lf-vr-case[data-selected] img')"
         ".getBoundingClientRect().width === args.width",
         arg={"node": widget.element_handle(), "width": contained["image"]},
     )
@@ -1077,7 +1077,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         """node => {
           const box = selector => node.querySelector(selector).getBoundingClientRect();
           const frames = [...node.querySelectorAll(
-            '.lf-vr-case:not([hidden]) .lf-shotframe')]
+            '.lf-vr-case[data-selected] .lf-shotframe')]
             .map(frame => frame.getBoundingClientRect());
           return {widget: node.getBoundingClientRect(), title: box('.lf-vr-case-title'),
                   decision: box('.lf-vr-dispositions'), evidence: box('.lf-vr-shot-host'),
@@ -1094,17 +1094,17 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     assert widget.get_attribute("data-compare-layout") == "side", geometry
     assert geometry["frames"][1]["left"] >= geometry["frames"][0]["right"]
     case_image_width = widget.locator(
-        ".lf-vr-case:not([hidden]) .lf-shotframe img"
+        ".lf-vr-case[data-selected] .lf-shotframe img"
     ).first.evaluate("node => node.getBoundingClientRect().width")
     assert case_image_width == pytest.approx(350, abs=1), geometry
-    assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
+    assert widget.locator(".lf-vr-case[data-selected] .lf-vr-shot-host").evaluate(
         "node => node.scrollHeight <= node.clientHeight + 1"
     )
     assert widget.locator(".lf-vr-cases").evaluate(
         "node => node.scrollHeight > node.clientHeight"
     )
     assert geometry["support"]["top"] >= geometry["evidence"]["bottom"]
-    case = widget.locator(".lf-vr-case:not([hidden])")
+    case = widget.locator(".lf-vr-case[data-selected]")
     claim_geometry = case.evaluate(
         """node => {
           const box = selector => node.querySelector(selector).getBoundingClientRect();
@@ -1161,7 +1161,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     resized(page, 390, 900)
     assert root_overflow(page) == 0
     resized(page, 1366, 768)
-    shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    shot_host = widget.locator(".lf-vr-case[data-selected] .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
     expect(widget).to_have_attribute("data-compare-layout", "side")
 
@@ -1185,7 +1185,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
     with sending(page, "the seeded responsive regression disposition"):
-        widget.locator(".lf-vr-case:not([hidden])").get_by_role(
+        widget.locator(".lf-vr-case[data-selected]").get_by_role(
             "button", name="Needs work"
         ).click()
     expect(widget.locator(".lf-vr-progress")).to_have_text("2 of 3 cases reviewed")
@@ -1194,7 +1194,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     expect(widget).to_have_attribute("data-compare-layout", "stack")
     expect(gallery_scope).to_be_hidden()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
-    assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
+    assert widget.locator(".lf-vr-case[data-selected] .lf-vr-shot-host").evaluate(
         "node => node.scrollHeight <= node.clientHeight + 1"
     )
 
@@ -1207,7 +1207,7 @@ def test_a_visual_review_inside_a_section_of_a_workspace_flows(browser, serve):
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1440, 900)
     widget = page.locator("#visual-review-run")
-    expect(widget.locator(".lf-vr-case:not([hidden]) lf-shot")).to_be_visible()
+    expect(widget.locator(".lf-vr-case[data-selected] lf-shot")).to_be_visible()
     widget.evaluate(
         """review => {
           const section = document.createElement('section');
@@ -1218,7 +1218,7 @@ def test_a_visual_review_inside_a_section_of_a_workspace_flows(browser, serve):
         }"""
     )
     reading = """review => ({
-      image: review.querySelector('.lf-vr-case:not([hidden]) .lf-shotframe img')
+      image: review.querySelector('.lf-vr-case[data-selected] .lf-shotframe img')
         .getBoundingClientRect().width,
       paneScrolls: getComputedStyle(review.querySelector('.lf-vr-cases')).overflowY,
     })"""
@@ -1242,7 +1242,7 @@ def test_visual_review_fits_frames_using_the_authored_spacing(browser, serve):
         resized(page, 760, height)
         expect(widget).to_have_attribute("data-compare-layout", "side")
         geometry = widget.locator(
-            ".lf-vr-case:not([hidden]) .lf-vr-shot-host"
+            ".lf-vr-case[data-selected] .lf-vr-shot-host"
         ).evaluate(
             """host => {
               const shot = host.querySelector('lf-shot');
@@ -1273,7 +1273,7 @@ def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
         """,
     )
     widget = page.locator("#visual-review-run")
-    case = widget.locator(".lf-vr-case:not([hidden])")
+    case = widget.locator(".lf-vr-case[data-selected]")
     host = case.locator(".lf-vr-shot-host")
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     expect(widget.get_by_role("radiogroup", name="Scope")).to_be_hidden()
@@ -1962,6 +1962,49 @@ def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve
     rendered(page)
     after = reading.evaluate("node => node.getBoundingClientRect().top")
     assert after == pytest.approx(before, abs=4), (before, after)
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_revision_after_revision_keeps_the_reader_on_the_same_line(
+    engine, request, serve
+):
+    """An agent adds a paragraph above the reader in each of several revisions.
+
+    Each restore lands the reader's line within the pixel the engine rounds a scroll
+    offset to, and the next revision's reading starts from where the restore aimed
+    rather than where it landed: read from where it landed, each rounding would add
+    to the last, and the line would creep down the screen revision by revision.
+    """
+    browser = request.getfixturevalue(engine)
+
+    def source(added):
+        paragraphs = "".join(
+            f'<p id="{name}">{name}, long enough to stand as a landmark of its own.</p>'
+            for name in [f"added-{n}" for n in range(added)]
+            + [f"passage-{n}" for n in range(80)]
+        )
+        # A line height whose paragraphs stand a fraction of a pixel apart, which no
+        # scroll offset can match.
+        return leaf_page(
+            f"Arrivals {added}",
+            "<style>html { overflow-anchor: none; } p { line-height: 1.37; }</style>"
+            + paragraphs,
+        )
+
+    page = open_page(browser, live_url(serve(source(0))))
+    resized(page, 1200, 700)
+    page.evaluate("document.scrollingElement.scrollTop = 1500")
+    scroll_settled(page)
+    rendered(page)
+    reading = page.locator("#passage-45")
+    before = reading.evaluate("node => node.getBoundingClientRect().top")
+    for added in range(1, 7):
+        (serve.page_dir / "index.html").write_text(source(added))
+        told(page)
+        expect(page).to_have_title(f"Arrivals {added}")
+        rendered(page)
+    after = reading.evaluate("node => node.getBoundingClientRect().top")
+    assert after == pytest.approx(before, abs=1), (before, after)
 
 
 def test_a_revision_keeps_the_pane_read_over_a_pane_holding_offscreen_focus(

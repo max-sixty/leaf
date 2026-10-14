@@ -1120,6 +1120,9 @@ def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
     page = floating(browser, serve(ASK_PAGE))
     chip = page.locator(".lf-fp-on-user")
     expect(chip).to_contain_text("2")
+    # Its mark is its own: the question mark is help's, as `?` and the menu's
+    # Keyboard shortcuts row say.
+    expect(chip.locator("svg")).not_to_have_attribute("data-lf-icon", "question")
     chip.click()
     view = page.locator(".lf-fp-view[data-view=on]")
     cards = view.locator(".lf-fp-on-item")

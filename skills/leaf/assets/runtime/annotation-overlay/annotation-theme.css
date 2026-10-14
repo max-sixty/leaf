@@ -13,7 +13,6 @@
  * the clear seat the geometry owner found near its target and unfolds leftward.
  * A target clipped out of its region withholds its row from paint and tab order. */
 .lf-margin-projection { display: flex; height: 0; pointer-events: none; }
-.lf-margin-projection[hidden] { display: none; }
 .lf-margin-toolbar, .lf-margin-lane, .lf-margin-motion {
     position: absolute; left: 0; top: 0; width: 0; height: 0; }
 .lf-margin-lane, .lf-margin-motion { z-index: 2; }
@@ -54,14 +53,12 @@
 .lf-margin-inline { display: block; }
 .lf-margin-options { display: inline-flex; align-items: center; gap: 4px;
     white-space: nowrap; }
-.lf-margin-options[hidden] { display: none; }
 /* The ink this rule used to state alongside its pointer never reached an entry: every
  * entry carries a behavior, and each of the three states a colour one class heavier
  * than this, so all it ever settled was the pointer. */
 .lf-margin-marker { pointer-events: auto; }
 .lf-margin-reading-option { position: relative; }
 .lf-margin-more { letter-spacing: .04em; }
-.lf-margin-marker[hidden] { display: none; }
 .lf-margin-options [data-lf-margin-entry-overflow] { display: none; }
 /* Every annotation has the same filled pin face when it stands on the block it is
    about, over the block's own words, so it is a solid teardrop pointing into the block

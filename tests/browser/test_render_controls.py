@@ -1816,7 +1816,7 @@ CONTROL_ARCHETYPES = (
         # state while its opposite remains beside it.
         "name": "visual-review-disposition",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case:not([hidden]) .lf-vr-needs-work",
+        "target": ".lf-vr-case[data-selected] .lf-vr-needs-work",
     },
 )
 
@@ -4852,7 +4852,7 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
           const bar = document.querySelector('.lf-shortcut-bar');
-          const hints = [...bar.querySelectorAll(".lf-shortcut:not([hidden])")];
+          const hints = [...bar.querySelectorAll(".lf-shortcut:not([data-lf-off-line])")];
           return {shortcut_bar: rect(bar), first: rect(hints[0]),
                   width: innerWidth, height: innerHeight};
         }"""

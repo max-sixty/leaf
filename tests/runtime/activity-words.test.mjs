@@ -47,6 +47,44 @@ test("working says the agent's own sentence, dated on the row once it is old", (
   ]);
 });
 
+test("authored activity detail retains its exact source only in the words that show it", () => {
+  const source = { event_id: "progress-1", item: "question-1" };
+  const activity = {
+    kind: "working",
+    detail: "checking the roof",
+    detail_source: source,
+  };
+  const reading = pageStatus(state(activity));
+  const model = statusModel(reading, NO_QUEUES, "Claude");
+  assert.equal(model.summary, "Claude working — checking the roof");
+  assert.deepEqual(
+    model.summaryParts.filter((part) => part.source),
+    [{ text: "checking the roof", source }],
+  );
+  const stalled = statusModel(
+    pageStatus(state({ ...activity, kind: "stalled" })),
+    NO_QUEUES,
+    "Claude",
+  );
+  assert.equal(
+    stalled.summaryParts.some((part) => part.source),
+    false,
+  );
+  assert.deepEqual(
+    stalled.explanationParts.filter((part) => part.source),
+    [{ text: "checking the roof", source }],
+  );
+  const generic = statusModel(
+    pageStatus(state({ ...activity, detail_source: null })),
+    NO_QUEUES,
+    "Claude",
+  );
+  assert.equal(
+    generic.summaryParts.some((part) => part.source),
+    false,
+  );
+});
+
 test("working with no sentence of the agent's names what its turn picked up", () => {
   const picked = (handling, handling_comments) =>
     said({

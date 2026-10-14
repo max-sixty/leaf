@@ -94,6 +94,14 @@ function pickedUpWords({ comments, answers }) {
     .join(" and ");
 }
 
+// Rendered strings derive from structured parts, so an authored detail keeps its
+// exact source without recovering its position from a combined status sentence.
+const textParts = (words) =>
+  (Array.isArray(words) ? words : [words])
+    .filter(Boolean)
+    .map((part) => (typeof part === "string" ? { text: part } : part));
+const textOf = (parts) => parts.map((part) => part.text).join("");
+
 // Both levels of wording follow server-owned activity. Short summaries retain the
 // actionable distinction: working, listening, away, or nobody holding the page. How many
 // updates are waiting or saved is the disclosure's; the row counts what waits on each
@@ -104,6 +112,7 @@ function statusWords({
   dated,
   shortDate,
   detail,
+  detailSource,
   handling,
   kind,
   listening,
@@ -129,11 +138,15 @@ function statusWords({
   // says the agent's own words are still to come.
   if (kind === "working") {
     const picked = pickedUpWords(handling);
-    const said = detail ? " — " + detail : picked ? " — picked up " + picked : "";
+    const said = detail
+      ? [" — ", { text: detail, source: detailSource }]
+      : picked
+        ? [" — picked up " + picked]
+        : [];
     return [
-      `${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}${said}`,
+      [`${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}`, ...said],
       detail || !picked
-        ? `${agent} is ${work}${said}`
+        ? [`${agent} is ${work}`, ...said]
         : `${agent} picked up ${picked} and hasn't said what it's doing yet`,
     ];
   }
@@ -146,7 +159,14 @@ function statusWords({
       : [awaits, awaits];
   }
   if (kind === "stalled")
-    return [shortDate, `${dated}${detail ? ": " + detail : ""}. ${saved}`];
+    return [
+      shortDate,
+      [
+        dated,
+        ...(detail ? [": ", { text: detail, source: detailSource }] : []),
+        `. ${saved}`,
+      ],
+    ];
   // Away is only worth a nudge once input has stalled (`counts.overdue`): the
   // session's next turn picks up whatever it finds, and Leaf messages a harness it
   // can reach once it has seen the turn end.
@@ -203,12 +223,13 @@ export function pageStatus(state, { reach = "reached" } = {}) {
     : `No check-in from ${agent} is recorded`;
   const ended = `${agent}’s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-  const [summary, text] = statusWords({
+  const [summaryWords, explanationWords] = statusWords({
     age,
     agent,
     dated: facts.left ? ended : checkedIn,
     shortDate: facts.left ? ended : checkedIn,
     detail,
+    detailSource: activity.detail_source,
     handling: {
       comments: activity.counts.handling_comments,
       answers: activity.counts.handling - activity.counts.handling_comments,
@@ -219,20 +240,34 @@ export function pageStatus(state, { reach = "reached" } = {}) {
     saved,
     work: facts.work,
   });
-  let explanation = age ? `${text} (${age})` : text;
+  const summaryParts = textParts(summaryWords);
+  const explanationParts = textParts(explanationWords);
+  if (age) explanationParts.push({ text: ` (${age})` });
   // What a transport can watch for itself, when the sentence beside it was written by
   // the agent: two facts about one turn, so the row keeps the one meant for the user
   // and the disclosure holds the step proving the session is still moving.
   if (activity.observed && activity.observed !== detail)
-    explanation += ` · ${activity.observed}`;
+    explanationParts.push({ text: ` · ${activity.observed}` });
   if (facts.waiting.length && ["working", "listening"].includes(kind))
-    explanation += `${explanation.endsWith(".") ? "" : "."} ${facts.waiting.join(" · ")}.`;
+    explanationParts.push({
+      text: `${textOf(explanationParts).endsWith(".") ? "" : "."} ${facts.waiting.join(" · ")}.`,
+    });
   const actionableWork = activity.awaiting ? activity.observed_kind : null;
   // An approval or a question the agent's own window holds is answered there, and
   // the page is the one place the user may be looking instead.
   if (actionableWork && kind === "working")
-    explanation += `${explanation.endsWith(".") ? "" : "."} It waits in its own session, not on this page.`;
-  return { kind, tone: facts.tone, summary, explanation, actionableWork };
+    explanationParts.push({
+      text: `${textOf(explanationParts).endsWith(".") ? "" : "."} It waits in its own session, not on this page.`,
+    });
+  return {
+    kind,
+    tone: facts.tone,
+    summary: textOf(summaryParts),
+    summaryParts,
+    explanation: textOf(explanationParts),
+    explanationParts,
+    actionableWork,
+  };
 }
 
 // The page's two queues (`served_state.queues`) are told apart in the banner by where
@@ -294,16 +329,22 @@ const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
 export function statusModel(status, queues, agent) {
   const { kind, tone, summary, publication = null } = status;
   let { explanation } = status;
+  let explanationParts = [...(status.explanationParts ?? textParts(explanation))];
   const counted = WITHOUT_QUEUES.has(kind)
     ? { summary: "", explanation: "", widest: "" }
     : queueWords(queues, agent);
-  if (counted.explanation)
-    explanation = `${explanation}${explanation.endsWith(".") ? "" : "."} ${counted.explanation}`;
+  if (counted.explanation) {
+    explanationParts.push({
+      text: `${explanation.endsWith(".") ? "" : "."} ${counted.explanation}`,
+    });
+    explanation = textOf(explanationParts);
+  }
   let publicationModel = null;
   if (publication) {
     const [said, installs] = publicationWords(publication);
     const examples = publication.kind === "example" ? "Other examples" : null;
     explanation = said + (examples ? `${examples} ` : "") + installs;
+    explanationParts = textParts(explanation);
     publicationModel = Object.freeze({
       copy: said,
       examples,
@@ -315,6 +356,8 @@ export function statusModel(status, queues, agent) {
   return Object.freeze({
     tone,
     summary,
+    summaryParts: status.summaryParts ?? textParts(summary),
+    explanationParts,
     queues: counted.summary,
     queuesWidest: counted.widest,
     explanation,

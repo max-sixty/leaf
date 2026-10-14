@@ -29,6 +29,7 @@ COMMANDS = {
     "profile": "profile",
     "publish-media": "page_fixtures",
     "record-demo": "record_demo",
+    "response-times": "response_times",
     "refresh-previews": "example_previews",
     "setup": "setup",
     "site": "site",

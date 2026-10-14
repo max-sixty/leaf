@@ -84,6 +84,7 @@ from leaf_dev.page_fixtures import (
     package_selection_args,
     prepare_page,
     read_fixture,
+    record_run_context,
     source_manifest,
     source_manifest_candidates,
     source_packages,
@@ -745,6 +746,12 @@ def serve_preview(
                 mark_preview(source, staged, runtime, user, state["authored"])
                 staged.rename(page)
             service = PreviewService(page, user, prepared_claim)
+        record_run_context(
+            page,
+            purpose="user-review" if user else "author-preview",
+            run=page,
+            authored_source=source,
+        )
         with service.starting() as url:
             pass
         roots = layer_inputs(

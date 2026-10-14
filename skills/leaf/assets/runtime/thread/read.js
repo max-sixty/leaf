@@ -15,13 +15,26 @@
    includes a nonmodal surface closing: it can reveal a body without moving it or
    closing its permanent native ancestor.
 
+   The same rendered-body and room observations record first visible agent words in
+   the best-effort interaction trace. Those diagnostics need neither focus, unread
+   status nor complete exposure; they require a visible document and an actually
+   painted text range. They never change semantic state or delay presentation.
+
    The first unread destination belongs to this reading too. Its Go-to route (`g u`)
    and the panel's visible control share the same exact-message arrival. Ordinary
    `u` remains paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { signal } from "../../vendor/browser-runtime.js";
-import { containingView, presented, seenRect, watchRoom } from "../geometry.js";
-import { intersect } from "../rect.js";
+import {
+  containingView,
+  presented,
+  seenRect,
+  watchRoom,
+  clippedContents,
+  shownWindow,
+} from "../geometry.js";
+import { intersect, hasArea } from "../rect.js";
+import { recordInteraction } from "../interaction-log.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
@@ -70,9 +83,37 @@ function visibleInterval(body, clips, band) {
   };
 }
 
+// An element's box can intersect the viewport while all its words are clipped or
+// below it. Measure the text itself through the shared clipping/chrome reading.
+function wordsAreVisible(body, clips, band) {
+  if (!presented(body) || !body.checkVisibility({ opacityProperty: true }))
+    return false;
+  const text = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+  const range = document.createRange();
+  for (let node = text.nextNode(); node; node = text.nextNode()) {
+    if (!node.textContent.trim()) continue;
+    const holder = node.parentElement;
+    if (
+      !holder ||
+      !presented(holder) ||
+      !holder.checkVisibility({ opacityProperty: true })
+    )
+      continue;
+    range.selectNodeContents(node);
+    for (const box of range.getClientRects()) {
+      const clipped = clippedContents(box, holder, clips);
+      if (!clipped) continue;
+      const room = shownWindow({ within: clipped, item: holder });
+      if (hasArea(intersect(intersect(clipped, room), band))) return true;
+    }
+  }
+  return false;
+}
+
 export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   let coverage = new WeakMap();
   const renderedBodies = new Map();
+  const visibleReplies = new Set();
   const refusedThisVisit = new Set();
   const sizes = sizeObserver(() => scheduleScan());
   const frameWatches = [];
@@ -132,28 +173,34 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   };
 
   function scan(sampleBand) {
-    if (
-      !threadsPresented ||
-      document.visibilityState !== "visible" ||
-      !document.hasFocus()
-    )
-      return;
+    if (document.visibilityState !== "visible") return;
     const band = sampleBand ?? containingView();
     if (!band || sampleBand?.visible === false) return;
     const candidates = new Map(
-      actionableUnread().map(({ item }) => [item.message, item]),
+      (threadsPresented ? actionableUnread() : []).map(({ item }) => [
+        item.message,
+        item,
+      ]),
     );
-    if (!candidates.size) return;
+    const mayRead = threadsPresented && document.hasFocus();
     const clips = new Map();
     const completed = new Map();
     for (const [node, rendered] of renderedBodies) {
-      const { body, id, version } = rendered;
+      const { body, id, version, feedback } = rendered;
       if (!node.isConnected || !body.isConnected) {
         sizes.unobserve(body);
         renderedBodies.delete(node);
         continue;
       }
-      const item = candidates.get(id);
+      if (feedback) {
+        const identity = feedback.reply_id ?? `input:${feedback.input_id}`;
+        const key = `${identity}:${feedback.presentation_kind}:${feedback.surface}`;
+        if (!visibleReplies.has(key) && wordsAreVisible(body, clips, band)) {
+          visibleReplies.add(key);
+          recordInteraction("reply_visible", feedback);
+        }
+      }
+      const item = mayRead && candidates.get(id);
       const key = item && keyOf(item);
       if (
         !item ||
@@ -245,14 +292,13 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
     });
   }
 
-  function observeMessage(body, message) {
+  function observeBody(body, reading) {
     if (!(body instanceof Element))
       throw new TypeError("A message body must be an Element");
     if (!renderedBodies.has(body)) sizes.observe(body);
     const registration = {
       body,
-      id: message.id,
-      version: message.version,
+      ...reading,
     };
     renderedBodies.set(body, registration);
     scheduleScan();
@@ -261,6 +307,35 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
       sizes.unobserve(body);
       renderedBodies.delete(body);
     };
+  }
+
+  function observeMessage(body, message) {
+    return observeBody(body, {
+      id: message.id,
+      version: message.version,
+      feedback:
+        message.author === "agent"
+          ? {
+              reply_id: message.id,
+              attempt: message.attempt,
+              presentation_kind: "message_words",
+              reply_kind: message.provisional
+                ? "stream"
+                : message.progress
+                  ? "progress"
+                  : message.failure
+                    ? "failure"
+                    : "answer",
+              surface: message.panel ? "panel" : "margin",
+            }
+          : null,
+    });
+  }
+
+  // A working line displays explicit agent words without mounting their folded
+  // MessageView. Its renderer supplies exact source identity, never its thread parent.
+  function observeFeedback(body, feedback) {
+    return observeBody(body, { id: null, version: null, feedback });
   }
 
   function present() {
@@ -307,6 +382,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
     abort,
     present,
     observeMessage,
+    observeFeedback,
     firstUnreadCommand,
   };
 }

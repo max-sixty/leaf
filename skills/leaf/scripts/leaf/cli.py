@@ -599,7 +599,7 @@ def events(dir: str, after: int, follow: bool) -> None:
     multiple=True,
     help="Select an observation type; repeat to select several.",
 )
-@json_option("Print complete reconstructed records as JSON lines.")
+@json_option("Print complete observations as JSON lines.")
 def interactions(
     dir: str,
     session: str | None,
@@ -610,8 +610,8 @@ def interactions(
 ) -> None:
     """Read diagnostics chronologically, without acknowledging user input.
 
-    Times print in the local timezone. Retries are deduplicated, split records
-    are reconstructed, and gaps remain visible even with a type filter.
+    Host timestamps print in the local timezone. Retries are deduplicated and
+    sequence gaps remain visible even with a type filter.
     """
     from leaf.interaction_log import (
         format_interaction,

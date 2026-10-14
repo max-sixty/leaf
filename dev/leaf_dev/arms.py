@@ -52,7 +52,7 @@ from leaf.todos import start_reading
 
 from leaf_dev import ROOT
 from leaf_dev.browser import shell_executable
-from leaf_dev.page_fixtures import prepare_page, read_fixture
+from leaf_dev.page_fixtures import prepare_page, read_fixture, record_run_context
 
 # The uv project names this package's `pyproject.toml` as a workspace member, so uv
 # needs that file to read the lock. The package itself stays out: the launcher never
@@ -185,6 +185,7 @@ def build_source(
         read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
         partial(run_leaf, payload, state, check=True),
     )
+    record_run_context(page, purpose="automated", run=state, authored_source=source)
 
 
 @contextmanager

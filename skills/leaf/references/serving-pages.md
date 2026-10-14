@@ -164,9 +164,9 @@ leaf page interactions <page> --session TAB \
 
 Omit the session filter to include server requests, which have no browser session
 association. Use `--json` for complete structured values, or `tail -F
-<page>/interactions.jsonl` to follow raw delivery order while reproducing. The
+<page>/observations.jsonl` to follow raw delivery order while reproducing. The
 reader orders observations by their recorded time, deduplicates retries,
-reconstructs split values, and retains visible gap diagnostics under type filters.
+retains visible gap diagnostics under type filters. Stored timestamps use the host clock; browser wall time stays `observed_at`.
 Browser and server clocks can differ; recorded order alone does not prove causation.
 The semantic decisions remain in `leaf page events <page>`. See [page-storage.md](../scripts/leaf/page-storage.md)
 for the file contract. The public site stores its browser batches in Workers

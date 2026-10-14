@@ -45,6 +45,8 @@ class BannerStatusView extends HTMLElement {
   #onToggle = null;
   #notice = { message: "", visible: false };
   #model = null;
+  #observeFeedback = null;
+  #feedbackStops = [];
   #queues = el("button", "lf-status-queues");
   #queuesWidest = "";
   #queuesReserved = "";
@@ -90,6 +92,16 @@ class BannerStatusView extends HTMLElement {
     this.present(initial);
   }
 
+  trackFeedback(observe) {
+    this.#observeFeedback = observe;
+    this.#paint();
+  }
+
+  disconnectedCallback() {
+    for (const stop of this.#feedbackStops) stop();
+    this.#feedbackStops = [];
+  }
+
   get dot() {
     return this.#dot.value;
   }
@@ -127,6 +139,12 @@ class BannerStatusView extends HTMLElement {
           >${this.#notice.message}</span
         ></span
       >`;
+    const parts = (reading) =>
+      reading.map((part) =>
+        part.source
+          ? html`<span class="lf-status-feedback">${part.text}</span>`
+          : part.text,
+      );
     const summary = publication
       ? html`<span class="lf-publication-copy">${publication.copy}</span>${
             publication.examplesUrl
@@ -137,7 +155,7 @@ class BannerStatusView extends HTMLElement {
           }<a class="lf-publication-install" href=${publication.installUrl}
             >${publication.install}</a
           >`
-      : model.summary;
+      : parts(model.summaryParts ?? [{ text: model.summary }]);
     const status = html`${dot}${words(summary)}`;
     render(
       publication
@@ -162,10 +180,30 @@ class BannerStatusView extends HTMLElement {
               @toggle=${this.#toggled}
               ${ref(this.#detail)}
             >
-              ${model.explanation}
+              ${parts(model.explanationParts ?? [{ text: model.explanation }])}
             </div>`,
       this,
     );
+    for (const stop of this.#feedbackStops) stop();
+    this.#feedbackStops = [];
+    if (this.#observeFeedback && !publication) {
+      const sources = [
+        ...(model.summaryParts ?? []),
+        ...(model.explanationParts ?? []),
+      ].filter((part) => part.source);
+      const words = this.querySelectorAll(".lf-status-feedback");
+      sources.forEach((part, index) => {
+        this.#feedbackStops.push(
+          this.#observeFeedback(words[index], {
+            input_id: part.source.item,
+            reply_id: part.source.event_id,
+            reply_kind: "work",
+            presentation_kind: "banner_words",
+            surface: "banner",
+          }),
+        );
+      });
+    }
   }
 }
 

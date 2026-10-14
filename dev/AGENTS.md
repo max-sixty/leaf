@@ -85,6 +85,10 @@ reaches a module by importing it from this package, never through `sys.path`,
   examples, base plugin against HEAD's, with no model, and prints each arm's wall
   time. Its arms, pages and state stay in its own run directory under
   `.tmp/bench-check/`.
+- `leaf-dev response-times PAGE...` queries retained page logs for time from a
+  user message version to exact-linked progress or an answer. `response_times.py`
+  owns its population, missing-evidence handling, and clock boundaries;
+  `--json` keeps individual inputs and milestone evidence for further analysis.
 - `leaf-dev eval [CASE]... --harness claude-code|codex|both` runs the eval catalog
   through Promptfoo on the working tree, and with `--base` the merge base too.
   `evals/README.md` owns the format and how to read the results.

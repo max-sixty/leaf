@@ -561,6 +561,7 @@ const queue = createQueuePanel({
   next: queueWalk.next,
   announce,
   agentDoor: queueCounts,
+  observeFeedback: app.read.observeFeedback,
 });
 
 const commandHints = createCommandHints({
@@ -880,6 +881,7 @@ if (!offlineInteractive) {
   panelElements.mountOverlay();
   version.mount();
   mountBanner({
+    observeFeedback: app.read.observeFeedback,
     approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
   });
   auxiliarySurfaces.mount();

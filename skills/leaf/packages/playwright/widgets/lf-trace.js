@@ -21,7 +21,8 @@
  * recorded call, its Action checkpoint is the capture taken just before input is
  * dispatched, and the image names and points at an input only once it is sent:
  * from that checkpoint until the call ends and INPUT_HOLD has passed, so a click
- * stays visible at recorded pace. An input still to come shows only in the Input
+ * stays visible at recorded pace, or until a later input is sent, and only on a
+ * capture taken from that checkpoint on. An input still to come shows only in the Input
  * lane: marking its target through the call's wait for actionability read as a
  * click that had already happened (2026-10-13, replacing a mark across the whole
  * call). It never implies a held key. During
@@ -1536,17 +1537,17 @@ customElements.define(
         Math.abs(time - point.timestamp) < 0.5
       )
         return point.action;
-      let current = null;
+      // A later input sent supersedes an earlier one, however long its call runs.
+      let latest = null;
       for (const action of this.#inputActions()) {
         const sent = inputSent(action);
-        if (
-          sent <= time &&
-          time <= Math.max(action.endTime ?? sent, sent + INPUT_HOLD) &&
-          (!current || sent > inputSent(current))
-        )
-          current = action;
+        if (sent <= time && (!latest || sent > inputSent(latest))) latest = action;
       }
-      return current;
+      if (!latest) return null;
+      const sent = inputSent(latest);
+      return time <= Math.max(latest.endTime ?? sent, sent + INPUT_HOLD)
+        ? latest
+        : null;
     }
 
     // How an image relates to an input call, from the image's own capture: its
@@ -1575,11 +1576,15 @@ customElements.define(
       // A restored view adjusts zoom and pan together. Viewer emits each
       // intermediate pose synchronously; draw only after that view is complete.
       if (this.#applyingPictureView) return;
-      const action = this.#currentInput();
+      const input = this.#currentInput();
       const image = this.#shownImage();
       const imageReady = image && this.#picture?.viewed;
+      // The image on screen can trail the playhead. One captured before the input
+      // was sent shows nothing of it, so it names none.
+      const read = input && image ? this.#inputRelation(image, input) : null;
+      const relation = read === "before" ? null : read;
+      const action = relation ? input : null;
       keepsHidden(this.#inputBadge, !action || !imageReady);
-      const relation = action && image ? this.#inputRelation(image, action) : null;
       const span = action
         ? `${this.#time(action.startTime, action.stream)}–${this.#time(action.endTime ?? action.startTime, action.stream)}`
         : "";
@@ -1610,12 +1615,11 @@ customElements.define(
       if (visible) {
         const raster = this.#picture.image.getBoundingClientRect();
         const host = this.#viewport.value.getBoundingClientRect();
-        const left = layoutPx(
-          raster.left - host.left + (coordinate.x / viewport.width) * raster.width,
-        );
-        const top = layoutPx(
-          raster.top - host.top + (coordinate.y / viewport.height) * raster.height,
-        );
+        // A capture scales the viewport by its width; a screencast frame may also
+        // crop the viewport's foot, so its height says nothing of the scale.
+        const scale = raster.width / viewport.width;
+        const left = layoutPx(raster.left - host.left + coordinate.x * scale);
+        const top = layoutPx(raster.top - host.top + coordinate.y * scale);
         if (this.#inputPoint.style.left !== left) this.#inputPoint.style.left = left;
         if (this.#inputPoint.style.top !== top) this.#inputPoint.style.top = top;
         keeps(this.#inputPoint, "title", this.#inputLabel(action));

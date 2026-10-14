@@ -749,17 +749,48 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
         re.compile(r"^\d+\.\d{3} s · next: Click$")
     )
     expect(widget.locator(".lf-trace-input-point")).to_be_visible()
-    raster = widget.locator(
-        ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
+
+    def lands_on_its_point(input_action):
+        """The recorded pointer's mark stands at its point in the shown capture,
+        which scales the viewport by its width whatever its own height."""
+        # One read of both: a landing may still be scrolling the page.
+        point_box, image_box = widget.evaluate("""widget => [
+          widget.querySelector('.lf-trace-input-point'),
+          widget.querySelector(
+            '.lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img'),
+        ].map(node => node.getBoundingClientRect().toJSON())""")
+        scale = image_box["width"] / input_action["input"]["viewport"]["width"]
+        for axis, size in (("x", "width"), ("y", "height")):
+            assert point_box[axis] + point_box[size] / 2 == pytest.approx(
+                image_box[axis] + input_action["input"]["point"][axis] * scale, abs=1
+            ), (axis, point_box, image_box)
+
+    lands_on_its_point(pointer)
+    # A screencast frame crops the viewport's foot: its height is not the
+    # viewport's scaled by its width.
+    last_frame = max(
+        (image for image in record["images"] if image["kind"] == "frame"),
+        key=lambda image: image["timestamp"],
     )
-    point_box = widget.locator(".lf-trace-input-point").bounding_box()
-    image_box = raster.bounding_box()
-    assert point_box["x"] + point_box["width"] / 2 == pytest.approx(
-        image_box["x"]
-        + pointer["input"]["point"]["x"]
-        / pointer["input"]["viewport"]["width"]
-        * image_box["width"],
-        abs=1,
+    viewport = pointer["input"]["viewport"]
+    assert last_frame["height"] / last_frame["width"] < (
+        viewport["height"] / viewport["width"] - 0.05
+    )
+    widget.locator(".lf-trace-bookmarks").get_by_role(
+        "button", name="Last filmstrip image"
+    ).click()
+    rendered(user)
+    expect(widget.locator(".lf-trace-input-point")).to_be_visible()
+    lands_on_its_point(
+        max(
+            (
+                action
+                for action in inputs
+                if action["input"]["point"]
+                and action["phases"]["action"]["timestamp"] <= last_frame["timestamp"]
+            ),
+            key=lambda action: action["phases"]["action"]["timestamp"],
+        )
     )
     phase_id = f"trace-{record['archive']['sha256']}-phase-{action['id']}-after"
     navigate_to_phase(timeline, phase_id)

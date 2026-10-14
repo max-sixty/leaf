@@ -233,11 +233,34 @@
   }
   /* The shared reduced-motion guard (surfaces.css) stops at the field's closed tree. */
   @media (prefers-reduced-motion: no-preference) {
-    .lf-floating-panel[data-says="status"][data-tone="working"]
+    .lf-floating-panel[data-says="status"][data-tone="working"]:not([data-asks])
       .lf-fp-field
       leaf-text::part(placeholder) {
       animation: lf-sheen 2s ease-in-out infinite alternate;
     }
+  }
+  /* A status that asks the user to act reads in its tone's ink at full strength, the
+     leaf's colour made legible as words, so a request stands apart from a report. */
+  .lf-floating-panel[data-says="status"][data-asks]
+    .lf-fp-field
+    leaf-text::part(placeholder) {
+    color: var(--lf-fp-asks);
+    font-weight: 500;
+  }
+  .lf-floating-panel[data-asks] {
+    --lf-fp-asks: var(--ink);
+  }
+  .lf-floating-panel[data-asks][data-tone="working"] {
+    --lf-fp-asks: var(--accent);
+  }
+  .lf-floating-panel[data-asks][data-tone="listening"] {
+    --lf-fp-asks: var(--ok-ink);
+  }
+  .lf-floating-panel[data-asks][data-tone="away"] {
+    --lf-fp-asks: var(--warn-ink);
+  }
+  .lf-floating-panel[data-asks][data-tone="offline"] {
+    --lf-fp-asks: var(--danger-ink);
   }
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;

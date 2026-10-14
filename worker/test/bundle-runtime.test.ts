@@ -112,7 +112,10 @@ describe("published runtime bundle", () => {
       ).toBeTruthy();
       const verifier = await readFile(
         fileURLToPath(
-          new URL("../../dev/leaf_dev/verify_site_browser.js", import.meta.url),
+          new URL(
+            "../../dev/leaf_dev/commands/verify_site_browser.js",
+            import.meta.url,
+          ),
         ),
         "utf8",
       );

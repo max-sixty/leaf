@@ -33,7 +33,7 @@ from playwright.sync_api import expect, sync_playwright
 
 from leaf_dev import ROOT
 from leaf_dev.arms import environment
-from leaf_dev.eval import PROMPTFOO, screenshot_judge
+from leaf_dev.commands.eval import PROMPTFOO, screenshot_judge
 
 SOURCE = ROOT / "evals/ui-review-detection"
 MODELS = {
@@ -282,7 +282,7 @@ def summarize(output):
     return summary
 
 
-@click.command("eval-ui-review")
+@click.command()
 @click.option(
     "--model",
     "models",

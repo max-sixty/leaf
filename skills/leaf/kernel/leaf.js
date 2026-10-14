@@ -7244,11 +7244,7 @@ var GROUPS = Object.freeze({
   annotate: "Annotations",
   about: "About this page"
 });
-var OWN_VIEWS = Object.freeze({
-  threads: "threads",
-  queue: "on",
-  versions: "versions"
-});
+var OWN_VIEWS = Object.freeze(["threads", "queue", "versions"]);
 var FOLD = "panel.floating.fold";
 var HELD_ELSEWHERE = Object.freeze([
   "threads",
@@ -7264,7 +7260,7 @@ var copyRefused = false;
 var canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
 var groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.copies && !canCopy() ? "about" : entry.group;
 var FILTERS = Object.freeze(["open", "unread", "drafts", "resolved"]);
-var LISTS = Object.freeze(["threads", "on"]);
+var LISTS = Object.freeze(["threads", "queue"]);
 var capital = (word2) => word2[0].toUpperCase() + word2.slice(1);
 var coarse = () => matchMedia("(pointer: coarse)").matches;
 var TONE_WORDS = Object.freeze({
@@ -7456,7 +7452,7 @@ function createFloatingPanel({
   const routeKey = (route) => route.view === "thread" ? `thread:${route.thread}` : route.view === "group" ? `group:${route.group}` : route.view;
   const titleOf2 = (route) => ({
     threads: "Threads",
-    on: tabLabel(queueTab),
+    queue: tabLabel(queueTab),
     versions: "Versions",
     thread: route.thread ? threadTitle(route.thread) : "",
     group: GROUPS[route.group]
@@ -7692,7 +7688,7 @@ function createFloatingPanel({
   function transition2(before, { focus = true } = {}) {
     const after2 = trail.at(-1);
     const reading = [before, after2].some((route) => route?.view === "thread");
-    if (after2?.view !== "on") {
+    if (after2?.view !== "queue") {
       seated = null;
       seatHeights.clear();
     }
@@ -7707,7 +7703,7 @@ function createFloatingPanel({
       dismissReply(threadByKey(before.thread)?.key ?? before.thread);
     leaving = changed && before && after2 ? before : null;
     paint();
-    const drawn2 = reading || before?.view === "on" ? present({ release: reading }) : null;
+    const drawn2 = reading || before?.view === "queue" ? present({ release: reading }) : null;
     if (!changed || reducedMotion() || !pagePresented()) {
       leaving = null;
       paint();
@@ -7818,7 +7814,7 @@ function createFloatingPanel({
   }
   function rowFor(entry) {
     if (entry.copies) return copyItem(entry);
-    const view = OWN_VIEWS[entry.key];
+    const view = OWN_VIEWS.includes(entry.key) ? entry.key : null;
     return menuItem(
       entry.label,
       rowEnd(entry),
@@ -7840,7 +7836,7 @@ function createFloatingPanel({
   }
   function menuTemplate() {
     const all = rows2();
-    const lead = Object.keys(OWN_VIEWS);
+    const lead = OWN_VIEWS;
     const page = all.filter((entry) => groupOf(entry) === "page" && listed(entry)).sort(
       (a, b) => (lead.includes(a.key) ? lead.indexOf(a.key) : lead.length) - (lead.includes(b.key) ? lead.indexOf(b.key) : lead.length)
     );
@@ -8016,7 +8012,7 @@ function createFloatingPanel({
   const shownView = () => stage.querySelector(".lf-fp-view:not([data-leaving])");
   const LIST_ROWS = Object.freeze({
     threads: ".lf-fp-thread",
-    on: ".lf-fp-on-item",
+    queue: ".lf-fp-on-item",
     versions: ".lf-fp-item:not(:disabled), .lf-fp-compare",
     group: ".lf-fp-item:not(:disabled)"
   });
@@ -8029,7 +8025,7 @@ function createFloatingPanel({
   const outletOf = () => openView()?.querySelector(".lf-fp-outlet") ?? null;
   function nominate(collection, parts) {
     const top = trail.at(-1);
-    if (top?.view === "on") {
+    if (top?.view === "queue") {
       for (const outlet2 of stage.querySelectorAll(
         ".lf-fp-view:not([data-leaving]) .lf-fp-asked"
       )) {
@@ -8096,8 +8092,8 @@ function createFloatingPanel({
   };
   function openOnMe() {
     const turned = chooseQueueTab("you");
-    if (turned && trail.at(-1)?.view === "on") paint();
-    else open({ view: "on" });
+    if (turned && trail.at(-1)?.view === "queue") paint();
+    else open({ view: "queue" });
   }
   const queueLists = () => {
     const reading = readQueues();
@@ -8229,7 +8225,7 @@ function createFloatingPanel({
   };
   function arriveAtApproval() {
     chooseQueueTab("you");
-    open({ view: "on" }, { reopen: true, focus: false });
+    open({ view: "queue" }, { reopen: true, focus: false });
     paint();
     const target = approvalControl();
     if (!target) return Promise.resolve(false);
@@ -8260,7 +8256,7 @@ function createFloatingPanel({
         return threadsView();
       case "thread":
         return threadView(route.thread);
-      case "on":
+      case "queue":
         return onView();
       case "versions":
         return versionsView();
@@ -8314,7 +8310,7 @@ function createFloatingPanel({
         >
           ${iconTemplate("search", "lf-action-icon")}
         </button>`;
-    } else if (top.view === "on") {
+    } else if (top.view === "queue") {
       const lists = queueLists();
       aux = tabs(
         Object.keys(QUEUE_TABS),
@@ -8375,7 +8371,7 @@ function createFloatingPanel({
                     >
                       ${titleOf2(parent)}</button
                     ><span class="lf-fp-sep" aria-hidden="true">/</span>` : nothing}
-            <h2 class="lf-fp-title" ?data-unseen=${top.view === "on"}>
+            <h2 class="lf-fp-title" ?data-unseen=${top.view === "queue"}>
               ${titleOf2(top)}
             </h2>
             ${at >= 0 ? html`<span class="lf-fp-where"
@@ -8428,7 +8424,7 @@ function createFloatingPanel({
   }
   const asked = /* @__PURE__ */ new WeakSet();
   function seatOnItems() {
-    if (trail.at(-1)?.view !== "on") return;
+    if (trail.at(-1)?.view !== "queue") return;
     let draw = false;
     for (const card2 of stage.querySelectorAll(
       ".lf-fp-view:not([data-leaving]) .lf-fp-on-item[data-key]"
@@ -8580,7 +8576,7 @@ function createFloatingPanel({
       html`<button
           type="button"
           class="lf-fp-chip lf-fp-on-user"
-          aria-pressed=${String(top?.view === "on")}
+          aria-pressed=${String(top?.view === "queue")}
           ?data-due=${onUser > 0}
           aria-label=${onUserName}
           title=${onUserName}
@@ -8787,14 +8783,14 @@ function createFloatingPanel({
   );
   for (const [door, view] of [
     [toggleBtn, "threads"],
-    [queueBtn, "on"]
+    [queueBtn, "queue"]
   ])
     door.addEventListener(
       "click",
       (event) => {
         event.stopImmediatePropagation();
         event.preventDefault();
-        if (view === "on") return openOnMe();
+        if (view === "queue") return openOnMe();
         filter = "open";
         query = "";
         open({ view });

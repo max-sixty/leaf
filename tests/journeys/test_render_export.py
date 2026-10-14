@@ -42,7 +42,7 @@ from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.schema import ELEMENT_ID
 from leaf.served_state.service import PageStateService
 from leaf.structure import SourceDocument
-from leaf_dev import preview as preview_model
+from leaf_dev.commands import preview as preview_model
 from playwright.sync_api import expect
 from render_harness import (
     REPLAYED_PAGE,

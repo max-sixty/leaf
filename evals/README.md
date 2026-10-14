@@ -236,7 +236,7 @@ actions, screenshots and reasons before accepting a judgment.
 
 Another judge may grade the same samples differently, so a judged difference is
 partly the judge's. To compare judges, point `screenshot_judge` in
-`dev/leaf_dev/eval.py` at another model or provider (an `anthropic:claude-agent-sdk`
+`dev/leaf_dev/commands/eval.py` at another model or provider (an `anthropic:claude-agent-sdk`
 grader restricted to `Read` on the screenshot tree works), rerun the same cases, and
 compare the runs in the viewer, starting with the `dashboard/reader-*` calibration.
 

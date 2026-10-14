@@ -490,7 +490,7 @@ on 2026-10-07.
   drift again, such as `wt merge`'s macOS pre-merge when the thread runtime or theme
   changes.
 - **Guard thread appearance on CI again.** The thread snapshot gate compares images
-  on macOS only (`dev/leaf_dev/thread_snapshots.py`), so a pull request's Linux CI
+  on macOS only (`dev/leaf_dev/commands/thread_snapshots.py`), so a pull request's Linux CI
   checks the delivery journey but not how it looks. Fonts and antialiasing differ by
   OS, so Mac and Linux images never match. A Linux image could only be made on CI's
   own runner, which meant pushing, downloading the run's images and accepting them

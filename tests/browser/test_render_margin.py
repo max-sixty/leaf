@@ -24,7 +24,7 @@ from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered
 from leaf.served_state import context as served_context
-from leaf_dev import pins as pin_cases
+from leaf_dev.commands import pins as pin_cases
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,

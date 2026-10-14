@@ -8179,7 +8179,7 @@ async function notifyDataSubscribers() {
   for (const delivered of [...deliveryListeners]) delivered(round);
   const current = [...subscriptions];
   for (const subscription of current) subscription.notify();
-  const regions = current.map((subscription) => subscription.region);
+  const regions = current.flatMap((subscription) => subscription.regions);
   await whenApplicationRegionsPresented(
     regions,
     () => runtime.data.version === version
@@ -8249,8 +8249,8 @@ var deliveries = 0;
 var deliveryListeners = /* @__PURE__ */ new Set();
 var stagedReadings = /* @__PURE__ */ new WeakSet();
 var stagesOnly = (reading) => stagedReadings.has(reading);
-function joinDataDelivery(region) {
-  const subscription = { region, notify() {
+function joinDataDelivery(regions) {
+  const subscription = { regions, notify() {
   } };
   subscriptions.add(subscription);
   return () => subscriptions.delete(subscription);
@@ -8265,7 +8265,7 @@ function watchData(element, input, callback) {
   let completion = Promise.resolve();
   const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
   let presentation = null;
-  const subscription = { region, notify: () => notifySelected() };
+  const subscription = { regions: [region], notify: () => notifySelected() };
   let stopSelection;
   let pendingDelivery = null;
   let stopped = false;

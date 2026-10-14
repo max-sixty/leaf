@@ -69,7 +69,7 @@ def media_url(source: Path) -> str:
 
 def catalog_preview(assets: Path, name: str) -> Path:
     """Where an asset tree holds one example's catalog preview
-    (`leaf_dev.example_previews`)."""
+    (`leaf_dev.commands.refresh_previews`)."""
     return assets / "examples" / f"example-{name}.jpg"
 
 

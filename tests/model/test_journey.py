@@ -14,7 +14,8 @@ from types import SimpleNamespace
 
 import pytest
 from interact_support import STATED_TIMEOUT
-from leaf_dev import journey, journey_claude_code, journey_pi
+from leaf_dev import journey_claude_code, journey_pi
+from leaf_dev.commands import journey, journey_chart
 from leaf_dev.review_scenario import SLEEP
 
 
@@ -208,7 +209,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(end):
         "target": "claude-code",
         "comment": {**sample["comment"], "approved": []},
     }
-    rows = journey.chart_rows(
+    rows = journey_chart.chart_rows(
         [prompted, later, {**later, "comment": sample["comment"]}]
     )
     # The latest version is chosen before rows split by prompt, so a prompted run of

@@ -2531,7 +2531,7 @@ def test_the_chrome_names_an_ask_by_its_question(browser, serve):
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     group = dialog.locator(".lf-page-map-group").filter(
         has=page.get_by_role(
-            "heading", name="question · Which jobs are worth starting?"
+            "heading", name="ask · Which jobs are worth starting?"
         )
     )
     expect(group).to_have_count(1)

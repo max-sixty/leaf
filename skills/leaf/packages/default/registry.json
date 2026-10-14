@@ -513,7 +513,7 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-inline": true,
-    "x-prepaint": "<span class=\"lf-tally-face\"><span class=\"lf-tally-count\"><span class=\"lf-tally-room\">00 of 00 to answer</span><span class=\"lf-tally-room\">Nothing to answer</span><span class=\"lf-tally-words\"></span></span><button class=\"lf-btn lf-tally-next lf-ui lf-ui-face\" type=\"button\">Next question</button></span>",
+    "x-prepaint": "<span class=\"lf-tally-face\"><span class=\"lf-tally-count\"><span class=\"lf-tally-room\">00 of 00 to answer</span><span class=\"lf-tally-room\">Nothing to answer</span><span class=\"lf-tally-words\"></span></span><button class=\"lf-btn lf-tally-next lf-ui lf-ui-face\" type=\"button\">Next on me</button></span>",
     "x-refers": {
       "for": {}
     },

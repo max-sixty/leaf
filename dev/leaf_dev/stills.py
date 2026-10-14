@@ -787,7 +787,7 @@ def ask_by_keyboard(page: Page) -> None:
 
 
 def steps_in_view(page: Page) -> None:
-    """A list of steps in body prose, each number in its disc beside its first line."""
+    """A list of steps in body prose, each number beside its first line."""
     page.locator("#security-contract-list").scroll_into_view_if_needed()
 
 

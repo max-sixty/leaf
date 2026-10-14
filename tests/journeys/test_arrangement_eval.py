@@ -1,5 +1,5 @@
 """Product controls really render ordinary HTML; the live loop carries each phase
-to a scripted author; judges read real screenshots."""
+to a scripted author; live judges explore disposable copies."""
 
 import json
 import time

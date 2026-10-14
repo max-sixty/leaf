@@ -68,10 +68,11 @@ icon.
 - **One general kind of small notice in the row.** On 14 October the user accepted a
   chip in the row while an older version is shown ("v2 of 3 · Latest"), on the
   condition that it be "one general case" of "a way to generally add small notices
-  to the user". Build that chip through a single row-notice slot, and grow the slot
-  into the mechanism: what a notice says, who raises it, what press it offers, how it
-  ends, and which other states use it (a stale page, offline, a page opened from a
-  share link).
+  to the user". The chip stands in the row's one notice slot (`floating-panel.js`,
+  `rowNotice`), where the older version is its only case. Grow the slot into the
+  mechanism: what a notice says, who raises it, what press it offers, how it ends,
+  and which other states use it (a stale page, offline, a page opened from a share
+  link).
 - **Selected words go to the anchored comment box, not the field.** The fresh review
   found that clicking the panel's field with words selected drops the selection and
   comments on the page as a whole. The user declined carrying the selection into the

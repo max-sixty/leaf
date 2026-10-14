@@ -15,13 +15,12 @@ here knows the page's structure. Two moves cover what the user does there:
   page offered to copy. The tab records every clipboard write and copy, so what a
   copy button put on the clipboard is read exactly rather than from the agent.
 
-`reveal` is shared with the screenshots, which open the commented item before the
-judge sees the final version.
 The simulated user's prompt lives in `evals/workflows/eval_user.yaml`.
 """
 
 import json
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -235,14 +234,17 @@ USER = DEFINITION["prompt"]
 REPORT = DEFINITION["output_schema"]
 
 
-def cli() -> str:
-    """The host's `playwright-cli`, which the user agent drives the tab with."""
-    if (found := shutil.which("playwright-cli")) is None:
+def cli() -> list[str]:
+    """The browser CLI supplied by Leaf's pinned Playwright development dependency."""
+    from leaf_dev import ROOT
+
+    node = shutil.which("node")
+    script = ROOT / "node_modules/playwright/cli.js"
+    if node is None or not script.is_file():
         raise click.ClickException(
-            "Deciding on a page needs playwright-cli; install it with "
-            "`npm install -g @playwright/cli`"
+            "Browser agents need Node and eval dependencies; run pnpm install --frozen-lockfile"
         )
-    return found
+    return [str(Path(node).resolve()), str(script), "cli"]
 
 
 def decide(url: str, task: str, evidence: Path) -> dict:
@@ -270,7 +272,7 @@ def decide(url: str, task: str, evidence: Path) -> dict:
 
         def playwright(*args: str) -> subprocess.CompletedProcess:
             return subprocess.run(
-                [cli(), f"-s={session}", *args],
+                [*cli(), f"-s={session}", *args],
                 cwd=cwd,
                 env=env,
                 capture_output=True,
@@ -284,7 +286,7 @@ def decide(url: str, task: str, evidence: Path) -> dict:
             raise click.ClickException(
                 f"playwright-cli could not attach: {attached.stdout}{attached.stderr}"
             )
-        prompt = USER.format(session=session, task=task)
+        prompt = USER.format(cli=shlex.join(cli()), session=session, task=task)
         (evidence / "prompt.txt").write_text(prompt)
         try:
             trace = run_agent(

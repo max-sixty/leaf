@@ -29,7 +29,7 @@ class AskBannerFace extends RetainedFace {
   }
 
   render() {
-    return html`<span data-lf-room=${this.room}>${this.model.text}</span>`;
+    return html`<span data-lf-room=${this.room}><span>${this.model.text}</span></span>`;
   }
 }
 

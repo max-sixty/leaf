@@ -1350,8 +1350,8 @@ export class ThreadView {
     );
     controls.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
     if (this.#model.news) {
-      // While news stands, the notice keeps at least the width of the words it first
-      // showed, so later news with shorter words never narrows it under the pointer.
+      // While news stands, the notice keeps the width of the words it first showed, so
+      // later news never narrows or widens it under the pointer; longer news is cut.
       if (!this.#news.node.hasAttribute("data-lf-room"))
         this.#news.node.dataset.lfRoom = this.#model.news.label;
       const line = controls.getBoundingClientRect();

@@ -86,7 +86,6 @@ cases:
         - 55% peak CPU
         text: The database owners are Mei Tanaka's team. Name them here and ask for their answer
           by Wednesday, the day before the decision.
-        applied: Mei Tanaka
       decision:
         task: 'As the platform team, decide the review''s question: choose option 1, staying
           on managed Redis and shortening the TTL to 7 days.'
@@ -101,74 +100,59 @@ cases:
       reveal: ''
     assert:
     - &phase_1_quality
-      type: agent-rubric
+      type: javascript
       metric: phase-1-quality
-      value: 'Open every screenshot the output lists for version 1 before judging. Each width''s
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page''s
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region''s remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don''t infer interaction behavior from an unoperated screenshot. Pass
-        only if, at every width, version 1 keeps the request''s substantive information, lets
-        the user find and read the evidence, and provides the decisions or navigation the request
-        needs. '
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 1
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires.
     - &phase_2_quality
-      type: agent-rubric
+      type: javascript
       metric: phase-2-quality
-      value: 'Open every screenshot the output lists for version 2 before judging. Each width''s
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page''s
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region''s remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don''t infer interaction behavior from an unoperated screenshot. Pass
-        only if, at every width, version 2 keeps the request''s substantive information, lets
-        the user find and read the evidence, and provides the decisions or navigation the request
-        needs. '
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 2
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires.
     - &phase_3_quality
-      type: agent-rubric
+      type: javascript
       metric: phase-3-quality
-      value: 'Open every screenshot the output lists for version 3 before judging. Each width''s
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page''s
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region''s remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don''t infer interaction behavior from an unoperated screenshot. Pass
-        only if, at every width, version 3 keeps the request''s substantive information, lets
-        the user find and read the evidence, and provides the decisions or navigation the request
-        needs. '
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 3
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires. The requested comment change appears in the relevant
+          item or passage.
     - &phase_4_quality
-      type: agent-rubric
+      type: javascript
       metric: phase-4-quality
-      value: 'Open every screenshot the output lists for version 4 before judging. Each width''s
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page''s
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region''s remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don''t infer interaction behavior from an unoperated screenshot. Pass
-        only if, at every width, version 4 keeps the request''s substantive information, lets
-        the user find and read the evidence, and provides the decisions or navigation the request
-        needs. '
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 4
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires. The page preserves the final decisions the user
+          supplied.
     - &phase_2_preference
-      type: agent-rubric
+      type: javascript
       metric: phase-2-preference
-      value: Open every screenshot the output lists for version 2 before judging. Each width's
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page's
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region's remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don't infer interaction behavior from an unoperated screenshot. Pass
-        only if version 2 follows the lasting width preference the output quotes.
-    - &comment_applied
-      type: agent-rubric
-      metric: comment-applied
-      value: >-
-        Read the user's comment quoted in the output and open every screenshot
-        listed for version 3. Pass only if the page implements the requested
-        change in the passage or item the comment concerns. Merely mentioning
-        a name or value elsewhere, or claiming the change in the answer, does
-        not establish that the page applied it.
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 2
+        required_widths: [narrow, short]
+        rubric: >-
+          At both 900px window heights, the page follows the lasting preference quoted in the
+          output: summary, status, contents or queue remains beside the main content.
     - &comment_answered
-      type: agent-rubric
+      type: llm-rubric
       metric: comment-answered
       value: Pass only if the author's answer to the user's comment, which the output quotes,
         tells the user that the change the comment asked for is made.
@@ -182,7 +166,6 @@ cases:
         - timeout change with the payments team
         text: Dana confirmed at 15:52 that 7.2's 3 s connect timeout is the cause. Mark this
           follow-up done and say so where the page explains the cause.
-        applied: '15:52'
       decision:
         task: 'Decide eu-west: roll it back to 4.11 and ship 4.12.1 with the old timeout.'
         typed: Roll eu-west back to 4.11 and ship 4.12.1 with the old timeout.
@@ -204,7 +187,6 @@ cases:
     - *phase_3_quality
     - *phase_4_quality
     - *phase_2_preference
-    - *comment_applied
     - *comment_answered
   queue:
     inputs:
@@ -216,7 +198,6 @@ cases:
         - feature request board
         text: 'Brightline is on a Team trial that converts next week, so don''t just close it:
           route it to their account manager, Sam Okafor, with the Q4 plan.'
-        applied: Sam Okafor
       decision:
         task: 'Work through the queue and decide each ticket: ESC-4107: fix; ESC-4108: close;
           ESC-4109: fix; ESC-4111: escalate to engineering; ESC-4112: escalate to engineering;
@@ -276,7 +257,6 @@ cases:
     - *phase_3_quality
     - *phase_4_quality
     - *phase_2_preference
-    - *comment_applied
     - *comment_answered
   configuration:
     inputs:
@@ -288,7 +268,6 @@ cases:
         - ledger-reconciliation-lag
         text: Finance owns this alert. If it pages, it pages the finance-ops rotation, not payments
           on-call; show that beside its routing.
-        applied: finance-ops
       decision:
         task: 'Set each alert''s threshold and routing: payments-5xx-rate: over 2%, pages; payments-p99-latency:
           over 1,200 ms, opens a ticket; card-auth-decline-spike: over 3×, opens a ticket; webhook-backlog:
@@ -369,7 +348,6 @@ cases:
     - *phase_3_quality
     - *phase_4_quality
     - *phase_2_preference
-    - *comment_applied
     - *comment_answered
   sidebar-page-at-900px:
     inputs:
@@ -377,36 +355,34 @@ cases:
       decision: null
       reveal: ''
     assert:
-    - type: agent-rubric
+    -
+      type: javascript
       metric: phase-1-quality
-      value: Open every screenshot the output lists for version 1 before judging. Each width's
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page's
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region's remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don't infer interaction behavior from an unoperated screenshot. Pass
-        only if, at every width, version 1 keeps the request's substantive information, lets
-        the user find and read the evidence, and provides the decisions or navigation the request
-        needs. The completed rollout's forty entries must remain readable in the document's
-        scroll, rather than showing only one screen of a separate listing. At both 900px window
-        heights, all six checks and their failing result stay accessible beside the log as it
-        scrolls. Page navigation and any supporting sidebar content remain reachable; a sticky
-        box must not hold them below the window. On a phone, the regions stack without covering
-        the log or hiding its entries.
-    - type: agent-rubric
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 1
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires. The completed rollout's forty entries must remain
+          readable in the document's scroll, rather than showing only one screen of a separate
+          listing. At both 900px window heights, all six checks and their failing result stay
+          accessible beside the log as it scrolls. Page navigation and any supporting sidebar
+          content remain reachable; a sticky box must not hold them below the window. On a
+          phone, the regions stack without covering the log or hiding its entries.
+    -
+      type: javascript
       metric: phase-2-quality
-      value: Open every screenshot the output lists for version 2 before judging. Each width's
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page's
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region's remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don't infer interaction behavior from an unoperated screenshot. Pass
-        only if, at every width, version 2 keeps the request's substantive information, lets
-        the user find and read the evidence, and provides the decisions or navigation the request
-        needs. The completed rollout's forty entries must remain readable in the document's
-        scroll, rather than showing only one screen of a separate listing. At both 900px window
-        heights, all six checks and their failing result stay accessible beside the log as it
-        scrolls. Page navigation and any supporting sidebar content remain reachable; a sticky
-        box must not hold them below the window. On a phone, the regions stack without covering
-        the log or hiding its entries.
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 2
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires. The completed rollout's forty entries must remain
+          readable in the document's scroll, rather than showing only one screen of a separate
+          listing. At both 900px window heights, all six checks and their failing result stay
+          accessible beside the log as it scrolls. Page navigation and any supporting sidebar
+          content remain reachable; a sticky box must not hold them below the window. On a
+          phone, the regions stack without covering the log or hiding its entries.
     - *phase_2_preference

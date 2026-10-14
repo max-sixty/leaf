@@ -5,8 +5,8 @@
    writers through element directives built by `elementDirective`. A behavior module
    reads a box from inside `measure`: a widget upgrades wherever the runtime connects
    it, and a shut panel is `display: none`, where every word measures zero. A label
-   whose words change holds the room of all of them with `data-lf-room`, which the
-   theme sizes without script (controls.css). A module calls
+   whose words change holds one room for all of them with `data-lf-room`, which the
+   theme sizes without script and which cuts words past it (controls.css). A module calls
    `layoutChanged(el)` after view state rearranges descendants without resizing its
    outer box — `ResizeObserver` already covers size changes, and geometry consumers
    listen to this signal instead of watching every DOM mutation.
@@ -118,10 +118,13 @@ export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 
 // The user's hand on a widget, in the layer's own word: a drag the log has not taken
 // yet. This module holds it, and everything that has to wait for the hand asks here:
-// `dragHeld` is whether any widget holds one, and `watchDragRelease` is told each time
-// the last one is put down. The widget calls `dragging` as it takes the hand up and puts
-// it down, and puts it down in `disconnectedCallback` too, since a widget that leaves
-// with the hand up would hold every waiter for the rest of the page's life.
+// `dragHeld` is whether any widget holds one. The widget calls `dragging` as it takes
+// the hand up and puts it down, and puts it down in `disconnectedCallback` too, since a
+// widget that leaves with the hand up would hold every waiter for the rest of the
+// page's life. The hand holds back what would replace or take back the nodes under it,
+// a new revision and an undo (`unaccountedGesture`, composing/engagement.js); the
+// widget holds its own drawing through its controller's `defer()`, and every other
+// widget goes on drawing.
 //
 // Held is half of composing/engagement.js's `unaccountedGesture`, so taking it up or
 // putting it down moves core's `z` row — a row no widget declares. The hands are a
@@ -129,22 +132,14 @@ export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 // `reflectKeys`). The widget's own rows move with the grab too, even where it is a press
 // on an already-focused grip and no focus event fires, so its keys are painted here.
 const hands = signal(new Set());
-const releaseWatchers = new Set();
 
 export const dragHeld = () => hands.value.size > 0;
-
-// Told, in the order they began watching, each time the last hand is put down.
-export function watchDragRelease(released) {
-  releaseWatchers.add(released);
-  return () => releaseWatchers.delete(released);
-}
 
 export const dragging = (el, on) => {
   const held = new Set(hands.peek());
   if (on) held.add(el);
   else held.delete(el);
   hands.value = held;
-  if (!held.size) for (const released of [...releaseWatchers]) released();
   paintKeysWithin(el);
 };
 

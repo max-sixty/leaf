@@ -34,6 +34,7 @@ const INITIAL = Object.freeze({
     disabled: false,
     keyTitle: "Open the current page",
     label: INITIAL_LATEST,
+    shown: null,
   }),
   rows: EMPTY,
   selection: Object.freeze({
@@ -95,7 +96,7 @@ class VersionPickerView {
     // The semantic owner supplies its one latest-version command: it releases the
     // composition hold at the live root and performs ordinary travel on an immutable
     // page. The view retains the native control without duplicating that decision.
-    this.latestChip.onclick = () => this.#latest?.();
+    this.latestChip.onclick = () => this.latest();
     this.present(INITIAL);
   }
 
@@ -165,6 +166,9 @@ class VersionPickerView {
   }
   compare(version) {
     this.#compare?.(version);
+  }
+  latest() {
+    this.#latest?.();
   }
 
   present(model) {

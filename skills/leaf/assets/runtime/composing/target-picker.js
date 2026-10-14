@@ -73,6 +73,8 @@ pageSearchInput.maxlength = 160;
 const pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
 pageSearchStatus.slot = "end";
+const pageSearchWords = el("span");
+pageSearchStatus.append(pageSearchWords);
 pageSearchInput.append(pageSearchStatus);
 pageSearchSurface.append(pageSearchInput);
 const noMatches = "No matches";
@@ -308,7 +310,7 @@ export function createTargetPicker({
       : matches.length
         ? searchCount(active + 1, matches.length)
         : noMatches;
-    render(html`${status}`, pageSearchStatus);
+    render(html`${status}`, pageSearchWords);
   }
 
   function sameMatch(left, right) {

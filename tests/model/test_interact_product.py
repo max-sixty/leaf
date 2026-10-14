@@ -33,6 +33,7 @@ from interact_support import (
     response_reference,
     served_thread,
     state_json,
+    words,
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -250,7 +251,7 @@ def test_choose_requires_an_id(page_dir):
         '<lf-options choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
         registry,
     )
-    assert found(errs, "attribute-schema", keyword="dependentRequired")
+    assert [finding.code for finding in errs] == ["needs-id"]
 
 
 def test_sample_admits_interactive_widgets(page_dir):
@@ -302,29 +303,21 @@ def test_ask_context_frames_any_number_of_independent_sources(page_dir):
     )
     assert fragment_errors(with_evidence, registry) == []
 
-    untitled = fragment_errors(
-        f'<lf-ask id="decision-untitled"><p>Context.</p>{first}</lf-ask>',
-        registry,
-    )
-    assert found(untitled, "ask-context-headings", headings=[])
+    # The ask's title is what the shared name rule reads, so a heading in an
+    # hgroup after its eyebrow, a subheading, or context before the heading all
+    # name the ask. A frame whose leading title is not a heading is refused.
+    for titled in (
+        f'<lf-ask id="d"><hgroup><p class="eyebrow">#5</p><h2>Choose</h2></hgroup>{first}</lf-ask>',
+        f'<lf-ask id="d"><p class="eyebrow">#5</p><h2>Choose</h2>{first}</lf-ask>',
+        f'<lf-ask id="d"><h2>Choose</h2><h3>Again</h3>{first}<p>After.</p></lf-ask>',
+    ):
+        assert fragment_errors(titled, registry) == []
 
-    retitled = fragment_errors(
-        f'<lf-ask id="decision-retitled"><h2>Choose</h2><h3>Again</h3>{first}</lf-ask>',
-        registry,
-    )
-    assert found(retitled, "ask-context-headings", headings=["h2", "h3"])
-
-    context_first = fragment_errors(
-        f'<lf-ask id="decision-context-first"><p>Context.</p><h2>Choose</h2>{first}</lf-ask>',
-        registry,
-    )
-    assert found(context_first, "ask-context-heading-first", first="p")
-
-    control_first = fragment_errors(
-        f'<lf-ask id="decision-control-first">{first}<h2>Choose</h2></lf-ask>',
-        registry,
-    )
-    assert found(control_first, "ask-context-heading-first", first="lf-options")
+    for untitled in (
+        f'<lf-ask id="d"><p>Context.</p>{first}</lf-ask>',
+        f'<lf-ask id="d"><strong>Choose</strong>{first}</lf-ask>',
+    ):
+        assert found(fragment_errors(untitled, registry), "ask-context-title")
 
     # A context framing no live source would show a question the banner never
     # counts. A retired source still counts: settling a decision keeps its context.
@@ -924,7 +917,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
 
     swapped = reply('<lf-test-plan id="quoted" readings="goal"></lf-test-plan>')
     assert swapped.exit_code != 0
-    assert 'where role="readings"' in swapped.output
+    assert 'where role="readings"' in words(swapped.output)
 
     borrowed = reply('<lf-test-plan id="quoted" readings="seat"></lf-test-plan>')
     assert borrowed.exit_code != 0
@@ -1075,7 +1068,9 @@ def test_agent_messages_preserve_a_single_space(page_dir):
         cli_model.cli, ["thread", "open", str(page_dir), "--text", ""]
     )
     assert empty.exit_code != 0
-    assert empty.output == "Error: empty text (pass --text or pipe via stdin)\n"
+    assert json.loads(empty.stderr)["error"] == (
+        "empty text (pass --text or pipe via stdin)"
+    )
 
     opened = comment(page_dir, "--text", " ")
     assert opened.exit_code == 0, opened.output
@@ -1323,7 +1318,6 @@ def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
                 "</lf-options></lf-ask>"
             ),
             "--ask",
-            "--json",
         ],
     )
     aggregate = CliRunner().invoke(
@@ -1346,7 +1340,7 @@ def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
     assert answered.exit_code == 0, answered.output
     assert asking.exit_code == 0, asking.output
     assert duplicate.exit_code == 1
-    assert refused_on(duplicate.stdout).values["tags"] == ["lf-options"]
+    assert refused_on(duplicate.stderr).values["tags"] == ["lf-options"]
     assert aggregate.exit_code == 0, aggregate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
     assert "ask" not in replies[0]

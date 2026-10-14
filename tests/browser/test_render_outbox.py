@@ -1340,8 +1340,8 @@ def test_a_complete_read_does_not_repaint_an_already_undone_settlement(browser, 
     authoritative read has released it.
 
     A decision waits for the page's first complete read (module-authoring.md,
-    "Decision commands queue while saved state is loading"), so that read is let
-    through and every later one is held until the undo is in the log."""
+    "Startup and presentation"), so that read is let through and every later one is
+    held until the undo is in the log."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
     cut = CutOff(lets_through=1).hold(page)

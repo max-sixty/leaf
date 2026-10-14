@@ -4,45 +4,13 @@ Read with [module-authoring.md](module-authoring.md), which holds what every beh
 
 ## Margin contributions
 
-`registerContribution({key, target, source, read, activate})` adds a widget's actions and
-statuses to the page's shared margin. `read()` returns the contribution's complete current
-reading, including immutable `contributionEntry({...})` records, and never controls. Leaf
-renders those records independently in the target's margin cluster and in Page Map.
-`target` is an element, or a function returning the element that currently anchors the
-action. `source` defaults to the target and may separately name the semantic owner where
-the presentation has to move to a surviving ancestor.
-
-The `kind` in what `read()` returns names what the contribution is, as one of the margin's
-reading kinds (`action`, `change`, `comment`, `ask`, `activity`, …; `action` where it
-declares none): where a pin with a primary and one more control finds no room for both, it
-folds to one control wearing that kind's face and name, which opens to them. Items in its
-`readings` have
-nonempty `id` strings, unique within that contribution; other contributions may reuse an
-id. Leaf keeps each projected control by the contribution key and entry key while its
-native kind stays compatible. Actions and disclosures are buttons and statuses are spans,
-so crossing between them replaces the control.
-
-An entry needs `key`, `label`, and exactly one of `glyph` (text) or `icon` (a Leaf icon
-name). `kind` belongs to the whole reading, never an entry. Entries default to
-`behavior: "action"`, `tone: "neutral"`, `rank: "primary"` and `state: "idle"`, and
-`activation` defaults to their key; `CONTRIBUTION_ENTRY_SCHEMA` gives the accepted values of
-those four fields. An entry that presents a declared command sets `scope` to its
-`commandScope` capability and `activation` to that command's id: Leaf derives the entry's
-disabled state from the command's availability and invokes the same `run(binding,
-context)` as its keyboard route, so keep its semantic action in `run`. Other actions use
-`activate(token, context)`, which a contribution with any such entry must supply. The
-context carries the projected origin, surface, input kind, current entry, and a `focus`
-capability, which moves to the current surface only where activation owned keyboard focus
-and otherwise returns false.
-
-The returned registration exposes `entry`, `control`, `contains`, `activate`,
-`activateReading`, `focus`, `update` and `unregister`. `update()` replaces the whole reading
-and may synchronously present it or focus a surviving key. Auxiliary reading activation
-callbacks stay with the live registration; projected readings contain data, and
-`activateReading(id)` invokes the current one. Keep text fields, history and other
-mechanical editing state in the widget, and publish only action and status records, with
-explicit `element` or `entries` relations where a disclosure owns another surface or entry.
-For example, inside a widget whose own `save()` method owns the effect:
+A widget puts its actions and statuses in the page's margin with
+`registerContribution({key, target, source, read, activate})`. Leaf draws them beside
+`target`, in its margin cluster and in Page Map, and inserts nothing into the page's
+content; the margin's keyboard routes, `t` and Page Map reach them. `target` is an
+element, or a function returning the one the actions currently sit beside. Set `source`
+to the widget that owns them when the controls have to sit beside an ancestor that
+outlives it. For example, inside a widget whose `save()` method does the work:
 
 ```js
 import {
@@ -74,60 +42,61 @@ connectedCallback() {
 syncActions() { this.actions.update(); }
 ```
 
-Call `syncActions()` when the widget's state changes, and return the actions available in
-that state from `read()`; every surface receives the same current records. Leaf's margin
-controls and Page Map provide keyboard routes. A widget adding its own commands calls
-`actions.activate(key)` from those rows, so keyboard and pointer input reach the same
-effect.
+`read()` returns data, never controls: the actions available in the widget's current
+state, built with `contributionEntry`. Call `update()` whenever that state changes, and
+every surface redraws from the new entries. Each entry needs a `key`, a `label`, and
+either a `glyph` (text) or an `icon` (a Leaf icon name). `behavior`, `tone`, `rank` and
+`state` default to an ordinary primary action; `CONTRIBUTION_ENTRY_SCHEMA` lists their
+values. Changing an entry between an action, drawn as a button, and a status, drawn as a
+span, replaces its control.
 
-Leaf places a contribution in its target's margin cluster, beside the page or pinned over
-it, and inserts nothing into the page's content, so its controls come after the page's
-content in the tab order; the margin's keyboard routes, `t` and Page Map reach them from
-the target. A package never places or sizes these controls itself.
+Pressing an entry calls `activate(activation, context)`, where an entry's `activation`
+defaults to its key. An entry for one of the widget's
+declared commands instead sets `scope` to its `commandScope` and `activation` to the
+command's id, and Leaf disables it with the command and runs the command's own `run`.
+Commands of the widget's own that act on these entries call `actions.activate(key)`, so
+keys and pointer reach the same effect.
 
-A widget that shows margin entries inside its own content, as the feature gallery's
-gallery of them does, paints a control it owns as one with
-`presentContributionEntry(control, entry, {selected})`, where `entry` is a
-`contributionEntry` record. `presentContributionReceipts(control, receipt, awaitsUser)`
-paints the control's turn: the agent's work on it, from a workflow's
-`{id, subject, stage, detail}` or `null`, and whether the user owes it an answer.
+`kind` says what the whole contribution is: `action` by default, or `change`, `comment`,
+`ask`, `activity` and the margin's other kinds. Where the margin is short of room, a pin
+with a primary control and one other folds into a single button with the kind's icon and
+name. `read()` may also return `readings`, items each with an `id` unique within the
+contribution and an optional `activate`, which `activateReading(id)` calls.
+
+A widget that shows margin entries inside its own content, as the feature gallery does,
+draws its own control as an entry with
+`presentContributionEntry(control, entry, {selected})`, and shows whether the agent is
+working on it with `presentContributionReceipts(control, receipt, awaitsUser)`.
 
 ## Visual parts
 
-A visual with generated part ids declares the accepted `x-visual.prefixes` and calls
-`registerVisualParts(source, read, {reveal, label})` once; a second registration for the
-same source throws. `read()` returns the parts currently drawn as `{id, element, label}`
-records. `reveal(id)` settles the visual on the requested part when someone follows its
-thread, even if the part is already visible, so cancel any pending work that would retire
-it before returning. `label(id)` names a part in Threads without changing the visual's
-state, and returns `null` for an unknown id. The returned `update()` says the parts or
-their geometry changed; call it after any such rendering change.
+A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each
+part. It declares the ids' prefixes in `x-visual.prefixes` (here `commit:`) and calls
+`registerVisualParts(source, read, {reveal, label})` once. `read()` returns the parts
+drawn now as `{id, element, label}`. `reveal(id)` shows a part when someone follows its
+thread, even if it is visible already, so cancel work that would hide it. `label(id)`
+names a part in Threads without changing the visual, or returns `null`. Call the
+returned `update()` after the parts or their positions change.
 
 ## Threads
 
 ### Reading and opening Threads from a widget
 
-`readThreads()` returns the same immutable `{phase, threads}` collection the Threads panel
-reads; a paint that reads it follows it (`module-reading.md`, "Page readings").
-`threads` holds conversations, including local sends while `phase` is `waiting` or
-`offline`; only `ready` means the saved inventory is complete. A bare reaction without
-a spoken turn is not a listed Thread. Each widget keeps its own search, filter and order
-state and derives its displayed rows from the collection. `threadTurns(thread)` selects a Thread's displayed turns, and
-`threadSummary(thread)` gives its `topic` and `latest` activity. An agent-written message
-or closing event carries `agent`, the name it is shown under.
+`readThreads()` returns the `{phase, threads}` the Threads panel reads, and a paint that
+calls it repaints when it changes (`module-reading.md`, "Page readings"). A thread the
+user just started is there at once; only `phase === "ready"` means every saved thread is.
+Each widget keeps its own search, filter and order. `threadTurns(thread)` returns a
+Thread's turns, and `threadSummary(thread)` its `topic` and `latest` activity.
 
-A Thread's `key` survives admission of a pending gesture, so use it, not `id`, to address
-the Thread; message keys survive admission too. Its `id` is the name asks and workflows
-give it; its `root` is its opening message, which a reply or settlement names as its
-`parent`; and its `anchor` names the `section` (the widget's id) and `datum` it rests on.
-`attention.kind === "needs_user"` marks a Thread waiting on the user, including recovery
-after a failed response, and `"waiting"` one that is with the agent. Every Thread carries
-`offers: {open, reply, resolve, reopen}` for current command availability. Reply is
-admissible on a resolved Thread and reopens it. Each message's `reactions` is `null` or its
-current vocabulary and `choices`, including labels, glyphs and reactions in force.
+Address a Thread by its `key`, which survives the server admitting it, not its `id`,
+the name asks and workflows use. `root` is its opening message, `anchor` names the
+`section` and `datum` it is attached to, and `attention.kind` is `"needs_user"` when it
+waits on the user and `"waiting"` when it is with the agent. `offers: {open, reply,
+resolve, reopen}` says which actions are available now. A message's `reactions` lists
+the reactions it takes and those in force, and an agent's message carries `agent`, the
+name it shows under.
 
-`threadActions` adds a package's own controls over the current reading and Leaf's
-optimistic event path:
+`threadActions` acts on Threads through Leaf's own path, showing the result at once:
 
 ```js
 threadActions.create({text, anchor, attempt});
@@ -138,26 +107,14 @@ threadActions.reopen(thread.key);
 threadActions.setReaction(thread.key, agentMessage.key, token, true);
 ```
 
-`threadActions.open(key, {part, focus, travel, message})` takes the user to the Thread in
-the nearest reader, the same choice a mark and `t` make: the page's primary reader where
-one is registered ("Owning the primary conversation presentation"), else the open Threads
-panel, else inline where the page shows it, beside its passage or widget, else Threads.
-`part: "thread"` lands on the card
-or summary; `part: "reply"` reveals its reply editor; `part: "message"` asks for the reader
-that renders native authored message content, the registered primary reader and then
-Threads; `message: message.key` opens one message. Omitting `part` follows the surface's
-ordinary route: a compact passage card starts at the card, and a widget conversation or
-Threads at its reply. A focused jump that moves the page records a return place for Back;
-`travel: false` keeps the page in place and records none. `focus` defaults to true, and
-`focus: false` reveals the part without taking focus. The call resolves to the actual
-destination after reveal and placement, or `null` when the Thread is unavailable or newer
-input has superseded the move. The widget need not render or own the conversation to offer
-this route.
-
-Leaf keeps the original gesture's intent inside this route, and the returned
-destination, while it still holds focus, is the capability for a continuation. A
-predicate captured on the button before the call would reject the route's own move to
-that editor:
+`open(key, {part, focus, travel, message})` takes the user to the Thread wherever a
+margin mark would: the page's primary reader ("Owning the primary conversation
+presentation"), else the open Threads panel, else beside its passage, else Threads.
+`part` is `"thread"` for the card, `"reply"` for the reply editor, or `"message"` with
+`message: message.key` for one message. `travel: false` keeps the page where it is, and
+`focus: false` leaves focus alone. It resolves to the element it landed on, or `null` if
+the Thread is gone or the user has done something else. To act on that element
+afterwards, such as selecting the reply text, check it still has focus:
 
 ```js
 const editor = await threadActions.open(thread.key, {part: "reply"});
@@ -166,39 +123,30 @@ if (editor?.matches(":focus") && editor.setSelectionRange) {
 }
 ```
 
-`reply`, `resolve`, `reopen` and `setReaction` return `null` when the current reading does
-not offer that action, otherwise a promise resolving to the admitted event, or `null` if
-admission refuses it. The action changes `readThreads()` at once; the server stays final. A
-reply needs non-empty text. `setReaction` names the desired state, so a stale
-control cannot invert a concurrent change: `false` withdraws a reaction in force, and the
-token must be in the current layer's vocabulary on an addressable agent message.
-`create` accepts `text`, an optional `anchor`, `attempt`, `holds`, `about`, `drawing` and
-`suggestion`; empty text needs a drawing. It returns `{key, delivery}` synchronously, where
-`key` is its minted or supplied attempt and `delivery` is the admission promise, and in a
-reading its pending Thread appears at once, including while saved history is loading.
-Creation needs no Thread reading; its key selects the local Thread immediately. Leaf's
-reply editors keep one durable draft per Thread, and a package's own input keeps its own (`module-input.md`, "Text entry and drafts").
+Don't check intent captured before the call instead (`module-input.md`, "Delayed
+work"): the route's own move to the editor makes it false.
+
+`reply`, `resolve`, `reopen` and `setReaction` return `null` when the Thread doesn't
+offer the action, and otherwise a promise of the admitted event, or of `null` if the
+server refused. A reply needs text, and reopens a resolved Thread. `setReaction` takes
+the state you want, not a toggle, so a stale control can't undo another change. `create`
+takes `text`, optionally with `anchor`, `attempt`, `holds`, `about`, `drawing` and
+`suggestion`; empty text needs a drawing. It returns `{key, delivery}` at once, and the
+new Thread shows in `readThreads()` immediately. A package's own input keeps its draft
+as `module-input.md`, "Text entry and drafts", describes.
 
 ### Starting a thread from a widget
 
-A widget whose entry declares `x-thread-seat` builds the box where the user starts a thread
-about it with `threadBox(this, hint)`, where `hint` labels the box, and appends the element
-it returns. It returns `null` for an element in Leaf's interface or in quoted markup, and
-throws for one the declaration's `when` does not select or one with no id.
+A widget whose entry declares `x-thread-seat` appends the box where the user starts a
+thread about it, built with `threadBox(this, hint)`. It returns `null` in Leaf's
+interface or in quoted markup, and throws for a widget without an id or outside the
+declaration's `when`.
 
 ### Rendering Threads in a widget
 
-`mountThreadViews(owner, render)` lets a package supply containers for Leaf's own
-conversation view, for a Thread list or dashboard. It returns a handle with `update()` and
-`unregister()`, and throws for a second registration on the same element. The callback
-receives the `readThreads()` collection on its first presentation and on later
-publications, and a second argument, `surfaces`: `surfaces.thread(thread.key, outlet)` shows
-that conversation in an element inside the widget. Each widget chooses its own Threads,
-outlets, filters and order, and may render each Thread once per callback. Several widgets
-may render the same Thread; these views are mirrors and leave the Thread at its page or
-margin position. Leaf renders the messages, reply editor, reactions, settlement controls
-and receipts, and an authored message's interactive widgets open in the primary reader or
-the Threads panel.
+A Thread list or dashboard can show Leaf's conversation view in containers of its own.
+Register `mountThreadViews(owner, render)` in `whileConnected` and call `unregister()`
+from its cleanup:
 
 ```js
 this.threads = mountThreadViews(this, (collection, surfaces) => {
@@ -209,72 +157,48 @@ this.threads = mountThreadViews(this, (collection, surfaces) => {
 });
 ```
 
-The widget owns each outlet's creation and layout, and Leaf owns its children; every
-outlet stays inside its owner. A returned promise delays that widget's repaint without
-holding up Leaf's own surfaces. `surfaces.signal` aborts when a newer render supersedes this
-one or the consumer unregisters, so an asynchronous callback checks it before changing its
-UI. The handle's `update()` requests a new render after a local layout change. Register in
-`whileConnected` and call `unregister()` from its cleanup.
+Leaf calls `render` with the `readThreads()` collection whenever the threads change, and
+fills each outlet `surfaces.thread(key, outlet)` names with the messages, reply editor,
+reactions and receipts. The widget creates and lays out its outlets, inside itself. These
+views are copies: the Thread also stays where it is on the page. An asynchronous `render`
+checks `surfaces.signal` before changing its UI, and the handle's `update()` asks for a
+new call after a local layout change.
 
 ### Owning the primary conversation presentation
 
-`registerThreadPresentation(owner, {render, reveal})` selects one primary package reader per
-page, for a package that supplies the page's conversation reader, such as a shelf of
-conversations or a feed of individual turns. Interactive message widgets then have one
-native instance, in this reader or in the fallback Threads panel. Leaf's floating panel
-draws page threads with its own reader until a package registers one, and then opens them
-in the package's. `mountThreadViews` stays useful for optional mirrors of it.
+A package that provides the page's main conversation reader, such as a shelf of
+conversations or a feed of turns, registers
+`registerThreadPresentation(owner, {render, reveal})`, in `whileConnected`. A page has
+at most one. Leaf then opens threads there instead of in its floating panel, and widgets
+inside messages live there, with the Threads panel as fallback.
 
-`render(shownCollection, parts)` nominates connected elements inside the owner as outlets.
-Its collection holds back updates that would move visible content, and Leaf shows a notice
-that releases them; `readThreads()` stays the current reading for counts and action
-availability.
+`render(shownCollection, parts)` names outlets inside the widget: a whole conversation
+with `parts.thread(thread.key, outlet)`, or its parts with
+`parts.message(thread.key, message.key, outlet)` and `parts.reply(thread.key, outlet)`.
+Leaf fills them and keeps the rendering, reactions, read tracking and reply draft; the
+package keeps layout, order, selection, scroll and disclosure. `parts.reply` takes
+`{hint, accessibleName, sent}`, where `sent()` runs after a send instead of moving the
+user to the thread. The collection holds back changes that would move what the user
+sees, behind a notice; `readThreads()` stays current for counts. A feed of single turns
+supplies Resolve and Reopen through `threadActions`.
 
-```js
-parts.thread(thread.key, conversationOutlet);
-// Or nominate individual parts of that Thread:
-parts.message(thread.key, message.key, messageOutlet);
-parts.reply(thread.key, replyOutlet);
-```
-
-A pass can nominate a whole conversation or its individual parts, each once, and several
-parts can share an outlet. A shadow outlet displays the parts through native slots, while
-their nodes stay in the document. Leaf keeps the generated nodes, message rendering,
-reactions, read tracking and the shared reply draft; a nominated message of the user's own
-offers its rewrite in place, and a nominated reply box opens the latest of those on ↑, as a
-whole conversation does. `parts.reply` takes optional `{hint, accessibleName, sent}`: what
-the empty box reads and is named, each a string or a function read as it paints, and
-`sent()`, called after a send in place of standing the user on the thread, for a box that
-stays for the next turn. The package keeps layout, ordering, selection, scroll and
-disclosure. A returned promise delays the presentation; check `parts.signal` before
-asynchronous layout changes, since a newer pass or `unregister` aborts it.
-
-The handle supplies `update()` and `unregister()`. Await `update()` after local layout
-changes; ordinary updates keep held news, and `update({release: true})` shows the current
-reading for a deliberate view change. `reveal(key, request)` selects and reveals the part in
-the package's layout, returning its asynchronous layout work where needed, or `false` to use
-the Threads panel. The request carries `part` (`message`, `thread`, `reply`, or null for the
-surface default), `message` (the addressed message key, or null), boolean `focus`,
-`signal`, and `current()`; a message can be materialized without taking focus.
-Asynchronous work checks cancellation before changing layout. Leaf then owns focus,
-scrolling, first-unread navigation and ask arrival. Whole conversations include
-settlement controls, and a feed of fragments supplies Resolve and Reopen through
-`threadActions`. Register in `whileConnected` and call `unregister()` from its cleanup. The
-feature gallery's `lf-conversation-workspace` switches Conversation, Shelf and Feed with
-these APIs.
+Await the handle's `update()` after a local layout change, or `update({release: true})`
+to show held news for a deliberate change of view. `reveal(key, request)` shows the
+requested part in the package's layout, or returns `false` to use the Threads panel;
+`request` carries `part`, `message`, `focus`, `signal` and `current()`. Leaf then handles
+focus, scrolling and arrival. The feature gallery's `lf-conversation-workspace` is the
+worked example.
 
 ### Widget-local Thread placement
 
-A widget declares `"x-thread-surface": true` to place Thread UI beside its own projected
-data. Leaf registers each instance once its module has upgraded it and retires it when it
-leaves the page, so the module neither registers nor unregisters. On each reconciliation
-pass Leaf calls the element's own `threadOutlets(targets, {signal, collection, onCommit})`
-with one ordered batch of the widget's targets; return an array of matching outlet elements
-or `null`, in the same order, or a promise of that array. Each target supplies
-`{anchor, placement, thread}`: `placement.datumElement` is the exact rendered datum, and
-`thread` is its current Thread or `null` for the active composer. Several targets may share
-one outlet. Here `this.outletFor` stands for the widget's own method, which finds or creates
-the outlet beside the datum (`lf-diff`'s `threadOutletFor` is the worked example):
+A widget that declares `"x-thread-surface": true` shows threads beside its own projected
+data, as `lf-diff` does beside lines. Leaf registers it after upgrade and calls its
+`threadOutlets(targets, {signal, collection, onCommit})` whenever placement changes,
+with the threads anchored exactly to its data and the open comment box. Return, in the
+same order, an outlet for each target or `null`, or a promise of that array. A target
+is `{anchor, placement, thread}`, with the datum's element at `placement.datumElement`
+and `thread` `null` for the comment box. Here `this.outletFor` is the widget's own
+method that finds or makes the outlet beside a datum (`lf-diff`'s `threadOutletFor`):
 
 ```js
 threadOutlets(targets, { onCommit }) {
@@ -285,84 +209,48 @@ threadOutlets(targets, { onCommit }) {
 }
 ```
 
-The batch holds only exact datums belonging to the widget, in current Thread order, then
-its active composer where that resolves exactly; the composer may precede any Thread at its
-datum. It leaves out a thread the agent starts at an on-screen datum where the widget draws
-no thread yet, since opening the outlet would move what the user is reading: that thread
-waits in the margin until the user presses its marker, adds a turn of their own, or
-scrolls the datum out of the window. Return `null` for data that is filtered, collapsed or
-not yet hydrated; the thread then falls back to the margin and lazy widgets stay lazy.
-Deliberate thread travel may reveal the datum through `lfRevealDatum`, and the next pass
-calls `threadOutlets` again. `threadSurface(this).update()` asks for a pass after a
-layout-only visibility change.
+Return `null` for data that is filtered out, collapsed or not loaded, and its thread
+stays in the margin. A thread the agent starts on a visible datum with no thread yet
+also waits in the margin until the user opens it, so nothing moves under their reading.
+A placed thread leaves the margin; the Threads panel still lists it. Call
+`threadSurface(this).update()` after a change that only shows or hides data.
 
-The second argument's `signal` aborts when a newer pass supersedes the preparation or the
-widget leaves; `collection` is the complete immutable Thread collection, for keeping a
-layout allocation; and `onCommit(run)` registers work for when this batch's placement
-commits, which a cancelled preparation never reaches. Outlets returned after cancellation
-claim nothing. The widget owns outlet creation, removal and layout, and Leaf owns the
-outlet's children. An outlet the widget stops returning may still hold the composer the
-user is typing in until Leaf moves it at commit, so remove such an outlet only from
-`onCommit`, and keep every returned outlet in the document while the widget redraws the
-data around it; moving one with `move` keeps the user in it. A widget that removes a node
-holding outlets outside `onCommit`, because its data went (a file dropped, a source
-cleared, a part or the whole widget replaced by `failSoft`'s box), first calls
-`releaseOutlets(node)`, ahead of any `holdFocus` around the removal: Leaf's composer leaves
-every outlet under `node` at once, and the user stays in it. Outlets must stay inside their
-widget; disconnected outlets claim no threads.
+The widget creates, lays out and removes its outlets, and Leaf fills them. An outlet you
+stop returning may still hold the comment box the user is typing in, so remove outlets
+only in `onCommit`, which runs once this pass's placement takes effect, and keep returned
+ones in the document while redrawing around them. A widget that must remove a node
+holding outlets at another time, such as when its data goes, first calls
+`releaseOutlets(node)`, before any `holdFocus`. If `threadOutlets` throws, Leaf reports
+it and returns the widget's threads to the margin until the next pass.
 
-Leaf renders the messages, replies, reactions, settlement controls and receipts into each
-outlet. A thread the widget places does not also appear in the margin; the Threads panel
-stays the complete index. If `threadOutlets` throws, Leaf reports a page error, clears
-that widget's views and returns its threads to the margin; the next pass calls it again.
-
-`threadSurface(this).open(datum)` opens the ordinary anchored draft at one projected
-element the widget owns, and seats the response bar in the widget's outlet when the datum
-still resolves exactly. Before Leaf has registered the widget, or once it has left the page, `update()`
-does nothing and `open` returns `false`. Escape from that draft returns focus to the datum
-element when it can take focus, and otherwise to the page. Widgets receive no draft,
-submission or event APIs.
+`threadSurface(this).open(datum)` opens the comment box on one of the widget's data
+items, in its outlet. Escape returns focus to the datum where it can take focus. Leaf
+keeps the draft and the sending.
 
 ### Page annotation presentation
 
-With `data-annotations="page"` on `body`, one connected element may register
-`placePageThreads(owner, render)` to nominate page-owned conversation outlets; both
-registrations in this section throw on a page without that attribute, and a second
-registration throws. Its callback receives the same target batch and
-`{signal, collection, onCommit}` as `threadOutlets`, and returns the same matching outlet
-array. Page targets include exact passages and visual details as well as projected data;
-`collection` keeps a row's allocation while its live target is absent. Targets express
-candidacy: widget-local outlets that survive take priority, and a held widget arrival
-stays with its notice until the user opens it. A target may stand anywhere in the
-document, but its outlet stays inside the registered owner. A failure of this callback
-fails presentation rather than showing an empty view.
+On a page whose `body` has `data-annotations="page"`, one element may supply the outlets
+for all of the page's threads with `placePageThreads(owner, render)`. Its `render` takes
+the same targets and returns the same array as `threadOutlets`, for passages and visual
+parts as well as data; a widget's own outlet still wins. Outlets stay inside the
+element, and if `render` fails, presentation fails.
 
-The same owner can register `consumeAnnotations(owner, render)` for asks, updates, status
-and contributed actions. It receives the current immutable inventory after the
-conversations commit, and a view with these capabilities:
+The same element can show asks, updates, status and margin actions by registering
+`consumeAnnotations(owner, render)`. `render` runs synchronously after the conversations
+are placed, with the current inventory and a view:
 
-- `view.items(entry)` gives generated items not already shown by an owner's visible native
-  contribution controls. `view.activate(item)` uses the current action; a view never sends
-  an event itself. Key items by `contributionItemKey(item)`, since each contribution owns
-  its reading ids.
-- `view.controls(entry)` returns the native contribution controls, in order. Seat those
-  actual nodes, whose registration owns activation, command scopes, disabled state and
-  focus, and copy no markup. `view.controlKey(control)` names a control by its contribution
-  and entry key, and `view.controlRecord(control)` reads its immutable contribution entry,
-  including its owner.
-- `view.arriving` says a contribution focus is arriving at this view; release held layout
-  before seating that reading, so its control is reachable.
-- `view.place(entry, row)` ties a row to its current source for commenting, standing and
-  Escape, and `view.target(entry)` reads that exact target.
+- `view.items(entry)` returns the items the owner's visible controls don't already
+  show, and `view.activate(item)` runs one. Key items by `contributionItemKey(item)`.
+- `view.controls(entry)` returns the contribution's real controls. Place those nodes,
+  not copies of their markup, so they keep their behavior. `view.controlKey(control)`
+  and `view.controlRecord(control)` name and describe one.
+- `view.arriving` is true while focus is on its way to an entry here; release held
+  layout so its control can be reached.
+- `view.place(entry, row)` ties a row to its source for commenting and Escape.
 
-Annotation paint is synchronous and joins the conversation presentation. `controls` and
-`place` accept only entries in that paint's current reading; holding layout never
-authorizes old actions. Both handles provide `read()`, `update()` and `unregister()`;
-register in `whileConnected` and unregister from its cleanup. Keep rows keyed, and hold
-visible size changes with `HeldReading` (`module-scroll-and-motion.md`, "Holding the reader's place"): hold only layout
-identities and allocations, update surviving records and controls at once, and leave
-retired slots their space with no interactive descendants. An owner that scrolls inside a
-box of its own is a reading region: a page bounds it with `data-bound`, which registers it,
-and a widget whose theme makes it scroll calls `registerReadingRegion`. At narrow widths
-the owner stays where touch and the keyboard reach it. Omitting either consumer keeps the
-core Threads and On routes.
+Both registrations throw on other pages and on a second registration, and return
+handles with `read()`, `update()` and `unregister()`; register them in `whileConnected`.
+Keep rows keyed, and hold size changes back with `HeldReading`
+(`module-scroll-and-motion.md`, "Holding the reader's place"), while updating surviving
+controls at once. An owner that scrolls inside its own box registers it as a reading
+region. Whatever the owner doesn't show stays in Leaf's Threads and On panels.

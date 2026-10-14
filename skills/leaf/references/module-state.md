@@ -4,141 +4,110 @@ Read with [module-authoring.md](module-authoring.md), which holds what every beh
 
 ## The widget controller
 
-`widgetController(owner)` is the one semantic interface of a registry-declared widget;
-callers supply no options. Leaf captures the owner's identity and revision-bound
-declaration before upgrade, so an author change to those facts fails closed. Its
-methods are `read`, `subscribe`, `dispatch`, `defer`, and `present`.
+A registry-declared widget reads and records its state through
+`widgetController(owner)`, whose methods are `read`, `subscribe`, `dispatch`, `defer`
+and `present`. Leaf records the widget's id and declaration before upgrade; if either
+changes afterwards, every action reads as unavailable and `dispatch()` returns `null`.
 
-`read()` returns an immutable `{authored, state, thread, provenance, actions}` snapshot.
-`authored` is the typed baseline decoded from validated source markup; `state` is that
-baseline with admitted and unresolved records folded over it; `thread.heldBy` is the
-`id` of the open, admitted Thread whose root holds this widget, or `null`. Each `actions`
-entry carries its availability and exact history or Undo candidates. Guard every
-optimistic mutation with its entry's availability; `dispatch()` repeats the same check.
-Before document adoption the snapshot can lack authored and state values, and while
-`defer()` holds presentation it can be newer than the rendered view.
+Subscribe once, during initialization, never in the connection callbacks. While the
+widget has a subscriber, the controller calls the module's `renderState(state)` with
+each complete reading and then the subscribers, so every widget with declared state
+subscribes, a report-only or quoted one included, with `() => {}` if it has nothing else
+to draw. `subscribe` returns a function that ends the subscription. Leaf itself draws
+what the declaration alone decides, such as hiding a suggestion's `lf-old` once it is
+accepted (`x-retired-when`).
 
-`subscribe(callback)` calls the callback with the complete reading while the widget is
-connected, and returns a function that retires that callback. Call it once, during
-initialization; no unsubscribe or resubscribe belongs in the connection callbacks. The
-controller runs the module's `renderState(state)` only while the widget has a
-subscriber, so every semantic widget subscribes, a report-only or quoted one included,
-with `() => {}` where it has nothing more to draw. For each reading the controller calls
-`renderState` first and the subscribers after, and only once the reading holds every
-declared verb. Draw auxiliary semantic UI from the reading passed to `subscribe`,
-keeping it across local control repaints. What the declaration alone determines, such
-as a holder's settlement (`x-retired-when`), Leaf paints whether or not the module
-subscribes. Native listeners, timers, reading regions, margin contributions and thread
-surfaces keep their own lifetimes.
+`read()` returns an immutable `{authored, state, thread, provenance, actions}`.
+`authored` is the state the page's markup sets, and `state` that with every recorded
+action applied, including the user's latest gestures before the server admits them.
+`thread.heldBy` is the id of the open Thread whose opening message holds this widget, or
+`null`. Each entry in `actions` says whether the action is available and what Undo can
+take back; check it before changing anything for the action. Before the document has
+loaded, `authored` and `state` may be missing.
 
-`dispatch({kind: "action", verb, detail, attempt?})` and
-`dispatch({kind: "undo", target})` return `null` when the newest reading refuses the
-command, otherwise `{reading, delivery}`; an action whose verb is not one of the
-reading's `actions` throws. The returned reading already holds the
-optimistic result; `delivery` later yields the admitted event or `null`, and a refusal
-restores authoritative state. Undo targets only a stable `id` or `attempt` from the
-current entry's candidates. The server remains final admission for every command.
-"Declared widget state" gives each verb's `detail`.
+Record a gesture with `dispatch({kind: "action", verb, detail, attempt?})`, and undo one
+with `dispatch({kind: "undo", target})`, naming an `id` or `attempt` from the action's
+Undo candidates. `dispatch` returns `null` when the action isn't available, throws for a
+verb the widget doesn't declare, and otherwise returns `{reading, delivery}`. The reading
+already shows the result; `delivery` resolves to the event the server admitted, or
+`null`, and a refusal restores the server's state.
 
-`defer()` holds the widget's presentation during a live edit or a pointer or keyboard
-rearrangement. Call it before the first local DOM mutation; it returns a one-shot
-`resume`. Invoke `resume` only after `dispatch` has synchronously staged the semantic
-result, or after cancellation has restored the prior local DOM; it renders the newest
-reading. A widget the user drags (`dragging`, `module-input.md`, "Pointer presses")
-defers for the drag, since the drag moves its nodes.
+During a live edit, or while the user rearranges the widget by pointer or keyboard, call
+`const resume = defer()` before your first change to the DOM, so Leaf doesn't redraw
+under the user. Call `resume()` once `dispatch` has returned, or after cancelling has put
+the DOM back; it draws the newest reading. A dragged widget (`dragging`,
+`module-input.md`, "Pointer presses") defers for the whole drag.
 
-`present(promise)` registers asynchronous visible preparation, such as a renderer
-loading; the page does not read as ready until it settles.
+Pass asynchronous preparation the page should wait for, such as a renderer loading, to
+`present(promise)`.
 
 ### Tab-local working state
 
-State the user arranges but does not record, such as which group they collapsed, stays
+State the user arranges but doesn't record, such as which groups they collapsed, stays
 out of the log. `tabStore.get(key)` and `tabStore.set(key, value)` keep a string of it
-for this page in this browser tab, and setting `null` removes it. An `x-initial`
-producer reads the same store, so the first paint can draw that state (`module-authoring.md`, "First paint").
+for this page in this tab; set `null` to remove it. An `x-initial` drawing reads the same
+store, so the first paint can show it (`module-authoring.md`, "First paint").
 
 ## Declared widget state
 
-A registry-declared widget implements a total, idempotent `renderState(state)`. It
-receives the state of every declared verb, keyed by verb name, including the initial
-values an Undo returns to. Render the final composition and keep independent nested
-widgets mounted; never recreate the owner to restore an initial state. The controller
-ignores the renderer's return value. An optional recorded scalar attribute has a null
-initial value and must be removed when that value returns.
+`renderState(state)` draws the whole state each time it is called, and draws the same
+result if called twice. `state` holds every declared verb, keyed by name, including the
+initial values an Undo returns to. Keep nested widgets in place rather than rebuilding
+the widget, and remove an optional recorded attribute when its value returns to `null`.
+Each verb's state takes the shape of its `unit`:
 
-- A widget-unit verb's state is `{action, value, detail}`. `action` is null for authored
-  state; `value` is the typed record value, or the verb's name for a recordless verb
-  that stands, and null means undecided; `detail` keeps generated-child labels and other
-  declared event data.
-- A per-part verb's state holds `units`, each unit's `{action, value, detail}` keyed by
-  unit id. A recordless unit missing from `units` is undecided.
-- A position verb's state also holds `value`, mapping each container id to the complete
-  ordered ids it holds, and `ranks`, each listed unit's rank.
+- With `unit: "widget"`, it is `{action, value, detail}`. `action` is `null` for the
+  authored state. `value` is the recorded value, or, for a verb with no record, the
+  verb's name while it is in force; `null` means undecided. `detail` carries the event's
+  other declared fields.
+- With a per-part unit, it holds `units`, each part's `{action, value, detail}` by id.
+- A position verb's `value` maps each container id to its ordered member ids, and
+  `ranks` gives each member's rank.
 
-Record user state with `dispatch` ("The widget controller"), with `detail` matching the
-effect's payload contract in [package-data.md, "User state"](package-data.md#user-state). For a
-recorded body, attribute or scalar value, send `detail: {value}`. For a position, send
-`detail: {unit, value, rank}`: the moved element's id, the destination container's id,
-and `rankAt(state.<verb>, container, index, unit)`, the rank of a unit dropped at
-`index` among the container's other units. A rank keeps a unit's placement whichever
-other moves stand, until a version authors the container's units differently. A verb
-with no record sends what its declared `detail` schema asks for.
+`detail` follows the payload [package-data.md, "User state"](package-data.md#user-state)
+gives each record kind. A recorded body, attribute or value sends `detail: {value}`. A
+move sends `detail: {unit, value, rank}`: the moved element's id, the destination
+container's id, and `rankAt(state.<verb>, container, index, unit)`, which places the
+unit at `index` among the container's others and keeps it there however other units
+move. A verb with no record sends what its `detail` schema declares.
 
-A widget's `x-awaits.value` selects its typed answer from the state (`module-reading.md`, "Reading asks and
-obligation queues"). Its class may declare `static answerWords(value, element)`, which
-returns concise words for that answer in the On panel. `value` is the ask's typed
-`answer.value`; `element` supplies authored markup such as option labels. Read nothing
-the module renders; Leaf collapses the words' whitespace. A widget without this
-formatter supplies no answer wording, and its typed answer stays available through
-`readAsks()`.
+A widget that poses an ask can give its class `static answerWords(value, element)`,
+returning short words for the answer in the On panel. `value` is the ask's
+`answer.value`, and `element` gives the authored markup, such as option labels; read
+only that, not what the module draws. Without it, the On panel shows no words for the
+answer (`module-reading.md`, "Reading asks and obligation queues").
 
 ## Data subscriptions and projections
 
-The source declarations and producer workflow are in [package-data.md, "External or derived
-data"](package-data.md#external-or-derived-data). A module subscribes through its own input
-declaration:
+A widget subscribes to a bound data source through an input its entry declares
+([package-data.md, "External or derived data"](package-data.md#external-or-derived-data)):
 
 ```js
 if (once(this)) watchData(this, "builds", (snapshot) => render(snapshot));
 ```
 
-`watchData(element, input, callback)` throws for an input the element's entry does not
-declare. It reads the source binding from the element's markup once, as it subscribes.
-The callback receives `null` while the source has no readable value, otherwise a clone of
-`{source, contract, revision, run, updated, value, origin}`. `revision` identifies the
-value itself; `run` identifies its publication, including a rerun with the same value or
-timestamp. `origin` is `{input, source, contract, revision}`, the declared input and the
-source reading it came from, so an unchanged source keeps its origin when another source
-changes. The callback runs at once and again whenever the source's contract,
-publication or validity changes; it states the whole rendering and stays idempotent. An
-incompatible contract or unreadable value delivers `null`, clearing the previous
-rendering; the subscription stays and recovers when a readable value returns. `page
-state` and `page check` report invalid values, and an incompatible subscriber reports
-the contract it requires. Register once for the element; returns follow `module-authoring.md`,
-"Connection lifetimes". The returned function ends the subscription for good. Its `refresh()`
-repaints the last delivered snapshot, on the return when asked while the owner is away;
-it neither delivers a pending source reading nor revives a retired subscription.
+The callback runs at once, and again whenever the source's value, contract or validity
+changes, and redraws everything each time. It receives `null` while there is no readable
+value, including when the value doesn't fit the contract, which clears the old drawing
+until a readable value returns. Otherwise it receives a copy of
+`{source, contract, revision, run, updated, value, origin}`: `revision` identifies the
+value and `run` the write, so a rerun with the same value gets a new `run`. If the
+callback renders asynchronously, return the promise, so Leaf counts the source as shown
+only once it settles.
 
-If the callback renders asynchronously, it returns that promise, so Leaf publishes the
-source revision as ready only after the projection settles. A rejection is that
-subscriber's page error, reported once, and does not hold the revision back.
+`watchData` throws for an undeclared input and reads the element's binding once.
+Register it once per element; it pauses while the element is away. Its returned
+function ends the subscription, and its `refresh()` redraws from the last snapshot.
 
-A source whose contract declares `deferred` sends its rows without that field.
-`loadDeferred(snapshot, key)` fetches one row's field for the `snapshot` the callback
-received, and throws when the source's revision changed before or during the load.
+Rows whose contract declares a `deferred` field arrive without it. Fetch one row's field
+with `loadDeferred(snapshot, key)`, which throws if the source changed in the meantime.
 
 ### Projecting data
 
-The renderer owns its nodes and their placement (`module-authoring.md`, "Retained nodes"). After placing them,
-annotate their words with `projectData(root, datums, {snapshot})`. Commit visible words
-and their snapshot labels in the same synchronous turn, before awaiting later resource
-settlement; until replacement words are mounted, the previous words keep their previous
-snapshot's provenance. The root is an id-bearing seat. Each datum is
-`{node, key, label?, identity?, origin?}`, and its node must already stand under that
-root, including inside a declared shadow stage. Leaf validates the coordinates and marks
-readable data rather than authored prose; it never builds, moves or removes nodes. A
-node kept as ordinary furniture but omitted from the next datum list loses its former
-projection labels and provenance.
+Once the widget has placed its nodes (`module-authoring.md`, "Retained nodes"), mark
+which of them show data with `projectData(root, datums, {snapshot})`, in the same
+synchronous turn that puts the words on screen, so comments on them anchor to the data
+rather than to prose:
 
 ```js
 setChildren(this, rows.map(row => row.node));
@@ -151,62 +120,43 @@ projectData(this, rows.map(row => ({
 })), {snapshot});
 ```
 
-`key` is a non-empty string unique in the projection and opaque to Leaf. `label` is an
-optional human coordinate for thread chrome. `identity`, when supplied, is a non-empty
-string unique in the projection, naming the same subject across source replacements
-independently of its rendering key. A comment follows that subject and keeps the quote
-from the value the user saw. A reused identifier for a new subject needs a new
-identity. Without one, source-backed keys stay exact only within the captured revision;
-replacing the value marks their placement outdated. Derived projections omit `snapshot`
-and keep their section and key identity.
+`root` is an element with an id, and each datum's `node` must already be under it.
+`key` is a unique string Leaf doesn't interpret, and `label` an optional name shown in
+thread chrome. Give `identity` where the same subject survives new values of the source:
+a comment then follows the subject and keeps the quote the user saw. Without one, a new
+value marks comments on that key as outdated. A node left out of the next call loses
+its marking.
 
-A widget declaring `x-data` passes the delivery's `snapshot`, including `null` when no
-current value exists. Leaf stamps the seat and every datum with that snapshot's source
-and revision and uses `snapshot.origin` as their default provenance. A datum that knows
-its exact JSON coordinate supplies `origin: {...snapshot.origin, path: [...]}`; path
-segments are object keys or array indices. A formatted or parsed datum may name its
-whole input. Derived records can name contributing widget seats as
-`origin: {derived: [{widget: id}]}`. Explicit `origin: null` removes provenance. These
-are construction inputs, not an inverse edit mapping; Leaf never infers them from
-displayed words or datum keys.
+A widget declaring `x-data` passes the delivered `snapshot`, even `null`, and Leaf
+records each datum's source and revision. A datum that knows its place in the JSON gives
+`origin: {...snapshot.origin, path: [...]}`; one computed from other widgets gives
+`origin: {derived: [{widget: id}]}`. A projection not drawn from a source omits
+`snapshot`.
 
 ### Time readings
 
-A time reading made synchronously in a subscription callback (the controller's,
-`watchData`'s, or a `watchProjection` paint's) or in a `readingPaint` draw subscribes
-that paint to Leaf's shared clock, which repaints it only when a reading's result
-changes; the clock
-never redelivers unchanged data to keep a timestamp current. `ago(ts)` says how long ago
-a server timestamp was, as the page words it everywhere: "just now" under 45 seconds,
-then "2m ago", "2h ago" or "2d ago". `shortAgo(ts)` is the same reading for a tight seat
-("now", "2h"). `quietSince(ts)` says whether working last heard at `ts` has gone
-unheard past the server's working grace, the bound the page's own activity reads. For
-another rounded reading, use `clockValue((now) => reading)`, whose `now` is the
-calibrated server time in milliseconds.
+Reading the time synchronously in a `renderState`, subscription callback,
+`watchProjection` paint or `readingPaint` draw makes Leaf repaint it when the time's
+reading changes. `ago(ts)` words a server timestamp as the page does everywhere: "just
+now", then "2m ago", "2h ago", "2d ago". `shortAgo(ts)` is the short form ("now", "2h").
+`quietSince(ts)` says whether work last heard at `ts` has been quiet longer than the
+server's grace period. For any other reading, use `clockValue((now) => reading)`, with
+`now` the server's time in milliseconds.
 
-For a paint outside these subscriptions, wrap it with `clocked(element, paint)` and call
-the returned function where state changes. Its readings pause while the element is away
-and tick again when it returns; the returned function's `stop()` takes it off the clock.
-If a presenter schedules the painting, pass its synchronous claim as the third argument,
-`clocked(element, paint, invalidate)`: a clock change calls `invalidate`, and the
-scheduled pass calls the function `clocked` returned, capturing fresh readings. Until
-that paint runs, the previous readings stay subscribed. Time read after an `await`
-belongs in a separate synchronous `clocked` paint.
+For a paint outside those, wrap it as `const draw = clocked(element, paint)` and call
+`draw()` when state changes; `draw.stop()` takes it off the clock. Where something else
+schedules the paint, pass `invalidate` as a third argument: Leaf calls it when the time
+changes, and your scheduled pass calls `draw()`. Time read after an `await` isn't
+watched.
 
 ## Editing a bound file
 
-`boundFile(binding)` returns the transport for a file explicitly granted to this page
-with `leaf file bind`. Its `read()` returns `{label, text, revision, newline, bytes}`;
-`save({revision, text})` checks that exact revision before writing and returns the
-submitted snapshot. A stale save throws an error whose `current` holds the newer file.
-Other errors carry a message and leave the caller's buffer alone. `text` uses LF line
-endings; the host keeps the file's LF or CRLF form. `watch(callback)` calls back whenever
-the page hears that the bound file may have changed on disk, including through the
-widget's own save, and returns a function that stops it; read the file again then, and
-its revision says whether it changed.
-
-The `writable` property is false in captured documents and exports. The transport owns
-page-relative routing; a widget never names a host path. The file stays external
-filesystem state: editing it appends no Leaf action and takes no part in page Undo,
-and CodeMirror owns editing history. Use the `file-editor` package's `lf-file-editor`
-for this interface, and `lf-code` for a snapshot that should travel with the page.
+`boundFile(binding)` reads and writes a file the agent granted this page with
+`leaf file bind`. `read()` returns `{label, text, revision, newline, bytes}`, with `text`
+in LF line endings. `save({revision, text})` writes only if the file is still at
+`revision`; otherwise it throws an error whose `current` holds the newer file.
+`watch(callback)` calls back whenever the file may have changed on disk, including after
+the widget's own save, so read it again then. `writable` is false in captured documents
+and exports. Editing the file records nothing in the page's log and takes no part in its
+Undo. The `file-editor` package's `lf-file-editor` provides this; use `lf-code` for a
+snapshot that should travel with the page.

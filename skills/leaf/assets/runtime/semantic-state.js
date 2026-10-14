@@ -88,9 +88,11 @@ const publications = applicationState.select((root) => root);
 // otherwise the value `paint` receives. The paint runs on the pass after the claim,
 // once every region ranked before it has painted, and reads the root as it stands then.
 // Each of them reads through readers that select their parts (`readPart`): the reading's
-// reads and those the paint makes before its first `await` are collected
-// (`collectReads`), and the region follows them, so nobody lists what a region depends
-// on. A publication that moves a part either read claims a presentation inside that
+// reads and the paint's are collected (`collectReads`), and the region follows them, so
+// nobody lists what a region depends on. Collection sees only what runs synchronously,
+// so a paint that waits wraps each continuation in the `resume` it is handed, as a
+// `.then` callback or a function it calls after an `await`, and what the continuation
+// reads is collected too; a read in a continuation it does not wrap goes unfollowed. A publication that moves a part either read claims a presentation inside that
 // publication, with the value the reading gives then; one that moves none of them is no
 // claim, so the region carries its last commit into the new epoch (presentation.ts,
 // `begin`). A move of the reading's own parts that leaves its value as it was claimed
@@ -106,7 +108,7 @@ const publications = applicationState.select((root) => root);
  *   renderer?: object,
  *   order?: number,
  *   reading: () => unknown,
- *   paint: (value: any, current: () => boolean) => unknown,
+ *   paint: (value: any, current: () => boolean, resume: <A extends unknown[], R>(run: (...args: A) => R) => (...args: A) => R) => unknown,
  *   failSoft?: (reason: unknown) => unknown,
  * }} presenter */
 export const applicationPresenter = ({
@@ -128,16 +130,32 @@ export const applicationPresenter = ({
     order,
     paint: (value, current) => {
       owed = false;
-      const outcome = collectReads(() => paint(value, current));
-      paintReads = outcome.reads;
-      // A publication the paint made after reading a part checked the parts the last
-      // paint read, so a part this paint read first and moved itself owes another.
-      if (moved(paintReads)) {
-        const next = read();
-        if (next !== null) void claim(next);
-      }
-      if ("error" in outcome) throw outcome.error;
-      return outcome.value;
+      const reads = new Map();
+      paintReads = reads;
+      // One stretch of this paint run synchronously: its start, or a continuation after
+      // a wait that the paint resumes through `resume`. While the paint is current, what
+      // the stretch reads joins the paint's parts. A publication the stretch made after
+      // reading a part checked the parts as they were before it, so a part it read first
+      // and moved itself owes another paint.
+      const stretch = (run) => {
+        const outcome = collectReads(run);
+        if (current()) {
+          for (const [part, seen] of outcome.reads)
+            if (!reads.has(part)) reads.set(part, seen);
+          if (moved(outcome.reads)) {
+            const next = read();
+            if (next !== null) void claim(next);
+          }
+        }
+        if ("error" in outcome) throw outcome.error;
+        return outcome.value;
+      };
+      /** @type {<A extends unknown[], R>(run: (...args: A) => R) => (...args: A) => R} */
+      const resume =
+        (run) =>
+        (...args) =>
+          stretch(() => run(...args));
+      return stretch(() => paint(value, current, resume));
     },
     failSoft,
   });

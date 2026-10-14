@@ -24,6 +24,7 @@ export function clockValue(read) {
 }
 
 // A deferred presenter supplies `invalidate` to claim its next pass synchronously.
+// A paint that reads the time after it waits resumes there through `resume`.
 // Only calling the returned paint replaces its dependencies; invalidation retains
 // them while that pass is queued or awaiting preparation. The claim's return is
 // ignored: its presenter owns completion and failure; the clock owns direct paints.
@@ -64,15 +65,21 @@ export function clocked(owner, paint, invalidate) {
       },
     });
   stopLifetime = follow();
+  // The collection this paint's time readings go to while it runs, its own render's
+  // or a continuation's; another paint rendering inside it collects into its own.
+  let collecting = null;
   function render(...next) {
     const painting = ++generation;
     args = next;
     painted = true;
     const outer = clockReads;
     clockReads = [];
+    const outerCollecting = collecting;
+    collecting = clockReads;
     try {
       return paint(...args);
     } finally {
+      collecting = outerCollecting;
       const nextReads = clockReads;
       clockReads = outer;
       if (painting === generation) {
@@ -89,6 +96,36 @@ export function clocked(owner, paint, invalidate) {
     stopLifetime = null;
   };
   render.refresh = entry.refresh;
+  // A paint that waits wraps each continuation in `resume`, called while it renders or
+  // inside a continuation it resumed, so the time readings the continuation makes join
+  // that paint's. Called anywhere else, or once a later paint has replaced this one, it
+  // adds nothing.
+  render.resume = (run) => {
+    const painting = collecting ? generation : null;
+    return (...more) => {
+      // Run where this paint is already collecting, its readings go in with the rest.
+      if (painting !== generation || (collecting && clockReads === collecting))
+        return run(...more);
+      const outer = clockReads;
+      clockReads = [];
+      const outerCollecting = collecting;
+      collecting = clockReads;
+      try {
+        return run(...more);
+      } finally {
+        collecting = outerCollecting;
+        const resumed = clockReads;
+        clockReads = outer;
+        // Still inside this paint's own run, the readings join the collection it will
+        // keep; after it, they join what it kept.
+        if (collecting) collecting.push(...resumed);
+        else if (painting === generation) {
+          reads = [...reads, ...resumed];
+          listen();
+        }
+      }
+    };
+  };
   return render;
 }
 

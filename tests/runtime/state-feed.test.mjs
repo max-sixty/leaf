@@ -169,7 +169,8 @@ test("a return stays interrupted until its refreshed reading is actually present
       await setImmediate();
       assert.equal(reads, mode === "painting" ? 1 : 2);
       // A read that brings nothing says so to whatever reads the server's reach.
-      if (mode === "offline") assert.equal(applicationState.read().reach, "unreachable");
+      if (mode === "offline")
+        assert.equal(applicationState.read().reach, "unreachable");
       if (mode === "overtaken") {
         preparation.resolve();
         await setImmediate();

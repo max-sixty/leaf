@@ -1691,7 +1691,10 @@ export function createFloatingPanel({
     const folded = host.dataset.rest === "mark";
     const notice = noticeReading();
     const telling = folded && notice.visible;
-    keepsText(peek, telling ? notice.message : status().explanation || status().summary);
+    keepsText(
+      peek,
+      telling ? notice.message : status().explanation || status().summary,
+    );
     keeps(peek, "data-shown", folded && (peekAsked || telling) ? "" : null);
   }
   const showPeek = (on) => {

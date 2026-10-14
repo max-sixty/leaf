@@ -118,6 +118,7 @@ export function watchProjection(owner, paint, ready = null) {
     draw.stop();
   };
   // A refresh before the first paint is that paint, drawn now.
-  stop.refresh = () => (draw.owes(key) && owner.isConnected ? draw(key) : draw.refresh());
+  stop.refresh = () =>
+    draw.owes(key) && owner.isConnected ? draw(key) : draw.refresh();
   return stop;
 }

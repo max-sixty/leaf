@@ -220,7 +220,9 @@ customElements.define(
     message(key, message, snapshot) {
       this.groups = new Map();
       this.rows = new Map();
-      const node = (this.messageNode ??= el("div", "lf-call-line"));
+      /** @type {HTMLElement} */
+      this.messageNode = this.messageNode ?? el("div", "lf-call-line");
+      const node = this.messageNode;
       keeps(
         node,
         "class",

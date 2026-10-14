@@ -375,8 +375,9 @@ customElements.define(
       // authored controller explicitly owns that generated child's preparation;
       // standalone authored shots own their presentation themselves.
       const present =
-        this._lfPresentGenerated ??
-        ((promise) => widgetController(this).present(promise));
+        /** @type {{_lfPresentGenerated?: (promise: Promise<unknown>) => void}} */ (
+          this
+        )._lfPresentGenerated ?? ((promise) => widgetController(this).present(promise));
       const registered = this.register(shots);
       present(registered);
       void registered.then(() => this.#requestComparison());

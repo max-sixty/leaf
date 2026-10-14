@@ -146,7 +146,9 @@ customElements.define(
         return;
       }
       // Own panels only (a nested lf-tabs wires its own).
-      const panels = [...this.querySelectorAll(":scope > lf-tab")];
+      const panels = /** @type {HTMLElement[]} */ ([
+        ...this.querySelectorAll(":scope > lf-tab"),
+      ]);
       if (!panels.length) return;
       const side = this.getAttribute("list") === "side";
       this.#side = side;

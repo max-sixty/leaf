@@ -570,8 +570,8 @@ customElements.define(
     // pixels taller than the paragraph it is replacing — a jump on the first frame, in
     // the one animation written to remove one.
     #fold(outcome) {
-      const going = this.querySelector(
-        outcome === "accept" ? ":scope > lf-old" : ":scope > lf-new",
+      const going = /** @type {HTMLElement | null} */ (
+        this.querySelector(outcome === "accept" ? ":scope > lf-old" : ":scope > lf-new")
       );
       if (!going) return null;
       const style = getComputedStyle(going);
@@ -584,6 +584,7 @@ customElements.define(
         paddingBottom: style.paddingBottom,
         opacity: 1,
       };
+      /** @type {Record<string, string | number>} */
       const to = Object.fromEntries(Object.keys(from).map((k) => [k, "0px"]));
       to.opacity = 0;
       return () => {

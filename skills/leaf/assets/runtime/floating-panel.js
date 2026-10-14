@@ -28,22 +28,26 @@
  *   hide it, that line says where they go as well, and keeps saying it while they
  *   stand. It never names who reads them: the page has one agent. The keys that send
  *   are Send's hover name, where Return sends with Shift+Return's new line beside it
- *   (composing/input.js).
+ *   (composing/input.js). The line shows only with no view open, standing above the
+ *   row, where nothing above it moves. Over an open view it would mostly repeat what is
+ *   already on screen: where the words go, which the placeholder said before words hid
+ *   it and a thread's head names, or news arriving, such as the reply the open thread
+ *   already shows. A notice answering what the user did, such as a refused send's
+ *   reason, the leaf's peek says there instead, as it does on a folded panel
+ *   (`paintPeek`); news arriving goes unsaid but for the live region. The user chose
+ *   this (2026-10-14), reversing the line lying over the view's foot in 12px of room
+ *   every open view kept for it whether or not it showed (#2902). Rejected: that
+ *   overlay, whose room stood under every view's last words for a line that repeated
+ *   the head or the placeholder.
  * - **Opened**: a view above the same row (On, Threads, a thread, Versions, or a
  *   group of the page's controls) with where the user is at its top edge. It lasts while
  *   it is used: Escape or a press on the page puts it away, Escape once the caret has
  *   left the field, since the caret is the innermost thing open. The view stands right
- *   on the row, and the line above the field, while it has something to say, lies over
- *   the view's foot rather than taking room of its own, so its coming and going moves
- *   nothing at the view's head; with no view open it stands above the row, where nothing
- *   above it moves. Over a view it lies in the room the view keeps at its foot, which
- *   the view's last words scroll clear of, as they do of New reply (`fitAnswer`), so
- *   neither ever covers what the view holds at its end. The user chose this (2026-10-14), reversing the room the line kept
- *   under every open view, one line tall and blank while it had nothing to say, which
- *   held the head still but read in Threads as a missing row. That room had stood for
- *   the keys that send, shown while the caret was in the field; they moved to Send's
- *   hover name, so clicking in shows nothing new. Rejected: keeping the room, and the
- *   line pushing the view up as it comes. It is as tall as what it
+ *   on the row, with no line between them, so typing moves nothing at the view's head.
+ *   The user chose that (2026-10-14), reversing a blank line's room kept under every
+ *   open view, which read in Threads as a missing row. Rejected there: the line pushing
+ *   the view up as it comes. The view's last words scroll clear of New reply
+ *   (`fitAnswer`), the one thing that stands at its foot. It is as tall as what it
  *   holds, so a one-message thread opens one message tall, up to most of the window's
  *   height, the larger size a long thread or a long Threads list is read at; past that
  *   it scrolls. The user chose views that fit their content with a larger size for long
@@ -241,6 +245,9 @@ export function createFloatingPanel({
   peek.id = "lf-fp-peek";
   peek.setAttribute("role", "tooltip");
   let peekAsked = false; // the pointer or focus asking the folded leaf's peek to show
+  // A notice answering the user that the line over the field would say, were a view not
+  // open (`paintPeek`).
+  let overView = false;
   inner.append(opened, context, row);
   card.append(inner);
   // The menu and the peek stand over the leaf by anchoring to it, which they can only
@@ -1837,7 +1844,6 @@ export function createFloatingPanel({
       folded ? `Unfold Leaf · ${status().summary}` : `Page menu · ${status().summary}`,
     );
     keeps(leaf, "aria-expanded", folded ? null : String(menuOpen));
-    paintPeek();
 
     // What waits on the user, which the folded leaf carries as a badge and a dot.
     const onUser = onUserCount();
@@ -1951,16 +1957,20 @@ export function createFloatingPanel({
     // words go is said once: by the empty focused field's placeholder, and once words hide
     // that, here in the same words, the way a field's label rises above what is written
     // in it. Who reads them goes unsaid: every word written here goes to the page's one
-    // agent. With nothing to say the line is gone.
+    // agent. With nothing to say the line is gone, and while a view is open it is gone
+    // too: the leaf's peek says a notice answering the user there (`paintPeek`), and
+    // news arriving goes unsaid, since the view shows it.
     const empty = draftOf(input) === "";
     const notice = noticeReading();
     const covered = notice.visible && (!empty || reading.says === "destination");
+    overView = Boolean(top) && covered && !notice.news;
     keeps(context, "data-notice", covered ? "" : null);
     keepsText(
       context,
-      covered ? notice.message : empty ? "" : whereTo(replying ? top.thread : null),
+      top ? "" : covered ? notice.message : empty ? "" : whereTo(null),
     );
     keepsHidden(context, !context.textContent);
+    paintPeek();
 
     const standing = rowNotice();
     keepsHidden(rowNoticeSeat, !standing);
@@ -2086,15 +2096,18 @@ export function createFloatingPanel({
   });
   // The folded leaf's peek says the status in full while the pointer or focus asks for
   // it, and a passing notice by itself, since a folded panel has no field to say it in.
+  // Over an open view it says a notice answering the user that the field cannot, which
+  // the line over the field would say with no view open (`overView`), unless the leaf's
+  // menu stands where it would show.
   function paintPeek() {
     const folded = host.dataset.rest === "mark";
     const notice = noticeReading();
-    const telling = folded && notice.visible;
+    const telling = notice.visible && (folded || (overView && !menuOpen));
     keepsText(
       peek,
       telling ? notice.message : status().explanation || status().summary,
     );
-    keeps(peek, "data-shown", folded && (peekAsked || telling) ? "" : null);
+    keeps(peek, "data-shown", telling || (folded && peekAsked) ? "" : null);
   }
   const showPeek = (on) => {
     peekAsked = on;

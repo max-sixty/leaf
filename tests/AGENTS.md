@@ -28,7 +28,7 @@ Each helper's docstring owns its contract, and code cites sections here by headi
 
 Message delivery has one shared journey in `leaf_dev.thread_journey`, whose held
 checkpoints supply the appearance gate in `test_render_thread_snapshots.py`.
-`leaf_dev.thread_snapshots` owns capture, review and acceptance; reviewed PNG images and
+`leaf_dev.commands.thread_snapshots` owns capture, review and acceptance; reviewed PNG images and
 geometry live in `max-sixty/leaf-assets`, governed by `leaf-assets.json`'s independent
 `thread_snapshots_revision`, advanced only by acceptance. Run evidence
 stays in `.tmp/`.
@@ -87,7 +87,7 @@ it crosses and when CI runs it (`TIERS` in `conftest.py`):
 
 A test in `model/` or `process/` takes under three seconds on CI's runner, about what
 opening a page costs, and one in `browser/` under eight (`BUDGETS` in
-`leaf_dev/suite_profile.py`). A new test goes in the directory of the boundary it
+`leaf_dev/commands/suite_profile.py`). A new test goes in the directory of the boundary it
 crosses, or in `journeys/` when it is over that budget or must not gate a pull
 request, as a test that needs the external network must not. Mark that dependency
 `network` too. Each `test` job's summary lists the tests over their directory's

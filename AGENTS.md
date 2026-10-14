@@ -240,7 +240,7 @@ into one kernel, committed in `skills/leaf/kernel/`, while it was built from the
 tree's modules; where a merge has left it stale, they vendor the source modules
 (`leaf.layer.current_kernel`). The leaf.page container, the suite's browser tiers and
 developer previews install a tree whose kernel is compiled again for its own
-modules (`dev/leaf_dev/distribution.py`). Installation, page authoring, custom
+modules (`dev/leaf_dev/commands/distribution.py`). Installation, page authoring, custom
 packages, and export require no browser build or npm command.
 
 An install is the tracked tree copied into a harness's plugin cache, and nothing is

@@ -280,7 +280,7 @@ of a shipped example, and `--export` writes one file that opens offline. A
 desktop Codex `--user` preview detaches and returns its URL; every other preview
 runs in the foreground like a dev server, so start it as a long-running command
 (`run_in_background` in Claude Code). The
-`dev/leaf_dev/preview.py` header owns slots, what a restart keeps, and the desktop
+`dev/leaf_dev/commands/preview.py` header owns slots, what a restart keeps, and the desktop
 Codex detach; `--help` lists the flags.
 
 A plain preview takes no claim, so its presses reach only the page's log; use it

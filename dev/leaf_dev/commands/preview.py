@@ -44,7 +44,7 @@ preview preserves the history and data its page already holds.
         [--slot NAME] [--user] [--export]
 
 The command execs the selected checkout's own worker,
-`python -m leaf_dev.preview --worker`, into its environment
+`python -m leaf_dev.commands.preview --worker`, into its environment
 (`start_preview_worker`). The worker and the server share that checkout's contracts.
 """
 
@@ -72,7 +72,7 @@ from leaf.refusals import Refused
 from leaf.schema import BROWSER_DIRS, VENDORED_FILES
 
 from leaf_dev import ROOT
-from leaf_dev.distribution import COMPILER_INPUTS, cached_installation
+from leaf_dev.commands.distribution import COMPILER_INPUTS, cached_installation
 from leaf_dev.example_data import named_source, page_files
 from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
 from leaf_dev.leaf_assets import assets_lock
@@ -841,7 +841,7 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
         str(runtime / "dev"),
         "python",
         "-m",
-        "leaf_dev.preview",
+        "leaf_dev.commands.preview",
         "--source",
         str(source),
         "--runtime",
@@ -900,7 +900,7 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
                 json.dumps(claim),
             ],
             harness=harness,
-            module="leaf_dev.preview",
+            module="leaf_dev.commands.preview",
             what=f"the preview for {source}",
             log=log,
             cwd=runtime,

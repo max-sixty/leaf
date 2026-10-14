@@ -288,7 +288,7 @@ def expected_store() -> Path:
     )
 
 
-@click.group("thread-snapshots")
+@click.group()
 def thread_snapshots():
     """Capture, review and publish current Leaf's thread appearance."""
 

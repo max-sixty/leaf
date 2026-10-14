@@ -6,7 +6,8 @@ import pytest
 from interact_support import (
     running_http_server,
 )
-from leaf_dev import journey, startup, verify_site
+from leaf_dev import startup
+from leaf_dev.commands import journey, verify_site
 from process.test_website_server import (
     _no_harness_outlives_its_test_fixture,  # noqa: F401 (fixtures)
     shown_by,

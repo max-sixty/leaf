@@ -211,7 +211,7 @@ def compiled_installation():
     Preparation is serialized by content identity, so xdist workers reuse one build.
     Source-only model tests need no compiler; the browser tiers request it lazily.
     """
-    from leaf_dev.distribution import cached_installation
+    from leaf_dev.commands.distribution import cached_installation
 
     return cached_installation()
 
@@ -331,7 +331,7 @@ def pytest_runtest_call(item):
 # first tier, None, runs in every selection: a pull request, `wt merge`, and broad
 # discovery. A `main` test can land without running and runs on each push to main
 # (`--run-main`); a `nightly` one runs only in the daily schedule and a manual
-# dispatch (`--run-nightly`), which run every tier. `leaf_dev.suite_profile.BUDGETS`
+# dispatch (`--run-nightly`), which run every tier. `leaf_dev.commands.suite_profile.BUDGETS`
 # holds what a test in each directory may cost.
 TESTS = Path(__file__).parent
 TIERS = {

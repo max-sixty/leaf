@@ -435,7 +435,7 @@ def demo_session(scratch: Path):
         os.environ.update(previous)
 
 
-@click.command("record-demo")
+@click.command()
 @click.option(
     "--output",
     type=click.Path(file_okay=False, path_type=Path),

@@ -12,7 +12,8 @@ import subprocess
 import pytest
 from leaf import layer as layer_model
 from leaf.refusals import Refused
-from leaf_dev import ROOT, distribution
+from leaf_dev import ROOT
+from leaf_dev.commands import distribution
 
 
 def test_pages_vendor_the_kernel_only_while_it_matches_the_tree(tmp_path, monkeypatch):

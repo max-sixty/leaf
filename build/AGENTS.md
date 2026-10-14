@@ -12,7 +12,7 @@ An install vendors it into pages while `kernel.json` records the tree's modules 
 they are, and the source modules otherwise (`leaf.layer.current_kernel`), so an
 unrebuilt runtime edit never ships a kernel built from other source. The website,
 suite, and developer previews compile it again for their own tree
-(`leaf_dev.distribution`), so they run the kernel even while it is stale. The named
+(`leaf_dev.commands.distribution`), so they run the kernel even while it is stale. The named
 runtime entries include core and optional overlay diagnostics, so core checks never
 load the physical renderer. Package authors use native JavaScript without a build.
 

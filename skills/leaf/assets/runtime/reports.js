@@ -37,11 +37,10 @@
 
    Accepted and local attempts publish one complete snapshot, including reads whose
    event list did not grow and definitive refusals that restore authoritative truth.
-   Time-dependent paints are separate:
-   `presence.js` records synchronous `ago` and `clockValue` readings inside a `clocked`
-   callback. The shared tick reruns only callbacks whose reading changed and drops
-   disconnected owners. Subscription callbacks use this same mechanism, so a new widget
-   owes no entry in a kernel list of clock consumers. A held state does not reset the
+   Time-dependent paints are separate: a synchronous `ago` or `clockValue` reading is
+   recorded with what else the paint read (`presence.js`), and the shared tick repaints
+   only paints whose reading changed, while their owners stand, so a new widget owes no
+   entry in a kernel list of clock consumers. A held state does not reset the
    measured server clock offset. Register a watcher once, as `watchProjection` owns its
    connection lifetime.
 

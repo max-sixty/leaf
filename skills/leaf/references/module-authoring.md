@@ -618,8 +618,9 @@ displayed words or datum keys.
 ### Time readings
 
 A time reading made synchronously in a subscription callback (the controller's,
-`watchData`'s, or a page reading's) or in a `readingPaint` draw subscribes that paint to
-Leaf's shared clock, which repaints it only when a reading's result changes; the clock
+`watchData`'s, or a `watchProjection` paint's) or in a `readingPaint` draw subscribes
+that paint to Leaf's shared clock, which repaints it only when a reading's result
+changes; the clock
 never redelivers unchanged data to keep a timestamp current. `ago(ts)` says how long ago
 a server timestamp was, as the page words it everywhere: "just now" under 45 seconds,
 then "2m ago", "2h ago" or "2d ago". `shortAgo(ts)` is the same reading for a tight seat

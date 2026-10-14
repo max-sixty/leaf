@@ -13,7 +13,6 @@
    itself need this renderer to finish. Its caret follows the actual returned editor;
    its failures reach the page's existing asynchronous error channel. */
 import { untracked } from "../../vendor/browser-runtime.js";
-import { clocked } from "../presence.js";
 import { keeps } from "../keeps.js";
 import { reportPageError } from "../layer-client.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
@@ -86,15 +85,11 @@ export function createThreadPresentation({
         : runtime.statePhase === "waiting" && !threadState().all.length
           ? "waiting"
           : true,
+    // A pass reads the latest root. The time it shows is followed with the rest of what
+    // it reads, so a clock change claims another pass through the same presenter, whose
+    // current predicate also retires in-flight preparation.
     paint: async (value, current, resume) => {
-      const phase = runtime.statePhase;
-      // A pass reads the latest root. Clock changes claim another pass through the
-      // same presenter, so its current predicate also retires in-flight preparation.
-      if (phase === "ready") await paintCurrent(current, resume);
-      else {
-        paintCurrent.stop();
-        await startRender(current, resume);
-      }
+      await startRender(current, resume);
       return value;
     },
   });
@@ -111,10 +106,8 @@ export function createThreadPresentation({
     return renderReading(cancelled, presenting, resume);
   };
 
-  async function renderReading(cancelled, presenting, resumePaint) {
-    // A continuation joins this pass's reads of the publication and of the clock.
-    const resumeClock = paintCurrent.resume;
-    const resume = (run) => resumePaint(resumeClock(run));
+  // A continuation the pass resumes joins its reads, of the publication and the clock.
+  async function renderReading(cancelled, presenting, resume) {
     const generation = ++surfaceGeneration;
     read.begin();
     const current = () => generation === surfaceGeneration && presenting();
@@ -224,8 +217,6 @@ export function createThreadPresentation({
       throw error;
     }
   }
-
-  const paintCurrent = clocked(document.body, startRender, present);
 
   function onReveal({ threadsBox, view }, event) {
     const target = event.detail?.target;

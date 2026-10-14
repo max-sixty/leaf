@@ -1316,10 +1316,12 @@ export function createFloatingPanel({
   }
 
   // ---------- the head: where the user is, at the view's top edge ----------
-  // A tab with a count (`count(name)` a number rather than null) keeps the room of its
-  // word and a two-digit count whether or not it has one, so news changing the count
-  // moves no tab beside it; its words stand centred in that room, so a tab with no count
-  // shows no gap where one would go.
+  // A tab with a count (`count(name)` a number rather than null) says it even at zero,
+  // in a quieter ink, in a room kept for two digits, so news changing the count moves
+  // no tab beside it and no tab stands with a blank where its count would go.
+  // Rejected: a blank at zero, which reads as a gap after the word, and the word
+  // centred in a room wider on both sides, which stood it off centre once it had a
+  // count, as On me nearly always does.
   const tabs = (names, current, label, choose, count) =>
     html`<div class="lf-fp-filters" role="group" aria-label="Show">
       ${names.map((name) => {
@@ -1327,14 +1329,15 @@ export function createFloatingPanel({
         return html`<button
           type="button"
           aria-pressed=${String(current === name)}
-          data-room=${counted === null ? nothing : `${label(name)} 99`}
           @click=${() => choose(name)}
         >
-          <span class="lf-fp-tab"
-            >${label(name)}${
-              counted ? html` <span class="lf-fp-count">${counted}</span>` : nothing
-            }</span
-          >
+          ${label(name)}${
+            counted === null
+              ? nothing
+              : html` <span class="lf-fp-count" ?data-zero=${!counted}
+                  >${counted}</span
+                >`
+          }
         </button>`;
       })}
     </div>`;

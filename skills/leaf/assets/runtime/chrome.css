@@ -465,21 +465,15 @@
   .lf-fp-filters [aria-pressed=true] {
     background: var(--lf-fp-faint);
   }
-  .lf-fp-filters button[data-room] {
-    display: inline-grid;
-    place-items: center;
-  }
-  .lf-fp-filters button[data-room] > .lf-fp-tab,
-  .lf-fp-filters button[data-room]::after {
-    grid-area: 1 / 1;
-  }
-  .lf-fp-filters button[data-room]::after {
-    content: attr(data-room);
-    visibility: hidden;
-    font-variant-numeric: tabular-nums;
-  }
   .lf-fp-count {
+    display: inline-block;
+    min-width: 2ch;
+    margin-left: 1px;
+    text-align: start;
     font-variant-numeric: tabular-nums;
+  }
+  .lf-fp-count[data-zero] {
+    color: var(--lf-fp-muted);
   }
   .lf-fp-icon-btn {
     display: grid;

@@ -554,24 +554,17 @@
   .lf-fp-filters [aria-pressed="true"] {
     background: var(--lf-fp-faint);
   }
-  /* A counted tab stands as wide as its word and two digits (`data-room`), drawn unseen
-     in the same cell, so news changing a count moves no tab beside it, and its words
-     stand centred there, so a tab with no count shows no gap where one would go. */
-  .lf-fp-filters button[data-room] {
-    display: inline-grid;
-    place-items: center;
-  }
-  .lf-fp-filters button[data-room] > .lf-fp-tab,
-  .lf-fp-filters button[data-room]::after {
-    grid-area: 1 / 1;
-  }
-  .lf-fp-filters button[data-room]::after {
-    content: attr(data-room);
-    visibility: hidden;
-    font-variant-numeric: tabular-nums;
-  }
+  /* Room for two digits, so news changing a count moves no tab beside it; a count of
+     nothing says 0 in the quieter ink, so the room never stands blank. */
   .lf-fp-count {
+    display: inline-block;
+    min-width: 2ch;
+    margin-left: 1px;
+    text-align: start;
     font-variant-numeric: tabular-nums;
+  }
+  .lf-fp-count[data-zero] {
+    color: var(--lf-fp-muted);
   }
   .lf-fp-icon-btn {
     display: grid;

@@ -1388,8 +1388,8 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     """Threads and On are walked as the leaf's menu is: one stop for Tab, which the
     arrows, Home and End move, and from the view a pointer opened, ↓ enters its first
     row. Threads' rows leave out the state the selected filter already says, its
-    counted tab shows no gap where a count would go, and the marks that open both name
-    themselves on hover."""
+    counted tab says 0 rather than leave a gap where a count would go, and the marks
+    that open both name themselves on hover."""
     url = serve(ASK_PAGE)
     for text in ("Is the window long enough?", "Who watches the weekend?"):
         panel_comment(serve.page_dir, text)
@@ -1418,14 +1418,10 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     expect(view.locator("[tabindex='0']")).to_have_count(1)
     expect(rows.nth(1)).to_have_attribute("tabindex", "0")
     unread = page.locator(".lf-fp-filters button", has_text="Unread")
-    word = unread.locator(".lf-fp-tab").bounding_box()
-    box = unread.bounding_box()
-    assert abs((word["x"] + word["width"] / 2) - (box["x"] + box["width"] / 2)) <= 1, (
-        word,
-        box,
-    )
+    expect(unread.locator(".lf-fp-count[data-zero]")).to_have_text("0")
 
     on_mark.click()
+    expect(page.get_by_role("button", name="On me 2", exact=True)).to_be_visible()
     cards = page.locator(".lf-fp-view[data-view=on] .lf-fp-on-item")
     expect(cards).to_have_count(2)
     page.keyboard.press("ArrowDown")

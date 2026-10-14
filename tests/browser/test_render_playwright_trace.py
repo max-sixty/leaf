@@ -701,14 +701,12 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     expect(widget.locator(".lf-trace-input-badge")).to_have_text(
         re.compile(r"^\d+\.\d{3} s · after Click$")
     )
-    # Past that stop, outside every input call, the Click no longer applies,
-    # though its After checkpoint is still the latest stop.
     after = stop_time(record, pointer["phases"]["after"])
     following = min(
         (action for action in inputs if action["startTime"] > after),
         key=lambda action: action["startTime"],
     )
-    gap = (max(after, pointer["endTime"]) + following["startTime"]) / 2
+    sent = pointer["phases"]["action"]["timestamp"]
     widget.get_by_role("button", name="Zoom in", exact=True).click()
     widget.get_by_role("button", name="Zoom in", exact=True).click()
     bar = widget.locator(f'.lf-trace-input-bar[data-id="{following["id"]}"]')
@@ -720,12 +718,30 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     )
     scale = (last["x"] - first["x"]) / (following["startTime"] - pointer["startTime"])
     ruler = widget.locator(".lf-trace-ruler").bounding_box()
-    user.mouse.click(first["x"] + (gap - pointer["startTime"]) * scale, ruler["y"] + 8)
-    rendered(user)
     origin = record["streams"][0]["monotonicTime"]
-    at = float(widget.locator(".lf-trace-position").inner_text().removesuffix(" s"))
-    assert max(after, pointer["endTime"]) < at * 1000 + origin < following["startTime"]
+
+    def stand_at(time):
+        user.mouse.click(
+            first["x"] + (time - pointer["startTime"]) * scale, ruler["y"] + 8
+        )
+        rendered(user)
+        at = float(widget.locator(".lf-trace-position").inner_text().removesuffix(" s"))
+        return at * 1000 + origin
+
+    # Inside the call, before it sends the click, the click is still to come: the
+    # image marks nothing, though the Input lane's bar says one is under way.
+    assert pointer["startTime"] < stand_at((pointer["startTime"] + sent) / 2) < sent
     expect(widget.locator(".lf-trace-input-badge")).to_be_hidden()
+    expect(widget.locator(".lf-trace-input-point")).to_be_hidden()
+    # Past the call, the sent click stays marked a moment, so playback at recorded
+    # pace shows where it landed.
+    gap = (max(after, pointer["endTime"]) + following["startTime"]) / 2
+    assert gap < sent + 500
+    assert max(after, pointer["endTime"]) < stand_at(gap) < following["startTime"]
+    expect(widget.locator(".lf-trace-input-badge")).to_have_text(
+        re.compile(r"^\d+\.\d{3} s · after Click$")
+    )
+    expect(widget.locator(".lf-trace-input-point")).to_be_visible()
     navigate_to_phase(
         timeline, f"trace-{record['archive']['sha256']}-phase-{pointer['id']}-action"
     )

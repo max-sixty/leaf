@@ -3079,6 +3079,41 @@ def paste_image(field, pixels, *, count=1):
     expect(field).not_to_have_attribute("aria-busy", "true")
 
 
+def test_a_draft_image_opened_from_the_page_comment_card_closes_back_to_the_draft(
+    browser, serve
+):
+    """The card is an auto popover, which modal entry dismisses unless the modal stands
+    in it, so the image viewer joins the card for the opening. Whichever way the viewer
+    closes, the user is back in the card beside the words and the picture they wrote."""
+    page = open_page(browser, serve(LONG_PAGE))
+    page.keyboard.press("c")
+    card = page.locator(".lf-page-comment-card")
+    box = card.locator("leaf-text")
+    write(box, "See the fault")
+    paste_image(box, (example_media() / "051bee487bfb5d13.png").read_bytes())
+    thumbnail = card.locator(".lf-composer-media-open")
+    viewer = page.get_by_role("dialog", name="Image preview")
+    is_open = "node => node.matches(':popover-open')"
+
+    for dismiss in (
+        lambda: page.keyboard.press("Escape"),
+        lambda: viewer.get_by_role("button", name="Close image preview").click(),
+        lambda: page.mouse.click(8, 400),
+    ):
+        thumbnail.click()
+        expect(viewer).to_be_visible()
+        assert card.evaluate(is_open)
+        dismiss()
+        expect(viewer).to_be_hidden()
+        assert card.evaluate(is_open)
+        expect(thumbnail).to_be_focused()
+        expect(box).to_have_js_property("value", "See the fault")
+
+    # Escape now belongs to the card again.
+    page.keyboard.press("Escape")
+    expect(card).to_be_hidden()
+
+
 def test_original_image_link_has_a_standalone_target(browser, serve):
     # Under a finger the link takes the touch floor, the larger of the two.
     touch = True

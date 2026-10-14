@@ -27,6 +27,11 @@
    wherever it sits, so a dialog closed by script beneath another layer cannot linger as
    a false floor. Modal entry dismisses auto and hint popovers through the platform
    contract; a later opening joins as a new layer rather than preserving a hidden entry.
+   The platform spares the popovers a modal dialog stands in, reading that nesting from
+   the tree where a popover's comes from its `source`. So a modal opened from a control
+   in a popover joins it for that opening (`showNativeLayer`'s `source`), and the
+   popover, with any draft written in it, still stands when the modal closes; the
+   dialog returns to its own home as it closes.
    An owner that reads where the user stands before its modal opens dismisses those same
    popovers first (`dismissPopoversOutside`), so the reading finds the user already handed
    back from them.
@@ -61,8 +66,9 @@ import {
   handBack,
   canPlaceFocus,
 } from "../focus.js";
+import { move } from "../dom-move.js";
 import { renderedUnder } from "../shadow.js";
-import { isNativeLayer, nativeLayerKind } from "../shadow-tree.js";
+import { isNativeLayer, nativeLayerHolding, nativeLayerKind } from "../shadow-tree.js";
 
 const entries = [];
 const watchedRoots = new WeakSet();
@@ -143,12 +149,35 @@ export function showNativeLayer(layer, { source, modal = true } = {}) {
   if (withholdFocus) layer.inert = true;
   try {
     if (layer instanceof HTMLDialogElement) {
-      if (modal) layer.showModal();
-      else layer.show();
+      if (modal) {
+        if (source) seatModal(layer, source);
+        layer.showModal();
+      } else layer.show();
     } else layer.showPopover(source ? { source } : undefined);
   } finally {
     if (withholdFocus) layer.inert = false;
   }
+}
+
+// A modal dialog stands in the popover holding the control it opened from, where that
+// popover shares the dialog's tree and so its styles, else at its home: where it stood
+// when first seated, which it returns to as it closes.
+const modalHomes = new WeakMap();
+function seatModal(dialog, source) {
+  if (!modalHomes.has(dialog)) {
+    modalHomes.set(dialog, dialog.parentNode);
+    dialog.addEventListener("close", () => {
+      const home = modalHomes.get(dialog);
+      if (!dialog.open && dialog.parentNode !== home) move(home, dialog);
+    });
+  }
+  const holder = nativeLayerHolding(source);
+  const seat =
+    nativeLayerKind(holder) === "popover" &&
+    holder.getRootNode() === dialog.getRootNode()
+      ? holder
+      : modalHomes.get(dialog);
+  if (dialog.parentNode !== seat) move(seat, dialog);
 }
 
 // Closing a native layer may return focus to a remembered opener, including one

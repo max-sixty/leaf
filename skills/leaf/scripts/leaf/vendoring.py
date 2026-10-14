@@ -5,13 +5,12 @@ from __future__ import annotations
 import contextlib
 import json
 import secrets
-import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import NamedTuple
 
 from .files import read_json, replace_files
-from .findings import Finding
+from .findings import Finding, note
 from .harness import Harness, session_harness
 from .hosting import restarting_server
 from .layer import (
@@ -82,11 +81,10 @@ def cmd_init(
                 plan = _plan_page(page_dir, selected, fresh=False)
             print(json.dumps({"page": str(page_dir), "changed": plan.changed}))
             return
-        if unready := _unready(
-            page_dir, _revendor(page_dir, selected, session_harness())
-        ):
-            print(unready, file=sys.stderr)
+        unready = _unready(page_dir, _revendor(page_dir, selected, session_harness()))
         print(json.dumps({"page": str(page_dir)}))
+        if unready:
+            note(unready)
         return
     if dry_run:
         raise Refused(f"{page_dir} is not initialized")
@@ -100,7 +98,7 @@ def cmd_init(
     print(json.dumps({"page": str(page_dir)}))
 
 
-def renew_layer(page_dir: Path, harness: Harness | None) -> str | None:
+def renew_layer(page_dir: Path, harness: Harness | None) -> Finding | None:
     """Re-vendor a page vendored at an older page protocol, which this Leaf cannot
     serve (`event_contracts.write_refusal`), for the session `harness` names, and say
     what still holds the page back, for its agent to act on.
@@ -121,7 +119,7 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> str | None:
     x- key this Leaf does not admit stays refused: the key may be one a newer Leaf
     added at the same protocol, which a re-vendor here would strip.
 
-    What it says is why the re-vendor was refused, or the `page check` errors that
+    What it finds is why the re-vendor was refused, or the `page check` errors that
     keep index.html from activating under the new layer, since a source an older
     Leaf accepted may fail this one's checks. None where the page needed no
     re-vendor or took one cleanly. Each of these readings is taken again under the
@@ -145,7 +143,9 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> str | None:
     try:
         return _unready(page_dir, _revendor(page_dir, None, harness, renewable))
     except Refused as error:
-        return f"{page_dir} needs a re-vendor this Leaf could not make: {error}"
+        return Finding(
+            "revendor-refused", values={"page": str(page_dir), "error": str(error)}
+        )
 
 
 def _revendor(
@@ -169,18 +169,13 @@ def _revendor(
         return _init_page(page_dir, selected, still)
 
 
-def _unready(page_dir: Path, errors: list[Finding]) -> str | None:
+def _unready(page_dir: Path, errors: list[Finding]) -> Finding | None:
     """What a re-vendor that left `errors` tells the agent, or None for none."""
     if not errors:
         return None
-    return "\n".join(
-        [
-            (
-                f"re-vendored {page_dir}, but index.html will not activate until "
-                "`leaf page check` passes:"
-            ),
-            *(f"  - {error}" for error in errors),
-        ]
+    return Finding(
+        "unready-revendor",
+        values={"page": str(page_dir), "errors": [str(error) for error in errors]},
     )
 
 

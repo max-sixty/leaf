@@ -860,12 +860,11 @@ def test_detach_is_a_distinct_reply_target_transition(page_dir):
             "plan",
             "--text",
             "Ambiguous.",
-            "--json",
         ],
     )
 
     assert mixed.exit_code != 0
-    assert refused_on(mixed.stdout).code == "detach-with-target"
+    assert refused_on(mixed.stderr).code == "detach-with-target"
 
 
 def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
@@ -899,11 +898,10 @@ def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
             "--detach",
             "--text",
             "There is no current subject to detach.",
-            "--json",
         ],
     )
     assert detached.exit_code != 0
-    assert refused_on(detached.stdout).code == "no-anchor"
+    assert refused_on(detached.stderr).code == "no-anchor"
 
     moved = CliRunner().invoke(
         cli_model.cli,
@@ -916,11 +914,10 @@ def test_a_withdrawn_reaction_root_takes_no_reply(page_dir):
             "plan",
             "--text",
             "Move the withdrawn mark's thread here.",
-            "--json",
         ],
     )
     assert moved.exit_code != 0
-    assert refused_on(moved.stdout).code == "withdrawn-parent"
+    assert refused_on(moved.stderr).code == "withdrawn-parent"
 
 
 def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
@@ -956,12 +953,11 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
             "backfill-first",
             "--text",
             "Move this hold.",
-            "--json",
         ],
     )
 
     assert moved.exit_code != 0
-    assert refused_on(moved.stdout).code == "held-anchor"
+    assert refused_on(moved.stderr).code == "held-anchor"
 
     detached = CliRunner().invoke(
         cli_model.cli,
@@ -973,11 +969,10 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
             "--detach",
             "--text",
             "Detach this hold.",
-            "--json",
         ],
     )
     assert detached.exit_code != 0
-    assert refused_on(detached.stdout).code == "held-anchor"
+    assert refused_on(detached.stderr).code == "held-anchor"
 
 
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):

@@ -63,6 +63,9 @@ it on `PATH`. If the resolved file is absent, report that the plugin payload is
 incomplete. A checkout keeps the launcher at `bin/leaf`. Pages conventionally
 live at `~/.local/state/leaf/pages/<slug>/`, though every command takes the
 directory explicitly; export or copy anything that must outlive the page directory.
+A command prints its result on stdout, as JSON unless its help names another format,
+and on stderr one JSON object per line for each refusal or note beside it, its words
+in `error` or `text`.
 
 1. Read `references/conversation-loop.md`, "When to write", to record the work
    you take on. Run `leaf page init <page>`, and name a package when the page needs an

@@ -8011,6 +8011,8 @@ def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
     )
     page = open_page(browser, url)
     banner_control(page, ".lf-queue").click()
+    # The ended to-do is the agent's, in its list's Done.
+    page.locator(".lf-queue-tab").nth(1).click()
     page.locator(".lf-queue-done > summary").click()
     row = page.locator("button.lf-queue-row")
     expect(row).to_have_count(1)
@@ -8169,11 +8171,10 @@ def test_a_completed_ask_persists_and_its_done_row_can_revise_by_keyboard(
     wait_until_ready(page)
     expect_asks_answered(page, "1/1")
 
+    # With nothing on the user, the panel opens on its Done's door; Enter opens it and
+    # the row below is the Ask's.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    expect(page.locator("button.lf-queue-row").first).to_be_focused()
-    # End is the Done fold's door; Enter opens it and the row below is the Ask's.
-    page.keyboard.press("End")
     expect(page.locator(".lf-queue-done > summary")).to_be_focused()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowDown")

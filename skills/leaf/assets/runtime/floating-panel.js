@@ -89,6 +89,8 @@ import { textField } from "./composing/text-field.js";
 import { draftOf } from "./composing/input.js";
 import { queueItemKey, readQueues, watchQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
+import { itemOutcome } from "./queues.js";
+import { shortAgo } from "./presence.js";
 import { askEnding } from "./asks/answer.js";
 import { versionMenu, versionPicker } from "./version-picker.js";
 import { noticeReading, registerNoticePresentation } from "./notifications.js";
@@ -367,7 +369,7 @@ export function createFloatingPanel({
   const titleOf = (route) =>
     ({
       threads: "Threads",
-      on: "On",
+      on: tabLabel(queueTab),
       versions: "Versions",
       thread: route.thread ? threadTitle(route.thread) : "",
       group: GROUPS[route.group],
@@ -951,25 +953,27 @@ export function createFloatingPanel({
   }
 
   // ---------- On: asks answered where they are read ----------
-  // The three lists are the publisher's (`readQueues`): what waits on the user, on the
-  // agent, and what is done. An item the user answers here stays where it stood, saying
-  // its answer and offering Undo, until the view closes, so answering one ask never
-  // carries the next under the pointer.
+  // The lists are the publisher's (`readQueues`): what waits on the user and on the
+  // agent, a tab each, and under each what left it, its Done (`owner`). The view has no
+  // name of its own: its title is the open tab's. An item the user answers here stays
+  // where it stood, saying its answer and offering Undo, until the view closes, so
+  // answering one ask never carries the next under the pointer. Done stands open under
+  // the list rather than folded, since a fold opening would grow the view up from under
+  // the pointer that opened it.
   let queueTab = "you";
   let seated = null; // queue item keys present in the open On view
   // The height each seated card first stood at, which it keeps while seated, so an
   // answer that shortens it moves nothing below.
   const seatHeights = new Map();
-  const QUEUE_TABS = Object.freeze({
-    you: "On me",
-    agent: "On the agent",
-    done: "Done",
-  });
+  const QUEUE_TABS = Object.freeze({ you: "user", agent: "agent" });
   const queueLists = () => {
     const reading = readQueues();
-    return reading.phase === "ready"
-      ? { you: reading.on_user, agent: reading.on_agent, done: reading.done }
-      : { you: [], agent: [], done: [] };
+    if (reading.phase !== "ready") return { you: [], agent: [], done: [] };
+    return {
+      you: reading.on_user,
+      agent: reading.on_agent,
+      done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab]),
+    };
   };
 
   // The undo list's entry for the gesture that answered an ask, where it can still be
@@ -982,7 +986,7 @@ export function createFloatingPanel({
     );
     return entry?.event ?? null;
   };
-  const tabLabel = (tab) => (tab === "agent" ? `On ${agentName()}` : QUEUE_TABS[tab]);
+  const tabLabel = (tab) => (tab === "agent" ? `On ${agentName()}` : "On me");
 
   function onItemCard(item, list) {
     const ask = item.kind === "ask" ? item.ask : null;
@@ -1035,7 +1039,11 @@ export function createFloatingPanel({
       Show
     </button>`;
     let answers;
-    if (list !== "you" && !answered)
+    if (list === "done" && !ask)
+      answers = html`<span class="lf-fp-said"
+          >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
+        >${thread ? discuss : nothing}`;
+    else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
           >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
         >${thread ? discuss : nothing}`;
@@ -1128,13 +1136,10 @@ export function createFloatingPanel({
     const card = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
     return card?.querySelector("button") ?? card;
   };
+  // An approval is an ask, always On me's, open or done.
   function arriveAtApproval() {
-    const lists = queueLists();
-    const holding = (list) =>
-      list.some((item) => item.kind === "ask" && item.ask.source.kind === "approval");
-    const tab = Object.keys(QUEUE_TABS).find((key) => holding(lists[key])) ?? "you";
-    if (tab !== queueTab) {
-      queueTab = tab;
+    if (queueTab !== "you") {
+      queueTab = "you";
       seated = null;
       seatHeights.clear();
     }
@@ -1158,27 +1163,22 @@ export function createFloatingPanel({
       ...(seated ?? []).filter((key) => byKey.has(key)),
       ...current.filter((key) => !(seated ?? []).includes(key)),
     ];
+    const listOf = (item) =>
+      lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
     const items = seated.map((key) => byKey.get(key));
-    return items.length
-      ? repeat(items, queueItemKey, (item) =>
-          onItemCard(
-            item,
-            lists.you.includes(item)
-              ? "you"
-              : lists.agent.includes(item)
-                ? "agent"
-                : "done",
-          ),
-        )
-      : html`<p class="lf-fp-empty">
-          ${
-            {
-              you: "Nothing waiting on me.",
-              agent: `Nothing waiting on ${agentName()}.`,
-              done: "Nothing is done yet.",
-            }[queueTab]
-          }
-        </p>`;
+    const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
+    return html`${
+      items.length
+        ? repeat(items, queueItemKey, (item) => onItemCard(item, listOf(item)))
+        : html`<p class="lf-fp-empty">
+            Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
+          </p>`
+    }${
+      finished.length
+        ? html`<h3 class="lf-fp-on-done">Done</h3>
+            ${repeat(finished, queueItemKey, (item) => onItemCard(item, "done"))}`
+        : nothing
+    }`;
   }
 
   function viewTemplate(route) {
@@ -1251,8 +1251,7 @@ export function createFloatingPanel({
       aux = tabs(
         Object.keys(QUEUE_TABS),
         queueTab,
-        (tab) =>
-          html`${tabLabel(tab)}${tab === "done" ? nothing : tabCount(lists[tab].length)}`,
+        (tab) => html`${tabLabel(tab)}${tabCount(lists[tab].length)}`,
         (tab) => {
           queueTab = tab;
           seated = null;

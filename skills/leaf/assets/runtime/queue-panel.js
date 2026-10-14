@@ -1,8 +1,15 @@
-/* The On panel: everything waiting on the user, On me (`queues.on_user`), then
-   everything waiting on the agent, On <agent> (`queues.on_agent`), and what is done, on
-   the right edge, where the Threads panel stands. Only one of the two is open at a
-   time, so they are two views of one side panel, and their banner doors stand side by
-   side (banner.js).
+/* The On panel: everything waiting on the user, On me (`queues.on_user`), or
+   everything waiting on the agent, On <agent> (`queues.on_agent`), each with its own
+   Done, on the right edge, where the Threads panel stands. Only one of the two is open
+   at a time, so they are two views of one side panel, and their banner doors stand side
+   by side (banner.js).
+
+   The panel has no name of its own. Its head is two tabs, one per list, and the open
+   one reads as its title; the list in view is that tab's open items, then, folded, its
+   Done: what left that list (`served_state.queues`, by `owner`). It opens on the list
+   of the door it was opened from, so the agent's count beside the status opens On
+   <agent>, and every other way in opens On me, the list `m` walks. Which tab is open
+   is the panel's own view state, which the log never holds.
 
    On me holds asks, to-dos on the user and resends; On <agent> holds answers the agent
    owes, its work in hand and its to-dos. Each ask carries its source and answer; only a
@@ -15,10 +22,10 @@
    The panel decides no membership. Its two lists are the application's one reading,
    `queues.on_user` and `queues.on_agent` (the server's `served_state.queues`, with this
    tab's sends placed against it), the same lists the `m` walk steps through and the
-   banner counts; what is done is `done`, served beside them from ended to-dos and
-   answered or withdrawn asks. So a reply the user sends joins On <agent> in the
-   turn it is sent, and leaves On me when the server's reading of it arrives, as the
-   banner's counts do.
+   banner counts; what is done is `done`, served beside them from ended to-dos,
+   answered or withdrawn asks and the agent's sent replies. So a reply the user sends
+   joins On <agent> in the turn it is sent, and leaves On me when the server's reading
+   of it arrives, as the banner's counts do.
 
    Each row says what kind of item it is, the item's title or opening words, and where it
    is: the passage or section it stands at, and its age, stage or outcome. A press or
@@ -48,14 +55,16 @@ import {
   queueList,
   queueNextBtn,
   queuePanel,
+  queueTabs,
   drawerIsOpen,
 } from "./drawers.js";
+import { openerOf } from "./focus.js";
 import { markBannerControl } from "./banner-toolbar.js";
 import { clocked, shortAgo } from "./presence.js";
 import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
-import { itemNoun } from "./queues.js";
+import { itemNoun, itemOutcome } from "./queues.js";
 import { registry } from "./registry.js";
 import { repaint } from "./repaint.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
@@ -90,7 +99,6 @@ const WORDS = Object.freeze({
   todo: "To-do",
 });
 const wordOf = (item, noun) => WORDS[noun];
-const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
 const HEADINGS = "h1, h2, h3, h4, h5, h6";
 
 function askWord(item) {
@@ -119,7 +127,7 @@ function sectionWords(element) {
   return words ? `§ ${words}` : "";
 }
 
-export function createQueuePanel({ actions, next, announce }) {
+export function createQueuePanel({ actions, next, announce, agentDoor }) {
   const reading = readQueues;
   const threadOf = (id) =>
     id === null
@@ -175,12 +183,10 @@ export function createQueuePanel({ actions, next, announce }) {
       return [item.running.text, shortAgo(item.running.ts)].filter(Boolean).join(" · ");
     return "";
   }
-  // An ask names how it ended; a to-do names its outcome.
+  // An ask names how it ended, a to-do its outcome, and a reply that it was sent.
   function ended(item) {
     if (item.kind === "ask") return askEnding(item.ask);
-    return [OUTCOMES[item.state] ?? item.state, shortAgo(item.ended)]
-      .filter(Boolean)
-      .join(" ");
+    return [itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ");
   }
   function row(item, list) {
     const thread = threadOf(item.thread);
@@ -223,6 +229,31 @@ export function createQueuePanel({ actions, next, announce }) {
     });
   }
 
+  // The list in view, and which of the served lists and Done owners it reads.
+  let tab = "you";
+  let wasOpen = false;
+  const LISTS = Object.freeze({
+    you: Object.freeze({ items: "on_user", owner: "user" }),
+    agent: Object.freeze({ items: "on_agent", owner: "agent" }),
+  });
+  const tabName = (id) => (id === "you" ? "On me" : `On ${agent()}`);
+  for (const [id, control] of Object.entries(queueTabs))
+    control.onclick = () => {
+      tab = id;
+      void present();
+    };
+  // Each tab names its list and, once the log has answered, how many items wait on it;
+  // the open one is pressed, and names the panel.
+  function nameTabs() {
+    const known = reading().phase === "ready";
+    for (const [id, control] of Object.entries(queueTabs)) {
+      const count = reading()[LISTS[id].items].length;
+      keepsText(control, known ? `${tabName(id)} · ${count}` : tabName(id));
+      keeps(control, "aria-pressed", String(id === tab));
+    }
+    keeps(queuePanel, "aria-label", tabName(tab));
+  }
+
   let rows = new Map();
   function readModel() {
     const open = drawerIsOpen("queue");
@@ -230,34 +261,28 @@ export function createQueuePanel({ actions, next, announce }) {
       rows = new Map();
       return Object.freeze({
         open,
-        queues: Object.freeze([]),
+        queue: Object.freeze({ id: tab, rows: Object.freeze([]), empty: "" }),
         done: Object.freeze({ label: "", rows: Object.freeze([]) }),
       });
     }
-    const { on_user: onUser, on_agent: onAgent, done } = reading();
+    const served = reading();
     // Before the log's first answer the panel, like its door, counts nothing, and says
     // so as the Threads panel does.
-    const known = Boolean(reading().phase === "ready");
-    const you = onUser.map((item) => row(item, "you"));
-    const them = onAgent.map((item) => row(item, "agent"));
-    const finished = done.map((item) => row(item, "done"));
-    rows = new Map([...you, ...them, ...finished].map((entry) => [entry.key, entry]));
+    const known = served.phase === "ready";
+    const shown = served[LISTS[tab].items].map((item) => row(item, tab));
+    const finished = served.done
+      .filter((item) => item.owner === LISTS[tab].owner)
+      .map((item) => row(item, "done"));
+    rows = new Map([...shown, ...finished].map((entry) => [entry.key, entry]));
     return Object.freeze({
       open,
-      queues: Object.freeze([
-        Object.freeze({
-          id: "you",
-          label: known ? `On me · ${you.length}` : "On me",
-          rows: Object.freeze(you),
-          empty: known ? "Nothing waiting on me." : "Loading…",
-        }),
-        Object.freeze({
-          id: "agent",
-          label: known ? `On ${agent()} · ${them.length}` : `On ${agent()}`,
-          rows: Object.freeze(them),
-          empty: known ? `Nothing waiting on ${agent()}.` : "Loading…",
-        }),
-      ]),
+      queue: Object.freeze({
+        id: tab,
+        rows: Object.freeze(shown),
+        empty: known
+          ? `Nothing waiting on ${tab === "you" ? "me" : agent()}.`
+          : "Loading…",
+      }),
       done: Object.freeze({
         label: `Done · ${finished.length}`,
         rows: Object.freeze(finished),
@@ -270,7 +295,12 @@ export function createQueuePanel({ actions, next, announce }) {
   const model = clocked(queueList, readModel, () => present());
 
   async function paintQueue(current) {
+    // Opened, it shows the list of the door it was opened from.
+    const open = drawerIsOpen("queue");
+    if (open && !wasOpen) tab = openerOf(queuePanel) === agentDoor ? "agent" : "you";
+    wasOpen = open;
     nameDoor();
+    nameTabs();
     const waiting = reading().on_user.length > 0;
     keepsHidden(queueNextBtn, !waiting);
     // On a phone the door waits in More, which says something is on the user as it says

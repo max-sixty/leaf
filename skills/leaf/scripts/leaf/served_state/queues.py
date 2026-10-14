@@ -1,5 +1,5 @@
 """The two lists, On me (`on_user`) and On <agent> (`on_agent`): what is on the user,
-what is on the agent, and what is done.
+what is on the agent, and what each has finished (`done`).
 
 Asks, to-dos and response workflows are separate readings; this is the one selection
 that adds them up. An ask is never a to-do: its source owns its answer, and only a
@@ -11,13 +11,25 @@ unresolved sends against the served lists (`build/browser/application.ts`,
 
 On me holds asks, to-dos on the user and resends; On <agent> holds answers the agent
 owes, work in hand on an update, and the agent's to-dos. An item names its kind, its
-subject and the thread it stands in, and whether the agent has it in hand now
-(`live`): a to-do a start holds, or an update the agent is at work on whose work has
-not gone quiet or stopped. An ask item keeps its canonical record, and a to-do item
-the fields a row draws. Each done item adds how it ended (`state`: an ask the user
-answered, here or elsewhere, is `done`, a withdrawn one `dropped`), when (`ended`),
-and the outcome's detail, which for an ask is its agent end's.
+subject, the list it stands on (`owner`), the thread it stands in, and whether the
+agent has it in hand now (`live`): a to-do a start holds, or an update the agent is at
+work on whose work has not gone quiet or stopped. An ask item keeps its canonical record, and a to-do item
+the fields a row draws.
+
+An item that leaves a list lands in that list's Done, which its `owner` names: On me's
+holds the asks the user answered, here or elsewhere, or the agent withdrew, and the
+to-dos the user ended; On <agent>'s holds the replies the agent sent, each the answer
+it listed for the input the reply responds to, and the to-dos it ended. Each done item adds how it
+ended (`state`: `done`, or `dropped` for a withdrawn ask, or a to-do's outcome), when
+(`ended`), and the outcome's detail, which for an ask is its agent end's. Done is
+served newest first, and an item without a time goes last. An answer the agent owes
+in markup settles when a version writes the action in, which is the ask's Done, not a
+reply, so it lands in none.
 """
+
+from datetime import datetime
+
+from ..thread import is_answer
 
 
 def _todo_item(todo: dict) -> dict:
@@ -82,6 +94,7 @@ def queues(
         {
             "kind": "resend",
             "id": thread["id"],
+            "owner": "user",
             "subject": {"kind": "thread", "id": thread["id"]},
             "thread": thread["id"],
             "live": False,
@@ -101,18 +114,21 @@ def queues(
         }
         if workflow["next_actor"] == "user":
             if workflow["thread"] is None:
-                on_user.append({"kind": "resend", **item})
+                on_user.append({"kind": "resend", **item, "owner": "user"})
         elif workflow["answer"] is not None:
             on_agent.append(
                 {
                     "kind": "answer",
                     **item,
+                    "owner": "agent",
                     "answer": workflow["answer"],
                     "stage": workflow["stage"],
                 }
             )
         elif workflow["at_work"]:
-            on_agent.append({"kind": "work", **item, "detail": workflow["detail"]})
+            on_agent.append(
+                {"kind": "work", **item, "owner": "agent", "detail": workflow["detail"]}
+            )
     on_agent += [_todo_item(todo) for todo in todos if todo["owner"] == "agent"]
     done = [
         {
@@ -133,4 +149,34 @@ def queues(
         }
         for todo in ended_todos
     ]
+    # A reply the agent sent is the answer On <agent> listed for the input it responds
+    # to, under that answer's identity, so the item keeps its key as it moves.
+    done += [
+        {
+            "kind": "answer",
+            "id": message["responds"],
+            "owner": "agent",
+            "subject": {"kind": "thread", "id": thread["id"]},
+            "thread": thread["id"],
+            "live": False,
+            "answer": {
+                "kind": "reply",
+                "for": message["responds"],
+                "message": message["id"],
+            },
+            "state": "done",
+            "ended": message["ts"],
+            "detail": None,
+        }
+        for thread in threads
+        for message in thread["msgs"]
+        if is_answer(message)
+    ]
+    done.sort(
+        key=lambda item: (
+            item["ended"] is not None,
+            datetime.fromisoformat(item["ended"]) if item["ended"] else None,
+        ),
+        reverse=True,
+    )
     return {"on_user": on_user, "on_agent": on_agent, "done": done}

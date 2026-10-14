@@ -59,7 +59,7 @@ function drawerFurniture(panel, name, list, closes) {
   // An open drawer stands over its edge of the page, so what it stands over is hidden
   // from every reading of what the page shows (geometry.js).
   declareOccluder(panel);
-  return { head, list, close };
+  return { head, title, list, close };
 }
 
 // What waits on the user and on the agent, and what is done (queue-panel.js; EXPERIMENTAL).
@@ -90,19 +90,29 @@ const leavesFurniture = drawerFurniture(
   "pages",
 );
 export const liveLeavesList = leavesFurniture.list;
-// The On panel, on the right edge: what waits on the user, what waits on the
-// agent, and what is done, each row a route to its item on this page (queue-panel.js).
+// The On panel, on the right edge: what waits on the user or on the agent, and what
+// each has done, each row a route to its item on this page (queue-panel.js).
 export const queuePanel = el("nav", "lf-ui lf-drawer-panel lf-queue-panel");
 queuePanel.id = "lf-queue";
-queuePanel.setAttribute("aria-label", "On");
+queuePanel.setAttribute("aria-label", "On me");
 queuePanel.tabIndex = -1;
 const queueFurniture = drawerFurniture(
   queuePanel,
-  "On",
+  "",
   createQueueList(),
   "the On panel",
 );
 export const queueList = queueFurniture.list;
+// The panel has no name of its own: its title is two tabs, On me and On <agent>, and
+// the open one reads as the title (queue-panel.js paints their words and which is open).
+export const queueTabs = Object.freeze({
+  you: el("button", "lf-queue-tab", "On me"),
+  agent: el("button", "lf-queue-tab", "On the agent"),
+});
+for (const tab of Object.values(queueTabs)) tab.type = "button";
+queueFurniture.title.setAttribute("role", "group");
+queueFurniture.title.setAttribute("aria-label", "Lists");
+queueFurniture.title.append(queueTabs.you, queueTabs.agent);
 // Its head's Next on me, as the Threads panel's head has Next unread: `m` as a press,
 // shown while a question waits (queue-panel.js).
 export const queueNextBtn = el("button", "lf-btn lf-queue-next", "Next on me");

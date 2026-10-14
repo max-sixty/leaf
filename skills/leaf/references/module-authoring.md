@@ -1387,7 +1387,10 @@ region's edge. It resolves to whether it arrived. A control that calls it keeps 
 declared command; asks expose no separate answer API.
 
 `readQueues()` and `watchQueues(owner, callback)` supply the immutable
-`{phase, on_user, on_agent, done}` that the On panel and `m` navigation use. Ask rows
+`{phase, on_user, on_agent, done}` that the On panel and `m` navigation use. Every row
+names the list it stands on, or left for `done`, in `owner` (`user` or `agent`); `done`
+holds asks answered or withdrawn, ended to-dos, and the agent's sent replies, as
+`kind === "answer"` rows, newest first. Ask rows
 have `kind === "ask"` and their canonical `ask` record, whose `source.kind` is `widget`,
 `reply` or `approval`. To-do rows have `kind === "todo"`; response obligations and delivery
 retries keep their own kinds. An ask is not also a to-do. Live rows carry their workflow or

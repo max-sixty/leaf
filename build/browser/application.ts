@@ -289,12 +289,12 @@ interface WireTodo {
   outcome: { id?: string; ts: string | null; detail?: string | null } | null;
 }
 
-/** One item on On me or On <agent>, as `served_state.queues` serves it. An ask item
- * keeps its record; a to-do item the fields a row draws. */
+/** One item on On me or On <agent>, as `served_state.queues` serves it: `owner` names
+ * the list. An ask item keeps its record; a to-do item the fields a row draws. */
 interface QueueItem {
   kind: "ask" | "todo" | "resend" | "answer" | "work";
   id: string;
-  owner?: "user" | "agent";
+  owner: "user" | "agent";
   subject: { kind: "thread" | "widget" | "element"; id: string } | { kind: "page" };
   thread: string | null;
   /** Whether the agent has it in hand now. */
@@ -303,7 +303,8 @@ interface QueueItem {
   [field: string]: unknown;
 }
 
-/** A finished item: how it ended, when, and the outcome's detail. */
+/** A finished item, in the Done of the list `owner` names: how it ended, when, and the
+ * outcome's detail. */
 type DoneItem = QueueItem & {
   state: "done" | "failed" | "dropped";
   ended: string | null;
@@ -629,7 +630,7 @@ function localQueues(
   const reopened = (item: DoneItem) =>
     item.kind === "ask"
       ? askOf(item).status === "open" && askOf(item).next_actor === "user"
-      : open.has(item.id);
+      : item.kind === "todo" && open.has(item.id);
   // Whether an item the server listed as open has ended in this tab.
   const endedHere = (item: QueueItem) =>
     item.kind === "ask"
@@ -656,9 +657,9 @@ function localQueues(
   const resend = (id: string, subject: QueueItem["subject"], thread: string | null) =>
     listed.has(`resend:${id}`)
       ? []
-      : [{ kind: "resend" as const, id, subject, thread, live: false }];
+      : [{ kind: "resend" as const, id, owner: "user" as const, subject, thread, live: false }];
   const reopenedFor = (owner: "user" | "agent") =>
-    served.done.filter((item) => (item.owner ?? "user") === owner && reopened(item));
+    served.done.filter((item) => item.owner === owner && reopened(item));
   return {
     on_user: [
       ...served.on_user.filter(standsOpen).map(current),
@@ -688,6 +689,7 @@ function localQueues(
         .map((workflow) => ({
           kind: "answer" as const,
           id: workflow.id,
+          owner: "agent" as const,
           subject: workflow.subject,
           thread: workflow.thread,
           live: false,
@@ -697,10 +699,11 @@ function localQueues(
       ...served.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)),
       ...reopenedFor("agent").map(asOpen),
     ],
+    // Newest first, as the server serves it: what ended in this tab has just ended.
     done: [
-      ...served.done.filter((item) => !reopened(item)).map(current),
       ...[...served.on_user, ...served.on_agent].filter(endedHere).map(asDone),
-    ].toSorted((a, b) => Number(a.kind === "todo") - Number(b.kind === "todo")),
+      ...served.done.filter((item) => !reopened(item)).map(current),
+    ],
   };
 }
 

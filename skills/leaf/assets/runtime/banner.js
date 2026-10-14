@@ -51,7 +51,7 @@ banner.id = "lf-banner";
 declareBanner(banner);
 const bannerStatus = createBannerStatusView(repaint, INITIAL);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
-// The agent's On count, which opens the On panel listing what it holds (drawers.js).
+// The agent's On count, which opens the On panel on the agent's list (queue-panel.js).
 export const queueCounts = bannerStatus.queues;
 
 // Threads reads "Threads: 3" on a desk and, on a phone's one row, a thread icon with its
@@ -331,7 +331,7 @@ let saidActionableWork;
 // moves none of its words. Both are read from the application's publication rather
 // than the state answer: a reply the user sends joins the agent's count in the turn
 // it is sent, and leaves the user's once the server has read it. A press on either
-// opens the On panel, which lists both.
+// opens the On panel on the list it counts.
 const QUEUE_WORDS = Object.freeze({
   ask: ["ask", "asks"],
   approval: ["approval", "approvals"],

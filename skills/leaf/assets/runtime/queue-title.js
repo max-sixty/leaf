@@ -15,6 +15,11 @@ export function queueTitle(item) {
   const topic = thread ? threadSummary(thread).topic : "";
   if (item.title) return item.title;
   if (item.kind === "work" && item.detail) return item.detail;
+  // A reply the agent sent reads as its own words, since one thread holds many.
+  const sent =
+    item.answer?.message &&
+    thread?.msgs.find((message) => message.id === item.answer.message);
+  if (sent) return sent.body.text.trim() || topic;
   if (item.subject.kind === "widget") {
     const ask = own && askHolding(readAsks().all, own);
     return (

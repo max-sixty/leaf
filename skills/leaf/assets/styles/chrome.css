@@ -899,6 +899,17 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     outline-offset: 0; }
   .lf-thread-panel-head, .lf-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--rule); font-weight: 600; }
   .lf-thread-panel-head { flex: none; }
+  /* The On panel's title is its two tabs: the open one reads as the title, the other
+     as the way to it. They keep the head the Threads panel's height, and the first
+     one's words stand where a title's would. */
+  .lf-queue-panel .lf-auxiliary-title { display: flex; gap: 2px; min-width: 0; }
+  .lf-queue-tab { --lf-tab-pad: max(2px, (var(--aim-floor) - 1lh) / 2 - 1px);
+    margin-block: calc(-1 * var(--lf-tab-pad)); padding: var(--lf-tab-pad) 8px; border: 0;
+    border-radius: 6px; background: none; color: var(--muted); font: inherit;
+    white-space: nowrap; cursor: pointer; }
+  .lf-queue-tab:first-child { margin-inline-start: -8px; }
+  .lf-queue-tab:hover { background: var(--chip); }
+  .lf-queue-tab[aria-pressed=true] { color: var(--ink); }
   /* Each side panel's head offers the next thing its walk would reach: Next unread in
      Threads (`u`), Next on me in the On panel (`m`). */
   :is(.lf-first-unread, .lf-queue-next) { margin-inline-start: auto; margin-inline-end: 8px;

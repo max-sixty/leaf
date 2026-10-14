@@ -172,6 +172,27 @@ test("Done lists completed asks and to-dos through their own records", () => {
   );
 });
 
+test("an item lands in the Done of the list it left, newest first", () => {
+  const { app } = adopted("done");
+  const { done } = published(app);
+  const owners = Object.fromEntries(done.map((item) => [item.id, item.owner]));
+  // The answered ask leaves On me; the ended to-do and the reply the agent sent leave
+  // On <agent>.
+  assert.deepEqual(owners, { "widget:ship": "user", e4: "agent", e2: "agent" });
+  // The reply keeps the key of the answer On <agent> listed for the comment it answers,
+  // so a row moving to Done is the same item.
+  const sent = done.find((item) => item.id === "e2");
+  assert.deepEqual(
+    [sent.kind, sent.answer.kind, sent.answer.message],
+    ["answer", "reply", "e3"],
+  );
+  const times = done.map((item) => Date.parse(item.ended));
+  assert.deepEqual(
+    times,
+    times.toSorted((a, b) => b - a),
+  );
+});
+
 test("only a to-do on the user offers Done", () => {
   const { app } = adopted("queues on both sides");
   const { on_user: onUser, on_agent: onAgent } = published(app);

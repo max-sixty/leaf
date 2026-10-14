@@ -344,21 +344,19 @@ owner of such a condition states it as an attribute on the element the rule styl
 
 ### The browser answers first
 
-The browser runs a layout engine, a cascade, and a focus model on every page, and
-the runtime runs beside them. A script that computes one of their answers again
-disagrees with them at the edges, under zoom, subpixel rounding, a transform, or the
-page's own CSS, and each disagreement becomes another repair. So before a module
-measures, positions, stacks, isolates, or tracks something, find the browser feature
-that already decides it, and shape the markup and CSS so the runtime uses its answer:
+The browser runs a layout engine, a cascade, and a focus model on every page. A script
+that recomputes one of their answers disagrees with them under zoom, subpixel
+rounding, a transform, or the page's own CSS. So before a module measures, positions,
+stacks, isolates, or tracks something, find the browser feature that already decides
+it, and shape the markup and CSS so the runtime uses its answer:
 
 | Question | The browser feature that answers it |
 | --- | --- |
 | How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell |
 | Where a box stands against another box or the scroller holding it | the containing block, sticky positioning, anchor positioning, scroll timelines |
-| What covers what | stacking contexts and the top layer; `elementsFromPoint` to read it |
-| Whether a box is shown | `checkVisibility`, `IntersectionObserver` |
+| Which of Leaf's surfaces paints over which | the top layer, and stacking contexts |
+| Whether a box is rendered at all | `checkVisibility` |
 | Which rules reach an element | cascade layers, `@scope`, and a shadow root as the boundary |
-| Where focus is, across shadow roots | `:focus`, `:focus-within`, `:host(:focus-within)`, `::part` |
 
 Where the feature nearly fits, change what the runtime asks of it, such as where a
 box lives in the DOM or which element carries a style, rather than computing its
@@ -367,12 +365,21 @@ header: the requirement the feature cannot meet and the case that shows it. A re
 asks for that reason, and a change that adds a script answer without one does not
 land. Patching a built-in prototype or a dependency's internals needs the same reason.
 
-A rendering pass reads layout before it writes. A read after a write makes the
-browser lay out the whole document at once, so a pass that alternates them pays a
-layout for every read; gather the pass's readings first, then write. A renderer that
-must read what another renderer wrote is ordered once, in
-`runtime/semantic-state.js`, and a new entry in that order needs the same reason as
-a script answer.
+Some questions already have script answers. `focus.js` paints
+`data-lf-focus` and `data-lf-focus-within` because native `:focus` also matches
+retargeted shadow hosts and a held label press, so style focus on those marks.
+Whether the user can see a box, and what covers it, stay with `geometry.js`
+(`seenRect`, `declareOccluder`), since Leaf's chrome stands over the page without
+clipping it, and some of it, such as the shortcut bar, takes no pointer hits for
+`elementsFromPoint` to find. `reserve` (`widget-elements.js`) predates this rule and
+measures each label in script; a change that touches it replaces it with labels
+stacked in one grid cell, or states why that fails.
+
+Each rendering callback gathers its layout reads before it writes: a read after a
+write forces a synchronous style and layout. A document-wide renderer that reads DOM
+another one materializes takes an entry in `PRESENTATION_ORDER`
+(`runtime/semantic-state.js`), which says why CSS or the publication cannot supply
+that reading.
 
 ### One writer for each fact
 

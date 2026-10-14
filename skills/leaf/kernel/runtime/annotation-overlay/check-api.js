@@ -10,7 +10,7 @@ import {
 } from "../bundle-annotation-overlay~margin-placement.js";
 import "../bundle-visible-target-parts.js";
 import "../bundle-content-layout.js";
-import "../bundle-visual-parts.js";
+import "../bundle-chrome.js";
 import "../bundle-initial-render.js";
 import "../bundle-presence.js";
 import "../bundle-passage-facts.js";

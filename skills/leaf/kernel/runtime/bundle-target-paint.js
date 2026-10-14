@@ -20,20 +20,16 @@ import {
   rowWalk,
   scrollIntoView,
   showBannerControl
-} from "./bundle-chrome.js";
+} from "./bundle-user-intent.js";
 import {
+  anchorAt,
   anchorElement,
-  anchorHolder,
-  anchorName,
+  anchorReaches,
   anchorReading,
-  followScroll,
+  cutFrames,
   nameAnchor,
-  scrollFollows,
-  scrollMotions,
-  scrolledBy,
-  scrollsContent,
   scrollsWith
-} from "./bundle-visual-parts.js";
+} from "./bundle-chrome.js";
 import {
   blockAt,
   inChrome,
@@ -53,6 +49,7 @@ import {
   paintClips,
   paintKeys,
   pressIsKeyboardActivation,
+  scrollsContent,
   searchField,
   showNativeLayer,
   shownBox
@@ -70,7 +67,6 @@ import {
   keepsText,
   layoutPx,
   move,
-  nativeLayerHolding,
   nextRender,
   openLayer,
   openerOf
@@ -202,148 +198,50 @@ function paintStand(box = null) {
   const root = document.createElement("div");
   root.className = "lf-ui lf-target-paint lf-paint-stand";
   root.setAttribute("aria-hidden", "true");
+  root.style.position = "fixed";
   const carrier = document.createElement("div");
   carrier.className = "lf-paint-carrier";
   if (box) carrier.append(box);
   root.append(carrier);
-  return { root, carrier, box, anchored: false, levels: [] };
+  return { root, carrier, box, anchored: false, frames: [] };
 }
 function anchoredBy(el2, root) {
   const anchor = anchorElement(el2);
-  if (!reaches(anchor, root)) return null;
+  if (!anchorReaches(anchor, root)) return null;
   return anchor === el2 || scrollsWith(el2, anchor) && !scrollsContent(anchor) || scrollsWith(anchor, el2) ? anchor : null;
 }
-function reaches(anchor, root) {
-  if (!CSS.supports("anchor-name", "--lf-anchor")) return false;
-  const holder = anchorHolder(anchor);
-  const order = holder.compareDocumentPosition(root);
-  return Boolean(order & Node.DOCUMENT_POSITION_FOLLOWING) && !(order & Node.DOCUMENT_POSITION_CONTAINED_BY) && !nativeLayerHolding(holder);
-}
-function levelMotions({ surface, levels, plane, pad }) {
-  if (!scrollFollows(surface)) return levels.map(() => []);
-  const held = [...levels.filter(({ holder }) => holder).map(({ holder }) => holder)];
-  held.push(surface);
-  const reach = (i) => i === held.length - 1 ? pad : 0;
-  let band = 0;
-  return levels.map(({ holder }) => {
-    if (!holder)
-      return plane === "page" ? scrollMotions(surface.ownerDocument.scrollingElement, held[0], reach(0)) : [];
-    band += 1;
-    return scrollMotions(holder, held[band], reach(band));
-  });
-}
-var sameGraph = (stand, anchored, levels) => stand.anchored === anchored && levels.length === stand.levels.length && levels.every(
-  ({ motions }, i) => motions.length === stand.levels[i].motions.length && motions.every(
-    ({ source, axis }, j) => source === stand.levels[i].motions[j].source && axis === stand.levels[i].motions[j].axis
-  )
-);
-var sameMotion = (a, b) => a.subject === b.subject && a.from === b.from && a.to === b.to && a.vector.x === b.vector.x && a.vector.y === b.vector.y;
-function rebuild(stand, anchored, levels) {
-  for (const level of stand.levels)
-    for (const animation of level.animations) animation.cancel();
-  stand.root.replaceChildren();
-  stand.anchored = anchored;
-  let parent = stand.root;
-  stand.levels = levels.map(({ motions }) => {
-    const frame = document.createElement("div");
-    frame.className = "lf-paint-frame";
-    parent.append(frame);
-    parent = frame;
-    const layers = motions.map(() => {
-      const layer = document.createElement("div");
-      layer.className = "lf-paint-motion";
-      parent.append(layer);
-      parent = layer;
-      return layer;
-    });
-    return {
-      frame,
-      layers,
-      motions,
-      animations: motions.map((motion, i) => followScroll(layers[i], motion, 0))
-    };
-  });
-  parent.append(stand.carrier);
-}
-var sized = ({ left, top, right, bottom }) => ({
-  width: layoutPx(right - left),
-  height: layoutPx(bottom - top)
-});
-var placeIn = (node, box, origin) => Object.assign(node.style, {
-  left: layoutPx(box.left - origin.x),
-  top: layoutPx(box.top - origin.y),
-  ...sized(box)
-});
-var anchorBox = (node, box, anchor, at = anchor?.getBoundingClientRect()) => {
-  const from = (side, length) => anchor ? `calc(anchor(${side}, -9999px) + ${layoutPx(length)})` : layoutPx(length);
-  Object.assign(node.style, {
-    position: "fixed",
-    positionAnchor: anchor ? anchorName(anchor) : "",
-    positionVisibility: anchor ? "always" : "",
-    left: from("left", box.left - (at?.left ?? 0)),
-    top: from("top", box.top - (at?.top ?? 0)),
-    ...sized(box)
-  });
-};
-var cut = ({ x, y }) => {
-  const open = (clips) => clips ? "0" : "-100000px";
-  return `inset(${open(y)} ${open(x)})`;
+var makeFrame = () => {
+  const frame = document.createElement("div");
+  frame.className = "lf-paint-frame";
+  return frame;
 };
 function standIn(stand, placed, anchored) {
-  const { levels, fixed } = placed;
+  const { levels } = placed;
   const anchors = levels.map(({ holder }) => holder && anchoredBy(holder, stand.root));
   anchored &&= levels.every(({ holder }, i) => !holder || anchors[i]);
-  const motions = anchored ? levels.map(() => []) : levelMotions(placed);
-  const graph = levels.map((level, i) => ({ ...level, motions: motions[i] }));
-  if (!sameGraph(stand, anchored, graph)) rebuild(stand, anchored, graph);
-  if (anchored) {
-    stand.root.style.position = "fixed";
-    graph.forEach(({ band, axes }, i) => {
-      const { frame } = stand.levels[i];
-      anchorBox(frame, band, anchors[i]);
-      frame.style.clipPath = cut(axes);
-    });
-    return { anchored, origin: null };
-  }
-  graph.forEach(({ motions: motions2 }, i) => {
-    const stood = stand.levels[i];
-    motions2.forEach((motion, j) => {
-      if (sameMotion(motion, stood.motions[j])) return;
-      stood.animations[j] = followScroll(
-        stood.layers[j],
-        motion,
-        0,
-        stood.animations[j]
-      );
-      stood.motions[j] = motion;
-    });
-  });
-  stand.root.style.position = fixed ? "fixed" : "absolute";
-  let from = fixed ? { x: 0, y: 0 } : { x: -scrollX, y: -scrollY };
-  graph.forEach(({ band, axes, motions: motions2 }, i) => {
-    const { frame } = stand.levels[i];
-    placeIn(frame, band, from);
-    Object.assign(frame.style, {
-      overflowX: axes.x ? "clip" : "visible",
-      overflowY: axes.y ? "clip" : "visible"
-    });
-    const by = scrolledBy(motions2);
-    from = { x: band.left + by.x, y: band.top + by.y };
-  });
-  return { anchored, origin: from };
+  stand.anchored = anchored;
+  stand.frames = cutFrames(
+    levels.map(({ band: band2, axes }, i) => ({
+      anchor: anchored ? anchors[i] : null,
+      band: band2,
+      axes
+    })),
+    stand.frames,
+    makeFrame
+  );
+  const [outer] = stand.frames;
+  if (outer && outer.parentNode !== stand.root) move(stand.root, outer, null);
+  const inner = stand.frames.at(-1) ?? stand.root;
+  if (stand.carrier.parentNode !== inner) move(inner, stand.carrier, null);
+  const band = levels.at(-1)?.band;
+  return {
+    anchored,
+    origin: anchored ? null : { x: band?.left ?? 0, y: band?.top ?? 0 }
+  };
 }
 function standBox(box, rect, stood, anchor, at = anchor?.getBoundingClientRect()) {
-  const sizes = rect.right !== void 0;
   if (stood.anchored) {
-    const from = (side, length) => `calc(anchor(${side}, -9999px) + ${layoutPx(length)})`;
-    Object.assign(box.style, {
-      position: "fixed",
-      positionAnchor: anchorName(anchor),
-      positionVisibility: stood.visibility ?? "always",
-      left: from("left", rect.left - at.left),
-      top: from("top", rect.top - at.top),
-      ...sizes ? sized(rect) : {}
-    });
+    anchorAt(box, anchor, rect, at, stood.visibility ?? "always");
     return;
   }
   Object.assign(box.style, {
@@ -352,7 +250,10 @@ function standBox(box, rect, stood, anchor, at = anchor?.getBoundingClientRect()
     positionVisibility: "",
     left: layoutPx(rect.left - stood.origin.x),
     top: layoutPx(rect.top - stood.origin.y),
-    ...sizes ? sized(rect) : {}
+    ...rect.right === void 0 ? {} : {
+      width: layoutPx(rect.right - rect.left),
+      height: layoutPx(rect.bottom - rect.top)
+    }
   });
 }
 function standOver(stand, placed, borderRadius) {
@@ -386,11 +287,10 @@ function paintSet(root, { onNear = () => {
   const ids = /* @__PURE__ */ new WeakMap();
   let idCount = 0;
   const idOf = (node) => ids.get(node) ?? (ids.set(node, ++idCount), idCount);
-  const keyOf = ({ surface, fixed, levels }, anchor, plane, framed) => !surface ? `${plane}|window` : [
+  const keyOf = ({ surface, levels }, anchor, plane, framed) => !surface ? `${plane}|window` : [
     plane,
     framed ? "cut" : "open",
-    fixed ? "fixed" : "page",
-    anchor ? "anchored" : levels.length ? `own${idOf(surface)}` : "",
+    anchor ? "anchored" : "window",
     ...levels.map(({ holder, band, from, axes }) => {
       const edges = [from.left, from.top, from.left + band.right - band.left];
       return `${holder ? idOf(holder) : "window"}:${[...edges, from.top + band.bottom - band.top]}:${axes.x}${axes.y}`;
@@ -427,7 +327,7 @@ function paintSet(root, { onNear = () => {
       const { node, target = null, rect, held = false, anchor, plane = "page" } = item;
       const { cut: framed = true } = item;
       if (!target) {
-        const placed2 = { surface: null, levels: [], fixed: true };
+        const placed2 = { surface: null, levels: [] };
         return {
           node,
           target,
@@ -453,15 +353,8 @@ function paintSet(root, { onNear = () => {
         watching.get(box2).add(target);
         if (nearWindow(target, clips)) near.add(target);
       }
-      const carriedBy = anchor === void 0 ? anchoredBy(target, root) : anchor && reaches(anchor, root) ? anchor : null;
-      if (!framed)
-        placed = {
-          ...placed,
-          levels: carriedBy ? [] : placed.levels.map((level) => ({
-            ...level,
-            axes: { x: false, y: false }
-          }))
-        };
+      const carriedBy = anchor === void 0 ? anchoredBy(target, root) : anchor && anchorReaches(anchor, root) ? anchor : null;
+      if (!framed) placed = { ...placed, levels: [] };
       for (const { holder } of placed.levels)
         if (holder && !holders.has(holder))
           holders.set(holder, holder.getBoundingClientRect());
@@ -554,8 +447,9 @@ function paintSet(root, { onNear = () => {
   };
 }
 function vacate(stand) {
-  if (stand.levels.length || stand.carrier.parentElement !== stand.root)
-    rebuild(stand, false, []);
+  if (!stand.frames.length && stand.carrier.parentElement === stand.root) return;
+  stand.frames = cutFrames([], stand.frames, makeFrame);
+  move(stand.root, stand.carrier, null);
 }
 function dropStand(stand) {
   vacate(stand);
@@ -584,9 +478,7 @@ function placement(surface, shaped, aboveSurfaces, clips = /* @__PURE__ */ new M
     shapeKey: `${rect.right - rect.left}:${rect.bottom - rect.top}`,
     levels,
     surface,
-    pad,
-    plane: cuts.plane,
-    fixed: cuts.plane === "window" || Boolean(cuts.window)
+    plane: cuts.plane
   };
 }
 
@@ -660,7 +552,7 @@ function labelAim(node) {
   };
   const index = cutTop ? levels.findLastIndex(({ axes, band }) => axes.y && band.top === shown.top) : shown.left > rect.left ? levels.findLastIndex(({ axes, band }) => axes.x && band.left === shown.left) : -1;
   if (index >= 0) {
-    const home = aimStand.levels[index].frame;
+    const home = aimStand.frames[index];
     if (node.parentElement !== home) move(home, node, null);
     const { band } = levels[index];
     standBox(node, at, { anchored: false, origin: { x: band.left, y: band.top } });
@@ -712,14 +604,14 @@ function paintTrace(element, surface = element) {
     clearTrace();
     return;
   }
-  const rebuild2 = geometryDirty || element !== traceElement || surface !== traceSurface;
+  const rebuild = geometryDirty || element !== traceElement || surface !== traceSurface;
   if (geometryDirty) {
     if (geometryFrame) cancelRender(geometryFrame);
     if (placementFrame) cancelRender(placementFrame);
     geometryFrame = placementFrame = 0;
     geometryDirty = false;
   }
-  drawTrace(element, surface, rebuild2);
+  drawTrace(element, surface, rebuild);
 }
 function shifted() {
   if (placementFrame || geometryFrame || !traceElement) return;

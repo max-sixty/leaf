@@ -118,8 +118,6 @@ import {
   beginWalk,
   bringBackSurfaceOf,
   cancelReplyDictation,
-  chromeForeground,
-  chromeRoot,
   commandShortcut,
   copyControl,
   coveringAuxiliarySurface,
@@ -206,7 +204,7 @@ import {
   walkPositionLabel,
   watchBannerRows,
   workflowLabel
-} from "./runtime/bundle-chrome.js";
+} from "./runtime/bundle-user-intent.js";
 import "./runtime/bundle-widget-upgrade.js";
 import {
   mediaViewer,
@@ -242,6 +240,8 @@ import {
   anchorFor,
   anchoringIsReady,
   annotationAt,
+  chromeForeground,
+  chromeRoot,
   designPressAt,
   elementBorderFrame,
   elementFrame,
@@ -263,7 +263,7 @@ import {
   visualAt,
   visualParts,
   visualSelector
-} from "./runtime/bundle-visual-parts.js";
+} from "./runtime/bundle-chrome.js";
 import {
   fragmentId
 } from "./runtime/bundle-initial-render.js";
@@ -2213,7 +2213,7 @@ function createResponseSurface({
     return true;
   }
   function restoreFab({ place: place2 = true } = {}) {
-    if ((placement || !place2 || !fabAnchor || !composerOpen) && (fabBar.parentElement === responseHome || placement?.holdsHome(responseHome)) && (!fabInlineOutlet || fabInlineOutlet === responseHome))
+    if ((placement || !place2 || !fabAnchor || !composerOpen) && fabBar.parentElement === responseHome && (!fabInlineOutlet || fabInlineOutlet === responseHome))
       return false;
     const restoreFocus = holdFocus(fabBar);
     stopFabPositioning({ reset: true, repositioning: place2 });

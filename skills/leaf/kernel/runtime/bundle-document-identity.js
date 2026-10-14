@@ -162,7 +162,7 @@ import {
   whenFolded,
   wholeThread,
   workflowLabel
-} from "./bundle-chrome.js";
+} from "./bundle-user-intent.js";
 import {
   aborted,
   authoredStates,
@@ -197,7 +197,7 @@ import {
   targetPlace,
   targetSegments,
   visualPartLabel
-} from "./bundle-visual-parts.js";
+} from "./bundle-chrome.js";
 import {
   initialOrigin,
   restoreInitialSource,

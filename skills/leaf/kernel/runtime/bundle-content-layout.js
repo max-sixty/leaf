@@ -1,7 +1,7 @@
 import {
   resolveAnchor,
   targetSegments
-} from "./bundle-visual-parts.js";
+} from "./bundle-chrome.js";
 import {
   inChrome,
   pageDocument,

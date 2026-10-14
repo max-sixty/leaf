@@ -4,7 +4,7 @@ import {
   retainUserIntent,
   tabStore,
   userStore
-} from "./bundle-chrome.js";
+} from "./bundle-user-intent.js";
 import {
   closeNativeLayer,
   dismissPopoversOutside,

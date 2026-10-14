@@ -763,6 +763,206 @@ function readThreadRecords(threads, document, widgets, workflows, markingRead = 
   });
 }
 
+// vendor/browser-runtime/snapshot.js
+var collecting = null;
+var collectingOutside = null;
+function collected(reading, read) {
+  const outer = collecting;
+  const outerOutside = collectingOutside;
+  collecting = null;
+  collectingOutside = null;
+  let value;
+  try {
+    value = read();
+  } finally {
+    collecting = outer;
+    collectingOutside = outerOutside;
+  }
+  const into = reading.outside ? outerOutside : outer;
+  if (into && !into.has(reading)) into.set(reading, value);
+  return value;
+}
+function collectingInto(reads, outside, run) {
+  const outer = collecting;
+  const outerOutside = collectingOutside;
+  collecting = reads;
+  collectingOutside = outside;
+  try {
+    return run();
+  } finally {
+    collecting = outer;
+    collectingOutside = outerOutside;
+  }
+}
+function collectReads(run) {
+  const reads = /* @__PURE__ */ new Map();
+  try {
+    return { reads, value: collectingInto(reads, reads, run) };
+  } catch (error) {
+    return { reads, error };
+  }
+}
+function collectOutside(run) {
+  const reads = /* @__PURE__ */ new Map();
+  try {
+    return { reads, value: collectingInto(collecting, reads, run) };
+  } catch (error) {
+    return { reads, error };
+  }
+}
+function outsideReading(read, heard) {
+  const reading = Object.freeze({
+    outside: true,
+    read: () => collected(reading, read),
+    subscribe(listener) {
+      let active = true;
+      const deliver = (round) => untracked(() => listener(read(), round));
+      const stop = heard((round) => active ? deliver(round) : void 0);
+      deliver({});
+      return () => {
+        active = false;
+        stop();
+      };
+    }
+  });
+  return reading;
+}
+function untracked(run) {
+  return collectingInto(null, null, run);
+}
+var secured = /* @__PURE__ */ new WeakSet();
+function immutable(value, normalized = /* @__PURE__ */ new WeakMap()) {
+  if (value !== null && typeof value === "object" && !secured.has(value)) {
+    const known = normalized.get(value);
+    if (known) return known;
+    let result = value;
+    const refuse = () => {
+      throw new TypeError("Application snapshots are read-only");
+    };
+    if (value instanceof Map) {
+      const entries = [...value].map(([key, child]) => [
+        immutable(key, normalized),
+        immutable(child, normalized)
+      ]);
+      const map = Object.isExtensible(value) ? value : /* @__PURE__ */ new Map();
+      map.clear();
+      for (const [key, child] of entries) map.set(key, child);
+      for (const name of ["set", "delete", "clear"])
+        Object.defineProperty(map, name, { value: refuse });
+      result = map;
+    } else if (value instanceof Set) {
+      const members = [...value].map((child) => immutable(child, normalized));
+      const set = Object.isExtensible(value) ? value : /* @__PURE__ */ new Set();
+      set.clear();
+      for (const child of members) set.add(child);
+      for (const name of ["add", "delete", "clear"])
+        Object.defineProperty(set, name, { value: refuse });
+      result = set;
+    } else {
+      const children = Object.entries(value).map(([key, child]) => [
+        key,
+        child,
+        immutable(child, normalized)
+      ]);
+      if (children.some(([, child, next]) => child !== next)) {
+        const target = Object.isFrozen(value) ? Array.isArray(value) ? [...value] : { ...value } : value;
+        for (const [key, child, next] of children)
+          if (child !== next) target[key] = next;
+        result = target;
+      }
+    }
+    Object.freeze(result);
+    secured.add(result);
+    normalized.set(value, result);
+    return result;
+  }
+  return value;
+}
+var plain = (value) => {
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+};
+function share(prior, next) {
+  if (Object.is(prior, next)) return next;
+  if (prior === null || next === null || typeof prior !== "object" || typeof next !== "object")
+    return next;
+  if (Array.isArray(next)) {
+    if (!Array.isArray(prior)) return next;
+    const children2 = next.map((child, index) => share(prior[index], child));
+    if (prior.length === next.length && children2.every((child, index) => child === prior[index]))
+      return prior;
+    return children2.every((child, index) => child === next[index]) ? next : children2;
+  }
+  if (next instanceof Map) {
+    if (!(prior instanceof Map)) return next;
+    const priorKeys = [...prior.keys()];
+    const entries = [...next].map(([key, child]) => [
+      key,
+      prior.has(key) ? share(prior.get(key), child) : child
+    ]);
+    if (priorKeys.length === entries.length && entries.every(([key, child], index) => key === priorKeys[index] && child === prior.get(key)))
+      return prior;
+    return entries.every(([key, child]) => child === next.get(key)) ? next : new Map(entries);
+  }
+  if (next instanceof Set) {
+    if (!(prior instanceof Set)) return next;
+    const priorMembers = [...prior];
+    const members = [...next].map((child, index) => share(priorMembers[index], child));
+    if (priorMembers.length === members.length && members.every((child, index) => child === priorMembers[index]))
+      return prior;
+    return members.every((child) => next.has(child)) ? next : new Set(members);
+  }
+  if (!plain(next) || !plain(prior) || Array.isArray(prior) || prior instanceof Map || prior instanceof Set)
+    return next;
+  const before = prior;
+  const after = next;
+  const keys = Object.keys(after);
+  const children = keys.map((key) => Object.hasOwn(before, key) ? share(before[key], after[key]) : after[key]);
+  if (keys.length === Object.keys(before).length && keys.every((key, index) => Object.hasOwn(before, key) && children[index] === before[key]))
+    return prior;
+  if (keys.every((key, index) => children[index] === after[key])) return next;
+  const copy = Object.getPrototypeOf(next) === null ? /* @__PURE__ */ Object.create(null) : {};
+  keys.forEach(
+    (key, index) => Object.defineProperty(copy, key, {
+      value: children[index],
+      writable: true,
+      enumerable: true,
+      configurable: true
+    })
+  );
+  return copy;
+}
+function createApplicationPublisher(initial) {
+  const root = M(immutable(initial));
+  return Object.freeze({
+    read: () => {
+      if (collecting)
+        throw new Error(
+          "a collected read took the whole publication; select the part it needs"
+        );
+      return root.value;
+    },
+    // The root without subscribing or collecting, for the owner computing what it
+    // publishes next.
+    peek: () => root.peek(),
+    publish(candidate) {
+      root.value = immutable(share(root.peek(), candidate));
+      return root.peek();
+    },
+    select(derive) {
+      let prior;
+      const selected = T(
+        () => untracked(() => prior = immutable(share(prior, derive(root.value))))
+      );
+      const reading = Object.freeze({
+        read: () => collected(reading, () => selected.value),
+        subscribe: (listener) => selected.subscribe((value) => untracked(() => listener(value)))
+      });
+      return reading;
+    }
+  });
+}
+
 // vendor/browser-runtime/presentation.js
 function describeFailure(reason) {
   const message = reason instanceof Error ? reason.message : String(reason);
@@ -1096,13 +1296,15 @@ function createPresentationCoordinator({ reportFailure }) {
     currentPresented,
     whenCurrentRegionsPresented,
     currentRegionsPresented,
-    subscribe: (callback) => changes.subscribe(() => {
-      try {
-        callback();
-      } catch (reason) {
-        reportFailure(reason);
-      }
-    }),
+    subscribe: (callback) => changes.subscribe(
+      () => untracked(() => {
+        try {
+          callback();
+        } catch (reason) {
+          reportFailure(reason);
+        }
+      })
+    ),
     read
   });
 }
@@ -1207,205 +1409,6 @@ import { createRef, ref } from "/vendor/lit.js";
 import { repeat } from "/vendor/lit.js";
 import { styleMap } from "/vendor/lit.js";
 import { unsafeHTML } from "/vendor/lit.js";
-
-// vendor/browser-runtime/snapshot.js
-var collecting = null;
-var collectingOutside = null;
-function collected(reading, read) {
-  const outer = collecting;
-  const outerOutside = collectingOutside;
-  collecting = null;
-  collectingOutside = null;
-  let value;
-  try {
-    value = read();
-  } finally {
-    collecting = outer;
-    collectingOutside = outerOutside;
-  }
-  const into = reading.outside ? outerOutside : outer;
-  if (into && !into.has(reading)) into.set(reading, value);
-  return value;
-}
-function collectingInto(reads, outside, run) {
-  const outer = collecting;
-  const outerOutside = collectingOutside;
-  collecting = reads;
-  collectingOutside = outside;
-  try {
-    return run();
-  } finally {
-    collecting = outer;
-    collectingOutside = outerOutside;
-  }
-}
-function collectReads(run) {
-  const reads = /* @__PURE__ */ new Map();
-  try {
-    return { reads, value: collectingInto(reads, reads, run) };
-  } catch (error) {
-    return { reads, error };
-  }
-}
-function collectOutside(run) {
-  const reads = /* @__PURE__ */ new Map();
-  try {
-    return { reads, value: collectingInto(collecting, reads, run) };
-  } catch (error) {
-    return { reads, error };
-  }
-}
-function outsideReading(read, heard) {
-  const reading = Object.freeze({
-    outside: true,
-    read: () => collected(reading, read),
-    subscribe(listener) {
-      let active = true;
-      const stop = heard((round) => active ? listener(read(), round) : void 0);
-      listener(read(), {});
-      return () => {
-        active = false;
-        stop();
-      };
-    }
-  });
-  return reading;
-}
-function untracked(run) {
-  return collectingInto(null, null, run);
-}
-var secured = /* @__PURE__ */ new WeakSet();
-function immutable(value, normalized = /* @__PURE__ */ new WeakMap()) {
-  if (value !== null && typeof value === "object" && !secured.has(value)) {
-    const known = normalized.get(value);
-    if (known) return known;
-    let result = value;
-    const refuse = () => {
-      throw new TypeError("Application snapshots are read-only");
-    };
-    if (value instanceof Map) {
-      const entries = [...value].map(([key, child]) => [
-        immutable(key, normalized),
-        immutable(child, normalized)
-      ]);
-      const map = Object.isExtensible(value) ? value : /* @__PURE__ */ new Map();
-      map.clear();
-      for (const [key, child] of entries) map.set(key, child);
-      for (const name of ["set", "delete", "clear"])
-        Object.defineProperty(map, name, { value: refuse });
-      result = map;
-    } else if (value instanceof Set) {
-      const members = [...value].map((child) => immutable(child, normalized));
-      const set = Object.isExtensible(value) ? value : /* @__PURE__ */ new Set();
-      set.clear();
-      for (const child of members) set.add(child);
-      for (const name of ["add", "delete", "clear"])
-        Object.defineProperty(set, name, { value: refuse });
-      result = set;
-    } else {
-      const children = Object.entries(value).map(([key, child]) => [
-        key,
-        child,
-        immutable(child, normalized)
-      ]);
-      if (children.some(([, child, next]) => child !== next)) {
-        const target = Object.isFrozen(value) ? Array.isArray(value) ? [...value] : { ...value } : value;
-        for (const [key, child, next] of children)
-          if (child !== next) target[key] = next;
-        result = target;
-      }
-    }
-    Object.freeze(result);
-    secured.add(result);
-    normalized.set(value, result);
-    return result;
-  }
-  return value;
-}
-var plain = (value) => {
-  const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
-};
-function share(prior, next) {
-  if (Object.is(prior, next)) return next;
-  if (prior === null || next === null || typeof prior !== "object" || typeof next !== "object")
-    return next;
-  if (Array.isArray(next)) {
-    if (!Array.isArray(prior)) return next;
-    const children2 = next.map((child, index) => share(prior[index], child));
-    if (prior.length === next.length && children2.every((child, index) => child === prior[index]))
-      return prior;
-    return children2.every((child, index) => child === next[index]) ? next : children2;
-  }
-  if (next instanceof Map) {
-    if (!(prior instanceof Map)) return next;
-    const priorKeys = [...prior.keys()];
-    const entries = [...next].map(([key, child]) => [
-      key,
-      prior.has(key) ? share(prior.get(key), child) : child
-    ]);
-    if (priorKeys.length === entries.length && entries.every(([key, child], index) => key === priorKeys[index] && child === prior.get(key)))
-      return prior;
-    return entries.every(([key, child]) => child === next.get(key)) ? next : new Map(entries);
-  }
-  if (next instanceof Set) {
-    if (!(prior instanceof Set)) return next;
-    const priorMembers = [...prior];
-    const members = [...next].map((child, index) => share(priorMembers[index], child));
-    if (priorMembers.length === members.length && members.every((child, index) => child === priorMembers[index]))
-      return prior;
-    return members.every((child) => next.has(child)) ? next : new Set(members);
-  }
-  if (!plain(next) || !plain(prior) || Array.isArray(prior) || prior instanceof Map || prior instanceof Set)
-    return next;
-  const before = prior;
-  const after = next;
-  const keys = Object.keys(after);
-  const children = keys.map((key) => Object.hasOwn(before, key) ? share(before[key], after[key]) : after[key]);
-  if (keys.length === Object.keys(before).length && keys.every((key, index) => Object.hasOwn(before, key) && children[index] === before[key]))
-    return prior;
-  if (keys.every((key, index) => children[index] === after[key])) return next;
-  const copy = Object.getPrototypeOf(next) === null ? /* @__PURE__ */ Object.create(null) : {};
-  keys.forEach(
-    (key, index) => Object.defineProperty(copy, key, {
-      value: children[index],
-      writable: true,
-      enumerable: true,
-      configurable: true
-    })
-  );
-  return copy;
-}
-function createApplicationPublisher(initial) {
-  const root = M(immutable(initial));
-  return Object.freeze({
-    read: () => {
-      if (collecting)
-        throw new Error(
-          "a collected read took the whole publication; select the part it needs"
-        );
-      return root.value;
-    },
-    // The root without subscribing or collecting, for the owner computing what it
-    // publishes next.
-    peek: () => root.peek(),
-    publish(candidate) {
-      root.value = immutable(share(root.peek(), candidate));
-      return root.peek();
-    },
-    select(derive) {
-      let prior;
-      const selected = T(
-        () => prior = immutable(share(prior, derive(root.value)))
-      );
-      const reading = Object.freeze({
-        read: () => collected(reading, () => selected.value),
-        subscribe: (listener) => selected.subscribe(listener)
-      });
-      return reading;
-    }
-  });
-}
 
 // runtime/registry-contract.js
 function stampedState(registry, tag, event) {

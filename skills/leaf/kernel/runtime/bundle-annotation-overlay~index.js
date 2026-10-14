@@ -52,8 +52,6 @@ import {
   bannerControlDoor,
   beginWalk,
   carryingThreadPlace,
-  chromeForeground,
-  chromeRoot,
   claimSeatReplies,
   claimed,
   declareOffFlowSurface,
@@ -76,7 +74,7 @@ import {
   tabStore,
   threadFocusDestination,
   writingIn
-} from "./bundle-chrome.js";
+} from "./bundle-user-intent.js";
 import "./bundle-widget-upgrade.js";
 import "./bundle-media.js";
 import {
@@ -109,6 +107,8 @@ import {
   pointBand
 } from "./bundle-content-layout.js";
 import {
+  chromeForeground,
+  chromeRoot,
   exactTarget,
   passageGeometry,
   rangeGeometry,
@@ -118,7 +118,7 @@ import {
   targetSegments,
   targetSurface,
   visualAt
-} from "./bundle-visual-parts.js";
+} from "./bundle-chrome.js";
 import "./bundle-initial-render.js";
 import {
   atScrollEnd,
@@ -2922,7 +2922,7 @@ function createFloatingResponsePlacement({
             update();
           };
           const stopSize = autoUpdate(reference2, floating, invalidate, {
-            ancestorScroll: !fabPosition.nativeAvailable(),
+            ancestorScroll: false,
             layoutShift: false
           });
           let x = reference2.getBoundingClientRect().left;
@@ -3171,7 +3171,6 @@ function createFloatingResponsePlacement({
     });
   }
   return {
-    holdsHome: fabPosition.holdsHome,
     stands: () => response.open || Boolean(anchorGeometry(response.anchor)),
     place: placeFab,
     stop: stopFabPositioning,

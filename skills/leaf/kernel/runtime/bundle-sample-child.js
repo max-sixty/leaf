@@ -3,7 +3,7 @@ import {
   pageScopes,
   textEntryScope,
   universalCommandReference
-} from "./bundle-chrome.js";
+} from "./bundle-user-intent.js";
 import {
   whenArrived,
   whenArriving

@@ -1,7 +1,7 @@
 import {
   dismissBannerControls,
   scrollIntoView
-} from "./bundle-chrome.js";
+} from "./bundle-user-intent.js";
 import {
   agentArrivalDuration,
   reducedMotion

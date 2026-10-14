@@ -46,7 +46,7 @@ import {
   walkOrigin,
   walkPosition,
   whereDraft
-} from "./bundle-chrome.js";
+} from "./bundle-user-intent.js";
 import {
   domValue
 } from "./bundle-widget-upgrade.js";
@@ -61,12 +61,10 @@ import {
   aimTargets,
   anchorForRange,
   elementFrame,
-  followScroll,
   resolveAnchor,
   scrollAxes,
-  scrollMotions,
   visualPartProblems
-} from "./bundle-visual-parts.js";
+} from "./bundle-chrome.js";
 import "./bundle-initial-render.js";
 import {
   effectiveScroller,
@@ -216,7 +214,6 @@ export {
   findQuote,
   fitsWhole,
   flashDuration,
-  followScroll,
   growthAfterIsSeen,
   heldAsk,
   heldThreadId,
@@ -258,7 +255,6 @@ export {
   runtimeRootState,
   sampleVisibility,
   scrollAxes,
-  scrollMotions,
   scrollersOf,
   seenRect,
   segmentsIn,

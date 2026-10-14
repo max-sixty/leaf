@@ -2266,6 +2266,11 @@ var userScrollport = (overflow) => /^(auto|scroll)$/.test(overflow);
 var scrollsBy = ({ overflowX, overflowY }) => scrollport(overflowX) || scrollport(overflowY);
 var scrolls = (el2) => scrollsBy(getComputedStyle(el2));
 var scrollContainer = (box) => box === box.ownerDocument.scrollingElement || scrolls(box);
+function scrollsContent(box) {
+  if (!(box instanceof Element) || box instanceof SVGElement) return false;
+  const style = getComputedStyle(box);
+  return scrollport(style.overflowX) && box.scrollWidth > box.clientWidth || scrollport(style.overflowY) && box.scrollHeight > box.clientHeight;
+}
 var slotHolder = (el2, scroller) => {
   let at = el2;
   for (let box = el2; box && box !== scroller; box = upFrom(box))
@@ -3484,10 +3489,10 @@ export {
   layoutWindow,
   shownWindow,
   shownBand,
-  scrollport,
   userScrollport,
   scrollsBy,
   scrollContainer,
+  scrollsContent,
   headerInset,
   visibleBand,
   stuckBox,

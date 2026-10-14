@@ -89,7 +89,7 @@ import {
   threadSurface,
   tokenLines,
   watchDraft
-} from "./bundle-chrome.js";
+} from "./bundle-user-intent.js";
 import {
   aborted,
   bodyText,
@@ -126,7 +126,7 @@ import {
   referencedProjection,
   registerVisualParts,
   requireReference
-} from "./bundle-visual-parts.js";
+} from "./bundle-chrome.js";
 import {
   initialRender
 } from "./bundle-initial-render.js";

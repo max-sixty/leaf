@@ -8,21 +8,15 @@ import {
 import {
   anchorElement,
   anchorFor,
-  anchorHolder,
   anchorName,
   anchorReading,
   boundedBlockOf,
   carriedAnchor,
-  followScroll,
+  cutFrames,
   nameAnchor,
   scrollAxes,
-  scrollFollows,
-  scrollMotions,
-  scrollOrigins,
-  scrolledBy,
-  scrollsContent,
   scrollsWith
-} from "./bundle-visual-parts.js";
+} from "./bundle-chrome.js";
 import {
   afterPresentation,
   containingReadingRegionFor,
@@ -40,9 +34,11 @@ import {
 import {
   LAYOUT,
   clamp,
+  clippingAxes,
   overlaps,
   overlapsAcross,
   renderedChildren,
+  scrollsContent,
   shellRight,
   shownBand,
   shownExtent,
@@ -230,14 +226,6 @@ var pending = 0;
 var observer = null;
 var observedColumn = null;
 var layer = null;
-var translations = /* @__PURE__ */ new Map();
-function clearTranslations(node) {
-  const record = translations.get(node);
-  for (const effect of record?.effects ?? []) effect.cancel();
-  if (record?.root !== node) record?.root.remove();
-  translations.delete(node);
-}
-var motionRoot = (node) => translations.get(node)?.root ?? node;
 var carriers = /* @__PURE__ */ new Map();
 var carrierAxes = /* @__PURE__ */ new WeakMap();
 function carrierFor(anchor, axes, run) {
@@ -254,56 +242,24 @@ function carrierFor(anchor, axes, run) {
 var isCarrier = (node) => node?.classList.contains("lf-margin-carrier");
 var laidOutScrollX = 0;
 var standsBy = /* @__PURE__ */ new WeakMap();
-function carryScroll(node, motions) {
-  motions = motions.every((motion) => motion.timeline) ? motions : [];
-  const record = translations.get(node);
-  const before = record?.motions ?? [];
-  if (before.length === motions.length && before.every((motion, i) => {
-    const next = motions[i];
-    return motion.source === next.source && motion.subject === next.subject && motion.axis === next.axis && motion.scroll === next.scroll && motion.from === next.from && motion.to === next.to && motion.vector.x === next.vector.x && motion.vector.y === next.vector.y;
-  }))
-    return scrolledBy(motions);
-  const sameGraph = before.length === motions.length && before.every(
-    (motion, i) => motion.source === motions[i].source && motion.axis === motions[i].axis
-  );
-  let root = record?.root ?? node;
-  let layers = record?.layers ?? [];
-  if (!sameGraph) {
-    for (const effect of record?.effects ?? []) effect.cancel();
-    const previous = root;
-    root = node;
-    layers = [];
-    let parent;
-    for (let i = 0; i < motions.length; i++) {
-      const part = document.createElement("div");
-      part.className = "lf-ui lf-margin-motion";
-      if (parent) parent.append(part);
-      else root = part;
-      parent = part;
-      layers.push(part);
-    }
-    if (previous.parentNode) move(previous.parentNode, root, previous);
-    if (parent) move(parent, node, null);
-    if (previous !== node) previous.remove();
-  }
-  if (motions.length)
-    translations.set(node, {
-      root,
-      layers,
-      motions,
-      effects: motions.map(
-        (motion, i) => followScroll(layers[i], motion, 0, sameGraph ? record?.effects[i] : null)
-      )
-    });
-  else translations.delete(node);
-  return scrolledBy(motions);
-}
 function scrollSources(node) {
   const sources = [];
   for (let at = renderedParent(node); at && at !== pageScroller; at = renderedParent(at)) {
     if (scrollsContent(at)) sources.push(at);
   }
   return sources;
+}
+var stuckOrFixed = (node) => {
+  for (let at = node; at instanceof Element; at = renderedParent(at))
+    if (/^(sticky|fixed)$/.test(getComputedStyle(at).position)) return true;
+  return false;
+};
+function carrierAnchor(subject, sources, scroller) {
+  const inner = sources[0] ?? (scroller === pageScroller ? null : scroller);
+  const own = () => anchorElement(targetBox(subject));
+  if (!inner) return stuckOrFixed(subject) ? own() : null;
+  if (!scrollsWith(subject, inner)) return own();
+  return carriedAnchor(inner) ?? own();
 }
 var marginColumn = () => pageDocument() || document.body;
 var railStands = (main) => (main.getAttribute("data-lf-margin") ?? "").split(" ").includes("rail");
@@ -483,14 +439,20 @@ function hearTargetChanges(root) {
     { capture: true, passive: true }
   );
 }
+var laneFrames = /* @__PURE__ */ new Map();
+var makeLaneFrame = () => {
+  const frame = document.createElement("div");
+  frame.className = "lf-margin-lane";
+  return frame;
+};
 function laneFor(scroller) {
   if (scroller === pageScroller) return layer.root;
   let lane = layer.lanes.get(scroller);
   if (!lane) {
-    lane = document.createElement("div");
-    lane.className = "lf-margin-lane";
+    lane = makeLaneFrame();
     layer.root.after(lane);
     layer.lanes.set(scroller, lane);
+    laneFrames.set(lane, [lane]);
     layer.sizes.observe(scroller);
   }
   return lane;
@@ -746,7 +708,6 @@ function registerMarginRow(row, options = {}) {
 function unregisterMarginRow(row) {
   rows.delete(row);
   anchors.delete(row);
-  clearTranslations(row);
   if (row) {
     row.classList.toggle("lf-withheld", false);
     row.removeAttribute("data-lf-place");
@@ -777,7 +738,6 @@ function targetShown(target, extent, stands, bands) {
 var pushes = /* @__PURE__ */ new Map();
 var pass = 0;
 var came = /* @__PURE__ */ new Map();
-var clips = /* @__PURE__ */ new WeakMap();
 var scrolled = /* @__PURE__ */ new Set();
 var scrollReading = 0;
 function scheduleScrollReading() {
@@ -786,10 +746,6 @@ function scheduleScrollReading() {
     scrollReading = 0;
     const boxes = [...scrolled];
     scrolled.clear();
-    if (!scrollFollows()) {
-      layoutMarginRows({ retainSeats: true });
-      return;
-    }
     if (boxes.includes(pageScroller) && scrollX !== laidOutScrollX && [...carriers.values()].some((held2) => held2.y.length)) {
       scheduleMarginLayout();
       return;
@@ -803,13 +759,8 @@ function scheduleScrollReading() {
         return false;
       });
       if (!moving) continue;
-      const follows = scrollFollows(targetBox(target));
-      if (follows && !row.classList.contains("lf-withheld") && boxes.every((box) => box === pageScroller))
+      if (!row.classList.contains("lf-withheld") && boxes.every((box) => box === pageScroller))
         continue;
-      if (!follows) {
-        layoutMarginRows({ retainSeats: true });
-        return;
-      }
       const extent = shownExtent(target);
       const by = standsBy.get(row);
       const stands = row.classList.contains("lf-withheld") || !extent || !by ? null : row.dataset.lfPlace === "pin" ? { top: extent.top + by.top, right: extent.right + by.right } : { top: extent.top + by.top };
@@ -820,7 +771,7 @@ function scheduleScrollReading() {
     }
   });
 }
-function layoutMarginRows({ retainSeats = false } = {}) {
+function layoutMarginRows() {
   cancelRender(pending);
   pending = 0;
   if (!layer) return;
@@ -861,14 +812,6 @@ function layoutMarginRows({ retainSeats = false } = {}) {
     }
   }
   const carrierNames = /* @__PURE__ */ new Map();
-  const sourceMotions = /* @__PURE__ */ new Map();
-  const motionsFor = (sources, subject) => sources.flatMap((source, i) => {
-    const carried = sources[i - 1] ?? subject;
-    let subjects = sourceMotions.get(source);
-    if (!subjects) sourceMotions.set(source, subjects = /* @__PURE__ */ new Map());
-    if (!subjects.has(carried)) subjects.set(carried, scrollMotions(source, carried));
-    return subjects.get(carried);
-  });
   for (const [row, options] of rows) {
     const target = options.anchor();
     if (!target?.isConnected) {
@@ -878,7 +821,7 @@ function layoutMarginRows({ retainSeats = false } = {}) {
     }
     if (skipped(target)) {
       present.push({ row, at: null });
-      const home = motionRoot(row).parentElement ?? layer.root;
+      const home = row.parentElement ?? layer.root;
       reads.push({
         row,
         options,
@@ -956,7 +899,7 @@ function layoutMarginRows({ retainSeats = false } = {}) {
   });
   for (const entry of placed) {
     const seat = seats.get(entry.read.row);
-    if (entry.read.place !== "pin" || !seat || !(entry.held || retainSeats)) continue;
+    if (entry.read.place !== "pin" || !seat || !entry.held) continue;
     const heldBox = targetBox(entry.read.target).getBoundingClientRect();
     const width = entry.rect.right - entry.rect.left;
     const height = entry.rect.bottom - entry.rect.top;
@@ -991,30 +934,41 @@ function layoutMarginRows({ retainSeats = false } = {}) {
   for (const read of reads) {
     if (!read.target) continue;
     const subject = read.point ?? read.target;
-    const sources = scrollSources(subject);
-    read.motions = motionsFor(sources, targetBox(subject));
-    read.carrier = sources.length && scrollsWith(subject, sources[0]) ? carriedAnchor(sources[0]) : null;
+    read.carrier = carrierAnchor(subject, scrollSources(subject), read.scroller);
     read.carrierBox = read.carrier?.getBoundingClientRect();
     read.lane = read.scroller === pageScroller ? layer.root : null;
     if (read.carrier && !carrierNames.has(read.carrier))
       carrierNames.set(read.carrier, anchorReading(read.carrier));
   }
   const regions = /* @__PURE__ */ new Map();
-  const laneMotions = /* @__PURE__ */ new Map();
+  const ring = 6;
   for (const read of reads)
     if (read.scroller && read.scroller !== pageScroller && !regions.has(read.scroller)) {
-      regions.set(
-        read.scroller,
-        clippedBand(
-          read.scroller,
-          shownBand(read.scroller) ?? read.scroller.getBoundingClientRect(),
-          bands
-        )
-      );
-      laneMotions.set(
-        read.scroller,
-        motionsFor(scrollSources(read.scroller), read.scroller)
-      );
+      const holders = [read.scroller, ...scrollSources(read.scroller)];
+      const rail = stands && railBeside(read.scroller);
+      const levels = holders.map((holder, i) => {
+        const band = clippedBand(
+          holder,
+          shownBand(holder) ?? holder.getBoundingClientRect(),
+          bands,
+          holders[i + 1]
+        );
+        const anchor = anchorElement(holder);
+        const axes = i ? clippingAxes(getComputedStyle(holder)) : { x: true, y: true };
+        return {
+          anchor,
+          reading: anchorReading(anchor),
+          at: anchor.getBoundingClientRect(),
+          band: !band ? null : i ? band : {
+            ...band,
+            left: band.left - ring,
+            right: (rail ? shell : band.right) + ring
+          },
+          axes: rail ? { ...axes, x: false } : axes
+        };
+      }).reverse();
+      if (rail) levels.at(-1).axes = { x: true, y: true };
+      regions.set(read.scroller, levels);
     }
   watchGeometry(geometry);
   for (const read of reads) read.lane ??= laneFor(read.scroller);
@@ -1023,18 +977,28 @@ function layoutMarginRows({ retainSeats = false } = {}) {
     (a, b) => (a.options.order ?? 0) - (b.options.order ?? 0)
   ))
     byLane.set(read.lane, [...byLane.get(read.lane) ?? [], read]);
-  const laneScroller = new Map(
-    [...layer.lanes].map(([scroller, lane]) => [lane, scroller])
-  );
+  for (const [scroller, lane] of layer.lanes) {
+    const levels = regions.get(scroller);
+    if (!levels) continue;
+    for (const { reading } of levels) nameAnchor(reading);
+    const hidden = { left: 0, top: 0, right: 0, bottom: 0 };
+    laneFrames.set(
+      lane,
+      cutFrames(
+        levels.map((level) => ({ ...level, band: level.band ?? hidden })),
+        laneFrames.get(lane),
+        makeLaneFrame
+      )
+    );
+  }
   let lastLane = layer.root;
   for (const [lane, members] of byLane) {
     if (lane !== layer.root) {
-      const root = motionRoot(lane);
+      const [root] = laneFrames.get(lane);
       if (lastLane.nextElementSibling !== root)
         move(lastLane.parentNode, root, lastLane.nextSibling);
       lastLane = root;
     }
-    const carries = !laneMotions.get(laneScroller.get(lane))?.length;
     const cursors = /* @__PURE__ */ new Map([[lane, lane.firstElementChild]]);
     const runs = /* @__PURE__ */ new Map();
     let previous = null;
@@ -1042,7 +1006,7 @@ function layoutMarginRows({ retainSeats = false } = {}) {
       const { row } = read;
       if (read.target) {
         const axes = read.place === "rail" ? "y" : "xy";
-        if (!read.carrier || !carries) read.home = lane;
+        if (!read.carrier) read.home = lane;
         else if (previous?.carrier === read.carrier && previous.axes === axes)
           read.home = previous.home;
         else {
@@ -1062,14 +1026,13 @@ function layoutMarginRows({ retainSeats = false } = {}) {
         else move(lane, home, at);
         cursors.set(home, home.firstElementChild);
       }
-      const root = motionRoot(row);
       let before = cursors.get(home);
       if (before && before.parentElement !== home) before = null;
-      if (before === root) {
-        cursors.set(home, root.nextElementSibling);
+      if (before === row) {
+        cursors.set(home, row.nextElementSibling);
         continue;
       }
-      move(home, root, before);
+      move(home, row, before);
       cursors.set(home, before);
     }
   }
@@ -1084,14 +1047,12 @@ function layoutMarginRows({ retainSeats = false } = {}) {
   }
   for (const [scroller, lane] of layer.lanes)
     if (!byLane.has(lane)) {
-      motionRoot(lane).remove();
-      clearTranslations(lane);
+      laneFrames.get(lane)[0].remove();
+      laneFrames.delete(lane);
       layer.lanes.delete(scroller);
       layer.sizes.unobserve(scroller);
     }
   for (const row of pushes.keys()) if (!packed.has(row)) pushes.delete(row);
-  for (const [scroller, lane] of layer.lanes)
-    carryScroll(lane, laneMotions.get(scroller) ?? []);
   for (const { key: row, rect, read, visualLeft, step = 0 } of placed) {
     const push = packed.get(row) ?? 0;
     pushes.set(row, push);
@@ -1128,43 +1089,10 @@ function layoutMarginRows({ retainSeats = false } = {}) {
       );
       setStyle(row, "--lf-margin-x", layoutPx(left));
       setStyle(row, "--lf-margin-y", layoutPx(top));
-      carryScroll(row, []);
       continue;
     }
-    const carried = laneMotions.get(read.scroller) ?? [];
-    const own = (read.motions ?? []).map((motion) => {
-      const outer = carried.find(
-        (item) => item.source === motion.source && item.axis === motion.axis
-      );
-      return {
-        ...motion,
-        vector: {
-          x: (read.place === "rail" ? 0 : motion.vector.x) - (outer?.vector.x ?? 0),
-          y: motion.vector.y - (outer?.vector.y ?? 0)
-        }
-      };
-    }).filter((motion) => motion.vector.x || motion.vector.y);
-    const byRow = carryScroll(row, own);
-    const byLane2 = scrolledBy(translations.get(read.lane)?.motions ?? []);
-    setStyle(row, "--lf-margin-x", layoutPx(left + scrollX - byRow.x - byLane2.x));
-    setStyle(row, "--lf-margin-y", layoutPx(top + scrollY - byRow.y - byLane2.y));
-  }
-  for (const [scroller, lane] of layer.lanes) {
-    const region = regions.get(scroller);
-    const byLane2 = scrolledBy(translations.get(lane)?.motions ?? []);
-    const at = { left: byLane2.x - scrollX, top: byLane2.y - scrollY };
-    const ring = 6;
-    const right = (stands && railBeside(scroller) ? shell : region?.right) + ring;
-    const clip = region ? `polygon(${[
-      [region.left - ring, region.top],
-      [right, region.top],
-      [right, region.bottom],
-      [region.left - ring, region.bottom]
-    ].map(([x, y]) => `${layoutPx(x - at.left)} ${layoutPx(y - at.top)}`).join(", ")})` : "polygon(0 0)";
-    if (clips.get(lane) !== clip) {
-      lane.style.clipPath = clip;
-      clips.set(lane, clip);
-    }
+    setStyle(row, "--lf-margin-x", layoutPx(left + scrollX));
+    setStyle(row, "--lf-margin-y", layoutPx(top + scrollY));
   }
   document.dispatchEvent(
     new CustomEvent("lf-margin-layout", {
@@ -1252,62 +1180,13 @@ var floatingSelections = () => [...stood.values()];
 var physicalContext = (context) => context instanceof Element ? context : context?.parentElement;
 function floatingGeometry(contexts) {
   const anchors2 = /* @__PURE__ */ new Map();
-  if (CSS.supports("anchor-name", "--lf-anchor"))
-    for (const context of contexts) {
-      const anchor = anchorFor(context);
-      if (anchor) anchors2.set(anchor, anchor.getBoundingClientRect());
-    }
-  return { anchors: anchors2, origins: scrollOrigins(contexts) };
+  for (const context of contexts) {
+    const anchor = anchorFor(context);
+    if (anchor) anchors2.set(anchor, anchor.getBoundingClientRect());
+  }
+  return { anchors: anchors2 };
 }
 function floatingPlacement({ floating, update }) {
-  let frame = floating;
-  let layers = [];
-  let graph = [];
-  function motionFrame(sources) {
-    if (sources.length === graph.length && sources.every(
-      (motion, i) => motion.source === graph[i].source && motion.axis === graph[i].axis
-    ))
-      return;
-    if (frame === floating && sources.length) {
-      frame = document.createElement("div");
-      frame.className = "lf-ui";
-      Object.assign(frame.style, {
-        position: "fixed",
-        display: "grid",
-        width: "max-content",
-        height: "max-content",
-        pointerEvents: "none",
-        zIndex: getComputedStyle(floating).zIndex
-      });
-      floating.before(frame);
-      Object.assign(floating.style, {
-        position: "relative",
-        left: "auto",
-        right: "auto",
-        top: "auto",
-        bottom: "auto"
-      });
-    }
-    if (frame === floating) return;
-    const previous = layers;
-    layers = [];
-    let parent = frame;
-    for (let i = 0; i < sources.length; i++) {
-      const layer2 = document.createElement("div");
-      Object.assign(layer2.style, {
-        display: "grid",
-        width: "max-content",
-        height: "max-content",
-        pointerEvents: "none"
-      });
-      parent.append(layer2);
-      layers.push(layer2);
-      parent = layer2;
-    }
-    move(parent, floating, null);
-    for (const layer2 of previous) layer2.remove();
-    graph = sources;
-  }
   let epoch = 0;
   let watched = null;
   let observer2 = null;
@@ -1316,13 +1195,13 @@ function floatingPlacement({ floating, update }) {
   let lastAnchorStand = null;
   const inset = (insets) => {
     for (const edge of INSETS)
-      if (insets[edge] === void 0) frame.style.removeProperty(edge);
-      else frame.style.setProperty(edge, insets[edge]);
+      if (insets[edge] === void 0) floating.style.removeProperty(edge);
+      else floating.style.setProperty(edge, insets[edge]);
   };
   const placedAt = ({ x, y, middlewareData }) => {
     lastAnchorStand = null;
     const { edges, width, height, block } = middlewareData.held;
-    frame.style.removeProperty("position-anchor");
+    floating.style.removeProperty("position-anchor");
     inset({
       [edges.x]: layoutPx(edges.x === "left" ? x : block.width - x - width),
       [edges.y]: layoutPx(edges.y === "top" ? y : block.height - y - height)
@@ -1336,10 +1215,10 @@ function floatingPlacement({ floating, update }) {
     const lengthY = atLayoutPrecision(
       edges.y === "top" ? y - at.y : at.y - y - height
     );
-    if (lastAnchorStand?.frame === frame && lastAnchorStand.anchor === anchor && lastAnchorStand.edgeX === edges.x && lastAnchorStand.edgeY === edges.y && lastAnchorStand.lengthX === lengthX && lastAnchorStand.lengthY === lengthY)
+    if (lastAnchorStand?.anchor === anchor && lastAnchorStand.edgeX === edges.x && lastAnchorStand.edgeY === edges.y && lastAnchorStand.lengthX === lengthX && lastAnchorStand.lengthY === lengthY)
       return;
     const from = (side, length, fallback) => `calc(anchor(${side}, ${layoutPx(fallback)}) + ${layoutPx(length)})`;
-    frame.style.positionAnchor = anchorName(anchor);
+    floating.style.positionAnchor = anchorName(anchor);
     inset({
       [edges.x]: from(
         "left",
@@ -1349,7 +1228,6 @@ function floatingPlacement({ floating, update }) {
       [edges.y]: from("top", lengthY, edges.y === "top" ? at.y : block.height - at.y)
     });
     lastAnchorStand = {
-      frame,
       anchor,
       edgeX: edges.x,
       edgeY: edges.y,
@@ -1358,7 +1236,6 @@ function floatingPlacement({ floating, update }) {
     };
   };
   let stand = placedAt;
-  let scrollAnimations = [];
   let placementProof = null;
   let stopScrollInvalidation = null;
   return {
@@ -1399,8 +1276,6 @@ function floatingPlacement({ floating, update }) {
         stopGeometry();
       };
     },
-    holdsHome: (home) => frame !== floating && frame.parentElement === home && frame.contains(floating),
-    nativeAvailable: () => CSS.supports("anchor-name", "--lf-anchor") && scrollFollows(),
     follows: () => placementProof?.plane === "page",
     begin: () => ++epoch,
     current: (placement) => placement === epoch,
@@ -1414,55 +1289,26 @@ function floatingPlacement({ floating, update }) {
       const placement = epoch;
       const context = reference.contextNode ?? beside;
       const physical = physicalContext(context);
-      const anchoring = CSS.supports("anchor-name", "--lf-anchor");
-      const anchor = anchoring ? anchorFor(context) : null;
+      const anchor = anchorFor(context);
       const client = reference.getBoundingClientRect();
       const geometry = reference.geometry ?? floatingGeometry([context]);
       const anchorBox = geometry.anchors.get(anchor);
-      const { origins } = geometry;
       const { getOverflowAncestors } = await floatingUi();
       if (placement !== epoch) return null;
       const measured = {
         contextElement: reference.contextElement ?? beside,
         getBoundingClientRect: () => client
       };
-      const carrying = anchor && anchorHolder(anchor);
-      const carried = new Set(
-        carrying ? [
-          ...carrying === anchor ? [] : [carrying],
-          ...getOverflowAncestors(carrying)
-        ] : []
-      );
-      const sources = context ? getOverflowAncestors(context).filter(
-        (source) => source instanceof Element && !carried.has(source)
-      ) : [];
-      const surfaceBox = floating.getBoundingClientRect();
-      const reach2 = Math.hypot(innerWidth, innerHeight) + Math.hypot(surfaceBox.width, surfaceBox.height);
-      const motions = sources.flatMap(
-        (source, i) => scrollMotions(
-          source,
-          sources[i - 1] ?? (source === physical ? {
-            contextElement: physical,
-            getBoundingClientRect: measured.getBoundingClientRect
-          } : physical),
-          reach2,
-          origins.get(source)
-        )
-      );
-      const canFollow = anchor && motions.every((motion) => motion.timeline);
-      motionFrame(canFollow ? motions : []);
-      const answer = await computePosition(measured, frame, {
+      const answer = await computePosition(measured, floating, {
         ...options,
         strategy: "fixed",
         middleware: [...options.middleware, held, anchorAt(measured)]
       });
       if (placement !== epoch) return null;
-      const previousAnimations = scrollAnimations;
-      scrollAnimations = [];
       const { offset, scale } = answer.middlewareData.anchorAt;
       const wanted = planeOf(answer);
-      const holder = anchoring && offset && physical && typeof wanted === "object" ? holderOf(wanted, physical, getOverflowAncestors(physical)) : null;
-      const plane = wanted === "page" && canFollow && offset ? "page" : holder ? "region" : "window";
+      const holder = offset && physical && typeof wanted === "object" ? holderOf(wanted, physical, getOverflowAncestors(physical)) : null;
+      const plane = wanted === "page" && anchorBox && offset ? "page" : holder ? "region" : "window";
       const frameAnchor = plane === "page" ? anchor : plane === "region" ? anchorElement(holder) : null;
       const frameBox = plane === "page" ? anchorBox : frameAnchor?.getBoundingClientRect();
       const at = offset && {
@@ -1473,19 +1319,13 @@ function floatingPlacement({ floating, update }) {
       stopScrollInvalidation?.();
       stopScrollInvalidation = null;
       if (plane !== "page") {
-        const sources2 = context ? [...new Set(getOverflowAncestors(context))] : [];
-        for (const source of sources2)
+        const sources = context ? [...new Set(getOverflowAncestors(context))] : [];
+        for (const source of sources)
           source.addEventListener("scroll", update, { passive: true });
         stopScrollInvalidation = () => {
-          for (const source of sources2) source.removeEventListener("scroll", update);
+          for (const source of sources) source.removeEventListener("scroll", update);
         };
       }
-      if (plane === "page")
-        scrollAnimations = motions.map(
-          (motion, i) => followScroll(layers[i], motion, motion.scroll, previousAnimations[i])
-        );
-      for (const animation of previousAnimations)
-        if (!scrollAnimations.includes(animation)) animation.cancel();
       stand = frameAnchor ? anchoredAt(frameAnchor, at) : placedAt;
       placementProof = at ? {
         subject: watched,
@@ -1551,8 +1391,6 @@ function floatingPlacement({ floating, update }) {
     stop() {
       epoch += 1;
       lastAnchorStand = null;
-      for (const animation of scrollAnimations) animation.cancel();
-      scrollAnimations = [];
       stopWatching?.();
       stopScrollInvalidation?.();
       stopScrollInvalidation = null;
@@ -1562,14 +1400,6 @@ function floatingPlacement({ floating, update }) {
       tenure = Object.freeze({});
       placementProof = null;
       stood.delete(floating);
-      if (frame !== floating) {
-        if (frame.contains(floating)) move(frame.parentNode, floating, frame);
-        frame.remove();
-        frame = floating;
-        layers = [];
-        graph = [];
-        floating.style.removeProperty("position");
-      }
       delete floating.dataset.lfPlane;
       for (const property of ["position-anchor", ...INSETS])
         floating.style.removeProperty(property);
@@ -1606,9 +1436,9 @@ function commentAttachment({
   const context = point ?? passage?.contextNode ?? target;
   const element = point ?? target;
   const geometry = floatingGeometry([element, context]);
-  const clips2 = /* @__PURE__ */ new Map();
+  const clips = /* @__PURE__ */ new Map();
   const shown = union(
-    shownParts(target).map((part) => shownRect(part, clips2)).filter(Boolean)
+    shownParts(target).map((part) => shownRect(part, clips)).filter(Boolean)
   );
   const whole = shownExtent(target) ?? target.getBoundingClientRect();
   const extent = point ? pointBand(whole, point) : whole;

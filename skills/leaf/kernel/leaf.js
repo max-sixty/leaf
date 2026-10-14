@@ -910,6 +910,9 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
   };
   function wireInput(ta, {
     hint,
+    // A structured visual hint can mark the exact words its owner observes. It
+    // shares the existing placeholder slot and send key; null keeps the plain hint.
+    hintParts = null,
     accessibleName = null,
     save,
     send,
@@ -1078,8 +1081,10 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       const word2 = status || label2();
       const placeholder = suffix && !status ? `${word2} ${suffix}` : word2;
       if (ta.placeholder !== placeholder) ta.placeholder = placeholder;
-      if (suffix && !status) {
-        keepsText(hintLabel, word2);
+      const parts = status ? null : hintParts?.();
+      if (hintParts) render(parts ?? word2, hintLabel);
+      if (suffix && !status || parts !== null && parts !== void 0) {
+        if (!hintParts) keepsText(hintLabel, word2);
         keepsText(hintKey, suffix);
         if (visibleHint.parentNode !== ta) move(ta, visibleHint, null);
       } else visibleHint.remove();
@@ -5860,12 +5865,19 @@ function pickedUpWords({ comments, answers }) {
     answers && counted(answers, "answer")
   ].filter(Boolean).join(" and ");
 }
+var textParts = (words) => (Array.isArray(words) ? words : [words]).filter(Boolean).map((part) => typeof part === "string" ? { text: part } : part);
+var textOf = (parts) => parts.map((part) => part.text).join("");
+var appendWords = (parts, words, step = false) => {
+  const head = textOf(parts);
+  parts.push({ text: after(head, words, step).slice(head.length) });
+};
 function statusWords({
   age,
   agent,
   dated,
   shortDate,
   detail,
+  detailSource,
   handling,
   kind,
   listening,
@@ -5880,10 +5892,10 @@ function statusWords({
   }
   if (kind === "working") {
     const picked = pickedUpWords(handling);
-    const said = detail ? " \u2014 " + detail : picked ? " \u2014 picked up " + picked : "";
+    const said = detail ? [" \u2014 ", { text: detail, source: detailSource }] : picked ? [" \u2014 picked up " + picked] : [];
     return [
-      `${agent} ${work}${age && age !== JUST_NOW ? " \xB7 " + age : ""}${said}`,
-      detail || !picked ? `${agent} is ${work}${said}` : `${agent} picked up ${picked} and hasn't said what it's doing yet`,
+      [`${agent} ${work}${age && age !== JUST_NOW ? " \xB7 " + age : ""}`, ...said],
+      detail || !picked ? [`${agent} is ${work}`, ...said] : `${agent} picked up ${picked} and hasn't said what it's doing yet`,
       detail || !picked ? "" : "It hasn't said what it's doing yet."
     ];
   }
@@ -5902,8 +5914,15 @@ function statusWords({
   if (kind === "stalled")
     return [
       shortDate,
-      `${dated}${detail ? ": " + detail : ""}. ${saved}`,
-      `${detail ? `Last said: ${detail}. ` : ""}${saved}`
+      [
+        dated,
+        ...detail ? [": ", { text: detail, source: detailSource }] : [],
+        `. ${saved}`
+      ],
+      [
+        ...detail ? ["Last said: ", { text: detail, source: detailSource }, ". "] : [],
+        saved
+      ]
     ];
   return overdue ? [
     `Nudge ${agent} in terminal`,
@@ -5950,12 +5969,13 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
   const checkedIn = facts.silentSince ? `${agent} last checked in ${facts.silentSince}` : `No check-in from ${agent} is recorded`;
   const ended = `${agent}\u2019s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-  const [summary, text, beyond, asked = false] = statusWords({
+  const [summaryWords, explanationWords, beyond, asked = false] = statusWords({
     age,
     agent,
     dated: facts.left ? ended : checkedIn,
     shortDate: facts.left ? ended : checkedIn,
     detail,
+    detailSource: activity.detail_source,
     handling: {
       comments: activity.counts.handling_comments,
       answers: activity.counts.handling - activity.counts.handling_comments
@@ -5966,11 +5986,13 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
     saved,
     work: facts.work
   });
-  let explanation = age ? `${text} (${age})` : text;
-  let adds = beyond;
+  const summaryParts = textParts(summaryWords);
+  const explanationParts = textParts(explanationWords);
+  if (age) explanationParts.push({ text: ` (${age})` });
+  const addsParts = textParts(beyond);
   const append = (words, step = false) => {
-    explanation = after(explanation, words, step);
-    adds = after(adds, words, step);
+    appendWords(explanationParts, words, step);
+    appendWords(addsParts, words, step);
   };
   if (activity.observed && activity.observed !== detail)
     append(activity.observed, true);
@@ -5982,9 +6004,12 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
   return {
     kind,
     tone: facts.tone,
-    summary,
-    explanation,
-    adds,
+    summary: textOf(summaryParts),
+    summaryParts,
+    explanation: textOf(explanationParts),
+    explanationParts,
+    adds: textOf(addsParts),
+    addsParts,
     asks: asked || waitsThere,
     actionableWork
   };
@@ -6022,10 +6047,14 @@ var WITHOUT_QUEUES = /* @__PURE__ */ new Set(["broken", "unreachable", "publicat
 function statusModel(status, queues, agent) {
   const { kind, tone, summary, asks: asks2 = false, publication = null } = status;
   let { explanation, adds } = status;
+  let explanationParts = [...status.explanationParts ?? textParts(explanation)];
+  let addsParts = [...status.addsParts ?? textParts(adds)];
   const counted = WITHOUT_QUEUES.has(kind) ? { summary: "", explanation: "", widest: "" } : queueWords(queues, agent);
   if (counted.explanation) {
-    explanation = after(explanation, counted.explanation);
-    adds = after(adds, counted.explanation);
+    appendWords(explanationParts, counted.explanation);
+    appendWords(addsParts, counted.explanation);
+    explanation = textOf(explanationParts);
+    adds = textOf(addsParts);
   }
   let publicationModel = null;
   if (publication) {
@@ -6033,6 +6062,8 @@ function statusModel(status, queues, agent) {
     const examples = publication.kind === "example" ? "Other examples" : null;
     explanation = said + (examples ? `${examples} ` : "") + installs;
     adds = explanation;
+    explanationParts = textParts(explanation);
+    addsParts = textParts(explanation);
     publicationModel = Object.freeze({
       copy: said,
       examples,
@@ -6044,6 +6075,9 @@ function statusModel(status, queues, agent) {
   return Object.freeze({
     tone,
     summary,
+    summaryParts: status.summaryParts ?? textParts(summary),
+    explanationParts,
+    addsParts,
     asks: asks2,
     queues: counted.summary,
     queuesWidest: counted.widest,
@@ -6293,7 +6327,9 @@ var rowTemplate = (row, activate, finish, end) => html`<div class="lf-queue-item
     >
       <span class="lf-queue-kind">${row.word}</span>
       <span class="lf-queue-title">${row.title}</span>
-      <span class="lf-queue-where">${row.where}</span>
+      <span class="lf-queue-where"
+        >${row.where.map((part, index) => html`${index ? " \xB7 " : ""}${part.feedback ? html`<span class="lf-queue-feedback">${part.text}</span>` : part.text}`)}</span
+      >
     </button>
     ${row.done ? html`<button
             type="button"
@@ -6319,6 +6355,8 @@ var QueueList = class extends RetainedFace {
   #activate = null;
   #finish = null;
   #fallback = null;
+  #observeFeedback = null;
+  #feedbackStops = [];
   // Across a repaint the user keeps their row, or the nearest that survived it
   // (focus.js, keyed `holdFocus`); a panel opened from its edge lands on its first stop.
   #restoreFocus = null;
@@ -6326,10 +6364,11 @@ var QueueList = class extends RetainedFace {
   constructor() {
     super(EMPTY_MODEL2);
   }
-  configure({ activate, finish, fallback }) {
+  configure({ activate, finish, fallback, observeFeedback }) {
     this.#activate = activate;
     this.#finish = finish;
     this.#fallback = fallback;
+    this.#observeFeedback = observeFeedback;
   }
   willUpdate(changed) {
     if (!changed.has("model")) return;
@@ -6346,6 +6385,18 @@ var QueueList = class extends RetainedFace {
     this.#finish?.(key);
   };
   updated() {
+    for (const stop of this.#feedbackStops) stop();
+    this.#feedbackStops = [];
+    if (this.#observeFeedback) {
+      for (const row of this.model.queue.rows) {
+        const feedback = row.where.find((part) => part.feedback)?.feedback;
+        if (!feedback) continue;
+        const words = this.querySelector(
+          `${ROW2}[${QUEUE_ROW}="${CSS.escape(row.key)}"] .lf-queue-feedback`
+        );
+        this.#feedbackStops.push(this.#observeFeedback(words, feedback));
+      }
+    }
     const [landing2, restore] = [this.#landing, this.#restoreFocus];
     [this.#landing, this.#restoreFocus] = [false, null];
     if (landing2) {
@@ -6353,6 +6404,11 @@ var QueueList = class extends RetainedFace {
       if (place2) focusDestination(place2, "move");
     }
     restore?.(this.#fallback);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    for (const stop of this.#feedbackStops) stop();
+    this.#feedbackStops = [];
   }
   #activateRow = (event) => {
     const key = event.currentTarget.getAttribute(QUEUE_ROW);
@@ -6599,6 +6655,8 @@ var BannerStatusView = class extends HTMLElement {
   #onToggle = null;
   #notice = { message: "", visible: false };
   #model = null;
+  #observeFeedback = null;
+  #feedbackStops = [];
   #queues = el("button", "lf-status-queues");
   #presentQueues = () => {
     const model = this.#model;
@@ -6624,6 +6682,14 @@ var BannerStatusView = class extends HTMLElement {
   configure({ onToggle, initial }) {
     this.#onToggle = onToggle;
     this.present(initial);
+  }
+  trackFeedback(observe) {
+    this.#observeFeedback = observe;
+    this.#paint();
+  }
+  disconnectedCallback() {
+    for (const stop of this.#feedbackStops) stop();
+    this.#feedbackStops = [];
   }
   get dot() {
     return this.#dot.value;
@@ -6655,11 +6721,14 @@ var BannerStatusView = class extends HTMLElement {
           >${this.#notice.message}</span
         ></span
       >`;
+    const parts = (reading) => reading.map(
+      (part) => part.source ? html`<span class="lf-status-feedback">${part.text}</span>` : part.text
+    );
     const summary = publication ? html`<span class="lf-publication-copy">${publication.copy}</span>${publication.examplesUrl ? html`<a class="lf-publication-link" href=${publication.examplesUrl}
                   >${publication.examples + " "}</a
                 >` : nothing}<a class="lf-publication-install" href=${publication.installUrl}
             >${publication.install}</a
-          >` : model.summary;
+          >` : parts(model.summaryParts ?? [{ text: model.summary }]);
     const status = html`${dot}${words(summary)}`;
     render(
       publication ? status : html`<button
@@ -6682,10 +6751,30 @@ var BannerStatusView = class extends HTMLElement {
               @toggle=${this.#toggled}
               ${ref(this.#detail)}
             >
-              ${model.explanation}
+              ${parts(model.explanationParts ?? [{ text: model.explanation }])}
             </div>`,
       this
     );
+    for (const stop of this.#feedbackStops) stop();
+    this.#feedbackStops = [];
+    if (this.#observeFeedback && !publication) {
+      const sources = [
+        ...model.summaryParts ?? [],
+        ...model.explanationParts ?? []
+      ].filter((part) => part.source);
+      const words2 = this.querySelectorAll(".lf-status-feedback");
+      sources.forEach((part, index) => {
+        this.#feedbackStops.push(
+          this.#observeFeedback(words2[index], {
+            input_id: part.source.item,
+            reply_id: part.source.event_id,
+            reply_kind: "work",
+            presentation_kind: "banner_words",
+            surface: "banner"
+          })
+        );
+      });
+    }
   }
 };
 if (!customElements.get(TAG3)) customElements.define(TAG3, BannerStatusView);
@@ -7159,7 +7248,8 @@ var isSignoffDeclared = () => (
   document.querySelector('meta[name="lf-review"]')?.content === "sign-off"
 );
 var signoff = false;
-function mountBanner({ approveVersion }) {
+function mountBanner({ approveVersion, observeFeedback }) {
+  bannerStatus.trackFeedback(observeFeedback);
   signoff = isSignoffDeclared();
   showBannerControl(approveBtn, signoff);
   approvalWatch = watchProjection(document.body, drawApproval);
@@ -7268,6 +7358,7 @@ function createFloatingPanel({
   wireInput,
   threadActions,
   registerChromeThreadPresentation,
+  observeFeedback,
   asks: askView,
   queueActions,
   withdraw
@@ -7321,11 +7412,32 @@ function createFloatingPanel({
   const CONNECTING = {
     tone: "",
     summary: "Connecting\u2026",
+    summaryParts: [{ text: "Connecting\u2026", source: null }],
     explanation: "Connecting\u2026",
+    explanationParts: [{ text: "Connecting\u2026", source: null }],
     adds: "",
+    addsParts: [],
     asks: false
   };
   const status = () => statusReading() ?? CONNECTING;
+  const statusParts = (parts) => parts.map((part) => {
+    if (!part.source) return part.text;
+    let stop = null;
+    return html`<span
+        class="lf-fp-status-feedback"
+        ${ref((node) => {
+      stop?.();
+      stop = node ? observeFeedback(node, {
+        input_id: part.source.item,
+        reply_id: part.source.event_id,
+        reply_kind: "work",
+        presentation_kind: "banner_words",
+        surface: "panel"
+      }) : null;
+    })}
+        >${part.text}</span
+      >`;
+  });
   let trail = [];
   let leaving = null;
   let menuOpen = false;
@@ -7362,6 +7474,10 @@ function createFloatingPanel({
     input.value = loadDraft(PAGE_DRAFT) ?? "";
     const sync = wireInput(input, {
       hint: () => fieldReading(null, input).words,
+      hintParts: () => {
+        const parts = status().summaryParts;
+        return fieldReading(null, input).says === "status" && parts?.some((part) => part.source) ? statusParts(parts) : null;
+      },
       accessibleName: "Comment on the page",
       sends: "send",
       sendBtn: send,
@@ -7848,7 +7964,7 @@ function createFloatingPanel({
     const groups = Object.keys(GROUPS).filter(
       (group2) => all.some((entry) => groupOf(entry) === group2 && listed(entry))
     );
-    const { tone, summary, adds } = status();
+    const { tone, summary, summaryParts, adds, addsParts } = status();
     const word2 = TONE_WORDS[tone];
     const part = (name2, text) => (held ? held[name2] : text) ? html`<span
             class="lf-fp-${name2}"
@@ -7881,10 +7997,10 @@ function createFloatingPanel({
         data-tone=${tone || nothing}
         ?data-held=${held !== null}
       >
-        <b>${word2 ?? summary}</b>${part("summary", word2 ? summary : "")}${part(
-      "explain",
-      adds
-    )}
+        <b>${word2 ?? (summaryParts ? statusParts(summaryParts) : summary)}</b>${part(
+      "summary",
+      word2 ? summaryParts ? statusParts(summaryParts) : summary : ""
+    )}${part("explain", adds && addsParts ? statusParts(addsParts) : adds)}
       </div>
       ${seats2.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
@@ -7946,7 +8062,9 @@ function createFloatingPanel({
       )}${entry.comparable ? html`<button
                     type="button"
                     class="lf-fp-quiet lf-fp-compare"
-                    aria-pressed=${String(selection.on && selection.base === entry.version)}
+                    aria-pressed=${String(
+        selection.on && selection.base === entry.version
+      )}
                     aria-label=${`Compare with ${entry.name}`}
                     @click=${() => putAwayThen(() => versionPicker.compare(entry.version))}
                   >
@@ -8653,9 +8771,14 @@ function createFloatingPanel({
     const folded = host.dataset.rest === "mark";
     const notice2 = noticeReading();
     const telling = notice2.visible && (folded || overView && !menuOpen);
-    keepsText(
-      peek,
-      telling ? notice2.message : status().explanation || status().summary
+    const reading = status();
+    render(
+      telling ? notice2.message : statusParts(
+        reading.explanationParts ?? [
+          { text: reading.explanation || reading.summary }
+        ]
+      ),
+      peek
     );
     keeps(peek, "data-shown", telling || folded && peekAsked ? "" : null);
   }
@@ -10676,7 +10799,13 @@ function sectionWords(element) {
   const words = heading ? addressableLabel(heading) : "";
   return words ? `\xA7 ${words}` : "";
 }
-function createQueuePanel({ actions, next, announce: announce2, agentDoor }) {
+function createQueuePanel({
+  actions,
+  next,
+  announce: announce2,
+  agentDoor,
+  observeFeedback
+}) {
   const reading = readQueues;
   const threadOf = (id) => id === null ? null : readThreads().threads.find((thread) => thread.id === id) ?? null;
   const agent = agentName;
@@ -10700,16 +10829,26 @@ function createQueuePanel({ actions, next, announce: announce2, agentDoor }) {
     const named = addressableName(about);
     return named ? `\xA7 ${named}` : sectionWords(about) || anchorLabel(thread.anchor);
   }
+  const wherePart = (text, feedback = null) => ({ text, feedback });
   function when(item, thread) {
     if (itemNoun(item) === "ask")
-      return thread && shortAgo(threadSummary(thread).latest);
-    const state = [workflowLabel(item.workflow), item.workflow?.detail];
-    if (item.kind === "answer") return state.filter(Boolean).join(" \xB7 ");
-    if (item.kind === "work")
-      return [...state, shortAgo(item.workflow?.ts)].filter(Boolean).join(" \xB7 ");
+      return [wherePart(thread && shortAgo(threadSummary(thread).latest))];
+    const feedback = item.workflow?.detail && item.workflow.input ? {
+      input_id: item.workflow.input,
+      reply_id: null,
+      reply_kind: "work",
+      presentation_kind: "queue_words",
+      surface: "queue"
+    } : null;
+    const state = [
+      wherePart(workflowLabel(item.workflow)),
+      wherePart(item.workflow?.detail, feedback)
+    ];
+    if (item.kind === "answer") return state;
+    if (item.kind === "work") return [...state, wherePart(shortAgo(item.workflow?.ts))];
     if (item.kind === "todo" && item.running)
-      return [item.running.text, shortAgo(item.running.ts)].filter(Boolean).join(" \xB7 ");
-    return "";
+      return [wherePart(item.running.text), wherePart(shortAgo(item.running.ts))];
+    return [];
   }
   function ended(item) {
     if (item.kind === "ask") return askEnding(item.ask);
@@ -10719,7 +10858,7 @@ function createQueuePanel({ actions, next, announce: announce2, agentDoor }) {
     const thread = threadOf(item.thread);
     const noun = itemNoun(item);
     const word2 = noun === "ask" ? askWord(item) : wordOf(item, noun);
-    const where = (list === "done" ? [ended(item), place2(item, thread)] : [place2(item, thread), when(item, thread)]).filter(Boolean).join(" \xB7 ");
+    const where = (list === "done" ? [wherePart(ended(item)), wherePart(place2(item, thread))] : [wherePart(place2(item, thread)), ...when(item, thread)]).filter((part) => part.text);
     const words = queueTitle(item);
     const at = noun === "ask" || item.kind === "resend" && item.subject.kind === "widget" && item.thread === null ? item.kind === "ask" ? item.ask.id : item.subject.id : null;
     return Object.freeze({
@@ -10735,7 +10874,12 @@ function createQueuePanel({ actions, next, announce: announce2, agentDoor }) {
       // A to-do on the user that no widget answers ends at their Done, which its row
       // carries.
       done: item.offers.done,
-      account: [word2, words, where, list === "done" ? item.detail : ""].filter(Boolean).join(" \xB7 ")
+      account: [
+        word2,
+        words,
+        where.map((part) => part.text).join(" \xB7 "),
+        list === "done" ? item.detail : ""
+      ].filter(Boolean).join(" \xB7 ")
     });
   }
   let tab = "you";
@@ -10853,7 +10997,12 @@ function createQueuePanel({ actions, next, announce: announce2, agentDoor }) {
     const entry = rows2.get(key);
     if (entry?.done) actions.done(queueItemKey(entry.item));
   }
-  queueList.configure({ activate: goTo, finish, fallback: queuePanel });
+  queueList.configure({
+    activate: goTo,
+    finish,
+    fallback: queuePanel,
+    observeFeedback
+  });
   queueNextBtn.onclick = () => next();
   declareSide((node) => {
     const at = standsAt(node);
@@ -13392,7 +13541,8 @@ var queue = createQueuePanel({
   actions: app.queueActions,
   next: queueWalk.next,
   announce,
-  agentDoor: queueCounts
+  agentDoor: queueCounts,
+  observeFeedback: app.read.observeFeedback
 });
 var commandHints = createCommandHints({
   presentedControl: (control) => app.overlay?.presentedControl(control) ?? control
@@ -13419,6 +13569,7 @@ pageComment = createPageComment({
 });
 var floatingPanel = document.documentElement.lfChrome?.mode === "floating" ? createFloatingPanel({
   wireInput: inputs.wireInput,
+  observeFeedback: app.read.observeFeedback,
   threadActions: app.threadActions,
   registerChromeThreadPresentation: app.registerChromeThreadPresentation,
   asks: {
@@ -13679,6 +13830,7 @@ if (!offlineInteractive) {
   panelElements.mountOverlay();
   version.mount();
   mountBanner({
+    observeFeedback: app.read.observeFeedback,
     approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp })
   });
   auxiliarySurfaces.mount();

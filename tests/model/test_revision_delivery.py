@@ -651,11 +651,11 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-label", None)] == {"data-lf-inline": ""}
     assert marks[("lf-board", "board")] == {"data-lf-space": "available"}
-    assert marks[("aside", "note")] == {"data-lf-space": "column"}
+    assert marks[("aside", "note")] == {"data-lf-column": ""}
     assert marks[("aside", "chart-note")] == {"data-lf-space": "wide"}
     assert marks[("lf-feed", "feed")] == {
         "data-lf-bound": "end",
-        "data-lf-space": "column",
+        "data-lf-column": "",
     }
     assert marks[("table", "native")] == {"data-lf-space": "wide"}
     assert marks[("section", "wide")] == {"data-lf-space": "wide"}
@@ -690,13 +690,13 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<foo_bar data-lf-prepaint data-lf-gen="1" class="face">Ready</foo_bar>', ""
     )
     for mark in (
-        ' data-lf-space="column"',
+        ' data-lf-column=""',
         ' data-lf-space="wide"',
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',
         ' data-lf-space="available"',
         ' data-lf-bound="end"',
-        ' data-lf-space="column"',
+        ' data-lf-column=""',
         ' data-lf-space="wide"',
         ' data-lf-space="wide"',
         ' data-lf-bound="start"',

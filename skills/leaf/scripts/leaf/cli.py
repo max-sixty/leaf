@@ -624,8 +624,8 @@ def interactions(
     """Read diagnostics chronologically, one JSON record per line, without
     acknowledging user input.
 
-    Retries are deduplicated, split records are reconstructed, and gaps remain
-    visible even with a type filter.
+    Retries are deduplicated and sequence gaps remain visible even with a type
+    filter. Stored timestamps use the host clock.
     """
     from leaf.interaction_log import interaction_time, read_interactions
 

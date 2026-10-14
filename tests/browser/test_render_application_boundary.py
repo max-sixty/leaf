@@ -2,14 +2,17 @@
 
 import json
 import re
+from datetime import UTC, datetime
 from itertools import pairwise
 
 import pytest
 from interact_support import append_carried_log_record, append_command
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
+from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf_dev.commands.response_times import page_timings
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_READING,
@@ -200,8 +203,10 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     page.locator("h1").click()
     with page.expect_response(lambda response: contains(response, "command")):
         page.keyboard.press("?")
-    with page.expect_response(lambda response: contains(response, "interaction_part")):
-        page.locator("#trace-input").fill("x" * 50_000)
+    with page.expect_response(
+        lambda response: contains(response, "interaction_omitted")
+    ):
+        page.locator("#trace-input").fill("é" * 25_000)
 
     rows = [
         json.loads(line)
@@ -212,7 +217,7 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     inputs = [row for row in rows if row.get("type") == "input"]
     clicks = [row for row in rows if row.get("type") == "click"]
     commands = [row for row in rows if row.get("type") == "command"]
-    parts = [row for row in rows if row.get("type") == "interaction_part"]
+    omitted = [row for row in rows if row.get("type") == "interaction_omitted"]
     assert any(
         row["value"] == "hello"
         and any("input#trace-input" in part for part in row["target"])
@@ -227,18 +232,123 @@ def test_browser_interactions_are_recorded_beside_server_requests(browser, serve
     assert reference["focus"]["target"] == "body"
     assert reference["scroll"] == [0, 0]
     assert len({row["session"] for row in inputs + clicks + commands}) == 1
-    grouped = [row for row in parts if row["partOf"] == parts[0]["partOf"]]
-    reconstructed = json.loads(
-        "".join(row["json"] for row in sorted(grouped, key=lambda row: row["part"]))
+    assert omitted
+    assert all(
+        row["originalType"] in {"beforeinput", "input"}
+        and row["reason"] == "record_exceeds_limit"
+        and row["bytes"] > 40_000
+        and row["monotonic_ms"] >= 0
+        and row["visibility"] == "visible"
+        and row["observed_at"]
+        for row in omitted
     )
-    assert reconstructed["type"] in {"beforeinput", "input"}
-    assert "x" * 50_000 in {reconstructed.get("value"), reconstructed.get("data")}
+    assert "é" * 25_000 not in json.dumps(rows, ensure_ascii=False)
     assert any(
         row.get("source") == "server"
         and row["method"] == "POST"
         and row["path"] == "/api/interaction"
         and row["status"] == 204
         for row in rows
+    )
+
+
+def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve):
+    """The diagnostic's one browser clock spans local Send and actual reply words.
+
+    A reply behind the closed panel has no visible words. Opening the panel records
+    them once, without message text, linked by its admitted ID and the send's attempt.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Timing feedback",
+                "<h1>Timing feedback</h1>"
+                '<lf-local id="timing-local" choice="idle"></lf-local>',
+            ),
+            page_files={
+                "registry.json": json.dumps(PAGE_DECLARATION),
+                "widgets/lf-local.js": PAGE_WIDGET,
+            },
+        ),
+    )
+    write(page_comment(page), "Which job comes first?")
+    with sending(page, "the timing question"):
+        page.locator(".lf-general .lf-compose-submit").click()
+    question = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment" and event["author"] == "user"
+    )
+    answer = thread_model.post_reply(
+        serve.page_dir,
+        {"to": question["id"], "for": question["id"]},
+        "The roof comes first.",
+    )
+    told(page)
+
+    def trace_has(response, kind):
+        return (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == kind
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+
+    # A real diagnostic flush is the completion edge for the absence: all earlier
+    # queued rows are persisted before this later user gesture's row is acknowledged.
+    with page.expect_response(lambda response: trace_has(response, "click")):
+        page.locator("h1").click()
+    trace = interaction_model.read_interactions(serve.page_dir)
+    assert not any(row.get("type") == "reply_visible" for row in trace)
+
+    # Unrelated preparation prevents global presentation proof, while the reply's
+    # own rendered words are already visible. Feedback telemetry must not wait on it.
+    page.evaluate("""() => {
+      const held = Promise.withResolvers();
+      window.releaseTimingPreparation = held.resolve;
+      document.querySelector('#timing-local').controller.present(held.promise);
+    }""")
+    with page.expect_response(lambda response: trace_has(response, "reply_visible")):
+        page.locator(".lf-threads-toggle").click()
+        expect(page.locator(".lf-thread .lf-msg.agent .lf-msg-text")).to_have_text(
+            "The roof comes first."
+        )
+    assert page.evaluate("""async () => (await window.__lfCheckApi())
+        .readApplicationPresentation().pending.includes('widget:timing-local:preparation')""")
+    page.evaluate("releaseTimingPreparation()")
+    rendered(page)
+    trace = interaction_model.read_interactions(serve.page_dir)
+    submitted = next(
+        row
+        for row in trace
+        if row.get("type") == "event_submit" and row["attempt"] == question["attempt"]
+    )
+    visible = [row for row in trace if row.get("type") == "reply_visible"]
+    assert len(visible) == 1
+    shown = visible[0]
+    assert shown["reply_id"] == answer["id"]
+    assert shown["presentation_kind"] == "message_words"
+    assert shown["reply_kind"] == "answer"
+    assert shown["session"] == submitted["session"]
+    assert shown["monotonic_ms"] >= submitted["monotonic_ms"]
+    assert shown["visibility"] == submitted["visibility"] == "visible"
+    assert "text" not in shown and "text" not in submitted
+    sample = next(
+        sample
+        for sample in page_timings(serve.page_dir, since=None, until=datetime.now(UTC))[
+            "samples"
+        ]
+        if sample["input_id"] == question["id"]
+    )
+    measured = sample["milestones"]["send_to_visible"]
+    assert measured["event_id"] == answer["id"]
+    assert measured["session"] == shown["session"]
+    assert (
+        measured["elapsed_s"]
+        == (shown["monotonic_ms"] - submitted["monotonic_ms"]) / 1000
     )
 
 

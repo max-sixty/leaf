@@ -10,8 +10,14 @@ folding the panel to the leaf in the window's corner and back."""
 import re
 
 import pytest
-from interact_support import append_carried_log_record, declare_idle, working
+from interact_support import (
+    append_carried_log_record,
+    declare_idle,
+    declare_work,
+    working,
+)
 from leaf import event_log as events_model
+from leaf import interaction_log as interaction_model
 from leaf import service as service_model
 from leaf import thread as thread_model
 from model_folds import leaf_page
@@ -1221,6 +1227,133 @@ def test_a_reader_arriving_later_leaves_focus_the_user_moved_elsewhere(browser, 
     )
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_have_count(0)
     expect(page.locator("#elsewhere")).to_be_focused()
+
+
+@pytest.mark.parametrize("hidden_by", ["draft", "fold"])
+def test_floating_status_records_feedback_only_when_its_words_show(
+    browser, serve, request, hidden_by
+):
+    """Authored status words retain their exact source through the native placeholder
+    slot and folded peek. A draft, focus, or folded panel cannot claim them visible.
+    """
+    from browser.test_render_threads import claim_for_codex
+
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Can we simplify the logging?")
+    claim_for_codex(serve.page_dir, request)
+    page = floating(browser, url)
+    if hidden_by == "draft":
+        write(field(page), "Keep my unfinished question")
+    else:
+        page.locator(".lf-fp-leaf").click()
+        page.locator(".lf-fp-item", has_text="Fold to the leaf").click()
+        page.mouse.move(5, 5)
+    progress = thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Reading the diagnostic transport.",
+        ephemeral=True,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    told(page)
+
+    def batch_has(response, kind):
+        return (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == kind
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+
+    def visible():
+        return [
+            row
+            for row in interaction_model.read_interactions(serve.page_dir)
+            if row["type"] == "reply_visible" and row.get("reply_id") == progress["id"]
+        ]
+
+    # A later acknowledged gesture flushes all observations of the hidden words.
+    with page.expect_response(lambda response: batch_has(response, "click")):
+        page.locator("h1").first.click()
+    assert visible() == []
+    if hidden_by == "draft":
+        field(page).click()
+        page.keyboard.press("ControlOrMeta+a")
+        with page.expect_response(lambda response: batch_has(response, "keydown")):
+            page.keyboard.press("Backspace")
+        expect(field(page)).to_have_attribute("placeholder", re.compile("^Comment"))
+        expect(field(page).locator(".lf-key-badge")).to_contain_text("⏎")
+        assert visible() == []
+    with page.expect_response(lambda response: batch_has(response, "reply_visible")):
+        if hidden_by == "draft":
+            page.locator("h1").first.click()
+        else:
+            page.locator(".lf-fp-leaf").hover()
+            expect(page.locator(".lf-fp-peek")).to_contain_text(
+                "Reading the diagnostic transport"
+            )
+    rows = visible()
+    assert len(rows) == 1
+    assert rows[0]["input_id"] == root
+    assert rows[0]["presentation_kind"] == "banner_words"
+    assert rows[0]["surface"] == "panel"
+    assert "text" not in rows[0]
+
+
+def test_floating_menu_tracks_stalled_detail_hidden_by_a_draft(browser, serve, request):
+    """The stalled summary carries no authored detail; its menu's Last said words do.
+    A draft keeps the row's placeholder hidden, so that menu is their first exposure.
+    """
+    from browser.test_render_threads import claim_for_codex
+
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Can we simplify the logging?")
+    claim_for_codex(serve.page_dir, request)
+    page = floating(browser, url)
+    write(field(page), "Keep my unfinished question")
+    progress = declare_work(
+        serve.page_dir,
+        "Reading the diagnostic transport.",
+        item=root,
+        ts="2020-01-01T00:00:00+00:00",
+        agent="Codex",
+        session="codex-thread",
+    )
+    told(page)
+
+    def traced(response, kind):
+        return (
+            response.url.endswith("/api/interaction")
+            and response.ok
+            and any(
+                entry["type"] == kind
+                for entry in response.request.post_data_json["entries"]
+            )
+        )
+
+    def feedback():
+        return [
+            row
+            for row in interaction_model.read_interactions(serve.page_dir)
+            if row["type"] == "reply_visible" and row.get("reply_id") == progress["id"]
+        ]
+
+    with page.expect_response(lambda response: traced(response, "click")):
+        page.locator("h1").first.click()
+    assert feedback() == []
+    with page.expect_response(lambda response: traced(response, "reply_visible")):
+        page.locator(".lf-fp-leaf").click()
+        expect(page.locator(".lf-fp-explain")).to_contain_text(
+            "Last said: Reading the diagnostic transport"
+        )
+    rows = feedback()
+    assert len(rows) == 1
+    assert rows[0]["input_id"] == root
+    assert rows[0]["presentation_kind"] == "banner_words"
+    assert rows[0]["surface"] == "panel"
+    assert "text" not in rows[0]
 
 
 def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, serve):

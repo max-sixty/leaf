@@ -643,6 +643,7 @@ button.lf-thread-notice[data-lf-focus] {
 :where(:root, .lf-thread-transcript) table {
   display: block;
   overflow-x: auto;
+  container-type: inline-size;
   container-type: inline-size scroll-state;
   --lf-top: 0px;
   border-collapse: collapse;
@@ -651,10 +652,19 @@ button.lf-thread-notice[data-lf-focus] {
   font-variant-numeric: tabular-nums;
 }
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-:where(:root, .lf-thread-transcript) table:where([data-lf-space], [data-lf-space] *) {
-  --lf-fills-frame: 1;
+@property --lf-granted { syntax: "<integer>"; inherits: true; initial-value: 0; }
+:where([data-lf-space]) {
+  --lf-granted: 1;
 }
-:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space=column])) {
+:where([data-lf-column]) {
+  --lf-granted: 0;
+}
+@container style(--lf-granted: 1) {
+  :where(:root, .lf-thread-transcript) table {
+    --lf-fills-frame: 1;
+  }
+}
+:where(:root, .lf-thread-transcript) table:where([data-lf-space]) {
   --lf-fills-frame: 0;
 }
 @container style(--lf-block-frame: 1) {

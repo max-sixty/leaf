@@ -211,6 +211,7 @@ export function createFloatingPanel({
   wireInput,
   threadActions,
   registerChromeThreadPresentation,
+  observeFeedback,
   asks: askView,
   queueActions,
   withdraw,
@@ -278,11 +279,38 @@ export function createFloatingPanel({
   const CONNECTING = {
     tone: "",
     summary: "Connecting…",
+    summaryParts: [{ text: "Connecting…", source: null }],
     explanation: "Connecting…",
+    explanationParts: [{ text: "Connecting…", source: null }],
     adds: "",
+    addsParts: [],
     asks: false,
   };
   const status = () => statusReading() ?? CONNECTING;
+  // Only the authored runs carry response identity. Their renderer refs register
+  // and retire those exact nodes with the shared exposure owner, wherever status
+  // stands: the field's native placeholder slot, the menu, or the folded leaf's peek.
+  const statusParts = (parts) =>
+    parts.map((part) => {
+      if (!part.source) return part.text;
+      let stop = null;
+      return html`<span
+        class="lf-fp-status-feedback"
+        ${ref((node) => {
+          stop?.();
+          stop = node
+            ? observeFeedback(node, {
+                input_id: part.source.item,
+                reply_id: part.source.event_id,
+                reply_kind: "work",
+                presentation_kind: "banner_words",
+                surface: "panel",
+              })
+            : null;
+        })}
+        >${part.text}</span
+      >`;
+    });
   // The trail of views open above the row, innermost last; empty at rest.
   let trail = [];
   let leaving = null;
@@ -337,6 +365,13 @@ export function createFloatingPanel({
     input.value = loadDraft(PAGE_DRAFT) ?? "";
     const sync = wireInput(input, {
       hint: () => fieldReading(null, input).words,
+      hintParts: () => {
+        const parts = status().summaryParts;
+        return fieldReading(null, input).says === "status" &&
+          parts?.some((part) => part.source)
+          ? statusParts(parts)
+          : null;
+      },
       accessibleName: "Comment on the page",
       sends: "send",
       sendBtn: send,
@@ -932,7 +967,9 @@ export function createFloatingPanel({
   // press it, each press a key as the command reference draws it, so the two never read
   // as one run of text.
   const rowEnd = (entry) =>
-    html`${entry.value ? html`<span class="lf-fp-value">${entry.value}</span>` : nothing}${
+    html`${
+      entry.value ? html`<span class="lf-fp-value">${entry.value}</span>` : nothing
+    }${
       entry.shortcut.length && advertisesKeys()
         ? keySequenceTemplate(keySequenceModel(entry.shortcut))
         : nothing
@@ -1019,7 +1056,7 @@ export function createFloatingPanel({
     // The state is said once: in a word, over its one line, and under that only what
     // the banner's disclosure adds to the line (`statusModel`, `adds`), since the menu
     // is reached by pointer, key and finger alike.
-    const { tone, summary, adds } = status();
+    const { tone, summary, summaryParts, adds, addsParts } = status();
     const word = TONE_WORDS[tone];
     const part = (name, text) =>
       (held ? held[name] : text)
@@ -1058,10 +1095,10 @@ export function createFloatingPanel({
         data-tone=${tone || nothing}
         ?data-held=${held !== null}
       >
-        <b>${word ?? summary}</b>${part("summary", word ? summary : "")}${part(
-          "explain",
-          adds,
-        )}
+        <b>${word ?? (summaryParts ? statusParts(summaryParts) : summary)}</b>${part(
+          "summary",
+          word ? (summaryParts ? statusParts(summaryParts) : summary) : "",
+        )}${part("explain", adds && addsParts ? statusParts(addsParts) : adds)}
       </div>
       ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
@@ -1148,7 +1185,9 @@ export function createFloatingPanel({
                 ? html`<button
                     type="button"
                     class="lf-fp-quiet lf-fp-compare"
-                    aria-pressed=${String(selection.on && selection.base === entry.version)}
+                    aria-pressed=${String(
+                      selection.on && selection.base === entry.version,
+                    )}
                     aria-label=${`Compare with ${entry.name}`}
                     @click=${() =>
                       putAwayThen(() => versionPicker.compare(entry.version))}
@@ -1159,7 +1198,11 @@ export function createFloatingPanel({
             }
           </div>`,
       )}
-      ${versions.length ? nothing : html`<p class="lf-fp-empty">Showing ${picker.token}</p>`}
+      ${
+        versions.length
+          ? nothing
+          : html`<p class="lf-fp-empty">Showing ${picker.token}</p>`
+      }
       ${
         approval
           ? html`<hr />
@@ -2103,9 +2146,16 @@ export function createFloatingPanel({
     const folded = host.dataset.rest === "mark";
     const notice = noticeReading();
     const telling = notice.visible && (folded || (overView && !menuOpen));
-    keepsText(
+    const reading = status();
+    render(
+      telling
+        ? notice.message
+        : statusParts(
+            reading.explanationParts ?? [
+              { text: reading.explanation || reading.summary },
+            ],
+          ),
       peek,
-      telling ? notice.message : status().explanation || status().summary,
     );
     keeps(peek, "data-shown", telling || (folded && peekAsked) ? "" : null);
   }

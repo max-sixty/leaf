@@ -14,13 +14,14 @@ import shutil
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol
 
 from leaf.event_log import read_events
+from leaf.interaction_log import append_interactions
 from leaf.media import media_name
 from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import CURSOR_FILE, MEDIA_DIR, MEDIA_TYPES
-from leaf.state import write_json
+from leaf.state import now_iso, write_json
 from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT, docs
@@ -50,6 +51,42 @@ class PageFixture:
 class PreparedPage:
     data_sources: int
     versions: int
+
+
+def record_run_context(
+    page: Path,
+    *,
+    purpose: Literal["test", "automated", "user-review", "author-preview"],
+    run: Path,
+    authored_source: Path | None = None,
+    test: str | None = None,
+) -> None:
+    """Record a developer run's declared purpose in the page's diagnostic history.
+
+    Call at the boundary that knows why this page will be used, before its inputs,
+    including after a pooled page is copied or a retained preview resumes. Fixture
+    preparation alone says nothing about its eventual reader. `run` reuses that
+    caller's existing run, isolated state, or preview-slot path; neither this
+    declaration nor its absence identifies who makes an individual gesture.
+    """
+    append_interactions(
+        page,
+        [
+            {
+                "source": "developer",
+                "type": "run_context",
+                "ts": now_iso(),
+                "purpose": purpose,
+                "run": str(run.resolve()),
+                **(
+                    {"authored_source": str(authored_source.resolve())}
+                    if authored_source is not None
+                    else {}
+                ),
+                **({"test": test} if test is not None else {}),
+            }
+        ],
+    )
 
 
 def source_manifest_candidates(source: Path) -> list[Path]:

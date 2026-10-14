@@ -87,11 +87,22 @@
    user is working at (`holding`): its top while they read or type, its foot, with the
    reply row on it, once a turn joins the transcript as they draft or send, keyed to
    that turn so the next one releases it, and its foot where it stands over what it is
-   about and is read. The caller reports the transcript's extent, whether the user is
-   drafting, the latest turn and the draft's words; a surface with no turns, the
-   comment box, never asks, and its free edges grow as floating.js holds them. The held
-   edge is also the one floating.js stands the surface by, so the browser grows it from
-   there.
+   about and is read. A change the user makes by pressing in the surface instead keeps
+   the spot they pressed still, as scroll anchoring keeps a seat on the page: the foot
+   where what changed stands above that spot, else the top; a surface above what it is
+   about keeps its foot. The caller reports the transcript's extent, whether the user
+   is drafting, the latest turn, the draft's words and the press; a surface with no
+   turns, the comment box, never asks, and its free edges grow as floating.js holds
+   them. The held edge is also the one floating.js stands the surface by, so the
+   browser grows it from there.
+
+   A press keeps the spot pressed still (the user's decision, 2026-10-14): before, the
+   card held its edge from what the user was doing, so pressing its held-news notice
+   while drafting raised the head row they pressed in by the news's height, and opening
+   an answer's progress carried the disclosure down 296px. Rejected: keeping the draft
+   still on that press, which moved the row pressed; and counting the draft only while
+   the user stood in the reply row, which held for later changes too, so a resolve
+   arriving after the press moved the draft.
 
    Every box here is a client rectangle. Floating UI works in the surface's positioning
    space, which a transformed ancestor scales, so each length crosses by the reference's
@@ -360,6 +371,12 @@ export function commentPlacement() {
   // reading the placement in flight answers, which its landing records.
   let held = null;
   let reading = null;
+  // The edge the last `holding` answer held, the one the user's latest press in the
+  // surface chose for the change it made, and that press's input and the transcript
+  // extent its change left.
+  let edge = "top";
+  let pressHeld = null;
+  let pressAnswered = null;
   const forget = () => {
     side = null;
     inline = null;
@@ -370,6 +387,9 @@ export function commentPlacement() {
     moved = false;
     held = null;
     reading = null;
+    edge = "top";
+    pressHeld = null;
+    pressAnswered = null;
   };
   const line = (clear, row) =>
     quoted
@@ -394,11 +414,34 @@ export function commentPlacement() {
     forget,
     // Which edge this placement holds, `top` or `foot`, from what the caller reports:
     // the transcript's extent, whether the user is drafting, the latest turn
-    // (`{ key, author }`) and the draft's words. `fresh` and `hold` are `choose`'s.
-    holding({ fresh, hold, transcript, drafting, latest = null, draftText = "" }) {
+    // (`{ key, author }`), the draft's words, and, while it is the user's latest
+    // input, their press in the surface (`{ input, moved }`: which input it was, and
+    // whether what it changed stands above the spot pressed). `fresh` and `hold` are
+    // `choose`'s.
+    holding({
+      fresh,
+      hold,
+      transcript,
+      drafting,
+      latest = null,
+      draftText = "",
+      pressed = null,
+    }) {
       if (hold) held = { ...hold, transcript };
       if (fresh) held = null;
       const turned = held && Math.abs(transcript - held.transcript) > 0.5;
+      // The change a press in the surface makes keeps the spot pressed still, as the
+      // browser's scroll anchoring keeps a seat on the page: its foot where what
+      // changed stands above that spot, else its top. The hold ends with the user's
+      // next input or the next change, which they did not make. A surface above what
+      // it is about keeps its foot.
+      const own = Boolean(pressed) && pressAnswered?.input === pressed.input;
+      const answered = own && Math.abs(transcript - pressAnswered.transcript) <= 0.5;
+      if (!pressed || (turned && own && !answered)) pressHeld = null;
+      else if (turned && !own && side !== "top") {
+        pressHeld = pressed.moved ? "foot" : "top";
+        pressAnswered = { input: pressed.input, transcript };
+      }
       // A turn changes the transcript on one pass, then the card's own size changes
       // its measurement on the next. Borrow the reply's line for that turn, keyed by
       // the projected message's stable key so admitting a Send keeps the same hold. A
@@ -422,8 +465,17 @@ export function commentPlacement() {
       // Adoption holds the message's start: expanded composer choices may add a row
       // below it that the thread does not carry. Later placements use the surface's own
       // top/foot reading, including the normal above-side and reply-line holds.
-      return !hold && (keepReplyLine || (!drafting && side === "top")) ? "foot" : "top";
+      edge = hold
+        ? "top"
+        : (pressHeld ??
+          (keepReplyLine || (!drafting && side === "top") ? "foot" : "top"));
+      return edge;
     },
+    // The edge a change the user did not make would hold, read before it is drawn: a
+    // turn joining while they read releases a hold on their own reply's line, so it
+    // holds the foot only where the surface stands above what it is about; any other
+    // change keeps the edge held now.
+    edgeFor: (turn) => (turn ? (side === "top" ? "foot" : "top") : edge),
     // The held edge's offset for `options`' `hold`, and the height between the held
     // top and foot, which caps a held surface no shorter than it last stood.
     heldAt: (edge) => held && { [edge]: held[edge] },

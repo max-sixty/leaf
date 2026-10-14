@@ -790,6 +790,7 @@ const writingResume = createWritingResume({
   arriveEditor: anchorTravel.arriveEditor,
   revealInThread: (context, intent) =>
     app.threadDestinations.openThreadDraft(context, intent),
+  holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
 });
 goToSequence = createGoToSequence({
   panelIsOpen,

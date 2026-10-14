@@ -21,13 +21,18 @@ export function boundFile(binding) {
         "file",
       );
     } catch (error) {
-      // Each failure reads as one sentence the editor can show and follow with its own.
+      // Each failure reads as one sentence the editor can show and follow with its
+      // own: the server's words where it gave any, and these where it gave none. A
+      // request that got no answer rejects in the engine's words ("Failed to fetch",
+      // "Load failed"), and a proxy's page names only a status.
       if (error instanceof LayerRefused)
         throw new Error("Leaf changed while accessing the file.");
-      // A request that got no answer rejects in the engine's own words ("Failed to
-      // fetch", "Load failed"), which name no sentence and no remedy.
       if (error.status === undefined)
         throw new Error("The page's server did not answer.", { cause: error });
+      if (error.said === undefined)
+        throw new Error(`The page's server answered HTTP ${error.status}.`, {
+          cause: error,
+        });
       throw error;
     }
   }

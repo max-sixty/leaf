@@ -163,6 +163,18 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     page.keyboard.insert_text("Retained.\n")
     failed_draft += "Retained.\n"
     page.unroute("**/api/files/notes", fail_write)
+
+    # A proxy's page names only a status, and the editor still says a sentence.
+    def bad_gateway(route):
+        if route.request.method == "POST":
+            route.fulfill(status=502, content_type="text/html", body="<h1>Bad</h1>")
+        else:
+            route.continue_()
+
+    page.route("**/api/files/notes", bad_gateway)
+    retry.click()
+    expect(status).to_have_attribute("title", "The page's server answered HTTP 502.")
+    page.unroute("**/api/files/notes", bad_gateway)
     held.clear()
     page.evaluate("window.heldFileWrites = 0")
     page.route("**/api/files/notes", hold_writes)
@@ -209,6 +221,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     consume_browser_errors(
         page,
         "Failed to load resource: net::ERR_FAILED",
+        {"code": "failed-load", "status": 502},
         {"code": "failed-load", "status": 409},
     )
 
@@ -244,6 +257,10 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     expect(widget.get_by_role("menuitemcheckbox", name="Compare")).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(widget.get_by_role("menuitem", name="Save draft")).to_be_focused()
+    # The page's own keys wait while the reader stands in the menu.
+    page.keyboard.press("c")
+    expect(menu).to_be_visible()
+    expect(widget.get_by_role("menuitem", name="Save draft")).to_be_focused()
     page.keyboard.press("Escape")
     expect(menu).to_be_hidden()
     expect(conflict).to_be_focused()
@@ -260,7 +277,10 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     # Compare opens both versions below the editor, on the reader's press alone.
     comparison = widget.get_by_role("textbox", name="Compare versions", exact=True)
     expect(comparison).to_have_count(0)
-    choose("Compare", "menuitemcheckbox")
+    conflict.focus()
+    page.keyboard.press("Enter")
+    expect(widget.get_by_role("menuitemcheckbox", name="Compare")).to_be_focused()
+    page.keyboard.press("Enter")
     expect(comparison).to_have_attribute("aria-readonly", "true")
     expect(widget.locator(".cm-deletedText")).to_contain_text("Other")
     expect(comparison).to_contain_text("version")
@@ -275,29 +295,18 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     )
     assert min(halves) > 100, halves
 
-    # A failed explicit replacement leaves recovery available. When its focused
-    # Retry becomes another conflict, disappearing that button returns typing to
-    # the retained editor rather than the document body.
+    # A failed Save draft keeps the conflict and every choice, the open comparison
+    # included, with the failure as the control's description: Save draft again is
+    # the retry.
     page.route("**/api/files/notes", fail_write)
     choose("Save draft")
-    expect(retry).to_be_visible()
-    page.unroute("**/api/files/notes", fail_write)
-    held.clear()
-    page.evaluate("window.heldFileWrites = 0")
-    page.route("**/api/files/notes", hold_writes)
-    with page.expect_request(file_write):
-        retry.click()
-    page.wait_for_function("window.heldFileWrites === 1")
-    expect(retry).to_be_focused()
-    file.write_text("# Changed again\n")
-    held[0].continue_()
-    page.clock.run_for(100)
+    expect(conflict).to_have_accessible_description("The page's server did not answer.")
     expect(retry).to_be_hidden()
-    expect(editor).to_be_focused()
-    caret_visible()
+    expect(comparison).to_be_visible()
+    page.unroute("**/api/files/notes", fail_write)
+    editor.focus()
     page.keyboard.insert_text("Recovered.\n")
     draft += "Recovered.\n"
-    page.unroute("**/api/files/notes", hold_writes)
     with receipt(draft):
         choose("Save draft")
     expect(widget.get_by_role("button")).to_have_count(0)
@@ -307,19 +316,29 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     expect(editor).to_be_focused()
     assert file.read_text() == draft
 
-    # A file that moves again while the reader compares versions is read once they
-    # take the file version, rather than leaving the editor on the compared one.
+    # When a focused Retry becomes a conflict, the disappearing button returns typing
+    # to the retained editor rather than the document body. A file that moves again
+    # while the reader weighs the conflict is read once they take the file version,
+    # rather than leaving the editor on the compared one.
+    page.route("**/api/files/notes", fail_write)
+    replace("# Mine\n")
+    page.clock.run_for(600)
+    expect(retry).to_be_visible()
+    page.unroute("**/api/files/notes", fail_write)
     held.clear()
     page.evaluate("window.heldFileWrites = 0")
     page.route("**/api/files/notes", hold_writes)
     with page.expect_request(file_write):
-        replace("# Mine\n")
-        page.clock.run_for(600)
+        retry.click()
     page.wait_for_function("window.heldFileWrites === 1")
+    expect(retry).to_be_focused()
     file.write_text("# Compared\n")
     held[0].continue_()
     page.clock.run_for(100)
+    expect(retry).to_be_hidden()
     expect(conflict).to_be_visible()
+    expect(editor).to_be_focused()
+    caret_visible()
     page.unroute("**/api/files/notes", hold_writes)
     with page.expect_response(lambda response: response.url.endswith("/api/state")):
         file.write_text("# Newest\n")

@@ -22,6 +22,8 @@
  * failure reads "Not saved · Retry", with the error as the status's tooltip and
  * Retry's description. A conflict reads "Changed on disk" in the warning tone, one
  * control opening a small menu of its choices: Compare, Save draft, Use file version.
+ * A Save draft that fails keeps that control, with the error as its description,
+ * since Save draft is the retry and the other choices still stand.
  * The comparison of both versions opens below the editor only on the reader's
  * Compare, and shares the editing room with it. Rejected (2026-10-14): a pane below
  * the editor holding the error, the choices and the comparison, which took the
@@ -33,6 +35,7 @@
  * history and in-flight receipt.
  */
 import {
+  allButCommandReference,
   announce,
   boundFile,
   closeLayer,
@@ -214,8 +217,10 @@ customElements.define(
         editor.readOnly = base === null || !api.writable;
         // The comparison belongs to the conflict it opened on.
         if (!latest) comparing = false;
-        const conflicted = Boolean(latest) && !failure;
-        const retryable = Boolean(failure) && api.writable;
+        // A conflict keeps its choices through a failed Save draft, which is its own
+        // retry; the failure then describes the control rather than taking its place.
+        const conflicted = Boolean(latest);
+        const retryable = Boolean(failure) && !latest && api.writable;
         render(
           html`
             <div ${offered("lf-file-editor-head")}>
@@ -224,13 +229,15 @@ customElements.define(
                 ${offered("lf-file-editor-status")}
                 title=${failure?.message ?? nothing}
                 >${
-                  failure
-                    ? base
-                      ? "Not saved"
-                      : "Unavailable"
-                    : !latest && slow
-                      ? "Saving changes…"
-                      : ""
+                  latest
+                    ? ""
+                    : failure
+                      ? base
+                        ? "Not saved"
+                        : "Unavailable"
+                      : slow
+                        ? "Saving changes…"
+                        : ""
                 }${retryable ? html`<span aria-hidden="true">&nbsp;·&nbsp;</span>` : nothing}<button
                   ${offered("lf-file-editor-retry")}
                   ?hidden=${!retryable}
@@ -242,6 +249,7 @@ customElements.define(
                 ><button
                   ${offered("lf-file-editor-conflict")}
                   ?hidden=${!conflicted}
+                  aria-description=${failure?.message ?? nothing}
                   popovertarget="lf-file-editor-choices"
                   aria-haspopup="menu"
                 >
@@ -256,7 +264,9 @@ customElements.define(
               role="menu"
               aria-label="The file changed on disk"
               @toggle=${choiceOpened}
-              ${commandsOn("In the file's conflict menu", choiceKeys)}
+              ${commandsOn("In the file's conflict menu", choiceKeys, {
+                claims: allButCommandReference,
+              })}
             >
               <button
                 ${offered("lf-btn")}

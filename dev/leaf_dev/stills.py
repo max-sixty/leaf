@@ -166,6 +166,29 @@ def banner_more(page: Page) -> None:
     page.locator(".lf-banner-more").focus()
 
 
+def floating_thread(page: Page) -> None:
+    """The floating panel (`lf-chrome`) with a thread opened from Threads: its head
+    names the way back, the thread's title and where it stands among the open ones,
+    beside On the page, Resolve and Close."""
+    page.evaluate("localStorage.setItem('lf-chrome', 'floating')")
+    load(page, page.url)
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+
+
+def floating_thread_retitled(page: Page) -> None:
+    """The same head once the thread's opening message is rewritten short, so its
+    title is far narrower than the head."""
+    floating_thread(page)
+    page.locator(".lf-fp-view[data-view=thread] .lf-msg-body").first.dblclick()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Ship it?")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text("Ship it?")
+
+
 def playground_choice(page: Page) -> None:
     """Keyboard focus on the choice's whole labelled hit target."""
     page.keyboard.press("Tab")
@@ -883,6 +906,13 @@ STATES = (
         scheme="dark",
         touch=True,
         region=".lf-banner-more",
+    ),
+    State("floating-thread", "ship-review", floating_thread, region=".lf-fp-head"),
+    State(
+        "floating-thread-retitled",
+        "ship-review",
+        floating_thread_retitled,
+        region=".lf-fp-head",
     ),
     State(
         "playground-choice",

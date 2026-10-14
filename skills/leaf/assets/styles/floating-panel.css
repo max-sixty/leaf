@@ -500,8 +500,13 @@
     flex: none;
     color: var(--lf-fp-muted);
   }
+  /* Where the thread stands among the open ones keeps the crumb's end, so a title
+     the agent or the user rewrites gives or takes room before it, truncating, and
+     moves neither it nor anything beside it. */
   .lf-fp-where {
+    margin-inline-start: auto;
     font-size: 12px;
+    font-variant-numeric: tabular-nums;
   }
   .lf-fp-aux {
     flex: none;
@@ -525,9 +530,10 @@
   .lf-fp-filters [aria-pressed="true"] {
     background: var(--lf-fp-faint);
   }
+  /* Room for two digits, so news changing a count moves no tab beside it. */
   .lf-fp-count {
     display: inline-block;
-    min-width: 1.2ch;
+    min-width: 2ch;
     margin-left: 1px;
     text-align: start;
     font-variant-numeric: tabular-nums;
@@ -543,11 +549,21 @@
   .lf-fp-icon-btn[aria-pressed="true"] {
     color: var(--ink);
   }
+  /* Resolve and Reopen stand in one cell, the one shown over the other's room, so
+     the seat is as wide as the wider whichever the thread's state. */
   .lf-fp-settle {
+    display: inline-grid;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-face {
+    grid-area: 1 / 1;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
-    color: var(--lf-fp-muted);
+  }
+  .lf-fp-face:not([data-shown]) {
+    visibility: hidden;
   }
   .lf-fp-settle:hover {
     color: var(--ink);

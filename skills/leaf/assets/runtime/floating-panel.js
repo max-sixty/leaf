@@ -1310,6 +1310,8 @@ export function createFloatingPanel({
         },
       );
     } else if (thread) {
+      // Resolve and Reopen share one seat as wide as the wider of them, both drawn and
+      // one shown, so the agent settling the thread moves nothing beside it.
       // Resolve says it is unavailable while a settling is pending rather than leaving
       // the tab order, so the user who pressed it, or `r` on it, stays standing on it;
       // the action itself refuses a press meanwhile (thread/actions.js, `settle`).
@@ -1340,7 +1342,9 @@ export function createFloatingPanel({
             return threadActions.resolve(thread.key);
           }}
         >
-          ${thread.resolved ? "Reopen" : html`${iconTemplate("check", "lf-action-icon")}Resolve`}
+          <span class="lf-fp-face" ?data-shown=${!thread.resolved}
+            >${iconTemplate("check", "lf-action-icon")}Resolve</span
+          ><span class="lf-fp-face" ?data-shown=${thread.resolved}>Reopen</span>
         </button>`;
     }
     const openThreads = threads().filter((candidate) => !candidate.resolved);

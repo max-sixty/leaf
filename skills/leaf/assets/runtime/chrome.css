@@ -430,7 +430,9 @@
     color: var(--lf-fp-muted);
   }
   .lf-fp-where {
+    margin-inline-start: auto;
     font-size: 12px;
+    font-variant-numeric: tabular-nums;
   }
   .lf-fp-aux {
     flex: none;
@@ -456,7 +458,7 @@
   }
   .lf-fp-count {
     display: inline-block;
-    min-width: 1.2ch;
+    min-width: 2ch;
     margin-left: 1px;
     text-align: start;
     font-variant-numeric: tabular-nums;
@@ -473,10 +475,18 @@
     color: var(--ink);
   }
   .lf-fp-settle {
+    display: inline-grid;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-face {
+    grid-area: 1 / 1;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
-    color: var(--lf-fp-muted);
+  }
+  .lf-fp-face:not([data-shown]) {
+    visibility: hidden;
   }
   .lf-fp-settle:hover {
     color: var(--ink);

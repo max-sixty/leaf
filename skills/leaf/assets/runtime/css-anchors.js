@@ -17,6 +17,14 @@
  * changes. Anchors stay grouped: one carrier anchors a run of rows, since an anchor per
  * row made every layout pass revisit every target.
  *
+ * A box that follows scrolled content also passes under the sticky headers and footers
+ * a page declares over its target, as the target's own words do, through frames cut
+ * where they stand: a margin row and Copy through `headerLevels`, target paint through
+ * the bands its clip walk reads (geometry.js, `paintClips`), both from the headers each
+ * target says stand over it (`--lf-top`). So a pin whose target scrolls under a stuck
+ * toolbar takes none of the toolbar's presses. The comment box and the thread card stay
+ * over them (floating.js), since they are where the user is writing.
+ *
  * Rejected: a layer a scroll-driven animation translates, which Chrome can paint a frame
  * before or after the content it carries (a pin landed 40 px off in 6 of 20 CI runs,
  * #1935) and Firefox cannot run; and a script that measures and places the box again
@@ -33,6 +41,7 @@
  * the same arrivals door as the other chrome owners; its weakly retained binding restores
  * that observation when the control returns. */
 import {
+  headerCuts,
   nearObserver,
   nearWindow,
   scrollContainer,
@@ -359,11 +368,33 @@ const cutPath = ({ x, y }) => {
   return `inset(${open(y)} ${open(x)})`;
 };
 
+// The levels a box following `item` is cut at so that it passes under the sticky headers
+// and footers a page declares over `item` (geometry.js, `headerCuts`), as `item` itself
+// does: one per scroller they stand in, cut on the block axis alone, the document's in
+// the window's frame and each other's anchored to its scroller, with where that anchor
+// stood (`at`) and its name (`reading`) read now, before the frames are written. Every box that
+// follows scrolled content stands in these, so whether it passes under a header is
+// decided here once.
+const nowhere = { left: 0, top: 0, right: 0, bottom: 0 };
+export function headerLevels(item) {
+  return headerCuts(item).map(({ box, band }) => {
+    const anchor = box === box.ownerDocument.scrollingElement ? null : anchorElement(box);
+    return {
+      anchor,
+      reading: anchor && anchorReading(anchor),
+      at: anchor?.getBoundingClientRect(),
+      band: band ?? nowhere,
+      axes: { x: false, y: true },
+    };
+  });
+}
+
 // The frames that cut a box at the edges of what holds it, one per level of `levels`,
 // outermost first, each nested in the one before: `{anchor, band, axes, at}`, the box the
 // frame is anchored to, null for the window's frame, its band in client coordinates, the
-// axes it cuts, and where the anchor stood as the band was measured, read here where it
-// is not given. `frames` are the ones the levels stood in before, kept from the innermost
+// axes it cuts, where the anchor stood as the band was measured, read here where it is
+// not given, and the anchor's name as read before any write (`anchorReading`), given
+// here where it is. `frames` are the ones the levels stood in before, kept from the innermost
 // out, so what stands in the last keeps its frame while the frames around it change, and
 // `make` makes a missing one. A new outermost frame takes the old one's place. Answers
 // the frames; the caller places the outermost and stands what is cut in the last.
@@ -376,7 +407,8 @@ export function cutFrames(levels, frames, make) {
   for (let i = 1; i < chain.length; i++)
     if (chain[i].parentNode !== chain[i - 1]) move(chain[i - 1], chain[i], null);
   for (const dropped of frames.slice(0, frames.length - kept.length)) dropped.remove();
-  levels.forEach(({ anchor, band, axes, at }, i) => {
+  levels.forEach(({ anchor, band, axes, at, reading }, i) => {
+    if (reading) nameAnchor(reading);
     anchorAt(chain[i], anchor, band, at);
     chain[i].style.clipPath = cutPath(axes);
   });

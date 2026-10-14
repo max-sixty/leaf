@@ -295,6 +295,22 @@ export function visibleBand(scroller, item = null) {
   const bottom = band.bottom - footerInset(item, scroller);
   return bottom > top ? { ...band, top, bottom } : null;
 }
+// The cuts the declared sticky headers and footers over `item` make: one for each box
+// that scrolls it where a header stands over its top or a footer over its foot, the
+// document's included, outermost first. Each is `{box, band}`, with `band` what the box
+// shows `item` past them (`visibleBand`), null where they cover all of it. A header
+// that is not stuck stands above what it heads, so the cut holds at every scroll.
+export function headerCuts(item) {
+  const cuts = [];
+  for (let at = renderedParent(item); at; at = renderedParent(at))
+    if (
+      at.nodeType === 1 &&
+      scrollContainer(at) &&
+      (headerInset(item, at) || footerInset(item, at))
+    )
+      cuts.unshift({ box: at, band: visibleBand(at, item) });
+  return cuts;
+}
 // The sticky box holding `node` while it is stuck, else null. A stuck box stands at the
 // edge of the scroller it sticks in, or is pushed past it by its holder's end, rather
 // than at its own place in its holder, whose edge has scrolled beyond it: a page tab

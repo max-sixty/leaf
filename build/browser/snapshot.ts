@@ -56,8 +56,8 @@ function collected<T>(reading: SnapshotReading<T>, read: () => T): T {
 
 /**
  * Run `run`, collecting every selection of a publication it reads synchronously, with
- * the value it read. A watcher subscribes to exactly these, so it repaints when a part
- * its paint read moves and for nothing else.
+ * the value it read. A watcher or a region follows exactly these, so it repaints when a
+ * part its paint read moves and for nothing else.
  * Only reads of the publication count: a paint also reads and writes private signals,
  * such as where the user stands, and subscribing it to those would have a paint that
  * moves focus repaint itself. Reading the root whole inside `run` throws, since every
@@ -75,6 +75,22 @@ export function collectReads<T>(
     return { reads, value: run() };
   } catch (error) {
     return { reads, error };
+  } finally {
+    collecting = outer;
+  }
+}
+
+/**
+ * Run `run` outside any collection. An owner nested in a collected run, such as a widget
+ * a paint mounts, which connects and reads its own reading inside that paint, follows
+ * what it reads itself; collecting those reads would have the paint repaint for every
+ * nested owner's state, and throw where the owner reads the root whole.
+ */
+export function untracked<T>(run: () => T): T {
+  const outer = collecting;
+  collecting = null;
+  try {
+    return run();
   } finally {
     collecting = outer;
   }

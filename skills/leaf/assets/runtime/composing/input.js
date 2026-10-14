@@ -43,6 +43,7 @@ import {
   advertisesKeys,
   submitBindings,
   submitLabel,
+  spell,
   PRESS,
 } from "../keyboard/bindings.js";
 import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.js";
@@ -408,7 +409,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     hydrate(ta.value);
     // Keep the full native placeholder, but paint a copy so only the key can use mono.
     // The accessible name stays independent of that changing hint. The send button's
-    // tooltip spells out its key. A focused box claims the send key; an unfocused box
+    // tooltip spells out its keys. A focused box claims the send key; an unfocused box
     // may show the contextual key that enters it; a finger is shown neither
     // (`advertisesKeys`). Labels can change while a box stands.
     const label = () => (typeof hint === "function" ? hint() : hint);
@@ -450,7 +451,11 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
       const action = sendLabel();
       keeps(sendBtn, "aria-label", action);
-      keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})` : action);
+      // Where Return sends, a line breaks with Shift+Return, which the hover name says
+      // beside the send key, since nothing in the box does.
+      const newline =
+        sendKeys === spell("Enter") ? ` · ${spell("Shift+Enter")} new line` : "";
+      keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})${newline}` : action);
       // These native input actions keep their focus seat while refusing a send.
       keeps(sendBtn, "aria-disabled", !canSend());
       if (altBtn) keeps(altBtn, "aria-disabled", !canSend());

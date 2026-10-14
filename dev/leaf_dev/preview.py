@@ -297,10 +297,11 @@ class PreviewService:
 
     @property
     def note(self) -> str:
-        """Describe the committed service, including its retained address."""
-        from leaf.hosting import startup_note
+        """Describe the committed service: a `--user` one as `leaf server start`
+        reads it (`hosting.server_reading`), as one JSON line."""
+        from leaf.hosting import server_reading
 
-        return startup_note(self.page) if self.user else WATCHER_NOTE
+        return json.dumps(server_reading(self.page)) if self.user else WATCHER_NOTE
 
     def serve_again(self) -> None:
         """Put a `--user` service that is down but still wanted back up.
@@ -878,7 +879,7 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
     existing detached handshake owns refusal and abandoned-start cleanup.
     """
     from leaf.detached import starting_detached
-    from leaf.hosting import startup_note
+    from leaf.hosting import server_reading
     from leaf.service import prepare_claim
 
     log = page.with_name(f"{page.name}.log")
@@ -906,7 +907,7 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
             timeout=120,
         ) as ready:
             pass
-    print(startup_note(page), file=sys.stderr, flush=True)
+    print(json.dumps(server_reading(page)), file=sys.stderr, flush=True)
     print(ready["url"], flush=True)
     print(f"Watching {source}; detached preview log: {log}", flush=True)
 

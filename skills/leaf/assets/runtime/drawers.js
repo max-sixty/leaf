@@ -66,10 +66,13 @@ function drawerFurniture(panel, name, list, closes) {
 // The On me door beside Threads opens the panel listing them, and the agent's On
 // count beside the status opens it too.
 export const queueBtn = el("button", "lf-btn lf-queue");
-// Its words, which hold the room of a two-digit count, so a count changing moves nothing.
+// Its words, which hold the room of a two-digit count, so a count changing moves nothing;
+// a larger count is cut there, and the panel it opens lists every item.
 export const queueWords = el("span", "", "On me");
-queueWords.dataset.lfRoom = "On me: 99";
-queueBtn.append(queueWords);
+const queueRoom = el("span");
+queueRoom.dataset.lfRoom = "On me: 99";
+queueRoom.append(queueWords);
+queueBtn.append(queueRoom);
 // The machine's live leaves and what each is doing: a left panel of rows, each a
 // link opening that page in its own tab, saying what that page's agent last declared
 // in the shape of the banner's activity — `others` on /api/state carries it for every

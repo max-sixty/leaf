@@ -45,7 +45,9 @@ export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // Experimental: one widget marking part of another (indication.js).
 export { indicate } from "./indication.js";
-export { landingInsets, shownWindow } from "./geometry.js";
+// `growthIsSeen(element)`: whether the element changing size now would move what the
+// user sees, as scroll anchoring and the chrome leave it.
+export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
 export { under } from "./shadow.js";
@@ -201,9 +203,15 @@ export {
   reducedMotion,
   scrollBehavior,
 } from "./motion.js";
-// `afterPresentation` is the package's whole route past presentation: it waits and
-// declares the arrival in one call, so a widget cannot defer without the page knowing.
-export { PAGE_INTERFACE, PRESENTATION, afterPresentation } from "./presentation.js";
+// A package's routes past presentation both declare the arrival, so a widget cannot
+// defer without the page knowing: `afterPresentation` waits for presentation and then
+// starts the work; `deferredArrival` counts work the widget has already started.
+export {
+  PAGE_INTERFACE,
+  PRESENTATION,
+  afterPresentation,
+  deferredArrival,
+} from "./presentation.js";
 export { quietWord } from "./declared-words.js";
 export { projectData } from "./application.js";
 export { copyBlock } from "./code-copy.js";
@@ -257,3 +265,4 @@ export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 export { shownParts } from "./geometry.js";
 export { renderRetired, textNodesUnder } from "./passages.js";
 export { isPagePaint } from "./declared-words.js";
+export { heldGrowth } from "./thread/held-news.js";

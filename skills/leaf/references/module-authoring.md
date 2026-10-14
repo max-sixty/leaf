@@ -164,6 +164,12 @@ renderer it loads only once the user has the page, runs that work through
 `afterPresentation(() => …)`, which both waits for presentation and declares the work.
 Until every such arrival lands the page reads as still arriving, so a reader outside it
 waits on the page rather than on a widget it would have to know about.
+Work that should start at once but that presentation need not wait for, such as a
+slow load whose landing moves nothing the reader sees, goes through
+`deferredArrival(promise)` instead: it counts the running promise without waiting.
+`growthIsSeen(element)` answers whether a change of the element's size now would move
+what the user sees; where it would, register the work with the widget controller's
+`present(promise)` instead, so it lands before the page presents.
 
 ### First paint
 

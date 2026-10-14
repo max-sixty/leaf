@@ -125,7 +125,8 @@ representative desktop viewport.
   A hidden tab ends the reading this protects; keyboard blur does not. Check:
   `test_news_just_after_a_press_moves_nothing` and the shift watch. Owners:
   `thread/held-news.js` for every thread surface and, through `HeldReading`, for a
-  widget's rows that only the log or the clock decides; `thread/thread-card.js`
+  widget's rows that only the log or the clock decides, and through `heldGrowth` for
+  a box a deferred arrival resizes, such as a live sample's frame; `thread/thread-card.js`
   (`newsMoves`) for whether a change would move what is seen; `thread/thread-list.js`
   for the Threads panel's reading place; `thread/thread-list-view.js` (`keeping`) for a
   card news would take out of the panel's view; `reading-continuity.js` for a hidden
@@ -269,7 +270,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
 | Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |
-| Activity and reports | `presence.js`, `reports.js` |
+| Activity and reports | `presence.js`, `activity-words.js`, `reports.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
 | Presentation and validation | `presentation.js`, `declared-words.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
@@ -517,9 +518,14 @@ discards pending keys and ends startup capture. Decision commands await the cano
 saved reading
 (`../references/module-authoring.md`, "Startup and presentation"). An async
 producer joins settlement before `data-lf-upgraded`, or stays off the
-presentation path through `afterPresentation`, which declares the deferred
-arrival so `pageReadiness` still answers for it. `presentPage` owns initial
-authoritative presentation; its synchronous `PRESENTATION` signal lets
+presentation path through `afterPresentation`, which waits for presentation before
+starting it, or `deferredArrival`, which counts work already running. Both declare
+the deferred arrival, so `pageReadiness` still answers for it and startup lands the
+fragment again once it has. Work stays on the presentation path when the page reads
+it or when its landing would move what the reader sees (`growthIsSeen`), as a live
+sample's child does only where its frame's resize would be seen (`lf-sample.js`).
+`presentPage` owns initial authoritative presentation; its synchronous
+`PRESENTATION` signal lets
 box-derived apparatus replace provisional geometry before the presented state
 paints. A reader outside the page waits on `pageReadiness`, through
 `wait_until_ready` in Python, rather than combining these stamps.

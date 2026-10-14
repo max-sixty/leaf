@@ -26,7 +26,6 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import user_views as user_views_model
@@ -2010,6 +2009,346 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
     assert len(errors) == 1, errors
 
 
+SAMPLE_DOCUMENT = re.compile(r"/api/samples/([^/]+)/$")
+# A page that does not start Leaf, answered for a sample document to make it fail.
+NOT_LEAF = {"status": 200, "content_type": "text/html", "body": "<p>Unavailable</p>"}
+
+
+def held_sample_page(
+    browser, serve, body, *, head="", hold_first=True, documents=1, **options
+):
+    """A page whose live sample documents wait until `release()`: every sample's when
+    `hold_first`, otherwise all but the first sample a page allocates, so an outer
+    sample presents while the one inside it waits. `documents` is how many are held
+    before this returns. `release(failing)` answers the documents of the samples whose
+    element ids `failing` names with a page that does not start Leaf, and lets the
+    rest through. `options` go to `new_page`. Returns the page and `release`."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900}, **options)
+    watched(page)
+    held = []
+    passing = []
+    # Each sample's allocation: its template, posted, and its document, answered.
+    allocations = []
+    page.on(
+        "response",
+        lambda response: (
+            response.request.method == "POST"
+            and response.url.endswith("/api/samples")
+            and allocations.append(response)
+        ),
+    )
+
+    def route(request_route):
+        sample = SAMPLE_DOCUMENT.search(request_route.request.url).group(1)
+        if not hold_first and (not passing or sample in passing):
+            passing.append(sample)
+            request_route.continue_()
+        else:
+            held.append(request_route)
+
+    page.route(SAMPLE_DOCUMENT, route)
+    page.goto(serve(leaf_page("Sample arrival", body, head=head)), wait_until="commit")
+    holding(page, held, documents, "the samples' documents")
+
+    def release(failing=()):
+        templates = {f"{sample}-source" for sample in failing}
+        broken = {
+            SAMPLE_DOCUMENT.search(allocation.json()["url"]).group(1)
+            for allocation in allocations
+            if allocation.request.post_data_json["template"] in templates
+        }
+        page.unroute(SAMPLE_DOCUMENT)
+        for each in held:
+            if SAMPLE_DOCUMENT.search(each.request.url).group(1) in broken:
+                each.fulfill(**NOT_LEAF)
+            else:
+                each.continue_()
+
+    return page, release
+
+
+def readiness(frame):
+    return frame.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+    )
+
+
+def live_sample(sample_id, attributes="", content="<p>Practice</p>"):
+    return (
+        f'<lf-sample id="{sample_id}"{attributes}><template id="{sample_id}-source"'
+        f" data-sample>{content}</template></lf-sample>"
+    )
+
+
+# A window sample whose child holds a sample below its own window, so the child
+# presents while the inner sample's document can wait, and a link out of Leaf.
+NESTED = (
+    '<h1>Containing page</h1><lf-sample id="outer" window>'
+    '<template id="outer-source" data-sample><h1>Outer</h1>'
+    '<a href="about:blank" id="leave">Leave</a><div style="height: 300vh"></div>'
+    '<lf-sample id="inner"><template id="inner-source" data-sample>'
+    "<p>Inner</p></template></lf-sample></template></lf-sample>"
+)
+
+
+def test_a_sample_the_reader_would_see_arrive_holds_presentation(browser, serve):
+    """A block sample whose growth the reader would see presents with the page, so
+    the page's first presented frame already holds it at its child's height. A sample
+    whose arrival would not be seen does not hold it
+    (`test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause`)."""
+    page, release = held_sample_page(
+        browser, serve, "<h1>Containing page</h1>" + live_sample("practice")
+    )
+    page.evaluate("""() => {
+        window.presentedAtSampleReady = document.querySelector('#practice').ready.then(
+            () => document.body.hasAttribute('data-lf-presented'));
+    }""")
+    release()
+    wait_until_ready(page)
+    assert page.evaluate("presentedAtSampleReady") is False
+
+
+def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
+    browser, serve
+):
+    """A block sample below the window starts loading at once, but the page presents
+    and takes keys without it, reading as arriving until it has. A reader who scrolls
+    to it while it loads sees its frame keep its loading height as the child arrives,
+    so what follows stays put. Growth their own gesture in the child causes, such as a
+    disclosure they open, applies at once. Growth the child makes of its own accord
+    while still arriving waits until they press inside it, the frame leaves their
+    sight, or the tab is hidden.
+
+    The inner window sample's document is held throughout, so the child is still
+    arriving at every step."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held = []
+    passing = set()
+
+    def hold(request_route):
+        if SAMPLE_DOCUMENT.search(request_route.request.url).group(1) in passing:
+            request_route.continue_()
+        else:
+            held.append(request_route)
+
+    page.route(SAMPLE_DOCUMENT, hold)
+    page.goto(
+        serve(
+            leaf_page(
+                "Sample gesture",
+                '<h1>Containing page</h1><div style="height: 300vh"></div>'
+                + live_sample(
+                    "practice",
+                    content='<p id="top">Practice</p><details id="more">'
+                    '<summary>More</summary><div style="height: 400px"></div>'
+                    '</details><div id="room" style="height: 1200px"></div>'
+                    + live_sample("inner", " window", "<p>Inner</p>"),
+                )
+                + "<p><button id=after>After the sample</button></p>"
+                '<div style="height: 300vh"></div>',
+            )
+        ),
+        wait_until="commit",
+    )
+    holding(page, held, 1, "the sample's document")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    assert readiness(page) == "arrived"
+    frame = page.locator("#practice iframe")
+    frame.scroll_into_view_if_needed()
+    loading = frame.bounding_box()["height"]
+    after = page.locator("#after").bounding_box()
+    # The sample's document goes on; the inner sample's, once asked for, waits.
+    first = held.pop(0)
+    passing.add(SAMPLE_DOCUMENT.search(first.request.url).group(1))
+    first.continue_()
+    expect(page.locator("#practice .lf-sample-status")).to_have_text("")
+    holding(page, held, 1, "the inner sample's document")
+    assert frame.bounding_box()["height"] == loading
+    assert page.locator("#after").bounding_box() == after
+
+    child = frame.content_frame
+    child_document = frame.element_handle().content_frame()
+    height = "frame => frame.clientHeight"
+    body = "body => Math.ceil(body.getBoundingClientRect().height)"
+
+    def grows_to(expected):
+        page.wait_for_function(
+            "h => document.querySelector('#practice iframe').clientHeight === h",
+            arg=expected,
+        )
+
+    def child_grows_by_itself(room):
+        # Once the last gesture's rendering has settled, growth comes of nothing the
+        # reader did, and the frame keeps its height.
+        rendered(child_document)
+        before = frame.evaluate(height)
+        child.locator("#room").evaluate(
+            f"room => {{ room.style.height = '{room}px'; }}"
+        )
+        rendered(child_document)
+        rendered(page)
+        assert frame.evaluate(height) == before
+        return before
+
+    child.locator("#more > summary").click()
+    expect(child.locator("#more")).to_have_attribute("open", "")
+    opened = child.locator("body").evaluate(body)
+    grows_to(opened)
+
+    child_grows_by_itself(1400)
+    child.locator("#top").click()
+    grows_to(opened + 200)
+
+    child_grows_by_itself(1600)
+    # Off the frame, so the wheel is the containing page's alone.
+    assert page.evaluate("!document.elementFromPoint(5, 450).closest('lf-sample')")
+    page.mouse.move(5, 450)
+    page.mouse.wheel(0, -20000)
+    grows_to(opened + 400)
+
+    frame.scroll_into_view_if_needed()
+    child_grows_by_itself(1800)
+    page.evaluate("""() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true, get: () => 'hidden',
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    grows_to(opened + 600)
+
+
+def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(
+    browser, serve
+):
+    """A narrow window sample's status row keeps its size whatever it says, so
+    neither the frame nor what follows moves when "Loading sample…" clears or a
+    failure too long for the row replaces it, open or shut. The reader opens the
+    failure to read it whole by Tab and Enter or by a press. At a mouse the row is a
+    line high, so any growth of it shows."""
+    page, release = held_sample_page(
+        browser,
+        serve,
+        "<h1>Containing page</h1>"
+        + live_sample("broken", " window")
+        + live_sample("practice", " window")
+        + "<p><button id=after>After the samples</button></p>",
+        head="<style>#broken, #practice { width: 180px }</style>",
+        documents=2,
+    )
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-sample-status")).to_have_text(["Loading sample…"] * 2)
+    places = """() => ['#broken iframe', '#practice iframe', '#after'].map(selector => {
+        const box = document.querySelector(selector).getBoundingClientRect();
+        return [box.left, box.top + scrollY, box.width, box.height];
+    })"""
+    before = page.evaluate(places)
+    release(failing={"broken"})
+    status = page.locator("#broken .lf-sample-status")
+    summary = status.locator("details > summary")
+    expect(summary).to_have_text("The sample document did not start Leaf")
+    wait_until_ready(page)
+    expect(page.locator("#practice .lf-sample-status")).to_have_text("")
+    assert page.evaluate(places) == before
+    clipped = "summary => summary.scrollWidth > summary.clientWidth"
+    assert summary.evaluate(clipped)
+
+    page.locator("#broken").get_by_role("button", name="Full view").focus()
+    page.keyboard.press("Tab")
+    expect(summary).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(status.locator("details")).to_have_attribute("open", "")
+    assert not summary.evaluate(clipped)
+    assert page.evaluate(places) == before
+
+    summary.click()
+    expect(status.locator("details")).not_to_have_attribute("open", "")
+    summary.click()
+    expect(status.locator("details")).to_have_attribute("open", "")
+    assert not summary.evaluate(clipped)
+    assert page.evaluate(places) == before
+
+
+def test_a_sample_counts_each_document_its_frame_loads(browser, serve):
+    """A sample's child counts as arrived only once its own samples have, so the page
+    holding it reads as arriving until then. A departure to a page that is not Leaf's
+    ends the count of the document that left, whose inner sample never comes. Reset,
+    and a Reset inside the sample's child, each begin a document the page counts as
+    arriving until it, and the samples inside it, have arrived."""
+    page, _ = held_sample_page(browser, serve, NESTED, hold_first=False)
+    page.locator("#outer").evaluate("sample => sample.ready")
+    child = page.locator("#outer iframe").content_frame
+    expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
+    assert readiness(page) == "arrived"
+    child.locator("#leave").click()
+    wait_until_ready(page)
+
+    # The departed document's inner sample is never answered; from here every sample
+    # document waits until its step releases it. Each new document starts with its
+    # admission: the outer one Reset allocates, or the inner one the inner Reset does.
+    page.unroute(SAMPLE_DOCUMENT)
+    admissions = []
+    page.on(
+        "request",
+        lambda request: request.method == "HEAD" and admissions.append(request),
+    )
+
+    def counts_until_released(reset):
+        held = []
+        page.route(SAMPLE_DOCUMENT, lambda route: held.append(route))
+        admitted = len(admissions)
+        reset.click()
+        holding(page, admissions, admitted + 1, "the new document's sample admission")
+        assert readiness(page) == "arrived"
+        page.unroute(SAMPLE_DOCUMENT)
+        for each in held:
+            each.continue_()
+        wait_until_ready(page)
+
+    counts_until_released(page.locator("#outer").get_by_role("button", name="Reset"))
+    counts_until_released(child.locator("#inner").get_by_role("button", name="Reset"))
+
+
+def test_a_sample_arriving_again_holds_growth_the_reader_did_not_cause(browser, serve):
+    """A Reset inside an arrived sample's child begins its arrival again, and while
+    the new document waits the frame holds growth that came of nothing the reader
+    did, as it did on the first arrival, so what follows the frame stays put."""
+    page, release = held_sample_page(
+        browser,
+        serve,
+        "<h1>Containing page</h1>"
+        + live_sample(
+            "outer",
+            content='<div id="room" style="height: 400px"></div>'
+            + live_sample("inner", " window", "<p>Inner</p>"),
+        )
+        + "<p><button id=after>After the sample</button></p>",
+        hold_first=False,
+    )
+    release()
+    wait_until_ready(page)
+    frame = page.locator("#outer iframe")
+    child = frame.content_frame
+    child_document = frame.element_handle().content_frame()
+    held = []
+    page.route(SAMPLE_DOCUMENT, lambda route: held.append(route))
+    child.locator("#inner").get_by_role("button", name="Reset").click()
+    holding(page, held, 1, "the inner sample's new document")
+    assert readiness(page) == "arrived"
+    rendered(child_document)
+    before = frame.evaluate("frame => frame.clientHeight")
+    after = page.locator("#after").bounding_box()
+    child.locator("#room").evaluate("room => { room.style.height = '700px'; }")
+    rendered(child_document)
+    rendered(page)
+    assert frame.evaluate("frame => frame.clientHeight") == before
+    assert page.locator("#after").bounding_box() == after
+    page.unroute(SAMPLE_DOCUMENT)
+    for each in held:
+        each.continue_()
+    wait_until_ready(page)
+
+
 def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     browser, serve
 ):
@@ -3692,8 +4031,8 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 def test_a_thread_says_what_the_agent_is_doing_about_it(
     browser, serve, tmp_path, dead_pid
 ):
-    """The banner says what the agent is doing; an exact message workflow says
-    which user question it is doing it about. A start updates both readings.
+    """An exact message workflow says which user question the agent is working on,
+    beside the banner's account of the page as a whole.
 
     A user with three questions open and no replies under any of them cannot tell a
     question being worked from a question nobody has looked at, and the page holds the
@@ -3749,14 +4088,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(other_workflow).to_have_text("Sent")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up the comment and hasn't said what it's doing yet"
-        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 to-do"
-        " (Work on the page)."
-    )
-    expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-        "Working · 1 response owed on updates awaiting delivery"
-    )
 
     # The agent finishes the earlier task and waits on the user.
     end_work(d)
@@ -3766,10 +4097,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert latent_waiting.exit_code == 0, latent_waiting.output
     told(page)
     expect(held_workflow).to_have_text("Picked up")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up the comment and hasn't said what it's doing yet"
-        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies."
-    )
 
     cleanup_model.close_session_turn("s")
     told(page)
@@ -3778,13 +4105,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "data-lf-agent-workflow", re.compile(".+")
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
-    # The turn ended with both updates still the agent's to answer, so they are overdue
-    # and the remedy is the user's.
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude last checked in just now. Updates are saved. "
-        "Nothing is answering them, so nudge it in the terminal."
-        " Waiting on Claude: 2 replies."
-    )
     cleanup_model.open_session_turn("s")
 
     def start(item, line):
@@ -3858,12 +4178,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
     # A later start on the page's own task is not an answer to the thread, so the
-    # thread's line stands while the banner takes the newer one.
+    # thread's line stands.
     working(d, "drafting v2")
     told(page)
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^\s*Claude is working — drafting v2")
-    )
     expect(held_workflow).to_have_count(1)
     expect(held_workflow).to_have_attribute(
         "title", "Working · reading the reconnect traces"
@@ -3937,98 +4254,29 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(workflows).to_have_count(1)
     record_claim(d, id="s", pid=dead_pid)
     told(page)
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^\s*No session holds this page\.")
-    )
     expect(held_thread.locator(".lf-thread-status")).to_have_text("To-do open")
     expect(workflows).to_have_count(1)
 
 
-def test_a_workflow_and_the_banner_share_agent_activity(browser, serve):
-    """Exact delivery keeps its workflow while page work retains the independently
-    declared overall state, then falls back to generic work when that declaration
-    waits. The page's open Ask ends the banner's disclosure, after the activity it
-    shares."""
-    source = LONG_PAGE.replace(
-        "</main>",
-        "<lf-ask id='ship-ask'><h2>Ship now?</h2><lf-options id='ship' choose>"
-        "<lf-option id='ship-now'>Now</lf-option>"
-        "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-ask></main>",
-    )
-    page = open_page(browser, serve(source))
-    page_dir = serve.page_dir
-    comment = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Does the banner agree with this workflow?",
-        },
-    )
-    record_claim(page_dir, id="workflow", pid=os.getpid(), agent="Claude")
-    declare_work(page_dir, "Writing the page")
-    with service_model.PageTransaction(page_dir) as transaction:
-        delivery_model.record_pickup(transaction, [comment])
+def test_the_banner_and_the_leaves_row_say_the_served_activity(browser, serve):
+    """The served activity reaches the banner's row, its disclosure and dot, and this
+    page's row in the leaves drawer. What each says for every reading is
+    `tests/runtime/activity-words.test.mjs`'s, and which reading a log and claim come
+    to is `tests/model/test_activity.py`'s."""
+    page = open_page(browser, serve(LONG_PAGE))
+    record_claim(serve.page_dir, id="s", pid=os.getpid(), agent="Claude")
+    declare_work(serve.page_dir, "Writing the page")
     told(page)
-
-    page.keyboard.press("c")
-    workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] .lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
+    expect(page.locator(".lf-status-text")).to_have_text(
+        "Claude working — Writing the page"
     )
-    expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(
-            r"^\s*Claude is working — Writing the page \(just now\)\. Waiting on me"
-        )
+        re.compile(r"^\s*Claude is working — Writing the page \(just now\)\.")
     )
-
-    end_work(page_dir)
-    session_model.cmd_waiting(page_dir, "review the page")
-    told(page)
-    expect(workflow).to_have_text("Picked up")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(
-            r"^\s*Claude picked up the comment and hasn't said what it's doing yet"
-            r" \(just now\)\. Waiting on me"
-        )
+    expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"\bworking\b"))
+    expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
+        "Working — Writing the page"
     )
-
-
-def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
-    browser, serve
-):
-    page = open_page(browser, serve(LONG_PAGE, comments=1))
-    page_dir = serve.page_dir
-    [comment] = [
-        event
-        for event in events_model.read_events(page_dir)
-        if event["kind"] == "comment"
-    ]
-    claim = record_claim(page_dir, id="s", pid=os.getpid(), agent="Claude")
-
-    with live_watcher(page_dir, page):
-        with service_model.PageTransaction(page_dir) as transaction:
-            delivery_model.record_pickup(transaction, [comment])
-            cleanup_model.close_session_turn(claim["id"])
-        result = CliRunner().invoke(
-            cli_model.cli,
-            ["status", str(page_dir), "waiting", "pick a storage engine"],
-        )
-        assert result.exit_code == 0, result.output
-        told(page)
-
-        # The picked-up comment still owes its reply, which the row counts.
-        expect(page.locator(".lf-status-text")).to_have_text(
-            "Claude awaits — pick a storage engine"
-        )
-        expect(page.locator(".lf-status-queues")).to_have_text("On Claude: 1")
-        expect(page.locator(".lf-status-detail")).to_have_text(
-            "Claude awaits — pick a storage engine. Waiting on Claude: 1 reply."
-        )
-        expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-            "Awaits — pick a storage engine"
-        )
 
 
 def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serve):

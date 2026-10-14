@@ -708,6 +708,25 @@
     align-items: center;
     gap: 8px;
   }
+  /* A row that copies is the copy control's face, as wide as the menu's other rows,
+     with its copy icon ending it where a value would. The control lays its face out in
+     an inline flex box of its own, which a percentage cannot reach across, so the face
+     takes the control's width as a container's; and the host is only the face's box, so
+     its own words would give it an empty line under the face. */
+  .lf-fp-copy-item {
+    display: block;
+    container-type: inline-size;
+    font-size: 0;
+    line-height: 0;
+  }
+  .lf-fp-copy-item > .lf-fp-item {
+    width: 100cqi;
+    font: 13px / 1.45 var(--sans);
+  }
+  .lf-fp-copy-item wa-icon {
+    color: var(--lf-fp-muted);
+    font-size: 13px;
+  }
   .lf-fp-chevron {
     width: 12px;
     height: 12px;

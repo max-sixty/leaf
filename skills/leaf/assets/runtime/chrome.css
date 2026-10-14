@@ -607,6 +607,20 @@
     align-items: center;
     gap: 8px;
   }
+  .lf-fp-copy-item {
+    display: block;
+    container-type: inline-size;
+    font-size: 0;
+    line-height: 0;
+  }
+  .lf-fp-copy-item > .lf-fp-item {
+    width: 100cqi;
+    font: 13px / 1.45 var(--sans);
+  }
+  .lf-fp-copy-item wa-icon {
+    color: var(--lf-fp-muted);
+    font-size: 13px;
+  }
   .lf-fp-chevron {
     width: 12px;
     height: 12px;

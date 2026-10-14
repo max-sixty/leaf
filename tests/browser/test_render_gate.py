@@ -2906,18 +2906,21 @@ def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
 
 def test_the_page_edge_is_no_frame(browser, serve):
     """A page with no Layout keeps the browser's margin on its body, and the live root
-    scrolls, so the root holds that margin in. The root draws no frame, its background
-    being the canvas's, so the reading has nothing to ask of it, where it named the
-    root of every such page."""
+    scrolls, so the root holds that margin in. The root draws no frame, its edge
+    being the window's, so the reading has nothing to ask of it, where it named the
+    root of every such page. A root that draws padding is a frame like any box."""
     page = open_page(
         browser, serve(leaf_page("No Layout", "<p>Plain prose.</p>", layout=None))
     )
     margin = page.evaluate("() => getComputedStyle(document.body).marginTop")
     trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
+    page.evaluate("() => document.documentElement.style.padding = '12px'")
+    framed = render_checks_model.evaluate_probe(page, "trappedMargins")
     page.close()
 
     assert margin == "8px", "the body lost the browser's margin, so this tests nothing"
     assert trapped == [], trapped
+    assert [f["at"] for f in framed] == ["<html>", "<html>"], framed
 
 
 @pytest.mark.parametrize("display", ("flex", "grid"))
@@ -4009,8 +4012,10 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
 def test_a_box_reaches_as_far_as_the_breakouts_it_holds(browser, serve):
     """An Ask allocated the column spans the wide block it holds, so its ring goes round
     the block, and the gate named it as set out in the margin on every page with one.
-    A box reaches as far as the breakouts it holds and no further: one padded past the
-    column with nothing wide in it is named, whether it paints there or not."""
+    A box's padding reaches as far as the breakouts it holds and no further, and its
+    content keeps the column: one padded past the column with nothing wide in it is
+    named, whether it paints there or not, and so is one sized past it, whatever the
+    breakout filling it."""
     source = leaf_page(
         "Reaching past the column",
         """
@@ -4022,6 +4027,9 @@ def test_a_box_reaches_as_far_as_the_breakouts_it_holds(browser, serve):
 </lf-ask>
 <div id="bare" style="margin: 0 -120px; padding: 0 120px; text-indent: -120px">Out.</div>
 <div id="tinted" style="margin: 0 -120px; padding: 0 120px; background: #eee">Tint.</div>
+<div id="sized" style="width: calc(100% + 120px); background: #eee; --lf-block-frame: 1">
+  <figure data-width="wide"><p>Evidence that fills the box.</p></figure>
+</div>
 """,
     )
     page = open_page(browser, serve(source))
@@ -4036,7 +4044,7 @@ def test_a_box_reaches_as_far_as_the_breakouts_it_holds(browser, serve):
 
     assert grown > 100, "the Ask never spanned its block, so nothing here was tested"
     past = [m["at"] for m in misplaced if m["code"] == "past-column"]
-    assert past == ["<div id=bare>", "<div id=tinted>"], misplaced
+    assert past == ["<div id=bare>", "<div id=tinted>", "<div id=sized>"], misplaced
 
 
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):

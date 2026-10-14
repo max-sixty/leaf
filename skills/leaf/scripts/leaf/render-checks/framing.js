@@ -45,9 +45,11 @@ const moduleOwnsBox = (el) => {
 // lint over the CSS would be reading the declarations and not the result, which is the same
 // mistake the reserved-width lint made before the press sweep replaced it.
 //
-// It reads the boxes inside the body. The root and the body are the page's edge, not a
-// frame: the inset between them is the page's margin, the browser's 8px on a page with
-// no Layout (layouts.css), which shows exactly what it states.
+// A box that holds draws its frame by holding, since a box the reader sees ends where
+// it does. The root is the exception that is no exception: it holds every margin, as
+// the first formatting context, and its edge is the window's, so it frames only by the
+// padding or border it draws. Holding alone, it named the browser's 8px body margin on
+// every page with no Layout (layouts.css), a margin that shows exactly what it states.
 //
 // Two exclusions, both about what a margin means where it stands. A flex or grid container
 // collapses no margin anywhere, so a margin on an item at its edge is a placement rather
@@ -144,7 +146,7 @@ export function trappedMargins() {
   };
   const found = [];
   for (const root of openRoots(document))
-    for (const el of (root === document ? document.body : root).querySelectorAll("*")) {
+    for (const el of root.querySelectorAll("*")) {
       const s = getComputedStyle(el);
       if (s.display === "none" || s.display === "contents" || el.closest("[hidden]"))
         continue;
@@ -160,7 +162,7 @@ export function trappedMargins() {
         if (!kid.node) continue;
         if (getComputedStyle(el, pseudo).content !== "none") continue;
         const drawn = px(s["padding" + side]) + px(s["border" + side + "Width"]);
-        if (!drawn && !holds(s)) continue;
+        if (!drawn && (!holds(s) || el === document.documentElement)) continue;
         const leak = edgeMargin(kid, edge);
         if (leak && leak.margin > 0.5)
           found.push({

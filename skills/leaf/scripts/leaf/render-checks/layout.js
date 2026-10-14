@@ -351,10 +351,11 @@ export function misplacedBoxes() {
       if (draws(a)) return a;
     return null;
   };
-  // A box reaches as far as the breakouts it holds, each held to its own room above: an
-  // Ask allocated the column spans the wide block it holds (ask.css), its ring going
-  // round the block, and was named as standing out in the margin. Past them, a box is
-  // held to its bound like any other.
+  // A box's content keeps to its bound, and its padding and border reach no further
+  // than the breakouts it holds, each held to its own room above. So an Ask allocated
+  // the column, which spans the wide block it holds with padding (ask.css) so its ring
+  // goes round the block, is in place; it was named as standing out in the margin. A
+  // box sized past the column is not excused by a breakout that fills it.
   const breakouts = [...main.querySelectorAll(BREAKOUT)].map((w) => [
     w,
     w.getBoundingClientRect(),
@@ -383,11 +384,20 @@ export function misplacedBoxes() {
     const frame = wide ? framing(el) : null;
     const host = wide ? null : insideWide(el);
     const bound = (frame || host)?.getBoundingClientRect() ?? null;
-    const held =
+    const [l, r] =
       wide || host
-        ? reach(el, bound ? bound.left : roomLeft, bound ? bound.right : roomRight)
-        : reach(el, left, right);
-    const past = Math.round(Math.max(b.right - held.right, held.left - b.left));
+        ? [bound ? bound.left : roomLeft, bound ? bound.right : roomRight]
+        : [left, right];
+    const held = reach(el, l, r);
+    const s = getComputedStyle(el);
+    const past = Math.round(
+      Math.max(
+        b.right - held.right,
+        held.left - b.left,
+        b.right - parseFloat(s.borderRightWidth) - parseFloat(s.paddingRight) - r,
+        l - (b.left + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft)),
+      ),
+    );
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
   // Each finding is a record (findings.py) carrying its element's place

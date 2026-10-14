@@ -482,6 +482,13 @@ def read_delivery(delivery_id: str) -> dict:
     payload = read_json(path)
     if payload is None:
         raise Refused(f"unknown delivery {delivery_id!r}")
+    if isinstance(payload, dict) and payload.get("format") != DELIVERY_FORMAT:
+        raise Refused(
+            f"delivery {delivery_id!r} is {payload.get('format')!r}, written by a Leaf "
+            f"at another page protocol, and this Leaf reads {DELIVERY_FORMAT!r}. The "
+            "updates it carried stay pending: run `leaf page init` on each page it "
+            "names, and this Leaf delivers them again."
+        )
     if not readable_delivery(payload, delivery_id):
         raise RuntimeError(f"delivery {delivery_id!r} has an invalid envelope")
     return payload

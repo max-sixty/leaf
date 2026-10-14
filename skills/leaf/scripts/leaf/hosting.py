@@ -447,10 +447,20 @@ def _announce_server(page_dir: Path, url: str) -> bool:
 
 
 def _reuse_server(page_dir: Path, host: str | None, persistent: bool) -> str | None:
-    """Read a compatible running server's URL, or say a fresh bind is needed."""
+    """Read a compatible running server's URL, or say a fresh bind is needed.
+
+    A server another Leaf started keeps serving a page this Leaf cannot write, so the
+    page is judged here as a fresh bind judges it (`http.page_endpoint`), before its
+    URL is handed out as this Leaf's."""
+    from .findings import Rejected
+    from .layer import incompatible_layer
+    from .registry.storage import load_registry
+
     existing = running_server(page_dir)
     if not existing:
         return None
+    if refusal := incompatible_layer(page_dir, load_registry(page_dir)):
+        raise Rejected([refusal])
     if host and urlsplit(existing["url"]).hostname != host.lower():
         raise Refused(
             f"already serving at {existing['url']}; "

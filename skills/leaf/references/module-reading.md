@@ -8,16 +8,16 @@ Read an element's words with `says(element)`, which returns them as passages and
 comments read them. `textContent` also returns lines Leaf writes into the page. To name
 one of the widget's own parts, use `wrote(element)`, which returns only the words the
 author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims leading
-blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters, as in
-a diff.
+blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters,
+as in a diff.
 
-An agent's message can carry markup that repeats ids on the page. To find a partner
-element, such as the widget a seat serves, search `authoredScope(element)`: the page's
-`main`, or the body of the message holding the element. `elementById(id, root)` finds an
-id within `root`, or the whole document, including widgets' shadow trees, which
-`getElementById` misses. `under(node, root)` says whether `node` is in `root` across
-shadow boundaries, and `inChrome(node)` whether it is in Leaf's own interface, as a
-widget in a Thread reply is.
+An agent's message can carry markup that repeats ids on the page. To find an element by
+reference, such as the widget a partner element serves, search
+`authoredScope(element)`: the page's `main`, or the body of the message holding the
+element. `elementById(id, root)` finds an id within `root`, or the whole document,
+including widgets' shadow trees, which `getElementById` misses. `under(node, root)` says
+whether `node` is in `root` across shadow boundaries, and `inChrome(node)` whether it is
+in Leaf's own interface, as a widget in a Thread reply is.
 
 ### Naming elements
 
@@ -86,8 +86,9 @@ source. Text set with `textContent` is never formatted.
 
 `inlineMarkdownFragment(text)` returns a fragment, `renderMarkdown(text)` a safe HTML
 string for `unsafeHTML`, and `markdownWords(text)` the words Markdown renders to. The
-renderer loads lazily, and until it has, they return the escaped source; `loadMarkdown()`
-resolves once it has loaded, so a widget showing changing prose repaints then.
+renderer loads lazily, and until it has, they return the escaped source. `loadMarkdown()`
+resolves once it has loaded, and `markdownReady()` says whether it has, so a widget
+showing changing prose repaints then.
 
 ### Code
 
@@ -139,8 +140,8 @@ For a thread control, put `iconElement("comment", "lf-action-icon")` in an
 ## Page readings
 
 A widget that draws from the readings below registers its drawing once with
-`watchProjection(owner, paint)`. Leaf calls `paint()` straight away, again when the page
-first presents, and again whenever a reader it called, such as `readAsks()` or a
+`watchProjection(owner, paint)`. Leaf calls `paint()` on the next microtask, again when
+the page first presents, and again whenever a reader it called, such as `readAsks()` or a
 controller's `read()`, returns something new. So a paint never lists its inputs. Only
 reads before the first `await` count, and reads of DOM nodes don't; watch those
 yourself. The watcher pauses while the owner is out of the page. Call the returned
@@ -172,9 +173,10 @@ Each record looks like this:
 A widget ask's answer is the state of the verb its entry's `x-awaits.value` names, and
 `x-awaits.answered` decides when it is complete
 ([package-data.md, "User state"](package-data.md#user-state)). So a partial answer can
-show while `status` is `open`, and an empty selection can be complete. `answer.event` is
-`null` for authored state. An `lf-ask` or other `x-ask-context` wrapper supplies the
-prompt and where the user lands.
+show while `status` is `open`, and an empty selection can be complete. `answer` is
+`null` until the ask has an answer, and `answer.event` is `null` for authored state. An
+`lf-ask` or other `x-ask-context` wrapper supplies the prompt and where the user lands;
+`prompt.text` is `null` for a widget with no heading.
 
 A prose ask is a question in an agent's message, with `source.kind === "reply"`. The
 user's reply or reaction answers it. When the agent ends it with `leaf task end`
@@ -214,8 +216,10 @@ only when its `phase` is `ready`.
 `readWork(scope)` reads a work hierarchy the page declares, such as goals and the
 workers on them, so a widget that counts its children's work reads it here rather than
 from their reports. The page's `$work.widgets` gives tags roles: `scope` bounds a
-hierarchy, `goal` and `worker` name the recorded `state` attribute and the values that
-mean done, stopped, running or retired, and `evidence` marks a seat for observed data.
+hierarchy; `goal` and `worker` name their recorded `state` attribute and list the values
+under `done` and `stopped` (goals) or `running` and `retired` (workers), and a worker
+may name its assignment attribute in `on`; and `evidence` marks the element that shows
+observed data.
 The result lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`, and
 `running` and `quiet` workers, each with its authored `element`, and `done` counts
 finished leaves. `workRole`, `workElements`, `directWorkElements` and `workAncestor` read
@@ -234,10 +238,10 @@ registered as `watchProjection(this, paint, () => reportsPresented(this))`. A
 `LeafElement` checks `reportsReady(this)` in `render()` instead and returns `noChange`
 while it is false. Each entry has `id`, `target`, `source`, `action`, `detail`, `text`,
 `ts` and `disposition`: `effective`, `outranked` by a newer report on the same unit and
-verb, or
-`settled` by a stamped version. Pass `{kind: "thread", id}` for a Thread's reports, or
-nothing for all of them. `saidAt(element)` is when the message holding `element` was
-sent, or the page published, for showing how long a worker has been quiet.
+verb, or `settled` by a stamped version. Pass `{kind: "thread", id}` for a Thread's
+reports, or nothing for all of them. `saidAt(element)` is when the message holding
+`element` was sent, or the page published, for showing how long a worker has been
+quiet.
 
 ### Reading version changes
 

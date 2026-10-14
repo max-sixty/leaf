@@ -74,9 +74,9 @@ different meaning further out; an unavailable Escape, though, passes on to the n
 Escape, which also means one step back. Text fields keep their editing keys ahead of
 every widget scope.
 
-A menu or other scope that covers the page passes
-`{ claims: allButCommandReference }`, so the page's keys wait while the user is in it
-and only the command reference still opens.
+A menu or other scope that covers the page passes `allButCommandReference` as its
+`claims` option (`{ claims: allButCommandReference }`), so the page's keys wait while
+the user is in it and only the command reference still opens.
 
 Give a native button's row both `control` and `run`, and Leaf runs `run` for its click
 and its key alike. Don't add a click listener, and don't call the button's own `click()`
@@ -150,11 +150,12 @@ Moving focus never scrolls; reveal the destination with `scrollIntoView`
 (`module-scroll-and-motion.md`, "Scrolling to a destination").
 
 Before hiding or replacing nodes the user may be in, as a redraw that rebuilds a row
-does, call `const restore = holdFocus(scope)`, and call `restore()` after. Moving nodes
-needs no hold (`module-authoring.md`, "Retained nodes"). `restore` puts the user back on
-the same node, or on a stand-in passed to it, unless they have gone elsewhere since. For
-a keyed list, `holdFocus(list, { key })` names the attribute holding each item's key, and
-the user lands on the same item, or the nearest survivor.
+does, call `const restore = holdFocus(scope)`, and call `restore?.()` after: `holdFocus`
+returns `null` when the user is outside `scope`. Moving nodes needs no hold
+(`module-authoring.md`, "Retained nodes"). `restore` puts the user back on the same
+node, or on a stand-in passed to it, unless they have gone elsewhere since. For a keyed
+list, `holdFocus(list, { key })` names the attribute holding each item's key, and the
+user lands on the same item, or the nearest survivor.
 
 A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
@@ -175,8 +176,8 @@ first destination that can take focus. The layer's Escape is an ordinary command
 Open a native dialog or popover with `showNativeLayer(layer, {source})`, adding
 `modal: false` for a nonmodal dialog, and close it with `closeNativeLayer(layer)`.
 Inside a live sample they suppress the browser's own focus moves, so place the arrival
-with `focusDestination`.
-`isNativeLayer(node)` says whether a popover is open or a dialog modal.
+with `focusDestination`. `isNativeLayer(node)` says whether a popover is open or a
+dialog modal.
 
 ### Delayed work
 
@@ -215,27 +216,29 @@ image that follows the pointer.
 
 A surface that must stop moving before Leaf handles a gesture, such as a playing
 animation, subscribes with `onUserInput(callback)`, which runs before Leaf handles each
-press, key, input, wheel or touch, or the window losing focus. It doesn't consume the
-event; call the returned function when the surface disconnects. Before a drawing stroke reads its coordinates, Leaf dispatches `lf-inspect` on
-the element drawn on, and a moving visual freezes what it shows.
+press, key, input, wheel or touch, or the window losing focus. The callback acts only on
+events whose target is in the surface, and doesn't consume them; call the returned
+function when the surface disconnects.
+
+Before a drawing stroke reads its coordinates, Leaf dispatches `lf-inspect` on the
+element drawn on; a moving visual listens for it and freezes what it shows.
 
 ## Text entry and drafts
 
 A widget's own text box is `offer(TEXT_FIELD)`, Leaf's Markdown editor, which shows the
 draft as the sent message will read, behaves like a textarea, and fires `input` only for
-the user's edits. `TEXT_BOX` matches it
-or a native textarea. It has `:state(ready)` once its editor exists; when it replaces
-content the user was reading, keep that in place until then, so the scroller doesn't
-shrink.
+the user's edits. `TEXT_FIELD` is its tag, and `TEXT_BOX` matches it or a native
+textarea. The field matches `:state(ready)` once its editor exists. When the field
+replaces text the user was reading, leave that text in place until the field is ready,
+so the scroller doesn't shrink.
 
 Wire the box with `wireInput(box, options)`. Enter sends on a physical keyboard,
 Shift+Enter writes a newline, and Mod+Enter sends anywhere; on a touch screen the
 visible control sends. The options are `sendBtn`, the send control; `sends`, its action
 in words; `hint`, the placeholder; `save(value)`, called with the whole draft on each
 edit; `send(text, raw, owns)`, called on send with the trimmed and raw draft; `busy()`
-and `hasContent(raw)`, which
-hold sending back; and `paint()`, the widget's own drawing from the box. Write `.value`
-only to seed the box before wiring it.
+and `hasContent(raw)`, which hold sending back; and `paint()`, the widget's own drawing
+from the box. Write `.value` only to seed the box before wiring it.
 
 `wireInput` returns `sync`, the way to read or set the whole draft, which can hold a
 pasted image as well as words. `sync.value()` reads it, `sync.load(value)` replaces it,
@@ -254,8 +257,8 @@ its id:
   register the watch in `whileConnected`.
 - `sendDraft(ctx, owns, send)`, called from `send`, calls your `send(attempt, payload)`
   if the box still shows the stored draft and `owns()` is true, and resolves to the
-  delivery's result. One
-  `attempt` stands for one version of the words, so a resend after a reload reuses it.
+  delivery's result. One `attempt` stands for one version of the words, so a resend
+  after a reload reuses it.
 - `clearDraft(ctx)` drops the draft, as Cancel does.
 
 `lf-options`' box for adding an option (`lf-options-addition.js`) is the worked example.

@@ -27,9 +27,9 @@ Leaf keys each action by `[widget, unit, verb]`: the element, the part of it the
 changes, and the verb. For each key the latest action not taken back sets the state, so
 moving a card again replaces that card's position while other cards keep theirs.
 `record` says how the state shows in markup, here as the card's place in a column. A
-`restated` event takes back a decision, and a new version may write its markup however
-it likes whatever was decided before. The `$keys` entries in `assets/registry.json`
-define each key exactly.
+new version may change the authored markup freely; the user's decisions still apply
+over it until a `restated` event takes one back. The `$keys` entries in
+`assets/registry.json` define each key exactly.
 
 The record kind fixes the event's payload, a closed object with every field required:
 
@@ -48,10 +48,10 @@ the element it changes, as a playground's submitted settings do.
 
 A verb that lets the user add a child element declares `creates`, as `lf-options`' `add`
 does with `{"child": "lf-option", "words": "text"}`. Its `unit` names the detail field
-holding the new child's id and `words` the field holding its text, and its detail
-schema has just those two fields. Each added child is its own key, so undoing the add
-removes it. The child's tag lists the widget in `x-owners`, requires only an `id`, and
-has `x-content: markup`.
+holding the new child's id, which must be one the document doesn't hold, and `words`
+the field holding its text; its detail schema has just those two fields. Each added
+child is its own key, so undoing the add removes it. The child's tag lists the widget in
+`x-owners`, requires only an `id`, and has `x-content: markup`.
 
 A verb the agent writes, such as the task `status` on the Atlas example page, declares
 `"writer": "agent"`, `unit: "widget"`, and an `attribute` or `value` record. A worker sets
@@ -117,10 +117,10 @@ Leaf checks only the relation; the package owns the map and its roles, so a late
 package adds a goal or worker widget by adding its entry to `$work.widgets`.
 
 Add `"owns": true` when the referring widget draws into its target, as a command widget
-draws its readings into the seat its `readings` attribute names. `page check` then
+draws its readings into the element its `readings` attribute names. `page check` then
 requires the target in the referrer's own document, the page or the message holding it,
-and every element there matching `where` to be named by exactly one referrer, so no seat
-is empty or filled twice.
+and every element there matching `where` to be named by exactly one referrer, so no
+target is empty or filled twice.
 
 Members of one owner can name each other by a word instead of an id. A playground's
 setting names its control by `name`:
@@ -216,8 +216,11 @@ leaf data clear PAGE release-ci
 
 `leaf data set` validates the value against the source's contract and replaces
 `data/<source>.json` in one step, or leaves it untouched. Open tabs pick up the new
-value at once. A value that stops fitting a later contract shows users an error for
-that source, and `page check` and `page state` report it. `leaf page state PAGE` lists
+value at once. `leaf data clear` removes the value, and each bound widget receives
+`null`. A value that stops fitting a later contract shows users an error for that
+source, and `page check` and `page state` report it. A stamped version keeps the
+contract it was stamped with, so a value written for a changed contract shows there as
+a source error. `leaf page state PAGE` lists
 every binding under `data_bindings`, so a producer needn't parse markup. Every value
 goes to every user of the page, so never put credentials or private host state in one.
 

@@ -11,7 +11,8 @@ body element, with an optional native `header` before it and `footer` after. Lea
 out every pane the same way from the first paint. Whether a pane's body scrolls is the
 workspace Layout's decision (`layouts.css`), not the module's. In a large enough window
 the workspace fills the window's height, and a pane that is its body, or a direct cell
-of it, scrolls its body; elsewhere a pane grows with its content.
+of it, scrolls its body; elsewhere a pane grows with its content. Either way, the
+module registers the body as a reading region, below.
 
 While the workspace fills the window, the Layout sets `--lf-full-height: 1` on `main` and
 on a grid of panes, telling their children they have a definite height to fill. A
@@ -29,9 +30,10 @@ theme to placement within the pane, such as track sizes, and don't copy the Layo
 full-height rules. Generate plain boxes rather than `lf-pane` elements, which the render
 gate expects to find in the page's file.
 
-Register each box the widget scrolls with `registerReadingRegion({id, host, body})`,
-inside `whileConnected`, returning the function it gives back as the cleanup. `body` is
-the box that scrolls, and `host` the pane around it, so focus in the pane's header
+Register the pane's body, and any other box the widget may scroll, with
+`registerReadingRegion({id, host, body})` inside `whileConnected`, returning the
+function it gives back as the cleanup. `body` is the box that may scroll, and `host` the
+pane around it, so focus in the pane's header
 counts as being in the pane. Leaf then keeps the user's place in the box. Registering an
 id that another live region holds throws. A widget whose parts scroll independently
 registers each, with an id from `compoundReadingRegionId(owner, localName)`.
@@ -65,11 +67,11 @@ A widget that hides a view and shows it again later keeps the place as
 A list fed by the log or the clock, such as a feed of reports, shouldn't push the text
 the user is reading. Build `new HeldReading(this, region, changed)`, where `region()`
 returns the nodes the list draws into and `changed()` redraws the widget. Before each
-draw, pass `hold()` a value that is `===` the last one exactly when the draw would be the
-same size, such as a string of row keys, and draw what it returns. That is the new value
-unless the growth would move what the user sees; then it is the last value, until the
-growth would be out of sight, when `changed()` is called. `show()` lets the new value in
-and redraws, for a "Show new" control, and `release()` lets the next one in.
+draw, pass `hold()` the reading as a value that is `===` the last one only when nothing
+changed, such as `JSON.stringify` of the rows, and draw what it returns: the new
+reading, or the last one while the region's growth would move what the user sees.
+`changed()` is called once that growth would be out of sight. `show()` lets the new
+reading in and redraws, for a "Show new" control, and `release()` lets the next one in.
 
 ### Scrolling to a destination
 

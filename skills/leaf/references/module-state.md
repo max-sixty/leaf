@@ -6,8 +6,9 @@ Read with [module-authoring.md](module-authoring.md), which holds what every beh
 
 A registry-declared widget reads and records its state through
 `widgetController(owner)`, whose methods are `read`, `subscribe`, `dispatch`, `defer`
-and `present`. Leaf records the widget's id and declaration before upgrade; if either
-changes afterwards, every action reads as unavailable and `dispatch()` returns `null`.
+and `present`. Leaf records the widget's id and declaration before upgrade; if the
+element's `id` changes afterwards, `read()` reports every action unavailable and
+`dispatch()` returns `null`.
 
 Subscribe once, during initialization, never in the connection callbacks. While the
 widget has a subscriber, the controller calls the module's `renderState(state)` with

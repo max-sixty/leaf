@@ -238,13 +238,15 @@ stylesheet.
 
 `frameFor(element, paint)` returns a function that schedules one call to `paint` for the
 next render, however often it is called. It does nothing while the element is out of the
-page, and leaving cancels a scheduled paint.
+page, and leaving cancels a scheduled paint, which a return doesn't replay, so schedule
+it again from `start`.
 
 `nextRender(callback)` runs in the rendering pass under way, or the next frame's.
 `nextFrame(callback)` always waits a frame, for a step such as an animation tick. Cancel
 either with `cancelRender(id)`. The page doesn't count as settled until this work runs,
 so motion that may run until the user stops it, such as playback, uses
-`nextAnimation(callback)` and `cancelAnimation(id)` instead.
+`nextAnimation(callback)` instead. Cancel it with `cancelAnimation(id)` when the motion
+stops or the element leaves.
 
 `afterScript(callback)` runs a callback once when the current script finishes, for a
 paint two steps of one script would otherwise trigger twice; pass the same function each

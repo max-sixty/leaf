@@ -60,13 +60,13 @@ Choose vertical bounds as `page-layout.md`, "Bounds and widths", describes. Wher
 bounded widget should scroll a box inside it, such as a listing under a caption that
 stays in view, move the bound to that box under `[data-lf-bound]` and declare
 `--lf-bound-box: 1` there, making it the box Leaf scrolls and keeps the user's place in,
-and `--lf-holds-height: 1` (`packages.md`, "Seeing it", `grows-with-content`). A box that
-scrolls sideways needs nothing: Leaf fades its content at any edge with more beyond.
+and `--lf-holds-height: 1`, which tells the render check the box keeps its height on
+purpose (`packages.md`, "Seeing it", `grows-with-content`). A box that scrolls sideways
+needs nothing: Leaf fades its content at any edge with more beyond.
 
 Turn off a widget's interactive styling inside `[data-lf-exhibit]`, where it is quoted
-rather than offered. An
-export inlines the stylesheet and opens offline, so use fonts on the user's machine, not
-remote ones.
+rather than offered. An export inlines the stylesheet and opens offline, so use fonts on
+the user's machine, not remote ones.
 
 Startup behavior and transition protection follow
 [module-authoring.md, "Startup and presentation"](module-authoring.md#startup-and-presentation).

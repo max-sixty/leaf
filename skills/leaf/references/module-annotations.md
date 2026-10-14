@@ -51,22 +51,24 @@ values. Changing an entry between an action, drawn as a button, and a status, dr
 span, replaces its control.
 
 Pressing an entry calls `activate(activation, context)`, where an entry's `activation`
-defaults to its key. An entry for one of the widget's
-declared commands instead sets `scope` to its `commandScope` and `activation` to the
-command's id, and Leaf disables it with the command and runs the command's own `run`.
-Commands of the widget's own that act on these entries call `actions.activate(key)`, so
-keys and pointer reach the same effect.
+defaults to its key. An entry for one of the widget's declared commands instead sets
+`scope` to its `commandScope` and `activation` to the command's id, and Leaf disables it
+with the command and runs the command's own `run`. A command the widget adds for one of
+these entries calls `this.actions.activate(key)`, so a key and a press do the same
+thing.
 
 `kind` says what the whole contribution is: `action` by default, or `change`, `comment`,
 `ask`, `activity` and the margin's other kinds. Where the margin is short of room, a pin
 with a primary control and one other folds into a single button with the kind's icon and
 name. `read()` may also return `readings`, items each with an `id` unique within the
-contribution and an optional `activate`, which `activateReading(id)` calls.
+contribution and an optional `activate`, which the registration's `activateReading(id)`
+calls.
 
 A widget that shows margin entries inside its own content, as the feature gallery does,
 draws its own control as an entry with
 `presentContributionEntry(control, entry, {selected})`, and shows whether the agent is
-working on it with `presentContributionReceipts(control, receipt, awaitsUser)`.
+working on it with `presentContributionReceipts(control, receipt, awaitsUser)`, where
+`receipt` is a workflow's `{id, subject, stage, detail}` or `null`.
 
 ## Visual parts
 
@@ -88,13 +90,13 @@ user just started is there at once; only `phase === "ready"` means every saved t
 Each widget keeps its own search, filter and order. `threadTurns(thread)` returns a
 Thread's turns, and `threadSummary(thread)` its `topic` and `latest` activity.
 
-Address a Thread by its `key`, which survives the server admitting it, not its `id`,
-the name asks and workflows use. `root` is its opening message, `anchor` names the
+Address a Thread by its `key`, which stays the same after the server admits it. Its `id`
+is the name asks and workflows use. `root` is its opening message, `anchor` names the
 `section` and `datum` it is attached to, and `attention.kind` is `"needs_user"` when it
 waits on the user and `"waiting"` when it is with the agent. `offers: {open, reply,
 resolve, reopen}` says which actions are available now. A message's `reactions` lists
-the reactions it takes and those in force, and an agent's message carries `agent`, the
-name it shows under.
+the reactions it takes and those in force, and is `null` on a message that takes none.
+An agent's message carries `agent`, the name it shows under.
 
 `threadActions` acts on Threads through Leaf's own path, showing the result at once:
 
@@ -123,8 +125,8 @@ if (editor?.matches(":focus") && editor.setSelectionRange) {
 }
 ```
 
-Don't check intent captured before the call instead (`module-input.md`, "Delayed
-work"): the route's own move to the editor makes it false.
+Don't test a `retainUserIntent` predicate taken before the call (`module-input.md`,
+"Delayed work"): the route's own move to the editor turns it false.
 
 `reply`, `resolve`, `reopen` and `setReaction` return `null` when the Thread doesn't
 offer the action, and otherwise a promise of the admitted event, or of `null` if the
@@ -195,7 +197,8 @@ A widget that declares `"x-thread-surface": true` shows threads beside its own p
 data, as `lf-diff` does beside lines. Leaf registers it after upgrade and calls its
 `threadOutlets(targets, {signal, collection, onCommit})` whenever placement changes,
 with the threads anchored exactly to its data and the open comment box. Return, in the
-same order, an outlet for each target or `null`, or a promise of that array. A target
+same order, an outlet for each target or `null`, or a promise of that array; an
+asynchronous `threadOutlets` checks `signal` before changing the DOM. A target
 is `{anchor, placement, thread}`, with the datum's element at `placement.datumElement`
 and `thread` `null` for the comment box. Here `this.outletFor` is the widget's own
 method that finds or makes the outlet beside a datum (`lf-diff`'s `threadOutletFor`):

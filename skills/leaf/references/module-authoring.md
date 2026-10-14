@@ -259,7 +259,8 @@ container in later stage updates.
 
 A module that writes stylesheet text of its own, for a constructed sheet or a `<style>`
 in its shadow root, wraps it in `inBaseLayer(css)`. The rules then join the theme's
-`lf-base` cascade layer, below Layouts, semantic state and the page's own stylesheet.
+`lf-base` cascade layer, below Layouts, theme packages, semantic state and the page's
+own stylesheet.
 
 ### Scheduling paints
 

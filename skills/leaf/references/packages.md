@@ -124,11 +124,13 @@ CSS build. Leaf's shared reading, controls and response primitives are already
 included in the roots described below.
 
 Composition declares the order `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`,
-`lf-state`. In the document, kernel and package theme/shadow sheets share `lf-base`;
-Layouts occupy `lf-layouts`, and semantic state occupies `lf-state`. In declared
-shadow roots, adopted widget defaults occupy `lf-base`, shared and package shadow
-sheets occupy `lf-shadow`, and state occupies `lf-state`; document Layout rules do
-not cross the root. Normal declarations in the page's
+`lf-theme`, `lf-state`. In the document, the kernel's and every widget package's
+theme/shadow sheets share `lf-base`; Layouts occupy `lf-layouts`, a theme package's
+sheets (a package that declares no widgets) occupy `lf-theme`, and semantic state
+occupies `lf-state`. In declared shadow roots, adopted widget defaults occupy
+`lf-base`, shared and widget package shadow sheets occupy `lf-shadow`, a theme
+package's shadow sheet occupies `lf-theme`, and state occupies `lf-state`; document
+Layout rules do not cross the root. Normal declarations in the page's
 unlayered stylesheet outrank these defaults. Within a tier, specificity, native scope
 proximity, then source order decide. `!important` reverses layer priority, and inline
 styles outrank ordinary stylesheet declarations; neither is a customization API.
@@ -136,7 +138,9 @@ Runtime chrome and annotation marks remain unlayered and own their apparatus pai
 The generic indication contour is a default in `lf-base`, so a widget can style its
 indicated parts in its own sheets.
 `page-authoring.md`, "Theme and vocabulary", describes how page selectors opt into
-Leaf controls; broad content selectors leave that apparatus alone. Inherited theme
+Leaf controls; broad content selectors leave that apparatus alone. A theme package's
+document rules are read the same way, so its rule for `button` dresses the page's own
+buttons and not the controls widgets build. Inherited theme
 inputs are the supported way to change its shared colors and type.
 Keep dependency defaults in the same tier with `inBaseLayer(text)` from
 `/runtime/widget-api.js`. Bundled CodeMirror applies this at its style provider;
@@ -158,7 +162,8 @@ visual-review allocates its pane and requests inspection through the image owner
 Document selectors do not cross a shadow root. A declared `x-shadow` root built
 with `shadowStage` receives shared primitives and every package's `shadow.css` in
 layer order. The document reads each package's `shadow.css` just ahead of its
-`theme.css` in `lf-base`; an adopted widget default sheet also uses `lf-base`. Use inherited
+`theme.css`, in `lf-base` for a widget package and `lf-theme` for a theme package; an
+adopted widget default sheet also uses `lf-base`. Use inherited
 theme inputs for changes that should reach both roots, a package shadow sheet for
 its internal selectors, or an explicitly exported `::part` for a public control.
 A page selector alone cannot restyle private shadow descendants.
@@ -242,10 +247,12 @@ under its CSS selector in the package's `registry.json`, beside element names
 An idiom may also declare `x-space`, the width it takes, as `.callout` keeps
 the column; delivery paints it on every element the selector matches.
 
-A package's rules sit below the Layouts ("Styles and composition"), so a package
-changes a Layout through the page geometry inputs it reads (the override table's
-"Theme inputs"). A package that declares widgets has its whole sheet scoped to them, so
-page-wide rules and idioms belong in a package that declares none.
+A package that declares widgets has its whole sheet scoped to them, below the Layouts,
+so page-wide rules and idioms belong in a theme package, one that declares none. A
+theme package's rules rank above the Layouts and every widget package's defaults
+("Styles and composition"), so it restyles a Layout or a widget on every page as the
+page's own stylesheet does on one. Where a Layout reads a page geometry input (the
+override table's "Theme inputs"), setting the input changes it with less CSS.
 
 A package's rules read the box a widget is given and the theme's tokens, never the Layout
 or style class around it, so a widget behaves the same in a shipped Layout as on a page

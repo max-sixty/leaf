@@ -28,7 +28,7 @@ figure, such as a chart, image or table, around one option list sets its titled 
 side by side under the figure, as many as its width holds, so the question, the figure
 and the options share the window. A playground or another surface in
 an `lf-ask` that uses every column it gets takes `data-width="available"` itself, so the
-question and its premise keep the prose's width (`page-authoring.md`, "Bounds and
+question and its premise keep the prose's width (`page-layout.md`, "Bounds and
 widths").
 
 Write related, independently answerable asks in page order. A widget can carry its

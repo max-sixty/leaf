@@ -76,7 +76,7 @@ representative desktop viewport.
   bounded block's theme and a full-height workspace's scrolling regions do. Check: the
   widget quality check `grows-with-content` (`scripts/leaf/render_gate/widget_quality.py`),
   run on each package's worked examples and, in the suite, on every corpus page. Page
-  authors' side: `../references/page-authoring.md`, "Bounds and widths".
+  authors' side: `../references/page-layout.md`, "Bounds and widths".
 - **A necessary scroller works like part of the document.** It chains into the
   document at its edges; isolate scrolling only at a bounded task or modal boundary.
   Wheel and touch keep their navigation meaning, and deliberate controls enter pan and

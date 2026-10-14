@@ -147,7 +147,7 @@ export function heldPanes() {
 const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
 
 // Each region of a screen that runs past its room. A full-height workspace is a screen
-// rather than a page to scroll (page-authoring.md, A workspace), so each region of it the
+// rather than a page to scroll (page-layout.md, A workspace), so each region of it the
 // page wrote is meant to show what it holds: a pane the page wrote, and the body itself,
 // which the Layout marks (`--lf-reading-region: layout`, layouts.css). A bounded block
 // declares that it scrolls, and a widget's own regions are its to hold, so neither is

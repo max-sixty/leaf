@@ -2151,11 +2151,6 @@ customElements.define(
         keeps(img, "alt", label);
         keeps(img, "width", String(image.width));
         keeps(img, "height", String(image.height));
-        keeps(
-          img,
-          "data-lf-image-width",
-          String(this.#imageSizes.get(image.pageId).width),
-        );
       }
       this.#drawPicture(image);
       // Saved trees replace each other under their archive phase identity, and the

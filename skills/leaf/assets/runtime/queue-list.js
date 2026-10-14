@@ -15,7 +15,7 @@
    A row whose to-do the user ends with Done carries a Done button beside it, which Tab
    reaches from the row and a finger taps, and `x` on the row presses it. Pressing it
    puts focus on its row first, so focus follows the list as the row leaves for Done. */
-import { html, nothing, repeat } from "../vendor/browser-runtime.js";
+import { html, nothing, repeat } from "/vendor/browser-runtime.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { commandsOn } from "./keyboard/scopes.js";
 import { RetainedFace } from "./retained-face.js";

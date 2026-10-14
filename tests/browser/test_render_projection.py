@@ -1695,11 +1695,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
     assert stamped.exit_code == 0, stamped.output
     told(page)
     expect(page.locator(".lf-version")).to_contain_text("v2")
-    signoff = page.locator(".lf-signoff")
-    expect(signoff).to_be_visible()
-    assert signoff.evaluate(
-        "el => parseFloat(el.style.getPropertyValue('--lf-reserved-width')) > 0"
-    ), "approval was measured while its control was detached"
+    expect(page.locator(".lf-signoff")).to_be_visible()
     assert page.evaluate("window.__leafMain === document.querySelector('main')"), (
         "stamping the displayed revision replaced its main"
     )
@@ -5400,10 +5396,10 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
-          window.__proofWatching = api.watchReports(owner, reports => {
+          window.__proofWatching = api.watchProjection(owner, () => {
             clockValue(() => window.__proofClock);
-            window.__proofReads.push(reports.map(report => report.text));
-          });
+            window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
+          }, () => api.reportsPresented(owner));
           window.__proofTick = () => { window.__proofClock += 1; };
           window.__proofPending = () => {
             const proof = readApplicationPresentation();

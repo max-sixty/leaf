@@ -24,6 +24,7 @@ COMMANDS = {
     "eval-report": "eval_report",
     "eval-ui-review": "review_detection_eval",
     "preview": "preview",
+    "pins": "pins",
     "probe": "probe",
     "profile": "profile",
     "publish-media": "page_fixtures",

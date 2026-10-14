@@ -19,8 +19,16 @@
  * scrubbing and playback leave the playhead between captures and say which
  * capture is shown. Native input events carry no timestamp. A call's bar spans the
  * recorded call, its Action checkpoint is the capture taken just before input is
- * dispatched, and the image names the input only at that call's checkpoints or
- * while the playhead lies inside the call. It never implies a held key. During
+ * dispatched, and the image names and points at an input only once it is sent:
+ * from that checkpoint until the call ends and INPUT_HOLD has passed, so a click
+ * stays visible at recorded pace, or until a later input is sent, and only on a
+ * capture taken from that checkpoint on. An input still to come shows only in the Input
+ * lane: marking its target through the call's wait for actionability read as a
+ * click that had already happened (2026-10-13, replacing a mark across the whole
+ * call). It never implies a held key. At rest the badge also says whether the
+ * shown capture comes just before, during or after the input's call; during
+ * playback it names the input alone, since that relation changes faster than it
+ * can be read at recorded pace. During
  * playback a plain image shows each capture in time over the Viewer, which takes
  * over again when playback stops; the clock waits only when the image on screen
  * would trail it by more than MAX_LAG.
@@ -149,6 +157,14 @@ const INPUT_NAMES = {
 };
 // The longest an image on screen may trail the playing clock, in milliseconds.
 const MAX_LAG = 150;
+// How long after an input is sent the image keeps marking it, in milliseconds of
+// recording: a click's call often ends a few milliseconds after it is sent, which
+// playback at recorded pace would show for no frame at all.
+const INPUT_HOLD = 500;
+// When an input call is known to have sent its input: its Action checkpoint, or,
+// without one, the call's end.
+const inputSent = (action) =>
+  action.phases.action?.timestamp ?? action.endTime ?? action.startTime;
 const hex = (text) =>
   [...new globalThis.TextEncoder().encode(text)]
     .map((n) => n.toString(16).padStart(2, "0"))
@@ -256,6 +272,7 @@ customElements.define(
     #imageHost = createRef();
     #imageTools = createRef();
     #zoomLabel = createRef();
+    /** @type {import("lit/directives/ref.js").Ref<HTMLDetailsElement>} */
     #tree = createRef();
     #treeList = createRef();
     #sources = createRef();
@@ -266,6 +283,7 @@ customElements.define(
     #zoomIn = createRef();
     #zoomOut = createRef();
     #zoomFit = createRef();
+    /** @type {import("lit/directives/ref.js").Ref<HTMLElement>} */
     #positionLabel = createRef();
     #selectionLabel = createRef();
     #actionDetails = createRef();
@@ -937,7 +955,7 @@ customElements.define(
             peer.#comparison() === comparison &&
             peer.#chosenBookmark !== null,
         );
-        const key = peer?.#bookmarks[peer.#chosenBookmark]?.key;
+        const key = peer && peer.#bookmarks[peer.#chosenBookmark]?.key;
         const match = key && this.#bookmarks.find((moment) => moment.key === key);
         if (match && this.#targets.has(match.target))
           this.#reveal(match.target, match.index);
@@ -1406,7 +1424,7 @@ customElements.define(
           retired?.destroy();
           this.#imageZoom();
           this.#draw();
-          resolve();
+          resolve(undefined);
         };
         const failed = () => {
           if (!current()) return;
@@ -1508,9 +1526,11 @@ customElements.define(
       return this.#actions().filter((action) => action.input);
     }
 
-    // The input the shown evidence concerns: the input call of the checkpoint the
-    // playhead stands on, or an input call the playhead stands inside. Between
-    // stops, the last checkpoint's call no longer applies once it has ended.
+    // The input the shown evidence concerns, which the image marks only once it is
+    // sent: the input call of the Action or After checkpoint the playhead stands
+    // on, or the latest input sent before the playhead, until its call has ended
+    // and INPUT_HOLD has passed. What is still to come stands in the timeline's
+    // Input lane, not on the image.
     #currentInput() {
       const point = this.#point();
       const time = this.#playheadTime();
@@ -1518,15 +1538,21 @@ customElements.define(
       if (
         point.action?.input &&
         INPUT_PHASES[point.phase] &&
+        point.phase !== "before" &&
         Math.abs(time - point.timestamp) < 0.5
       )
         return point.action;
-      return (
-        this.#inputActions().find(
-          (action) =>
-            action.startTime <= time && time <= (action.endTime ?? action.startTime),
-        ) ?? null
-      );
+      // A later input sent supersedes an earlier one, however long its call runs.
+      let latest = null;
+      for (const action of this.#inputActions()) {
+        const sent = inputSent(action);
+        if (sent <= time && (!latest || sent > inputSent(latest))) latest = action;
+      }
+      if (!latest) return null;
+      const sent = inputSent(latest);
+      return time <= Math.max(latest.endTime ?? sent, sent + INPUT_HOLD)
+        ? latest
+        : null;
     }
 
     // How an image relates to an input call, from the image's own capture: its
@@ -1555,19 +1581,29 @@ customElements.define(
       // A restored view adjusts zoom and pan together. Viewer emits each
       // intermediate pose synchronously; draw only after that view is complete.
       if (this.#applyingPictureView) return;
-      const action = this.#currentInput();
+      const input = this.#currentInput();
       const image = this.#shownImage();
       const imageReady = image && this.#picture?.viewed;
+      // The image on screen can trail the playhead. One captured before the input
+      // was sent shows nothing of it, so it names none.
+      const read = input && image ? this.#inputRelation(image, input) : null;
+      const relation = read === "before" ? null : read;
+      const action = relation ? input : null;
       keepsHidden(this.#inputBadge, !action || !imageReady);
-      const relation = action && image ? this.#inputRelation(image, action) : null;
       const span = action
         ? `${this.#time(action.startTime, action.stream)}–${this.#time(action.endTime ?? action.startTime, action.stream)}`
         : "";
+      // At rest the badge says when the image was captured and whether the input
+      // was next, under way or done. Playing, the readout names the time and those
+      // words would change within a few hundred milliseconds of each input, so the
+      // badge names the input alone.
       keepsText(
         this.#inputBadge,
-        relation
-          ? `${this.#time(image.timestamp, image.stream)} · ${relation === "next" ? "next:" : relation} ${this.#inputLabel(action)}`
-          : "",
+        !relation
+          ? ""
+          : this.#playing
+            ? this.#inputLabel(action)
+            : `${this.#time(image.timestamp, image.stream)} · ${relation === "next" ? "next:" : relation} ${this.#inputLabel(action)}`,
       );
       keeps(
         this.#inputBadge,
@@ -1576,8 +1612,7 @@ customElements.define(
           ? `This image was captured ${relation === "next" ? "at the Action checkpoint, just before the input is sent" : `${relation} the input call`}. ${this.#inputLabel(action)}${action.input.selector ? ` · ${action.input.selector}` : ""} · call ${span}. Key-down and hold times are not recorded.`
           : null,
       );
-      // The badge says whether the input is next, under way or done; the point
-      // marks where it lands in the shown capture's viewport.
+      // The point marks where the input lands in the shown capture's viewport.
       const coordinate = action?.input.point;
       const viewport = action?.input.viewport;
       const visible =
@@ -1590,12 +1625,11 @@ customElements.define(
       if (visible) {
         const raster = this.#picture.image.getBoundingClientRect();
         const host = this.#viewport.value.getBoundingClientRect();
-        const left = layoutPx(
-          raster.left - host.left + (coordinate.x / viewport.width) * raster.width,
-        );
-        const top = layoutPx(
-          raster.top - host.top + (coordinate.y / viewport.height) * raster.height,
-        );
+        // A capture scales the viewport by its width; a screencast frame may also
+        // crop the viewport's foot, so its height says nothing of the scale.
+        const scale = raster.width / viewport.width;
+        const left = layoutPx(raster.left - host.left + coordinate.x * scale);
+        const top = layoutPx(raster.top - host.top + coordinate.y * scale);
         if (this.#inputPoint.style.left !== left) this.#inputPoint.style.left = left;
         if (this.#inputPoint.style.top !== top) this.#inputPoint.style.top = top;
         keeps(this.#inputPoint, "title", this.#inputLabel(action));
@@ -1764,6 +1798,7 @@ customElements.define(
     // Lit owns the native controls and metadata. Library surfaces and the
     // per-frame labels (`#drawTime`) keep their imperative owners. `#draw`
     // passes the selected point and the saved tree it resolved.
+    /** @param {any} [point] @param {{tree?: any, treePoint?: any}} [saved] @param {any[]} [rows] */
     #paint(point = null, { tree, treePoint } = {}, rows = []) {
       const trace = this.#trace;
       const q = quoted(this);
@@ -2151,11 +2186,6 @@ customElements.define(
         keeps(img, "alt", label);
         keeps(img, "width", String(image.width));
         keeps(img, "height", String(image.height));
-        keeps(
-          img,
-          "data-lf-image-width",
-          String(this.#imageSizes.get(image.pageId).width),
-        );
       }
       this.#drawPicture(image);
       // Saved trees replace each other under their archive phase identity, and the

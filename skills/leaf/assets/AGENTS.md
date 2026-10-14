@@ -3,9 +3,9 @@
 This file owns browser-wide contracts: how the page should look and move, module
 boundaries, startup, state authority, and the render gates. Each module's header
 owns its local contract. Page-authoring rules live in
-`../references/page-authoring.md`, module authoring in
-`../references/module-authoring.md`, package contracts in `../references/packages.md`,
-and rules shared with Python in root `AGENTS.md`, "Cross-runtime invariants".
+`../references/page-authoring.md`, module authoring in `../references/module-*.md`,
+package contracts in `../references/packages.md` and `package-*.md`, and rules
+shared with Python in root `AGENTS.md`, "Cross-runtime invariants".
 
 Shared stylesheet owners live under `styles/`: `styles/shadow.css` composes
 `styles/components/` into the shared root sheet. Document composition loads that
@@ -76,7 +76,7 @@ representative desktop viewport.
   bounded block's theme and a full-height workspace's scrolling regions do. Check: the
   widget quality check `grows-with-content` (`scripts/leaf/render_gate/widget_quality.py`),
   run on each package's worked examples and, in the suite, on every corpus page. Page
-  authors' side: `../references/page-authoring.md`, "Bounds and widths".
+  authors' side: `../references/page-layout.md`, "Bounds and widths".
 - **A necessary scroller works like part of the document.** It chains into the
   document at its edges; isolate scrolling only at a bounded task or modal boundary.
   Wheel and touch keep their navigation meaning, and deliberate controls enter pan and
@@ -152,8 +152,8 @@ representative desktop viewport.
   finding `tests/known_widget_findings.py` does not list.
 - **Generated interface first appears in its settled position.** Reserve space before
   a generated control appears. Transient feedback may repaint a control or briefly
-  replace its label but never changes its geometry (`reserve` in `widget-elements.js`
-  sizes a control for all its labels). An action awaiting confirmation dims its
+  replace its label but never changes its geometry (`data-lf-room`, `controls.css`,
+  sizes a label for all its words). An action awaiting confirmation dims its
   existing control after the shared delay. The parent laying out adjacent actions gives
   them disjoint hit boxes.
 - **A gesture shows the result the page can draw as it is made** (root `AGENTS.md`,
@@ -354,9 +354,9 @@ it, and shape the markup and CSS so the runtime uses its answer:
 
 | Question | The browser feature that answers it |
 | --- | --- |
-| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell |
+| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, a label's room drawn invisibly beside its words (`data-lf-room`) |
 | Where a box stands against another box or the scroller holding it | the containing block, sticky positioning, anchor positioning, scroll timelines |
-| Which of Leaf's surfaces paints over which | the top layer, and stacking contexts |
+| Which of Leaf's surfaces paints over which, and that the page paints beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0 |
 | Whether a box is rendered at all | `checkVisibility` |
 | Which rules reach an element | cascade layers, `@scope`, and a shadow root as the boundary |
 
@@ -373,9 +373,7 @@ retargeted shadow hosts and a held label press, so style focus on those marks.
 Whether the user can see a box, and what covers it, stay with `geometry.js`
 (`seenRect`, `declareOccluder`), since Leaf's chrome stands over the page without
 clipping it, and some of it, such as the shortcut bar, takes no pointer hits for
-`elementsFromPoint` to find. `reserve` (`widget-elements.js`) predates this rule and
-measures each label in script; a change that touches it replaces it with labels
-stacked in one grid cell, or states why that fails.
+`elementsFromPoint` to find.
 
 Each rendering callback gathers its layout reads before it writes: a read after a
 write forces a synchronous style and layout. A document-wide renderer that reads DOM
@@ -601,8 +599,10 @@ which import the runtime's own modules, and writes `vendor/lit.js`, the page's o
 (`build/AGENTS.md` owns the commands). What a module decides on its own is
 tested under `tests/runtime/` (`pnpm run test:runtime`; `tests/AGENTS.md` says
 which readings may go there). `pnpm run check:browser` type-checks every runtime
-module, the framework's types reaching it through `vendor/browser-runtime.d.ts`; a
-module marked `// @ts-check` is held to strict mode, and the rest are checked without
-it. What the classic scripts hang on `<html>` and `window`, the events the runtime
-dispatches with a detail, and the runtime's own elements by tag are declared once in
-`build/browser/runtime-globals.d.ts` (`build/browser/build.mjs`, `typecheck`).
+module, `leaf.js`, and the kernel's and packages' widget modules; a module marked
+`// @ts-check` is held to strict mode, and the rest are checked without it. A module
+imports the framework by its served path, `/vendor/browser-runtime.js`, which the
+check reads as the framework's TypeScript source. What the classic scripts hang on
+`<html>` and `window`, the events the runtime dispatches with a detail, and the
+runtime's own elements by tag are declared once in `build/browser/runtime-globals.d.ts`
+(`build/browser/build.mjs`, `typecheck`).

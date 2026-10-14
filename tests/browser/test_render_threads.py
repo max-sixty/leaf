@@ -3118,6 +3118,48 @@ def test_original_image_link_has_a_standalone_target(browser, serve):
     expect(page.locator("#image")).to_be_focused()
 
 
+def test_a_capture_in_a_table_is_named_by_its_heads(browser, serve):
+    """Image preview keeps a table of captures' labels, which name each axis once.
+
+    Heads count where they stand: spanning heads name every capture under or beside
+    them, outer first, a header row needs no <thead>, and a repeated one names once."""
+    cell = '<td><a id="{0}" href="/media/051bee487bfb5d13.png"><img src="/media/051bee487bfb5d13.png" width="180" height="75" alt="Release output"></a></td>'
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Captures",
+                "<h1>Captures</h1><table id=grid>"
+                "<thead><tr><td></td><th scope=col>Light</th><th scope=col>Dark</th></tr></thead>"
+                f"<tbody><tr><th scope=row>Before</th>{cell.format('light-before')}{cell.format('dark-before')}</tr>"
+                f"<tr><th scope=row>After</th>{cell.format('light-after')}{cell.format('dark-after')}</tr></tbody>"
+                "<tbody><tr><td></td><th>Light</th><th>Dark</th></tr>"
+                f"<tr><th scope=row>Later</th>{cell.format('light-later')}{cell.format('dark-later')}</tr></tbody></table>"
+                "<table id=spanned><tbody>"
+                "<tr><td rowspan=2 colspan=2></td><th colspan=2>Light</th><th colspan=2>Dark</th></tr>"
+                "<tr><th>Before</th><th>After</th><th>Before</th><th>After</th></tr>"
+                "<tr><th scope=row rowspan=2>Phone</th><th scope=row>Portrait</th>"
+                + "".join(cell.format(f"portrait-{n}") for n in range(4))
+                + "</tr><tr><th scope=row>Landscape</th>"
+                + "".join(cell.format(f"landscape-{n}") for n in range(4))
+                + "</tr></tbody></table>",
+            )
+        ),
+    )
+    viewer = page.get_by_role("dialog", name="Image preview")
+    for link, caption in (
+        ("dark-before", "Dark · Before"),
+        ("light-after", "Light · After"),
+        ("dark-later", "Dark · Later"),
+        ("portrait-0", "Light · Before · Phone · Portrait"),
+        ("landscape-3", "Dark · After · Phone · Landscape"),
+    ):
+        page.locator(f"#{link}").click()
+        expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(caption)
+        page.keyboard.press("Escape")
+        expect(viewer).to_be_hidden()
+
+
 # A diagram that states no size of its own, only a shape, as Mermaid writes one.
 DIAGRAM_SVG = (
     b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'
@@ -9564,6 +9606,18 @@ def seated_page(serve, kind):
     ), "#proposal"
 
 
+def watch_blurs(box):
+    """Count the times the editor `box` loses focus from now on, wherever it moves:
+    a move that keeps the user in it fires none (`blurs`)."""
+    box.evaluate(
+        "box => { box.lfBlurs = 0; box.addEventListener('blur', () => box.lfBlurs++); }"
+    )
+
+
+def blurs(box):
+    return box.evaluate("box => box.lfBlurs")
+
+
 def seated_thread(serve, kind, messages, annotations="overlay"):
     """A thread of `messages` turns on a page seat (`task`, `verdict`) or on a diff
     line (`diff`, drawn inside the widget's shadow tree), and the page's URL. A diff
@@ -10326,6 +10380,7 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
         )
         told(page)
         expect(box).to_be_focused()
+    watch_blurs(box)
     # Whether the page, at any task after the box leaves, holds the user nowhere: a
     # key arriving then would run as a page command.
     page.evaluate(
@@ -10353,6 +10408,8 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     expect(reply).to_have_js_property("value", "Half a thought")
     assert reply.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
     assert page.evaluate("() => window.__strandedAt") == []
+    # The user never left the editor on its way.
+    assert blurs(reply) == 0
     page.keyboard.type(" tr")
     expect(reply).to_have_js_property("value", "Half tr a thought")
     expect(reply).to_be_focused()
@@ -10388,12 +10445,15 @@ def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
     expect(reply).to_be_focused()
     page.keyboard.type(" more")
     reply.evaluate("box => box.setSelectionRange(4, 4)")
+    watch_blurs(reply)
     data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
     told(page)
     expect(card).to_be_hidden()
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", "Half a thought more")
     assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [4, 4]
+    # The user never left the editor on its way back.
+    assert blurs(box) == 0
     page.keyboard.type(" tr")
     expect(box).to_have_js_property("value", "Half tr a thought more")
     expect(box).to_be_focused()
@@ -10402,6 +10462,140 @@ def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
     expect(box).to_have_js_property("value", "Half a thought more")
     page.keyboard.press("ControlOrMeta+z")
     expect(box).to_have_js_property("value", "Half a thought")
+
+
+# The browser's speech recognizer, replaced at its boundary as tests/runtime's
+# dictation tests replace it: each instance records whether it was aborted, and a
+# test hears words through its `onresult`.
+FAKE_RECOGNITION = """
+window.lfRecognizers = [];
+window.SpeechRecognition = class {
+  constructor() { this.aborted = false; window.lfRecognizers.push(this); }
+  start() { setTimeout(() => this.onstart?.()); }
+  stop() { setTimeout(() => this.onend?.()); }
+  abort() { this.aborted = true; }
+};
+"""
+
+
+def test_a_reply_dictated_on_the_diff_keeps_listening_as_its_thread_moves(
+    browser, serve
+):
+    """The user dictates a reply on the diff line, and the patch moves the thread to
+    its margin card and back. Leaf's dictation followed the editor's view and stopped
+    on each move. It goes on with the editor, still listening, and writes what it
+    hears into the same box wherever the thread stands."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(browser, url, init_script=FAKE_RECOGNITION)
+    resized(page, 1440, 900)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    row = inline.locator(":scope > .lf-thread-reply")
+    row.scroll_into_view_if_needed()
+    row.locator("leaf-text").focus()
+    row.locator(".lf-compose-dictate").click()
+    page.wait_for_function("() => window.lfRecognizers.length === 1")
+    heard = """words => window.lfRecognizers[0].onresult({
+      results: [[{ transcript: words }]],
+    })"""
+    page.evaluate(heard, "Half a")
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
+    )
+    told(page)
+    card = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    reply = card.locator(":scope > .lf-thread-reply leaf-text")
+    expect(reply).to_be_focused()
+    page.evaluate(heard, "Half a thought")
+    expect(reply).to_have_js_property("value", "Half a thought")
+    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    told(page)
+    box = row.locator("leaf-text")
+    expect(box).to_be_focused()
+    page.evaluate(heard, "Half a thought more")
+    expect(box).to_have_js_property("value", "Half a thought more")
+    assert page.evaluate("() => window.lfRecognizers.map(r => r.aborted)") == [False]
+
+
+@pytest.mark.parametrize("card", ["open", "closed"])
+def test_a_reply_box_left_by_tab_returns_to_the_diff_with_its_history(
+    browser, serve, card
+):
+    """The user leaves the margin card's reply before the patch comes back: by Tab onto
+    the margin (`open`), or by Shift+Tab to the card's Close and Enter (`closed`). Its
+    editing session goes on: the diff line used to draw a fresh editor holding only
+    the words, while the hidden card kept the one with the undo history. The diff line
+    takes that editor."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    box = inline.locator(":scope > .lf-thread-reply leaf-text")
+    box.scroll_into_view_if_needed()
+    write(box, "Half a thought")
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
+    )
+    told(page)
+    shown = page.locator(f'.lf-margin-preview .lf-page-thread[data-thread="{root}"]')
+    reply = shown.locator(":scope > .lf-thread-reply leaf-text")
+    expect(reply).to_be_focused()
+    page.keyboard.type(" more")
+    preview = page.locator(".lf-margin-preview")
+    if card == "open":
+        for _ in range(10):
+            page.keyboard.press("Tab")
+            if not preview.evaluate("card => card.contains(document.activeElement)"):
+                break
+    else:
+        close = page.locator(".lf-margin-preview-close")
+        for _ in range(10):
+            page.keyboard.press("Shift+Tab")
+            if close.evaluate("close => close.matches(':focus')"):
+                break
+        page.keyboard.press("Enter")
+        expect(preview).to_be_hidden()
+    expect(reply).not_to_be_focused()
+    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    told(page)
+    expect(shown).to_be_hidden()
+    expect(box).to_have_js_property("value", "Half a thought more")
+    box.focus()
+    page.keyboard.press("ControlOrMeta+z")
+    expect(box).to_have_js_property("value", "Half a thought")
+
+
+@pytest.mark.parametrize("standing", ["close", "marker"])
+def test_a_user_on_a_thread_returning_to_the_diff_goes_with_it(
+    browser, serve, standing
+):
+    """The user stands on the margin card's Close, or on the thread's margin marker,
+    when the patch comes back and the thread takes its seat on the diff line again.
+    The node they stood on goes with the margin's copy of the thread. They landed on
+    the banner's More button or the page; they land on the thread where it now
+    stands."""
+    url, root = seated_thread(serve, "diff", 2)
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    inline = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
+    data_model.cmd_data_set(
+        serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
+    )
+    told(page)
+    expect(inline).to_have_count(0)
+    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    if standing == "close":
+        marker.click()
+        close = page.locator(".lf-margin-preview-close")
+        close.focus()
+        expect(close).to_be_focused()
+    else:
+        marker.focus()
+        expect(marker).to_be_focused()
+    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    told(page)
+    expect(inline).to_have_count(1)
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+    expect(inline).to_be_focused()
 
 
 @pytest.mark.parametrize(
@@ -11364,12 +11558,47 @@ def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
     assert text.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
 
 
+def _ring_gaps(page, target):
+    """The sides of `target`'s focus ring the page does not show in its colour: those a
+    clipping scroller or a box painted over them hides."""
+    ring = target.evaluate(
+        """el => {
+          const s = getComputedStyle(el), r = el.getBoundingClientRect();
+          const out = parseFloat(s.outlineOffset) + parseFloat(s.outlineWidth) / 2;
+          return {color: s.outlineColor, left: r.left - out, right: r.right + out,
+            top: r.top - out, bottom: r.bottom + out};
+        }"""
+    )
+    # A ring stands on the middle of each side, where no corner rounds it.
+    x, y = (ring["left"] + ring["right"]) / 2, (ring["top"] + ring["bottom"]) / 2
+    points = {
+        "left": (ring["left"], y),
+        "right": (ring["right"], y),
+        "top": (x, ring["top"]),
+        "bottom": (x, ring["bottom"]),
+    }
+    color = tuple(int(c) for c in re.findall(r"\d+", ring["color"])[:3])
+    gaps = []
+    for side, (px, py) in points.items():
+        shot = page.screenshot(
+            clip={"x": px - 0.5, "y": py - 0.5, "width": 1, "height": 1}
+        )
+        seen = Image.open(io.BytesIO(shot)).convert("RGB").getpixel((0, 0))
+        if max(abs(a - b) for a, b in zip(seen, color)) > 40:
+            gaps.append(side)
+    return gaps
+
+
 def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     """The card holding a comment just sent keeps its words in the room the draft had,
     clear of Send (`data-lf-comment-frame`). A rewrite opened there kept that narrow
     room too, a box shorter and narrower than the reply box under it; it is now the
-    reply box's own field, its words at their inset, its ring whole inside the
-    transcript that scrolls it."""
+    reply box's own field, its words at their inset.
+
+    The field's ring, drawn outside it as the reply box's is, lost its left and bottom
+    sides to the transcript that scrolls it, which kept no room past its edges; and the
+    card's actions painted their ground over the right side of a focused Edit's or
+    Save's ring. Each ring now stands whole."""
     touch = False
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(browser, serve(LONG_PAGE), context=context)
@@ -11394,6 +11623,9 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     rendered(page)
     before = message.bounding_box(), words.bounding_box()
     first_line = words.evaluate(FIRST_LINE)
+    message.locator(".lf-msg-edit").focus()
+    one_frame(page)
+    assert _ring_gaps(page, message.locator(".lf-msg-edit")) == []
     message.locator(".lf-msg-edit").click()
     editor = message.locator(".lf-msg-editor")
     expect(editor.locator("leaf-text")).to_be_focused()
@@ -11413,13 +11645,12 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     assert (
         abs(editor.locator("leaf-text").evaluate(FIRST_LINE)[0] - first_line[0]) < 0.5
     )
-    # The transcript scrolls, so it would clip a ring drawn outside the field.
-    assert field.evaluate(
-        """el => {
-          const style = getComputedStyle(el);
-          return parseFloat(style.outlineOffset) <= -parseFloat(style.outlineWidth);
-        }"""
-    )
+    rendered(page)
+    assert _ring_gaps(page, field) == []
+    save = message.get_by_role("button", name="Save", exact=True)
+    save.focus()
+    one_frame(page)
+    assert _ring_gaps(page, save) == []
 
 
 def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(

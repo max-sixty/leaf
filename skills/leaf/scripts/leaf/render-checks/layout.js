@@ -2,6 +2,7 @@ import { pageScroller, readingPosture, TEXT_BOX } from "/runtime/widget-api.js";
 import {
   pageDocument,
   readingRegions,
+  renderedParent,
   shownBand,
   shownRegionBounds,
   uiInside,
@@ -15,16 +16,23 @@ import { shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
-// A block the theme grows past the column (layouts.css). A block allocated `column`
-// keeps the measure as text does, so these checks read it as ordinary flow.
-const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+// A box the theme lets stand past its holder, which says so where it lets it
+// (`--lf-breakout`, layouts.css): a block granted a wider room than the measure, and an
+// Ask spanning such a block (ask.css). Every other box keeps to the column, as text
+// does. The theme lets only a box it allocates room break out.
+const breaksOut = (el) =>
+  getComputedStyle(el).getPropertyValue("--lf-breakout").trim() === "1";
 
 // The box a block's width and margins resolve against: its nearest ancestor that
-// generates one, inside that ancestor's border, padding and any scrollbar gutter, at
-// the place its scroll puts it.
+// generates a block, inside that ancestor's border, padding and any scrollbar gutter,
+// at the place its scroll puts it. An inline holder, such as a link around a chart, is
+// passed as prepaint.js's `holderOf` passes it, since the browser sets a block inside
+// an inline in its holder's flow; read from the link, a linked breakout was named for
+// standing off the axis of a room 0px wide.
 function contentBox(el) {
   let s = getComputedStyle(el);
-  while (s.display === "contents") s = getComputedStyle((el = el.parentElement));
+  while (s.display === "contents" || s.display === "inline")
+    s = getComputedStyle((el = renderedParent(el)));
   const left =
     el.getBoundingClientRect().left +
     el.clientLeft +
@@ -147,7 +155,7 @@ export function heldPanes() {
 const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
 
 // Each region of a screen that runs past its room. A full-height workspace is a screen
-// rather than a page to scroll (page-authoring.md, A workspace), so each region of it the
+// rather than a page to scroll (page-layout.md, A workspace), so each region of it the
 // page wrote is meant to show what it holds: a pane the page wrote, and the body itself,
 // which the Layout marks (`--lf-reading-region: layout`, layouts.css). A bounded block
 // declares that it scrolls, and a widget's own regions are its to hold, so neither is
@@ -250,7 +258,7 @@ function marginReading(main) {
     // pointer events keep them from occupying the margin until it opens.
     if (
       !el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) ||
-      el.matches(BREAKOUT)
+      breaksOut(el)
     )
       return false;
     const style = getComputedStyle(el);
@@ -290,6 +298,9 @@ export function misplacedBoxes() {
     !uiInside(el, main) ||
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   const { isResident, left, residents, right } = marginReading(main);
+  const wides = new Set(
+    [...main.querySelectorAll("[data-lf-space]")].filter(breaksOut),
+  );
   // A widget the registry declares wide is answered for out here, the way an
   // absolutely-positioned resident is: standing past the column is what it was
   // declared for. What still has to hold is the page's own box — the room the layout
@@ -324,7 +335,7 @@ export function misplacedBoxes() {
   // scrolled, `overflow-x: auto` having caught every descendant a line above.
   const insideWide = (el) => {
     for (let a = el.parentElement; a && a !== main; a = a.parentElement)
-      if (a.matches(BREAKOUT)) return a;
+      if (wides.has(a)) return a;
     return null;
   };
   // What a wide widget may not escape, whatever the page has room for: the nearest
@@ -351,9 +362,12 @@ export function misplacedBoxes() {
       if (draws(a)) return a;
     return null;
   };
+  // How far a box stands past the band from `start` to `end`.
+  const outside = (box, start, end) =>
+    Math.round(Math.max(box.right - end, start - box.left));
   const over = new Map();
   for (const el of main.querySelectorAll("*")) {
-    const wide = el.matches(BREAKOUT);
+    const wide = wides.has(el);
     // A wide widget is asked whatever it stands in, where everything else is excused
     // by a scroll container above it. The excuse is about the column — a box inside a
     // scroller is drawn only as far as the scroller reaches, so it cannot spill onto
@@ -366,16 +380,11 @@ export function misplacedBoxes() {
     if (b.width < 1) continue;
     const frame = wide ? framing(el) : null;
     const host = wide ? null : insideWide(el);
-    const bound = (frame || host)?.getBoundingClientRect() ?? null;
+    const bound = (frame || host)?.getBoundingClientRect();
     const past =
       wide || host
-        ? Math.round(
-            Math.max(
-              b.right - (bound ? bound.right : roomRight),
-              (bound ? bound.left : roomLeft) - b.left,
-            ),
-          )
-        : Math.round(Math.max(b.right - right, left - b.left));
+        ? outside(b, bound?.left ?? roomLeft, bound?.right ?? roomRight)
+        : outside(b, left, right);
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
   // Each finding is a record (findings.py) carrying its element's place
@@ -406,7 +415,7 @@ export function misplacedBoxes() {
   // maintains. A resident is whatever `marginReading` finds standing past the column, so
   // a project hanging its own furniture out there is covered without declaring anything
   // to this pass.
-  for (const el of main.querySelectorAll(BREAKOUT)) {
+  for (const el of wides) {
     if (!el.checkVisibility()) continue;
     const b = el.getBoundingClientRect();
     const hit = residents.find((r) => {

@@ -90,8 +90,8 @@ import {
   setRuntimeRootStyle,
   sizeObserver,
   tabStore,
-  watchAsks,
   watchComparison,
+  watchProjection,
   focusDestination,
   fragmentTarget,
   rove,
@@ -146,7 +146,9 @@ customElements.define(
         return;
       }
       // Own panels only (a nested lf-tabs wires its own).
-      const panels = [...this.querySelectorAll(":scope > lf-tab")];
+      const panels = /** @type {HTMLElement[]} */ ([
+        ...this.querySelectorAll(":scope > lf-tab"),
+      ]);
       if (!panels.length) return;
       const side = this.getAttribute("list") === "side";
       this.#side = side;
@@ -416,7 +418,7 @@ customElements.define(
     // A side list's answers follow the page's ask reading.
     #listenForAsks() {
       if (!this.#side || !this.#buttons.size || this.#stopAsks) return;
-      this.#stopAsks = watchAsks(this, () => this.#marks());
+      this.#stopAsks = watchProjection(this, () => this.#marks());
     }
 
     #activate(active, reason) {

@@ -38,17 +38,10 @@ import {
   standsOn,
   standingIn,
 } from "../focus.js";
-import {
-  html,
-  render,
-  nothing,
-  ref,
-  share,
-  signal,
-} from "../../vendor/browser-runtime.js";
+import { html, render, nothing, ref, share, signal } from "/vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
-import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
+import { offer, reachedForWords, measure } from "../widget-elements.js";
 import { keeps, keepsHidden, layoutPx } from "../keeps.js";
 import { commandsOn, keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
@@ -459,7 +452,6 @@ export class ThreadView {
   #replyReservation = null;
   #received = null;
   #headerSlot = null;
-  #newsReserved = false;
   #observedHeader = null;
   #quoteNode = null;
   #watchQuote = (node) => {
@@ -1199,7 +1191,7 @@ export class ThreadView {
     if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
     this.#observedHeader = null;
     this.#releaseHeaderItems();
-    this.#newsReserved = false;
+    this.#news.node.removeAttribute("data-lf-room");
   }
 
   #releaseHeaderItems() {
@@ -1243,7 +1235,7 @@ export class ThreadView {
       !this.#model?.news
     ) {
       // A new width is a user reflow. Read its unconstrained allocation on an
-      // invisible copy, as reserve does, without transient writes to real words.
+      // invisible copy, without transient writes to real words.
       const resizing = allocates && this.#headerSlot?.header === header;
       let reading = header;
       if (resizing) {
@@ -1297,10 +1289,10 @@ export class ThreadView {
     );
     controls.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
     if (this.#model.news) {
-      if (!this.#newsReserved) {
-        reserve(this.#news.node, [this.#model.news.label]);
-        this.#newsReserved = true;
-      }
+      // While news stands, the notice keeps at least the width of the words it first
+      // showed, so later news with shorter words never narrows it under the pointer.
+      if (!this.#news.node.hasAttribute("data-lf-room"))
+        this.#news.node.dataset.lfRoom = this.#model.news.label;
       const line = controls.getBoundingClientRect();
       const shown = shownRect(controls, new Map());
       if (shown)
@@ -1308,7 +1300,7 @@ export class ThreadView {
           "--lf-thread-news-visible-end",
           layoutPx(Math.max(0, shown.right - line.left)),
         );
-    } else this.#newsReserved = false;
+    } else this.#news.node.removeAttribute("data-lf-room");
   }
 
   // A summary's checkpoint: a retained section whose head the template draws, and
@@ -1683,6 +1675,12 @@ export class ThreadView {
       this.#reply.dispose();
       this.#reply = null;
     }
+  }
+
+  // The reply being written in this thread, which no view holds, comes into this one
+  // once it is `shown` (replies.js, `claim`).
+  claimReply(shown) {
+    this.#reply?.claim(shown);
   }
 
   retire() {

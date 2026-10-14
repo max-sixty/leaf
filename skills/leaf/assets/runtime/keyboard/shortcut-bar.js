@@ -50,7 +50,7 @@
    are announced because the revealed hint chips themselves remain visual. When there is
    no additional current row, the first activation opens the reference directly. The
    native control also opens it directly. */
-import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
 
 import {
   activeRows,
@@ -347,7 +347,7 @@ registerBannerControl({
   control: keyboardSettings,
   rank: BANNER_CONTROL_RANK.keyboard,
   seat: "menu",
-  row: { label: "Keyboard shortcuts", shortcut: "?", group: "page" },
+  row: { label: "Keyboard shortcuts", shortcut: ["?"], group: "page" },
 });
 // The first `?` expands the bar where the bar is drawn; where it is not, under the
 // floating panel or a finger, there is nothing to expand, and `?` opens the reference.

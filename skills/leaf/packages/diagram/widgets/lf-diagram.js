@@ -18,6 +18,7 @@ const NAMEABLE = /^\S+$/;
 /* Mermaid's parser databases are shared between diagrams. Keep parsing, drawing
  * and reading the inventory in one serialized operation, so a neighboring widget
  * cannot replace the identities behind the SVG we have just received. */
+/** @type {Promise<unknown>} */
 let drawing = Promise.resolve();
 const draw = (source, id) => {
   const next = drawing.then(async () => {

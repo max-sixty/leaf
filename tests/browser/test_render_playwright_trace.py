@@ -701,14 +701,12 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     expect(widget.locator(".lf-trace-input-badge")).to_have_text(
         re.compile(r"^\d+\.\d{3} s · after Click$")
     )
-    # Past that stop, outside every input call, the Click no longer applies,
-    # though its After checkpoint is still the latest stop.
     after = stop_time(record, pointer["phases"]["after"])
     following = min(
         (action for action in inputs if action["startTime"] > after),
         key=lambda action: action["startTime"],
     )
-    gap = (max(after, pointer["endTime"]) + following["startTime"]) / 2
+    sent = pointer["phases"]["action"]["timestamp"]
     widget.get_by_role("button", name="Zoom in", exact=True).click()
     widget.get_by_role("button", name="Zoom in", exact=True).click()
     bar = widget.locator(f'.lf-trace-input-bar[data-id="{following["id"]}"]')
@@ -720,12 +718,30 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     )
     scale = (last["x"] - first["x"]) / (following["startTime"] - pointer["startTime"])
     ruler = widget.locator(".lf-trace-ruler").bounding_box()
-    user.mouse.click(first["x"] + (gap - pointer["startTime"]) * scale, ruler["y"] + 8)
-    rendered(user)
     origin = record["streams"][0]["monotonicTime"]
-    at = float(widget.locator(".lf-trace-position").inner_text().removesuffix(" s"))
-    assert max(after, pointer["endTime"]) < at * 1000 + origin < following["startTime"]
+
+    def stand_at(time):
+        user.mouse.click(
+            first["x"] + (time - pointer["startTime"]) * scale, ruler["y"] + 8
+        )
+        rendered(user)
+        at = float(widget.locator(".lf-trace-position").inner_text().removesuffix(" s"))
+        return at * 1000 + origin
+
+    # Inside the call, before it sends the click, the click is still to come: the
+    # image marks nothing, though the Input lane's bar says one is under way.
+    assert pointer["startTime"] < stand_at((pointer["startTime"] + sent) / 2) < sent
     expect(widget.locator(".lf-trace-input-badge")).to_be_hidden()
+    expect(widget.locator(".lf-trace-input-point")).to_be_hidden()
+    # Past the call, the sent click stays marked a moment, so playback at recorded
+    # pace shows where it landed.
+    gap = (max(after, pointer["endTime"]) + following["startTime"]) / 2
+    assert gap < sent + 500
+    assert max(after, pointer["endTime"]) < stand_at(gap) < following["startTime"]
+    expect(widget.locator(".lf-trace-input-badge")).to_have_text(
+        re.compile(r"^\d+\.\d{3} s · after Click$")
+    )
+    expect(widget.locator(".lf-trace-input-point")).to_be_visible()
     navigate_to_phase(
         timeline, f"trace-{record['archive']['sha256']}-phase-{pointer['id']}-action"
     )
@@ -733,17 +749,72 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
         re.compile(r"^\d+\.\d{3} s · next: Click$")
     )
     expect(widget.locator(".lf-trace-input-point")).to_be_visible()
-    raster = widget.locator(
-        ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
+
+    def lands_on_its_point(input_action):
+        """The recorded pointer's mark stands at its point in the shown capture,
+        which scales the viewport by its width whatever its own height."""
+        # One read of both: a landing may still be scrolling the page.
+        point_box, image_box = widget.evaluate("""widget => [
+          widget.querySelector('.lf-trace-input-point'),
+          widget.querySelector(
+            '.lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img'),
+        ].map(node => node.getBoundingClientRect().toJSON())""")
+        scale = image_box["width"] / input_action["input"]["viewport"]["width"]
+        for axis, size in (("x", "width"), ("y", "height")):
+            assert point_box[axis] + point_box[size] / 2 == pytest.approx(
+                image_box[axis] + input_action["input"]["point"][axis] * scale, abs=1
+            ), (axis, point_box, image_box)
+
+    lands_on_its_point(pointer)
+    # Playing, the badge names the input alone: whether the shown image is next to,
+    # during or after the call changes faster than it can be read.
+    widget.evaluate("""widget => {
+      const badge = widget.querySelector('.lf-trace-input-badge');
+      window.badgeTexts = [];
+      window.badgeWatch = new MutationObserver(() => {
+        if (!badge.hidden && widget.querySelector('[data-playing]'))
+          window.badgeTexts.push(badge.textContent);
+      });
+      window.badgeWatch.observe(badge, {
+        attributes: true, childList: true, characterData: true, subtree: true,
+      });
+    }""")
+    widget.get_by_role("button", name="Play", exact=True).click()
+    expect(widget.locator(".lf-trace-input-badge")).to_have_text("Click")
+    user.wait_for_timeout(300)
+    widget.get_by_role("button", name="Pause", exact=True).click()
+    texts = user.evaluate(
+        "() => { window.badgeWatch.disconnect(); return window.badgeTexts }"
     )
-    point_box = widget.locator(".lf-trace-input-point").bounding_box()
-    image_box = raster.bounding_box()
-    assert point_box["x"] + point_box["width"] / 2 == pytest.approx(
-        image_box["x"]
-        + pointer["input"]["point"]["x"]
-        / pointer["input"]["viewport"]["width"]
-        * image_box["width"],
-        abs=1,
+    assert texts and set(texts) == {"Click"}, texts
+    expect(widget.locator(".lf-trace-input-badge")).to_have_text(
+        re.compile(r"^(\d+\.\d{3} s · (during|after) Click)?$")
+    )
+    # A screencast frame crops the viewport's foot: its height is not the
+    # viewport's scaled by its width.
+    last_frame = max(
+        (image for image in record["images"] if image["kind"] == "frame"),
+        key=lambda image: image["timestamp"],
+    )
+    viewport = pointer["input"]["viewport"]
+    assert last_frame["height"] / last_frame["width"] < (
+        viewport["height"] / viewport["width"] - 0.05
+    )
+    widget.locator(".lf-trace-bookmarks").get_by_role(
+        "button", name="Last filmstrip image"
+    ).click()
+    rendered(user)
+    expect(widget.locator(".lf-trace-input-point")).to_be_visible()
+    lands_on_its_point(
+        max(
+            (
+                action
+                for action in inputs
+                if action["input"]["point"]
+                and action["phases"]["action"]["timestamp"] <= last_frame["timestamp"]
+            ),
+            key=lambda action: action["phases"]["action"]["timestamp"],
+        )
     )
     phase_id = f"trace-{record['archive']['sha256']}-phase-{action['id']}-after"
     navigate_to_phase(timeline, phase_id)
@@ -793,6 +864,35 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     expect(widget.locator(".lf-trace-caption")).to_contain_text(
         "First capture after this point"
     )
+
+
+def test_trace_playback_frames_stand_over_the_capture_they_replace(browser, serve):
+    """A frame played over a fitted capture covers it exactly, so playback shows one
+    image and the recorded pointer lands on the frame it marks."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    user = context.new_page()
+    user.goto(serve(ROOT / "examples/developer/playwright-trace-gallery.html"))
+    wait_until_ready(user)
+    widget = user.locator("lf-trace")
+    widget.get_by_role("button", name="Start", exact=True).click()
+    rendered(user)
+    # The fitted capture is narrower than its canvas, where centering rules would
+    # otherwise reach the playback layer.
+    assert widget.evaluate("""widget => {
+      const image = widget.querySelector(
+        '.lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img');
+      return image.parentElement.closest('.lf-trace-image').getBoundingClientRect().width
+        - image.getBoundingClientRect().width > 20;
+    }""")
+    widget.get_by_role("button", name="Play", exact=True).click()
+    # Read both in one task while the frame shows: the Viewer takes over again once
+    # playback stops.
+    shown, under = user.wait_for_function("""() => {
+      const layer = document.querySelector('.lf-trace-playback-image:not([hidden])');
+      const under = layer?.parentElement.querySelector('.viewer-canvas img');
+      return under && [layer, under].map(image => image.getBoundingClientRect().toJSON());
+    }""").json_value()
+    assert all(abs(shown[key] - under[key]) <= 1 for key in shown), (shown, under)
 
 
 def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):

@@ -7,7 +7,7 @@
    gate's probes read belongs in check-api.js instead.
 
    Every export above the `// Internal:` comment is the authoring API, and
-   references/module-authoring.md documents each one; the exports below it serve Leaf's
+   the references/module-*.md files document each one; the exports below it serve Leaf's
    bundled packages and kernel widgets alone (tests/runtime/widget-api.test.mjs). */
 export {
   html,
@@ -23,7 +23,7 @@ export {
   styleMap,
   unsafeHTML,
   signal,
-} from "../vendor/browser-runtime.js";
+} from "/vendor/browser-runtime.js";
 export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
@@ -72,21 +72,20 @@ export {
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
-export { readAsks, watchAsks } from "./asks/model.js";
+export { readAsks } from "./asks/model.js";
 // The asks a region of the page holds, by the rule every count and walk of them reads.
 export { asksIn } from "./asks/place.js";
 export { comparisonChanges, watchComparison } from "./version.js";
 export { askWords } from "./asks/answer.js";
 export {
   readWork,
-  watchWork,
   workRole,
   workElements,
   directWorkElements,
   workAncestor,
 } from "./work.js";
 export { askActions } from "./application.js";
-export { readQueues, watchQueues, queueItemKey } from "./queue-api.js";
+export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
@@ -100,7 +99,6 @@ export {
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
 export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
-export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (assets/AGENTS.md, "Stability").
@@ -230,7 +228,9 @@ export {
   tokenLines,
 } from "./syntax.js";
 export { bodyText, dataBody, failSoft, once, reportFailure } from "./widget-upgrade.js";
-export { saidAt, reportSequence, watchHistory, watchReports } from "./reports.js";
+export { saidAt, readHistory, reportSequence, reportsPresented } from "./reports.js";
+// The one watcher of the page's readings (module-reading.md, "Page readings").
+export { watchProjection } from "./projection-watch.js";
 export {
   HIDDEN,
   LAYOUT,
@@ -243,7 +243,6 @@ export {
   offered,
   reachedForWords,
   relabel,
-  reserve,
   searchField,
   selectableOffer,
   worksInside,
@@ -253,7 +252,7 @@ export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./ke
 export { LeafEditorView } from "./editor-view.js";
 
 // Internal: what Leaf's own bundled packages and kernel widgets import beyond the
-// authoring API module-authoring.md documents. Package authors do not use these.
+// authoring API the references/module-*.md files document. Package authors do not use these.
 export async function mountSample(frame, options) {
   const owner = await import("./sample.js");
   return owner.mountSample(frame, options);

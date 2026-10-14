@@ -23,6 +23,7 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf.render_checks import rendered
 from leaf.served_state import context as served_context
+from leaf_dev import pins as pin_cases
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
@@ -5525,12 +5526,13 @@ def test_floating_thread_chains_scrolling_to_its_page(browser, serve, long):
 @pytest.mark.parametrize("long", [False, True], ids=["fitting", "overflowing"])
 def test_floating_thread_pages_on_to_its_page(browser, serve, long):
     """With a floating thread focused, d/u page its turns, then the document at
-    either edge, as the wheel does."""
+    either edge, as the wheel does, and go on paging it once the thread has
+    scrolled out of view."""
     source = leaf_page(
         "Page through a contextual thread",
         '<div style="height: 80vh"></div>'
         '<p id="open">Review the open questions.</p>'
-        '<div style="height: 180vh"></div>',
+        '<div style="height: 400vh"></div>',
     )
     page = open_page(
         browser, serve(source, events=LONG_THREAD if long else [LONG_THREAD_ROOT])
@@ -5563,6 +5565,19 @@ def test_floating_thread_pages_on_to_its_page(browser, serve, long):
         moved = page.evaluate("scrollY") - page_at
         assert moved > 20 if key == "d" else moved < -20
         expect(card).to_be_visible()
+
+    transcript.evaluate("box => box.scrollTop = box.scrollHeight")
+    for _ in range(8):
+        if not card.evaluate("card => card.getBoundingClientRect().bottom > 0"):
+            break
+        page.keyboard.press("d")
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    assert not card.evaluate("card => card.getBoundingClientRect().bottom > 0")
+    for key in ("d", "u"):
+        page_at = page.evaluate("scrollY")
+        page.keyboard.press(key)
+        moved = page.evaluate("scrollY") - page_at
+        assert moved > 20 if key == "d" else moved < -20
 
 
 def open_long_thread(browser, serve, height=900):
@@ -10771,6 +10786,30 @@ def test_a_pin_by_a_card_full_of_controls_stands_on_it_clear_of_them(browser, se
         action = page.locator(identity)
         action.tap()
         expect(action).to_have_text("Opened")
+    context.close()
+
+
+@pytest.mark.parametrize("viewport", list(pin_cases.VIEWPORTS))
+def test_each_pin_case_seats_its_pins_by_their_targets_clear_of_what_they_hide(
+    browser, serve, viewport
+):
+    """Every case of `leaf-dev pins`, ordinary and pathological, seats each pin by its
+    target over no words, control or media, inside the window and clear of the other
+    pins, except where the case accepts a fault and says why. A placement the gallery
+    shows wrong becomes a case there, and so a failure here."""
+    (width, height), touch = pin_cases.VIEWPORTS[viewport]
+    context = browser.new_context(
+        viewport={"width": width, "height": height}, has_touch=touch, is_mobile=touch
+    )
+    page = open_page(
+        browser, serve(pin_cases.source(), events=pin_cases.events()), context=context
+    )
+    margins_laid_out(page)
+    found = {
+        case.name: pin_cases.unaccepted(case, pin_cases.read(page, case), viewport)
+        for case in pin_cases.CASES
+    }
+    assert not {name: faults for name, faults in found.items() if faults}
     context.close()
 
 

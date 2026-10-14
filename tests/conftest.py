@@ -23,7 +23,7 @@ from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
-from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts, shell_executable
+from leaf_dev.browser import shell_executable, use_linux_fonts
 from leaf_dev.page_fixtures import package_selection_args
 from playwright.sync_api import sync_playwright
 
@@ -366,7 +366,23 @@ def pytest_collection_modifyitems(config, items):
     the map would have to come from recorded Python and Chrome coverage. Nearly every
     browser test loads the same runtime and server, so a change there, about half of
     recent commits, would select close to the complete suite, and coverage cannot say
-    which CSS rules a test relied on."""
+    which CSS rules a test relied on.
+
+    So the selection misses any later-tier test whose own function is unchanged while
+    something it depends on changed:
+    - the product code it reaches, as above;
+    - a fixture or helper it calls, in a `conftest.py`, `render_harness.py`,
+      `render_cases_*.py`, `interact_support.py` or its own module;
+    - a module-level constant or `pytestmark` it reads, or a list its `parametrize`
+      decorator names from elsewhere;
+    - a page under `fixtures/pages/`, a regtest recording, or a pinned image in
+      `leaf-assets.json`.
+    Accounting for these precisely would need dependency tracking (fixture graphs, call
+    graphs, data references). A coarser rule, such as running every test in a changed
+    module, would catch some of them at the price of selecting far more, and every miss
+    still runs once the change lands, in the push run or the daily one. The user judged (2026-10-14) that catching these before landing is
+    not worth that complication, after a fixture edit let a `browser` test's failure
+    reach `main`."""
     selected = (
         config.getoption("keyword")
         or config.getoption("markexpr")
@@ -711,9 +727,7 @@ def headless_shell():
     fixture drives (`leaf_dev.browser.shell_executable`). A test whose subject is how
     a host that named no browser gets one clears every variable
     (`test_render_commands`, `unnamed_browser`)."""
-    if sys.platform == "linux":
-        require_linux_fonts()
-        os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
+    use_linux_fonts()
     executable = shell_executable()
     os.environ[browser_model.VARIABLE] = executable
     return executable

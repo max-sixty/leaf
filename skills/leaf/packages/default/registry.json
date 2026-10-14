@@ -362,7 +362,7 @@
   },
   "lf-shot": {
     "description": "A before-and-after screenshot pair with an operable divider, optional change outlines and changed-pixel view, and component-owned comparison, overlay, scaling and focus-crop presentation.",
-    "x-instructions": "Use served image paths printed by leaf page media for before and after, and describe the pair in alt. Read authoring-evidence.md, Source files and media, for captures and when to use outlines or pixels. Write explanations in surrounding prose rather than element content. When a decision turns on the change, put the pair inside the proposing option, or with the group of an accept-or-reject ask, where it compares both answers.",
+    "x-instructions": "Use for two versions of an interface, current and proposed. Use served image paths printed by leaf page media for before and after, and describe the pair in alt. Read authoring-evidence.md, Source files and media, for captures, the table that sets captures varying along other axes, and when to use outlines or pixels. Write explanations in surrounding prose rather than element content. When a decision turns on the change, put the pair inside the proposing option, or with the group of an accept-or-reject ask, where it compares both answers.",
     "type": "object",
     "properties": {
       "id": {
@@ -590,7 +590,7 @@
   },
   "lf-sample": {
     "description": "A quotation of page content, either static or an operable child Leaf page.",
-    "x-instructions": "For a live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome; chrome=\"floating\" or chrome=\"classic\" shows it in that chrome rather than the reader's own. Keep invented content visibly fictional. Read page-authoring.md, Live samples, for child-page interaction, reset, and isolation.",
+    "x-instructions": "For a live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome; chrome=\"floating\" or chrome=\"classic\" shows it in that chrome rather than the reader's own. Keep invented content visibly fictional. Read live-samples.md for child-page interaction, reset, and isolation.",
     "x-name": "label",
     "type": "object",
     "properties": {

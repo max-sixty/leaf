@@ -11,7 +11,6 @@ import { quoted } from "./widget-descriptors.js";
 import { saidAt, reportSequence } from "./reports.js";
 import { widgetController } from "./widget-controller.js";
 import { addressableName } from "./addressable-names.js";
-import { watchProjection } from "./projection-watch.js";
 
 const widgets = () => layerFact("$work")?.widgets ?? {};
 
@@ -181,10 +180,6 @@ function goalView(goal, open, read) {
       reportedStoppedAt ?? (role.stoppedAt ? goal.getAttribute(role.stoppedAt) : null),
   };
 }
-
-/** Call `callback()` whenever what `readWork` reads moves, by the rules every page
- * reading's watcher shares (`projection-watch.js`); the callback reads its own scope. */
-export const watchWork = (owner, callback) => watchProjection(owner, () => callback());
 
 export function readWork(scope) {
   const readings = new Map();

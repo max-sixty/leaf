@@ -215,9 +215,10 @@ const seenScroller = (coveringAuxiliaryScroller) =>
 // region still wins where it is in that surface; its own scrollport may be nested
 // there. The covering scrollport catches everything else. Focus on a region's
 // apparatus follows its actual containing scrollport within the region while that
-// box overflows; otherwise the region's reading body takes the step. A preferred box
-// outside the visible band yields to its nearest visible enclosing region. Neither
-// fallback changes which region the user is reading.
+// box overflows; otherwise the region's reading body takes the step. The step then
+// walks that box's scroll chain (`stepAlong`), where a box outside the visible band
+// passes it on as a spent one does, so a floating thread scrolled off screen still
+// pages its document. Neither changes which region the user is reading.
 const readingStep = (box, clips) => {
   const shown = shownRect(box, clips);
   const band = shown && landingBand(box);
@@ -225,14 +226,9 @@ const readingStep = (box, clips) => {
   const { top, bottom } = intersect(shown, band, { y: true });
   return bottom > top ? { box, height: bottom - top } : null;
 };
-const stepScroller = (coveringAuxiliaryScroller) => {
+const stepStart = (coveringAuxiliaryScroller) => {
   const covering = coveringAuxiliaryScroller();
   const region = userReadingRegion();
-  const preferred =
-    covering && !(region && under(region.host, coveringAuxiliarySurface()))
-      ? covering
-      : effectiveScroller(region);
-  const clips = new Map();
   const at = focused();
   if (region && under(at, region.host) && !under(at, region.body)) {
     const containing = scrollersOf(at).next().value;
@@ -240,36 +236,29 @@ const stepScroller = (coveringAuxiliaryScroller) => {
       containing &&
       under(containing, region.host) &&
       containing.scrollHeight > containing.clientHeight &&
-      (!covering || under(containing, coveringAuxiliarySurface()))
-    ) {
-      const step = readingStep(containing, clips);
-      if (step) return step;
-    }
+      (!covering || under(containing, coveringAuxiliarySurface())) &&
+      readingStep(containing, new Map())
+    )
+      return containing;
   }
-  const step = readingStep(preferred, clips);
-  if (step) return step;
-  for (const box of scrollersOf(preferred)) {
-    if (box === preferred) continue;
-    const step = readingStep(box, clips);
-    if (step) return step;
-  }
-  return null;
+  return covering && !(region && under(region.host, coveringAuxiliarySurface()))
+    ? covering
+    : effectiveScroller(region);
 };
 function stepReading(amount, unit, coveringAuxiliaryScroller) {
-  const first = stepScroller(coveringAuxiliaryScroller);
-  if (first) stepAlong(first.box, amount, unit, first);
+  stepAlong(stepStart(coveringAuxiliaryScroller), amount, unit);
 }
-// The step walks the chain from `from` to the first box that can take it. A box that
-// contains its overscroll, or one an open modal leaves outside, ends the walk. A
-// sample's chain runs on past its document into the containing page, as the wheel's
+// The step walks the chain from `from` to the first box that shows and can take it. A
+// box that contains its overscroll, or one an open modal leaves outside, ends the walk.
+// A sample's chain runs on past its document into the containing page, as the wheel's
 // does, so a chain spent without either boundary passes the step on, and the
 // containing page's navigation takes it up from the frame; outside a sample the notice
 // goes nowhere.
-function stepAlong(from, amount, unit, first = null) {
+function stepAlong(from, amount, unit) {
   const clips = new Map();
   for (const box of scrollChainOf(from)) {
     if (!nativeModalAdmits(box)) return;
-    const step = box === first?.box ? first : readingStep(box, clips);
+    const step = readingStep(box, clips);
     const canMove = amount > 0 ? !atScrollEnd(box) : box.scrollTop > 0;
     if (step && canMove) {
       const distance = unit === "page" ? amount * step.height : amount;

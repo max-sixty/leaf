@@ -58,10 +58,11 @@ import {
   queueName,
   queuePanel,
   queueTabs,
+  queueWords,
   drawerIsOpen,
 } from "./drawers.js";
 import { markBannerControl } from "./banner-toolbar.js";
-import { clocked, shortAgo } from "./presence.js";
+import { shortAgo } from "./presence.js";
 import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
@@ -140,7 +141,7 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
   // Until the log has answered, the door claims no count, as the Threads door claims none.
   function nameDoor() {
     const count = reading().phase === "ready" ? reading().on_user.length : null;
-    keepsText(queueBtn, count === null ? "On me" : `On me: ${count}`);
+    keepsText(queueWords, count === null ? "On me" : `On me: ${count}`);
     keeps(queueBtn, "aria-label", count === null ? "On me" : `On me: ${count}`);
     keeps(queueBtn, "data-lf-key-title", `Show or hide what's on me and on ${agent()}`);
   }
@@ -301,10 +302,6 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     });
   }
 
-  // Clock changes claim the same presenter as publications. Its scheduled paint
-  // captures the new row ages, and owns their commit and retention on failure.
-  const model = clocked(queueList, readModel, () => present());
-
   async function paintQueue(current) {
     const open = drawerIsOpen("queue");
     if (wasOpen && !open) tab = "you";
@@ -317,7 +314,9 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     // an approval is open.
     markBannerControl(queueBtn, waiting ? "items on me" : null);
     repaint();
-    const next = model();
+    // The row ages it reads are followed with its parts, so a clock change claims the
+    // region as a publication does, and its paint owns their commit and retention.
+    const next = readModel();
     try {
       const painted = await queueList.present(next);
       if (!current()) return [];

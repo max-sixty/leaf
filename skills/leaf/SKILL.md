@@ -13,14 +13,6 @@ its URL with a status saying what you want back, and wait.
 Answer each delivered update on the page and in its thread, stamp checkpoints,
 and idle the page when it is finished.
 
-Anything you need from the user must appear in the user's **On me** list. An
-empty On me list means you need nothing from them now. Your own list, which the
-user sees as **On <your name>**, holds what waits on you. Before handing over or
-waiting, read `leaf page state <page>` and reconcile `queues.on_user` (On me)
-and `queues.on_agent` (yours) with the work and decisions still open.
-`references/conversation-loop.md`, "The On lists", owns what appears there
-and how to register each request.
-
 The input is a subject to present, or a delivery from a page already handed
 over: a named `leaf_delivery` tool output, a `leaf-delivery` element, or the
 envelope a `leaf wait` printed. A delivery starts at step 6 below; do
@@ -28,6 +20,14 @@ not initialize or hand the page over again. With no subject in `$ARGUMENTS`,
 present the work already under discussion.
 
 $ARGUMENTS
+
+## Must remember
+
+- **Everything waiting on the user is an item in their On me list**, including
+  each decision you leave to them that your next step does not depend on. Register
+  it before a page heading, a chat open item, or a `needs input:` line mentions it.
+  `references/conversation-loop.md`, "The On lists", says how to register each
+  kind and when to reconcile the lists.
 
 ## Core principles
 
@@ -71,10 +71,10 @@ directory explicitly; export or copy anything that must outlive the page directo
    choosing; candidates the user picks among as drawn need no package, since the
    user selects the candidate itself (`references/authoring-asks.md`). Re-running
    `page init` with a selection adds it to a page already written.
-2. Read `references/page-authoring.md`, then the authoring reference each part
-   of the page needs, listed under "Author a version" below. Follow "Read the
-   registry" there to select elements and class idioms and read their examples
-   and selected instructions before authoring. Show each view's subject as
+2. Read all of `references/page-authoring.md`, then the reference each part of
+   the page needs, listed under "Author a version" below. Select elements and
+   class idioms from the registry as it says, and read their examples and
+   selected instructions before authoring. Show each view's subject as
    **Concrete** says, so the page carries pictures: drawings, captures, charts, or
    the thing running. A picture on another page or in another section shows
    nothing to a user judging this view, so show it here. A draft of only prose,
@@ -95,7 +95,7 @@ directory explicitly; export or copy anything that must outlive the page directo
    conversation. A page declaring `<meta name="lf-review" content="sign-off">` is
    always one, since approval requires a stamped version. Before a record's first
    handoff, run `leaf page check <page> --render`, do the reading in
-   `references/page-authoring.md`, "Pre-handover review", and then run
+   `references/page-checkpoints.md`, "Pre-handover review", and then run
    `leaf page stamp <page> --text "<changelog>"`. The render check establishes that
    the page renders; the reading establishes that it shows the intended content.
    `references/page-checkpoints.md`, "Stamp checkpoints", says when to stamp again;
@@ -145,8 +145,9 @@ The visible page follows the subject's shape: prose read in order, regions read 
 by side on a sidebar page, or a workspace, a screen the user moves through rather than
 scrolls. A Layout class
 on `main` sets each of these shapes, and the page's own CSS adjusts it;
-`references/page-authoring.md`, "Composing a page", owns the concrete choices, and
-`references/authoring-asks.md` owns where each ask goes.
+`references/page-authoring.md`, "Composing a page", owns the choice of shape,
+`references/page-layout.md` each shape's geometry, and `references/authoring-asks.md`
+where each ask goes.
 
 Include only controls and gestures that advance the user's task. Widget actions,
 resolutions and sign-offs can be undone; sent words remain in the log.
@@ -186,9 +187,16 @@ so a phase does not depend on discovering a chain of references.
 
 ### Author a version
 
-- `references/page-authoring.md`: before writing or revising any version.
-- `references/authoring-asks.md`: when the page needs an answer from the user or
-  sign-off, before choosing its widgets.
+- `references/page-authoring.md`: before writing or revising any version, all of it.
+- `references/page-layout.md`: before giving a page a Layout other than the reading
+  column, widening or bounding a block, placing its contents or notes in the margin,
+  styling Leaf's controls, or showing several contributors' activity.
+- `references/page-behavior.md`: before giving a page a script, a file under `page/`,
+  a `page/registry.json`, or anything loaded from another server.
+- `references/live-samples.md`: before letting the user operate a Leaf page inside a
+  page or a thread message.
+- `references/authoring-asks.md`: when the page or your reply leaves anything for
+  the user to decide or sign off, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising the page's current state.
 - `references/authoring-evidence.md`: for work updates or reviews, before drawing
@@ -207,7 +215,8 @@ so a phase does not depend on discovering a chain of references.
 - `references/event-batches.md`: after delivery and before processing its events.
 - `references/threads.md`: before opening, naming, replying to,
   editing, summarizing, or resolving a thread.
-- `references/page-checkpoints.md`: before stamping or ending a page.
+- `references/page-checkpoints.md`: before a record's pre-handover review, stamping,
+  or ending a page.
 
 ### Serve or extend a page
 
@@ -216,9 +225,15 @@ so a phase does not depend on discovering a chain of references.
   re-vendoring a served page, a page a Leaf update broke, or resuming another
   session's page.
 - `references/module-authoring.md`: before writing or changing browser behavior in
-  a page script, page-owned widget, or package widget.
-- `references/packages.md`: for package design, registry declarations, theme rules,
-  data contracts, or a design comment whose fix belongs in a package.
+  a page script, page-owned widget, or package widget; then, as the behavior needs
+  them, `references/module-reading.md` for reading the page, content helpers, asks and
+  history, `references/module-state.md` for recorded state and data,
+  `references/module-input.md` for commands, focus and text entry,
+  `references/module-scroll-and-motion.md` for scrolling, travel and motion, and
+  `references/module-annotations.md` for margin entries, visual parts and Threads.
+- `references/packages.md`: for package design, registry declarations, or a design
+  comment whose fix belongs in a package; `references/package-themes.md` for theme
+  rules, and `references/package-data.md` for user state and data contracts.
 
 ### Set up a Codex connection
 

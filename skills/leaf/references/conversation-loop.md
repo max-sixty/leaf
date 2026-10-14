@@ -204,14 +204,16 @@ Work on an update that finishes inside the turn needs no to-do.
 
 ## The On lists
 
-Everything you need from the user belongs in their **On me** list, whether an answer,
-decision, permission, review, or action elsewhere. Ask a direct question and register
-it by one of the routes below. Prose in the page, a status line, and a question in
-chat alone do not register it. Keep every independently answerable proposal you
-present for the user's judgment in their On me list until decided or withdrawn.
-Recommending one to do next leaves the others open. A request for review needs an
-ask even when preparation is already your work or other work can continue. An
-optional invitation to comment on information creates no obligation.
+Everything waiting on the user belongs in their **On me** list: each decision your
+work leaves to them, and each answer, permission, review, or action elsewhere you
+need from them. A decision is theirs whether or not your next step depends on it:
+each proposal or candidate you present for their judgment, including the ones you
+rank after the one you recommend, and each product choice you surface. Ask a direct
+question and register it by one of the routes below, grouped as `authoring-asks.md`
+says, and keep it there until the user decides it or you withdraw it. Prose, a
+heading or a column on the page, a status line, and a question or open item in chat
+repeat an On me item; on their own they register nothing. Information the user may
+comment on but need not decide creates no item.
 
 The banner's On me count and the On panel show everything waiting on the
 user: these requests, and any update whose send failed and needs sending again.
@@ -232,8 +234,7 @@ an ask's displayed `1`–`9` actions answer it there.
 A widget ask has id `widget:<widget-id>`, a prose ask has `reply:<message-id>`,
 and an approval ask for a stamped version's sign-off has `approval:v<version>`.
 A to-do on the user keeps the id printed by `task open`. A thread takes no to-do
-on the user; ask there with `--ask`.
-Keep independently answerable decisions in separate widgets or threads. A thread
+on the user; ask there with `--ask`. A thread
 can retain several prose asks; its latest unanswered one is the current request,
 and the next user reply settles preceding unanswered prose asks there. Publish
 a dependent question once its prerequisite is answered. The user's Done on a to-do

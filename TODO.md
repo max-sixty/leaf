@@ -207,7 +207,7 @@ and its chrome coordinate.
   it only in the count; give that arrival a visible route while preserving the
   current reading.
 - **Fit `rust-sort`'s stage pane.** At 720px it runs 100px past its region, which
-  `page-authoring.md` asks an author to trim or split
+  `page-layout.md` asks an author to trim or split
   ([why a workspace doesn't scroll](notes/chrome-and-covers.md#decided-a-workspace-is-a-screen)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
@@ -319,7 +319,7 @@ that changes size after first paint, with its cause.
 
 ### Queues
 
-A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, "A
+A queue is one `lf-tabs list="side"` beside its open item (`page-layout.md`, "A
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
@@ -337,6 +337,20 @@ height and where a switch lands wait on the workspace decision under Layout.
 - **Close the tally's small gaps.** On a phone the workspace header, tally
   included, scrolls away after Next; Undo's announcement doesn't name what it
   undid; the `m` help text is ambiguous; and a row's ○ mark has no legend.
+
+### Before/after comparison
+
+- **#29 — Make `lf-shot`'s views one coherent comparison.** A pair now offers
+  Plain, Outlines and Pixels, and Pixels paints one picture: red where only the
+  before image drew, blue where only the after image did, amber where both did. A
+  shot with `pixels` alone opens in Pixels, one with `outlines` in Outlines, and
+  any other in Plain. Settle the details as one design: which view a pair opens
+  in, and whether every pair should offer every view rather than the author
+  choosing them per shot; a key for the three colours; the rail's reading
+  ("identical", "only slight changes", "2 areas changed"), which stands among the
+  view buttons in another voice and reads as a view or a warning, as "identical"
+  does over a pair of pin captures whose pins never moved; and the faint amber
+  halo a moved mark's redrawn shadow leaves in Pixels.
 
 ### Recorded interaction review
 
@@ -658,9 +672,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   holding it through a Web Lock, relaying over a BroadcastChannel, with samples
   relayed through their parent) adds about 115 lines more than it deletes; a
   WebSocket per document avoids the leader and the relay. Either way, first give
-  the server one subscribable change detector per page, whose watched files and
-  stat token derive from one declaration of page inputs (today `page_reading` and
-  `file_changes.page_targets` disagree on bound files and `viewed.json`). Trigger:
+  the server one subscribable change detector per page: the stat token and the
+  watched files already derive from one declaration of page inputs
+  (`served_state/reading.py`), but `api/news` stats on every look while the row
+  publisher and lifetime supervisor wake on the shared subscription
+  (`file_changes.page_changes`), which runs only in a serving process. Trigger:
   hosted replies visibly lag.
 - **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.

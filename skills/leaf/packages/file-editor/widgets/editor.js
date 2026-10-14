@@ -108,6 +108,10 @@ const isMarkdown = (filename) => langForPath(filename) === "markdown";
 
 /** Create a file editor. External text changes use CodeMirror transactions,
  * mapping selection and local undo history through the dependency's diff.
+ * @param {HTMLElement} parent
+ * @param {{text?: string, filename?: string, original?: string | null, readOnly?: boolean,
+ *   label?: string, description?: string, onChange?: (text: string) => void,
+ *   onSave?: () => void}} [options]
  */
 export function createEditor(
   parent,

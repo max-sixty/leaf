@@ -121,7 +121,7 @@ Don't say *widget entry* for an element declaration, *item* for an addressable e
 | **Pane** | One reading region, typically in a workspace's body: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable semantic place used by navigation and reading-position recovery |
 | **Effective reading scroller** | The scroll container currently governing one reading region |
-| **Sticky header** | A sticky box of stated height that covers the top of the scroller it sticks in, such as an `lf-diff` file header, a root `lf-tabs` strip, or an open thread's title in the Threads list; `module-authoring.md`, "Sticky headers", says how headers stack |
+| **Sticky header** | A sticky box of stated height that covers the top of the scroller it sticks in, such as an `lf-diff` file header, a root `lf-tabs` strip, or an open thread's title in the Threads list; `module-scroll-and-motion.md`, "Sticky headers", says how headers stack |
 | **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or its container carries it (`flow`). The stylesheet decides it and the runtime reads it |
 
 A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement
@@ -160,10 +160,10 @@ two ways: the compact **margin projection** beside the page, and the searchable 
 
 | Term | Identity criterion |
 |---|---|
-| **Rail** | The strip right of `main` where margin rows sit beside their targets. Seated where the room beside `main` holds it, it never moves the column; only `data-rail="right"` on `body` makes the shell give up the rail's width, so the page's layout gets narrower (`annotation-theme.css`). `page-authoring.md`, "The rail and the margin", says when a page has one |
+| **Rail** | The strip right of `main` where margin rows sit beside their targets. Seated where the room beside `main` holds it, it never moves the column; only `data-rail="right"` on `body` makes the shell give up the rail's width, so the page's layout gets narrower (`annotation-theme.css`). `page-layout.md`, "The rail and the margin", says when a page has one |
 | **Margin resident** | Something the page's margin holds: the rail, the contents map, a column's first sidebar, its sidenotes. One measurement, prepaint.js `residency`, admits each where the room beside `main` holds it |
 | **Margin row** | One target-anchored row whose placement is `rail`, `pin`, or `withheld` |
-| **Pin** | A margin row drawn over the page by its target, used where the row cannot sit in the rail (`rowPosture`). It takes the first of its seats, all touching its target, that covers no words, control, media or other pin: just outside the target's top-right corner, just above it, after a run of text's last word, or just inside the corner. Where none is clear it folds, and failing that stands over the target, keeping off controls where it can (`seatRows` in `margin-placement.js`, `pinSeating` in `margin-layout.js`) |
+| **Pin** | A margin row drawn over the page by its target, used where the row cannot sit in the rail (`rowPosture`). It takes the first of its seats, all touching its target, that covers no words, control, media or other pin: just outside the target's top-right corner, after a run of text's last word, just inside the corner or further down its right edge, just above the corner, or just below the bottom-right corner. Where none is clear it folds, and failing that stands over the target, keeping off controls where it can (`seatRows` in `margin-placement.js`, `pinSeating` in `margin-layout.js`) |
 | **Folded pin** | A pin drawn as its options' toggle alone (`data-lf-folded`) because its whole face found no room (`seatRows` in `margin-placement.js`) |
 | **Margin lane** | The layer holding the margin rows of one scroller: the root lane for the document, and one lane per bounded reading region, clipped to what that region shows |
 | **Margin cluster** | The visible group attached to one target |

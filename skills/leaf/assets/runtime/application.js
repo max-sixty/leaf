@@ -356,6 +356,9 @@ export function mountApplication(dependencies) {
         flash: false,
         intent,
       }),
+    // The thread a margin entry stands for, which a user on it goes on with when the
+    // thread leaves the margin.
+    threadAt: (node) => overlay?.entryThread(node) ?? null,
     read,
   });
   const registerThreadPanel = ({ controller, threadsBox, view }) =>
@@ -384,9 +387,7 @@ export function mountApplication(dependencies) {
     acceptData: dependencies.state.acceptData,
     notifyDataSubscribers: dependencies.state.notifyDataSubscribers,
     isSignoffDeclared: dependencies.state.isSignoffDeclared,
-    renderStatus: dependencies.state.renderStatus,
     stateSignoff: dependencies.state.stateSignoff,
-    renderOthers: dependencies.state.renderOthers,
     accountPending,
   });
 
@@ -436,7 +437,6 @@ export function mountApplication(dependencies) {
 
   const feed = createStateFeed({
     prepareActivation: dependencies.state.prepareActivation,
-    renderStatus: dependencies.state.renderStatus,
     stateApplying,
     invalidateDom,
     receiveState,

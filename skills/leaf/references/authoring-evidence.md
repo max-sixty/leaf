@@ -28,7 +28,7 @@ than in every page: initialize a page that wants one with
 refusals and empty drawings. Inspect each rendered diagram for the relationships it
 should communicate. Without visual access, check the source's labels and relations
 against its claims and state those claims in prose or a table beside it. Follow
-`page-authoring.md`, "Pre-handover review", for the checks and what remains unverified.
+`page-checkpoints.md`, "Pre-handover review", for the checks and what remains unverified.
 
 Draw what Mermaid's automatic layout cannot put where it belongs, such as a page
 layout, geometry, a wireframe, or a thumbnail inside an option, as the `svg.drawing`
@@ -52,10 +52,10 @@ available in Plot's own API. `lf-chart` needs no package. A handful of numbers t
 sentence beside them can carry is prose; a chart is for when the shape of the
 numbers is the point.
 
-For source snippets and code walkthroughs, follow `page-authoring.md`, "Theme and
-vocabulary". An `lf-code` block's `lines` attribute quotes an excerpt
-of a longer file under the file's own line numbers, with elided rows where it skips;
-a note placed at a skipped line captions that row with what was left out.
+For source snippets and code walkthroughs, follow `page-authoring.md`, "Markup". An
+`lf-code` block's `lines` attribute quotes an excerpt of a longer file under the
+file's own line numbers, with elided rows where it skips; a note placed at a skipped
+line captions that row with what was left out.
 
 A user can comment on a drawing as a whole and quote the words in it. A drawing
 that exposes stable named targets also accepts comments on those parts. In an
@@ -155,6 +155,16 @@ in a footer outside the image; images without an authored caption have no footer
 Alt text remains the image's accessible description. Original opens the file separately.
 Links to another destination retain that destination.
 
+Keep each capture its own image file; never join captures into one. The theme frames
+each image apart, so the reader sees at a glance where one capture ends, and Image
+preview opens one capture at a time. Where captures vary along named axes, such as the
+moment in an interaction, the case, the window width or the colour scheme, set them in
+a `<table>` with one linked capture per cell, a `<th scope="col">` naming each
+column's value and a `<th scope="row">` each row's. Each axis is then labeled once,
+and Image preview names the capture it opens by both heads. Place the captures the
+reader compares side by side or one above the other, so what moved reads as a
+misalignment. `lf-shot` is for two versions of an interface, current and proposed.
+
 Use a recording for a fixed
 demo or screen capture; keep a live widget where the user should manipulate the
 subject. Show a browser journey recorded with Playwright as its trace in `lf-trace`
@@ -204,10 +214,14 @@ change, or say that nothing changed. Where it reads "only slight changes", the
 reader will hardly see the change, so name it in the prose, or say that nothing but
 redrawing changed.
 Add `pixels` where the reader needs to see exactly which pixels changed, as when
-the change is a shift of a few pixels or a recolour that flipping barely shows, or
-when the claim is that nothing else changed. Pixels joins the rail's view selector,
-showing the after image greyed with every changed pixel painted over it, so build no
-difference image of your own. Without available outlines, the selector starts in Plain.
+the change is a shift of a few pixels, a recolour that flipping barely shows, or a mark
+that moved, or when the claim is that nothing else changed. Pixels joins the rail's
+view selector, showing the after image greyed with every changed pixel painted over it:
+red where only the before image drew something, blue where only the after image did,
+and amber where both did, as a recolour, so a moved mark reads as where it was and
+where it went in one picture; build no difference image of your own. With `pixels`
+alone the selector starts in Pixels, and with `outlines` too it starts in Outlines
+where the pair has outlines to show.
 Arrow keys select a view; selecting the current view keeps it selected. Choosing
 Plain or Outlines preserves the divider, and clicking the pixel picture or a
 Before/After endpoint returns to the previous comparison view. It combines with

@@ -28,8 +28,9 @@ import {
   offer,
   once,
   askActions,
+  readAsks,
   relabel,
-  watchAsks,
+  watchProjection,
 } from "/runtime/widget-api.js";
 
 // The count's words: what remains of the whole, or that nothing does.
@@ -50,7 +51,7 @@ customElements.define(
       if (!once(this)) return;
       const drawing = document.createElement("template");
       drawing.innerHTML = declarationFor(this, "x-prepaint");
-      const face = drawing.content.firstElementChild;
+      const face = /** @type {HTMLElement} */ (drawing.content.firstElementChild);
       face.dataset.lfGen = "1";
       this.#room = face.querySelector(".lf-tally-room");
       this.#words = face.querySelector(".lf-tally-words");
@@ -69,7 +70,7 @@ customElements.define(
       } else seat.remove();
       this.querySelector(":scope > [data-lf-prepaint]")?.remove();
       this.append(face);
-      watchAsks(this, (asks) => this.#paint(asks));
+      watchProjection(this, () => this.#paint(readAsks()));
     }
 
     #region() {

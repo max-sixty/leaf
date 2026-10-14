@@ -250,7 +250,23 @@ value and restores the authoritative value even when that value equals the previ
 template input, as when a gesture is refused. Do not bind initial defaults onto
 properties whose current value belongs to the browser.
 
-### Retained nodes
+### Drawing what a widget reads (experimental)
+
+`LeafElement` is a `LitElement` base class for a widget that draws everything it shows
+in one `render()`. It draws into the element itself unless `createRenderRoot()` names a
+generated part to draw into instead, and it never replaces the authored children. Do
+one-time building in `setup()`, which runs on the first connection before the first
+render, in place of `once(this)` in `connectedCallback`. In `render()`, read through
+readers: `this.reading` and `this.state` for the widget's own reading, `this.data(input)`
+for a bound source as `watchData` delivers it, and any page reading or time
+(`readAsks`, `reportSequence`, `ago`). The element draws again when anything it read
+moves, and not otherwise. Return a template, `nothing` when the render writes retained
+nodes itself, or `noChange` to keep what it drew last. `this.controller` dispatches and
+presents preparation; its `defer()` holds the element's draws through a gesture that
+moves its nodes. Lit's own reactive properties update the element for state it keeps
+itself; `requestUpdate()` draws again after a mechanical change, such as revealing held
+news, and `performUpdate()` draws at once when the next lines read what it drew.
+
 
 `setChildren(parent, nodes)` makes `parent`'s children `nodes`, in order, moving only
 what is out of place. Where nodes move between parents, place every list at once with
@@ -375,5 +391,5 @@ with its longest value in `data-lf-room`.
 A widget folds content it may show again by setting its `hidden` to `HIDDEN`. Where the
 browser supports `hidden="until-found"`, find-in-page and fragment links still reach the
 content and fire `beforematch` on it, and the widget opens it there; elsewhere the
-content is plainly hidden. A folded element that is itself a Tab stop stays one, so the
+content is plainly hidden. Paper prints until-found content open. A folded element that is itself a Tab stop stays one, so the
 widget withdraws it.

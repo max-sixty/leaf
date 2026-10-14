@@ -112,6 +112,15 @@ members = ["dev", "worker"]
 leaf-dev = { workspace = true }
 leaf-website = { workspace = true }
 
+[tool.ruff]
+# Apply the same scope to directory scans and filenames passed by pre-commit.
+force-exclude = true
+extend-exclude = [
+  "skills/leaf/assets/vendor",
+  "skills/leaf/packages/**/vendor",
+  "evals/ui-review-detection/fixtures",
+]
+
 # SessionEnd runs before a managed environment exists (bin/leaf), on system Python.
 [tool.ruff.per-file-target-version]
 "skills/leaf/scripts/leaf/state.py" = "py39"

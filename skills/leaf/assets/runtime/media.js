@@ -19,7 +19,9 @@
    native dialog remains a retained chrome node. The image first appears in PhotoSwipe,
    once its module has loaded and the image has decoded, since PhotoSwipe needs the
    image's size up front; a second renderer shown meanwhile would have to agree with
-   it on every box. A queued close from an earlier opening leaves a reopened viewer's
+   it on every box. An image opened from inside a popover, such as a draft's attachment
+   in the page comment card, leaves that popover and its draft standing beneath the
+   viewer (layer-stack.js, `showNativeLayer`). A queued close from an earlier opening leaves a reopened viewer's
    image and focus intact. */
 
 import { html, render } from "/vendor/browser-runtime.js";
@@ -237,7 +239,7 @@ const open = async (source, alt, from) => {
   keepsText(caption, description);
   keepsHidden(caption, !description);
   keepsText(viewerZoom, "100%");
-  if (!mediaViewer.open) showNativeLayer(mediaViewer);
+  if (!mediaViewer.open) showNativeLayer(mediaViewer, { source: from });
   focusDestination(viewerClose, "move");
   let url = source;
   if (canvas) {

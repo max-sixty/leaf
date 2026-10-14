@@ -187,8 +187,7 @@ The icon is decorative; the button supplies its accessible label.
 Each page reading below has a reader, and one watcher follows them all:
 `watchProjection(owner, paint)` calls `paint()` on the microtask after subscribing, then
 again, at most once per microtask, whenever anything `paint` read from the page's state
-has changed, a drag starts or stops holding the page's projection back (`module-input.md`, "Pointer
-presses"), or the page dispatches `PRESENTATION` (`module-authoring.md`, "Startup and presentation"). Register
+has changed, or the page dispatches `PRESENTATION` (`module-authoring.md`, "Startup and presentation"). Register
 it once for each owner. What the paint reads is tracked: every reader it calls
 synchronously, such as `readAsks`, `readQueues`, `readThreads`, `readWork`,
 `reportSequence`, `readHistory` or a widget controller's `read()`, so a paint never
@@ -332,7 +331,9 @@ then compares it with the ready history; a preparation reading is no new baselin
 A widget an agent reports on reads the reports with `reportSequence(this)` in a paint
 that waits for them to be drawn:
 `watchProjection(this, paint, () => reportsPresented(this))` paints only once the widget
-has painted every report it holds. Each entry is one report about the widget, in log order, carrying `id`, `target`,
+has painted every report it holds. A `LeafElement` narrates its reports in the
+update that draws its state, so it asks `reportsReady(this)` in its `render()` instead,
+and returns `noChange` for the report while that is false. Each entry is one report about the widget, in log order, carrying `id`, `target`,
 `source`, `action`, `detail`, its words as `text`, `ts`, and `disposition`: `effective`,
 `outranked` by a newer report on its coordinate, or `settled` by a stamped version. Pass
 `{kind: "thread", id}` in place of the element to read a Thread's reports, or call

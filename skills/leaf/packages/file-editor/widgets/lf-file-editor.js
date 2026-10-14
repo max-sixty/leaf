@@ -50,28 +50,43 @@ import {
   html,
   iconTemplate,
   isNativeLayer,
+  LeafElement,
   nothing,
-  render,
   offer,
   offered,
-  once,
   rove,
   rowWalk,
   shadowStage,
   tabStore,
   whileConnected,
-  widgetController,
 } from "/runtime/widget-api.js";
 import { createEditor } from "./editor.js";
 
 customElements.define(
   "lf-file-editor",
-  class extends HTMLElement {
+  class extends LeafElement {
     #placeSelection = null;
+    #view = null;
+    #template = null;
+    #drawn = null;
 
-    connectedCallback() {
-      if (!once(this)) return;
+    setup() {
       this.initialize();
+    }
+
+    createRenderRoot() {
+      return this.#view;
+    }
+
+    render() {
+      return this.#template?.() ?? nothing;
+    }
+
+    // What follows a draw runs outside the render, since configuring CodeMirror can
+    // report a change that draws again.
+    updated(changed) {
+      super.updated(changed);
+      this.#drawn?.();
     }
 
     // A move keeps the views and the user's focus in one, since their connection
@@ -88,7 +103,8 @@ customElements.define(
       const internals = this.attachInternals();
       // Stage one retained owner: Lit's markers belong inside it, and CodeMirror's
       // mounts are persistent node values within the template.
-      const view = offer("div", "lf-file-editor-view");
+      const element = this;
+      const view = (this.#view = offer("div", "lf-file-editor-view"));
       const mount = offer("div", "lf-file-editor-edit");
       const comparisonMount = offer("div", "lf-file-editor-comparison");
       view.append(mount);
@@ -214,111 +230,25 @@ customElements.define(
         slow = false;
         if (!failure && !latest && !dirty()) announce("Changes saved.");
       }
+      // A paint draws now, since what follows it reads the controls it drew.
       function paint() {
+        // The comparison belongs to the conflict it opened on.
+        if (!latest) comparing = false;
+        element.requestUpdate();
+        element.performUpdate();
+      }
+      // What follows each draw: the editor's own state, the host's, the menu, the news
+      // and the comparison's editor, all of which read the controls the draw made.
+      this.#drawn = () => {
         const label = base?.label ?? thisBinding;
         editor.setLabel(label);
         editor.readOnly = base === null || !api.writable;
         // With no file to show, as on an export or an unbound page, the empty editor
         // says why, where a finger and the eye already are.
         editor.placeholder = base === null ? (failure?.message ?? "") : "";
-        // The comparison belongs to the conflict it opened on.
-        if (!latest) comparing = false;
-        // A conflict keeps its choices through a failed Save draft, which is its own
-        // retry; the failure then describes the control rather than taking its place.
-        const conflicted = Boolean(latest);
-        const retryable = Boolean(failure) && !latest && api.writable;
-        render(
-          html`
-            <div ${offered("lf-file-editor-head")}>
-              <span ${offered("lf-file-editor-name")}>${label}</span>
-              <span
-                ${offered("lf-file-editor-status")}
-                title=${failure?.message ?? nothing}
-                >${
-                  latest
-                    ? ""
-                    : failure
-                      ? base
-                        ? "Not saved"
-                        : "Unavailable"
-                      : slow
-                        ? "Saving changes…"
-                        : ""
-                }${retryable ? html`<span aria-hidden="true">&nbsp;·&nbsp;</span>` : nothing}<button
-                  ${offered("lf-file-editor-retry")}
-                  ?hidden=${!retryable}
-                  aria-description=${failure?.message ?? nothing}
-                  aria-disabled=${busy ? "true" : nothing}
-                  @click=${retry}
-                >
-                  Retry</button
-                ><button
-                  ${offered("lf-file-editor-conflict")}
-                  ?hidden=${!conflicted}
-                  aria-description=${failure?.message ?? nothing}
-                  popovertarget="lf-file-editor-choices"
-                  aria-haspopup="menu"
-                >
-                  ${failure ? "Not saved" : "Changed on disk"}${iconTemplate(
-                    "down",
-                    "lf-file-editor-chevron",
-                  )}
-                </button></span
-              >
-            </div>
-            <div
-              ${offered("lf-file-editor-choices")}
-              id="lf-file-editor-choices"
-              popover="auto"
-              role="menu"
-              aria-label="The file changed on disk"
-              @toggle=${choiceOpened}
-              ${commandsOn("In the file's conflict menu", choiceKeys, {
-                claims: allButCommandReference,
-              })}
-            >
-              <button
-                ${offered("lf-btn")}
-                role="menuitemcheckbox"
-                aria-checked=${String(comparing)}
-                aria-controls="lf-file-editor-compared"
-                @click=${compare}
-              >
-                Compare
-              </button>
-              ${[
-                ["Save draft", keepDraft],
-                ["Use file version", choose(useFile)],
-              ].map(
-                ([label, run]) => html`
-                  <button
-                    ${offered("lf-btn")}
-                    role="menuitem"
-                    aria-disabled=${busy ? "true" : nothing}
-                    @click=${run}
-                  >
-                    ${label}
-                  </button>
-                `,
-              )}
-            </div>
-            ${mount}
-            <div
-              ${offered("lf-file-editor-compared")}
-              id="lf-file-editor-compared"
-              ?hidden=${!comparing}
-            >
-              <p ${offered("lf-file-editor-legend")}>
-                Removed text is on disk. Added text is the draft.
-              </p>
-              ${comparing ? comparisonMount : nothing}
-            </div>
-          `,
-          view,
-        );
         if (comparing) internals.states.add("comparing");
         else internals.states.delete("comparing");
-        if (!conflicted && isNativeLayer(choices())) closeNativeLayer(choices());
+        if (!latest && isNativeLayer(choices())) closeNativeLayer(choices());
         // Each failure and conflict is news once, as it arrives; the status shows it.
         const news = failure ?? latest;
         if (news && news !== spoken)
@@ -346,7 +276,100 @@ customElements.define(
           comparison.disconnect();
           comparison = null;
         }
-      }
+      };
+      this.#template = () => {
+        const label = base?.label ?? thisBinding;
+        // A conflict keeps its choices through a failed Save draft, which is its own
+        // retry; the failure then describes the control rather than taking its place.
+        const conflicted = Boolean(latest);
+        const retryable = Boolean(failure) && !latest && api.writable;
+        return html`
+          <div ${offered("lf-file-editor-head")}>
+            <span ${offered("lf-file-editor-name")}>${label}</span>
+            <span
+              ${offered("lf-file-editor-status")}
+              title=${failure?.message ?? nothing}
+              >${
+                latest
+                  ? ""
+                  : failure
+                    ? base
+                      ? "Not saved"
+                      : "Unavailable"
+                    : slow
+                      ? "Saving changes…"
+                      : ""
+              }${retryable ? html`<span aria-hidden="true">&nbsp;·&nbsp;</span>` : nothing}<button
+                ${offered("lf-file-editor-retry")}
+                ?hidden=${!retryable}
+                aria-description=${failure?.message ?? nothing}
+                aria-disabled=${busy ? "true" : nothing}
+                @click=${retry}
+              >
+                Retry</button
+              ><button
+                ${offered("lf-file-editor-conflict")}
+                ?hidden=${!conflicted}
+                aria-description=${failure?.message ?? nothing}
+                popovertarget="lf-file-editor-choices"
+                aria-haspopup="menu"
+              >
+                ${failure ? "Not saved" : "Changed on disk"}${iconTemplate(
+                  "down",
+                  "lf-file-editor-chevron",
+                )}
+              </button></span
+            >
+          </div>
+          <div
+            ${offered("lf-file-editor-choices")}
+            id="lf-file-editor-choices"
+            popover="auto"
+            role="menu"
+            aria-label="The file changed on disk"
+            @toggle=${choiceOpened}
+            ${commandsOn("In the file's conflict menu", choiceKeys, {
+              claims: allButCommandReference,
+            })}
+          >
+            <button
+              ${offered("lf-btn")}
+              role="menuitemcheckbox"
+              aria-checked=${String(comparing)}
+              aria-controls="lf-file-editor-compared"
+              @click=${compare}
+            >
+              Compare
+            </button>
+            ${[
+              ["Save draft", keepDraft],
+              ["Use file version", choose(useFile)],
+            ].map(
+              ([label, run]) => html`
+                <button
+                  ${offered("lf-btn")}
+                  role="menuitem"
+                  aria-disabled=${busy ? "true" : nothing}
+                  @click=${run}
+                >
+                  ${label}
+                </button>
+              `,
+            )}
+          </div>
+          ${mount}
+          <div
+            ${offered("lf-file-editor-compared")}
+            id="lf-file-editor-compared"
+            ?hidden=${!comparing}
+          >
+            <p ${offered("lf-file-editor-legend")}>
+              Removed text is on disk. Added text is the draft.
+            </p>
+            ${comparing ? comparisonMount : nothing}
+          </div>
+        `;
+      };
       const thisBinding = this.getAttribute("binding");
       function schedule(delay = 500) {
         clearTimeout(timer);
@@ -472,7 +495,7 @@ customElements.define(
         document.addEventListener("visibilitychange", visibility, { signal });
         const ready = refresh();
         if (initial) {
-          widgetController(this).present(ready);
+          this.controller.present(ready);
           initial = false;
         }
         const stopWatch = api.watch(() => void refresh());

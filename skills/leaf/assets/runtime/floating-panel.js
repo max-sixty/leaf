@@ -14,16 +14,20 @@
  *   user folds it from the leaf's menu; a press on the leaf unfolds it, and it stays as
  *   it was left across pages (`rest`).
  * - **The row**: the leaf, the comment field, and marks with counts for On me and
- *   Threads. The empty field says what the agent is doing or wants, in the banner's own
- *   words (`statusReading`), or what a passing notice says, where a placeholder would say
- *   "Comment"; in a thread it says whose turn it is. A status reads dimmer than anything
- *   written, and while the agent works it carries the one sheen that marks work under
- *   way. Clicking in gives the placeholder to where the words go, a passing notice
- *   included, and opens one quiet line above it with the keys that send, which it shows
- *   only while the caret is in the field; a notice standing then moves to that line,
- *   where it also stands over words that hide the placeholder. Once words hide it, the
- *   line says where they go as well, and keeps saying it while they stand. It never
- *   names who reads them: the page has one agent.
+ *   Threads, with at most one small notice beside the marks for a state the user should
+ *   not miss, such as reading an older version, and the one press that ends it
+ *   (`rowNotice`); the field gives it room, so the marks keep their seats. The empty
+ *   field says what the agent is doing or wants, in the banner's own words
+ *   (`statusReading`), or what a passing notice says, where a placeholder would say
+ *   "Comment"; in a thread it says whose turn it is. A status that reports reads dimmer
+ *   than anything written, and while the agent works it carries the one sheen that marks
+ *   work under way; one that asks the user to act reads in its tone's ink, and pointing
+ *   at the field says any status in full. Clicking in gives the placeholder to where
+ *   the words go, a passing notice included, and opens one quiet line above it with the
+ *   keys that send, which it shows only while the caret is in the field; a notice
+ *   standing then moves to that line, where it also stands over words that hide the
+ *   placeholder. Once words hide it, the line says where they go as well, and keeps
+ *   saying it while they stand. It never names who reads them: the page has one agent.
  * - **Opened**: a view above the same row (On, Threads, a thread, Versions, or a
  *   group of the page's controls) with where the user is at its top edge. It lasts while
  *   it is used: Escape or a press on the page puts it away, Escape once the caret has
@@ -125,6 +129,7 @@ import { declareOccluder, declareWindowChrome } from "./geometry.js";
 import { agentName } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { renderedUnder } from "./shadow.js";
+import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { closestAcross } from "./passages.js";
 
 const prefs = () => document.documentElement.lfChrome;
@@ -164,10 +169,22 @@ const HELD_ELSEWHERE = Object.freeze([
 // A row the menu or a group lists: neither held elsewhere nor the next step of a
 // gesture, which stands in the counts' place instead.
 const listed = (entry) => !entry.gesture && !HELD_ELSEWHERE.includes(entry.key);
-// Where a row stands in the menu: in its group, and a keyboard's convenience (`keys`)
-// under Navigate only where no keyboard is there to reach it, so a finger still can.
+// A browser offers the clipboard only to a secure context (https or localhost), so a
+// page read over plain http from another machine has none to copy with; and one that
+// offers it may still refuse a write, after which the page copies nothing more by a
+// press (`copyItem`).
+let copyRefused = false;
+const canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
+// Where a row stands in the menu: in its group; a keyboard's convenience (`keys`) under
+// Navigate only where no keyboard is there to reach it, so a finger still can; and a row
+// that copies a text, such as the page's link, under About where no clipboard is there to
+// copy it with, since About shows its text to select.
 const groupOf = (entry) =>
-  entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
+  entry.group === "keys" && !advertisesKeys()
+    ? "navigate"
+    : entry.copies && !canCopy()
+      ? "about"
+      : entry.group;
 const FILTERS = Object.freeze(["open", "unread", "drafts", "resolved"]);
 // The views a thread is opened from.
 const LISTS = Object.freeze(["threads", "on"]);
@@ -245,14 +262,16 @@ export function createFloatingPanel({
   const mark = el("span", "lf-dot");
   leaf.append(mark);
   const field = el("div", "lf-fp-field");
+  const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
-  row.append(leaf, field, quick);
+  row.append(leaf, field, rowNoticeSeat, quick);
 
   const CONNECTING = {
     tone: "",
     summary: "Connecting…",
     explanation: "Connecting…",
     adds: "",
+    asks: false,
   };
   const status = () => statusReading() ?? CONNECTING;
   // The trail of views open above the row, innermost last; empty at rest.
@@ -737,12 +756,14 @@ export function createFloatingPanel({
       role = "menuitem",
       row = null,
       opens = false,
+      title = null,
     } = {},
   ) =>
     html`<button
       type="button"
       role=${role ?? nothing}
       data-row=${row ?? nothing}
+      title=${title ?? nothing}
       class="lf-fp-item"
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
@@ -763,7 +784,48 @@ export function createFloatingPanel({
         ? keySequenceTemplate(keySequenceModel(entry.shortcut))
         : nothing
     }`;
+  // A row of the menu whose press copies a text, such as the page's link, is Leaf's copy
+  // control worn by the row (copy-control.js): one press copies, the menu goes, and the
+  // field says whether the copy took, as it says any passing notice. What the text is,
+  // which a field to select it would say beneath it, is the row's hover name. Where no
+  // clipboard is offered, the row stands in About instead, its text there to select
+  // (`groupOf`); where the clipboard refuses the copy, the row moves there for good and
+  // About opens on the text, so the user can still take it.
+  const copyItems = new Map();
+  function copyItem(entry) {
+    let copy = copyItems.get(entry.key);
+    if (!copy) {
+      copy = copyControl("lf-fp-copy-item", {
+        success: `${entry.label} copied`,
+        error: `${entry.label} not copied · select it to copy`,
+      });
+      copy.addEventListener("wa-copy", () => putAwayThen(() => {}));
+      copy.addEventListener("wa-error", () => {
+        copyRefused = true;
+        putAwayThen(() => open({ view: "group", group: "about" }));
+      });
+      copyItems.set(entry.key, copy);
+    }
+    copy.value = entry.copies;
+    copy.disabled = entry.disabled;
+    render(
+      menuItem(
+        `Copy ${entry.label[0].toLowerCase()}${entry.label.slice(1)}`,
+        html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`,
+        () => {},
+        {
+          disabled: entry.disabled,
+          role: menuOpen ? "menuitem" : null,
+          row: entry.key,
+          title: entry.value || null,
+        },
+      ),
+      copy,
+    );
+    return copy;
+  }
   function rowFor(entry) {
+    if (entry.copies) return copyItem(entry);
     const view = OWN_VIEWS[entry.key];
     return menuItem(
       entry.label,
@@ -866,11 +928,11 @@ export function createFloatingPanel({
         .map((entry) => (entry.copies ? copyRow(entry) : rowFor(entry)))}
     </div>`;
   }
-  // A row whose press copies a text, such as the share link, shows that text for the
-  // user to select as well, with Leaf's copy control beside it (copy-control.js), which
-  // shows on its own face whether the copy took. A browser offers the clipboard only to
-  // a secure context (https or localhost), so where there is none the control stands
-  // down and the text is there to select; the view stays open across a press, so the
+  // A row of a group whose press copies a text, such as the Leaf version, shows that text
+  // for the user to select as well, with Leaf's copy control beside it (copy-control.js),
+  // which shows on its own face whether the copy took. Where no clipboard is offered
+  // (`canCopy`) the control stands down and the text is there to select, as the page's
+  // link is, which joins About then (`groupOf`); the view stays open across a press, so the
   // text is still there if the copy failed. Its value, which a one-line row would end
   // with, says beneath it what the text is. A text of several lines, such as a preview's
   // diagnostics, shows its first few, and selecting it takes the whole.
@@ -888,7 +950,7 @@ export function createFloatingPanel({
     const copy = copies.get(entry.key);
     copy.value = entry.copies;
     copy.disabled = entry.disabled;
-    keepsHidden(copy, !navigator.clipboard?.writeText);
+    keepsHidden(copy, !canCopy());
     return copy;
   }
   function copyRow(entry) {
@@ -1711,10 +1773,19 @@ export function createFloatingPanel({
     typing = writing && Boolean(draftOf(input).trim());
     keeps(host, "data-typing", typing ? "" : null);
     // Whose reading the empty field says, which its face follows: a status dims, and
-    // carries the sheen while the agent works.
+    // carries the sheen while the agent works, unless it asks the user to act, such as
+    // to nudge the agent in its terminal, which it says in its tone's ink
+    // (`pageStatus`, `asks`). The field's room cuts a long status short, so pointing at
+    // the field says it in full, as the folded leaf's peek does.
     const reading = fieldReading(replying ? top.thread : null, input);
     keeps(host, "data-says", reading.says);
     keeps(host, "data-tone", status().tone || null);
+    keeps(host, "data-asks", status().asks ? "" : null);
+    keeps(
+      field,
+      "title",
+      reading.says === "status" ? status().explanation || status().summary : null,
+    );
     // A passing notice is said where the field's placeholder would be; once the caret
     // is in, where the placeholder says where the words go, or words hide it, the notice
     // stands on this line instead, as a refused send's reason does over the words it
@@ -1740,10 +1811,15 @@ export function createFloatingPanel({
         : "",
     );
     // A line with nothing to say stands only as the room it keeps under an open view.
-    keepsHidden(
+    keeps(
       context,
-      !engaged || !(contextDest.textContent || contextKeys.textContent),
+      "data-empty",
+      !engaged || !(contextDest.textContent || contextKeys.textContent) ? "" : null,
     );
+
+    const standing = rowNotice();
+    keepsHidden(rowNoticeSeat, !standing);
+    render(standing ? rowNoticeTemplate(standing) : nothing, rowNoticeSeat);
 
     // The next step of what the user is doing now, such as leaving Draw mode or
     // commenting on the words a finger selected, stands in the counts' place while that
@@ -1786,7 +1862,7 @@ export function createFloatingPanel({
           title=${onUserName}
           @click=${openOnMe}
         >
-          ${iconTemplate("question", "lf-action-icon")}<span class="lf-fp-num"
+          ${iconTemplate("inbox", "lf-action-icon")}<span class="lf-fp-num"
             >${onUser || ""}</span
           ></button
         ><button
@@ -1807,6 +1883,46 @@ export function createFloatingPanel({
         </button>`,
       quick,
     );
+  }
+
+  // ---------- the row's notice ----------
+  // The one small notice the row shows, beside the marks: what it says, and the press
+  // that ends it, where one does. Reading an older version is its one case: the menu's
+  // row that opens the latest says so too, but only once the menu is open, while the
+  // counts beside it follow the version shown with no word of why.
+  // TODO(2026-10-14): grow this into one general kind of small notice to the user
+  // (notes/floating-panel/GOAL.md, "One general kind of small notice in the row"): what
+  // a notice says, who raises it, the press it offers, and how it ends, and which states
+  // raise one, such as a stale page, being offline, or a page opened from a share link.
+  // Until then each case is a branch here, and the slot shows the first that holds.
+  function rowNotice() {
+    const { latest } = versionsReading();
+    if (latest.shown === null) return null;
+    return {
+      says: latest.shown,
+      press: {
+        label: "Latest",
+        title: latest.keyTitle,
+        disabled: latest.disabled,
+        run: () => putAwayThen(() => versionPicker.latest()),
+      },
+    };
+  }
+  function rowNoticeTemplate({ says, press }) {
+    return press
+      ? html`<button
+          type="button"
+          class="lf-fp-chip lf-fp-row-notice-press"
+          title=${press.title}
+          ?disabled=${press.disabled}
+          @click=${press.run}
+        >
+          <span class="lf-fp-row-notice-face"
+            >${says}<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
+            ><span class="lf-fp-row-notice-act">${press.label}</span></span
+          >
+        </button>`
+      : html`<span class="lf-fp-row-notice-face">${says}</span>`;
   }
 
   // ---------- gestures ----------
@@ -1982,11 +2098,12 @@ export function createFloatingPanel({
     writing = next;
     paint();
   });
-  // A press on the page puts away what stands open above the row.
+  // A press on the page puts away what stands open above the row. A press in a modal
+  // over the panel, such as the image viewer opened from a draft, is not on the page.
   document.addEventListener(
     "pointerdown",
     (event) => {
-      if (event.composedPath().includes(host)) return;
+      if (event.composedPath().includes(host) || !nativeModalAdmits(host)) return;
       if (menuOpen) setMenu(false);
       if (trail.length) close();
     },

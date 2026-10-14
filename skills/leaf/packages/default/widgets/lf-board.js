@@ -7,10 +7,11 @@
  * The grip is a press (`offer`), so the keyboard path needs no pointer: Enter grabs,
  * arrows restate the card's placement (announced through the live region), Enter drops,
  * and Escape or focus loss restores the origin. For the whole gesture the board holds
- * the page's drag (`dragging`) — the runtime's poll gates on it (no version-follow,
- * no foreign-action replay mid-gesture) — and a completed move
+ * the page's drag (`dragging`), so no new revision or undo replaces the cards under it,
+ * and defers its own drawing (`defer`), so no foreign move replays mid-gesture; a
+ * completed move
  * reports through #send as one ranked `move` action, indistinguishable on
- * the wire. renderState receives every column's final ordered card ids. One render
+ * the wire. Its render receives every column's final ordered card ids. One render
  * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content
  * is never replaced, so there is no failSoft.
  *
@@ -23,7 +24,8 @@
  * twice. */
 import Sortable from "/vendor/sortable.esm.js";
 import {
-  once,
+  LeafElement,
+  nothing,
   move,
   offer,
   quoted,
@@ -35,7 +37,6 @@ import {
   layoutChanged,
   measure,
   saying,
-  widgetController,
   dragging,
   motion,
   motionPreview,
@@ -57,17 +58,15 @@ import {
 
 customElements.define(
   "lf-board",
-  class extends HTMLElement {
+  class extends LeafElement {
     #grabbed = null; // {card, grip, from, index} — the origin, for cancel and no-op drops
-    #controller = widgetController(this);
     #superseded = null; // a grab folded into a pointer drag of the same card (see onStart)
     #rows = new WeakMap(); // grip → its declared rows, for the grab announcement
     #namesObserver = null;
     #sortables = new Set();
     #resumeProjection = null;
 
-    connectedCallback() {
-      if (!once(this)) return;
+    setup() {
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the command reference dialog — it stays the static board the theme renders anyway.
@@ -90,7 +89,6 @@ customElements.define(
         this.style.setProperty("--lf-grip-room", Math.ceil(box.width) + "px");
         this.style.setProperty("--lf-grip-block", Math.ceil(box.height) + "px");
       });
-      this.#controller.subscribe(this.#paintAvailability);
       this.#names();
       // Grip names come from where their cards sit, so column child-list mutations
       // restate them — not the four paths that move a card (arrow step, drag, cancel,
@@ -191,6 +189,7 @@ customElements.define(
     // drop a live grab here or it holds the page's drag for good — freezing action
     // replay and version-follow.
     disconnectedCallback() {
+      super.disconnectedCallback();
       if (this.#grabbed) this.#cancel();
       this.#superseded = null;
       this.#finishGesture();
@@ -222,7 +221,7 @@ customElements.define(
     };
 
     #available() {
-      return Boolean(this.#controller.read().actions.move?.available);
+      return Boolean(this.reading?.actions.move?.available);
     }
 
     #observeNames() {
@@ -432,7 +431,7 @@ customElements.define(
     }
 
     #beginGesture() {
-      this.#resumeProjection ??= this.#controller.defer();
+      this.#resumeProjection ??= this.controller.defer();
       dragging(this, true);
     }
 
@@ -490,18 +489,13 @@ customElements.define(
     // layer from the declared record plus its outbox, never from this gesture's DOM
     // snapshot: that snapshot may be another queued move the server also refused.
     #send(card, from, to) {
-      const sent = this.#controller.dispatch({
+      const sent = this.controller.dispatch({
         kind: "action",
         verb: "move",
         detail: {
           unit: card.id,
           value: to.id,
-          rank: rankAt(
-            this.#controller.read().state.move,
-            to.id,
-            this.#cards(to).indexOf(card),
-            card.id,
-          ),
+          rank: rankAt(this.state.move, to.id, this.#cards(to).indexOf(card), card.id),
         },
       });
       // A gesture can outlive the reading that enabled it. If admission has already
@@ -587,8 +581,15 @@ customElements.define(
 
     // The complete column composition names every card in its final order. Measure
     // once around that placement so FLIP animates the resulting layout together.
-    renderState(state) {
-      const columns = state.move.value;
+    render() {
+      // A quoted board is an exhibit with no reading: the theme draws it as authored.
+      if (!this.reading) return nothing;
+      this.#arrange(this.state.move.value);
+      this.#paintAvailability();
+      return nothing;
+    }
+
+    #arrange(columns) {
       const cards = [...this.querySelectorAll(":scope > lf-column > lf-card")];
       if (
         Object.entries(columns).every(([id, order]) => {

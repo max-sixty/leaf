@@ -107,7 +107,9 @@ function pickedUpWords({ comments, answers }) {
 // actionable distinction: working, listening, away, or nobody holding the page. How many
 // updates are waiting or saved is the disclosure's; the row counts what waits on each
 // side instead (`queueWords`). The third wording is what the sentence says that the
-// summary does not, for a seat that shows both (`pageStatus`, `adds`).
+// summary does not, for a seat that shows both (`pageStatus`, `adds`), and the fourth
+// whether the words ask the user to act (`pageStatus`, `asks`), which only a wording
+// that asks sets.
 function statusWords({
   age,
   agent,
@@ -157,7 +159,9 @@ function statusWords({
           `${agent} is listening${detail ? " — " + detail : ""}.`,
           detail ? `It asked: ${detail}.` : "",
         ]
-      : [awaits, awaits, ""];
+      : // A request the agent declared asks the user for it; the stock words say only
+        // where a comment starts.
+        [awaits, awaits, "", Boolean(detail)];
   }
   if (kind === "stalled")
     return [
@@ -173,6 +177,7 @@ function statusWords({
         `Nudge ${agent} in terminal`,
         `${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
         `${dated}. ${saved} Nothing is answering them.`,
+        true,
       ]
     : [
         `${agent} away`,
@@ -188,7 +193,10 @@ function statusWords({
 // (`broken`). The answer is the banner's reading before the queues join it
 // (`statusModel`): its `kind`, the dot's `tone`, the row's `summary`, the disclosure's
 // `explanation`, what that explanation `adds` to the summary for a seat that shows both
-// (the floating panel's menu), and the `actionableWork` whose change is announced.
+// (the floating panel's menu), whether it `asks` the user to act, such as to nudge the
+// agent, answer what it declared it waits for, approve in its own session, or reload,
+// which a seat can draw louder than a status that only reports, and the
+// `actionableWork` whose change is announced.
 export function pageStatus(state, { reach = "reached" } = {}) {
   if (reach === "broken")
     return {
@@ -197,6 +205,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
       summary: BROKEN_LINE,
       explanation: BROKEN_LINE,
       adds: "",
+      asks: true,
     };
   if (reach !== "reached")
     return {
@@ -207,6 +216,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
             summary: "Key refused — open Leaf's link in a new tab",
             explanation: KEY_REFUSED_LINE,
             adds: "Keep this tab open so pending changes can send.",
+            asks: true,
           }
         : {
             summary: "Server offline — reconnecting; keep page open",
@@ -227,7 +237,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
     : `No check-in from ${agent} is recorded`;
   const ended = `${agent}’s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-  const [summary, text, beyond] = statusWords({
+  const [summary, text, beyond, asked = false] = statusWords({
     age,
     agent,
     dated: facts.left ? ended : checkedIn,
@@ -259,9 +269,17 @@ export function pageStatus(state, { reach = "reached" } = {}) {
   const actionableWork = activity.awaiting ? activity.observed_kind : null;
   // An approval or a question the agent's own window holds is answered there, and
   // the page is the one place the user may be looking instead.
-  if (actionableWork && kind === "working")
-    append("It waits in its own session, not on this page.");
-  return { kind, tone: facts.tone, summary, explanation, adds, actionableWork };
+  const waitsThere = Boolean(actionableWork) && kind === "working";
+  if (waitsThere) append("It waits in its own session, not on this page.");
+  return {
+    kind,
+    tone: facts.tone,
+    summary,
+    explanation,
+    adds,
+    asks: asked || waitsThere,
+    actionableWork,
+  };
 }
 
 // The page's two queues (`served_state.queues`) are told apart in the banner by where
@@ -318,10 +336,11 @@ const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
 // What the banner shows for a status (`pageStatus`, or a reading of startup's own),
 // beside the page's `queues` (`readQueues`) and the `agent` they wait on: the dot's
 // `tone`, the row's `summary` and the agent's count, the disclosure's `explanation` and
-// what it `adds` to the summary, and a publication's introduction and links, which
+// what it `adds` to the summary, whether the status `asks` the user to act, and a
+// publication's introduction and links, which
 // remain an ordinary reading row rather than children of the status disclosure button.
 export function statusModel(status, queues, agent) {
-  const { kind, tone, summary, publication = null } = status;
+  const { kind, tone, summary, asks = false, publication = null } = status;
   let { explanation, adds } = status;
   const counted = WITHOUT_QUEUES.has(kind)
     ? { summary: "", explanation: "", widest: "" }
@@ -347,6 +366,7 @@ export function statusModel(status, queues, agent) {
   return Object.freeze({
     tone,
     summary,
+    asks,
     queues: counted.summary,
     queuesWidest: counted.widest,
     explanation,

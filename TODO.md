@@ -435,6 +435,18 @@ on 2026-10-07.
 
 ### Development velocity
 
+- **Format authored browser-framework TypeScript.** Extend Prettier's scope to
+  `build/browser/`, keeping the generated event and protocol declarations under
+  their generator. Rebuild the vendored JavaScript in the same change: the
+  compiler preserves source formatting, and the build gate compares its bytes.
+- **Format authored JSON and YAML.** Expand Prettier's scope while keeping
+  generated corpus files, media pins, pnpm lockfiles, Tend workflows, test
+  snapshots, and frozen captures under their producers. Verify that regeneration
+  leaves the formatted tree unchanged.
+- **Set formatter conventions for authored CSS and Markdown.** Review what
+  Prettier changes in compact CSS rules and Markdown lists and tables, then
+  enable the formats where that layout is useful. Format CSS source entries
+  rather than the distribution sheets `build/styles.mjs` generates.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
@@ -613,6 +625,17 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Unconfirmed — Let Lit follow what a widget reads.** `LeafElement`
+  (`runtime/leaf-element.js`) collects what `render()` reads with Leaf's own
+  `collectReads` over Preact signals and outside readings such as the clock, because
+  Lit's `SignalWatcher` (`@lit-labs/signals`) follows only TC39 signals
+  (`signal-polyfill`). Were the publication and those readings TC39 signals,
+  `SignalWatcher` would draw again on a read's move, and the base class would keep
+  only Leaf's rules: the presentation claim, `defer()`, drawing nothing while away,
+  and data delivery. Settle first that `SignalWatcher` schedules its own updates
+  outside the coordinator's ordered pass (`notes/browser-reactivity.md`, "LitElement
+  and microtask updates"), and that TC39 signals are still a proposal. Trigger: every
+  widget draws as a `LeafElement`, so the change lands in one class.
 - **Consider moving the before/after reading out of the core.** How
   `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
   experimental and about 500 lines in the core runtime, consumed by `lf-shot`,

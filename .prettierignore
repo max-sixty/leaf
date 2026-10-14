@@ -20,7 +20,5 @@ skills/leaf/packages/**/vendor/
 examples/corpus.*
 # Media publication writes the asset pin with its own serialization.
 leaf-assets.json
-# TODO: Format the core registry once its active edits land.
-skills/leaf/assets/registry.json
 # Frozen, hash-checked source evidence must retain its original bytes.
 evals/ui-review-detection/fixtures/

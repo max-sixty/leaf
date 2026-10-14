@@ -43,6 +43,9 @@ OUT = ROOT / ".tmp" / "pins"
 REACH = 12
 # How far a pin may reach into a box before it counts as over it.
 SLIVER = 2
+# Device pixels captured per CSS pixel, so a phone's crop stays sharp when the report's
+# column draws it wider than the phone.
+SCALE = 2
 
 # Each viewport's size and whether a finger, rather than a mouse, drives it.
 VIEWPORTS = {"desktop": ((1280, 800), False), "phone": ((390, 844), True)}
@@ -489,18 +492,27 @@ def frame(readings: list[dict]) -> tuple[int, int, int, int]:
 
 
 def crop(seen: dict, rect: tuple[int, int, int, int], out: Path) -> Path:
-    """Crop one arm's screenshot of a case to `rect`, outlining its targets, and write
-    it to `out`."""
+    """Crop one arm's screenshot of a case to `rect`, in CSS pixels, outlining its
+    targets, and write it to `out` at the capture's SCALE."""
     reading = seen["reading"]
     image = Image.open(seen["shot"]).convert("RGB")
     draw = ImageDraw.Draw(image)
     for target in reading["targets"]:
         for part in target["parts"]:
             draw.rectangle(
-                (part["left"], part["top"], part["right"] - 1, part["bottom"] - 1),
+                tuple(
+                    SCALE * edge
+                    for edge in (
+                        part["left"],
+                        part["top"],
+                        part["right"],
+                        part["bottom"],
+                    )
+                ),
                 outline=(40, 110, 230),
+                width=SCALE,
             )
-    image.crop(rect).save(out)
+    image.crop(tuple(SCALE * edge for edge in rect)).save(out)
     return out
 
 
@@ -509,7 +521,7 @@ def capture(browser, address: str, cases, out: Path) -> dict:
     `{case: {viewport: {"faults", "unaccepted", "reading", "shot"}}}`."""
     result = {case.name: {} for case in cases}
     for viewport, (size, touch) in VIEWPORTS.items():
-        with tab(browser, size, touch=touch) as page:
+        with tab(browser, size, touch=touch, scale=SCALE) as page:
             load(page, address)
             for case in cases:
                 reading = read(page, case)

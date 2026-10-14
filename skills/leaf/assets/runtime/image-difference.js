@@ -635,9 +635,15 @@ function pixelChange(a, one, b, other, x, y) {
     : SLIGHT_CHANGE;
 }
 
+// A changed pixel's least alpha in `changedPixels`, and how far it moves to be opaque.
+const FAINT = 40;
+const FAR = 2 * SLIGHT;
+
 /* Every changed pixel of `a` and `b`, in the pair's size, as the alpha of three black
- * RGBA masks beside its `width` and `height`: opaque where a pixel moved SLIGHT levels
- * or more, faint where it moved less, clear where it did not move. Which mask holds a
+ * RGBA masks beside its `width` and `height`, clear where a pixel did not move. A
+ * changed pixel's alpha rises with how far it moved, from faint for one level to opaque
+ * at twice SLIGHT, so the soft edge of a moved mark fades as the image's own edge does
+ * rather than stepping, which an enlarged view would draw as blocks. Which mask holds a
  * changed pixel says which image draws something there. Each run of touching changed
  * pixels stands on a ground, the commonest colour among the unchanged pixels touching
  * it, or the after image's commonest colour where none does. A pixel only `a` draws, unlike that ground while `b` shows it,
@@ -660,7 +666,6 @@ export function changedPixels(a, b) {
     after: new Uint8ClampedArray(width * height * 4),
     both: new Uint8ClampedArray(width * height * 4),
   };
-  const alpha = [0, 40, 255];
   const seen = new Uint8Array(width * height);
   let whole;
   for (let start = 0; start < change.length; start += 1) {
@@ -708,7 +713,9 @@ export function changedPixels(a, b) {
       const drawsB =
         p === undefined || (q !== undefined && distance(q, ground) >= SLIGHT);
       const mask = drawsA === drawsB ? masks.both : drawsA ? masks.before : masks.after;
-      mask[i * 4 + 3] = alpha[change[i]];
+      const far =
+        p === undefined || q === undefined ? FAR : Math.min(distance(p, q), FAR);
+      mask[i * 4 + 3] = FAINT + ((255 - FAINT) * far) / FAR;
     }
   }
   return { width, height, ...masks };

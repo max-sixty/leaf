@@ -93,8 +93,9 @@ test("the changed-pixel masks are opaque where a pixel moved far, faint where sl
   const alpha = (mask, x, y) => masks[mask][(y * width + x) * 4 + 3];
   assert.deepEqual([width, height], [20, 12]);
   assert.equal(alpha("after", 2, 2), 255);
-  // A slight shift, as a redrawn shadow is, draws nothing in either image.
-  assert.equal(alpha("both", 5, 5), 40);
+  // A slight shift, as a redrawn shadow is, draws nothing in either image, and shows
+  // faintly: 25 levels of the 96 that make a pixel opaque.
+  assert.equal(alpha("both", 5, 5), Math.round(40 + (215 * 25) / 96));
   assert.equal(alpha("after", 9, 9) + alpha("before", 9, 9) + alpha("both", 9, 9), 0);
   // A row only the taller image has changed throughout, and is that image's.
   assert.equal(alpha("after", 9, 11), 255);

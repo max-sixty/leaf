@@ -1265,8 +1265,8 @@ the image; and outlines `{x, y, width, height, side, kind}` drawn on the `before
 `areas`; `describeDifference(reading)` words it for the reader, and `countAreas(regions)`
 counts the changed and moved areas, each once. `compareImagePixels(a, b)` reads the same
 pair pixel by pixel and returns `{width, height, before, after, both}`, three black RGBA
-masks whose alpha is opaque where a pixel changed by as much as an outline needs, faint
-where it changed less, and clear elsewhere. A changed pixel is in `before` where only
+masks, clear where a pixel did not change and otherwise rising with how far it changed,
+from faint to opaque at twice the change an outline needs. A changed pixel is in `before` where only
 the before image draws something there, unlike the ground around that run of changed
 pixels, in `after` where only the after image does, and in `both` otherwise, as for a
 recolour. The comparison is experimental; `lf-shot` is the

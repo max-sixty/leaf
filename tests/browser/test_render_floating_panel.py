@@ -272,11 +272,11 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
 
 
 def test_the_field_is_the_thread_s_reply_box(browser, serve):
-    """The field a thread opens with is that thread's reply box, as a card's is: ↑ from it
-    empty opens the rewrite of the user's last message in the view, ↑ from the start of
-    an unchanged rewrite the message before, and Escape or a saved rewrite hands the
-    caret back to the field. Resolve leaves the reply as a card's does, and the field
-    says how to reopen the thread."""
+    """The field a thread opens with is that thread's reply box, as a card's is: a rewrite
+    opened on a message is a rung below it, so Escape or Save hands the caret back to
+    the field; ↑ from the empty field opens the rewrite of the user's last message, and
+    ↑ from the start of an unchanged rewrite the message before. Resolve leaves the
+    reply as a card's does, and the field says how to reopen the thread."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     for author, text in [
@@ -301,7 +301,13 @@ def test_the_field_is_the_thread_s_reply_box(browser, serve):
     expect(thread).to_be_visible()
     rewrite = thread.locator(".lf-msg-editor leaf-text")
 
-    field(page).click()
+    # A rewrite opened on the message itself is a rung below the reply box too.
+    thread.locator(".lf-msg-body", has_text="What about the second cohort?").dblclick()
+    expect(rewrite).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(rewrite).to_have_count(0)
+    expect(field(page)).to_be_focused()
+
     page.keyboard.press("ArrowUp")
     expect(rewrite).to_be_focused()
     expect(rewrite).to_have_js_property("value", "What about the second cohort?")

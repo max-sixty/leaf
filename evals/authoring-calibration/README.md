@@ -7,11 +7,11 @@ calibration; all these controls have now been exposed and are development
 controls for later revisions. They do not constitute a blind accuracy test.
 
 Give the judge the request and a live disposable copy through the existing
-`authoring_assertion.mjs` and `arrangement_eval.call_api` path. Exclude private
-expectations and original page sources from the judge's filesystem access. The
+`authoring_assertion.mjs` and `arrangement_eval.call_api` path. Give the judge
+ordinary tool access without including private expectations in its task. The
 judge chooses its own exploration through rendered browser routes and reads
 screenshots it takes. The harness records the native agent stream and Playwright
-CLI action traces, without scripting which content to reveal. Arrival screenshots
+CLI snapshots, without scripting which content to reveal. Arrival screenshots
 are illustrations for reports, not the boundary of grading evidence.
 
 Record the control source hashes, authoring baseline context, original runtime,
@@ -34,22 +34,22 @@ room choice by pointer and keyboard. Reuse that proof while fixture hashes match
 These controls establish particular distinctions, not general judge accuracy or
 an estimate of Leaf's authoring advantage.
 
-The live evaluator validation on 2026-10-14 returned two passes and two defects
-on the four unchanged controls. Independent review checked the reasons against
-the requests, native browser actions and screenshots at 900×900 and 390×844;
-each conclusion was supported. A missing saved page returned insufficient
-evidence without a model call. Native Leaf and HTML browser checks also verified
-viewport isolation, original-state preservation and failure cleanup, including
-phone behavior for HTML without a viewport meta tag.
+The current live evaluator validation on 2026-10-14 returned two passes and two
+defects on the unchanged controls, plus insufficient evidence for a missing saved
+page. Independent review checked native browser actions, viewed screenshots and
+reasons at 900×900 and 390×844 CSS pixels. Each conclusion was supported. A native
+interrupted-turn probe also verified browser cleanup, retained evidence and phone
+emulation for HTML without a viewport meta tag. The judge uses the CLI's standard
+mobile mode and resize command; there is no evaluator-built browser configuration.
 
-The same fixed room pair was also judged live in both A/B orders. Both completed
-judgments preferred the working receipt, with correct page associations and
-supporting actions and screenshots at both widths. Independent review verified
-those observations; this is one known pairwise contrast, not an accuracy estimate.
+The fixed room pair also favored the working receipt in both A/B orders. Both
+judgments treated the absent later user decision as inapplicable after the applied
+criterion was clarified. Native pair evidence is under
+`.tmp/live-judge/pair-validation-simple-v2/`; these are known-control judgments.
 
-The recorded run used gpt-6.1-sol, Codex 0.160.0, Promptfoo 0.124.1,
-Playwright 1.64.0 and Chrome 155.0.8059.40. Raw inputs, tool versions, runtime
-identity, frozen evaluator source hashes and native evidence are retained in
-`.tmp/live-judge/validation-fixed/` and `.tmp/live-judge/pair-validation-fixed/`
-in the evaluator worktree. These results
-establish the named controls only; they do not estimate accuracy on unseen pages.
+Inputs, original source hashes, authoring baseline context, tool versions, frozen
+evaluator source hashes and native evidence are retained in
+`.tmp/live-judge/validation-simple/`; the interrupted-turn probe is under
+`.tmp/live-judge/simple-probe/` in the evaluator worktree. The run used
+gpt-6.1-sol, Codex 0.160.0, Promptfoo 0.124.1, Playwright 1.64.0 and Chrome
+155.0.8059.40. These known-control results do not estimate accuracy on unseen pages.

@@ -18,7 +18,8 @@ prompt: |-
   - phone: the page is usable at 390px
   - comment: the final page carries the change the comment asked for where a reader
     of that passage would find it
-  - applied: the final page records the decisions the user made, as they made them
+  - applied: after the later decision message, the author's final revision preserves
+    the user's recorded decisions
 
   Apply the requirements established by the request and later messages. An aspect
   that does not apply to this task is a tie, rather than missing evidence.

@@ -180,22 +180,10 @@ class CodexChild:
 
     transport = "app-server"
 
-    def __init__(
-        self,
-        cwd,
-        prompt,
-        *args,
-        stderr,
-        limit,
-        timed_out,
-        dirs=(),
-        env=None,
-        permissions=None,
-    ):
+    def __init__(self, cwd, prompt, *args, stderr, limit, timed_out, dirs=(), env=None):
         from leaf_dev.arms import MODELS, codex_home, environment, now
 
         self.cwd, self.prompt = cwd, prompt
-        self.permissions = permissions
         self.stderr, self.timed_out = stderr, timed_out
         self.queue, self.outbox, self.closing = deque(), deque(), False
         self.final, self.now, self.model = "", now, MODELS["codex"]
@@ -293,32 +281,18 @@ class CodexChild:
             params = {
                 "cwd": str(self.cwd),
                 "approvalPolicy": "never",
+                "sandbox": "read-only"
+                if self.options.get("--tools") == "Read"
+                else "danger-full-access",
                 "model": self.model,
             }
-            # Omitting sandbox selects the isolated home's default profile.
-            # Explicit `permissions` on thread/start is an experimental API;
-            # verify the stable API actually selected the required profile.
-            if self.permissions is None:
-                params["sandbox"] = (
-                    "read-only"
-                    if self.options.get("--tools") == "Read"
-                    else "danger-full-access"
-                )
             if session := self.options.get("--resume"):
                 params["threadId"] = session
             if instructions := self.options.get("--append-system-prompt"):
                 params["developerInstructions"] = instructions
-            started = self.task.request(
+            self.task.thread = self.task.request(
                 "thread/resume" if session else "thread/start", params
-            )
-            self.task.thread = started["thread"]["id"]
-            if (
-                self.permissions is not None
-                and started["activePermissionProfile"]["id"] != self.permissions
-            ):
-                raise RuntimeError(
-                    "Codex did not select the required permission profile"
-                )
+            )["thread"]["id"]
             self.task.say(self.prompt, self.schema)
             self.deadline.start()
             return self

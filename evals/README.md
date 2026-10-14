@@ -58,9 +58,10 @@ passing, so its failure percentage is not a page-defect rate.
 
 The judge explores a disposable live copy of the selected version at the required
 window sizes. It chooses which controls, disclosures and scroll routes to inspect,
-and reads screenshots it takes. The harness prepares fresh tabs and records the
-native agent stream and Playwright trace; it does not traverse the page for the
-judge. Report screenshots show arrival only. Unvisited required content remains
+and reads screenshots it takes. The harness serves disposable page copies and
+supplies the existing browser CLI; the judge opens and operates its own browser.
+The native agent stream and its screenshots retain the evidence. Report
+screenshots show arrival only. Unvisited required content remains
 insufficient evidence, while supported defects still fail when other parts remain
 unobserved. The judge follows the requested output's scope. See
 [the small fixed control set](authoring-calibration/README.md) for calibration.
@@ -223,13 +224,13 @@ cover those boundaries. The `llm-rubric` judge grades text and opens nothing. Th
 runs on the installed `codex` under a permission profile that lets it read the
 run's `screenshots/` and no other file of the repository. Promptfoo counts a
 judge's tokens but not its cost, so read its reason and recorded evidence. Complete
-authoring judges instead use the pinned Playwright CLI and Codex App Server to
-operate live copies. Their isolated filesystem profile permits their own evidence
-and tool dependencies, excluding saved page sources and private control expectations.
-Each judgment retains browser and native agent traces under its sample, with browser
-and model identities. Run complete-task grading serially (`-j 1`) to bound browser
-load. Filesystem exclusion does not prohibit source inspection through HTTP;
-the judge's task restricts evidence to rendered behavior and ordinary reader routes.
+authoring judges instead use the pinned Playwright CLI and the existing Codex
+agent runner to operate live copies. The judge has ordinary tool access and owns
+browser setup and exploration; the harness retires its browser sessions when the
+turn ends. Each judgment retains the native agent trace and screenshots under its
+sample. Its task asks for rendered evidence, keeps exploratory choices distinct
+from authored state and excludes expected verdicts. Run complete-task grading
+serially (`-j 1`) to bound browser load.
 Successful execution does not prove the judge understood every image. The fixed controls
 exercise particular distinctions; they do not establish general grading accuracy
 or replace human quality ratings.

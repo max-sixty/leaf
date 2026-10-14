@@ -1981,7 +1981,8 @@ def test_a_steps_number_sits_centred_in_its_disc_beside_its_first_line(browser, 
         step.prepend(probe);
         const baseline = probe.getBoundingClientRect().bottom;
         probe.remove();
-        const face = getComputedStyle(step.firstElementChild ?? step);
+        const face = getComputedStyle(
+          step.firstChild.nodeType === Node.ELEMENT_NODE ? step.firstChild : step);
         pen.font = `${face.fontWeight} ${face.fontSize} ${face.fontFamily}`;
         const disc = getComputedStyle(step, '::before');
         const box = step.getBoundingClientRect();

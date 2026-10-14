@@ -13,10 +13,14 @@ its URL with a status saying what you want back, and wait.
 Answer each delivered update on the page and in its thread, stamp checkpoints,
 and idle the page when it is finished.
 
-Anything you need from the user must appear in the user's **On me** list. An
-empty On me list means you need nothing from them now. Your own list, which the
-user sees as **On <your name>**, holds what waits on you. Before handing over or
-waiting, read `leaf page state <page>` and reconcile `queues.on_user` (On me)
+The user's **On me** list is the one place they find what waits on them: every
+decision your work leaves to them, whether or not your next step depends on it,
+and anything else you need from them. A heading or label on the page, or an
+open item or `needs input:` line in your chat reply, that says something waits
+on them names an item already in On me, so register the item before you write
+it there. An empty On me says nothing waits on them now. Your own list, which
+the user sees as **On <your name>**, holds what waits on you. Before handing over
+or waiting, read `leaf page state <page>` and reconcile `queues.on_user` (On me)
 and `queues.on_agent` (yours) with the work and decisions still open.
 `references/conversation-loop.md`, "The On lists", owns what appears there
 and how to register each request.
@@ -187,8 +191,8 @@ so a phase does not depend on discovering a chain of references.
 ### Author a version
 
 - `references/page-authoring.md`: before writing or revising any version.
-- `references/authoring-asks.md`: when the page needs an answer from the user or
-  sign-off, before choosing its widgets.
+- `references/authoring-asks.md`: when the page or your reply leaves anything for
+  the user to decide or sign off, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising the page's current state.
 - `references/authoring-evidence.md`: for work updates or reviews, before drawing

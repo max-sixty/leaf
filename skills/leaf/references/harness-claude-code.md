@@ -24,32 +24,34 @@ and a URL the user cannot reach.
 New user input reaches you only between your own operations, at the next tool
 result.
 
-Leaf's own Stop hook watches for you. As each turn ends, Claude Code starts it in
-the background, and it watches every page this session holds until one has new
-input; then it wakes the session, opening a turn, or reaching the current one at
-its next tool result. So once the page is handed over, end the turn: start no
-`leaf wait`. As the turn the input reaches takes it, Leaf's prompt hook puts the
-whole delivery in your context (`references/event-batches.md`, "One envelope on
-every transport") and confirms it, so the user's updates read **Picked up** and its
-`acknowledge` is null: run no acknowledgement command. Input it could not confirm,
-large input among it, arrives instead as a pointer, `leaf delivery read <id>`. Run it before working or replying, and once
-you have read every part, follow its confirmation instruction. Input that arrives as
-a turn ends comes through the Stop hook the same way. Where the user turned on
-Leaf's hooks module, the module keeps the same watch, and a wake it opens arrives as
-a message from the leaf plugin.
+Once the page is handed over, end the turn, and do not run `leaf wait`: Leaf's
+Stop hook watches for you. When a turn ends, Claude Code runs the hook in the
+background, and it watches every page this session holds. When one of them gets new
+input, the hook wakes the session. It opens a new turn, or, if a turn is running,
+adds the input at that turn's next tool result. If the user turned on Leaf's hooks
+module, the module does this watching instead, and its wake arrives as a message
+from the leaf plugin.
+
+Leaf's prompt hook puts the whole delivery in your context
+(`references/event-batches.md`, "One envelope on every transport"), and so does the
+Stop hook for input that arrives as a turn ends. The hook also confirms receipt, so
+the user's updates read **Picked up** and the delivery's `acknowledge` is null; run
+no acknowledgement command. A delivery the hook could not confirm, or one too large
+for the context, arrives as a pointer instead: `leaf delivery read <id>`. Read every
+part before working or replying, then follow the confirmation instruction on the
+last part.
 
 To pick up a page this session did not serve, run `leaf page claim <page>`; the
 Stop hook watches it from the end of the turn.
 
-If a turn ends without answering a delivered update, the next prompt hook carries
-that obligation back into context and renews its **Picked up** receipt for the new
-turn without a start. The banner reports overall page activity separately.
+If a turn ends without answering a delivered update, the next prompt hook puts that
+update back in your context and marks it **Picked up** again for the new turn.
 
-When nothing was watching, as after a turn you interrupted without the hooks module
+When nothing was watching, as after a turn you interrupted without the hooks module,
 or once a background job has been idle for an hour, new input reaches you as a
 message from Leaf naming the page. It comes through Claude Code's session
-messaging, so it is presented as coming from another session; the input arrives
-with it, and the watch starts again when that turn ends.
+messaging, so it appears to come from another session. The input arrives with it,
+and the watch starts again when that turn ends.
 
 ## Session list
 
@@ -67,12 +69,11 @@ Keep either line to 200 characters or fewer, on its own line, not in a code bloc
 
 ## Subagents
 
-A subagent runs with this session's id and process, and nothing in its
-environment tells Leaf otherwise, so to Leaf it is this session. A page it
-claims, by serving it or running `leaf page claim`, is this session's, and this
-session's Stop hook holds its turns open for every update there. A
-`leaf wait` it starts competes for this session's one watcher: it is refused
-while the watch runs, and otherwise wakes the subagent instead of you, so the
-input from every page you hold goes into the subagent's turn. That is why the page stays with you
+A subagent runs with this session's id and process, so Leaf takes it for this
+session. A page the subagent claims, by serving it or running `leaf page claim`,
+belongs to this session, and this session's Stop hook holds your turns open for
+every update there. A `leaf wait` the subagent runs uses this session's one
+watcher. Leaf refuses it while the Stop hook's watch runs; otherwise the input from
+every page you hold goes to the subagent instead of you. So keep the page with you
 (`references/conversation-loop.md`, "Long-running work"). A separate Claude Code
 session has its own id and can drive a page of its own.

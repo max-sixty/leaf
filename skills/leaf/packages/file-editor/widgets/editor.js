@@ -211,15 +211,16 @@ export function createEditor(
     if (view) view.dispatch(spec);
     else retained = retained.update(spec).state;
   };
+  const revealCaret = () =>
+    dispatch({
+      effects: EditorView.scrollIntoView(reading().selection.main.head, {
+        y: "nearest",
+      }),
+    });
   const resize =
     original === null
       ? sizeObserver(() => {
-          if (view?.hasFocus)
-            dispatch({
-              effects: EditorView.scrollIntoView(reading().selection.main.head, {
-                y: "nearest",
-              }),
-            });
+          if (view?.hasFocus) revealCaret();
         })
       : null;
   resize?.observe(view.scrollDOM);
@@ -283,6 +284,9 @@ export function createEditor(
       );
       dispatch({ effects: originalDocChangeEffect(reading(), changes) });
     },
+    // Bring the caret into the editor's view, as a landing on the editor does: its room
+    // may have shrunk under the caret while the reader stood elsewhere.
+    revealCaret,
     // A move by `moveBefore` collapses the native selection in the view it keeps.
     placeSelection() {
       view?.placeSelection();

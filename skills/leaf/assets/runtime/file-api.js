@@ -21,8 +21,13 @@ export function boundFile(binding) {
         "file",
       );
     } catch (error) {
+      // Each failure reads as one sentence the editor can show and follow with its own.
       if (error instanceof LayerRefused)
-        throw new Error("Leaf changed while accessing the file. The draft is kept.");
+        throw new Error("Leaf changed while accessing the file.");
+      // A request that got no answer rejects in the engine's own words ("Failed to
+      // fetch", "Load failed"), which name no sentence and no remedy.
+      if (error.status === undefined)
+        throw new Error("The page's server did not answer.", { cause: error });
       throw error;
     }
   }

@@ -72,12 +72,13 @@ icon.
   into the mechanism: what a notice says, who raises it, what press it offers, how it
   ends, and which other states use it (a stale page, offline, a page opened from a
   share link).
-- **Idea: a thread opens with the passage it is about.** The fresh review of 14
-  October found that a thread opened in the panel never shows what it is anchored to,
-  and the open view can cover that passage on the page. Its mock-up quoted the
-  passage as the view's first line, pressing it doing what On the page does. The user
-  called it "an interesting idea" but "maybe a bit complicated", and suggested first
-  "just try making the messages better", so a thread's own words name their subject.
+- **Idea, likely unneeded: a thread opens with the passage it is about.** The fresh
+  review of 14 October found that a thread opened in the panel never shows what it is
+  anchored to, and its mock-up quoted the passage as the view's first line. The user
+  pointed out that the view's head already shows the title the agent writes to
+  summarize the thread; the review's sample threads had none, so the head fell back to
+  their opening words. Revisit only if titled threads still leave a reader unsure what
+  a thread is about.
 
 Build an opt-in alternative to Leaf's chrome: one panel that hovers over the
 bottom of the page, like the Codex app's floating chat panel, and replaces both

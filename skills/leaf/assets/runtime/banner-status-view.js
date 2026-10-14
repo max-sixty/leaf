@@ -37,6 +37,7 @@ import { afterScript } from "./rendering.js";
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
 
+/** @typedef {BannerStatusView} BannerStatusViewElement For its tag (`runtime-globals.d.ts`). */
 class BannerStatusView extends HTMLElement {
   #button = createRef();
   #detail = createRef();

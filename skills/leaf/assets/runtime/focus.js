@@ -323,7 +323,9 @@ export const focused = (tree = null) => {
 // The selection the user drew in the tree `node` stands in, where the browser keeps it.
 const selectionOf = (node) => {
   const root = node.getRootNode();
-  return (root instanceof ShadowRoot && root.getSelection?.()) || getSelection();
+  // Chromium's shadow roots answer their own selection.
+  const own = /** @type {{getSelection?: () => Selection}} */ (root);
+  return (root instanceof ShadowRoot && own.getSelection?.()) || getSelection();
 };
 
 // Where the user stands, nearest first: the focused node, unless focus rests on the
@@ -781,7 +783,9 @@ addEventListener(
       if (end) ends.push(end);
     }
     if (event.button !== 0 || labelPress) return;
-    const label = path.find((node) => node?.localName === "label" && node.control);
+    const label = /** @type {(EventTarget & Partial<HTMLLabelElement>)[]} */ (
+      path
+    ).find((node) => node?.localName === "label" && node.control);
     const held = label && deepFocus();
     if (!held || held === document.body) return;
     labelPress = { held, pointerId: event.pointerId, label };
@@ -794,7 +798,7 @@ function endPress(event, completed) {
   press = null;
   for (const end of ends) end(event, completed);
 }
-for (const type of ["pointerup", "pointercancel"])
+for (const type of /** @type {const} */ (["pointerup", "pointercancel"]))
   addEventListener(
     type,
     (event) => {
@@ -1023,6 +1027,7 @@ export function layerLanding(land) {
     return land(...args);
   };
 }
+/** @param {() => unknown} close @param {(() => unknown) | false | null} [land] */
 export function closeLayer(close, land = null) {
   closing += 1;
   let deferred = null;

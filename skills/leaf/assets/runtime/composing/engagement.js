@@ -16,6 +16,7 @@ export function createEngagement({ hasPending, fabAnchorAt, targetPickerOpen }) 
   // Admission supplies the install's native-node retention proof. A selected passage
   // or anchored comment also needs its complete authored anchor scope kept, since
   // preserving a paragraph alone can still leave its durable quote ambiguous.
+  /** @param {(node: Element | null) => boolean} [retains] */
   function midComposition(retains = () => false) {
     const active = focused();
     const replyDraft = replyCompositionHasDraft(active);

@@ -463,16 +463,15 @@ summary { align-content: center; }
 /* The working message: the step of work in hand, at the transcript's foot just above
    the reply box. It takes a message's head and body faces, but its words stay dim, and
    while the work runs a sheen passes over them, as over a title being generated, so a
-   step reads as work under way rather than as a reply. A step is a line, and the
-   words keep to one, ellipsized, so each new step leaves the message's box, and what
-   stands below it, where it was. Its arrival and departure are held when they would
-   move what the reader sees (held-news.js). Assistive technology reads the whole line. */
+   step reads as work under way rather than as a reply. Its words wrap as a message's
+   do, so the whole step shows however narrow the surface. Its arrival, its departure
+   and a new step that replaces its words are held when they would move what the
+   reader sees (held-news.js). */
 .lf-thread-working { margin-top: 16px;
   --lf-working-dim: color-mix(in oklab, var(--muted) 80%, var(--paper)); }
 .lf-thread-working-words { margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content; max-inline-size: 100%;
-  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--lf-working-dim);
-  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--lf-working-dim); }
 .lf-thread-working[data-lf-live] .lf-thread-working-words { color: transparent;
   background: linear-gradient(110deg, var(--lf-working-dim) 42%, var(--ink) 50%,
     var(--lf-working-dim) 58%);

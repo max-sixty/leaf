@@ -150,6 +150,7 @@ from .files import read_json
 from .harness import Harness
 from .leases import sessions_home
 from .refusals import Refused
+from .registry.kernel import record_format
 from .service import (
     PageTransaction,
     delivery_reply_attempt,
@@ -170,10 +171,9 @@ START_TIMEOUT = 20
 # Names the App Server a task runs on to the `leaf` commands it runs, so they hand
 # its pages to that server (`private_app_server`, `leaf codex start`).
 APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
-# A collecting record holds captured events in the delivery's own shape, so the
-# version moves with it; a record of another version is ignored, and the events
-# its page has not acknowledged are captured afresh.
-RECORD_FORMAT = "leaf-codex-delivery-v4"
+# A record of another protocol is ignored, and the events its page has not
+# acknowledged are captured afresh.
+RECORD_FORMAT = record_format("codex-delivery")
 STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}
 STREAM_MESSAGE_METHOD = "item/agentMessage/delta"

@@ -148,7 +148,7 @@
 #    This comment fits in one reading, shown here as the wait prints it:
 #
 #      {
-#        "format": "leaf-delivery-v5",
+#        "format": "leaf-delivery/6",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
 #        "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; until then the user's updates read Sent rather than Picked up. If the output was cut off, reread it with `leaf delivery read e8417b8a`. Follow any `next` commands before confirming. If you handle it, acknowledge before any other work; if you forward it, acknowledge once it durably arrives there. To acknowledge, start `leaf wait --ack e8417b8a` as the next background task: it confirms this delivery and waits for the next.",
@@ -364,7 +364,6 @@ comment with a drawing:
   event:
     kind: comment
     drawing:
-      format: leaf-drawing/3
       strokes: [[[0, 0], [9, 9]]]
       box: [640, 120]
       viewport: [1200, 900]

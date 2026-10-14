@@ -25,7 +25,11 @@ const schedule = createPresentationSchedule(bindQueuedWork);
 export const applicationState = createSemanticApplication({
   presentation: {
     begin: (semanticEpoch) => presentation.begin(documentToken, semanticEpoch),
-    seal: (publication) => presentation.seal(publication),
+    // The application seals each publication as `begin` returned it.
+    seal: (publication) =>
+      presentation.seal(
+        /** @type {ReturnType<typeof presentation.begin>} */ (publication),
+      ),
   },
 });
 export const readApplication = applicationState.read;
@@ -89,6 +93,14 @@ const documentPresenters = [];
 // paints, so a reading that stands still is still painted when asked for. A renderer
 // withholds a reading it does owe by returning `PRESENTATION_HELD`, which keeps its
 // region pending until a later claim supersedes it.
+/** @param {{
+ *   region: string,
+ *   renderer?: object,
+ *   order?: number,
+ *   reading: (root: ReturnType<typeof readApplication>) => unknown,
+ *   paint: (value: any, current: () => boolean) => unknown,
+ *   failSoft?: (reason: unknown) => unknown,
+ * }} presenter */
 export const applicationPresenter = ({
   region,
   renderer = document,

@@ -49,6 +49,7 @@ export function setRenderedChildren(parent, nodes) {
 // Put `nodes` in order under `parent`, walking past the children `passed` names, and
 // moving only a node that is not already where it belongs. A retained move within one
 // shadow-including tree preserves native state where the browser supports it (`move`).
+/** @param {(node: Node) => boolean} [passed] */
 function order(parent, nodes, passed = () => false) {
   let cursor = parent.firstChild;
   for (const node of nodes) {

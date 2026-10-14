@@ -137,6 +137,7 @@ export function createPageComment({
     focusDestination(input, "move");
   }
 
+  /** @type {(() => void) & {cancelDictation?: () => void}} */
   let sync = () => {};
   const stops = [];
   function mount(chromeRoot) {

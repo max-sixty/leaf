@@ -170,6 +170,7 @@ export function createAnchorControls({
     commentOnTarget({ anchor: control.lfAnchor });
   }
 
+  /** @param {{anchor: object, label: string, key?: string}} target */
   const visualActionTemplate = ({ anchor, label }) => html`
     <button
       type="button"

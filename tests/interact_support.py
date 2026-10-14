@@ -2454,7 +2454,6 @@ SETTLING_DECISION = {
     "revision": 1,
     "anchor": {"section": "plan-choice-decision"},
     "drawing": {
-        "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "viewport": [1200, 900],

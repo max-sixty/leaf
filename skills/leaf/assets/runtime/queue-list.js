@@ -91,6 +91,7 @@ const rowsTemplate = (rows, activate, finish, end) =>
     )}
   </div>`;
 
+/** @typedef {QueueList} QueueListElement For its tag (`runtime-globals.d.ts`). */
 class QueueList extends RetainedFace {
   #activate = null;
   #finish = null;

@@ -58,6 +58,7 @@ export function markPageUpgraded() {
 }
 // The stamp is written here and nowhere else, and never taken back, so the promise it
 // resolves answers every later waiter too.
+/** @type {PromiseWithResolvers<void>} */
 const { promise: presented, resolve: resolvePresented } = Promise.withResolvers();
 export function markPagePresented() {
   setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.presented, "1");
@@ -106,6 +107,7 @@ export function markStateApplied(state) {
 const stamp = (name) => document.body.getAttribute(PAGE_PAINT_ATTRIBUTE[name]);
 // In the order a page reaches them. `held` is the `/api/state` answer a reader holds
 // (`{reading, taken}`), or null for a reader holding none, which skips `state`.
+/** @type {[string, (held?: {taken: number, reading: string} | null) => boolean][]} */
 const READINESS = [
   ["upgraded", () => stamp("upgraded") === "1"],
   ["log", () => stamp("applied") !== null],

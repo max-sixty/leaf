@@ -96,6 +96,7 @@ export function foldOut(node, repaintThread) {
     paddingBottom: style.paddingBottom,
     opacity: 1,
   };
+  /** @type {Record<string, string | number>} */
   const to = Object.fromEntries(Object.keys(from).map((key) => [key, "0px"]));
   to.opacity = 0;
   const played = motion(node, [from, to], foldDuration());

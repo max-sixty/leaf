@@ -116,7 +116,11 @@ export const invalidVisualProviders = (declarations) =>
     .filter((instance) => instance.problems.length);
 export const undeclaredShadowRoots = (registry) => [
   ...new Set(
-    [...document.querySelectorAll("*")]
+    [
+      .../** @type {NodeListOf<HTMLElement | SVGElement>} */ (
+        document.querySelectorAll("*")
+      ),
+    ]
       .filter(
         (el) =>
           el.shadowRoot &&
@@ -140,9 +144,11 @@ export const missingThreads = (declarations) =>
         .map((el) => ({
           code: "missing-thread-seat",
           at: locate(el),
-          hosts: [...el.querySelectorAll(".lf-thread-seat")].filter(
-            (host) => host.dataset.lfThreadSeat === el.id,
-          ).length,
+          hosts: [
+            .../** @type {NodeListOf<HTMLElement>} */ (
+              el.querySelectorAll(".lf-thread-seat")
+            ),
+          ].filter((host) => host.dataset.lfThreadSeat === el.id).length,
         })),
     )
     .filter((instance) => instance.hosts !== 1);

@@ -63,7 +63,11 @@ export function watchThreadSurfaces(commands) {
       if (!owner.matches(":defined")) return;
       register(
         owner,
-        (targets, context) => owner.threadOutlets(targets, context),
+        // A tag declaring `x-thread-surface` implements `threadOutlets`.
+        (targets, context) =>
+          /** @type {Element & {threadOutlets: (targets, context) => unknown}} */ (
+            owner
+          ).threadOutlets(targets, context),
         commands,
         "widget",
       );
@@ -248,7 +252,7 @@ export function renderSurfaces(collection, placements, commands) {
     // Registration order cannot confer source ownership: the selected page owner
     // runs after the widgets establish their held-arrival admission in this pass.
     const ordered = [...registrations.values()].sort(
-      (a, b) => (a.kind === "page") - (b.kind === "page"),
+      (a, b) => Number(a.kind === "page") - Number(b.kind === "page"),
     );
     for (const registration of ordered) {
       const { render, owner } = registration;

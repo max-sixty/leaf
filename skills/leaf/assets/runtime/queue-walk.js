@@ -336,7 +336,7 @@ export function createQueueWalk({
   // reading them are repainted where the list empties or fills or those to-dos change.
   function mount() {
     stopWatching ??= applicationState
-      .select((root) => root.effective.queues.questions)
+      .select((root) => root.effective.queues.on_user)
       .subscribe(() => {
         if (offered() === wasOffered && doneable() === wasDoneable) return;
         wasOffered = offered();

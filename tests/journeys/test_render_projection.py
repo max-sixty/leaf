@@ -747,7 +747,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert root_overflow(page) == 0
     widget.get_by_role("radio", name="Compare").click()
     expect(
-        widget.locator(".lf-vr-case:not([hidden]) .lf-shot-frame-label").first
+        widget.locator(".lf-vr-case[data-selected] .lf-shot-frame-label").first
     ).to_be_visible()
     page.emulate_media(media="print")
     expect(first).to_be_visible()

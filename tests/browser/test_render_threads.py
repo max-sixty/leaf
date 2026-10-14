@@ -8234,7 +8234,7 @@ def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
     page.keyboard.press("g")
     expect(
         page.locator(
-            ".lf-shortcut-bar .lf-shortcut:not([hidden])",
+            ".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])",
             has_text="thread top / bottom",
         )
     ).to_have_count(1)
@@ -8710,7 +8710,7 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
     page.keyboard.press("Shift+t")
     expect(page.locator(OPEN_TITLE)).to_be_focused()
 
-    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
+    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])")
     expect(shown).to_have_count(2)
     # The thread's own first key leads and the way out of the surface follows it, which
     # is what the line is for: the user can see the panel around them, and what they

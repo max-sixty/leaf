@@ -7932,13 +7932,13 @@ def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve)
     }
     expect(line).to_contain_text("back one letter")
     target_route = line.locator(
-        '.lf-shortcut:not([hidden])[data-lf-command-ids~="navigation.target"]'
+        '.lf-shortcut:not([data-lf-off-line])[data-lf-command-ids~="navigation.target"]'
     )
     assert target_route.locator("kbd").evaluate_all(
         "keys => keys.map(key => [key.textContent, key.dataset.lfSequenceStepState])"
     ) == [["g", "pressed"], [prefix, "pressed"], ["…", "neutral"]]
     browse_route = line.locator(
-        '.lf-shortcut:not([hidden])[data-lf-command-ids~="navigation.target.next"]'
+        '.lf-shortcut:not([data-lf-off-line])[data-lf-command-ids~="navigation.target.next"]'
     )
     browse_faces = browse_route.locator("kbd").evaluate_all(
         "keys => keys.map(key => [key.textContent, key.dataset.lfSequenceStepState])"
@@ -9162,7 +9162,7 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     more = page.locator(".lf-shortcut-more")
     expect(more).to_have_attribute("aria-label", "? more")
     key_faces = page.evaluate(
-        """() => ['.lf-shortcut-more kbd', '.lf-shortcut-bar .lf-shortcut:not([hidden]) kbd']
+        """() => ['.lf-shortcut-more kbd', '.lf-shortcut-bar .lf-shortcut:not([data-lf-off-line]) kbd']
           .map(sel => { const s = getComputedStyle(document.querySelector(sel));
             return {height: s.height, padding: s.padding, border: s.borderTopWidth,
                     radius: s.borderRadius, font: s.fontFamily};
@@ -9326,7 +9326,7 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # glance. The reference below is the surface that names it, and this is the pair of
     # counts that tells a row the line declined to paint from a row that says nothing.
     expect(
-        line.locator('.lf-shortcut:not([hidden])[data-lf-command-ids~="page.down"]')
+        line.locator('.lf-shortcut:not([data-lf-off-line])[data-lf-command-ids~="page.down"]')
     ).to_have_count(0)
     resized(page, 420, 800)
     compact = line.evaluate(
@@ -10439,13 +10439,13 @@ def test_the_key_line_keeps_local_and_page_hints_and_progressively_reveals_the_r
     page.locator(".lf-threads-toggle").click()
 
     line = page.locator(".lf-shortcut-bar")
-    visible_hints = line.locator(".lf-shortcut:not([hidden])")
+    visible_hints = line.locator(".lf-shortcut:not([data-lf-off-line])")
     assert visible_hints.count() == 2, page.evaluate(
         """() => { const line = document.querySelector('.lf-shortcut-bar'); return {
           client: line.clientWidth, scroll: line.scrollWidth,
           max: getComputedStyle(line).maxWidth,
           hints: [...line.querySelectorAll('.lf-shortcut')].map(el => ({
-            text: el.textContent, hidden: el.hidden
+            text: el.textContent, off: el.hasAttribute('data-lf-off-line')
           }))
         }; }"""
     )
@@ -10590,13 +10590,13 @@ def test_expanded_shortcuts_fit_their_region_with_larger_text(browser, serve):
         expect(
             page.get_by_role("button", name="? command reference", exact=True)
         ).to_be_visible()
-        hints = line.locator(".lf-shortcut:not([hidden])")
+        hints = line.locator(".lf-shortcut:not([data-lf-off-line])")
         expect(hints.filter(has_text="less")).to_have_count(1)
         counts.append(hints.count())
         reading = line.evaluate(
             """bar => {
               const region = bar.getBoundingClientRect();
-              const visible = [...bar.querySelectorAll('.lf-shortcut:not([hidden]), .lf-shortcut-more')];
+              const visible = [...bar.querySelectorAll('.lf-shortcut:not([data-lf-off-line]), .lf-shortcut-more')];
               return {region: {left: region.left, right: region.right},
                 hints: visible.map(node => {
                   const box = node.getBoundingClientRect();
@@ -10623,7 +10623,7 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
     register and would pass over a chip nobody can see."""
     page = open_page(browser, serve(NOTED_PAGE))
     line = page.locator(".lf-shortcut-bar")
-    shown = line.locator(".lf-shortcut:not([hidden])")
+    shown = line.locator(".lf-shortcut:not([data-lf-off-line])")
     expect(shown).to_have_count(2)
     expect(page.get_by_role("button", name="? more", exact=True)).to_be_visible()
     # One settled read, which pins the count, the order, the keys and the words together.
@@ -10639,7 +10639,7 @@ def test_the_resting_key_line_leads_from_the_page_to_target_selection(browser, s
         ).to_have_count(1)
         expect(
             line.locator(
-                f'.lf-shortcut:not([hidden])[data-lf-command-ids~="{command}"]'
+                f'.lf-shortcut:not([data-lf-off-line])[data-lf-command-ids~="{command}"]'
             )
         ).to_have_count(0)
     expect(line.locator('[data-lf-command-ids~="reaction.open"]')).to_have_count(0)
@@ -10975,7 +10975,7 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
     page.evaluate(
         """() => {
           const line = document.querySelector('.lf-shortcut-bar');
-          window.__lfRetainedShortcut = line.querySelector('.lf-shortcut:not([hidden])');
+          window.__lfRetainedShortcut = line.querySelector('.lf-shortcut:not([data-lf-off-line])');
           window.__lfRetainedShortcutKey = window.__lfRetainedShortcut.querySelector('kbd');
           dispatchEvent(new Event('resize'));
         }"""
@@ -10984,7 +10984,7 @@ def test_the_walk_reaches_more_and_goes_on_after_the_line_has_repainted(browser,
     assert page.evaluate(
         """() => {
           const line = document.querySelector('.lf-shortcut-bar');
-          const shortcut = line.querySelector('.lf-shortcut:not([hidden])');
+          const shortcut = line.querySelector('.lf-shortcut:not([data-lf-off-line])');
           return shortcut === window.__lfRetainedShortcut &&
             shortcut.querySelector('kbd') === window.__lfRetainedShortcutKey;
         }"""
@@ -11206,10 +11206,10 @@ def test_a_control_that_types_nothing_keeps_the_pages_keyboard(browser, serve):
     # painted at rest, and the movement row is one `?` further in. A scope that swallowed
     # the page would take both, and the box below is where both go.
     comment = line.locator(
-        '.lf-shortcut:not([hidden])[data-lf-command-ids~="comment.create"]'
+        '.lf-shortcut:not([data-lf-off-line])[data-lf-command-ids~="comment.create"]'
     )
     movement = line.locator(
-        '.lf-shortcut:not([hidden])[data-lf-command-ids~="page.down"]'
+        '.lf-shortcut:not([data-lf-off-line])[data-lf-command-ids~="page.down"]'
     )
 
     page.locator("#flip").focus()

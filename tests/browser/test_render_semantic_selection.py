@@ -310,7 +310,7 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     expect(hints).to_have_count(0)
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
-    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
+    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])")
     expect(shown).to_have_count(2)
     expect(shown.nth(0).locator("kbd")).to_have_text(re.compile(r"^⏎$"))
     expect(shown.nth(0)).to_contain_text("comment")
@@ -435,7 +435,7 @@ def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser,
     expect(bar).to_be_visible()
     expect(bar).to_have_attribute("aria-label", re.compile(r"^Respond to "))
     expect(page.locator(".lf-fab-input")).to_be_focused()
-    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
+    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])")
     expect(shown).to_have_count(2)
     expect(shown.nth(1).locator("kbd")).to_have_text("esc")
     expect(page.locator(".lf-fab-input")).to_have_attribute(
@@ -825,7 +825,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     expect(page.get_by_role("searchbox", name="Search page text")).to_have_value(
         "needle"
     )
-    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
+    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])")
     expect(shown).to_have_count(2)
     expect(shown.filter(has_text="select match")).to_have_count(1)
     expect(shown.filter(has_text="matches")).to_have_count(1)

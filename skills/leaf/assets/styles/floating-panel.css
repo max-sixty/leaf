@@ -190,10 +190,6 @@
     margin: 0;
     box-shadow: none;
   }
-  .lf-fp-reply[hidden],
-  .lf-fp-reply > .lf-primary-part[hidden] {
-    display: none;
-  }
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
     outline: none;
   }
@@ -283,7 +279,7 @@
   .lf-floating-panel[data-typing] .lf-fp-quick:not([data-steps]) {
     display: none;
   }
-  .lf-fp-field .lf-compose-dictate:not([hidden]) {
+  .lf-fp-field .lf-compose-dictate {
     display: grid;
   }
   /* Dictation is offered while the user writes in the panel, not at rest. Writing lasts
@@ -339,9 +335,6 @@
     background: var(--accent);
     box-shadow: 0 0 0 1.5px var(--lf-fp-surface);
   }
-  .lf-fp-news[hidden] {
-    display: none;
-  }
   /* A gesture's next step, in the counts' place while the gesture holds it. */
   .lf-fp-step {
     color: var(--ink);
@@ -364,12 +357,11 @@
     font-size: 12px;
     white-space: nowrap;
   }
-  .lf-fp-context[hidden] {
-    display: none;
-  }
-  .lf-floating-panel[data-open] .lf-fp-context[hidden] {
-    display: flex;
+  .lf-fp-context[data-empty] {
     visibility: hidden;
+  }
+  .lf-floating-panel:not([data-open]) .lf-fp-context[data-empty] {
+    display: none;
   }
   .lf-fp-dest {
     min-width: 0;
@@ -737,9 +729,6 @@
     /* The host is only the press's box; its words would give it a line of their own. */
     font-size: 0;
     line-height: 0;
-  }
-  .lf-fp-copy-press[hidden] {
-    display: none;
   }
   .lf-fp-copy-press::part(button) {
     display: grid;

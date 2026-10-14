@@ -101,9 +101,9 @@ def cmd_init(
 
 
 def renew_layer(page_dir: Path, harness: Harness | None) -> str | None:
-    """Re-vendor a page whose layer this Leaf cannot serve
-    (`event_contracts.write_refusal`) for the session `harness` names, and say what
-    still holds the page back, for its agent to act on.
+    """Re-vendor a page vendored at an older page protocol, which this Leaf cannot
+    serve (`event_contracts.write_refusal`), for the session `harness` names, and say
+    what still holds the page back, for its agent to act on.
 
     A plugin update that bumps the page protocol reaches a running session, and its
     Leaf then refuses every page the session holds until the agent runs the
@@ -117,7 +117,9 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> str | None:
     first hook under this Leaf renews it. Nor does a Leaf take back a page a newer
     one vendored: a process the session started before its plugin updated would
     otherwise re-vendor the page down, and the newer Leaf's next hook up again,
-    reloading the user's tabs each time.
+    reloading the user's tabs each time. For the same reason a layer documenting an
+    x- key this Leaf does not admit stays refused: the key may be one a newer Leaf
+    added at the same protocol, which a re-vendor here would strip.
 
     What it says is why the re-vendor was refused, or the `page check` errors that
     keep index.html from activating under the new layer, since a source an older
@@ -130,9 +132,9 @@ def renew_layer(page_dir: Path, harness: Harness | None) -> str | None:
         from .event_contracts import write_refusal
 
         refusal = write_refusal(page_dir)
-        if refusal is None:
+        if refusal is None or refusal.code != "foreign-layer":
             return False
-        vendored = refusal.values.get("vendored")
+        vendored = refusal.values["vendored"]
         if type(vendored) is int and vendored > kernel_protocol():
             return False
         claim = page_claim(page_dir)

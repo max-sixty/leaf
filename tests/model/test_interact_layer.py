@@ -427,9 +427,8 @@ def test_response_reply_names_a_published_page_vendored_before_a_key_was_renamed
     assert replied.returncode != 0, replied.stdout
     assert "x-question-context" in replied.stderr
     assert f"leaf page init {claimed}" in replied.stderr
-    # The session's next command on the page makes the re-vendor it names, and the
-    # reply goes.
-    for command in (["page", "check", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
+    # The re-vendor it names repairs the page: init runs on it, and the reply goes.
+    for command in (["page", "init", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
         ran = subprocess.run(
             [*LEAF_COMMAND, *command],
             capture_output=True,

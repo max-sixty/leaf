@@ -877,9 +877,17 @@ def restarting_server(page_dir: Path, harness: Harness | None):
         yield
         return
     persistent = service["lifetime"] == "persistent"
+    held = page_claim(page_dir)
     comes_back = persistent or _restarts_for_session(page_dir, harness)
     mark = secrets.token_hex(8) if comes_back else None
-    cmd_stop(page_dir, restart=mark)
+    # The stop is the claim's this read decided for: a session that takes the page
+    # meanwhile keeps its service, and the block does not run.
+    cmd_stop(page_dir, restart=mark, owner=held)
+    if not same_claim(page_claim(page_dir), held):
+        raise Refused(
+            f"another session took {page_dir} while it was being re-vendored; "
+            "re-vendor it from there"
+        )
     if not comes_back:
         print(
             f"{page_dir}'s server has no live session owner, so it stays "

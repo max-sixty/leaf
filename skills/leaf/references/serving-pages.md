@@ -70,13 +70,14 @@ file.
 ## Re-vendoring and layer epochs
 
 A Leaf update leaves open pages served and writable until it changes the page
-protocol or retires a registry key the page's layer declares. The first `leaf`
-command or hook of the session holding the page then re-vendors it, keeping its log
-and source, and says so only where index.html now fails `page check` or the re-vendor
-was refused. A page another live session holds stays refused, and `leaf page state`
-reports the refusal as `source.error`, naming the `leaf page init` that updates the
-page's Leaf runtime from that session. Run it yourself to adopt a newer runtime,
-theme or package:
+protocol or retires a registry key the page's layer declares. After a protocol
+change, the first `leaf` command or hook of the session holding the page re-vendors
+it, keeping its log and source, and says so only where index.html now fails `page
+check` or the re-vendor was refused. Otherwise, as for a retired key or a page
+another live session holds, serving or writing the page refuses, and `leaf page
+state` reports the refusal as `source.error`, naming the `leaf page init` that
+updates the page's Leaf runtime. Run it from the session that holds the page, or to
+adopt a newer runtime, theme or package:
 
 ```bash
 leaf page init <page>

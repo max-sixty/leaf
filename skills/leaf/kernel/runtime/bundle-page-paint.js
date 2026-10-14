@@ -531,7 +531,6 @@ function adoptRegistry(declarations) {
   Object.assign(registry, declarations);
 }
 var stateIndex;
-var recordSlot = (record) => JSON.stringify([record.kind, "attr" in record ? record.attr : null]);
 function indexedState() {
   const generation = registry.$layer?.generation;
   if (typeof generation !== "string" || !generation)
@@ -541,22 +540,17 @@ function indexedState() {
   for (const [tag, entry] of elementDeclarations())
     for (const [verb, spec] of Object.entries(entry["x-state"] ?? {}))
       specs.push({ tag, verb, spec });
-  const recordTags = /* @__PURE__ */ new Map();
-  for (const { tag, spec } of specs) {
-    if (!spec.record) continue;
-    const slot = recordSlot(spec.record);
-    const tags = recordTags.get(slot) ?? /* @__PURE__ */ new Set();
-    tags.add(tag);
-    recordTags.set(slot, tags);
-  }
-  const recordSelectors = new Map(
-    [...recordTags].map(([slot, tags]) => [slot, [...tags].join(",")])
-  );
-  stateIndex = { generation, recordSelectors, specs };
+  stateIndex = {
+    generation,
+    recordedWidgetSelector: [
+      ...new Set(specs.filter(({ spec }) => spec.record).map(({ tag }) => tag))
+    ].join(","),
+    specs
+  };
   return stateIndex;
 }
 var stateSpecs = () => indexedState().specs;
-var recordedWidgetSelector = (record) => indexedState().recordSelectors.get(recordSlot(record)) ?? "";
+var recordedWidgetSelector = () => indexedState().recordedWidgetSelector;
 function layerFact(name) {
   const value = registry[name];
   return value === void 0 ? void 0 : structuredClone(value);

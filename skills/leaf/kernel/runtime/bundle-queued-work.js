@@ -1358,19 +1358,6 @@ function createPresentationSchedule(bindJob) {
     else finished.resolve();
   }
   const passed = () => pass?.promise ?? Promise.resolve();
-  function enqueue(order, run) {
-    const completion = Promise.withResolvers();
-    collect(order, async () => {
-      try {
-        await run();
-        completion.resolve();
-      } catch (error) {
-        completion.reject(error);
-        throw error;
-      }
-    });
-    return completion.promise;
-  }
   function presenter({
     attach,
     paint,
@@ -1397,7 +1384,7 @@ function createPresentationSchedule(bindJob) {
     }
     function sync(value) {
       const ticket = claim(value);
-      collect(typeof order === "function" ? order() : order, () => run(ticket));
+      collect(order, () => run(ticket));
       return passed();
     }
     function disconnect() {
@@ -1407,7 +1394,7 @@ function createPresentationSchedule(bindJob) {
     }
     return Object.freeze({ sync, disconnect });
   }
-  return Object.freeze({ presenter, enqueue, passed });
+  return Object.freeze({ presenter, passed });
 }
 
 // vendor/browser-runtime.js
@@ -1655,48 +1642,6 @@ function localTodos(state, local) {
   };
 }
 var NO_QUEUES = { on_user: [], on_agent: [], done: [] };
-function currentWidgetRelations(document, widgets, projection) {
-  const parents = new Map(
-    [...document.descriptors].map(([id, descriptor]) => [id, descriptor.parent?.id])
-  );
-  const owners = /* @__PURE__ */ new Map();
-  const memberships = /* @__PURE__ */ new Map();
-  for (const [id, widget] of widgets) {
-    for (const [verb, spec] of widget.specs) {
-      const record = spec.record;
-      if (record?.kind === "attribute") {
-        const named = owners.get(record.attr) ?? /* @__PURE__ */ new Set();
-        named.add(id);
-        owners.set(record.attr, named);
-        const slots = memberships.get(id) ?? {};
-        slots[record.attr] = [];
-        memberships.set(id, slots);
-      } else if (record?.kind === "position") {
-        const state = widget.state[verb];
-        if (state && "ranks" in state)
-          for (const [container, units] of Object.entries(state.value))
-            for (const unit of units) parents.set(unit, container);
-      }
-    }
-  }
-  for (const [attr, named] of owners) {
-    for (const id of document.descriptors.keys()) {
-      const seen = /* @__PURE__ */ new Set([id]);
-      for (let parent = parents.get(id); parent; parent = parents.get(parent)) {
-        if (seen.has(parent)) break;
-        seen.add(parent);
-        if (!named.has(parent)) continue;
-        memberships.get(parent)[attr].push(id);
-        break;
-      }
-    }
-    for (const { e: e2, unit, spec } of projection.desired.values())
-      if (spec.creates && named.has(e2.widget) && !document.descriptors.has(unit))
-        memberships.get(e2.widget)[attr].push(unit);
-    for (const owner of named) memberships.get(owner)[attr].sort();
-  }
-  return { parents, memberships };
-}
 function localQueues(served, threads, workflows, todos, asks) {
   const record = new Map(asks.all.map((ask) => [ask.id, ask]));
   const asked = new Map(asks.all.map((ask, at) => [ask.id, at]));
@@ -1813,7 +1758,6 @@ function widgetInputs(root, index, { id, tag }) {
     registered: root.document.descriptors.get(id),
     states: root.document.registry.$states[tag],
     current: root.effective.widgets.get(id),
-    memberships: root.effective.memberships.get(id),
     authored: root.document.authored.get(id),
     hostAvailable: root.effective.hostAvailable,
     ready: root.phase === "ready",
@@ -1855,7 +1799,6 @@ function widgetReading(inputs, descriptor) {
   return {
     authored: authored ?? {},
     state: current?.state ?? {},
-    memberships: currentDescriptor ? inputs.memberships ?? {} : {},
     thread: { heldBy: inputs.heldBy },
     provenance,
     actions
@@ -1940,7 +1883,6 @@ function createSemanticApplication({
     );
     const folded = foldThreads(view?.thread.threads ?? [], gestures);
     const widgets2 = foldWidgetStates(document.authored, projection);
-    const { parents: widgetParents, memberships } = currentWidgetRelations(document, widgets2, projection);
     const asks = ready ? normalizedAsks(view, widgets2, document, projection, local) : NO_ASKS;
     const todos = ready ? localTodos(state, local) : { open: [], ended: [] };
     const named = threadNames(folded);
@@ -2086,8 +2028,6 @@ function createSemanticApplication({
       // Part of the effective reading, so a read that changes only the view's
       // reports, publication time, or undo list opens an epoch and reaches its readers.
       view,
-      memberships,
-      widgetParents,
       // The attempts still waiting for their POST's answer, in ledger order.
       sending: unresolved.filter((entry2) => SENDING.has(entry2.state)).map((entry2) => entry2.event.attempt),
       workflows,

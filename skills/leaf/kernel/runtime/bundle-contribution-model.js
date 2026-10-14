@@ -913,7 +913,7 @@ var EMPTY = Object.freeze([]);
 var INITIAL = Object.freeze({
   picker: Object.freeze({
     offered: false,
-    token: "Draft",
+    token: "Showing Draft",
     compared: false,
     news: false,
     keyTitle: "Draft",
@@ -1039,7 +1039,7 @@ var VersionPickerView = class {
     this.button.toggleAttribute("data-lf-news", picker.news);
     keeps(this.button, "data-lf-key-title", picker.keyTitle);
     keeps(this.button, "aria-label", picker.ariaLabel);
-    render(`Showing ${picker.token}`, this.button);
+    render(picker.token, this.button);
     this.latestChip.toggleAttribute("disabled", latest.disabled);
     keeps(this.latestChip, "data-lf-key-title", latest.keyTitle);
     render(latest.label, this.latestChip);

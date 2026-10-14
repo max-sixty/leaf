@@ -395,11 +395,39 @@ review, ask why that fact isn't generated.
 Authored HTML paints at once, and the render-blocking theme reserves the banner and
 bottom bar, so mounting the runtime moves nothing. Prose, links and scrolling work while
 widgets upgrade; comments and drawing work from `data-lf-upgraded`, while thread
-history still shows as loading. `leaf.js`'s header lists the boot order, and
-`../references/module-authoring.md`, "Startup and presentation", says how a module
-keeps work off the presentation path and how held keys replay. Code outside the page
+history still shows as loading. `../references/module-authoring.md`, "Startup and
+presentation", says how a module keeps work off the presentation path and how held
+keys replay. Code outside the page
 waits on `pageReadiness`, through `wait_until_ready` in Python, rather than combining
 these stamps itself.
+
+`leaf.js` boots in this order, each step relying on those before it:
+
+1. Construct every owner, then adopt sheets, attach chrome, mount the owners, and
+   wire the repaint phases, so no input is wired before its owner exists.
+2. Start the first state read, without applying its answer.
+3. Restore the user's arrangement from storage.
+4. Fetch and validate the registry.
+5. Index passage fences and parent ids, then capture each widget's descriptor and
+   typed authored state from the source DOM.
+6. Publish that document contract once.
+7. Import the modules `x-upgrade` declares for the tags present, and no others.
+8. Run the dressing passes and wait for the presentation coordinator.
+9. Join the page-interface owners' reconciliation (`PAGE_INTERFACE`), separately
+   from this document's own presentation check.
+10. Land a fresh URL's fragment, prepare chrome that depends on anchors, then set
+    `data-lf-upgraded="1"` and open comment capture on the shown document.
+11. Start the state feed; its first answer presents the page (`presentPage`). A
+    failed or expired read presents the page offline; a request with no answer
+    keeps the loading status.
+
+`presentPage` performs the first authoritative presentation; its synchronous
+`PRESENTATION` signal lets apparatus measured from boxes replace provisional
+geometry before the presented state paints. `renderingState` (rendering.js) adds
+readiness's last stage: `updatesSettled` says the chrome has caught up with queued
+work, and `preparationsSettled` that registered finite preparations have landed.
+Full readiness needs both; a reader inspecting intermediate paint can use the
+first alone.
 
 ## Authoritative projection
 

@@ -92,16 +92,16 @@ function releaseTemplate(el) {
 // runtime/projection/authored.js
 var authoredStates = readPart((root) => root.document.authored);
 var authoredParents = /* @__PURE__ */ new WeakMap();
-var recordedOwner = (member, record) => {
-  const selector = recordedWidgetSelector(record);
-  return selector ? member.parentElement?.closest(selector) ?? null : null;
+var recordedOwner = (member) => {
+  const selector = recordedWidgetSelector();
+  return selector ? member.closest(selector) : null;
 };
-var ownedRecordMembers = (widget, selector, record) => [...widget.querySelectorAll(selector)].filter(
-  (member) => recordedOwner(member, record) === widget
+var ownedRecordMembers = (widget, selector) => [...widget.querySelectorAll(selector)].filter(
+  (member) => recordedOwner(member) === widget
 );
 function domValue(el, record) {
   if (record.kind === "attribute")
-    return ownedRecordMembers(el, `[${record.attr}]`, record).map((o) => o.id).filter(Boolean).sort();
+    return ownedRecordMembers(el, `[${record.attr}]`).map((o) => o.id).filter(Boolean).sort();
   if (record.kind === "value") return el.getAttribute(record.attr);
   if (record.kind === "position") return el.closest(record.within)?.id ?? null;
   return elementReading(el);
@@ -120,7 +120,7 @@ function initialState(widget, spec) {
     if (record?.kind !== "position") return { value: value2, units: {} };
     const ranks = {};
     for (const container of widget.querySelectorAll(record.within))
-      if (container.id && recordedOwner(container, record) === widget) {
+      if (container.id && recordedOwner(container) === widget) {
         const ids = [...container.children].filter((part) => part.id).map((part) => part.id);
         value2[container.id] = ids;
         ids.forEach((id, index) => ranks[id] = authoredRank(index));
@@ -129,7 +129,7 @@ function initialState(widget, spec) {
   }
   let value = null;
   if (record?.kind === "attribute")
-    value = ownedRecordMembers(widget, `[${record.attr}]`, record).map((member) => member.id).filter(Boolean).sort();
+    value = ownedRecordMembers(widget, `[${record.attr}]`).map((member) => member.id).filter(Boolean).sort();
   else if (record?.kind === "value") value = widget.getAttribute(record.attr);
   else if (record?.kind === "body") value = dataBody(widget);
   return { action: null, value, detail: record ? { value } : {} };

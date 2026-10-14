@@ -6815,7 +6815,7 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.versions,
   row: {
     label: "Versions",
-    value: () => versionsReading().picker.token,
+    value: () => versionsReading().picker.token.replace(/^Showing /, ""),
     group: "page"
   }
 });
@@ -7409,9 +7409,6 @@ function createFloatingPanel({
         accessibleName: () => `Reply to ${threadTitle(key)}`,
         sent: () => {
           landAtEnd = { key, after: outletOf()?.childElementCount ?? 0 };
-          waiting = null;
-          const top = trail.at(-1);
-          if (top?.view === "thread") rooms.delete(routeKey(top));
           queueMicrotask(paint);
         }
       });
@@ -7572,7 +7569,6 @@ function createFloatingPanel({
       { duration: RESIZE_MS, easing: EASE }
     );
   }
-  const fit = sizeObserver(() => fitAnswer());
   const follow = sizeObserver(() => followBox());
   addEventListener("resize", () => {
     outline = null;
@@ -7587,92 +7583,6 @@ function createFloatingPanel({
     if (!view || view.querySelector(".lf-fp-asked:empty")) return false;
     rooms.set(routeKey(top), view.offsetHeight);
     return true;
-  }
-  let drawnThread = null;
-  let waiting = null;
-  let fitted = null;
-  function fitAnswer() {
-    const top = trail.at(-1);
-    const view = openView();
-    const outlet = outletOf();
-    if (top?.view !== "thread" || !view || !outlet) {
-      drawnThread = null;
-      return;
-    }
-    const keys2 = [...outlet.querySelectorAll(".lf-msg[data-message]")].map(
-      (node) => node.dataset.message
-    );
-    const before = drawnThread?.key === top.thread ? drawnThread : null;
-    const msgs = threadByKey(top.thread)?.msgs ?? [];
-    const message = (key) => msgs.find((each) => each.key === key);
-    drawnThread = {
-      key: top.thread,
-      keys: keys2,
-      coming: keys2.filter(
-        (key) => message(key)?.ephemeral || message(key)?.provisional
-      ),
-      extent: view.scrollHeight
-    };
-    const lastTurn = (drawn2) => drawn2.map(message).findLast((each) => each && !each.ephemeral);
-    const answerIn = (drawn2) => {
-      const turn = drawn2.findLastIndex((key) => {
-        const each = message(key);
-        return each?.author === "user" && !each.ephemeral;
-      });
-      return turn < 0 ? null : { turn: drawn2[turn], keys: drawn2.slice(turn + 1) };
-    };
-    const room = routeKey(top);
-    const fresh = before ? keys2.filter((key) => !before.keys.includes(key)) : [];
-    const answer = answerIn(keys2);
-    const asked2 = before && answerIn(before.keys);
-    if (answer?.keys.length && asked2?.turn === answer.turn && asked2.keys.every((key) => before.coming.includes(key)) && answer.keys.every((key) => message(key)?.author === "agent") && rooms.has(room)) {
-      if (view.scrollHeight <= before.extent + 0.5) return;
-      const atEnd = view.scrollTop + view.clientHeight >= before.extent - 1;
-      if (!waiting && atEnd && view.scrollHeight - before.extent <= view.clientHeight) {
-        view.scrollTop = view.scrollHeight;
-        return;
-      }
-      const reply = answer.keys.find((key) => !message(key).ephemeral);
-      const next = reply ? { key: top.thread, message: reply, label: "New reply" } : { key: top.thread, message: answer.keys[0], label: "New update" };
-      if (waiting?.message !== next.message) {
-        waiting = next;
-        paint();
-      }
-      return;
-    }
-    if (fresh.length && !waiting && rooms.delete(room)) {
-      paint();
-      return;
-    }
-    if (lastTurn(keys2)?.author === "user" && !rooms.has(room)) {
-      rooms.set(room, view.offsetHeight);
-      paint();
-    }
-  }
-  function showAnswer() {
-    const top = trail.at(-1);
-    const answer = waiting;
-    waiting = null;
-    if (top) rooms.delete(routeKey(top));
-    paint();
-    const view = openView();
-    if (view) focusDestination(view, "move");
-    const node = outletOf()?.querySelector(
-      `.lf-msg[data-message="${CSS.escape(answer.message)}"]`
-    );
-    if (node) scrollIntoView(node, { block: "start" });
-  }
-  function sawAnswer(event) {
-    if (!waiting) return;
-    const view = event.currentTarget;
-    const node = view.querySelector(
-      `.lf-msg[data-message="${CSS.escape(waiting.message)}"]`
-    );
-    const press = view.querySelector(".lf-fp-new-reply");
-    if (!node || !press) return;
-    if (node.getBoundingClientRect().top >= press.getBoundingClientRect().top) return;
-    waiting = null;
-    paint();
   }
   let held = null;
   let seats2 = [];
@@ -7699,8 +7609,6 @@ function createFloatingPanel({
     const changed = (before ? routeKey(before) : null) !== (after2 ? routeKey(after2) : null);
     if (changed) {
       rooms.clear();
-      waiting = null;
-      drawnThread = null;
       onPageSeat = false;
     }
     if (changed && before?.view === "thread")
@@ -7955,7 +7863,7 @@ function createFloatingPanel({
                   </button>` : nothing}
           </div>`
     )}
-      ${versions.length ? nothing : html`<p class="lf-fp-empty">Showing ${picker.token}</p>`}
+      ${versions.length ? nothing : html`<p class="lf-fp-empty">${picker.token}</p>`}
       ${approval ? html`<hr />
               <div class="lf-fp-approval" title=${approval.reason ?? nothing}>
                 ${menuItem(
@@ -8078,10 +7986,7 @@ function createFloatingPanel({
     const thread = threadByKey(key);
     if (!thread)
       return html`<p class="lf-fp-empty">This thread is not on the page.</p>`;
-    return html`<div class="lf-fp-messages lf-fp-outlet"></div>
-      ${waiting?.key === key ? html`<button type="button" class="lf-fp-new-reply" @click=${showAnswer}>
-              ${iconTemplate("down", "lf-action-icon")}${waiting.label}
-            </button>` : nothing}`;
+    return html`<div class="lf-fp-messages lf-fp-outlet"></div>`;
   }
   let queueTab = "you";
   let seated = null;
@@ -8491,19 +8396,12 @@ function createFloatingPanel({
             ${ref(declareView)}
             style=${rooms.has(routeKey(route)) ? `height: ${rooms.get(routeKey(route))}px` : nothing}
             ?data-leaving=${route === leaving}
-            @scroll=${sawAnswer}
           >
             ${viewTemplate(route)}
           </div>`
       ),
       stage
     );
-    const outlet = outletOf();
-    if (outlet !== fitted) {
-      fit.disconnect();
-      if (outlet) for (const box of [outlet, openView()]) fit.observe(box);
-      fitted = outlet;
-    }
     const listed2 = listRows();
     rove(
       listed2,
@@ -8827,9 +8725,6 @@ function createFloatingPanel({
     follow.observe(card);
     presentation = registerChromeThreadPresentation(host, {
       render: nominate,
-      // The view makes room for the agent's answer to the user's last turn itself
-      // (`fitAnswer`), so the reader hands it over at once.
-      answersAtOnce: true,
       // A reader the page's package registers later takes the thread open here, and
       // the user's place in it where they stood in the panel, read before the panel's
       // reader, and the message they stood on, goes.

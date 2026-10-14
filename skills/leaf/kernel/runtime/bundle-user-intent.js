@@ -2147,18 +2147,12 @@ function registeredTags(scope, registry3) {
 function widgetImports(scope, registry3) {
   const initializers2 = [];
   const modules2 = [];
-  const tags = registeredTags(scope, registry3);
-  for (const tag of tags) {
+  for (const tag of registeredTags(scope, registry3)) {
     const entry = registry3[tag];
     if (entry?.["x-initial"]) initializers2.push({ tag, path: entry["x-initial"] });
     if (entry?.["x-upgrade"]) modules2.push(tag);
   }
-  const shadow = tags.some(
-    (tag) => registry3[tag]["x-shadow"] || Object.values(registry3[tag]["x-state"] ?? {}).some(
-      (state) => state.creates && registry3[state.creates.child]["x-shadow"]
-    )
-  );
-  return { initializers: initializers2, modules: modules2, shadow };
+  return { initializers: initializers2, modules: modules2 };
 }
 
 // runtime/widget-loader.js
@@ -2212,7 +2206,7 @@ var widgetUrl = (tag) => offlineInteractive ? runtimeModule(`/widgets/${tag}.js`
 async function loadWidgetDependencies(scope) {
   await Promise.all([
     loadDeclaredMarkdown(scope),
-    ...widgetImports(scope, registry).shadow ? [loadShadowRules()] : []
+    ...registeredTags(scope, registry).some((tag) => registry[tag]["x-shadow"]) ? [loadShadowRules()] : []
   ]);
 }
 async function importWidgetModules(scope) {
@@ -4989,12 +4983,7 @@ function difference(was, now, { progressOpen = false } = {}) {
   ];
   if (!settled && counts.every((count) => !news[count])) return null;
   const appendedAtEnd = news.appended && was.messages.every((message, index) => now.messages[index]?.key === message.key);
-  const turn = was.messages.findLastIndex(
-    (message) => message.author === "user" && !message.progress
-  );
-  const asked = new Set(was.messages.slice(0, turn + 1).map(({ key }) => key));
-  const answers = turn >= 0 && was.messages.slice(turn + 1).every((message) => message.progress || message.provisional) && !settled && !news.messages && !news.edits && !news.reactions && !news.summaries && !folds.summaries.length && (!news.appended || appendedAtEnd) && ![...changed2, ...folds.messages].some((key) => asked.has(key));
-  return { news, changed: changed2, folds, appendedAtEnd, footFold, answers };
+  return { news, changed: changed2, folds, appendedAtEnd, footFold };
 }
 function withheld(was, now) {
   const current = new Map(now.msgs.map((message) => [messageKey(message), message]));

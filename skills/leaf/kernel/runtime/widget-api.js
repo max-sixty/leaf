@@ -231,7 +231,6 @@ import {
   pageUrl,
   projectionRegionsPresented,
   proofReading,
-  queueWidgetUpdate,
   readPart,
   readsProof,
   revisionLabel
@@ -353,7 +352,6 @@ function createWidgetController(owner) {
   let deferredReading = null;
   let stopSelection = null;
   let renderHandle = null;
-  let renderTicket = null;
   let drawn = false;
   let preparationHandle = null;
   const pendingPreparations = /* @__PURE__ */ new Map();
@@ -422,24 +420,11 @@ function createWidgetController(owner) {
   );
   const presentRender = (reading) => {
     if (!owner.isConnected) return;
-    const ticket = render2().present(
-      reading,
-      (reason) => failSoftUnreported(owner, reason)
-    );
-    renderTicket = ticket;
-    queueWidgetUpdate(descriptor.id, () => {
-      if (ticket !== renderTicket || deferred) return;
-      try {
-        ticket.resolve(paint(reading, reading));
-      } catch (error) {
-        ticket.reject(error);
-      }
-      return ticket.ready;
-    });
+    render2()?.present(reading, (reason) => failSoftUnreported(owner, reason)).resolve(paint(reading, reading));
   };
   const holdRender = (reading) => {
     deferredReading = reading;
-    renderTicket = render2()?.present(reading);
+    render2()?.present(reading);
   };
   const publish = () => untracked(() => {
     const reading = read();
@@ -467,7 +452,6 @@ function createWidgetController(owner) {
     stopSelection = null;
     renderHandle?.disconnect();
     renderHandle = null;
-    renderTicket = null;
     preparationHandle?.disconnect();
     preparationHandle = null;
     for (const [promise, release] of pendingPreparations) {
@@ -499,7 +483,6 @@ function createWidgetController(owner) {
           stopSelection = null;
           renderHandle?.disconnect();
           renderHandle = null;
-          renderTicket = null;
           deferredReading = null;
           paint.forget();
         }
@@ -607,22 +590,8 @@ var LeafElement = class extends LitElement {
   #drawing = null;
   #data = /* @__PURE__ */ new Map();
   #leaveData = null;
-  #scheduled = null;
   createRenderRoot() {
     return this;
-  }
-  scheduleUpdate() {
-    return this.#scheduled ?? this.#queueUpdate();
-  }
-  #queueUpdate() {
-    if (!this.#descriptor) return super.scheduleUpdate();
-    const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
-      if (this.#scheduled !== scheduled) return;
-      this.#scheduled = null;
-      return super.scheduleUpdate();
-    });
-    this.#scheduled = scheduled;
-    return scheduled;
   }
   connectedCallback() {
     if (once(this)) this.#setup();
@@ -788,10 +757,7 @@ var LeafElement = class extends LitElement {
     );
     if (this.#held) return;
     this.requestUpdate();
-    if (now) {
-      this.#scheduled = null;
-      this.performUpdate();
-    } else if (this.#descriptor) this.#queueUpdate();
+    if (now) this.performUpdate();
   }
   #refresh() {
     if (this.#connected) this.#present({ now: true });

@@ -36,22 +36,6 @@ var attachApplicationPresentation = (region, renderer) => presentation.attach(re
 var widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
 var widgetRegions = (widget) => ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
 var attachWidgetPresentation = (widget, kind, renderer) => presentation.attach(widgetRegion(widget, kind), renderer);
-var currentWidgetParents = readPart((root) => root.effective.widgetParents);
-var widgetOrder = (widget) => {
-  const parents = currentWidgetParents();
-  const seen = /* @__PURE__ */ new Set();
-  let depth = 0;
-  for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
-    if (seen.has(parent)) break;
-    seen.add(parent);
-    depth++;
-  }
-  return -1 / (depth + 1);
-};
-var queueWidgetUpdate = (widget, update) => schedule.enqueue(
-  untracked(() => widgetOrder(widget)),
-  update
-);
 var PRESENTATION_ORDER = Object.freeze({
   projection: 0,
   thread: 1,
@@ -339,7 +323,6 @@ export {
   selectWidgets,
   attachApplicationPresentation,
   attachWidgetPresentation,
-  queueWidgetUpdate,
   PRESENTATION_ORDER,
   applicationPresenter,
   documentChanged,

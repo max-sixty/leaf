@@ -508,8 +508,9 @@ def test_clicking_into_the_field_moves_nothing_at_an_open_view_s_head(browser, s
     # Words arriving give the line where they go, over the view's foot.
     page.keyboard.type("Could")
     expect(line).to_have_text("Comment on the page")
+    # Each platform spells Shift its own way (keyboard/bindings.js, `spell`).
     expect(page.locator(".lf-fp-send")).to_have_attribute(
-        "title", "Send (⏎) · ⇧⏎ new line"
+        "title", re.compile(r"^Send \(⏎\) · (⇧|Shift\+)⏎ new line$")
     )
     settled(page)
     assert page.locator(".lf-fp-close").bounding_box() == close

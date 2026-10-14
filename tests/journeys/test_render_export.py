@@ -193,7 +193,7 @@ def test_a_second_stop_signal_leaves_preview_cleanup_running(
     worker = tmp_path / "worker.py"
     worker.write_text(
         """import sys
-from leaf_dev import preview
+from leaf_dev.commands import preview
 
 stop = preview.PreviewService.stop
 

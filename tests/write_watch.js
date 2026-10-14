@@ -9,8 +9,10 @@
 // the observer delivers: the writes one script makes to one place (an attribute, a text
 // node's data) change nothing when the place ends the script holding the value it
 // started with, whether the script restated it or took it away and put it back, and a
-// child-list write changes nothing when it puts back nodes equal to the ones it took
-// out. Such a write still costs a style pass and a repaint, of the whole document while
+// child-list write changes nothing when it puts back rendered nodes equal to the ones
+// it took out. Comments draw no content; renderers such as Lit replace their ownership
+// markers while updating real content, so comment-only restoration is not judged.
+// Such a rendered write still costs a style pass and a repaint, of the whole document while
 // a CSS highlight holds a range, so code writes only what changed
 // (skills/leaf/assets/AGENTS.md).
 //
@@ -44,11 +46,119 @@
   const leafSample = /\/api\/samples\/[a-f0-9]{32}(?:\/|$)/.test(location.pathname);
   if (window !== window.top && globalThis.origin === "null" && !leafSample) return;
 
-  // Nodes put back as the ones taken out: the same count, each equal to its twin.
-  const restored = ({ removedNodes, addedNodes }) =>
-    removedNodes.length > 0 &&
-    removedNodes.length === addedNodes.length &&
-    [...removedNodes].every((node, at) => node.isEqualNode(addedNodes[at]));
+  // Read one script's child-list changes together: remove() followed by append()
+  // delivers two records, unlike replaceChildren(), but can restate the same list.
+  // Nodes in native records stay live. Read only the compared subtree at a record
+  // boundary, undoing its later native changes rather than treating today's node as
+  // its earlier value. Attribute order does not affect equality.
+  const batchReadings = (records) => {
+    const changes = new Map();
+    const positions = new Map();
+    const shadows = new Map(
+      [...trees]
+        .filter((tree) => tree instanceof ShadowRoot)
+        .map((root) => [root.host, root]),
+    );
+    records.forEach((record, position) => {
+      positions.set(record, position);
+      if (!changes.has(record.target)) changes.set(record.target, []);
+      changes.get(record.target).push({ record, position });
+    });
+    const valueAt = (node, boundary) => {
+      const children = [...node.childNodes];
+      const attributes = new Map(
+        [...(node.attributes ?? [])].map((attribute) => [
+          JSON.stringify([attribute.namespaceURI, attribute.localName]),
+          attribute.value,
+        ]),
+      );
+      let text = node.nodeValue;
+      for (const { record, position } of [...(changes.get(node) ?? [])].reverse()) {
+        if (position < boundary) break;
+        if (record.type === "childList") {
+          for (const added of record.addedNodes)
+            children.splice(children.indexOf(added), 1);
+          const at = record.nextSibling
+            ? children.indexOf(record.nextSibling)
+            : children.length;
+          children.splice(at, 0, ...record.removedNodes);
+        } else if (record.type === "attributes") {
+          const key = JSON.stringify([record.attributeNamespace, record.attributeName]);
+          if (record.oldValue === null) attributes.delete(key);
+          else attributes.set(key, record.oldValue);
+        } else text = record.oldValue;
+      }
+      return [
+        node.nodeType,
+        node.namespaceURI,
+        node.nodeName,
+        text,
+        [...attributes].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+        children.map((child) => valueAt(child, boundary)),
+        shadows.has(node) ? valueAt(shadows.get(node), boundary) : null,
+      ];
+    };
+    return {
+      position: (record) => positions.get(record),
+      read: (nodes, boundary) =>
+        JSON.stringify(nodes.map((node) => valueAt(node, boundary))),
+    };
+  };
+  const renderedChildren = (nodes) =>
+    [...nodes].filter((node) => node.nodeType !== Node.COMMENT_NODE);
+  const restored = (target, records, readings) => {
+    if (!records.some((record) => renderedChildren(record.removedNodes).length))
+      return false;
+    // Preserve the atomic check even when unrelated changes share its delivery.
+    if (
+      records.some((record) => {
+        const removed = renderedChildren(record.removedNodes);
+        const position = readings.position(record);
+        return (
+          removed.length &&
+          readings.read(removed, position) ===
+            readings.read(renderedChildren(record.addedNodes), position + 1)
+        );
+      })
+    )
+      return true;
+    // Undo the native records once, then replay their actual sequence. A restored
+    // interval is still redundant when a later record adds meaningful content.
+    const current = [...target.childNodes];
+    for (const record of [...records].reverse()) {
+      for (const node of record.addedNodes) current.splice(current.indexOf(node), 1);
+      const at = record.nextSibling
+        ? current.indexOf(record.nextSibling)
+        : current.length;
+      current.splice(at, 0, ...record.removedNodes);
+    }
+    // A freshly introduced measuring node can come and go without rewriting a
+    // resident. Snapshots live only in this callback and compare equal lengths.
+    const residents = new Set(renderedChildren(current));
+    const pending = new Map();
+    for (const record of records) {
+      if ([...record.removedNodes].some((node) => residents.has(node))) {
+        const before = renderedChildren(current);
+        if (!pending.has(before.length)) pending.set(before.length, []);
+        pending
+          .get(before.length)
+          .push(readings.read(before, readings.position(record)));
+      }
+      for (const node of record.removedNodes) current.splice(current.indexOf(node), 1);
+      const at = record.nextSibling
+        ? current.indexOf(record.nextSibling)
+        : current.length;
+      current.splice(at, 0, ...record.addedNodes);
+      const after = renderedChildren(current);
+      if (
+        (pending.get(after.length) ?? []).includes(
+          readings.read(after, readings.position(record) + 1),
+        )
+      )
+        return true;
+    }
+    return false;
+  };
   let count = 0;
   const numbered = new WeakMap();
   const number = (node) => {
@@ -70,6 +180,9 @@
     // CodeMirror reapplies this line decoration when the editor view updates, even
     // when the last line still holds the same words and the class is unchanged.
     /^class on div\.cm-line\.lf-field-last in shadow of leaf-text/,
+    // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
+    // editor updates, including equivalent line-break nodes after clearing a field.
+    /^children of div\.cm-line(?:\.[\w-]+)* in shadow of leaf-text(?:[.#]|$)/,
     // CodeMirror's GutterElement.setMarkers restates its class as marker sets
     // change, including when the resulting gutter class remains the same.
     /^class on div\.cm-gutterElement(?:\.| in shadow|$)/,
@@ -102,7 +215,7 @@
   };
   const valueOf = (record) =>
     record.type === "attributes"
-      ? record.target.getAttribute(record.attributeName)
+      ? record.target.getAttributeNS(record.attributeNamespace, record.attributeName)
       : record.target.data;
   // Writes that take a value away and put it back for a reason of their own, by the
   // values they passed through. An arrival lends an element a tab stop to move where the
@@ -218,10 +331,17 @@
     focusGuards = new WeakSet();
   };
   const watch = (records) => {
+    const children = new Map();
     for (const record of records) {
-      const key = `${number(record.target)} ${record.type} ${record.attributeName}`;
+      const key = JSON.stringify([
+        number(record.target),
+        record.type,
+        record.attributeNamespace,
+        record.attributeName,
+      ]);
       if (record.type === "childList") {
-        if (restored(record)) report("children", place(record.target));
+        if (!children.has(record.target)) children.set(record.target, []);
+        children.get(record.target).push(record);
       } else if (started.has(key)) started.get(key).through.push(record.oldValue);
       else {
         started.set(key, { record, through: [] });
@@ -233,7 +353,15 @@
           type: record.type,
           attribute: record.attributeName,
           target: place(record.target),
+          ...(record.type === "childList"
+            ? { nodes: [...record.removedNodes, ...record.addedNodes].map(number) }
+            : {}),
         });
+    }
+    if (children.size) {
+      const readings = batchReadings(records);
+      for (const [target, changed] of children)
+        if (restored(target, changed, readings)) report("children", place(target));
     }
     judge();
   };

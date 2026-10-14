@@ -75,10 +75,11 @@ working on it with `presentContributionReceipts(control, receipt, awaitsUser)`, 
 A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each
 part. It declares the ids' prefixes in `x-visual.prefixes` (here `commit:`) and calls
 `registerVisualParts(source, read, {reveal, label})` once. `read()` returns the parts
-drawn now as `{id, element, label}`. `reveal(id)` shows a part when someone follows its
-thread, even if it is visible already, so cancel work that would hide it. `label(id)`
-names a part in Threads without changing the visual, or returns `null`. Call the
-returned `update()` after the parts or their positions change.
+drawn now as `{id, element, label}`. An id is a nonempty string with no whitespace,
+used as written; Leaf throws when `read()` returns one that isn't. `reveal(id)` shows a
+part when someone follows its thread, even if it is visible already, so cancel work that
+would hide it. `label(id)` names a part in Threads without changing the visual, or
+returns `null`. Call the returned `update()` after the parts or their positions change.
 
 ## Threads
 
@@ -101,8 +102,8 @@ An agent's message carries `agent`, the name it shows under.
 `threadActions` acts on Threads through Leaf's own path, showing the result at once:
 
 ```js
-threadActions.create({text, anchor, attempt});
-threadActions.open(thread.key, {part: "thread"});
+threadActions.create({ text, anchor, attempt });
+threadActions.open(thread.key, { part: "thread" });
 threadActions.reply(thread.key, text);
 threadActions.resolve(thread.key);
 threadActions.reopen(thread.key);
@@ -119,7 +120,7 @@ the Thread is gone or the user has done something else. To act on that element
 afterwards, such as selecting the reply text, check it still has focus:
 
 ```js
-const editor = await threadActions.open(thread.key, {part: "reply"});
+const editor = await threadActions.open(thread.key, { part: "reply" });
 if (editor?.matches(":focus") && editor.setSelectionRange) {
   editor.setSelectionRange(0, editor.value.length);
 }

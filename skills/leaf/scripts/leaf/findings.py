@@ -165,8 +165,6 @@ def _visual_problem(problem: dict) -> str:
     kind = problem["kind"]
     if kind == "unregistered":
         return "did not call registerVisualParts"
-    if kind == "unreadable":
-        return f"could not read visual parts: {problem['error']}"
     return f"registered parts its prefixes do not admit {', '.join(problem['parts'])}"
 
 

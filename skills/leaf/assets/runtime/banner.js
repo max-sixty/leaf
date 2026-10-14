@@ -3,7 +3,7 @@
  * reading. Provisional interface readiness paints the banner
  * without establishing that announcement baseline; saved state or a failed read does. */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
-import { ago, clocked } from "./presence.js";
+import { ago } from "./presence.js";
 import { pageStatus, statusModel } from "./activity-words.js";
 import { el, offer, reserve } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
@@ -18,7 +18,8 @@ import {
   showNews,
 } from "./banner-toolbar.js";
 import { iconElement } from "./icons.js";
-import { latestChip, versionBtn, versionPicker } from "./version-picker.js";
+import { latestChip, versionBtn } from "./version-picker.js";
+import { versionsReading } from "./version.js";
 import { othersBtn, queueBtn } from "./drawers.js";
 import { pagePresented } from "./page-paint.js";
 import { repaint } from "./repaint.js";
@@ -32,10 +33,11 @@ import {
 import { watchProjection } from "./projection-watch.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
-import { agentName, applicationState, readPart } from "./semantic-state.js";
+import { agentName, readPart } from "./semantic-state.js";
 import { UPGRADE } from "./presentation.js";
 import { WEBSITE_DELIVERY } from "./context.js";
 import { readQueues } from "./queue-api.js";
+import { approvalBlockingAsks } from "./asks/model.js";
 
 const INITIAL = Object.freeze({
   tone: "",
@@ -107,16 +109,16 @@ approveBtn.title = "Approve this work; the page stays open for follow-up";
 // stays live during replay, but approving hidden authored content would decide a version
 // the user has not seen yet. The control states that refusal from its first reading.
 const AWAITING_STATE = "Approval waits until this page has read its current state";
-let approvalReason;
-let approvalText = "Approve version";
 // What Approval says and whether a press would approve, for another presentation of it,
-// such as the floating panel's Versions view; null where the page asks no sign-off.
-export const approvalReading = () =>
-  signoff ? { text: approvalText, reason: approvalReason ?? null } : null;
+// such as the floating panel's Versions view; null where the page asks no sign-off. It
+// is derived each time it is read, so a paint reading it follows what it reads.
+export const approvalReading = () => {
+  if (!signoff) return null;
+  const { text, reason } = approvalWords();
+  return { text, reason };
+};
 // Keep a refused press focusable, with its reason available to keyboard and touch.
 function presentApproval({ reason, text, title }) {
-  approvalReason = reason;
-  approvalText = text;
   render(text, approveBtn);
   keeps(approveBtn, "aria-disabled", reason ? "true" : null);
   keeps(approveBtn, "aria-description", reason || null);
@@ -143,7 +145,7 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.latest,
   conditional: true,
   urgent: "new",
-  row: { label: () => versionPicker.model.latest.label, group: "page" },
+  row: { label: () => versionsReading().latest.label, group: "page" },
 });
 registerBannerControl({
   key: "queue",
@@ -162,7 +164,7 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.versions,
   row: {
     label: "Versions",
-    value: () => versionPicker.model.picker.token.replace(/^Showing /, ""),
+    value: () => versionsReading().picker.token.replace(/^Showing /, ""),
     group: "page",
   },
 });
@@ -172,7 +174,7 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.approval,
   seat: { desk: "row", phone: "menu" },
   present: false,
-  row: { label: () => approvalText, group: "page", press: () => approve() },
+  row: { label: () => approvalWords().text, group: "page", press: () => approve() },
 });
 registerBannerControl({
   key: "threads",
@@ -269,23 +271,9 @@ let saidActionableWork;
 // answer: a reply the user sends joins the agent's count in the turn it is sent,
 // and leaves On me once the server has read it. A press on either opens the On
 // panel on the list it counts (`statusModel` words them).
-let lastStatus = null;
-// The status the banner shows, as one reading another presentation of it shares: the
-// floating panel's leaf and comment field say the same words in the same tone.
-let statusReading = null;
-const statusListeners = new Set();
-export function watchStatus(listener) {
-  statusListeners.add(listener);
-  if (statusReading) listener(statusReading);
-  return () => statusListeners.delete(listener);
-}
-const presentStatus = (status) => {
-  lastStatus = status;
+const presentStatus = ({ status, model }) => {
   const { kind, actionableWork = null } = status;
-  const model = statusModel(status, readQueues(), agentName());
   bannerStatus.present(model);
-  statusReading = model;
-  for (const listener of statusListeners) listener(model);
   paintTab();
   // Interface readiness precedes the first saved reading. It paints usable chrome,
   // but only a state or failed read establishes the status announcement baseline.
@@ -299,22 +287,16 @@ const presentStatus = (status) => {
   if (changed) announce(model.explanation);
 };
 // Upgrade opens new comments before the buffered saved reading is applied.
-document.addEventListener(
-  UPGRADE,
-  () => {
-    presentStatus({
-      kind: "loading",
-      tone: "",
-      summary: "Loading saved state…",
-      explanation:
-        "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds." +
-        (WEBSITE_DELIVERY
-          ? " Website examples can take longer to load their saved state than a usual Leaf page."
-          : ""),
-    });
-  },
-  { once: true },
-);
+const LOADING = Object.freeze({
+  kind: "loading",
+  tone: "",
+  summary: "Loading saved state…",
+  explanation:
+    "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds." +
+    (WEBSITE_DELIVERY
+      ? " Website examples can take longer to load their saved state than a usual Leaf page."
+      : ""),
+});
 // The developer preview's identity: which checkout is serving this page, and a press to
 // copy the whole diagnostic. It is the banner's least-used control, so it stays behind
 // the overflow door at every width instead of adding a permanent chip to the reading row.
@@ -613,16 +595,43 @@ function renderSessionReference() {
   keeps(sessionReferenceElement, "title", `${sessionReferenceLabel} · copy reference`);
 }
 
-function renderStatusNow(state) {
+// The status says how the server answered the page's latest read (`reach`) and what
+// the reading it adopted says, with the queues and the agent's name; it paints whenever
+// one of those moves, and on the clock for the ages it words. Before any answer it says
+// nothing until upgrade has opened the page, and then that saved state is loading.
+const reach = readPart((root) => root.reach);
+let upgraded = false;
+// The status with its words for the banner (`statusModel`), or null before there is one
+// to say. It is derived where it is read, so another presentation of it, the floating
+// panel's leaf and comment field, says the same words in the same tone and follows
+// the same inputs; only upgrade, which is mechanical, asks each to paint.
+function currentStatus() {
+  const answer = reach();
+  if (answer === "waiting" && !upgraded) return null;
+  const status =
+    answer === "waiting" ? LOADING : pageStatus(runtime.state, { reach: answer });
+  return { status, model: statusModel(status, readQueues(), agentName()) };
+}
+export const statusReading = () => currentStatus()?.model ?? null;
+function paintStatus() {
   renderSessionReference();
-  if (state && !(state instanceof Error)) {
+  const state = runtime.state;
+  if (state) {
     renderLayerReference(state);
     renderPreview(state);
   }
-  presentStatus(pageStatus(state, { keyRefused: runtime.keyRefused }));
+  const current = currentStatus();
+  if (current) presentStatus(current);
 }
-
-export const renderStatus = clocked(document.body, renderStatusNow);
+const statusWatch = watchProjection(document.body, paintStatus);
+document.addEventListener(
+  UPGRADE,
+  () => {
+    upgraded = true;
+    statusWatch.refresh();
+  },
+  { once: true },
+);
 
 // Sign-off is the page's decision, not fixed chrome: the approve button is offered only
 // when the version declares <meta name="lf-review" content="sign-off"> — a plan or
@@ -642,18 +651,10 @@ let signoff = false;
 
 // The banner's row mounts after the version picker and drawers exist. Its complete
 // inventory and order already belong to the shelf's explicit registrations above.
-export function mountBanner({ approveVersion, paintApproval }) {
+export function mountBanner({ approveVersion }) {
   signoff = isSignoffDeclared();
   showBannerControl(approveBtn, signoff);
-  watchProjection(document.body, () => paintApproval());
-  // The queues and the agent's name move with the application's publication, not only
-  // with a state answer.
-  applicationState
-    .select((root) => ({
-      queues: root.effective.queues,
-      agent: root.authoritative?.agent ?? null,
-    }))
-    .subscribe(() => lastStatus && presentStatus(lastStatus));
+  approvalWatch = watchProjection(document.body, drawApproval);
   showNews(othersBtn, false);
   banner.append(bannerStatus, bannerStatus.queues, bannerActions);
   // On two rows the agent's count stands on the second line only where the run leaves it
@@ -674,8 +675,9 @@ export function mountBanner({ approveVersion, paintApproval }) {
   async function approveNow() {
     if (approving) return;
     // A refused press answers with its reason where every user sees it.
-    if (approvalReason) {
-      notice(approvalReason);
+    const { reason } = approvalWords();
+    if (reason) {
+      notice(reason);
       return;
     }
     approving = true;
@@ -702,7 +704,7 @@ export const approve = () => approveWith?.();
 // the declaration alone; the banner's allocation is independent of it: a control a
 // stamp put up would be news taking room on the row. Before a stamp the press is refused
 // with its reason (paintApproval) instead.
-export function stateSignoff(next, syncLayout, paintApproval) {
+export function stateSignoff(next, syncLayout) {
   const shown = next;
   if (shown === signoff) return;
   signoff = shown;
@@ -730,10 +732,12 @@ const versionApproved = readPart((root) =>
   ),
 );
 
-// `blockingAsks` is the unanswered asks that hold approval, or null before the page has
-// read the log and so cannot say which those are.
-export function paintApproval(blockingAsks) {
+// What Approval says now: its `text`, its `title`, why a press is refused (`reason`,
+// null where it approves) and whether it is `open`. The asks holding approval are null
+// before the page has read the log and so cannot say which those are.
+function approvalWords() {
   const approved = versionApproved();
+  const blockingAsks = approvalBlockingAsks();
   // The word and the title turn over together. The title read "Approve this work; the
   // page stays open for follow-up" whether or not the work had been approved, so the one
   // surface that could have told a user what pressing it would do next went on
@@ -750,14 +754,24 @@ export function paintApproval(blockingAsks) {
         : blockingAsks.length
           ? "Answer every ask before approving this work"
           : null;
-  presentApproval({
+  return {
     reason: reason ?? (approving ? "Approving this version" : null),
     text: approved ? "✓ Version approved" : "Approve version",
     title: reason ?? "Approve this work; the page stays open for follow-up",
-  });
+    open: reason === null,
+  };
+}
+// Approval paints through one watcher, so what it reads repaints it, and a mechanical
+// change (a press in flight, the sign-off declaration, the page presenting) asks it to
+// paint again.
+let approvalWatch = null;
+export const paintApproval = () => approvalWatch?.refresh();
+function drawApproval() {
+  const words = approvalWords();
+  presentApproval(words);
   // Approval is open while a press would approve this version, and behind More, on a
   // phone, that puts More's dot up. A refused press does not: the dot comes up when the
   // last ask holding approval is answered, which is when the user can act on it.
-  markBannerControl(approveBtn, reason === null ? "approval open" : null);
+  markBannerControl(approveBtn, words.open ? "approval open" : null);
   repaint();
 }

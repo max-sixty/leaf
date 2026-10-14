@@ -384,9 +384,7 @@ export function mountApplication(dependencies) {
     acceptData: dependencies.state.acceptData,
     notifyDataSubscribers: dependencies.state.notifyDataSubscribers,
     isSignoffDeclared: dependencies.state.isSignoffDeclared,
-    renderStatus: dependencies.state.renderStatus,
     stateSignoff: dependencies.state.stateSignoff,
-    renderOthers: dependencies.state.renderOthers,
     accountPending,
   });
 
@@ -436,7 +434,6 @@ export function mountApplication(dependencies) {
 
   const feed = createStateFeed({
     prepareActivation: dependencies.state.prepareActivation,
-    renderStatus: dependencies.state.renderStatus,
     stateApplying,
     invalidateDom,
     receiveState,

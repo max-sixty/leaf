@@ -96,7 +96,6 @@ export function createStateFeed({
   invalidateDom,
   receiveState,
   prepareActivation,
-  renderStatus,
 }) {
   let readAnswered = false;
 
@@ -105,7 +104,7 @@ export function createStateFeed({
   function failed(error) {
     readAnswered = false;
     reportCarried(error, `read failed`);
-    renderStatus(error);
+    applicationState.setReach("broken");
   }
 
   // The clock has no state to replay, and a projection a drag deferred is retried by
@@ -122,7 +121,7 @@ export function createStateFeed({
   async function readNothing() {
     readAnswered = false;
     if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
-    renderStatus(null);
+    applicationState.setReach(runtime.keyRefused ? "refused" : "unreachable");
     await invalidateDom();
     await tick();
   }
@@ -382,7 +381,7 @@ const FIRST_READ_TIMEOUT_MS = 120_000;
 
 // How long every read after that may take. These have no wait beside them, and the
 // banner's one honesty mechanism about the server runs through a read that *completed*
-// with nothing: `renderStatus(null)` is the only path to OFFLINE_LINE, and a read still
+// with nothing: its `unreachable` reach is the only path to OFFLINE_LINE, and a read still
 // in flight holds the slot, so freshness or a clock tick only queues a trailing read
 // behind it. This bound is therefore the whole time a user watching a live page can be
 // shown a reading the server has stopped standing behind, which is a user's timescale

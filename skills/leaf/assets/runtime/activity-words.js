@@ -161,25 +161,26 @@ function statusWords({
       ];
 }
 
-// The page's status from one state read: `state` is the served reading, null where the
-// server could not be reached, or the Error a reading the page could not apply raised.
-// `keyRefused` says the server refused this tab's key rather than going away. The
-// answer is the banner's reading before the queues join it (`statusModel`): its
-// `kind`, the dot's `tone`, the row's `summary`, the disclosure's `explanation`, and
-// the `actionableWork` whose change is announced.
-export function pageStatus(state, { keyRefused = false } = {}) {
-  if (state instanceof Error)
+// The page's status from the server's latest answer: `state` is the reading the page
+// adopted, and `reach` how the latest read was answered (the publication's `reach`):
+// with that reading, with nothing (`unreachable`, or `refused` where the server refused
+// this tab's key rather than going away), or with a reading the page could not apply
+// (`broken`). The answer is the banner's reading before the queues join it
+// (`statusModel`): its `kind`, the dot's `tone`, the row's `summary`, the disclosure's
+// `explanation`, and the `actionableWork` whose change is announced.
+export function pageStatus(state, { reach = "reached" } = {}) {
+  if (reach === "broken")
     return {
       kind: "broken",
       tone: "offline",
       summary: BROKEN_LINE,
       explanation: BROKEN_LINE,
     };
-  if (state === null)
+  if (reach !== "reached")
     return {
       kind: "unreachable",
       tone: "offline",
-      ...(keyRefused
+      ...(reach === "refused"
         ? {
             summary: "Key refused — open Leaf's link in a new tab",
             explanation: KEY_REFUSED_LINE,

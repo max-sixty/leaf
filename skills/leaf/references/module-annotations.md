@@ -97,8 +97,10 @@ paints the control's turn: the agent's work on it, from a workflow's
 A visual with generated part ids declares the accepted `x-visual.prefixes` and calls
 `registerVisualParts(source, read, {reveal, label})` once; a second registration for the
 same source throws. `read()` returns the parts currently drawn as `{id, element, label}`
-records. `reveal(id)` settles the visual on the requested part when someone follows its
-thread, even if the part is already visible, so cancel any pending work that would retire
+records. Each id is a nonempty string without whitespace; Leaf uses it verbatim and
+throws when a read returns an invalid inventory. `reveal(id)` settles the visual on the
+requested part when someone follows its thread, even if the part is already visible,
+so cancel any pending work that would retire
 it before returning. `label(id)` names a part in Threads without changing the visual's
 state, and returns `null` for an unknown id. The returned `update()` says the parts or
 their geometry changed; call it after any such rendering change.
@@ -130,8 +132,8 @@ current vocabulary and `choices`, including labels, glyphs and reactions in forc
 optimistic event path:
 
 ```js
-threadActions.create({text, anchor, attempt});
-threadActions.open(thread.key, {part: "thread"});
+threadActions.create({ text, anchor, attempt });
+threadActions.open(thread.key, { part: "thread" });
 threadActions.reply(thread.key, text);
 threadActions.resolve(thread.key);
 threadActions.reopen(thread.key);
@@ -160,7 +162,7 @@ predicate captured on the button before the call would reject the route's own mo
 that editor:
 
 ```js
-const editor = await threadActions.open(thread.key, {part: "reply"});
+const editor = await threadActions.open(thread.key, { part: "reply" });
 if (editor?.matches(":focus") && editor.setSelectionRange) {
   editor.setSelectionRange(0, editor.value.length);
 }

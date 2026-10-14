@@ -67,9 +67,6 @@ from render_cases_navigation import (
 )
 from render_cases_widgets import (
     CHART_PAGE,
-    GENERIC_VISUAL_LAYER,
-    GENERIC_VISUAL_PAGE,
-    GENERIC_VISUAL_WIDGETS,
     MANIFEST_DIFF_PAGE,
     MULTI_HUNK_PATCH,
     TYPED_PARTS_PAGE,
@@ -2535,83 +2532,27 @@ def test_visual_comments_arrive_with_the_initialized_document(browser, serve):
     assert all(page.evaluate("() => window.__lfVisualActionInsertions"))
 
 
-@pytest.mark.parametrize("phase", ["initial", "history", "ready", "anchored"])
-def test_malformed_visual_inventory_withholds_its_actions_at_each_presentation_phase(
-    browser, serve, phase
-):
-    """A malformed visual cannot offer comment controls at any startup phase."""
+def test_invalid_visual_part_ids_report_the_package_error(browser, serve):
+    """An invalid package inventory fails through the ordinary startup reporter."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
-    state_ready = phase in {"ready", "anchored"}
-    held = []
-    page.add_init_script(VISUAL_ACTION_TIMING)
-    if phase == "initial":
-        page.add_init_script(
-            """document.addEventListener('lf-page-interface', event => {
-          event.detail.present(new Promise(resolve => window.releaseInterface = resolve));
-        });"""
+    with page.expect_console_message(
+        predicate=lambda message: "page failed to start" in message.text
+    ):
+        page.goto(
+            serve(
+                leaf_page(
+                    "Invalid diagram part identity",
+                    '<h1>Diagram</h1><lf-diagram id="flow" parts="all"><pre>'
+                    "sequenceDiagram\nparticipant User Account\n"
+                    "User Account-&gt;&gt;Server: Submit order\n"
+                    "</pre></lf-diagram>",
+                )
+            ),
+            wait_until="load",
         )
-    page.route("**/api/state*", lambda route: held.append(route))
-    page.goto(
-        serve(
-            GENERIC_VISUAL_PAGE,
-            layer_registry=GENERIC_VISUAL_LAYER,
-            layer_widgets=GENERIC_VISUAL_WIDGETS,
-            events=[
-                {
-                    "id": "visual-comment",
-                    "kind": "comment",
-                    "author": "user",
-                    "revision": 1,
-                    "text": "A comment on this visual part.",
-                    "anchor": {"section": "visual", "visual": "outer"},
-                }
-            ]
-            if phase == "anchored"
-            else [],
-        ),
-        wait_until="load",
-    )
-    page.wait_for_function(
-        "() => document.querySelector('lf-test-visual')?.parts?.length === 3"
-    )
-    if phase != "initial":
-        page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
-        expect(page.locator(".lf-visual-actions")).to_have_count(1)
-    assert held, "the first state read completed before the visual was malformed"
-    if state_ready:
-        held.pop(0).continue_()
-        expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    page.locator("lf-test-visual").evaluate(
-        """visual => {
-          visual.validParts = visual.parts;
-          visual.parts = [visual.parts[0], {...visual.parts[0]}, visual.parts[2]];
-        }"""
-    )
-    if phase == "initial":
-        page.evaluate("() => window.releaseInterface()")
-    if state_ready:
-        page.locator("lf-test-visual").evaluate(
-            "visual => visual.visualRegistration.update()"
-        )
-    else:
-        held.pop(0).continue_()
-
-    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(page.locator(".lf-visual-actions")).to_have_count(0)
-    if phase == "initial":
-        assert page.evaluate("() => window.__lfVisualActionInsertions") == []
-
-    if phase != "initial":
-        page.locator("lf-test-visual").evaluate(
-            """visual => {
-              visual.parts = visual.validParts;
-              visual.visualRegistration.update();
-            }"""
-        )
-        expect(page.locator(".lf-visual-actions")).to_have_count(1)
-        expect(page.locator(".lf-visual-action")).to_have_count(4)
-    if phase == "anchored":
-        consume_browser_errors(page, "registered part outer twice")
+    expect(page.locator(".lf-status-detail")).to_contain_text("reload")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    consume_browser_errors(page, "Visual part 1 has no single-token id")
 
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):

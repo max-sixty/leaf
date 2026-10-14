@@ -13,7 +13,6 @@ import {
 
 let rendererReady;
 const loadRenderer = () => (rendererReady ??= import("/vendor/mermaid.esm.js"));
-const NAMEABLE = /^\S+$/;
 
 /* Mermaid's parser databases are shared between diagrams. Keep parsing, drawing
  * and reading the inventory in one serialized operation, so a neighboring widget
@@ -155,7 +154,6 @@ customElements.define(
         }
         this.visualParts.clear();
         for (const part of parts) {
-          if (!NAMEABLE.test(part.id)) continue;
           const element = part.dataId
             ? drawn.querySelector(`g[data-id="${CSS.escape(part.dataId)}"]`)
             : drawn.querySelector(`[id="${CSS.escape(part.domId)}"]`);

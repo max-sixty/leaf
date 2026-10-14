@@ -805,10 +805,13 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # than whatever project the caller's directory sits in. `--no-dev` because
     # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
-    # payload path turns the console script into a `/bin/sh` trampoline.
+    # payload path turns the console script into a `/bin/sh` trampoline. The
+    # checkout's environment exists, so uv skips its cache, which an agent's
+    # sandbox refuses; the hook registration tests run a payload with none.
     assert dispatched == [
         "run",
         "-q",
+        "--no-cache",
         "--no-dev",
         "--project",
         str(PLUGIN_ROOT),
@@ -4744,6 +4747,12 @@ def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
     assert browser_model.discovered_executable() is None
     hint = browser_model.browser_hint()
     assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
+
+    # Inside an agent's sandbox no browser starts however the host names one, so
+    # the line sends the check outside the sandbox instead.
+    monkeypatch.setenv("CODEX_SANDBOX", "seatbelt")
+    hint = browser_model.browser_hint()
+    assert "CODEX_SANDBOX=seatbelt" in hint and "outside the sandbox" in hint
 
 
 def test_producer_instructions_names_a_package_script_the_run_door_reaches(tmp_path):

@@ -4093,14 +4093,20 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
     expect(page.locator("lf-diff .lf-resolved-summary")).to_have_text("Resolved · 1")
 
 
-def long_diff_thread(serve):
-    """Serve a diff long enough for its file header to stick, with a user's thread on
-    its first line, and return the page's URL and the thread's id."""
+# Paragraphs that give a page length before the thread it is about.
+LEAD = "".join(
+    f"<p>Paragraph {n}, there to give the page length.</p>" for n in range(30)
+)
+
+
+def long_diff_thread(serve, lead=""):
+    """Serve a diff long enough for its file header to stick, after `lead`, with a
+    user's thread on its first line, and return the page's URL and the thread's id."""
     lines = "".join(f" line {number}\n" for number in range(2, 80))
     url = serve(
         leaf_page(
             "a long diff thread",
-            '<h1 id="title">Review</h1><lf-diff id="patch" source="review-patch">'
+            f'<h1 id="title">Review</h1>{lead}<lf-diff id="patch" source="review-patch">'
             "<pre></pre></lf-diff><p>Reading the paragraph after the diff.</p>",
         )
     )
@@ -4126,6 +4132,85 @@ def long_diff_thread(serve):
         },
     )["id"]
     return url, root
+
+
+def long_seated_thread(serve):
+    """Serve a widget seating a thread in the page's flow, with the page's length around
+    it, and a user's thread on the seat; return the page's URL and the thread's id."""
+    url = serve(
+        leaf_page(
+            "a seated thread",
+            f'<h1 id="title">Bracket order</h1>{LEAD}'
+            '<lf-test-plan id="cd-command" label="Bracket extras">'
+            '<lf-test-task id="cd-q" status="active" talk>'
+            "<strong>Which extras go in?</strong>"
+            "<p>Choose between a seed tray and a second pole.</p>"
+            f"</lf-test-task></lf-test-plan>{LEAD}",
+        )
+    )
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Does the tray fit the north bracket?",
+            "anchor": {"section": "cd-q"},
+        },
+    )["id"]
+    return url, root
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+@pytest.mark.parametrize("seat", ["widget", "diff"])
+def test_sends_from_a_page_threads_box_move_it_only_by_the_turns_they_add(
+    engine, seat, request, serve
+):
+    """Each send from a thread's box in the page's flow leaves the box where it stood,
+    or moves it down by exactly the turn the send drew above it; nothing else moves it.
+
+    The user types with the box at the foot of the reading band, where typing brings
+    it, and sends until the thread is taller than the band. The send landed the whole
+    thread while it fitted and the reply row once it did not, each nearest, and the
+    thread, focused by the send, took its focus ring's room at its foot. So the first
+    send lifted the box by that room and the thread's padding, and the send that made
+    the thread too tall dropped it back by the same."""
+    browser = request.getfixturevalue(engine)
+    url, root = (
+        long_seated_thread(serve) if seat == "widget" else long_diff_thread(serve, LEAD)
+    )
+    page = open_page(browser, url)
+    resized(page, 1200, 560)
+    thread = page.locator(f'.lf-page-thread[data-thread="{root}"]')
+    expect(thread).to_be_visible()
+    box = thread.locator("leaf-text")
+    # The box's foot just past the landing band's, where the first keystroke lands it.
+    box.evaluate(
+        """box => scrollBy({top: box.getBoundingClientRect().bottom - innerHeight
+          + parseFloat(getComputedStyle(document.documentElement).scrollPaddingBottom)
+          - 12, behavior: 'instant'})"""
+    )
+    rendered(page)
+    place = """box => {
+      const thread = box.closest('.lf-page-thread');
+      return {top: box.getBoundingClientRect().top,
+        within: box.getBoundingClientRect().top - thread.getBoundingClientRect().top,
+        tall: thread.getBoundingClientRect().height > innerHeight};
+    }"""
+    sends = []
+    while not sends or not sends[-1][1]["tall"]:
+        assert len(sends) < 8, sends
+        box.click()
+        page.keyboard.type(f"Reply {len(sends)}")
+        before = box.evaluate(place)
+        page.keyboard.press("Enter")
+        expect(thread.locator(".lf-msg")).to_have_count(len(sends) + 2)
+        rendered(page)
+        sends.append((before, box.evaluate(place)))
+    for before, after in sends:
+        moved = after["top"] - before["top"]
+        grew = after["within"] - before["within"]
+        assert abs(moved) < 1 or abs(moved - grew) < 1, sends
 
 
 @pytest.mark.parametrize("foot", ["under the banner", "under the file header"])

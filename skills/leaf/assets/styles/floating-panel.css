@@ -500,8 +500,15 @@
     flex: none;
     color: var(--lf-fp-muted);
   }
+  /* Where the thread stands among the open ones keeps the crumb's end, so a title
+     the agent or the user rewrites gives or takes room before it, truncating, and
+     moves neither it nor anything beside it. It stands further from the controls
+     after it than they stand from each other, so it reads with the title rather than
+     as one of them. */
   .lf-fp-where {
+    margin-inline: auto 12px;
     font-size: 12px;
+    font-variant-numeric: tabular-nums;
   }
   .lf-fp-aux {
     flex: none;
@@ -525,9 +532,10 @@
   .lf-fp-filters [aria-pressed="true"] {
     background: var(--lf-fp-faint);
   }
+  /* Room for two digits, so news changing a count moves no tab beside it. */
   .lf-fp-count {
     display: inline-block;
-    min-width: 1.2ch;
+    min-width: 2ch;
     margin-left: 1px;
     text-align: start;
     font-variant-numeric: tabular-nums;
@@ -543,11 +551,22 @@
   .lf-fp-icon-btn[aria-pressed="true"] {
     color: var(--ink);
   }
+  /* Resolve and Reopen stand in one cell, the one shown over the other's room, so
+     the seat is as wide as the wider whichever the thread's state. */
   .lf-fp-settle {
+    display: inline-grid;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-face {
+    grid-area: 1 / 1;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
-    color: var(--lf-fp-muted);
+  }
+  .lf-fp-face:not([data-shown]),
+  .lf-fp-quiet[data-unoffered] {
+    visibility: hidden;
   }
   .lf-fp-settle:hover {
     color: var(--ink);
@@ -760,6 +779,16 @@
   }
   .lf-fp-on-item + .lf-fp-on-item {
     border-top: 1px solid var(--lf-fp-faint);
+  }
+  /* What left the list in view, under it. */
+  .lf-fp-on-done {
+    margin: 0 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--lf-fp-faint);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--lf-fp-muted);
   }
   .lf-fp-on-title {
     margin: 0 0 2px;

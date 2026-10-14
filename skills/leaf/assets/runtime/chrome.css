@@ -430,7 +430,9 @@
     color: var(--lf-fp-muted);
   }
   .lf-fp-where {
+    margin-inline: auto 12px;
     font-size: 12px;
+    font-variant-numeric: tabular-nums;
   }
   .lf-fp-aux {
     flex: none;
@@ -456,7 +458,7 @@
   }
   .lf-fp-count {
     display: inline-block;
-    min-width: 1.2ch;
+    min-width: 2ch;
     margin-left: 1px;
     text-align: start;
     font-variant-numeric: tabular-nums;
@@ -473,10 +475,19 @@
     color: var(--ink);
   }
   .lf-fp-settle {
+    display: inline-grid;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-face {
+    grid-area: 1 / 1;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
-    color: var(--lf-fp-muted);
+  }
+  .lf-fp-face:not([data-shown]),
+  .lf-fp-quiet[data-unoffered] {
+    visibility: hidden;
   }
   .lf-fp-settle:hover {
     color: var(--ink);
@@ -679,6 +690,15 @@
   }
   .lf-fp-on-item + .lf-fp-on-item {
     border-top: 1px solid var(--lf-fp-faint);
+  }
+  .lf-fp-on-done {
+    margin: 0 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--lf-fp-faint);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--lf-fp-muted);
   }
   .lf-fp-on-title {
     margin: 0 0 2px;
@@ -1970,6 +1990,32 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-thread-panel-head {
     flex: none;
+  }
+  .lf-queue-panel .lf-auxiliary-title {
+    display: flex;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lf-queue-tab {
+    --lf-tab-pad: max(2px, (var(--aim-floor) - 1lh) / 2 - 1px);
+    margin-block: calc(-1 * var(--lf-tab-pad));
+    padding: var(--lf-tab-pad) 8px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .lf-queue-tab:first-child {
+    margin-inline-start: -8px;
+  }
+  .lf-queue-tab:hover {
+    background: var(--chip);
+  }
+  .lf-queue-tab[aria-pressed=true] {
+    color: var(--ink);
   }
   :is(.lf-first-unread, .lf-queue-next) {
     margin-inline-start: auto;

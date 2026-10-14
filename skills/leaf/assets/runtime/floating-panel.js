@@ -93,6 +93,8 @@ import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
 import { queueItemKey, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
+import { itemOutcome } from "./queues.js";
+import { shortAgo } from "./presence.js";
 import { askEnding } from "./asks/answer.js";
 import { versionMenu, versionPicker } from "./version-picker.js";
 import { versionsReading } from "./version.js";
@@ -400,7 +402,7 @@ export function createFloatingPanel({
   const titleOf = (route) =>
     ({
       threads: "Threads",
-      on: "On",
+      on: tabLabel(queueTab),
       versions: "Versions",
       thread: route.thread ? threadTitle(route.thread) : "",
       group: GROUPS[route.group],
@@ -564,6 +566,9 @@ export function createFloatingPanel({
   // holds is what it shows, not what a filter hides, and a message Leaf's reader has
   // yet to draw into it is not yet held.
   const rooms = new Map();
+  // Whether this opening of a thread has shown On the page, whose seat then stands
+  // while the view does, so a revision detaching the thread moves nothing beside it.
+  let onPageSeat = false;
   function holdRoom() {
     const top = trail.at(-1);
     if (!top || top.view === "thread" || rooms.has(routeKey(top))) return false;
@@ -581,7 +586,10 @@ export function createFloatingPanel({
     }
     const changed =
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
-    if (changed) rooms.clear();
+    if (changed) {
+      rooms.clear();
+      onPageSeat = false;
+    }
     // Taking the panel away from a thread ends the editing session of its reply, as a
     // press elsewhere does (thread/replies.js), keeping the draft: the field no longer
     // draws that reply, and a session left standing would carry the user back to it.
@@ -1003,25 +1011,42 @@ export function createFloatingPanel({
   }
 
   // ---------- On: asks answered where they are read ----------
-  // The three lists are the publisher's (`readQueues`): what waits on the user, on the
-  // agent, and what is done. An item the user answers here stays where it stood, saying
-  // its answer and offering Undo, until the view closes, so answering one ask never
-  // carries the next under the pointer.
+  // The lists are the publisher's (`readQueues`): what waits on the user and on the
+  // agent, a tab each, and under each what left it, its Done (`owner`). The view has no
+  // name of its own: its title is the open tab's. An item the user answers here stays
+  // where it stood, saying its answer and offering Undo, until the view closes, so
+  // answering one ask never carries the next under the pointer. Done stands open under
+  // the list rather than folded, since a fold opening would grow the view up from under
+  // the pointer that opened it.
   let queueTab = "you";
   let seated = null; // queue item keys present in the open On view
   // The height each seated card first stood at, which it keeps while seated, so an
   // answer that shortens it moves nothing below.
   const seatHeights = new Map();
-  const QUEUE_TABS = Object.freeze({
-    you: "On me",
-    agent: "On the agent",
-    done: "Done",
-  });
+  const QUEUE_TABS = Object.freeze({ you: "user", agent: "agent" });
+  // Turning to another list seats its items afresh.
+  const chooseQueueTab = (tab) => {
+    if (tab === queueTab) return false;
+    queueTab = tab;
+    seated = null;
+    seatHeights.clear();
+    return true;
+  };
+  // The On me door, as the mark and the banner's control press it: the view on the
+  // user's list, turned to it where the view shows the agent's, else opened or closed.
+  function openOnMe() {
+    const turned = chooseQueueTab("you");
+    if (turned && trail.at(-1)?.view === "on") paint();
+    else open({ view: "on" });
+  }
   const queueLists = () => {
     const reading = readQueues();
-    return reading.phase === "ready"
-      ? { you: reading.on_user, agent: reading.on_agent, done: reading.done }
-      : { you: [], agent: [], done: [] };
+    if (reading.phase !== "ready") return { you: [], agent: [], done: [] };
+    return {
+      you: reading.on_user,
+      agent: reading.on_agent,
+      done: reading.done.filter((item) => item.owner === QUEUE_TABS[queueTab]),
+    };
   };
 
   // The undo list's entry for the gesture that answered an ask, where it can still be
@@ -1034,7 +1059,7 @@ export function createFloatingPanel({
     );
     return entry?.event ?? null;
   };
-  const tabLabel = (tab) => (tab === "agent" ? `On ${agentName()}` : QUEUE_TABS[tab]);
+  const tabLabel = (tab) => (tab === "agent" ? `On ${agentName()}` : "On me");
 
   function onItemCard(item, list) {
     const ask = item.kind === "ask" ? item.ask : null;
@@ -1087,7 +1112,11 @@ export function createFloatingPanel({
       Show
     </button>`;
     let answers;
-    if (list !== "you" && !answered)
+    if (list === "done" && !ask)
+      answers = html`<span class="lf-fp-said"
+          >${[itemOutcome(item), shortAgo(item.ended)].filter(Boolean).join(" ")}</span
+        >${thread ? discuss : nothing}`;
+    else if (list !== "you" && !answered)
       answers = html`<span class="lf-fp-said"
           >${item.running?.text ?? workflowLabel(item.workflow) ?? ""}</span
         >${thread ? discuss : nothing}`;
@@ -1180,16 +1209,9 @@ export function createFloatingPanel({
     const card = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
     return card?.querySelector("button") ?? card;
   };
+  // An approval is an ask, always On me's, open or done.
   function arriveAtApproval() {
-    const lists = queueLists();
-    const holding = (list) =>
-      list.some((item) => item.kind === "ask" && item.ask.source.kind === "approval");
-    const tab = Object.keys(QUEUE_TABS).find((key) => holding(lists[key])) ?? "you";
-    if (tab !== queueTab) {
-      queueTab = tab;
-      seated = null;
-      seatHeights.clear();
-    }
+    chooseQueueTab("you");
     open({ view: "on" }, { reopen: true, focus: false });
     paint();
     const target = approvalControl();
@@ -1210,27 +1232,22 @@ export function createFloatingPanel({
       ...(seated ?? []).filter((key) => byKey.has(key)),
       ...current.filter((key) => !(seated ?? []).includes(key)),
     ];
+    const listOf = (item) =>
+      lists.you.includes(item) ? "you" : lists.agent.includes(item) ? "agent" : "done";
     const items = seated.map((key) => byKey.get(key));
-    return items.length
-      ? repeat(items, queueItemKey, (item) =>
-          onItemCard(
-            item,
-            lists.you.includes(item)
-              ? "you"
-              : lists.agent.includes(item)
-                ? "agent"
-                : "done",
-          ),
-        )
-      : html`<p class="lf-fp-empty">
-          ${
-            {
-              you: "Nothing waiting on me.",
-              agent: `Nothing waiting on ${agentName()}.`,
-              done: "Nothing is done yet.",
-            }[queueTab]
-          }
-        </p>`;
+    const finished = lists.done.filter((item) => !seated.includes(queueItemKey(item)));
+    return html`${
+      items.length
+        ? repeat(items, queueItemKey, (item) => onItemCard(item, listOf(item)))
+        : html`<p class="lf-fp-empty">
+            Nothing waiting on ${queueTab === "you" ? "me" : agentName()}.
+          </p>`
+    }${
+      finished.length
+        ? html`<h3 class="lf-fp-on-done">Done</h3>
+            ${repeat(finished, queueItemKey, (item) => onItemCard(item, "done"))}`
+        : nothing
+    }`;
   }
 
   function viewTemplate(route) {
@@ -1303,26 +1320,27 @@ export function createFloatingPanel({
       aux = tabs(
         Object.keys(QUEUE_TABS),
         queueTab,
-        (tab) =>
-          html`${tabLabel(tab)}${tab === "done" ? nothing : tabCount(lists[tab].length)}`,
+        (tab) => html`${tabLabel(tab)}${tabCount(lists[tab].length)}`,
         (tab) => {
-          queueTab = tab;
-          seated = null;
-          seatHeights.clear();
-          paint();
+          if (chooseQueueTab(tab)) paint();
         },
       );
     } else if (thread) {
+      // Resolve and Reopen share one seat as wide as the wider of them, both drawn and
+      // one shown, so the agent settling the thread moves nothing beside it.
       // Resolve says it is unavailable while a settling is pending rather than leaving
       // the tab order, so the user who pressed it, or `r` on it, stays standing on it;
       // the action itself refuses a press meanwhile (thread/actions.js, `settle`).
       // Resolving leaves the reply's editing place, as a card's Resolve does, keeping
       // its draft (thread/replies.js), so the thread shows its way back instead.
+      onPageSeat ||= Boolean(thread.anchor);
       aux = html`${
-          thread.anchor
+          onPageSeat
             ? html`<button
                 type="button"
                 class="lf-fp-quiet"
+                ?disabled=${!thread.anchor}
+                ?data-unoffered=${!thread.anchor}
                 @click=${() => {
                   close();
                   void threadActions.open(thread.key, { part: null });
@@ -1343,7 +1361,9 @@ export function createFloatingPanel({
             return threadActions.resolve(thread.key);
           }}
         >
-          ${thread.resolved ? "Reopen" : html`${iconTemplate("check", "lf-action-icon")}Resolve`}
+          <span class="lf-fp-face" ?data-shown=${!thread.resolved}
+            >${iconTemplate("check", "lf-action-icon")}Resolve</span
+          ><span class="lf-fp-face" ?data-shown=${thread.resolved}>Reopen</span>
         </button>`;
     }
     const openThreads = threads().filter((candidate) => !candidate.resolved);
@@ -1627,7 +1647,7 @@ export function createFloatingPanel({
           aria-pressed=${String(top?.view === "on")}
           ?data-due=${onUser > 0}
           aria-label=${onUser ? `On me: ${onUser}` : "On me"}
-          @click=${() => open({ view: "on" })}
+          @click=${openOnMe}
         >
           ${iconTemplate("question", "lf-action-icon")}<span class="lf-fp-num"
             >${onUser || ""}</span
@@ -1827,10 +1847,9 @@ export function createFloatingPanel({
       (event) => {
         event.stopImmediatePropagation();
         event.preventDefault();
-        if (view === "threads") {
-          filter = "open";
-          query = "";
-        }
+        if (view === "on") return openOnMe();
+        filter = "open";
+        query = "";
         open({ view });
       },
       { capture: true },

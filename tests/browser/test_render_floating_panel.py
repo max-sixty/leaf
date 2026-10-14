@@ -113,11 +113,11 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     with sending(page, "the resolve"):
         settle.click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
-    expect(settle).to_have_text(re.compile("Reopen"))
+    expect(settle).to_have_text("Reopen", use_inner_text=True)
     with sending(page, "the reopen"):
         settle.click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
-    expect(settle).to_have_text(re.compile("Resolve"))
+    expect(settle).to_have_text("Resolve", use_inner_text=True)
 
     field(page).focus()
     page.keyboard.press("Escape")
@@ -230,13 +230,13 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     with sending(page, "the resolve"):
         page.keyboard.press("r")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
-    expect(settle).to_have_text(re.compile("Reopen"))
+    expect(settle).to_have_text("Reopen", use_inner_text=True)
     expect(thread).to_be_focused()
 
     with sending(page, "the reopen"):
         page.keyboard.press("Enter")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
-    expect(settle).to_have_text(re.compile("Resolve"))
+    expect(settle).to_have_text("Resolve", use_inner_text=True)
 
     # A click on a message's words stands on the part of the thread drawing it.
     message = thread.locator(".lf-primary-part", has_text="Is the window long enough?")
@@ -257,7 +257,7 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     with sending(page, "the reopen from Resolve's place"):
         page.keyboard.press("r")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
-    expect(settle).to_have_text(re.compile("Resolve"))
+    expect(settle).to_have_text("Resolve", use_inner_text=True)
     expect(settle).to_be_focused()
     # The head stands for the thread, whose messages are in the view below it.
     page.keyboard.press("e")
@@ -404,6 +404,48 @@ def test_the_panel_names_the_agent_as_the_page_s_messages_do(browser, serve):
     expect(page.locator(".lf-fp-filters")).to_contain_text("On Claude")
 
 
+def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
+    browser, serve
+):
+    """The On view has no name of its own: its title is the open tab's, On me or On
+    Claude, and under each list stands what left it. A reply the agent sent leaves its
+    list, so it stands under On Claude, said as sent. The On me mark opens the user's
+    list, turning the view to it where it shows the agent's."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Is the window long enough?")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "text": "Forty-eight hours covers the first cohort.",
+        },
+    )
+    page = floating(browser, url)
+    page.locator(".lf-fp-on-user").click()
+    title = page.locator(".lf-fp-title")
+    expect(title).to_have_text("On me")
+    expect(page.locator(".lf-fp-filters button")).to_have_count(2)
+    expect(page.locator(".lf-fp-on-done")).to_have_count(0)
+    page.locator(".lf-fp-filters button", has_text="On Claude").click()
+    expect(title).to_have_text("On Claude")
+    expect(page.locator(".lf-fp-empty")).to_have_text("Nothing waiting on Claude.")
+    expect(page.locator(".lf-fp-on-done")).to_have_text("Done")
+    sent = page.locator(".lf-fp-on-item")
+    expect(sent).to_have_count(1)
+    expect(sent).to_contain_text("Forty-eight hours covers the first cohort.")
+    expect(sent.locator(".lf-fp-said")).to_have_text(re.compile(r"^Sent"))
+    # The On me mark turns the open view back to the user's list, and then closes it.
+    page.locator(".lf-fp-on-user").click()
+    expect(title).to_have_text("On me")
+    page.locator(".lf-fp-on-user").click()
+    expect(title).to_have_count(0)
+
+
 def test_on_shows_an_ask_as_its_message_and_reply_comes_back(browser, serve):
     """A question the agent asked in a thread reads in the On view as its message, drawn
     whole as the thread draws it, so what it introduces after a colon is there with it.
@@ -447,6 +489,80 @@ def test_clicking_into_the_field_moves_nothing_at_an_open_view_s_head(browser, s
     assert (
         page.locator(".lf-fp-filters button", has_text="Resolved").bounding_box() == tab
     )
+
+
+HEAD_SEATS = """() => {
+  const head = document.querySelector('.lf-fp-head');
+  const seat = (selector) => {
+    const box = head.querySelector(selector)?.getBoundingClientRect();
+    return box && [box.left, box.top, box.right, box.bottom];
+  };
+  return {
+    back: seat('.lf-fp-back'),
+    start: seat('.lf-fp-title')[0],
+    where: seat('.lf-fp-where'),
+    on: seat('.lf-fp-quiet'),
+    settle: seat('.lf-fp-settle'),
+    close: seat('.lf-fp-close'),
+  };
+}"""
+
+
+def test_news_in_an_open_thread_moves_nothing_at_its_head(browser, serve):
+    """A thread's head holds each control where it stood while the thread changes under
+    it. Retitled long or short, the title gives or takes room at its own end, and Back,
+    where the thread stands among the open ones, On the page, Resolve and Close stay
+    put; detached by a revision, On the page leaves its seat empty; resolved by the
+    agent, the thread's Reopen takes Resolve's seat."""
+    url = serve(LONG_PAGE, comments=3, anchored=[("p3", "Paragraph 3.")])
+    root = events_model.read_events(serve.page_dir)[-1]["id"]
+    page = floating(browser, url)
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    page.locator(".lf-fp-thread", has_text="About this bit.").click()
+    title = page.locator(".lf-fp-head .lf-fp-title")
+    expect(title).to_have_text("About this bit.")
+    settled(page)
+    seats = page.evaluate(HEAD_SEATS)
+    assert all(seats.values()), seats
+
+    def agent(event):
+        append_carried_log_record(
+            serve.page_dir, {"author": "agent", "agent": "Claude", **event}
+        )
+        told(page)
+
+    for name in [
+        "Whether the third paragraph's filler should stay in the published draft",
+        "Filler",
+    ]:
+        agent({"kind": "thread_title", "thread": root, "title": name})
+        expect(title).to_have_text(name)
+        settled(page)
+        assert page.evaluate(HEAD_SEATS) == seats
+
+    # A revision that drops the passage detaches the thread: On the page has nowhere
+    # to go, and its seat stands empty while the view does.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reanchor",
+            "author": "page",
+            "revision": 1,
+            "thread": root,
+            "anchor": None,
+        },
+    )
+    told(page)
+    expect(page.locator(".lf-fp-head .lf-fp-quiet")).to_be_hidden()
+    settled(page)
+    assert page.evaluate(HEAD_SEATS) == seats
+
+    agent({"kind": "resolve", "parent": root})
+    expect(page.locator(".lf-fp-head .lf-reopen")).to_be_visible()
+    settled(page)
+    # A resolved thread stands nowhere among the open ones, so only its count goes.
+    assert {**page.evaluate(HEAD_SEATS), "where": seats["where"]} == seats
 
 
 def test_threads_is_as_tall_as_the_threads_it_first_shows(browser, serve):

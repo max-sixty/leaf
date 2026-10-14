@@ -79,7 +79,7 @@ import { pageParts } from "../passages.js";
 import { addressableSays } from "../addressable-names.js";
 import { announce, notice } from "../notifications.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
-import { currentDrawer, othersBtn, queueBtn } from "../drawers.js";
+import { currentDrawer, doorStands, othersBtn, queueBtn } from "../drawers.js";
 import { mapButton } from "../page-map-dialog.js";
 
 import { claimsEsc, saying } from "./scopes.js";
@@ -181,9 +181,20 @@ export function createGoToSequence({
     {
       id: "navigation.drawer.queue",
       keys: ["Shift+m"],
+      // Its door is On me's, so where the panel shows the agent's list it turns to
+      // the user's rather than closing.
       description: () =>
-        currentDrawer() === "queue" ? "Close the On panel" : "Go to the On panel",
-      title: () => (currentDrawer() === "queue" ? "close On panel" : "On panel"),
+        doorStands("queue", queueBtn)
+          ? "Close the On panel"
+          : currentDrawer() === "queue"
+            ? "Show On me in the On panel"
+            : "Go to the On panel",
+      title: () =>
+        doorStands("queue", queueBtn)
+          ? "close On panel"
+          : currentDrawer() === "queue"
+            ? "On me"
+            : "On panel",
       control: () => queueBtn,
       when: () => true,
     },

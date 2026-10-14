@@ -18,7 +18,8 @@ import {
   showNews,
 } from "./banner-toolbar.js";
 import { iconElement } from "./icons.js";
-import { latestChip, versionBtn, versionPicker } from "./version-picker.js";
+import { latestChip, versionBtn } from "./version-picker.js";
+import { versionsReading } from "./version.js";
 import { othersBtn, queueBtn } from "./drawers.js";
 import { pagePresented } from "./page-paint.js";
 import { repaint } from "./repaint.js";
@@ -53,7 +54,7 @@ banner.id = "lf-banner";
 declareBanner(banner);
 const bannerStatus = createBannerStatusView(repaint, INITIAL);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
-// The agent's On count, which opens the On panel listing what it holds (drawers.js).
+// The agent's On count, which opens the On panel on the agent's list (queue-panel.js).
 export const queueCounts = bannerStatus.queues;
 
 // Threads reads "Threads: 3" on a desk and, on a phone's one row, a thread icon with its
@@ -144,7 +145,7 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.latest,
   conditional: true,
   urgent: "new",
-  row: { label: () => versionPicker.model.latest.label, group: "page" },
+  row: { label: () => versionsReading().latest.label, group: "page" },
 });
 registerBannerControl({
   key: "queue",
@@ -163,7 +164,7 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.versions,
   row: {
     label: "Versions",
-    value: () => versionPicker.model.picker.token.replace(/^Showing /, ""),
+    value: () => versionsReading().picker.token.replace(/^Showing /, ""),
     group: "page",
   },
 });
@@ -269,7 +270,7 @@ let saidActionableWork;
 // The queues are read from the application's publication rather than the state
 // answer: a reply the user sends joins the agent's count in the turn it is sent,
 // and leaves On me once the server has read it. A press on either opens the On
-// panel, which lists both (`statusModel` words them).
+// panel on the list it counts (`statusModel` words them).
 const presentStatus = ({ status, model }) => {
   const { kind, actionableWork = null } = status;
   bannerStatus.present(model);

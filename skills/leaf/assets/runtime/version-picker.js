@@ -152,12 +152,10 @@ class VersionPickerView {
       }));
   }
 
-  // The picker's reading and commands for another presentation of the same versions,
-  // the floating panel's Versions view, which draws its own rows from them.
+  // The picker's commands, and word of each reading it presents, for another
+  // presentation of the same versions, the floating panel's Versions view, which draws
+  // its own rows from `versionsReading` (version.js).
   #listeners = new Set();
-  get model() {
-    return this.#model;
-  }
   watch(listener) {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);

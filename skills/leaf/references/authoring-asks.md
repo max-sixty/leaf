@@ -68,10 +68,12 @@ nothing can run yet, draw each option inside it, all in one frame at one scale. 
 proposal to accept or reject, or a piece of work to take on, is a choice between
 today and the change: show both in the form the work takes, with the change beside
 today in one frame or in the accepting option. A visible fault is a capture cropped
-or marked where it goes wrong, beside a drawing or demonstration of the fix; a code
-or data change is the code or data before and after. A choice of wording shows each wording as it would
-appear. In each case, hold everything except the disputed treatment constant, and
-include the current or no-treatment case as a neutral control. Put longer rationale
+or marked where it goes wrong, beside a drawing or demonstration of the fix. A code
+or data change is the text before and after where that text is what the user judges;
+otherwise it shows what the change does, such as which rule wins, before and after,
+with the code beside it. A choice of wording shows each wording as it would appear.
+In each case, hold everything except the disputed treatment constant, and include
+the current or no-treatment case as a neutral control. Put longer rationale
 or provenance in a disclosure after the ask.
 The `lf-ask`, `lf-options`, and `lf-option` entries say how to word the question and
 shape each option.

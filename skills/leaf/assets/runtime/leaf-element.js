@@ -244,15 +244,19 @@ export class LeafElement extends LitElement {
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
-    const outerWork = this.#work;
+    let outerWork = this.#work;
     this.#drawing = null;
     this.#work = null;
     try {
       super.performUpdate();
-      // Drawing an update holds, as a retry or a follow-up draw starts, holds the region
-      // though no move claimed the update.
-      if (this.#work && !this.#drawing && this.#region) this.#drawing = this.#claim();
-      this.#drawing?.resolve(this.#work ?? undefined);
+      const work = this.#work;
+      // Drawing an update with no claim of its own holds goes to the claim enclosing
+      // it, or else claims the region, as a retry's or a follow-up draw's does.
+      if (work && !this.#drawing) {
+        if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
+        else if (this.#region) this.#drawing = this.#claim();
+      }
+      this.#drawing?.resolve(work ?? undefined);
     } catch (error) {
       if (outer && !this.#drawing) throw error;
       this.#failed(error, this.#drawing);
@@ -267,7 +271,7 @@ export class LeafElement extends LitElement {
    *  claims the region for it. The widget's presentation, and the data version a
    *  delivery it draws holds, wait for it. Call it from `render()` or `updated()`. */
   drawing(work) {
-    this.#work = work;
+    this.#work = this.#work ? Promise.all([this.#work, work]) : work;
   }
 
   /** The render drawn again at once, outside any claim and Lit's own schedule, with a

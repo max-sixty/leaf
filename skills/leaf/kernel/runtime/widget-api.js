@@ -733,13 +733,17 @@ var LeafElement = class extends LitElement {
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
-    const outerWork = this.#work;
+    let outerWork = this.#work;
     this.#drawing = null;
     this.#work = null;
     try {
       super.performUpdate();
-      if (this.#work && !this.#drawing && this.#region) this.#drawing = this.#claim();
-      this.#drawing?.resolve(this.#work ?? void 0);
+      const work = this.#work;
+      if (work && !this.#drawing) {
+        if (outer) outerWork = outerWork ? Promise.all([outerWork, work]) : work;
+        else if (this.#region) this.#drawing = this.#claim();
+      }
+      this.#drawing?.resolve(work ?? void 0);
     } catch (error) {
       if (outer && !this.#drawing) throw error;
       this.#failed(error, this.#drawing);
@@ -753,7 +757,7 @@ var LeafElement = class extends LitElement {
    *  claims the region for it. The widget's presentation, and the data version a
    *  delivery it draws holds, wait for it. Call it from `render()` or `updated()`. */
   drawing(work) {
-    this.#work = work;
+    this.#work = this.#work ? Promise.all([this.#work, work]) : work;
   }
   /** The render drawn again at once, outside any claim and Lit's own schedule, with a
    *  failure thrown rather than shown: the render check's replay

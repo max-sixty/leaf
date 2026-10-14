@@ -84,7 +84,7 @@
    naming that box here would tie on specificity and lose on source order, and `@media`
    contributes nothing to break the tie. */
 @media print {
-  :where(:root, .lf-thread-transcript) pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  :where(:root, .lf-thread-transcript) pre { white-space: pre-wrap; }
 }
 :where(:root, .lf-thread-transcript) blockquote { margin: 18px 0; padding: 2px var(--quote-inset);
              border-left: var(--quote-rule); color: var(--muted);
@@ -190,6 +190,18 @@
      color: var(--muted); font-weight: 600;
      border-bottom-color: var(--border-2); }
 :where(:root, .lf-thread-transcript) th[scope="row"] { font-weight: 600; }
+/* A table of captures (authoring-evidence.md, "Source files and media") labels each
+   axis once, so its heads are the only words saying which capture is which: a column's
+   stands centred over its captures in the row names' ink, and a row's name stands level
+   with its capture's middle rather than at its top edge. A head's longest word still
+   sets its column's least width, so a long head draws its captures a little larger
+   than their neighbours ("Documentation reviewed" over one of three equal captures, 11%
+   wider at 1440px); breaking heads anywhere evened the scale but split "Documentation"
+   mid-word on a phone. A table is one of captures where a cell of its own rows holds
+   nothing but an image, linked or not, so a table nested in a cell is read for itself. */
+:where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > :is(th, td) { vertical-align: middle; }
+:where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > th:not([scope="row"]) {
+     text-align: center; color: var(--ink); }
 :where(:root, .lf-thread-transcript) :is(ul, ol) { margin: 10px 0; padding-inline-start: 24px; }
 :where(:root, .lf-thread-transcript) li { margin: 6px 0; }
 :where(:root, .lf-thread-transcript) hr { border: none; border-top: 1px solid var(--rule); margin: var(--hr-margin-block) 0; }

@@ -3117,6 +3117,48 @@ def test_original_image_link_has_a_standalone_target(browser, serve):
     expect(page.locator("#image")).to_be_focused()
 
 
+def test_a_capture_in_a_table_is_named_by_its_heads(browser, serve):
+    """Image preview keeps a table of captures' labels, which name each axis once.
+
+    Heads count where they stand: spanning heads name every capture under or beside
+    them, outer first, a header row needs no <thead>, and a repeated one names once."""
+    cell = '<td><a id="{0}" href="/media/051bee487bfb5d13.png"><img src="/media/051bee487bfb5d13.png" width="180" height="75" alt="Release output"></a></td>'
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Captures",
+                "<h1>Captures</h1><table id=grid>"
+                "<thead><tr><td></td><th scope=col>Light</th><th scope=col>Dark</th></tr></thead>"
+                f"<tbody><tr><th scope=row>Before</th>{cell.format('light-before')}{cell.format('dark-before')}</tr>"
+                f"<tr><th scope=row>After</th>{cell.format('light-after')}{cell.format('dark-after')}</tr></tbody>"
+                "<tbody><tr><td></td><th>Light</th><th>Dark</th></tr>"
+                f"<tr><th scope=row>Later</th>{cell.format('light-later')}{cell.format('dark-later')}</tr></tbody></table>"
+                "<table id=spanned><tbody>"
+                "<tr><td rowspan=2 colspan=2></td><th colspan=2>Light</th><th colspan=2>Dark</th></tr>"
+                "<tr><th>Before</th><th>After</th><th>Before</th><th>After</th></tr>"
+                "<tr><th scope=row rowspan=2>Phone</th><th scope=row>Portrait</th>"
+                + "".join(cell.format(f"portrait-{n}") for n in range(4))
+                + "</tr><tr><th scope=row>Landscape</th>"
+                + "".join(cell.format(f"landscape-{n}") for n in range(4))
+                + "</tr></tbody></table>",
+            )
+        ),
+    )
+    viewer = page.get_by_role("dialog", name="Image preview")
+    for link, caption in (
+        ("dark-before", "Dark · Before"),
+        ("light-after", "Light · After"),
+        ("dark-later", "Dark · Later"),
+        ("portrait-0", "Light · Before · Phone · Portrait"),
+        ("landscape-3", "Dark · After · Phone · Landscape"),
+    ):
+        page.locator(f"#{link}").click()
+        expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(caption)
+        page.keyboard.press("Escape")
+        expect(viewer).to_be_hidden()
+
+
 # A diagram that states no size of its own, only a shape, as Mermaid writes one.
 DIAGRAM_SVG = (
     b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">'

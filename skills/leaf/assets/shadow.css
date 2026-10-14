@@ -642,7 +642,6 @@ button.lf-thread-notice[data-lf-focus] {
 @media print {
   :where(:root, .lf-thread-transcript) pre {
     white-space: pre-wrap;
-    overflow-wrap: anywhere;
   }
 }
 :where(:root, .lf-thread-transcript) blockquote {
@@ -725,6 +724,13 @@ button.lf-thread-notice[data-lf-focus] {
 }
 :where(:root, .lf-thread-transcript) th[scope=row] {
   font-weight: 600;
+}
+:where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > :is(th, td) {
+  vertical-align: middle;
+}
+:where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > th:not([scope=row]) {
+  text-align: center;
+  color: var(--ink);
 }
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;

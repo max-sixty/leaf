@@ -58,6 +58,7 @@ const exactClosures = {
     "semantic-state.js",
     "queued-work.js",
     "focus.js",
+    "dom-move.js",
     "control-selectors.js",
     "shadow-tree.js",
     "keeps.js",

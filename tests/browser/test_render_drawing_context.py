@@ -28,6 +28,8 @@ def test_drawing_preview_contains_page_content_and_freezes_it(
     )
     page = open_page(browser, serve(CONTEXT_PAGE), context=context, color_scheme=scheme)
     target = page.locator("#subject")
+    if not touch:
+        target.evaluate("el => el.style.width = '600px'")
     draw_over(page, target)
     preview = page.locator(".lf-composer-drawing canvas")
     expect(preview).to_have_attribute("data-lf-drawing-context", "ready")
@@ -56,6 +58,42 @@ def test_drawing_preview_contains_page_content_and_freezes_it(
     target.evaluate("el => el.style.background = 'blue'")
     page.keyboard.type("A comment about this area")
     rendered(page)
+    assert preview.evaluate("canvas => canvas.toDataURL()") == pixels["picture"]
+
+    # Inspection reads the captured pixels, not the page's blue replacement. The
+    # wide desktop stroke retains useful native pixels, even on a narrow window.
+    if not touch:
+        assert preview.evaluate("canvas => canvas.width") > 320
+        page.set_viewport_size({"width": 390, "height": 900})
+    inspect = page.get_by_role("button", name="Inspect drawing, 1 stroke")
+    if touch:
+        inspect.tap()
+    else:
+        inspect.focus()
+        page.keyboard.press("Enter")
+    viewer = page.get_by_role("dialog", name="Image preview")
+    image = viewer.locator("img.pswp__img")
+    expect(image).to_be_visible()
+    assert (
+        image.evaluate("""image => {
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      canvas.getContext('2d').drawImage(image, 0, 0);
+      return canvas.toDataURL();
+    }""")
+        == pixels["picture"]
+    ), "inspection must show the frozen page and ink"
+    if not touch:
+        page.keyboard.press("z")
+        expect(viewer.get_by_role("button", name="Fit image")).to_be_visible()
+        page.keyboard.press("z")
+        expect(viewer.get_by_role("button", name="Zoom to actual size")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(viewer).not_to_be_visible()
+    expect(inspect).to_be_focused()
+    expect(page.locator(".lf-fab-input")).to_have_js_property(
+        "value", "A comment about this area"
+    )
     assert preview.evaluate("canvas => canvas.toDataURL()") == pixels["picture"]
 
 
@@ -129,7 +167,18 @@ def test_drawing_preview_failure_keeps_ink_and_reports_missing_context(browser, 
     preview = page.locator(".lf-composer-drawing canvas")
     expect(preview).to_have_attribute("data-lf-drawing-context", "unavailable")
     expect(page.get_by_text("Page preview unavailable", exact=True)).to_be_visible()
-    expect(page.get_by_role("img", name="page preview unavailable")).to_be_visible()
+    inspect = page.get_by_role(
+        "button", name="Inspect drawing, 1 stroke; page preview unavailable"
+    )
+    expect(inspect).to_be_visible()
+    inspect.click()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    expect(viewer.locator("img.pswp__img")).to_be_visible()
+    expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(
+        "Drawing only; page preview unavailable."
+    )
+    page.keyboard.press("Escape")
+    expect(inspect).to_be_focused()
     assert preview.evaluate("""canvas => {
       const pixels = canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;
       return pixels.some((value,index) => index%4===3 && value>0);
@@ -166,6 +215,14 @@ def test_drawing_preview_captures_one_frame_after_its_renderer_arrives(browser, 
     holding(page, held, 1, "the drawing context renderer")
     preview = page.locator(".lf-composer-drawing canvas")
     assert preview.evaluate("canvas => [canvas.width, canvas.height]") == [208, 88]
+    pending_picture = preview.evaluate("canvas => canvas.toDataURL()")
+    page.get_by_role("button", name="Inspect drawing, 1 stroke").click()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    image = viewer.locator("img.pswp__img")
+    expect(image).to_be_visible()
+    expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(
+        "Drawing only; page preview was not ready when opened."
+    )
 
     target.evaluate(
         "el => { el.style.transformOrigin = '0 0'; el.style.transform = 'scale(.5)'; }"
@@ -183,6 +240,23 @@ def test_drawing_preview_captures_one_frame_after_its_renderer_arrives(browser, 
       return red;
     }""")
     assert red > 8000, "the transformed page must still fill the contextual crop"
+    assert (
+        image.evaluate("""image => {
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+      canvas.getContext('2d').drawImage(image, 0, 0);
+      return canvas.toDataURL();
+    }""")
+        == pending_picture
+    ), "late page capture must not replace an open inspection"
+    page.keyboard.press("Escape")
+    page.get_by_role("button", name="Inspect drawing, 1 stroke").click()
+    expect(viewer.locator(".lf-media-viewer-caption")).to_be_hidden()
+    expect(image).to_be_visible()
+    assert image.evaluate("image => [image.naturalWidth, image.naturalHeight]") == [
+        128,
+        68,
+    ]
 
 
 @pytest.mark.parametrize("backing", ["solid", "translucent", "gradient", "svg"])

@@ -950,24 +950,27 @@ def test_arrival_reading_reports_a_deterministic_transition(browser, serve):
     )
 
 
-def test_shadow_stage_withholds_package_transitions_until_presentation(browser, serve):
+def test_shadow_stage_withholds_package_transitions_until_presentation(
+    browser, serve, tmp_path
+):
     """The shared shadow stage suppresses a package transition during arrival."""
+    theme = tmp_path / "transition-theme"
+    theme.mkdir()
+    (theme / "shadow.css").write_text("details { transition: color 60s linear; }\n")
     page = browser.new_page()
     held = []
     page.route("**/api/state*", lambda route: held.append(route))
-    page.goto(serve(PANEL_PAGE), wait_until="load")
+    page.goto(
+        serve(PANEL_PAGE, packages=(*EXAMPLE_PACKAGES, "./transition-theme")),
+        wait_until="load",
+    )
     render_checks_model.wait_for_probe(page, "upgraded")
     assert held, "the state read completed before the shadow guard was observed"
     assert page.locator("body").get_attribute("data-lf-presented") is None
     assert (
         page.evaluate(
-            """() => {
-                  const root = document.querySelector("#how-patch").shadowRoot;
-                  const style = document.createElement("style");
-                  style.textContent = "details { transition: color 60s linear; }";
-                  root.append(style);
-                  return getComputedStyle(root.querySelector("details")).transitionProperty;
-                }"""
+            """() => getComputedStyle(document.querySelector("#how-patch")
+                  .shadowRoot.querySelector("details")).transitionProperty"""
         )
         == "none"
     )
@@ -2889,6 +2892,25 @@ def test_frame_edges_pass_through_whatever_stands_at_them(browser, serve):
     ]
 
 
+def test_the_page_edge_is_no_frame(browser, serve):
+    """A page with no Layout keeps the browser's margin on its body, and the live root
+    scrolls, so the root holds that margin in. The root draws no frame, its edge
+    being the window's, so the reading has nothing to ask of it, where it named the
+    root of every such page. A root that draws padding is a frame like any box."""
+    page = open_page(
+        browser, serve(leaf_page("No Layout", "<p>Plain prose.</p>", layout=None))
+    )
+    margin = page.evaluate("() => getComputedStyle(document.body).marginTop")
+    trapped = render_checks_model.evaluate_probe(page, "trappedMargins")
+    page.evaluate("() => document.documentElement.style.padding = '12px'")
+    framed = render_checks_model.evaluate_probe(page, "trappedMargins")
+    page.close()
+
+    assert margin == "8px", "the body lost the browser's margin, so this tests nothing"
+    assert trapped == [], trapped
+    assert [f["at"] for f in framed] == ["<html>", "<html>"], framed
+
+
 @pytest.mark.parametrize("display", ("flex", "grid"))
 @pytest.mark.parametrize("frame", ("1", "trim", "propagated"))
 def test_a_row_at_a_frame_edge_holds_the_trim_by_declaring_it(
@@ -3975,6 +3997,53 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     assert at["granted"]["right"] - at["prose"]["right"] == pytest.approx(grown, abs=1)
     off = [m["at"] for m in misplaced if m["code"] == "off-axis"]
     assert off == ["<iframe id=sized>", "<iframe id=wider>"], misplaced
+
+
+def test_an_ask_spanning_its_block_is_a_breakout(browser, serve):
+    """An Ask allocated the column spans the wide block it holds, so its ring goes round
+    the block, and the gate named it as set out in the margin on every page with one.
+    The theme says which boxes it lets stand past their holders, so the gate reads the
+    Ask as the breakout it is, and a page width that moves it off the block is named,
+    as for any breakout. A box padded or sized past the
+    column without that leave is named, whether or not it paints there or a breakout
+    fills it."""
+    ask = """<lf-ask id="{id}"><h2>Which one?</h2>
+  <figure data-width="wide"><p>Evidence the room holds.</p></figure>
+  <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
+</lf-ask>"""
+    source = leaf_page(
+        "Reaching past the column",
+        f"""
+<h1>Reaching past the column</h1>
+<style>#sized-ask {{ max-width: 36rem; }}</style>
+<p>Prose sets the column.</p>
+{ask.format(id="ask")}
+{ask.format(id="sized-ask")}
+<div id="bare" style="margin: 0 -120px; padding: 0 120px; text-indent: -120px">Out.</div>
+<div id="tinted" style="margin: 0 -120px; padding: 0 120px; background: #eee">Tint.</div>
+<div id="sized" style="width: calc(100% + 120px); background: #eee; --lf-block-frame: 1">
+  <figure data-width="wide"><p>Evidence that fills the box.</p></figure>
+</div>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    grown = page.evaluate("""() => {
+      const ask = document.getElementById('ask').getBoundingClientRect();
+      const prose = document.querySelector('main > p').getBoundingClientRect();
+      return prose.left - ask.left;
+    }""")
+    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    page.close()
+
+    assert grown > 100, "the Ask never spanned its block, so nothing here was tested"
+    found = sorted((m["code"], m["at"]) for m in misplaced)
+    assert found == [
+        ("off-axis", "<lf-ask id=sized-ask>"),
+        ("past-column", "<div id=bare>"),
+        ("past-column", "<div id=sized>"),
+        ("past-column", "<div id=tinted>"),
+    ], misplaced
 
 
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):

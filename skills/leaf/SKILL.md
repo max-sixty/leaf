@@ -47,8 +47,10 @@ $ARGUMENTS
   to picture from your words to judge, show instead; each option of an ask shows
   what choosing it gives them. Words carry what the thing cannot show: the claim,
   the reason, the cost.
-- **Current.** The page states what is true now, so a returning user finds each
-  outcome in place.
+- **Current.** The page shows where the work stands now. What is open, led by what
+  waits on the user, fills the column; finished work, cut to its outcome, is
+  collapsed out of the way, so a returning user reads where things stand without
+  reading how they got there.
 - **Personalized.** The user's word decides the page's content and presentation;
   Leaf's defaults apply only where they have said nothing.
 
@@ -61,6 +63,9 @@ it on `PATH`. If the resolved file is absent, report that the plugin payload is
 incomplete. A checkout keeps the launcher at `bin/leaf`. Pages conventionally
 live at `~/.local/state/leaf/pages/<slug>/`, though every command takes the
 directory explicitly; export or copy anything that must outlive the page directory.
+A command prints its result on stdout, as JSON unless its help names another format,
+and on stderr one JSON object per line for each refusal or note beside it, its words
+in `error` or `text`.
 
 1. Read `references/conversation-loop.md`, "When to write", to record the work
    you take on. Run `leaf page init <page>`, and name a package when the page needs an
@@ -156,17 +161,20 @@ resolutions and sign-offs can be undone; sent words remain in the log.
 
 By default, the document is the shared canvas and current record for the subject.
 Whenever the user returns to it, it is the page you would write today from what
-you now know. Its title, lede, and headings state what is true now, and open work
-and open questions stand in the column while finished work sits collapsed after
-them. A user finds each outcome in the relevant page section without
-reconstructing a thread or chat. The banner says what you are doing now; threads
-carry discussion and rationale.
+you now know. Its title, lede, and headings state what is true now. The column
+holds the open work and open questions, led by what waits on the user and what
+comes next; finished work sits collapsed after them or on a tab of its own, so
+the user finds each outcome there without reconstructing a thread or chat. The
+banner says what you are doing now; threads carry discussion and rationale.
 
 When work lands, a decision is made, or your understanding changes, reread the
-whole page and revise the affected content, title, headings, and order. Follow
-`references/authoring-revisions.md` to preserve user state. Correct wrong figures
-in place and remove superseded claims; the `page stamp` changelog and event log
-keep the history. Save freely and stamp meaningful checkpoints.
+whole page and write the page you would hand over now, rather than noting the
+change where its subject is mentioned. Lead with the work and decisions still open
+and what the change opens, such as the next piece of work or the decision it
+raises; `references/authoring-revisions.md`, "Keep the current page current", says
+how finished work leaves the column and how to preserve user state. Correct wrong
+figures in place and remove superseded claims; the `page stamp` changelog and event
+log keep the history. Save freely and stamp meaningful checkpoints.
 
 ## Follow the user's preferences
 

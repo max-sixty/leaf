@@ -161,7 +161,6 @@
   margin: 0 0 8px;
 }
 .lf-diff-progress {
-  width: var(--lf-reserved-width, auto);
   color: var(--code-muted);
   font: var(--t-6) var(--sans);
   font-variant-numeric: tabular-nums;

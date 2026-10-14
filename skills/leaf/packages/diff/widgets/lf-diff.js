@@ -57,7 +57,6 @@ import {
   readingPaint,
   releaseOutlets,
   reportFailure,
-  reserve,
   retainUserIntent,
   scrollBehavior,
   scrollIntoReadingBand,
@@ -613,6 +612,8 @@ function diffTools(host) {
   progress.className = "lf-diff-progress";
   progress.dataset.lfGen = "1";
   progress.slot = "end";
+  const count = document.createElement("span");
+  progress.append(count);
   // Opening every file is rare beside opening one, so it is a quiet icon after the count
   // of the files it opens rather than a labelled button of its own (shadow.css).
   const foldAll = offer("button", "lf-btn lf-icon-action lf-diff-fold-all");
@@ -620,7 +621,7 @@ function diffTools(host) {
   foldAll.slot = "end";
   foldAll.addEventListener("click", () => host.foldAll());
   search.append(progress, foldAll);
-  return { search, progress, foldAll };
+  return { search, progress, count, foldAll };
 }
 
 function operationWord(record) {
@@ -1705,12 +1706,9 @@ customElements.define(
       const total = this.fileEntries.length;
       const all = `${total} file${total === 1 ? "" : "s"}`;
       const matching = `${shown.length} of ${total}`;
-      // Filtering changes the count inside its reserved room, never its containing field.
-      if (this.diffTools.progressRoom !== total) {
-        this.diffTools.progressRoom = total;
-        reserve(this.diffTools.progress, [all, `${total} of ${total}`]);
-      }
-      keepsText(this.diffTools.progress, shown.length === total ? all : matching);
+      // Filtering changes the count inside its room, never its containing field.
+      keeps(this.diffTools.progress, "data-lf-room", `${all}\n${total} of ${total}`);
+      keepsText(this.diffTools.count, shown.length === total ? all : matching);
       this.paintFoldAll();
       paintKeys();
     }

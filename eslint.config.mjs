@@ -1295,6 +1295,7 @@ export default [
       "examples/corpus.html",
       "skills/leaf/assets/vendor/**",
       "skills/leaf/packages/*/vendor/**",
+      "evals/ui-review-detection/fixtures/**",
     ],
   },
   { linterOptions: { noInlineConfig: true } },
@@ -1471,7 +1472,6 @@ export default [
   },
   {
     files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
-    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
     languageOptions: { globals: browserGlobals },
     rules: { "no-undef": "error" },
   },
@@ -1479,11 +1479,7 @@ export default [
     // The settled reading answers only for the rendering callbacks and size observers it
     // counts, so the layer and its packages reach both through runtime/rendering.js.
     files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
-    ignores: [
-      "skills/leaf/assets/vendor/**",
-      "skills/leaf/packages/*/vendor/**",
-      "skills/leaf/assets/runtime/rendering.js",
-    ],
+    ignores: ["skills/leaf/assets/runtime/rendering.js"],
     rules: {
       "no-restricted-globals": [
         "error",
@@ -1493,7 +1489,6 @@ export default [
   },
   {
     files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
-    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
     plugins: { architecture: architecturePlugin },
     rules: {
       "architecture/standing-listeners": [
@@ -1667,7 +1662,6 @@ export default [
     // block's, so all of them stand in this one list, and the history owners' block
     // below repeats the others.
     files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
-    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
     rules: {
       "no-restricted-properties": [
         "error",

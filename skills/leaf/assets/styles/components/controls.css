@@ -267,18 +267,15 @@ svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: curr
   }
 }
 @media print {
-  /* A shut disclosure on paper is a summary and a stub: the words are in the document,
-     nothing on the sheet says they are there, and there is no press to open them with.
-     Six of them printed that way on the corpus, one of them holding 3270px of an exact
-     source. The layer already takes this line for the other two ways a page puts
-     content behind a gesture — a settled group's cards and an inactive tab both print
-     open (packages/default) — and <details> was the one that was missed.
-
-     `::details-content` is what the browser hides the body with, so it is what says
-     otherwise; the marker goes because paper has nothing to turn. A page that means a
-     disclosure to stay shut on paper says so in its own stylesheet, at a weight this
-     does not contest. */
-  details:not([open])::details-content { content-visibility: visible; }
+  /* Paper has no press to open what a page puts behind a gesture, so it prints open:
+     a shut <details>, and whatever a widget folds with `hidden="until-found"`
+     (`HIDDEN`, widget-elements.js), such as an inactive tab or a settled group's
+     cards. Each is hidden by content-visibility, so that is what says otherwise; the
+     marker goes because paper has nothing to turn. A page that means a disclosure to
+     stay shut on paper says so in its own stylesheet, at a weight this does not
+     contest. */
+  details:not([open])::details-content, [hidden="until-found"] {
+    content-visibility: visible; }
   details > summary { list-style: none; }
   details > summary::-webkit-details-marker { display: none; }
 }
@@ -287,9 +284,25 @@ svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: curr
  * Packages may adjust placement and density; margin entries and reaction chips
  * retain their separate forms. The block padding carries the aim floor (above), less
  * the 1px border, so a rule restating it restates the floor with it. */
-:is(.lf-btn, .button) { width: var(--lf-reserved-width, auto);
+:is(.lf-btn, .button) {
   padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
-:is(.lf-btn, .button)[hidden]:not([hidden="until-found"]) { display: none; }
+/* A label whose words change holds one room for all of them, so a count or a result
+ * changing moves nothing beside it. `data-lf-room` lists the words the label shows,
+ * one per line, on an element whose one child holds the words. Its ::before lays the
+ * room out as an invisible block of no height, so the element is as wide as the
+ * widest line in its own face, with no script. The words take no part in that width:
+ * they fill the room and are cut past it with an ellipsis, so the control never widens
+ * when its words change. Rejected: the room as a least width, which let a long label
+ * widen its control and shift the banner beside it, too often and in too many places
+ * to oversee (the user's decision, 2026-10-14). Cut words stay whole in the element's
+ * text and accessible name; generated content is in neither. The room wraps at its
+ * spaces, so it never holds the element wider than its container. The words' line is
+ * the element's baseline. The element's own rules outrank this one. */
+:where([data-lf-room]) { display: inline-block; max-inline-size: 100%; }
+[data-lf-room]::before { content: attr(data-lf-room); display: block; block-size: 0;
+  overflow: hidden; visibility: hidden; white-space: pre-line; }
+[data-lf-room] > * { display: block; inline-size: 0; min-inline-size: 100%;
+  overflow: clip; text-overflow: ellipsis; white-space: nowrap; }
 :is(.lf-btn, .button):not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
 /* The committing action carries the accent as ink on the ordinary card, under a
    softened accent hairline, with the tint rising on hover. The selected face below is its

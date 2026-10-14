@@ -3209,8 +3209,11 @@ def test_an_aim_follows_a_scroll_inside_a_widgets_shadow_stage(browser, serve):
 SHOWN_PAINT = """(selector) => {
   const paint = document.querySelector(selector);
   let { left, right } = paint.getBoundingClientRect();
+  // A frame cuts across where its clip path's inline inset is zero.
+  const cutsAcross = (frame) =>
+    /^inset\\((\\S+ )?0px\\)$/.test(getComputedStyle(frame).clipPath);
   for (let frame = paint.parentElement; frame; frame = frame.parentElement)
-    if (frame.matches('.lf-paint-frame') && getComputedStyle(frame).overflowX === 'clip') {
+    if (frame.matches('.lf-paint-frame') && cutsAcross(frame)) {
       const cut = frame.getBoundingClientRect();
       left = Math.max(left, cut.left);
       right = Math.min(right, cut.right);
@@ -3559,7 +3562,6 @@ graph LR
           const aim = document.querySelector('.lf-aim');
           const stand = aim.closest('.lf-paint-stand');
           return {
-            layers: stand.querySelectorAll('.lf-paint-motion').length,
             boxes: [aim, ...stand.querySelectorAll('.lf-paint-frame')].map((box) => ({
               position: getComputedStyle(box).position,
               anchor: getComputedStyle(box).positionAnchor,
@@ -3568,7 +3570,6 @@ graph LR
         }"""
     )
     page.keyboard.up("Alt")
-    assert stand["layers"] == 0, stand
     assert all(
         box["position"] == "fixed" and box["anchor"].startswith("--lf-a")
         for box in stand["boxes"]

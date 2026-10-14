@@ -49,7 +49,8 @@ another one.
   `<pre>` body with `bodyText()` or `dataBody()` (`module-reading.md`,
   "Reading the page").
 - Build injected UI with `offer()`, `offered` or `selectableOffer()`, label it with
-  `relabel()`, and reserve measured room inside `measure` ("Generated controls").
+  `relabel()`, give a label whose words change the room of all of them with
+  `data-lf-room`, and take measurements inside `measure` ("Generated controls").
 - After a view swap that keeps the widget's outer box, await `layoutChanged()` before
   restoring scroll ("Generated controls").
 - Keep the widget's first-paint box once the page presents ("First paint").
@@ -249,7 +250,23 @@ value and restores the authoritative value even when that value equals the previ
 template input, as when a gesture is refused. Do not bind initial defaults onto
 properties whose current value belongs to the browser.
 
-### Retained nodes
+### Drawing what a widget reads (experimental)
+
+`LeafElement` is a `LitElement` base class for a widget that draws everything it shows
+in one `render()`. It draws into the element itself unless `createRenderRoot()` names a
+generated part to draw into instead, and it never replaces the authored children. Do
+one-time building in `setup()`, which runs on the first connection before the first
+render, in place of `once(this)` in `connectedCallback`. In `render()`, read through
+readers: `this.reading` and `this.state` for the widget's own reading, `this.data(input)`
+for a bound source as `watchData` delivers it, and any page reading or time
+(`readAsks`, `reportSequence`, `ago`). The element draws again when anything it read
+moves, and not otherwise. Return a template, `nothing` when the render writes retained
+nodes itself, or `noChange` to keep what it drew last. `this.controller` dispatches and
+presents preparation; its `defer()` holds the element's draws through a gesture that
+moves its nodes. Lit's own reactive properties update the element for state it keeps
+itself; `requestUpdate()` draws again after a mechanical change, such as revealing held
+news, and `performUpdate()` draws at once when the next lines read what it drew.
+
 
 `setChildren(parent, nodes)` makes `parent`'s children `nodes`, in order, moving only
 what is out of place. Where nodes move between parents, place every list at once with
@@ -348,9 +365,17 @@ markers as static attributes: `data-lf-gen="1"`, plus `data-lf-said` or `data-lf
 
 A widget upgrades wherever Leaf connects it, including in a shut panel where every box
 measures zero. Take a measurement inside `measure(element, take)`, which runs `take`
-now when the element has a box and otherwise the first time it does. `reserve(control,
-labels)` reserves a changing label's widest words, measured in the control's own face,
-through `measure`, and measures again when the window changes the face.
+now when the element has a box and otherwise the first time it does.
+
+A label whose words change, such as a count, keeps one width for all of them, so a
+change moves nothing beside it. Put the words it can show, one per line, in
+`data-lf-room` on an element whose one child holds the words, and write the words into
+that child. The theme draws the element as an inline block as wide as its widest room
+line in its own face, and no wider than its container; the room is invisible and stays
+out of its text and accessible name. The element keeps its own `::before` free for the
+room. Words wider than the room are cut with an ellipsis rather than widening it, so
+list the longest words the label will show; cut words stay whole in the accessible
+name.
 
 After a view swap that rearranges descendants without resizing the widget's outer box,
 call `layoutChanged(element)` and await its promise before restoring scroll. It
@@ -360,11 +385,11 @@ holds listens for; a listener joins asynchronous work through the event's
 
 `searchField(className, {name, label, placeholder = label})` builds a search or filter
 field with the shared frame, accessible label, native editor and Clear. The caller owns
-its query and results. Put an auxiliary reading such as a match count in its `end` slot
-and reserve its longest value with `reserve`.
+its query and results. Put an auxiliary reading such as a match count in its `end` slot,
+holding the room of its longest value as above.
 
 A widget folds content it may show again by setting its `hidden` to `HIDDEN`. Where the
 browser supports `hidden="until-found"`, find-in-page and fragment links still reach the
 content and fire `beforematch` on it, and the widget opens it there; elsewhere the
-content is plainly hidden. A folded element that is itself a Tab stop stays one, so the
+content is plainly hidden. Paper prints until-found content open. A folded element that is itself a Tab stop stays one, so the
 widget withdraws it.

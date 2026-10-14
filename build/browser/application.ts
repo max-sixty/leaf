@@ -68,10 +68,9 @@ import type {
  * `sending` and `accepted` are drawn from the gesture; from `:logged` on, the log's
  * own event draws it. An entry leaves in exactly two ways. A refused one waits for
  * `release`, once the reading it restores is on the page. An accepted one leaves on
- * reaching `accepted:presented`, unless it is an action: an action's widget and the
- * projection chrome can hold a reading past the document pass (a drag, a deferred
- * widget), so an action waits there for `release`, which its owner calls once those
- * regions have committed. A signal a state has no edge for leaves it where it is. */
+ * reaching `accepted:presented`, unless it is an action: an action's widget can hold a
+ * reading past the document pass (a deferred widget), so an action waits there for
+ * `release`, which its owner calls once those regions have committed. A signal a state has no edge for leaves it where it is. */
 type GestureState =
   | "sending"
   | "sending:logged"

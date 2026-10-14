@@ -5,10 +5,12 @@
  * renderers replace inherited work, and seals membership after that publication
  * checkpoint. Replacing a required renderer reopens mechanical completion for the same
  * epoch. It retains renderer instances, promises, and commit proof; none of those
- * mechanical values enter the semantic snapshot.
+ * mechanical values enter the semantic snapshot. Independent proof observers run
+ * outside a notifier's snapshot collection; their reads belong to their own owner.
  */
 
 import { signal } from "@preact/signals-core";
+import { untracked } from "./snapshot.ts";
 
 type PresentationOutcome = "presented" | "superseded";
 type PresentationStatus = "committed" | "failed";
@@ -598,13 +600,15 @@ export function createPresentationCoordinator<
     whenCurrentRegionsPresented,
     currentRegionsPresented,
     subscribe: (callback: () => void) =>
-      changes.subscribe(() => {
-        try {
-          callback();
-        } catch (reason) {
-          reportFailure(reason);
-        }
-      }),
+      changes.subscribe(() =>
+        untracked(() => {
+          try {
+            callback();
+          } catch (reason) {
+            reportFailure(reason);
+          }
+        }),
+      ),
     read,
   });
 }
@@ -636,7 +640,6 @@ export function createPresentationCoordinator<
  * handle releases a superseded hold; a superseded paint keeps its own ticket, so the
  * coordinator still reports its failure.
  */
-export const PRESENTATION_HELD = Symbol("presentation held");
 
 interface EpochPresenter<Value> {
   /** Claim this value's ticket now and paint it on the pass that follows. */
@@ -721,7 +724,7 @@ export function createPresentationSchedule(
     paint: (
       value: Value,
       current: () => boolean,
-    ) => Proof | PromiseLike<Proof> | typeof PRESENTATION_HELD;
+    ) => Proof | PromiseLike<Proof>;
     failSoft?: (reason: unknown) => Proof;
     order?: number;
   }): EpochPresenter<Value> {
@@ -742,15 +745,12 @@ export function createPresentationSchedule(
     async function run({ claimed, value, presentation }: Claim) {
       // Superseded before it painted: the newer claim's ticket already released this one.
       if (claimed !== generation) return;
-      let painted: Proof | PromiseLike<Proof> | typeof PRESENTATION_HELD;
+      let painted: Proof | PromiseLike<Proof>;
       try {
         painted = paint(value, () => claimed === generation);
       } catch (error) {
         painted = Promise.reject(error);
       }
-      // A withheld reading keeps its ticket open until a newer claim or `disconnect`
-      // releases it, so there is no answer to wait for.
-      if (painted === PRESENTATION_HELD) return;
       presentation.resolve(painted);
       // The coordinator's answer is the verdict on this reading. It resolves once the
       // region has committed one, fail-soft proof included, and rejects when the failure

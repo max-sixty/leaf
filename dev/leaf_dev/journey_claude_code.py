@@ -9,6 +9,8 @@ in its terminal interface, with this working tree's payload as its plugin
 (`--plugin-dir`) under a throwaway home (`arms.claude_home`) whose only content is
 the host's login. `--hooks-module` turns the plugin's `hooks_module` option on, so
 Leaf's hooks module keeps the watch in place of `hooks.json`'s background Stop hook.
+`--sandbox` runs the session's shell commands in Claude Code's sandbox, configured
+as the README asks a sandboxed user to configure it.
 The journey is then the user: it types into the session through a tmux pane,
 presses Escape, answers its permission prompts, and sends its comments at the
 journey's user end. It reads the page's log and claim in process, and stops at the
@@ -432,7 +434,9 @@ def transcript(home: Path, session: str) -> list[dict]:
 
 
 @contextmanager
-def answering(browser, *, hooks_module: bool) -> Iterator[tuple[User, Callable]]:
+def answering(
+    browser, *, hooks_module: bool, sandbox: bool
+) -> Iterator[tuple[User, Callable]]:
     """The user at the page an interactive Claude Code session serves, once it has,
     and the steps that follow."""
     require(shutil.which("tmux") is not None, "the claude-code journey drives tmux")
@@ -459,6 +463,14 @@ def answering(browser, *, hooks_module: bool) -> Iterator[tuple[User, Callable]]
                 "leaf@inline": {"options": {"hooks_module": hooks_module}}
             }
         }
+        if sandbox:
+            # The README's settings ("Agent sandboxes"), which run Leaf's own
+            # commands outside the sandbox the rest of the session stays in.
+            settings["sandbox"] = {
+                "enabled": True,
+                "failIfUnavailable": True,
+                "excludedCommands": ["leaf *"],
+            }
         # The session's id is the journey's from the start, so Claude Code's record
         # of it answers `approve` before the page is claimed.
         session = str(uuid.uuid4())

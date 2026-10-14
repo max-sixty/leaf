@@ -123,12 +123,7 @@
   display: flex;
   align-items: center;
   align-self: stretch;
-  font-size: var(--t-6);
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: .04em;
   padding: 0 5px;
-  color: var(--muted);
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state=before] {
   grid-column: 1;
@@ -1145,11 +1140,6 @@
     padding-inline-start: var(--lf-key-badge-col);
   }
 }
-@media print {
-  :scope:is(lf-options) > :is(.lf-another, lf-options-done) {
-    display: none;
-  }
-}
 :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option {
   position: relative;
   display: table;
@@ -1277,14 +1267,6 @@
     border: 0;
     box-shadow: none;
     margin: 0;
-  }
-  :scope:is(lf-options)[settled] > lf-option[hidden]:not([hidden=until-found]) {
-    display: none;
-  }
-}
-@media print {
-  :scope:is(lf-options)[settled] > lf-option {
-    content-visibility: visible !important;
   }
 }
 
@@ -1620,9 +1602,6 @@
   }
   :scope:is(lf-tabs).lf-rendered > lf-tab[hidden] {
     margin: 0;
-  }
-  :scope:is(lf-tabs).lf-rendered > lf-tab[hidden]:not([hidden=until-found]) {
-    display: none;
   }
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=box] > lf-tab {
     container-type: inline-size;
@@ -2005,9 +1984,6 @@
   }
 }
 @media print {
-  :scope:is(lf-tabs).lf-rendered > lf-tab {
-    content-visibility: visible !important;
-  }
   :scope:is(lf-tabs)[list=side] > lf-tab[group]::before {
     content: attr(group) " · " attr(label);
   }
@@ -2078,11 +2054,6 @@
 }
 :scope:is(lf-toc) .lf-toc-heading {
   margin: 0 0 7px;
-  color: var(--ink-2);
-  font-size: var(--t-6);
-  font-weight: 650;
-  letter-spacing: .08em;
-  text-transform: uppercase;
 }
 :scope:is(lf-toc) .lf-toc-start,
 :scope:is(lf-toc) .lf-toc-window {
@@ -2245,18 +2216,6 @@
       :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current=location])::before {
         background: var(--ink-2);
         border-color: var(--ink-2);
-      }
-      :scope:is(lf-toc) li[data-lf-depth="1"] {
-        --lf-toc-indent: 10px;
-      }
-      :scope:is(lf-toc) li[data-lf-depth="2"] {
-        --lf-toc-indent: 20px;
-      }
-      :scope:is(lf-toc) li[data-lf-depth="3"] {
-        --lf-toc-indent: 30px;
-      }
-      :scope:is(lf-toc) li[data-lf-depth="4"] {
-        --lf-toc-indent: 40px;
       }
       :scope:is(lf-toc) .lf-toc-start a,
       :scope:is(lf-toc) li a {
@@ -2521,31 +2480,21 @@
   color: var(--muted);
   font: var(--t-5) var(--sans);
 }
-@media print {
-  :scope:is(lf-activity) .lf-activity-news {
-    display: none;
-  }
-}
 
 /* skills/leaf/packages/default/styles/ask.css */
 :scope:is(lf-ask) {
   display: block;
 }
 @media screen {
-  :scope:is(lf-ask)[data-lf-space=column]:has(> [data-lf-space=wide]:not([data-lf-arranged])) {
-    --lf-reach: min(var(--wide), var(--lf-room, 0px));
-  }
-  :scope:is(lf-ask)[data-lf-space=column]:has(> [data-lf-space=available]:not([data-lf-arranged])) {
-    --lf-reach: var(--lf-room, 0px);
-  }
   :scope:is(lf-ask)[data-lf-space=column]:has(> :is([data-lf-space=wide], [data-lf-space=available]):not([data-lf-arranged])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
     padding-left: var(--lf-grow-l);
     padding-right: var(--lf-grow-r);
+    --lf-breakout: 1;
   }
 }
-:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
+:scope:is(lf-ask):has(> :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options) {
   --lf-options-across: 1;
 }
 @container style(--lf-full-height: 1) {

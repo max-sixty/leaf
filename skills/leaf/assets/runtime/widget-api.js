@@ -11,6 +11,7 @@
    bundled packages and kernel widgets alone (tests/runtime/widget-api.test.mjs). */
 export {
   html,
+  noChange,
   nothing,
   render,
   classMap,
@@ -27,6 +28,7 @@ export {
 export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
+export { LeafElement } from "./leaf-element.js";
 export { quoted } from "./widget-descriptors.js";
 export { initialRender } from "./initial-render.js";
 export { whileConnected, frameFor } from "./arrivals.js";
@@ -117,6 +119,8 @@ export {
   paintKeys,
   saying,
 } from "./keyboard/scopes.js";
+// The claim of a scope standing over the page: every key but the command reference's.
+export { allButCommandReference } from "./keyboard/register.js";
 export {
   afterScript,
   cancelRender,
@@ -228,7 +232,13 @@ export {
   tokenLines,
 } from "./syntax.js";
 export { bodyText, dataBody, failSoft, once, reportFailure } from "./widget-upgrade.js";
-export { saidAt, readHistory, reportSequence, reportsPresented } from "./reports.js";
+export {
+  saidAt,
+  readHistory,
+  reportSequence,
+  reportsPresented,
+  reportsReady,
+} from "./reports.js";
 // The one watcher of the page's readings (module-reading.md, "Page readings").
 export { watchProjection } from "./projection-watch.js";
 export {
@@ -243,7 +253,6 @@ export {
   offered,
   reachedForWords,
   relabel,
-  reserve,
   searchField,
   selectableOffer,
   worksInside,

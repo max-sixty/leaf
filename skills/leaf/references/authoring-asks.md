@@ -9,7 +9,8 @@ The user answers an ask from what is on screen when they reach it, often by pres
 `m` (`conversation-loop.md`, "The On lists"). Keep its question,
 short shared premise, and evidence together with the answering control. Use `lf-ask`
 to frame that material when it lives outside the answering widget: a question heading,
-then context and evidence, then one answering widget. Backing detail and reproductions
+its context and evidence, and one answering widget, in the order the reader needs them.
+Backing detail and reproductions
 of the current behavior follow the ask.
 
 On a quick-answer page, open with the ask and put its backing in a disclosure
@@ -24,7 +25,7 @@ last.
 
 An `lf-ask` keeps the prose's width on every page, so its question, options and the
 marker beside it stand with the paragraphs around it. An `lf-ask` that frames a
-figure, such as a chart, image or table, around one option list sets its titled options
+figure, such as a chart, image or table, before its option list sets its titled options
 side by side under the figure, as many as its width holds, so the question, the figure
 and the options share the window. A playground or another surface in
 an `lf-ask` that uses every column it gets takes `data-width="available"` itself, so the

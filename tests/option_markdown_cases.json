@@ -1,11 +1,17 @@
 [
-  {"source": "Can we leave it to the _widget_?", "words": "Can we leave it to the widget?"},
-  {"source": "A \\*literal\\* marker", "words": "A *literal* marker"},
-  {"source": "H~2~O", "words": "H~2~O"},
-  {"source": "[unsafe label](javascript:alert(1))", "words": "unsafe label"},
-  {"source": "![unsafe alt](javascript:alert(1))", "words": "unsafe alt"},
-  {"source": "first  \nsecond", "words": "first second"},
-  {"source": "A _b_<code>c</code>", "words": "A b c"},
-  {"source": "X<em>Y</em>", "words": "X Y"},
-  {"source": "<small class=\"tag\">effort: low</small><small class=\"tag\">risk: med</small>", "words": "effort: low risk: med"}
+  {
+    "source": "Can we leave it to the _widget_?",
+    "words": "Can we leave it to the widget?"
+  },
+  { "source": "A \\*literal\\* marker", "words": "A *literal* marker" },
+  { "source": "H~2~O", "words": "H~2~O" },
+  { "source": "[unsafe label](javascript:alert(1))", "words": "unsafe label" },
+  { "source": "![unsafe alt](javascript:alert(1))", "words": "unsafe alt" },
+  { "source": "first  \nsecond", "words": "first second" },
+  { "source": "A _b_<code>c</code>", "words": "A b c" },
+  { "source": "X<em>Y</em>", "words": "X Y" },
+  {
+    "source": "<small class=\"tag\">effort: low</small><small class=\"tag\">risk: med</small>",
+    "words": "effort: low risk: med"
+  }
 ]

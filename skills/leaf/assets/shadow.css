@@ -1191,6 +1191,14 @@ svg[data-lf-icon] {
   visibility: hidden;
   white-space: pre-line;
 }
+[data-lf-room] > * {
+  display: block;
+  inline-size: 0;
+  min-inline-size: 100%;
+  overflow: clip;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 :is(.lf-btn, .button):not(:disabled, [aria-disabled=true]):hover {
   background: var(--chip);
 }

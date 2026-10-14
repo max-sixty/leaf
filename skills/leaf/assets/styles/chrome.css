@@ -282,12 +282,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
       margin-inline-start: var(--lf-status-inset-left); }
   }
   /* Reading targets keep the room of their words. Approval takes the remaining room,
-     down to the shared aim floor, and truncates its label when a larger face needs
-     more than the window can hold. Its complete text remains the accessible name. */
+     down to the shared aim floor, and its room cuts its label when a larger face needs
+     more than the window can hold (controls.css). Its complete text remains the
+     accessible name. */
   .lf-banner-actions > .lf-btn { flex: none; }
   .lf-banner-actions > .lf-signoff { flex-shrink: 1; overflow: hidden; }
-  .lf-signoff > [data-lf-room] { overflow: hidden; text-overflow: ellipsis;
-    vertical-align: top; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)) { border-color: transparent;
     border-radius: 0; background: transparent; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
@@ -344,10 +343,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     .lf-banner-status[data-lf-notice] .lf-status-notice { display: -webkit-box; }
     .lf-banner-status[data-lf-notice] .lf-status-text { opacity: 0; }
   }
-  /* The agent's On count is a page fact, apart from the sentence, in a box with room for
-     the count it usually reaches (banner-status-view.js) that only grows; tabular digits
-     from a fixed leading edge, so a count changing moves nothing. Its own press opens
-     the On panel. */
+  /* The agent's On count is a page fact, apart from the sentence, in a box holding the
+     room of the count it usually reaches (banner-status-view.js); tabular digits from a
+     fixed leading edge, so a count changing moves nothing. Its own press opens the On
+     panel. */
   .lf-banner > .lf-status-queues { flex: none; min-height: var(--aim-floor);
     padding: 2px 0; border: 0; border-radius: 4px; background: none; font: inherit;
     text-align: left; cursor: pointer; white-space: nowrap; line-height: 1.35;

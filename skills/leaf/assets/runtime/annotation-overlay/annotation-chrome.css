@@ -193,15 +193,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     width: min(var(--lf-comment-width), var(--lf-thread-width));
   }
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type {
-    display: flex; flex-direction: column; max-height: 100%;
+    grid-template-rows: auto minmax(0, 1fr); max-height: 100%;
   }
   /* Pictures keep their complete image in the transcript's ordinary reading flow.
      Their extent can scroll there; the editor's cap still belongs only to its words. */
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type:has(.lf-msg-media) {
     max-height: none;
-  }
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-head {
-    flex: none;
   }
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body {
     display: flex; flex-direction: column; min-height: 0;

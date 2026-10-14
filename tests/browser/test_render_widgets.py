@@ -4338,10 +4338,6 @@ def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
     asserted first: the board must be at its floor and scrolling for the rest, or a
     board that simply fitted would pass this while proving nothing."""
     page = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
-    # The title spends the grip's room too; short titles can hide a missing reservation.
-    page.locator("#sq-card-0 > strong").evaluate(
-        "title => { title.textContent = 'Internationalization'; }"
-    )
     measured = page.evaluate(
         """() => {
         const board = document.getElementById('crowd');
@@ -4363,16 +4359,16 @@ def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
                         broken.push(m[0]);
                 }
         }
+        const card = board.querySelector('lf-card');
+        const style = getComputedStyle(card), box = card.getBoundingClientRect();
+        const measure = box.width - parseFloat(style.paddingLeft)
+            - parseFloat(style.paddingRight) - parseFloat(style.borderLeftWidth)
+            - parseFloat(style.borderRightWidth);
         return { broken,
                  scrolls: board.scrollWidth - board.clientWidth,
                  widths: columns.map((c) => c.getBoundingClientRect().width),
-                 measure: (() => {
-                     const card = board.querySelector('lf-card');
-                     const s = getComputedStyle(card), b = card.getBoundingClientRect();
-                     return b.width - parseFloat(s.paddingLeft)
-                          - parseFloat(s.paddingRight) - parseFloat(s.borderLeftWidth)
-                          - parseFloat(s.borderRightWidth);
-                 })() };
+                 measure,
+                 titleMeasure: measure - parseFloat(getComputedStyle(card, '::before').width) };
     }"""
     )
     # The premise, read off the layout rather than off the property behind it: a grid of
@@ -4382,6 +4378,10 @@ def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
     assert measured["scrolls"] > 1 and len(set(measured["widths"])) == 1, (
         f"this board is not at its floor, so its words prove nothing: {measured}"
     )
+    # The default board promises 136px for title words beside the grip. Check that
+    # available line measure directly: a particular long word may exceed it in
+    # another platform's font even when the allocation is correct.
+    assert measured["titleMeasure"] >= 136 - 1, measured
     assert measured["broken"] == [], (
         f"a board at its floor gave each card {measured['measure']:.0f}px of measure "
         f"and broke {', '.join(sorted(set(measured['broken'])))} across two lines"

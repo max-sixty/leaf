@@ -660,8 +660,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   connections per host. Measured on 2026-10-13, polling costs about 1% of one core
   per visible tab locally. On leaf.page each look bills a Worker and a Durable
   Object request, under $1.20 a month per user at list price and inside the
-  included quotas, and polling accounts for about 1% of container hours; a held
-  stream keeps the container awake as polling does. Push would show an agent's
+  included quotas, and polling accounts for about 1% of container hours. A stopped
+  container stays asleep under polling, since its Durable Object answers `api/news`
+  from the page the container last saved; a stream held in the container would
+  wake it for a passive reader, so push needs an idle path of its own before its
+  cost compares with polling's. Push would show an agent's
   change sooner: locally the file watcher notices an append in about 90 ms against
   polling's 125 ms average, and on leaf.page, where a look takes about 370 ms, it
   would save roughly 250 ms. A sketch of one stream per browser (a leader tab

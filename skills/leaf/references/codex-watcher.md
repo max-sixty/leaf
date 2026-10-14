@@ -1,21 +1,21 @@
 # Codex watcher task
 
-A Codex watcher keeps a Leaf wait active after the page's task ends its turn. It
-forwards each complete batch into that task through a background follow-up. It needs
-a harness that offers both task creation and background follow-ups, and it adds a
-visible task to the user's sidebar.
+A Codex watcher task keeps a `leaf wait` running after the page's task ends its turn,
+and forwards each batch into that task as a background follow-up. It needs a harness
+that offers task creation and background follow-ups, and it adds a visible task to the
+user's sidebar.
 
-Create one watcher per page in the same saved project. Give it the exact page task id,
-page path, resolved Leaf launcher, and the path of `references/event-batches.md`,
+Create one watcher per page in the same saved project. Give it the page task's exact
+id, the page path, the resolved Leaf launcher, and the path of `event-batches.md`,
 whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
 
-1. Confirm that `send_message_to_thread` is available before claiming the page. If it is
-   missing, finish with that reason and do not run `leaf wait`.
-2. Run `leaf page claim <page>`, then `leaf wait <page>` in unified exec. Retain the command's session id and
-   poll it with empty `write_stdin` calls and long yields. Keep the watcher turn active
-   while the page is live.
-3. Once the complete output arrives, send one background follow-up to the page task. Put
-   this instruction before the wait output:
+1. Check that `send_message_to_thread` is available. If it isn't, finish with that
+   reason and don't run `leaf wait`.
+2. Run `leaf page claim <page>`, then `leaf wait <page>` in unified exec. Keep the
+   command's session id and poll it with empty `write_stdin` calls and long yields,
+   keeping the watcher's turn running while the page is live.
+3. When the complete output arrives, send one background follow-up to the page task,
+   with this instruction before the wait output:
 
    ```text
    This Leaf batch was forwarded by a watcher task, which ran the wait and
@@ -24,18 +24,18 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
    a later delivery also contains newer events.
    ```
 
-   Append the complete wait output verbatim. If the send fails or its outcome is
-   uncertain, acknowledge nothing and resend the same follow-up. For lost or
-   truncated output, reread the delivery before forwarding it.
-4. After the harness accepts the follow-up, run `leaf wait --ack <delivery-id>` in
-   unified exec. Retain and poll that command's session id. A batch on stdout is
-   the next delivery; return to step 3. Follow any ending diagnostic. The watcher
-   does not author, reply, resolve, stamp, change status, or handle an event itself.
+   Append the complete wait output verbatim. If the send fails or its result is
+   uncertain, acknowledge nothing and send the same follow-up again. If the output was
+   lost or cut off, read the delivery again before forwarding it.
+4. Once the harness accepts the follow-up, run `leaf wait --ack <delivery-id>` in
+   unified exec and poll it the same way. A batch on stdout is the next delivery; go
+   back to step 3. Follow any message that ends the wait. The watcher never replies,
+   stamps, changes status or handles an event itself.
 
-Wait for the watcher to claim the page, title it `Leaf watcher — <page name>`, and confirm
-that `leaf page state <page>` reports `listening: true` before ending the page task's
-turn. The explicit claim transfers ownership to the watcher, so the page task's Stop
-hook stands down. Status declarations, replies, and versions do not reclaim the page. Setting
-the page idle ends the watcher's next wait.
+Before ending the page task's turn, wait until the watcher has claimed the page, title
+the watcher task `Leaf watcher — <page name>`, and check that `leaf page state <page>`
+reports `listening: true`. The claim moves the page to the watcher, so the page task's Stop hook
+no longer keeps its turn open, and nothing the page task does later takes the page back.
+Setting the page idle ends the watcher's next wait.
 
 When a forwarded batch reaches the page task, follow its instruction.

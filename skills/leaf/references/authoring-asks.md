@@ -1,92 +1,71 @@
 # Asks and sign-off
 
-Pose an ask for every decision waiting on the user. A recommendation leaves
-that decision open until the user decides. `conversation-loop.md`, "The On
-lists", owns the complete queue contract, including conversational questions and
-requests for actions outside the page.
+Pose an ask for every decision waiting on the user. Recommending an answer doesn't
+make the decision. `conversation-loop.md`, "The On lists", covers everything the user
+is asked for, including questions in the conversation and actions outside the page.
 
 The user answers an ask from what is on screen when they reach it, often by pressing
-`m` (`conversation-loop.md`, "The On lists"). Keep its question,
-short shared premise, and evidence together with the answering control. Use `lf-ask`
-to frame that material when it lives outside the answering widget: a question heading,
-its context and evidence, and one answering widget, in the order the reader needs them.
-Backing detail and reproductions
-of the current behavior follow the ask.
+`m`. Keep the question, a short premise and the evidence next to the answering control.
+When that material sits outside the answering widget, frame it with an `lf-ask`: a
+question heading, its context and evidence, and one answering widget. Backing detail
+goes after the ask.
 
-On a quick-answer page, open with the ask and put its backing in a disclosure
-after it. The first viewport should show the objective, current state, and
-what the user can do next together.
+On a quick-answer page, open with the ask and put its backing in a disclosure after it;
+the first screen shows the goal, the current state and what the user can do next. On a
+record or system page, put each ask in the part of the page it decides: an ask about
+one item goes with that item, and an ask that turns on a claim contains the claim and
+its evidence. Only an ask about the whole record comes last.
 
-On a record or system page, put each ask in the part of the page it decides,
-and let the page continue after it. An ask about one item of a list sits with
-that item, and an ask that turns on a claim holds the claim and its evidence
-rather than following them. Only an ask that turns on the whole record comes
-last.
+An `lf-ask` keeps the prose's width. When it frames a figure above its options, the
+options sit side by side under the figure, so question, figure and options share the
+window. Give a playground or other wide surface inside an `lf-ask`
+`data-width="available"` (`page-layout.md`, "Bounds and widths").
 
-An `lf-ask` keeps the prose's width on every page, so its question, options and the
-marker beside it stand with the paragraphs around it. An `lf-ask` that frames a
-figure, such as a chart, image or table, before its option list sets its titled options
-side by side under the figure, as many as its width holds, so the question, the figure
-and the options share the window. A playground or another surface in
-an `lf-ask` that uses every column it gets takes `data-width="available"` itself, so the
-question and its premise keep the prose's width (`page-layout.md`, "Bounds and
-widths").
+Write asks the user can answer independently in page order. If a later ask depends on
+an earlier answer, pose it in the next turn rather than writing every branch.
 
-Write related, independently answerable asks in page order. A widget can carry its
-own question and context, or an `lf-ask` can frame them around it. They remain visible
-as one complete page. If a later ask depends on an earlier answer, publish it in the
-next turn instead of authoring every possible branch.
+The answering widget holds the ask's answer and status. A choice can record a partial
+answer before the user presses Done, and an empty selection can be a complete answer.
+A decision widget on its own also poses an ask; an `lf-ask` around it adds context, not
+a second ask.
 
-Each ask contains its prompt, current typed answer and status. Widget state
-owns the answer: a choice can supply a partial value before its Done completes
-the ask, and an empty selection can be a completed answer. `lf-ask` adds
-context around the answering widget; it does not create another ask or
-replace the widget's identity. Standalone decision widgets also pose asks.
+If an ask stops mattering before the user answers, remove it in a new version or mark
+it `restated` (`authoring-revisions.md`). A to-do you put on the user is work for them
+to do, such as trying a build, not a question.
 
-If a widget ask stops mattering before the user answers, retire its source in a
-version or mark that source `restated` as `authoring-revisions.md` says. A to-do you
-put on the user is work you ask them to do, such as trying a build, rather than a
-question they answer (`conversation-loop.md`, "The On lists").
+When the user chooses which of several items to act on, and no item's answer depends on
+the others, give each item its own ask with explicit accept and reject choices, placed
+with that item's case, so the user can answer each as they review it. Either choice
+answers the ask. When many items are clear-cut, one ask can accept them together if it
+says for each why it is clear-cut; contested items keep their own asks. Use one
+`lf-options` with `multiple` only when the answers depend on each other, such as a limit
+on how many.
 
-The user can finish each independently answerable proposal as they review it,
-without leaving the material it rests on. Choosing which of several items to act
-on poses one proposal per item whenever each item's answer would stand whatever
-the others get. Give each its own answering widget with explicit accept and reject
-choices, placed with that item's case. Use `lf-ask` when its heading and evidence
-live outside that widget. Either choice completes the proposal's ask; leaving
-it unanswered keeps it open. Where many proposals are clear-cut, one ask may
-accept them together if it states, for each, what makes it clear-cut; the contested
-ones keep their own asks. A selected set, answered in one `lf-options` with
-`multiple`, is for items whose answers depend on each other, such as a limit on how
-many or a combination that has to work together.
+Each option shows, inside the ask, what choosing it gives the user, in the form
+`page-authoring.md`, "Show the subject", gives that kind of thing, on every page,
+plans and work-item lists included:
 
-Each option shows what choosing it gives the user, inside the ask and in the form
-`page-authoring.md`, "Show the subject", names for that kind of thing, on any page, a
-plan or a list of work items included. For an interface or behavior choice, make the
-relevant interaction work inside each option so the user can try every alternative
-before choosing. For a choice between arrangements, structures, or mechanisms that
-nothing can run yet, draw each option inside it, all in one frame at one scale. A
-proposal to accept or reject, or a piece of work to take on, is a choice between
-today and the change: show both in the form the work takes, with the change beside
-today in one frame or in the accepting option. A visible fault is a capture cropped
-or marked where it goes wrong, beside a drawing or demonstration of the fix. A code
-or data change is the text before and after where that text is what the user judges;
-otherwise it shows what the change does, such as which rule wins, before and after,
-with the code beside it. A choice of wording shows each wording as it would appear.
-In each case, hold everything except the disputed treatment constant, and include
-the current or no-treatment case as a neutral control. Put longer rationale
-or provenance in a disclosure after the ask.
-The `lf-ask`, `lf-options`, and `lf-option` entries say how to word the question and
-shape each option.
+- For an interface or behavior choice, make the interaction work inside each option so
+  the user can try every alternative.
+- For arrangements or mechanisms nothing can run yet, draw each option, all in one
+  frame at one scale.
+- For a proposal to accept or reject, show today beside the change, in one frame or in
+  the accepting option. A visible fault is a capture marked where it goes wrong, beside
+  a drawing or demonstration of the fix.
+- For a code or data change, show the text before and after when the text is what the
+  user judges; otherwise show the change's effect before and after, with the code
+  beside it.
+- For a choice of wording, show each wording as it would appear.
 
-When the page exists for the user to choose among approaches, it is organized
-around that choice. Its title and headings name the question and state what the
-alternatives differ on without answering it, and your recommendation is advice,
-stated as yours and marked on its option. Each alternative gets the same depth on
-the same example, and a revision that adds detail adds it to each. An
-alternative's costs and open questions belong in its case; how to build it, and
-asks that arise only once it is chosen, wait for the user's pick, the one you
-recommend included.
+Vary only the treatment in question, and include today's version or no change as a
+neutral option. Put longer rationale in a disclosure after the ask. The `lf-ask`,
+`lf-options` and `lf-option` entries say how to word the question and options.
+
+When the page exists for the user to choose among approaches, organize it around that
+choice. The title and headings name the question and what the alternatives differ on,
+without answering it. Mark your recommendation on its option as your advice. Give each
+alternative the same depth on the same example. How to build an alternative, and
+questions that arise only once it is chosen, wait for the user's pick.
 
 ## Sign-off
 
@@ -96,9 +75,8 @@ A page whose approval unblocks work declares:
 <meta name="lf-review" content="sign-off">
 ```
 
-An informational page omits it. Leaf offers approval only on a stamped
-version that declares it, so stamp a draft before requesting its sign-off. Each such
-version gets an approval ask; that version's approval answers it, and Undo reopens
-it. Approval requires every widget ask on the page and in its unresolved threads to
-be answered or withdrawn. Widget asks in resolved threads and prose asks do not
-block approval. Discussion alone leaves a widget's answer incomplete.
+Leaf offers approval only on a stamped version that declares it, so stamp a draft
+before asking for sign-off. Each such version gets an approval ask, which approving the
+version answers and Undo reopens. Approval needs every widget ask on the page and in its
+unresolved threads answered or withdrawn; asks in resolved threads and asks written only
+in prose don't block it.

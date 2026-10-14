@@ -488,7 +488,7 @@ export class ThreadView {
         (this.#model?.messages ?? []).flatMap(
           ({ key }) => this.#messages.get(key) ?? [],
         ),
-      paint: (message) => this.repaint({ resizing: message }),
+      paint: (message) => this.repaint({ writing: message }),
       send: (id, text, options) =>
         this.#speak(
           () => commands.reply.actions.edit(this.#model.key, id, text, options),
@@ -808,7 +808,7 @@ export class ThreadView {
 
   #drawnWith = null;
 
-  present(model, { retaining = false, viewChanged = false, resizing = null } = {}) {
+  present(model, { retaining = false, viewChanged = false, writing = null } = {}) {
     this.#received = model;
     this.#drawnWith = this.#outside(model);
     const prior = this.#model;
@@ -846,19 +846,16 @@ export class ThreadView {
     // Capture the current words only when news starts waiting, before its update
     // removes a receipt. This allocation lives with the held view, not its reading.
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-    // Follow the boxes the user resizes, through a disclosure or rewrite, including
-    // a save closing an editor. News still retains the reply's former place.
+    // The messages being rewritten, whose own changes of height the held extent follows
+    // (ReplyContinuity): the one a rewrite gesture names, and every one whose rewrite
+    // stands open, a save closing it among them.
     const rewritten = new Set(
       [...this.#messages.values()]
         .filter((view) => view.editing)
         .map(({ node }) => node),
     );
-    if (resizing) rewritten.add(resizing);
-    const bodyPlace = this.#continuity?.before(
-      [...rewritten].filter(
-        (node) => !resizing || node === resizing || !resizing.contains(node),
-      ),
-    );
+    if (writing) rewritten.add(writing);
+    const bodyPlace = this.#continuity?.before([...rewritten]);
     const restoreFocus = holdFocus(this.node);
     const standing = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -1452,7 +1449,7 @@ export class ThreadView {
       if (expanded) this.#expandedSummaries.add(id);
       else this.#expandedSummaries.delete(id);
     }
-    this.repaint({ resizing: this.#transcript });
+    this.repaint();
     const toggle = this.node.querySelector(
       `.lf-summary-expand[data-summary-toggle="${CSS.escape(ids[0])}"]`,
     );
@@ -1572,7 +1569,7 @@ export class ThreadView {
   // stands above the growing quote so a press never moves its own target.
   #toggleQuote = () => {
     this.#quoteExpanded = !this.#quoteExpanded;
-    this.repaint({ resizing: this.#quoteNode });
+    this.repaint();
   };
 
   // A pointer press that ended holding the quote's words took them rather than the trip.

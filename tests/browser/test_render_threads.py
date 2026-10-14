@@ -69,6 +69,7 @@ from render_harness import (
     consume_browser_errors,
     example_media,
     expect_asks_answered,
+    held_frames,
     hold_pending_thread_presentation,
     holding,
     judge_watches,
@@ -9130,6 +9131,89 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
         }"""
     )
     assert held == {"scroller": True, "atEnd": True}, held
+
+
+def test_a_reply_disclosure_returns_its_room_after_progress_is_hidden(browser, serve):
+    """A native disclosure in rich reply content shares the card's resize behavior."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Could we make the banner quieter?")
+    address = {"to": root, "for": root}
+    thread_model.post_reply(
+        serve.page_dir, address, "Checking the labels.", ephemeral=True
+    )
+    words = "The labels remain legible in both schemes. " * 12
+    thread_model.post_reply(
+        serve.page_dir,
+        address,
+        "Here is the inspection detail.",
+        markup=f"<details open><summary>Inspection detail</summary><p>{words}</p></details>",
+    )
+    page = open_page(browser, url)
+    open_threads_list(page, 1400, 900)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(":scope > .lf-thread-summary").click()
+    progress = card.locator(".lf-summary-expand")
+    progress.click()
+    rendered(page)
+    progress.click()
+    rendered(page)
+    details = card.locator(".lf-msg-body details")
+    before = card.bounding_box()["height"]
+    expanded = details.bounding_box()["height"]
+    details.locator("summary").press("Enter")
+    expect(details).not_to_have_attribute("open", "")
+    rendered(page)
+    given_back = expanded - details.bounding_box()["height"]
+    assert given_back > 100
+    assert card.bounding_box()["height"] == pytest.approx(before - given_back, abs=0.5)
+
+
+def test_collapsing_progress_preserves_room_for_a_later_canceled_stream(
+    browser, serve, request
+):
+    """Only the disclosure's own change resizes the reply, even before a frame paints."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep this thread here.")
+    for words in ("Checking labels.", "Measuring controls.", "Checking both schemes."):
+        thread_model.post_reply(
+            serve.page_dir, {"to": root, "for": root}, words, ephemeral=True
+        )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": root,
+            "text": "The labels work.",
+        },
+    )
+    claim_for_codex(serve.page_dir, request)
+    stream_reply(
+        serve.page_dir,
+        root,
+        "This provisional answer has several lines of useful context. " * 5,
+    )
+    page = open_page(browser, url)
+    open_threads_list(page, 1400, 1200)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(":scope > .lf-thread-summary").click()
+    stream = card.locator(f'.lf-msg[data-attempt="{STREAM_ATTEMPT}"]')
+    expect(stream).to_be_visible()
+    rendered(page)
+    compact = card.bounding_box()["height"]
+    progress = card.locator(".lf-summary-expand")
+    progress.press("Enter")
+    rendered(page)
+    with held_frames(page):
+        progress.press("Enter")
+        expect(progress).to_have_attribute("aria-expanded", "false")
+        with service_model.PageTransaction(serve.page_dir) as transaction:
+            transaction.clear_stream_reply("codex-thread", "leaf-turn")
+        expect(stream).to_have_count(0)
+    rendered(page)
+    assert card.bounding_box()["height"] == pytest.approx(compact, abs=0.5)
 
 
 def reply_by_keyboard(page, root):

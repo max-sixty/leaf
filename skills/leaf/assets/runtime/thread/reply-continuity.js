@@ -11,9 +11,9 @@
    A change of inline measure starts a fresh allocation. Native edits resize that
    room to their intrinsic content. What the user writes is theirs to see grow and
    shrink: the retained body extent follows the boxes the user resizes, through native
-   editing, a rewrite or a disclosure (`before(resizing)`). Hiding progress or a full
-   quote returns its room rather than retaining an empty transcript, while space held
-   for news stays held.
+   editing, a rewrite (`before(writing)`) or a disclosure's click. Disclosures declare
+   their content through native details or aria-controls, so rich replies and Leaf's
+   own controls follow the same resize path. Space held for news stays held.
    A departed or closed region releases that mechanical extent. A floating card
    bounds that extent by its already allocated body room.
    No message or delivery state is retained; a short panel card starts at its
@@ -21,7 +21,29 @@
 import { growthIsSeen, whenNone } from "../geometry.js";
 import { atLayoutPrecision, layoutPx } from "../keeps.js";
 import { TEXT_FIELD } from "../control-selectors.js";
-import { nextRender, sizeObserver } from "../rendering.js";
+import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
+import { DISCLOSURE_SELECTOR, disclosed } from "../keyboard/disclosure.js";
+
+// The smallest box containing a disclosure and all the content it controls. Native
+// details declares that box itself; ARIA disclosures name their content by id.
+function disclosureLayout(control) {
+  if (control.matches("details > summary"))
+    return {
+      region: control.parentElement,
+      state: control.parentElement,
+      attribute: "open",
+    };
+  const root = control.getRootNode();
+  const controlled = (control.getAttribute("aria-controls") ?? "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((id) => root.getElementById(id));
+  if (!controlled.length || controlled.some((node) => !node)) return null;
+  let region = control;
+  while (region && !controlled.every((node) => region.contains(node)))
+    region = region.parentElement;
+  return region ? { region, state: control, attribute: "aria-expanded" } : null;
+}
 
 // The box an edit is written in: the thread's reply row, or the message whose rewrite
 // holds the target.
@@ -42,6 +64,7 @@ export class ReplyContinuity {
   #presenting = [];
   #writing = null;
   #measure = null;
+  #disclosure = null;
   #sizes = sizeObserver((entries) => {
     const writing = this.#writing;
     if (
@@ -76,6 +99,9 @@ export class ReplyContinuity {
     owner.addEventListener("toggle", () => {
       if (!this.#visible()) this.release();
     });
+    owner.addEventListener("click", (event) => this.#disclosed(event), {
+      capture: true,
+    });
     owner.addEventListener("lf-before-edit", (event) =>
       this.#readArea(writingArea(this.#row, event.target)),
     );
@@ -87,6 +113,52 @@ export class ReplyContinuity {
       { capture: true },
     );
   }
+  // Pointer and keyboard activation both click the disclosure. Capture before its
+  // handler or native default changes the box, then reconcile at its state checkpoint.
+  // Waiting for a frame would include passive changes arriving after that gesture.
+  // The composed path reaches disclosures in a message widget's shadow root too.
+  #disclosed(event) {
+    this.#disclosure?.finish();
+    const control = event
+      .composedPath()
+      .find((node) => node instanceof Element && node.matches(DISCLOSURE_SELECTOR));
+    if (!control) return;
+    const layout = disclosureLayout(control);
+    if (!layout || layout.region === this.#owner || !this.#visible()) return;
+    const { region, state, attribute } = layout;
+    const open = disclosed(control);
+    const height = region.getBoundingClientRect().height;
+    const extent = this.before();
+    const reading = { region, frame: null, observer: null, finish: null };
+    const finish = () => {
+      cancelRender(reading.frame);
+      reading.observer.disconnect();
+      if (this.#disclosure !== reading) return;
+      this.#disclosure = null;
+      if (
+        !control.isConnected ||
+        !region.isConnected ||
+        disclosed(control) === open ||
+        !this.#visible()
+      )
+        return;
+      this.after(
+        Math.max(
+          0,
+          (this.#extent ?? extent) + region.getBoundingClientRect().height - height,
+        ),
+      );
+    };
+    reading.finish = finish;
+    this.#disclosure = reading;
+    // Watch the state node itself: toggle neither bubbles nor leaves a shadow root.
+    reading.observer = new MutationObserver(() => {
+      if (disclosed(control) !== open) finish();
+    });
+    reading.observer.observe(state, { attributes: true, attributeFilter: [attribute] });
+    // A canceled activation changes no state; it still ends this observation.
+    reading.frame = nextRender(finish);
+  }
   #visible() {
     return (
       this.#owner.isConnected &&
@@ -95,13 +167,14 @@ export class ReplyContinuity {
       growthIsSeen(this.#row)
     );
   }
-  // Follow height changes of boxes the user resizes in this presentation.
-  before(resizing = []) {
+  // A disclosure's region already includes the editors inside it. Count each change
+  // once, while still following an independent rewrite elsewhere in the card.
+  before(writing = []) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     this.#presenting = [];
     if (!this.#visible()) return null;
-    this.#presenting = resizing
-      .filter((node) => node.isConnected)
+    this.#presenting = writing
+      .filter((node) => node.isConnected && !this.#disclosure?.region.contains(node))
       .map((node) => ({ node, height: node.getBoundingClientRect().height }));
     const body =
       this.#owner.localName === "details"
@@ -189,6 +262,11 @@ export class ReplyContinuity {
     this.#writing = null;
   }
   release() {
+    if (this.#disclosure) {
+      cancelRender(this.#disclosure.frame);
+      this.#disclosure.observer.disconnect();
+    }
+    this.#disclosure = null;
     this.#departure?.();
     this.#departure = null;
     this.#extent = null;

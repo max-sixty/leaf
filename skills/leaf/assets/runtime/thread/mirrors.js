@@ -17,7 +17,8 @@ import { createReplyView, replyAvailable } from "./replies.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
 import { elementById } from "../passages.js";
-import { SAY_BOX, THREAD } from "./selectors.js";
+import { THREAD } from "./selectors.js";
+import { threadPart } from "./focus.js";
 import { threadRewrites } from "./message-edit.js";
 import { orderChildren } from "../dom-children.js";
 import { move } from "../dom-move.js";
@@ -136,10 +137,10 @@ export function registerMirrorConsumer(owner, render, { commands }) {
    one physical destination on every pass. A message part offers the user's rewrite of
    it, and a reply part ↑ to the latest, as a thread card does, through the thread's one
    rewrite owner over the parts this reader draws (`threadRewrites`). Layout and
-   disclosure belong to the caller. A presentation that answers a thread in an editor
-   of its own, as the floating panel does in its field, names it (`replyBox`), and that
-   editor is the thread's reply destination, as a drawn reply box would be. */
-export function createPrimaryReader(owner, render, commands, update, replyBox = null) {
+   disclosure belong to the caller. The thread's reply destination is its reply box as
+   the parts stand: a reply part's, or the one the presentation drawing them declares
+   (focus.js, `threadPart`), as the floating panel declares its field. */
+export function createPrimaryReader(owner, render, commands, update) {
   let active = true;
   let generation = 0;
   let pending = null;
@@ -178,6 +179,15 @@ export function createPrimaryReader(owner, render, commands, update, replyBox = 
     selected
       .filter((item) => item.key === key && item.kind === kind)
       .flatMap((item) => views.get(item.identity) ?? []);
+  // The thread's reply box as the parts drawn stand, in a reply part or where the
+  // presentation around them declares it.
+  const replyOf = (key) => {
+    for (const view of destinations.get(key) ?? []) {
+      const input = !view.node.hidden && threadPart(view.node, "reply");
+      if (input) return input;
+    }
+    return null;
+  };
   const rewritesOf = (key) => {
     if (!rewrites.has(key))
       rewrites.set(
@@ -200,12 +210,7 @@ export function createPrimaryReader(owner, render, commands, update, replyBox = 
             partsOf(key, "message")
               .find((view) => view.message.node === node)
               ?.draw(),
-          box: () => {
-            const reply = partsOf(key, "reply")[0];
-            return reply && !reply.node.hidden
-              ? reply.node.querySelector(SAY_BOX)
-              : null;
-          },
+          box: () => replyOf(key),
           home: (node) => node.closest(THREAD),
           opening: () => shown.get(key)?.news?.open(),
           landInThread: commands.reply.landInThread,
@@ -462,16 +467,7 @@ export function createPrimaryReader(owner, render, commands, update, replyBox = 
       }
       return null;
     }
-    if (part !== "thread") {
-      const own = replyBox?.(key);
-      if (own) return own;
-    }
-    if (part !== "thread")
-      for (const view of parts) {
-        const input = view.node.querySelector(SAY_BOX);
-        if (input && !view.node.hidden) return input;
-      }
-    return parts[0]?.node ?? null;
+    return (part !== "thread" && replyOf(key)) || (parts[0]?.node ?? null);
   };
   return Object.freeze({
     owner,
@@ -482,7 +478,7 @@ export function createPrimaryReader(owner, render, commands, update, replyBox = 
     ownsMessage: (message) => owner.isConnected && nativeMessages.has(message.id),
     ownsDestination: (node) =>
       [...views.values()].some((view) => under(node, view.node)) ||
-      [...destinations.keys()].some((key) => replyBox?.(key) === node),
+      [...destinations.keys()].some((key) => replyOf(key) === node),
     cancel() {
       ++generation;
       pending?.abort();

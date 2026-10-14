@@ -9,6 +9,7 @@ import {
 import { shownBox } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { closestAcross } from "../passages.js";
+import { upFrom } from "../shadow.js";
 import { nextRender } from "../rendering.js";
 import { repaint } from "../repaint.js";
 import { SAY_BOX, THREAD } from "./selectors.js";
@@ -27,8 +28,52 @@ export function forwardToThread(thread) {
   forwardFocus(threadFocusStop(thread));
 }
 
+// A drawn thread's own parts: the box its reply is written in, and the control that
+// settles it, whose `lf-resolve` or `lf-reopen` says which way. A card draws both inside
+// itself. A presentation that draws one elsewhere, as the floating panel draws the reply
+// as its field and Resolve in its view's head, declares on the thread element where each
+// stands (`declareThreadParts`): `reply` and `settlement`, each a function of that
+// element answering the part, or null while the thread has none there. Every reading
+// of a thread's reply or settlement goes through here (`threadPart`), so Enter, `r` and
+// `c` answer alike whichever chrome draws the thread. A thread drawn in pieces within
+// one that declares, as a reader's message parts in the panel's view, has the
+// enclosing drawing's parts where it holds none (`drawingsOf`).
+const declaredParts = new WeakMap();
+export const declareThreadParts = (thread, parts) => declaredParts.set(thread, parts);
+const ownParts = {
+  reply: (thread) => thread.querySelector(SAY_BOX),
+  settlement: (thread) =>
+    [...thread.querySelectorAll(".lf-resolve, .lf-reopen")].find(
+      (control) => control.closest(THREAD) === thread,
+    ) ?? null,
+};
+// A drawn thread's logged id: a list thread carries it as `data-id`, a card, seat or
+// chrome's view as `data-thread`.
+const threadIdOf = (thread) => thread.dataset.id ?? thread.dataset.thread;
+// The drawings of one thread from `thread` outward: itself, then each drawing of the
+// same thread around it.
+function* drawingsOf(thread) {
+  const id = threadIdOf(thread);
+  for (
+    let at = thread;
+    at === thread || (at && id && threadIdOf(at) === id);
+    at = closestAcross(upFrom(at), THREAD)
+  )
+    yield at;
+}
+// The whole of the thread drawn at `thread`, its outermost drawing, as what a reading of
+// the thread's messages searches.
+export const wholeThread = (thread) => [...drawingsOf(thread)].at(-1);
+export function threadPart(thread, name) {
+  for (const at of drawingsOf(thread)) {
+    const part = (declaredParts.get(at) ?? ownParts)[name](at);
+    if (part) return part;
+  }
+  return null;
+}
+
 export const threadReplyInput = (thread) => {
-  const input = thread?.querySelector(SAY_BOX);
+  const input = thread && threadPart(thread, "reply");
   return input && (shownBox(input).height || input.lfRevealReply) ? input : null;
 };
 
@@ -66,10 +111,10 @@ export function focusedThreadTarget() {
 // further, to a seat holding no thread yet (landing.js, `heldThreadOrSeat`).
 export const heldThread = () => closestAcross(focused(), THREAD);
 
-// Its logged id: a list thread carries it as `data-id`, a card or seat as `data-thread`.
+// Its logged id (`threadIdOf`).
 export function heldThreadId() {
   const thread = heldThread();
-  return thread?.dataset.id ?? thread?.dataset.thread ?? null;
+  return (thread && threadIdOf(thread)) ?? null;
 }
 
 // The thread every painter of standing draws — the page's contour and wash, the margin
@@ -134,7 +179,7 @@ export async function replyDestination(
   id,
   open,
   intent,
-  { destination = (thread) => thread.querySelector(SAY_BOX), scroll = true } = {},
+  { destination = (thread) => threadPart(thread, "reply"), scroll = true } = {},
 ) {
   const mayReply = mayReplyTo(id, intent);
   if (!mayReply()) return null;

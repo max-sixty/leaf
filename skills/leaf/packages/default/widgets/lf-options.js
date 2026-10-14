@@ -136,7 +136,7 @@ const label = (option) => wrote(option.querySelector(":scope > strong") ?? optio
 const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
 
-const SECTION = "In a question's options";
+const SECTION = "In an ask's options";
 const MARK_TAG = "lf-option-control";
 const DONE_TAG = "lf-options-done";
 // The controller paints retained controls in its synchronous render. These generated

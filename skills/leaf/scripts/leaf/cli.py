@@ -115,10 +115,13 @@ class LeafGroup(click.Group):
         try:
             return super().invoke(ctx)
         except Refused as error:
+            reason = sandbox_refusal(error) or str(error)
             if ctx.meta.get(JSON_REQUESTED):
-                click.echo(json.dumps(error.json(), ensure_ascii=False))
+                click.echo(
+                    json.dumps(error.json() | {"error": reason}, ensure_ascii=False)
+                )
                 ctx.exit(1)
-            raise click.ClickException(sandbox_refusal(error) or str(error)) from error
+            raise click.ClickException(reason) from error
         except OSError as error:
             if (reason := sandbox_refusal(error)) is None:
                 raise

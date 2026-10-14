@@ -3,7 +3,9 @@
 ## Launcher
 
 The skill directory's `../../bin/leaf` launcher resolves to
-`${CLAUDE_SKILL_DIR}/../../bin/leaf`. Claude Code also puts it on `PATH`.
+`${CLAUDE_SKILL_DIR}/../../bin/leaf`. Claude Code also puts it on `PATH`, so run
+it as `leaf`: Claude Code's settings match a command by its text, and the ones
+that run Leaf outside its sandbox name `leaf`.
 
 ## Serve the page
 

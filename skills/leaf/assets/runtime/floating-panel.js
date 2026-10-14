@@ -970,11 +970,13 @@ export function createFloatingPanel({
   let presentation = null;
   // The view standing open, rather than one still leaving.
   const shownView = () => stage.querySelector(".lf-fp-view:not([data-leaving])");
-  // The rows of the open view's list, which the arrows walk and Tab stands at one of.
+  // The rows of the open view's list, which the arrows walk and Tab stands at one of. A
+  // version's Compare is a stop of the walk after its version, so the list stays one
+  // stop for Tab; an On card's own controls stay Tab's, inside the card the walk stands on.
   const LIST_ROWS = Object.freeze({
     threads: ".lf-fp-thread",
     on: ".lf-fp-on-item",
-    versions: ".lf-fp-item:not(:disabled)",
+    versions: ".lf-fp-item:not(:disabled), .lf-fp-compare",
     group: ".lf-fp-item:not(:disabled)",
   });
   const listRows = () => {
@@ -1968,8 +1970,12 @@ export function createFloatingPanel({
 
   // Where Leaf's controls begin in this chrome, as the page's Skip to Leaf controls finds
   // them: the field, where words go, or the leaf, while the panel is folded to it.
+  // A resolved thread's field takes no words, so there the leaf is where they begin.
   function enter() {
-    const input = prefs().rest === "mark" ? null : fieldInput();
+    const top = trail.at(-1);
+    const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
+    const takesWords = !thread || replyAvailable(thread);
+    const input = prefs().rest !== "mark" && takesWords ? fieldInput() : null;
     focusDestination(input ?? leaf, "move");
   }
 

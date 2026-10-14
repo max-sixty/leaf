@@ -178,7 +178,7 @@ test("an unreachable server, a refused key and an unappliable state each say wha
     summary: "Key refused — open Leaf's link in a new tab",
     explanation:
       "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.",
-    adds: "",
+    adds: "Keep this tab open so pending changes can send.",
   });
   assert.deepEqual(pageStatus(null, { reach: "broken" }), {
     kind: "broken",
@@ -225,7 +225,7 @@ test("the disclosure names what waits on each side, and the row counts the agent
   );
 });
 
-test("what the disclosure adds to the row leaves out a sentence that only restates it", () => {
+test("what the disclosure adds to the row says only what the row does not", () => {
   const reading = servedReading("queues on both sides");
   const { queues } = reading.browser.views["1"];
   const adds = (activity, onBoth = NO_QUEUES) =>
@@ -238,10 +238,27 @@ test("what the disclosure adds to the row leaves out a sentence that only restat
     "Running the tests. Waiting on me: 2 asks, 1 to-do (Try the build on a phone), 2 updates to send again. Waiting on Claude: 1 reply, 1 to-do (Rebuild the chart).",
   );
   assert.equal(adds({ kind: "listening", detail: "pick a storage engine" }), "");
-  // A sentence that says more than the row stands whole.
+  // What the sentence says past the row, without the state the row already says.
+  assert.equal(
+    adds({
+      kind: "working",
+      detail: "",
+      ts: minutesAgo(0),
+      counts: { handling: 1, handling_comments: 1 },
+    }),
+    "It hasn't said what it's doing yet.",
+  );
+  assert.equal(
+    adds({
+      kind: "listening",
+      detail: "pick a storage engine",
+      counts: { pending: 1 },
+    }),
+    "It asked: pick a storage engine. 1 response owed on updates awaiting delivery.",
+  );
   assert.equal(
     adds({ kind: "away", detail: "" }),
-    "Claude isn't watching right now. Updates are saved. It picks them up next turn.",
+    "Updates are saved. It picks them up next turn.",
   );
   assert.equal(pageStatus(null, { reach: "unreachable" }).adds, "");
 });

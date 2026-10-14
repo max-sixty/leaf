@@ -106,8 +106,8 @@ function pickedUpWords({ comments, answers }) {
 // Both levels of wording follow server-owned activity. Short summaries retain the
 // actionable distinction: working, listening, away, or nobody holding the page. How many
 // updates are waiting or saved is the disclosure's; the row counts what waits on each
-// side instead (`queueWords`). A third word is true where the sentence only restates the
-// summary, so a seat showing both leaves it out (`pageStatus`, `adds`).
+// side instead (`queueWords`). The third wording is what the sentence says that the
+// summary does not, for a seat that shows both (`pageStatus`, `adds`).
 function statusWords({
   age,
   agent,
@@ -121,12 +121,11 @@ function statusWords({
   saved,
   work,
 }) {
-  if (kind === "closed") return ["Page closed", "Page closed", true];
-  if (kind === "unheld")
-    return [
-      "No session",
-      `No session holds this page. ${saved} It picks up again when a session does.`,
-    ];
+  if (kind === "closed") return ["Page closed", "Page closed", ""];
+  if (kind === "unheld") {
+    const meanwhile = `${saved} It picks up again when a session does.`;
+    return ["No session", `No session holds this page. ${meanwhile}`, meanwhile];
+  }
   // The agent's own sentence is the reason to look at the row while it works, so the
   // row keeps it and the ellipsis fits it to the room the controls leave. A sentence just
   // renewed needs no date; an older one is dated ahead of the detail, because the detail
@@ -145,7 +144,7 @@ function statusWords({
       detail || !picked
         ? `${agent} is ${work}${said}`
         : `${agent} picked up ${picked} and hasn't said what it's doing yet`,
-      true,
+      detail || !picked ? "" : "It hasn't said what it's doing yet.",
     ];
   }
   // A declared request tells the user what to do. Preserve it on the row when
@@ -156,12 +155,16 @@ function statusWords({
       ? [
           `${agent} listening`,
           `${agent} is listening${detail ? " — " + detail : ""}.`,
-          !detail,
+          detail ? `It asked: ${detail}.` : "",
         ]
-      : [awaits, awaits, true];
+      : [awaits, awaits, ""];
   }
   if (kind === "stalled")
-    return [shortDate, `${dated}${detail ? ": " + detail : ""}. ${saved}`];
+    return [
+      shortDate,
+      `${dated}${detail ? ": " + detail : ""}. ${saved}`,
+      `${detail ? `Last said: ${detail}. ` : ""}${saved}`,
+    ];
   // Away is only worth a nudge once input has stalled (`counts.overdue`): the
   // session's next turn picks up whatever it finds, and Leaf messages a harness it
   // can reach once it has seen the turn end.
@@ -169,10 +172,12 @@ function statusWords({
     ? [
         `Nudge ${agent} in terminal`,
         `${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
+        `${dated}. ${saved} Nothing is answering them.`,
       ]
     : [
         `${agent} away`,
         `${agent} isn't watching right now. ${saved} It picks them up next turn.`,
+        `${saved} It picks them up next turn.`,
       ];
 }
 
@@ -197,15 +202,16 @@ export function pageStatus(state, { reach = "reached" } = {}) {
     return {
       kind: "unreachable",
       tone: "offline",
-      adds: "",
       ...(reach === "refused"
         ? {
             summary: "Key refused — open Leaf's link in a new tab",
             explanation: KEY_REFUSED_LINE,
+            adds: "Keep this tab open so pending changes can send.",
           }
         : {
             summary: "Server offline — reconnecting; keep page open",
             explanation: OFFLINE_LINE,
+            adds: "",
           }),
     };
   const { publication } = state;
@@ -221,7 +227,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
     : `No check-in from ${agent} is recorded`;
   const ended = `${agent}’s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-  const [summary, text, restates = false] = statusWords({
+  const [summary, text, beyond] = statusWords({
     age,
     agent,
     dated: facts.left ? ended : checkedIn,
@@ -238,7 +244,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
     work: facts.work,
   });
   let explanation = age ? `${text} (${age})` : text;
-  let adds = restates ? "" : explanation;
+  let adds = beyond;
   const append = (words, step = false) => {
     explanation = after(explanation, words, step);
     adds = after(adds, words, step);

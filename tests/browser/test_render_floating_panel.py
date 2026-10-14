@@ -1177,6 +1177,17 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     expect(page.locator("#lf-versions")).to_be_hidden()
     expect(view.locator(".lf-fp-version")).to_have_count(2)
     expect(view.locator(".lf-fp-version[data-current]")).to_contain_text("Showing")
+    # The list is one stop for Tab, which the arrows walk through each version and its
+    # Compare to the approval.
+    stops = view.locator(".lf-fp-item:not(:disabled), .lf-fp-compare")
+    view.focus()
+    page.keyboard.press("ArrowDown")
+    expect(stops.first).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(stops.nth(1)).to_be_focused()
+    page.keyboard.press("End")
+    expect(stops.last).to_be_focused()
+    expect(view.locator("[tabindex='0']")).to_have_count(1)
 
     with sending(page, "the approval"):
         view.locator(".lf-fp-item", has_text="Approve version").click()
@@ -1426,12 +1437,27 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
 
 def test_skip_to_leaf_controls_lands_in_the_panel(browser, serve):
     """The page's first Tab stop, Skip to Leaf controls, lands in the panel that stands
-    for Leaf's controls: in its field, or on the leaf while the panel is folded."""
-    page = floating(browser, serve(LONG_PAGE))
-    skip = page.locator(".lf-skip")
+    for Leaf's controls: in its field, or on the leaf where the field takes no words, as
+    in a resolved thread, or while the panel is folded."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    skip = page.locator("body > .lf-skip")
     skip.focus()
     page.keyboard.press("Enter")
     expect(field(page)).to_be_focused()
+
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    settle = page.locator(".lf-fp-settle")
+    with sending(page, "the resolve"):
+        settle.click()
+    expect(settle).to_have_text("Reopen", use_inner_text=True)
+    skip.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
 
     page.locator("body").focus()
     page.keyboard.press(".")

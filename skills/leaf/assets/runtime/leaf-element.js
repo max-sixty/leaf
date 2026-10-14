@@ -15,12 +15,16 @@
    registry declares it a widget, so startup, thread mirrors, gesture release and report
    narration wait on it as they did on the controller's, and otherwise a region of its
    own. A move claims that region synchronously, inside the publication that made it,
-   and the next update that draws settles the claim as it commits; a claim no update can
-   draw yet stays open until one does. An update that throws settles it with the
-   fail-soft box in the render root, which the next update draws over; one no claim
-   waits on, such as a mechanical redraw, reports and shows its failure the same way.
-   Lit updates on the microtask after a claim, so the result stands before the browser
-   draws the next frame.
+   and the next update that draws settles the claim once all of it, `updated` included,
+   has run; a claim no update can draw yet stays open until one does. An update that
+   throws anywhere settles it with the fail-soft box, which stands at the head of the
+   render root beside what the element drew, since a render may paint retained nodes no
+   later draw would make again; the next update that draws takes the box away. One no
+   claim waits on, such as a mechanical redraw, reports and shows its failure the same
+   way, and so does a failed preparation (`present()`) or a module's own
+   `failSoft(this, …)`. A `setup()` that throws shows its failure, and the element draws
+   nothing after it. Lit updates on the microtask after a claim, so the result stands
+   before the browser draws the next frame.
 
    Its readers are followed while it stands (`watchOwner`, arrivals.js), and it draws
    nothing while away, so a draw queued as it left is owed to its return; a return draws
@@ -31,8 +35,8 @@
    controller's `defer()` holds it, its claim stays open; the release draws the newest
    reading at once, changed or not, since the gesture may have rewritten its nodes. An
    element whose tag declares `x-data` holds the page's data version while it stands,
-   until it has drawn what was delivered. `setup()` runs
-   once, on the first connection, before the first render. */
+   until it has drawn what was delivered. `setup()` runs once, on the first connection,
+   before the first render. */
 import { LitElement, collectReads, untracked } from "/vendor/browser-runtime.js";
 import {
   attachApplicationPresentation,
@@ -41,13 +45,12 @@ import {
 } from "./semantic-state.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
 import { drawsItself, widgetController, widgetMounted } from "./widget-controller.js";
-import { failSoft, failSoftUnreported, once } from "./widget-upgrade.js";
+import { failSoft, failSoftUnreported, once, placesFailure } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { dataReader, joinDataDelivery, stagesOnly } from "./data.js";
 import { registry } from "./registry.js";
 
-const REFRESH = Symbol("refresh");
 let regions = 0;
 
 export class LeafElement extends LitElement {
@@ -66,9 +69,14 @@ export class LeafElement extends LitElement {
   #owed = false;
   // The open claim the next update that draws settles.
   #ticket = null;
-  #holds = 0;
-  // Whether the failure of the update under way has been reported.
-  #reported = false;
+  #held = false;
+  // The fail-soft box standing until the next update that draws; a `setup()` that threw
+  // leaves the element broken, drawing nothing.
+  #box = null;
+  #broken = false;
+  // The claim the update under way draws, settled once `updated` has run too.
+  #drawing = null;
+  #depth = 0;
   #data = new Map();
   #leaveData = null;
 
@@ -87,14 +95,26 @@ export class LeafElement extends LitElement {
       this.#controller = widgetController(this);
       drawsItself(this, {
         hold: () => this.#hold(),
-        refresh: () => this[REFRESH](),
+        refresh: () => this.#refresh(),
       });
       this.#verbs = Object.keys(this.#descriptor.declaration["x-state"] ?? {});
     }
     this.#regionName = this.#descriptor
       ? null
       : `element:${this.localName}#${this.id}:${++regions}`;
-    this.setup();
+    placesFailure(this, (box) => {
+      this.#box?.remove();
+      this.#box = box;
+      // Before the render root exists, as in a `setup()` that threw, the box stands where
+      // the element shows its contents.
+      (this.renderRoot ?? this.shadowRoot ?? this).prepend(box);
+    });
+    try {
+      this.setup();
+    } catch (error) {
+      this.#broken = true;
+      failSoft(this, error);
+    }
     // The element is an owner of its own: a paint that mounts it connects it inside that
     // paint, and what it reads to connect is its own to follow, never that paint's.
     watchOwner(this, {
@@ -129,16 +149,14 @@ export class LeafElement extends LitElement {
     return read();
   }
 
-  // The controller's `defer` for this widget: hold its presentation through a gesture
-  // that rewrites its nodes; the release draws the newest reading at once.
+  // The controller's `defer` for this widget, which refuses a second hold and releases
+  // once: hold its presentation through a gesture that rewrites its nodes; the release
+  // draws the newest reading at once.
   #hold() {
-    this.#holds += 1;
-    let released = false;
+    this.#held = true;
     return () => {
-      if (released) return;
-      released = true;
-      this.#holds -= 1;
-      if (!this.#holds) this[REFRESH]();
+      this.#held = false;
+      this.#refresh();
     };
   }
 
@@ -155,45 +173,53 @@ export class LeafElement extends LitElement {
       this.#owed = true;
       return false;
     }
-    if (this.#holds) return false;
+    if (this.#held) return false;
+    // The claim this update draws, from its gate on; one its own reads claim while it
+    // runs is the next's. An update that draws nothing settles it all the same.
+    this.#drawing = this.#ticket;
+    this.#ticket = null;
+    if (this.#broken) return false;
     const gate = collectReads(() => this.#complete());
     this.#gateReads = gate.reads;
     if ("error" in gate) {
-      this.#failed(gate.error, this.#ticket);
       this.#follow();
       throw gate.error;
     }
     if (!gate.value) {
-      // Nothing to draw until every declared verb has arrived; the claim stands drawn.
-      this.#settle();
+      // Nothing to draw until every declared verb has arrived.
       this.#follow();
+      return false;
     }
-    return gate.value && super.shouldUpdate(changed);
+    return super.shouldUpdate(changed);
   }
 
   update(changed) {
-    // The claim this update draws; one its own reads claim while it runs is the next's.
-    const ticket = this.#ticket;
-    this.#ticket = null;
     const outcome = collectReads(() => super.update(changed));
     this.#renderReads = outcome.reads;
-    if ("error" in outcome) {
-      this.#failed(outcome.error, ticket);
-      this.#follow();
-      throw outcome.error;
-    }
-    ticket?.resolve();
     this.#follow();
+    if ("error" in outcome) throw outcome.error;
+    this.#box?.remove();
+    this.#box = null;
   }
 
-  // An update that failed anywhere, its gate and `updated` included, reports once and
-  // shows its failure; Lit has marked it done, so the next move draws again.
+  // An update settles its claim once all of it has run, `updated` included, and one
+  // that failed anywhere, its gate too, reports once and shows its failure; Lit has
+  // marked it done, so the next move draws again. A draw that `updated` asks for at
+  // once, as a module's own paint may, settles its own claim inside this one; with no
+  // claim of its own, its failure is the enclosing update's.
   performUpdate() {
-    this.#reported = false;
+    const outer = this.#drawing;
+    this.#drawing = null;
+    this.#depth += 1;
     try {
       super.performUpdate();
+      this.#drawing?.resolve();
     } catch (error) {
-      if (!this.#reported) this.#failed(error, null);
+      if (this.#depth > 1 && !this.#drawing) throw error;
+      this.#failed(error, this.#drawing);
+    } finally {
+      this.#depth -= 1;
+      this.#drawing = outer;
     }
   }
 
@@ -203,17 +229,11 @@ export class LeafElement extends LitElement {
     paintKeysWithin(this);
   }
 
-  #settle() {
-    this.#ticket?.resolve();
-    this.#ticket = null;
-  }
-
-  // The fail-soft box goes where the render draws, so the next update draws over it.
+  // A claim's failure is the coordinator's to report, and it shows the box through its
+  // fallback; any other is reported and shown here.
   #failed(error, ticket) {
-    this.#reported = true;
-    if (ticket === this.#ticket) this.#ticket = null;
     if (ticket) ticket.reject(error);
-    else failSoft(this.renderRoot, error);
+    else failSoft(this, error);
   }
 
   #follow() {
@@ -246,7 +266,7 @@ export class LeafElement extends LitElement {
     if (!this.#connected || this.#ticket || !this.#region) return;
     this.#ticket = this.#region.present(
       untracked(() => this.#controller?.read() ?? {}),
-      (reason) => failSoftUnreported(this.renderRoot, reason),
+      (reason) => failSoftUnreported(this, reason),
     );
   }
 
@@ -256,14 +276,14 @@ export class LeafElement extends LitElement {
     if (!this.#region) return;
     const value = untracked(() => (this.#controller ? this.#controller.read() : {}));
     this.#ticket = this.#region.present(value, (reason) =>
-      failSoftUnreported(this.renderRoot, reason),
+      failSoftUnreported(this, reason),
     );
-    if (this.#holds) return;
+    if (this.#held) return;
     this.requestUpdate();
     if (now) this.performUpdate();
   }
 
-  [REFRESH]() {
+  #refresh() {
     if (this.#connected) this.#present({ now: true });
     else this.#owed = true;
   }

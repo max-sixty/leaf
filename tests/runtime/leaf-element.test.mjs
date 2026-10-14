@@ -5,7 +5,8 @@
    holds, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { html, LeafElement } from "/runtime/widget-api.js";
+import { html, LeafElement, nothing } from "/runtime/widget-api.js";
+import { failSoftUnreported } from "/runtime/widget-upgrade.js";
 import {
   applicationState,
   readApplicationPresentation,
@@ -223,6 +224,134 @@ test("a failure in a part the element generated stays in that part, and the next
   element.remove();
 });
 
+test("a failure keeps the nodes the render paints, and the next draw takes the box away", async () => {
+  applicationState.setPhase("waiting");
+  let failing = false;
+  const tag = `lf-probe-retained-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      setup() {
+        this.shown = this.querySelector("output");
+      }
+      render() {
+        const now = phase();
+        if (failing) throw new Error("cannot paint");
+        this.shown.value = now;
+        return nothing;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  element.innerHTML = "<p>Authored words</p><output></output>";
+  document.body.append(element);
+  await settled(element);
+  failing = true;
+  element.requestUpdate();
+  await settled(element);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.match(element.querySelector(".lf-error").textContent, /failed: cannot paint/);
+  assert.ok(element.shown.isConnected, "the failure keeps the retained node");
+  assert.equal(element.querySelector("p").textContent, "Authored words");
+  failing = false;
+  applicationState.setPhase("offline");
+  await settled(element);
+  assert.equal(element.shown.value, "offline");
+  assert.equal(element.querySelector(".lf-error"), null);
+  element.remove();
+});
+
+test("a failed preparation stands beside the render root, which the next draw still reaches", async () => {
+  applicationState.setPhase("waiting");
+  const tag = `lf-probe-prepared-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      setup() {
+        this.part = document.createElement("p");
+        this.append(this.part);
+      }
+      createRenderRoot() {
+        return this.part;
+      }
+      render() {
+        return html`${phase()}`;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  await settled(element);
+  // The controller shows a rejected `present()` on its owner, as here.
+  failSoftUnreported(element, new Error("could not prepare"));
+  assert.ok(element.part.isConnected);
+  assert.match(element.textContent, /failed: could not prepare/);
+  applicationState.setPhase("offline");
+  await settled(element);
+  assert.equal(element.part.textContent, "offline");
+  assert.equal(element.querySelector(".lf-error"), null);
+  element.remove();
+});
+
+test("a setup that throws shows its failure and the element draws nothing", async () => {
+  applicationState.setPhase("waiting");
+  const errors = [];
+  const original = console.error;
+  console.error = (...args) => errors.push(args.join(" "));
+  const draws = [];
+  const tag = `lf-probe-setup-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      setup() {
+        throw new Error("cannot build");
+      }
+      render() {
+        draws.push(phase());
+        return html`drawn`;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  await settled(element);
+  applicationState.setPhase("offline");
+  await settled(element);
+  console.error = original;
+  assert.deepEqual(draws, []);
+  assert.match(element.textContent, /failed: cannot build/);
+  assert.ok(!pending(element), "its region does not wait on a draw that cannot come");
+  element.remove();
+});
+
+test("a setup that throws inside its own shadow root shows its failure there", async () => {
+  const original = console.error;
+  console.error = () => {};
+  const tag = `lf-probe-shadow-setup-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      setup() {
+        this.attachShadow({ mode: "open" }).append(document.createElement("p"));
+        throw new Error("cannot stage");
+      }
+      render() {
+        return html`drawn`;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  await settled(element);
+  console.error = original;
+  assert.match(element.shadowRoot.textContent, /failed: cannot stage/);
+  element.remove();
+});
+
 test("bound data draws only as it is delivered", async () => {
   const tag = `lf-probe-delivered-${++tags}`;
   adoptRegistry({
@@ -306,6 +435,36 @@ test("a failure after the draw is reported and shown, not swallowed", async () =
   await new Promise((resolve) => setTimeout(resolve, 0));
   console.error = original;
   assert.match(element.textContent, /failed: cannot finish/);
+  element.remove();
+});
+
+test("a failure before the render settles the claim with the failure", async () => {
+  const errors = [];
+  const original = console.error;
+  console.error = (...args) => errors.push(args.join(" "));
+  const tag = `lf-probe-will-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      willUpdate() {
+        if (phase() === "offline") throw new Error("cannot begin");
+      }
+      render() {
+        return html`${phase()}`;
+      }
+    },
+  );
+  applicationState.setPhase("waiting");
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  await settled(element);
+  applicationState.setPhase("offline");
+  await settled(element);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  console.error = original;
+  assert.match(element.textContent, /failed: cannot begin/);
+  assert.ok(!pending(element));
   element.remove();
 });
 

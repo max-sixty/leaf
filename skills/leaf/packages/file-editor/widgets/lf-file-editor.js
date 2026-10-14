@@ -290,16 +290,16 @@ customElements.define(
               ${offered("lf-file-editor-status")}
               title=${failure?.message ?? nothing}
               >${
-                  latest
-                    ? ""
-                    : failure
-                      ? base
-                        ? "Not saved"
-                        : "Unavailable"
-                      : slow
-                        ? "Saving changes…"
-                        : ""
-                }${retryable ? html`<span aria-hidden="true">&nbsp;·&nbsp;</span>` : nothing}<button
+                latest
+                  ? ""
+                  : failure
+                    ? base
+                      ? "Not saved"
+                      : "Unavailable"
+                    : slow
+                      ? "Saving changes…"
+                      : ""
+              }${retryable ? html`<span aria-hidden="true">&nbsp;·&nbsp;</span>` : nothing}<button
                 ${offered("lf-file-editor-retry")}
                 ?hidden=${!retryable}
                 aria-description=${failure?.message ?? nothing}
@@ -315,9 +315,9 @@ customElements.define(
                 aria-haspopup="menu"
               >
                 ${failure ? "Not saved" : "Changed on disk"}${iconTemplate(
-                    "down",
-                    "lf-file-editor-chevron",
-                  )}
+                  "down",
+                  "lf-file-editor-chevron",
+                )}
               </button></span
             >
           </div>
@@ -329,8 +329,8 @@ customElements.define(
             aria-label="The file changed on disk"
             @toggle=${choiceOpened}
             ${commandsOn("In the file's conflict menu", choiceKeys, {
-                claims: allButCommandReference,
-              })}
+              claims: allButCommandReference,
+            })}
           >
             <button
               ${offered("lf-btn")}
@@ -342,20 +342,20 @@ customElements.define(
               Compare
             </button>
             ${[
-                ["Save draft", keepDraft],
-                ["Use file version", choose(useFile)],
-              ].map(
-                ([label, run]) => html`
-                  <button
-                    ${offered("lf-btn")}
-                    role="menuitem"
-                    aria-disabled=${busy ? "true" : nothing}
-                    @click=${run}
-                  >
-                    ${label}
-                  </button>
-                `,
-              )}
+              ["Save draft", keepDraft],
+              ["Use file version", choose(useFile)],
+            ].map(
+              ([label, run]) => html`
+                <button
+                  ${offered("lf-btn")}
+                  role="menuitem"
+                  aria-disabled=${busy ? "true" : nothing}
+                  @click=${run}
+                >
+                  ${label}
+                </button>
+              `,
+            )}
           </div>
           ${mount}
           <div

@@ -491,7 +491,7 @@
   },
   "lf-tally": {
     "description": "A count of the asks a region still holds open, such as a queue's decisions left to make, with an optional control to the next one.",
-    "x-instructions": "Name the region whose asks it counts with for, such as a side-list lf-tabs queue, and place it where the reader looks for the queue's state, such as a workspace header beside its .tag chips. Add next for a Next question control that steps through the region's asks waiting on the user. Write it empty with a stable id; it counts asks the page already poses, so state no count of them in prose or chips.",
+    "x-instructions": "Name the region whose asks it counts with for, such as a side-list lf-tabs queue, and place it where the reader looks for the queue's state, such as a workspace header beside its .tag chips. Add next for a Next on me control that steps through the region's asks waiting on the user. Write it empty with a stable id; it counts asks the page already poses, so state no count of them in prose or chips.",
     "type": "object",
     "properties": {
       "id": {

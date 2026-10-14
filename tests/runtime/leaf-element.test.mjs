@@ -393,19 +393,15 @@ test("bound data draws only as it is delivered", async () => {
   element.remove();
 });
 
-test("a move draws at once, inside the publication, and a return redraws nothing", async () => {
+test("a move published just before the element leaves is drawn on its return", async () => {
   applicationState.setPhase("waiting");
   const { element, draws } = probe(() => phase());
   document.body.append(element);
   await settled(element);
   applicationState.setPhase("offline");
-  assert.deepEqual(
-    draws,
-    ["waiting", "offline"],
-    "drawn before the publication returns",
-  );
   element.remove();
   await settled(element);
+  assert.deepEqual(draws, ["waiting"], "nothing draws into a detached element");
   document.body.append(element);
   await settled(element);
   assert.deepEqual(draws, ["waiting", "offline"]);
@@ -508,6 +504,13 @@ test("a draw's claim waits for the drawing it holds it for", async () => {
   applicationState.setPhase("offline");
   await settled(element);
   assert.ok(pending(element), "the claim waits for the drawing");
+  finish();
+  await settled(element);
+  assert.ok(!pending(element));
+  // An update no move claimed, as a retry is, claims the region for its drawing.
+  element.requestUpdate();
+  await settled(element);
+  assert.ok(pending(element), "the unclaimed update's drawing holds the region");
   finish();
   await settled(element);
   assert.ok(!pending(element));

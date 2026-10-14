@@ -23,10 +23,10 @@
    claim waits on, such as a mechanical redraw, reports and shows its failure the same
    way, and so does a failed preparation (`present()`) or a module's own
    `failSoft(this, …)`. A `setup()` that throws shows its failure, and the element draws
-   nothing after it. A move draws at once, inside the publication that made it, as the
-   controller's paint did, so the widget draws before any renderer the publication
-   schedules: a suggestion measures the slot it folds before the layer marks it retired.
-   A connection draws on Lit's microtask, and a move before it joins that draw.
+   nothing after it. A move draws in the presentation pass the publication starts,
+   parents first and every widget before the document-wide renderers
+   (`queueWidgetUpdate`, semantic-state.js): a suggestion measures the slot it folds
+   before the layer marks it retired.
 
    Its readers are followed while it stands (`watchOwner`, arrivals.js), and it draws
    nothing while away, so a draw queued as it left is owed to its return; a return draws
@@ -249,6 +249,9 @@ export class LeafElement extends LitElement {
     this.#work = null;
     try {
       super.performUpdate();
+      // Drawing an update holds, as a retry or a follow-up draw starts, holds the region
+      // though no move claimed the update.
+      if (this.#work && !this.#drawing && this.#region) this.#drawing = this.#claim();
       this.#drawing?.resolve(this.#work ?? undefined);
     } catch (error) {
       if (outer && !this.#drawing) throw error;
@@ -259,10 +262,10 @@ export class LeafElement extends LitElement {
     }
   }
 
-  /** Hold the claim of the update under way until `work`, drawing that follows the
-   *  render asynchronously, lands: highlighting a document, say. The widget's
-   *  presentation, and the data version a delivery it draws holds, wait for it. Call it
-   *  from `updated()`. */
+  /** Hold the update under way's claim until `work`, drawing that follows the render
+   *  asynchronously, lands: highlighting a document, say. An update no move claimed
+   *  claims the region for it. The widget's presentation, and the data version a
+   *  delivery it draws holds, wait for it. Call it from `render()` or `updated()`. */
   drawing(work) {
     this.#work = work;
   }
@@ -313,28 +316,29 @@ export class LeafElement extends LitElement {
       this.#owed = true;
       return;
     }
-    // A draw already queued under a claim, as a connection's is, takes this move too.
-    if (this.#ticket && this.isUpdatePending) return;
-    this.#present({ now: true });
+    this.#present();
+  }
+
+  // A claim on the region for the reading as it stands, which a failure settles with
+  // the fail-soft box.
+  #claim() {
+    return this.#region.present(
+      untracked(() => this.#controller?.read() ?? {}),
+      (reason) => failSoftUnreported(this, reason),
+    );
   }
 
   // Claim the region for a reading that draws later, leaving the claim open.
   #stage() {
     if (!this.#connected || this.#ticket || !this.#region) return;
-    this.#ticket = this.#region.present(
-      untracked(() => this.#controller?.read() ?? {}),
-      (reason) => failSoftUnreported(this, reason),
-    );
+    this.#ticket = this.#claim();
   }
 
   // Claim the region for the reading as it stands, and draw it on the next update; a
   // claim the next update cannot draw stays open until one does.
   #present({ now = false } = {}) {
     if (!this.#region) return;
-    const value = untracked(() => (this.#controller ? this.#controller.read() : {}));
-    this.#ticket = this.#region.present(value, (reason) =>
-      failSoftUnreported(this, reason),
-    );
+    this.#ticket = this.#claim();
     if (this.#held) return;
     this.requestUpdate();
     if (now) {

@@ -107,9 +107,13 @@
  * The strip is given up only above a phone's width, where the page keeps a usable
  * column beside it; on a phone the rows pin as they do on any page with no room beside
  * it. The shell is the container a narrow column asks (`lf-shell`, 640), and a box
- * cannot ask its own container, so the rule that pads the shell asks the window. */
+ * cannot ask its own container, so the rule that pads the shell asks the window.
+ *
+ * A row stands in the rail only beside what the page itself scrolls (margin-layout.js,
+ * `railBeside`), and a workspace scrolls its panes instead, so every row there pins and
+ * a strip given up would stand empty beside the panes; a workspace keeps the window. */
 @media screen and (width > 640px) {
-  html[data-lf-live] body[data-rail="right"] {
+  html[data-lf-live]:not([data-lf-layout~="workspace"]) body[data-rail="right"] {
     padding-inline-end: var(--rail);
   }
 }

@@ -8,17 +8,17 @@
    Draft, sent-message, and authored links to their own image open one native modal
    viewer. PhotoSwipe supplies image zoom, pan, and touch gestures on demand; native
    modality, retained controls, and focus return remain Leaf's. An authored figure
-   caption or an inspection link's explicit caption stays outside the image in a readable
-   footer; alt text stays with the image.
+   caption, an inspection link's explicit caption, or a table cell's column and row
+   heads stay outside the image in a readable footer; alt text stays with the image.
    Links to other destinations and modified link presses keep their authored meaning. The document
    declares its public page root because a website module may live under an immutable
    release URL shared with a sample. All three resolve
    the same canonical `/media/…` text without rewriting durable content. The viewer's
-   native dialog remains a retained chrome node. Its fitted image appears synchronously
-   while the manipulation module loads, in the stage's content box, which PhotoSwipe
-   then fits the same image to at the size that image reads, so the handover moves
-   nothing. A queued close from an earlier opening leaves a reopened viewer's image
-   and focus intact. */
+   native dialog remains a retained chrome node. The image first appears in PhotoSwipe,
+   once its module has loaded and the image has decoded, since PhotoSwipe needs the
+   image's size up front; a second renderer shown meanwhile would have to agree with
+   it on every box. A queued close from an earlier opening leaves a reopened viewer's
+   image and focus intact. */
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
@@ -38,6 +38,7 @@ import {
 } from "./keyboard/layer-stack.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import { reducedMotion, foldDuration } from "./motion.js";
+import { says } from "./passages.js";
 import { plainPress } from "./pointer.js";
 
 // Page media is whatever a reference names under this directory. The name a file there
@@ -181,6 +182,38 @@ keys(
   { when: () => mediaViewer.open },
 );
 
+// A capture in a table cell is named by the heads it stands under and beside, since a
+// table of captures labels each axis once rather than each frame (authoring-evidence.md,
+// "Source files and media"). Heads are read where they stand rather than where they
+// come in the markup: a column head is a heading of the cell's own table across the
+// cell's middle and above it, and a row head a `scope="row"` heading level with its
+// middle and before it in the reading direction. So a spanning head names every cell
+// under it, a two-row header names a cell twice, outer first, and a header row written
+// without `<thead>` still counts. Each head reads as what it says, which leaves out a
+// comment's mark the paint pass wrote into it.
+const cellHeads = (from) => {
+  const cell = from.closest("td");
+  if (!cell) return "";
+  const table = cell.closest("table");
+  const box = cell.getBoundingClientRect();
+  const x = box.left + box.width / 2;
+  const y = box.top + box.height / 2;
+  const rtl = getComputedStyle(table).direction === "rtl";
+  const columns = [];
+  const rows = [];
+  for (const head of table.querySelectorAll("th")) {
+    if (head.closest("table") !== table) continue;
+    const at = head.getBoundingClientRect();
+    if (head.matches('[scope="row"]')) {
+      const before = rtl ? at.left >= box.right - 1 : at.right <= box.left + 1;
+      if (before && at.top <= y && y < at.bottom) rows.push(head);
+    } else if (at.bottom <= box.top + 1 && at.left <= x && x < at.right)
+      columns.push(head);
+  }
+  // A header row repeated before a later section stands above the capture twice.
+  return [...new Set([...columns, ...rows].map(says).filter(Boolean))].join(" · ");
+};
+
 // The viewer hands the user back to the image they opened it from (focus.js,
 // `openLayer`) once the platform has closed it, by its button, Escape or a press outside.
 const open = (url, alt, from) => {
@@ -190,42 +223,40 @@ const open = (url, alt, from) => {
   openLayer(mediaViewer, from);
   presentViewer({ url, alt });
   render(
-    html`<img src=${url} alt=${alt} /><span class="lf-media-viewer-probe"
-        ><img src=${url} alt=""
-      /></span>`,
+    html`<span class="lf-media-viewer-probe"><img src=${url} alt="" /></span>`,
     stage,
   );
+  const figureCaption = from.closest("figure")?.querySelector("figcaption");
   const description =
     from.dataset.lfMediaCaption ||
-    from.closest("figure")?.querySelector("figcaption")?.textContent.trim() ||
-    "";
+    (figureCaption && says(figureCaption)) ||
+    cellHeads(from);
   keepsText(caption, description);
   keepsHidden(caption, !description);
   keepsText(viewerZoom, "100%");
   if (!mediaViewer.open) showNativeLayer(mediaViewer);
   focusDestination(viewerClose, "move");
-  const image = stage.querySelector(":scope > img");
+  /** @type {HTMLImageElement} */
   const probe = stage.querySelector(".lf-media-viewer-probe > img");
-  Promise.all([imageTools(), image.decode(), probe.decode()]).then(
+  Promise.all([imageTools(), probe.decode()]).then(
     ([PhotoSwipe]) => {
       // A delayed load belongs only to the image the reader still has open.
       if (attempt !== opening || !mediaViewer.open) return;
       // In a 1px column an image keeps a width its file states; one that states none
-      // (an SVG with only a viewBox) narrows to the column. Such an image keeps its
-      // shape at the size that covers the screen in either orientation, so it fits
-      // below 100% in any window, refits as the window grows, and zooms past its fit.
-      const sizeless = probe.getBoundingClientRect().width < image.naturalWidth;
-      const fitted = image.getBoundingClientRect();
-      const shape = fitted.width / fitted.height;
-      const size = () => {
-        const side = Math.max(window.screen.width, window.screen.height);
-        return sizeless
-          ? { width: side * Math.max(1, shape), height: side * Math.max(1, 1 / shape) }
-          : { width: image.naturalWidth, height: image.naturalHeight };
-      };
+      // (an SVG with only a viewBox, or Mermaid's percentage width) narrows to the
+      // column, and its natural size is a stand-in of its shape at 300px. Such an
+      // image takes the size that covers the screen in either orientation, so it fits
+      // below 100% in any window and zooms past its fit.
+      const { naturalWidth: width, naturalHeight: height } = probe;
+      const cover =
+        Math.max(window.screen.width, window.screen.height) / Math.min(width, height);
+      const size =
+        probe.getBoundingClientRect().width > 1
+          ? { width, height }
+          : { width: width * cover, height: height * cover };
       render(null, stage);
       const current = new PhotoSwipe({
-        dataSource: [{ src: url, alt, ...size() }],
+        dataSource: [{ src: url, alt, ...size }],
         appendToEl: mediaViewer,
         paddingFn: (viewport) => {
           const box = stage.getBoundingClientRect();
@@ -254,13 +285,6 @@ const open = (url, alt, from) => {
         tapAction: "zoom",
       });
       inspector = current;
-      // A screen can grow under an open viewer, as when its window moves to a larger
-      // display; the image takes the new cover before PhotoSwipe refits it.
-      current.on("beforeResize", () => {
-        const slide = current.currSlide;
-        const next = size();
-        if (slide && next.width > slide.width) Object.assign(slide, next);
-      });
       current.on("keydown", (event) => {
         // PhotoSwipe owns only native panning in the active viewer. Leaf owns zoom,
         // cancellation and scopes, and Tab stays the browser's. Its document
@@ -294,7 +318,7 @@ const open = (url, alt, from) => {
       if (attempt !== opening || !mediaViewer.open) return;
       keepsText(
         caption,
-        `Image controls unavailable: ${error.message}. Open Original to inspect the file.`,
+        `Image preview unavailable: ${error.message}. Open Original to see the file.`,
       );
       keepsHidden(caption, false);
     },
@@ -319,12 +343,14 @@ document.addEventListener("click", (event) => {
   if (event.defaultPrevented || !plainPress(event)) return;
   // The path ends at the document and the window, and an element whose id is
   // `matches` puts an object at `window.matches`, so only elements are asked.
-  const trigger = event
-    .composedPath()
-    .find(
-      (node) =>
-        node instanceof Element && node.matches(".lf-media-open[data-lf-media-url]"),
-    );
+  const trigger = /** @type {HTMLElement | undefined} */ (
+    event
+      .composedPath()
+      .find(
+        (node) =>
+          node instanceof Element && node.matches(".lf-media-open[data-lf-media-url]"),
+      )
+  );
   const link = event.composedPath().find((node) => node instanceof HTMLAnchorElement);
   const image = link?.querySelector("img");
   // A linked image explicitly names its inspection destination; other image links

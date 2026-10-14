@@ -16,7 +16,8 @@ import {
   selectEnds,
   segmentBlock,
 } from "../passages.js";
-import { bannerFoot, shownBox, shownParts } from "../geometry.js";
+import { bannerFoot, shownBox } from "../geometry.js";
+import { visibleTargetParts } from "../visible-target-parts.js";
 import { repaint } from "../repaint.js";
 import { intersect, union } from "../rect.js";
 import { anchorFor } from "../css-anchors.js";
@@ -92,7 +93,10 @@ const searchCount = (position, total) => `${position} of ${total}`;
 // walk, the scroll freeze, and the paint. What this module declares is which members the
 // map holds and where each chip sits among them. An ancestor and descendant painting the
 // same visible box name one target, and the innermost remains, matching direct aim. A
-// target's chip sits outside its own box, keeping controls and their labels readable. Shared hint seating separates those faces without moving page content.
+// target's chip sits outside its own box, keeping controls and their labels readable.
+// Shared hint seating separates those faces without moving page content, and steps
+// each chip before a nest of targets out by its level in that nest, so a group's chip
+// and its members' chips read as an outline (`nestOutsets`, hints.js).
 // Admission and clipping stay with key-badge-placement.js.
 //
 // `/` opens a real search input over the whole page reading, either directly from the
@@ -151,11 +155,7 @@ export function createTargetPicker({
     );
   const targetShown = (target) => {
     const element = hintElement(target);
-    return (
-      element.checkVisibility() ||
-      (getComputedStyle(element).display === "contents" &&
-        shownParts(element).some((part) => part.checkVisibility()))
-    );
+    return visibleTargetParts(element).length > 0;
   };
 
   function firstShown(range, owner, reading) {
@@ -389,7 +389,7 @@ export function createTargetPicker({
     return true;
   }
 
-  // Layout invalidation is the mechanical source of a standing walk's refresh: a reflow
+  // Layout invalidation is the mechanical source of an active walk's refresh: a reflow
   // moves the marked line boxes even where the words stand, so the walk repaints either
   // way. The read handed to the shared walk remains a cheap cached lookup.
   function refreshMatchWalk() {
@@ -453,7 +453,7 @@ export function createTargetPicker({
     announce(
       `Selected match: ${quote}. ${
         coarsePointer.matches || !bindingEnabled("c")
-          ? "Comment on selection on the banner comments on it."
+          ? "Comment on selection comments on it."
           : "Press n for next, Shift+n for previous, or c to comment."
       }`,
     );
@@ -596,6 +596,7 @@ export function createTargetPicker({
     id: "page.search.open",
     // A finger can select words it can see, but not find them elsewhere on a long page.
     touch: "Search page",
+    menu: "navigate",
     keys: ["/"],
     description: "Search all the text on the page",
     title: "search page",
@@ -684,34 +685,13 @@ export function createTargetPicker({
     claims: targetingClaims,
     rows: [
       TARGET_HINT_TYPE,
-      {
-        id: "target.picker.hint.walk",
-        keys: ["Tab", "Shift+Tab"],
-        routes: [
-          {
-            id: "target.picker.hint.next",
-            binding: "Tab",
-            title: "Hear the next visible target",
-          },
-          {
-            id: "target.picker.hint.previous",
-            binding: "Shift+Tab",
-            title: "Hear the previous visible target",
-          },
-        ],
-        title: "browse hints",
-        repeat: true,
-        when: () => hints.candidates().length > 0,
-        run: (binding) => hints.walk(binding === "Tab" ? 1 : -1),
-      },
-      {
-        id: "target.picker.target.choose",
-        keys: ["Enter"],
-        description: "Choose the target just announced",
-        title: "choose target",
-        when: hints.walking,
-        run: hints.choose,
-      },
+      ...hints.walkRows({
+        id: "target.picker.hint",
+        choose: {
+          description: "Choose the target just announced",
+          title: "choose target",
+        },
+      }),
       TARGETING_BACK,
     ],
   };
@@ -782,11 +762,13 @@ export function createTargetPicker({
         : "Choose an element by pressing it or browsing targets with Tab and Enter, then comment",
     title: "select element",
     touch: "Select element",
+    menu: "annotate",
     // Once the field is open, its typing scope owns character keys. This gate also keeps
     // the route off the short line while a target is in hand.
     lineWhen: () => !Boolean(fabAnchorAt()),
     when: canChoose,
-    run: (...args) => openTargetPicker(...args),
+    run: (/** @type {Parameters<typeof openTargetPicker>} */ ...args) =>
+      openTargetPicker(...args),
   });
   // Search remains one press from the expanded shortcut bar and named in full by the
   // reference.

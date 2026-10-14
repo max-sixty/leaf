@@ -19,7 +19,9 @@ import {
   readApplication,
   whenDocumentPresented,
 } from "./semantic-state.js";
+import { runtime } from "./context.js";
 import { pageCommand } from "./keyboard/register.js";
+import { savedReadingSettled } from "./keyboard/bindings.js";
 import { undoSentence } from "./reactions.js";
 import { PENDING } from "./thread/identity.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -32,9 +34,9 @@ const WAIT = "Wait for the current change to finish before undoing";
 const words = {
   resolve: "Reopened the thread",
   unresolve: "Resolved the thread again",
-  action: "Undid your latest update",
-  done: "Undid your approval",
-  todo_end: "Put the to-do back on you",
+  action: "Undid the latest update",
+  done: "Undid the approval",
+  todo_end: "Put the to-do back on me",
 };
 
 export function createUndo({ post, stateApplying, unaccountedGesture }) {
@@ -44,19 +46,19 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
     const { effective, unresolved } = readApplication();
     // Between versions the page holds no undo list to prune against.
     if (effective.view) {
-      const standing = new Set([
+      const liveAttempts = new Set([
         ...effective.view.undo.map(({ event }) => event.attempt),
         ...unresolved.map((entry) => entry.event.attempt),
       ]);
       for (const kept of reversals.keys())
-        if (!standing.has(kept)) reversals.delete(kept);
+        if (!liveAttempts.has(kept)) reversals.delete(kept);
     }
     reversals.set(attempt, reverse);
   }
 
   function undoable() {
     if (stateApplying()) return null;
-    const head = readApplication().effective.view?.undo[0];
+    const head = runtime.undo[0];
     return head?.newest ? head.event : null;
   }
 
@@ -90,7 +92,7 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
     const answer = post({ kind: "undo", undoes: event.id }).then((accepted) => {
       if (accepted)
         notice(
-          `${event.token ? `Undid your ${event.token} reaction` : words[event.kind]} — sent`,
+          `${event.token ? `Undid the ${event.token} reaction` : words[event.kind]} — sent`,
         );
       return accepted;
     });
@@ -127,15 +129,17 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
   // line that said it would be naming a member where the mechanism is what holds.
   pageCommand({
     id: "history.undo",
+    ready: savedReadingSettled,
     keys: ["z"],
     description: () => undoSentence(undoable),
     title: "undo",
     touch: "Undo",
+    menu: "page",
     // Dead while the page holds a gesture no log read accounts for, this one's own send
     // included. The line drops the chip for as long as that is true rather than
     // promising a press that would undo the wrong thing.
     when: () => !unaccountedGesture() && Boolean(undoable()),
-    run: (...args) => undoLast(...args),
+    run: (/** @type {Parameters<typeof undoLast>} */ ...args) => undoLast(...args),
   });
 
   return {

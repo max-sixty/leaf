@@ -11,8 +11,8 @@ import {
   queueActions,
   queueItemKey,
   queueTitle,
-  readQuestions,
-  questionWords,
+  readAsks,
+  askWords,
   readQueues,
   readThreads,
   registerThreadPresentation,
@@ -22,8 +22,7 @@ import {
   threadActions,
   threadSummary,
   threadTurns,
-  watchQuestions,
-  watchQueues,
+  watchProjection,
   whileConnected,
 } from "/runtime/widget-api.js";
 
@@ -58,8 +57,7 @@ customElements.define(
           this.presentation.unregister();
         };
       });
-      watchQuestions(this, () => this.paintObligations());
-      watchQueues(this, () => this.paintObligations());
+      watchProjection(this, () => this.paintObligations());
     }
     build() {
       this.mode = "Conversation";
@@ -116,8 +114,8 @@ customElements.define(
       this.list = offer("ul");
       this.counts = offer("p", "counts");
       this.queues = Object.fromEntries(
-        ["questions", "tasks", "done"].map((key, i) => {
-          const heading = offer("h4", "", ["Questions", "Tasks", "Done"][i]);
+        ["on_user", "on_agent", "done"].map((key, i) => {
+          const heading = offer("h4", "", ["On me", "On Claude", "Done"][i]);
           const list = offer("ul");
           const group = offer("div", "group");
           group.append(heading, list);
@@ -135,7 +133,7 @@ customElements.define(
         ["index", index],
         ["conversations", this.list],
         ...Object.entries(this.queues).map(([name, body]) => [
-          name.toLowerCase(),
+          name.replaceAll("_", "-"),
           body,
         ]),
       ];
@@ -272,22 +270,17 @@ customElements.define(
       return JSON.parse(shown);
     }
     paintObligations() {
-      const questions = readQuestions();
-      const answered = questions.all.filter(
-        (question) => question.status === "answered",
-      );
+      const asks = readAsks();
+      const answered = asks.all.filter((ask) => ask.status === "answered");
       // Counts cover every ask; this summary lists completed widget choices.
-      const labels = questions.all
-        .filter(
-          (question) =>
-            question.source.kind === "widget" && question.status === "answered",
-        )
-        .map(questionWords)
+      const labels = asks.all
+        .filter((ask) => ask.source.kind === "widget" && ask.status === "answered")
+        .map(askWords)
         .filter(Boolean);
       keepsText(
         this.counts,
         [
-          `${questions.user.length} asks on you`,
+          `${asks.user.length} asks on me`,
           ...(answered.length ? [`${answered.length} answered`] : []),
           ...labels,
         ].join(" · "),

@@ -16,6 +16,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_gate.scheme import console_finding
 from PIL import Image, ImageChops, ImageStat
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -125,9 +126,8 @@ def test_sort_film_readout_and_narration(browser, serve):
     page = open_page(browser, serve(example))
     readings = page.evaluate(
         """async () => {
-          const widget = performance.getEntriesByType('resource')
-            .find(resource => resource.name.endsWith('/page/widgets/lf-sort-film.js'));
-          const source = new URL('../sort.js', widget.name);
+          const imports = JSON.parse(document.querySelector('script[type="importmap"]').textContent).imports;
+          const source = new URL('../page/sort.js', new URL(imports['/runtime/'], location.href));
           const {makeInput, trace} = await import(source);
           const steps = trace(makeInput('random', 7)).steps;
           const film = document.querySelector('#sort-film');
@@ -352,8 +352,7 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
                 "text": "candidate root",
             },
         )
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
 
     inline = seat.locator(f':scope > .lf-page-thread[data-thread="{root["id"]}"]')
     expect(inline).to_have_count(0)
@@ -424,8 +423,7 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
             serve.page_dir,
             {"kind": "resolve", "author": "agent", "parent": root["id"]},
         )
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
 
     expect(reply).to_have_js_property("value", "keep this inline reply")
     expect(reply).to_be_focused()
@@ -495,8 +493,7 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
             {"kind": "resolve", "author": "agent", "parent": root["id"]},
         )
 
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
     expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
         "value", "keep this unfinished reply"
     )
@@ -553,8 +550,7 @@ def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
         nudge(d)
     expect(menu).to_be_visible()
     expect(row).to_be_focused()
-    assert fault.value.text in page.lf_errors
-    page.lf_errors.remove(fault.value.text)
+    page.lf_errors.remove(console_finding(fault.value))
 
     page.unroute("**/api/state*")
     nudge(d)
@@ -778,7 +774,7 @@ def test_a_screenshot_margin_trace_paints_one_complete_quiet_contour(browser, se
     # the screenshot's own endpoint actions live in its native control rail.
     page.evaluate("""async () => {
       const {contributionEntry, registerContribution} =
-        await window.__lfRuntimeImport('/runtime/widget-api.js');
+        await window.__lfWidgetApi();
       registerContribution({key: 'review-capture',
         target: document.querySelector('#rn-console-shot'),
         read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
@@ -1127,12 +1123,12 @@ def test_a_drawing_stands_on_the_columns_axis_until_it_needs_the_free_margin(
     drawing's first node is the one a user follows the graph from."""
     page = open_page(browser, serve(DIAGRAM_AND_RAIL_PAGE))
     # Linux's DejaVu labels draw this graph at 1217px. Use a width where the drawing
-    # fits the room after a classic scrollbar has been taken, with the rail standing.
+    # fits the room after a classic scrollbar has been taken, with the rail shown.
     resized(page, 1920, 900)
     at = page.evaluate(DRAWING_PLACEMENT)
 
     assert at["place"] == "rail", (
-        "the row is not in the rail, so nothing here shows a standing rail leaving the "
+        "the row is not in the rail, so nothing here shows a rail leaving the "
         "margin to the drawing"
     )
     assert at["small"]["width"] < at["col"]["right"] - at["col"]["left"], (
@@ -1411,9 +1407,12 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     """On a sidebar page an Ask and a callout keep the prose's width and left edge, so
     the Ask's ring and pin stand beside what it asks, as on a column page. One granted
     `data-width`, or holding a block of its own that declares one, takes that room for
-    the evidence. On a column page the Ask stays in the column and its wide block breaks
-    out of it, as the block would from a section; the table's twelve columns need the
-    room, since a table granted it takes only what its columns need."""
+    the evidence. On a column page the wide block breaks out of the column, as it would
+    from a section, and the Ask spans it, so the ring it wears goes round the block
+    rather than cutting across it, while its heading keeps the column; the table's
+    twelve columns need the room, since a table granted it takes only what its columns
+    need. A workspace states neither width, so there every one of them, and a board,
+    fills the region it stands in."""
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     ask = (
@@ -1454,12 +1453,78 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     # The widened Ask frames its table, which stands wider than the measure.
     assert at["holds-t"]["width"] > 720, at
 
-    column = open_page(browser, serve(leaf_page("Column", body)))
+    # The Ask spans its block wherever the block breaks out: from a list item, which
+    # stands in from the column, and from an Ask granted the room itself, whose block
+    # then keeps it; where the page arranged the Ask, in a grid track, neither grows.
+    extras = (
+        "<ol><li>"
+        + ask.format(id="listed", width="", table=table.format(id="listed"))
+        + "</li></ol>"
+        + ask.format(
+            id="both", width=' data-width="wide"', table=table.format(id="both")
+        )
+        + '<div style="display: grid; grid-template-columns: 350px 1fr">'
+        + ask.format(id="tracked", width="", table=table.format(id="tracked"))
+        + "<p>Beside.</p></div>"
+    )
+    column = open_page(browser, serve(leaf_page("Column", body + extras)))
     resized(column, 1726, 900)
-    at = column.evaluate(measure)
-    assert at["holds"]["width"] == at["prose"]["width"] == 720, at
+    at = column.evaluate(
+        measure.replace(
+            "'list']", "'list', 'listed', 'listed-t', 'both', 'both-t', 'tracked']"
+        )
+    )
     assert at["holds-t"]["width"] == 1080, at
     assert at["holds-t"]["left"] < at["prose"]["left"], at
+    assert at["holds"] == at["holds-t"], at
+    heading = column.locator("#holds h3").bounding_box()
+    assert round(heading["x"]) == at["prose"]["left"], (heading, at)
+    assert at["ask"] == at["prose"], at
+    assert at["listed"] == at["listed-t"], at
+    assert at["both"] == at["both-t"] == {"width": 1080, "left": at["holds"]["left"]}, (
+        at
+    )
+    assert at["tracked"]["width"] == 350, at
+
+    board = (
+        '<lf-board id="board"><lf-column id="board-c" label="Open">'
+        '<lf-card id="board-k">Retry</lf-card></lf-column></lf-board>'
+    )
+    workspace = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Workspace",
+                f'<div id="region">{body}{board}</div>',
+                layout="workspace",
+            )
+        ),
+    )
+    resized(workspace, 1726, 900)
+    at = workspace.evaluate(measure.replace("'list']", "'list', 'region', 'board']"))
+    for block in ("prose", "ask", "granted", "granted-c", "holds", "callout", "list"):
+        assert at[block] == at["region"], (block, at)
+    assert at["board"] == at["region"], at
+
+    # With no evidence width, a board reaches only its holder: six columns in a narrow
+    # cell of the page's grid scroll inside it rather than spread over the next cell.
+    columns = "".join(
+        f'<lf-column id="c{i}" label="C{i}"></lf-column>' for i in range(6)
+    )
+    cells = leaf_page(
+        "Workspace cells",
+        f'<div id="cells"><div id="cell"><lf-board id="six">{columns}</lf-board></div>'
+        "<div>Beside.</div></div>",
+        head="<style>#cells { display: grid; grid-template-columns: 290px 1fr; }</style>",
+        layout="workspace",
+    )
+    workspace = open_page(browser, serve(cells))
+    resized(workspace, 1726, 900)
+    box = workspace.evaluate(
+        """() => Object.fromEntries(['cell', 'six'].map(id =>
+          [id, Math.round(document.getElementById(id).getBoundingClientRect().width)]))"""
+    )
+    assert box["six"] == box["cell"], box
 
 
 NOTE = '<aside class="sidenote" id="note"><p>A note that needs a sidenote.</p></aside>'
@@ -2119,7 +2184,7 @@ def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     page = open_page(browser, serve(LONG_PAGE))
     room = page.evaluate(CHROME_ROOM)
     assert room["banner"] > 0 and room["line"] > 0, (
-        f"neither bar is standing, so there is nothing here to reserve for: {room}"
+        f"neither bar is shown, so there is nothing here to reserve for: {room}"
     )
     assert abs(room["head"] - room["banner"]) <= 1, (
         f"the document starts {room['head']:.0f}px down, under a "
@@ -2877,89 +2942,230 @@ def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, 
         assert (track_box["top"] < body_box["top"]) is first
 
 
-@pytest.mark.parametrize("rail", [True, False])
-def test_authored_residency_runs_without_annotation_geometry(browser, serve, rail):
-    """Content residency imports inertly and admits authored residents independently
-    of annotation selection. Its one document listener owns disclosure changes; RTL
-    and a removed main still complete a reading without a second layout authority."""
-    page = open_page(
-        browser, serve(leaf_page("content owner", "<h1>Content owner</h1>"))
+def test_a_sidebar_pages_track_stays_in_view_only_beside_the_body(browser, serve):
+    """Beside the body, the one block a track holds stays in view below the banner as the
+    body scrolls, scrolls what it holds so its end is reachable, and is the reading
+    region its words scroll in; it never reaches over a footer. That holds whatever
+    shares the page gives the track. Stacked, whether the window is narrow, the body's
+    content needs the page's width or the track's needs more than its share, it scrolls
+    with the page rather than standing over the body, however the window reached that
+    width; so does a track beside a second track rather than the body, and a track of
+    several blocks."""
+    body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
+    block = (
+        "<div id='block'><p id='follow-up'>Follow-up to check.</p>"
+        + "<p>Follow-up to check.</p>" * 60
+        + "</div>"
     )
-    asset = page.evaluate("""new URL('runtime/content-layout.js', new URL(
-      document.querySelector('script[data-lf-entry]').dataset.lfEntry, location)).href""")
-    fixture = page.evaluate("new URL('content-owner-proof', location).href")
-    page.route(
-        fixture,
-        lambda route: route.fulfill(
-            content_type="text/html",
-            body="""<!doctype html><html><head><style>
+    wide = "<div style='min-width: 1300px'>A block 1300px wide.</div>"
+    footer = "<footer id='foot'><p>Reviewed by the platform team.</p></footer>"
+    read = """async () => {
+      const box = (id) => document.getElementById(id)?.getBoundingClientRect();
+      const { scrollerFor } = await window.__lfWidgetApi();
+      return { top: box('block').top, bottom: box('block').bottom,
+               foot: box('foot')?.top ?? Infinity, innerHeight,
+               position: getComputedStyle(document.getElementById('block')).position,
+               banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
+               scroller: scrollerFor(document.getElementById('follow-up'))?.id ?? null };
+    }"""
+    in_track = block.replace(
+        "<p ", "<div style='min-width: 650px'>A block 650px wide.</div><p ", 1
+    )
+    cases = (
+        # (the page's CSS, the track, the body's lead, after the body, widths, sticks)
+        ("", block, "", footer, (900,), True),
+        ("", block, "", "", (1440, 900), True),
+        ("#track { flex-basis: 44rem }", block, "", "", (2560,), True),
+        ("", block, "", "", (390,), False),
+        ("", block, wide, "", (1440,), False),
+        ("#track { max-width: 400px }", block, wide, "", (900,), False),
+        ("", in_track, "", "", (900,), False),
+        ("", in_track, "", "", (1440, 900), False),
+        ("", block + "</aside><aside><p>Owners.</p>", "", "", (900,), False),
+        ("", block + "<p>Owners.</p>", "", "", (900,), False),
+        (
+            "#body { flex: 0 0 400px } #track { flex: 0 0 420px; margin-inline-start: auto }",
+            block,
+            "",
+            "",
+            (900,),
+            False,
+        ),
+        (
+            (
+                "#body { flex: 0 0 400px } #track { flex: 0 0 420px;"
+                " margin-inline-start: auto; margin-block-start: -100px }"
+            ),
+            block,
+            "",
+            "",
+            (900,),
+            False,
+        ),
+        ("#body { margin-block-start: 200px }", block, "", "", (900,), True),
+        (
+            "main { height: 20000px } #body { align-self: flex-end }",
+            block,
+            "",
+            "",
+            (900,),
+            True,
+        ),
+        (
+            (
+                "#body { display: contents } #body > p { display: none }"
+                " #body > p:first-child { display: block; flex: 2 1 30rem;"
+                " min-height: 4000px }"
+            ),
+            block,
+            "",
+            "",
+            (900,),
+            True,
+        ),
+        (
+            "#body { position: absolute; left: 400px; top: 0; width: 350px }",
+            block,
+            "",
+            "",
+            (900,),
+            False,
+        ),
+    )
+    for css, track, lead, after, widths, sticks in cases:
+        source = leaf_page(
+            "a sidebar page",
+            "<header><h1>Review</h1></header><aside id='track'>"
+            + track
+            + "</aside>"
+            + body.replace("<p>", lead + "<p>", 1)
+            + after,
+            head=f"<style>{css}</style>" if css else "",
+            layout="sidebar",
+        )
+        page = open_page(browser, serve(source))
+        for width in widths:
+            resized(page, width, 600)
+        page.evaluate("scrollTo(0, 1500)")
+        at = page.evaluate(read)
+        case = (css, widths, track[-30:], at)
+        if sticks:
+            assert at["position"] == "sticky", case
+            assert at["banner"] <= at["top"] <= at["banner"] + 40, case
+            assert at["bottom"] <= at["innerHeight"], case
+            assert at["scroller"] == "block", case
+            page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+            at = page.evaluate(read)
+            assert at["bottom"] <= at["foot"], case
+        else:
+            assert at["position"] != "sticky", case
+            assert at["top"] < 0, case
+            assert at["scroller"] != "block", case
+
+
+def test_a_revision_keeps_the_readers_place_in_a_sidebar_tracks_block(browser, serve):
+    """A track's block is a reading region named by its own id, or by its track's where it
+    has none, so a neighbour never renames it. A revision that replaces the track keeps
+    the reader where they were in the block: the replacement stands beside the body, so
+    the block scrolls, before the reader's place returns."""
+    paragraphs = "".join(f"<p id='f{n}'>Follow-up {n} to check.</p>" for n in range(60))
+    body = "<div id='body'>" + "<p>Body paragraph. " * 600 + "</p></div>"
+    regions = """async () => (await window.__lfCheckApi())
+      .readingRegions().map((region) => region.id)"""
+
+    def source(track, block=""):
+        return leaf_page(
+            "a sidebar page",
+            f"<header><h1>Review</h1></header><aside id='{track}'><div{block}>"
+            f"{paragraphs}</div></aside>{body}",
+            layout="sidebar",
+        )
+
+    page = open_page(browser, serve(source("track")))
+    resized(page, 900, 600)
+    expect(page.locator("#track")).to_have_attribute("data-lf-beside", "")
+    assert "lf-region:layout#track" in page.evaluate(regions)
+
+    page = open_page(browser, live_url(serve(source("track", " id='block'"))))
+    resized(page, 900, 600)
+    expect(page.locator("#track")).to_have_attribute("data-lf-beside", "")
+    page.evaluate("scrollTo(0, 1500)")
+    page.locator("#block").evaluate("block => { block.scrollTop = 1000; }")
+    scroll_settled(page)
+    read = "() => document.getElementById('f30').getBoundingClientRect().top"
+    before = page.evaluate(read)
+
+    stamp_page(serve.page_dir, source("new-track", " id='block'"), "rename the track")
+    wait_for_revision(page, 2)
+    expect(page.locator("#new-track")).to_have_attribute("data-lf-beside", "")
+    scroll_settled(page)
+    assert "lf-region:layout#block" in page.evaluate(regions)
+    assert page.evaluate(read) == pytest.approx(before, abs=2)
+
+
+@pytest.mark.parametrize("rail", [True, False])
+def test_authored_residency_follows_native_disclosure_in_both_annotation_modes(
+    browser, serve, rail
+):
+    """The compiled runtime seats authored residents through native disclosure.
+
+    RTL and a removed main still settle the document's layout. Import inertness
+    and the independent annotation boundary are held by content-layout.test.mjs.
+    """
+    source = leaf_page(
+        "content owner",
+        """<h1>Neutral authored layout</h1>
+<aside>Sidebar</aside><aside class="note" id="initial-note">Hidden until resident note</aside>
+<details><summary>More</summary><aside class="note">Disclosed note</aside></details>""",
+        head="""<style>
 body { margin: 0 }
 main { width: 720px; margin: auto; position: relative;
  --rail: 100px; --sidebar: 150px; --note: 80px }
 aside { --lf-resident: sidebar }
 aside.note { --lf-resident: note; display: none }
-</style></head><body data-annotations="ANNOTATION_MODE"><main><h1>Neutral authored layout</h1>
-<aside>Sidebar</aside><aside class="note">Hidden until resident note</aside>
-<details><summary>More</summary><aside class="note">Disclosed note</aside></details>
-</main></body></html>""".replace("ANNOTATION_MODE", "overlay" if rail else "page"),
-        ),
+</style>""",
+        layout=None,
+    ).replace(
+        "<body>", '<body data-annotations="' + ("overlay" if rail else "page") + '">'
     )
-    page.set_viewport_size({"width": 950, "height": 800})
-    loaded = []
-    page.on("request", lambda request: loaded.append(request.url))
-    page.goto(fixture)
-    # Runtime modules read the storage and initial-drawing services installed by
-    # the classic prepaint script before their module graph is imported.
-    page.add_script_tag(url=asset.replace("content-layout.js", "prepaint.js"))
-    reading = page.evaluate(
-        """async ({asset, rail}) => {
-      const owner = await import(asset);
-      window.residency = owner; window.completed = [];
-      owner.scheduleResidency();
-      await new Promise(requestAnimationFrame);
-      const main = document.querySelector('main');
-      const inert = !owner.residencyStarted();
-      owner.openResidency({onRead: changed => window.completed.push(changed)});
-      return {inert, tokens: main.getAttribute('data-lf-margin'),
-              shift: document.body.style.getPropertyValue('--lf-column-shift')};
-    }""",
-        {"asset": asset, "rail": rail},
-    )
-    expected = {
-        "inert": True,
-        "tokens": "rail note" if rail else "note",
-        "shift": "",
-    }
-    assert reading == expected
-    page.evaluate("document.documentElement.dir='rtl'; residency.scheduleResidency()")
-    page.wait_for_function("completed.length >= 2")
+    context = browser.new_context(viewport={"width": 950, "height": 800})
+    page = open_page(browser, serve(source), context=context)
+    main = page.locator("main")
+    expected = "rail note" if rail else "note"
+    expect(main).to_have_attribute("data-lf-margin", expected)
     assert (
         page.locator("body").evaluate(
             "node => node.style.getPropertyValue('--lf-column-shift')"
         )
-        == expected["shift"]
+        == ""
     )
-    page.evaluate("document.querySelector('details').open = true")
-    page.wait_for_function("completed.length >= 3")
-    expect(page.locator("main")).to_have_attribute("data-lf-margin", expected["tokens"])
     page.evaluate(
-        "document.querySelector('main').remove(); residency.scheduleResidency()"
+        "document.documentElement.dir='rtl'; dispatchEvent(new Event('resize'))"
     )
-    page.wait_for_function("completed.length >= 4")
-    assert page.evaluate("completed.at(-1)") is False
-    assert not [
-        url
-        for url in loaded
-        if any(
-            name in url
-            for name in (
-                "margin-layout",
-                "margin-projection",
-                "annotation-layer",
-                "page-map-dialog",
-            )
+    rendered(page)
+    expect(main).to_have_attribute("data-lf-margin", expected)
+    assert (
+        page.locator("body").evaluate(
+            "node => node.style.getPropertyValue('--lf-column-shift')"
         )
-    ]
+        == ""
+    )
+    page.evaluate(
+        "document.querySelector('#initial-note').remove(); dispatchEvent(new Event('resize'))"
+    )
+    if rail:
+        expect(main).to_have_attribute("data-lf-margin", "rail")
+    else:
+        expect(main).not_to_have_attribute("data-lf-margin", re.compile(r"\S"))
+    # Opening native details is the causal input: no private residency solver runs.
+    main.locator("summary").press("Enter")
+    expect(main.locator("details")).to_have_attribute("open", "")
+    expect(main).to_have_attribute("data-lf-margin", expected)
+    page.evaluate(
+        "document.querySelector('main').remove(); dispatchEvent(new Event('resize'))"
+    )
+    rendered(page)
+    expect(main).to_have_count(0)
 
 
 def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
@@ -3026,20 +3232,20 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
     box, needs = at["column"]["box"], at["needs"]
     sidebar_from = round(box + needs["rail"] + needs["sidebar"])
     note_from = round(box + needs["sidebar"] + needs["note"])
-    for width, standing in (
+    for width, postures in (
         (sidebar_from - 1, "rail"),
         (sidebar_from, "rail sidebar"),
         (note_from - 1, "rail sidebar"),
         (note_from, "rail sidebar note"),
     ):
         resized(page, width, 800)
-        expect(page.locator("main")).to_have_attribute("data-lf-margin", standing)
+        expect(page.locator("main")).to_have_attribute("data-lf-margin", postures)
         at = page.evaluate(reading)
         assert at["column"]["width"] == 720, (width, at)
         assert root_overflow(page) == 0, (width, at)
         first, second = at["sidebars"]
         assert (second["float"], second["position"]) == ("none", "static"), (width, at)
-        if "sidebar" in standing:
+        if "sidebar" in postures:
             assert (first["float"], first["position"]) == ("left", "sticky"), (
                 width,
                 at,
@@ -3055,14 +3261,14 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
             )
             centre = (at["column"]["left"] + at["column"]["right"]) / 2
             assert abs(centre - at["shell"] / 2) <= 1, (width, at)
-        if "note" in standing:
+        if "note" in postures:
             assert at["note"]["float"] == "right", (width, at)
             assert at["note"]["left"] >= at["column"]["right"] + 23, (width, at)
             assert at["note"]["right"] <= at["shell"], (width, at)
         else:
             assert at["note"]["float"] == "none", (width, at)
 
-    # The Questions panel stands over the page and grants or withdraws no margin.
+    # The On panel stands over the page and grants or withdraws no margin.
     toggle_queue(page)
     panelled = page.evaluate(reading)
     assert panelled["sidebars"] == at["sidebars"]
@@ -3113,7 +3319,7 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
 
     assert schema_model.NO_KEY in page.locator("body").inner_text()
     # The refusal is the subject: a user without the key is answered 401.
-    consume_browser_errors(page, "401")
+    consume_browser_errors(page, {"code": "failed-load", "status": 401})
 
 
 @pytest.mark.parametrize(
@@ -3189,7 +3395,7 @@ def test_margin_residents_keep_their_first_painted_posture(
             "document.body.style.getPropertyValue('--lf-column-shift')"
         ) == (initial_shift if resident else "")
     assert page.evaluate("""async () => {
-      const {runtimeRootState} = await window.__lfRuntimeImport('/runtime/root-state.js');
+      const {runtimeRootState} = await window.__lfCheckApi();
       return runtimeRootState(document.body).attributes.has('data-lf-column-shell');
     }""")
     for revision, layout in ((5, "sidebar"), (6, "column")):
@@ -3273,7 +3479,7 @@ def test_document_reading_survives_width_reflow(browser, serve, notes, local_reg
     page = open_page(browser, serve(leaf_page("Reading through reflow", body)))
     if local_region:
         page.evaluate("""async () => {
-          const {registerReadingRegion} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {registerReadingRegion} = await window.__lfWidgetApi();
           const body = document.querySelector('#local-region');
           registerReadingRegion({id: body.id, host: body, body});
         }""")
@@ -3283,8 +3489,7 @@ def test_document_reading_survives_width_reflow(browser, serve, notes, local_reg
     page.mouse.wheel(0, 160)
     scroll_settled(page)
     reading = """async () => {
-      const entry = new URL(document.querySelector('script[data-lf-entry]').dataset.lfEntry, location);
-      const {capturePlace} = await import(new URL('runtime/reading-place.js', entry));
+      const {capturePlace} = await window.__lfWidgetApi();
       return capturePlace();
     }"""
     if local_region == "bounded":
@@ -3396,9 +3601,10 @@ def test_the_write_gate_allows_only_the_column_measurement_property(
     }""",
         bad_write,
     )
-    failures = consume_browser_errors(page, "unchanged write:")
+    failures = consume_browser_errors(page, {"code": "unchanged-write"})
     assert len(failures) == 1
-    assert "style on body" in failures[0]
+    assert failures[0].values["what"] == "style", failures
+    assert failures[0].values["node"].startswith("body"), failures
 
 
 def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(

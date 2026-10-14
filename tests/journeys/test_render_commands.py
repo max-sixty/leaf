@@ -78,9 +78,9 @@ def test_the_gate_passes_a_page_that_carries_a_comment(browser, serve):
     )
     page.close()
     assert held == []
-    assert any("planted float" in found for found in reported), (
-        "the planted control covers no words, so a gate that never looked would pass too"
-    )
+    assert any(
+        "planted float" in (found["words"], found["covered"]) for found in reported
+    ), "the planted control covers no words, so a gate that never looked would pass too"
 
 
 def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serve):
@@ -99,7 +99,11 @@ def test_the_gate_passes_collapsed_words_that_overlap_when_visible(browser, serv
     collapsed.evaluate("node => node.removeAttribute('hidden')")
     expect(collapsed.locator("p").first).to_be_visible()
     visible = render_checks_model.evaluate_probe(page, "coveredWords")
-    assert any("hidden line" in found for found in visible), (
+    assert any(
+        {found["words"], found["covered"]}
+        == {"First hidden line", "Second hidden line"}
+        for found in visible
+    ), (
         "the visible lines fell on nobody, so a gate that never looked would pass this too"
     )
     collapsed.evaluate("node => node.setAttribute('hidden', 'until-found')")
@@ -184,9 +188,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     serve(LONG_PAGE)
     d = serve.page_dir
 
-    def gate():
+    def gate(*flags):
         return subprocess.run(
-            [*LEAF_COMMAND, "page", "check", str(d), "--render"],
+            [*LEAF_COMMAND, "page", "check", str(d), "--render", *flags],
             capture_output=True,
             text=True,
             check=False,  # both exit codes are the subject
@@ -202,9 +206,15 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     (d / "index.html").write_text(
         LONG_PAGE.replace("</main>", "<div style='width:150vw'>wide</div>\n</main>")
     )
-    broken = gate()
-    assert broken.returncode == 1
-    assert "scrolls sideways" in broken.stderr
+    broken = gate("--json")
+    assert broken.returncode == 1, broken.stderr
+    report = json.loads(broken.stdout)
+    assert report["status"] == 1
+    assert report["browser"]["asked"] == report["browser"]["ran"] == ["render check"]
+    assert report["browser"]["browser"] == "Chrome"
+    scrolls = [f for f in report["findings"] if f["code"] == "page-scrolls"]
+    assert {f["scheme"] for f in scrolls} == {"light", "dark"}, report
+    assert all(f["severity"] == "error" and f["values"]["past"] > 0 for f in scrolls)
 
 
 def test_a_passing_render_check_saves_the_screens_the_author_reads(
@@ -214,8 +224,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     bottom at the desktop viewport and on a phone, and one screen at each width where
     the page's own arrangement is at its tightest before it changes. A sidebar page with
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
-    Each open Ask, a suggestion as much as an lf-ask, gets the window `q` brings it
-    into, as the user working the page meets it, including those `q` reaches past a
+    Each open Ask, a suggestion as much as an lf-ask, gets the window `m` brings it
+    into, as the user working the page meets it, including those `m` reaches past a
     page widget move handed back to the user, which is a stop of its own and no Ask."""
     tiles = "".join(
         f"<dl id='m{i}'><dt>metric {i}</dt><dd>{i}</dd></dl>" for i in range(4)
@@ -269,8 +279,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             "turn": "turn-1",
         },
     )
-    questions = state_json(serve.page_dir)["queues"]["questions"]
-    assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in questions]
+    on_user = state_json(serve.page_dir)["queues"]["on_user"]
+    assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in on_user]
 
     ran = subprocess.run(
         [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
@@ -286,12 +296,12 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     names = sorted(path.name for path in into.iterdir())
     assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
     assert {
-        "1200px-question-1.png",
-        "1200px-question-2.png",
-        "1200px-question-3.png",
+        "1200px-ask-1.png",
+        "1200px-ask-2.png",
+        "1200px-ask-3.png",
     } <= set(names)
-    assert "1200px-question-4.png" not in names
-    assert any("each press of `q`" in line for line in listed)
+    assert "1200px-ask-4.png" not in names
+    assert any("each press of `m`" in line for line in listed)
     assert any('"Pre-handover review"' in line for line in listed)
     stacks = next(line for line in listed if "<main> 1+2 → 1+1+1" in line)
     assert (into / stacks.split(":")[0].strip()).exists()
@@ -747,21 +757,28 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     failed = run_page_code(RoutedBrowser(fail_helper=True), url)
     # The runtime's own report carries the error's stack; the check's refusal quotes
     # only the reason the page shows.
+    by_code = {}
+    for report in failed:
+        by_code.setdefault(report.code, []).append(report.values)
     assert any(
-        report.startswith("page failed to start:") and "TypeError" in report
-        for report in failed
+        report["text"].startswith("page failed to start:")
+        and "TypeError" in report["text"]
+        for report in by_code["page-report"]
     ), failed
-    assert any(report.startswith("the runtime could not start:") for report in failed)
+    assert by_code["not-ready"][0]["stage"] == "refused", failed
+    assert by_code["not-ready"][0]["error"].startswith("the runtime could not start:")
     assert any(
-        "Browser request failed (Script, net::ERR_FAILED)" in report
-        and f"in {url}:" in report
-        and "/page/helper.js" in report
-        for report in failed
+        report["kind"] == "Script"
+        and report["error"] == "net::ERR_FAILED"
+        and report["frame"] == url
+        and report["url"].endswith("/page/helper.js")
+        for report in by_code["request-failed"]
     ), failed
     assert any(
-        "Browser request returned HTTP 404 (Image)" in report
-        and "/page/missing-image.png" in report
-        for report in failed
+        report["status"] == 404
+        and report["kind"] == "Image"
+        and report["url"].endswith("/page/missing-image.png")
+        for report in by_code["request-status"]
     ), failed
 
     assert run_page_code(RoutedBrowser(fail_helper=False), url) == []

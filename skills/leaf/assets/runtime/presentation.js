@@ -31,7 +31,8 @@
 
    Presentation is not the end of the page's arrival. An owner may deliberately keep work
    off the presentation path, such as a widget's progressive upgrade, and that work
-   still moves boxes when it lands. `deferredArrival` is where such an owner says so,
+   still moves boxes when it lands. Where that landing would move what the reader sees,
+   its owner holds the growth until it would not (thread/held-news.js, `heldGrowth`). `deferredArrival` is where such an owner says so,
    and the `arrived` stage of `pageReadiness` answers whether any of it is still
    outstanding. Startup waits for these arrivals before
    its final retained fragment landing, so late geometry keeps the requested place.
@@ -40,9 +41,14 @@
    the page that knows a deferred upgrade exists is whoever remembered to name it, which
    is a reader repeating what the page should settle.
 
-   `afterPresentation` is the whole of that for a widget: it is the wait and the
-   declaration together, so there is no way to hold work until the page has presented
-   without the page counting it. A package never reaches the two halves separately. */
+   A widget reaches this through two routes, and each declares what it defers, so no
+   widget keeps work off the presentation path without the page counting it.
+   `afterPresentation` is the wait and the declaration together, for work the widget
+   earns the right to start only once the user has the page. `deferredArrival` is the
+   declaration alone, for work already running that presentation need not wait for,
+   such as a live sample's child page starting below the window: the work starts
+   now, the page presents without it, and `arrived` waits for it. Neither hands a
+   package the bare `presented` wait. */
 
 import { applicationPresented } from "./semantic-state.js";
 import { reportPageError } from "./layer-client.js";
@@ -51,8 +57,14 @@ import { renderingState } from "./rendering.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./page-paint.js";
 
+export const UPGRADE = "lf-upgraded";
+export function markPageUpgraded() {
+  setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.upgraded, "1");
+  document.dispatchEvent(new Event(UPGRADE));
+}
 // The stamp is written here and nowhere else, and never taken back, so the promise it
 // resolves answers every later waiter too.
+/** @type {PromiseWithResolvers<void>} */
 const { promise: presented, resolve: resolvePresented } = Promise.withResolvers();
 export function markPagePresented() {
   setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.presented, "1");
@@ -62,14 +74,19 @@ export function markPagePresented() {
 // The arrivals their owners placed after presentation and that have not landed yet.
 // Registration is synchronous at the point the owner decides to defer — before
 // presentation for anything a page starts with — so the page never reads as arrived in
-// the window between presenting and its first deferred upgrade taking hold.
+// the window between presenting and its first deferred upgrade taking hold. A
+// rejection lands the arrival like a resolution; its owner draws the failure.
 const arriving = new Set();
+// Those waiting for the page to start arriving again (`whenArriving`).
+const restarts = new Set();
 
 /** Declare work this page finishes after presenting, and hand back its promise. */
 export function deferredArrival(work) {
   arriving.add(work);
   const landed = () => arriving.delete(work);
   work.then(landed, landed);
+  for (const restart of restarts) restart();
+  restarts.clear();
   return work;
 }
 
@@ -77,6 +94,11 @@ export function deferredArrival(work) {
 export async function whenArrived() {
   while (arriving.size) await Promise.allSettled(arriving);
 }
+
+/** Wait until some arrival is outstanding: at once if one is, else at the next one
+    declared, as when a sample this page holds is Reset. */
+export const whenArriving = () =>
+  arriving.size ? Promise.resolve() : new Promise((restart) => restarts.add(restart));
 
 /** Run `work` once the page has presented, as an arrival the page answers for. */
 export const afterPresentation = (work) => deferredArrival(presented.then(work));
@@ -101,6 +123,7 @@ export function markStateApplied(state) {
 const stamp = (name) => document.body.getAttribute(PAGE_PAINT_ATTRIBUTE[name]);
 // In the order a page reaches them. `held` is the `/api/state` answer a reader holds
 // (`{reading, taken}`), or null for a reader holding none, which skips `state`.
+/** @type {[string, (held?: {taken: number, reading: string} | null) => boolean][]} */
 const READINESS = [
   ["upgraded", () => stamp("upgraded") === "1"],
   ["log", () => stamp("applied") !== null],

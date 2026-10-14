@@ -7,7 +7,7 @@
  * weakly retained binding restores that observation when the control returns. */
 import { nearObserver, nearWindow, scrollContainer, shownParts } from "./geometry.js";
 import { hostIn, renderedParent } from "./shadow.js";
-import { nativeLayerHolding } from "./keyboard/layer-stack.js";
+import { nativeLayerHolding } from "./shadow-tree.js";
 import { scrollsContent } from "./scroll-motion.js";
 import { watchArrivals } from "./arrivals.js";
 import { keeps } from "./keeps.js";
@@ -20,6 +20,7 @@ import { keeps } from "./keeps.js";
 const anchorNames = new WeakMap();
 let anchorOrdinal = 0;
 const nextName = () => `--lf-a${++anchorOrdinal}`;
+/** @returns {{el: any, name: string, write?: string}} */
 export function anchorReading(el, name = anchorNames.get(el) ?? nextName()) {
   // A content start is named where it is made (`contentStart`).
   const start = contentStarts.get(el);
@@ -36,6 +37,7 @@ export function anchorReading(el, name = anchorNames.get(el) ?? nextName()) {
     write: !authored || authored === "none" ? name : `${authored}, ${name}`,
   };
 }
+/** @param {ReturnType<typeof anchorReading>} reading */
 export function nameAnchor({ el, name, write }) {
   if (write) el.style.anchorName = write;
   return name;

@@ -6,10 +6,10 @@
    A restored or newly opened panel shows a loading state until that distinction
    resolves, and the page's general box stays usable throughout.
 
-   A failed fetch is a complete offline answer for interaction: the authored page is the
-   best state available when no log can be reached, so fixed status chrome reports the
-   loss and its controls may activate. A successful response with malformed state is not
-   an offline answer. Parsing or rendering errors pass to the recovery boundary and leave
+   A failed fetch is an offline answer: the authored page and local comments remain
+   useful, while Decisions await the complete reading their actions need. Fixed status
+   chrome reports the loss; a request still in flight remains loading. A successful
+   response with malformed state is not an offline answer. Parsing or rendering errors pass to the recovery boundary and leave
    the candidate sequence unresolved; authored content stays readable while
    state-dependent controls remain unavailable. */
 
@@ -83,8 +83,8 @@ function buffer(bound) {
 // startup continues. The result is still applied through readAndApply, at the boundary
 // that has captured the upgraded authored state. A malformed answer therefore remains a
 // startup fault; buffering changes when the network work runs, not what its answer
-// means. This is the one read nothing is waiting on — presentation ends at its own wait
-// — so it is the one that takes the long bound.
+// means. The interface opens independently at upgrade, so the first read takes the long
+// bound while authoritative presentation waits for its actual answer.
 export function beginRead() {
   return buffer(FIRST_READ_TIMEOUT_MS);
 }
@@ -96,7 +96,6 @@ export function createStateFeed({
   invalidateDom,
   receiveState,
   prepareActivation,
-  renderStatus,
 }) {
   let readAnswered = false;
 
@@ -105,7 +104,7 @@ export function createStateFeed({
   function failed(error) {
     readAnswered = false;
     reportCarried(error, `read failed`);
-    renderStatus(error);
+    applicationState.setReach("broken");
   }
 
   // The clock has no state to replay, and a projection a drag deferred is retried by
@@ -122,14 +121,14 @@ export function createStateFeed({
   async function readNothing() {
     readAnswered = false;
     if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
-    renderStatus(null);
+    applicationState.setReach(runtime.keyRefused ? "refused" : "unreachable");
     await invalidateDom();
     await tick();
   }
 
   // A read and its application together, for the callers that want to be told when the
-  // page has taken the answer in: the buffered first read, which presentation waits on
-  // until its own deadline, and a version activation, which asks for the state it is
+  // page has taken the answer in: the buffered first read, and a version activation,
+  // which asks for the state it is
   // about to show. The activation opens its own read from a page a user is already
   // using, so it takes an ordinary read's bound rather than the first read's.
   async function readAndApply(read = buffer(STATE_READ_TIMEOUT_MS)) {
@@ -159,42 +158,18 @@ export function createStateFeed({
   }
 
   function startFeed(present, initialRead = beginRead()) {
-    // Presentation waits on the first read, but not on the container: the wait ends at
-    // `PRESENTATION_WAIT_MS` whether or not an answer has come, and nothing is aborted
-    // when it does. The request keeps its own, far longer bound and stays in flight, so a
-    // container that is merely slow is never abandoned mid-answer, while one that accepts
-    // the connection and says nothing cannot decide when the user gets a page at all.
-    // Past the wait the buffered read is an ordinary one: its answer applies and repaints
-    // through the same path any later read's does, and a malformed one is reported the
-    // same way rather than withholding a page the user is already using.
+    // Upgrade has already opened reading and commenting. Authoritative presentation
+    // waits for an actual answer; elapsed time cannot turn an unanswered read offline.
     const readAndPresent = async () => {
-      let outcome = "waiting";
-      let waited = null;
-      const wait = new Promise((resolve) => {
-        waited = setTimeout(resolve, PRESENTATION_WAIT_MS);
-      });
-      // The buffered read holds the page's one read slot until it settles — see `reading`
-      // below — so the clock this feed installs asks again after it rather than beside it.
-      const settled = (async () => {
-        try {
-          await readAndApply(initialRead);
-          outcome = "applied";
-        } catch (error) {
-          outcome = "failed";
-          failed(error);
-        }
-      })().finally(() => {
-        clearTimeout(waited);
-        releaseSlot();
-      });
-      await Promise.race([settled, wait]);
-      // An answer that arrived and could not be applied is a startup fault: the authored
-      // document stays readable under the named error and the presented stamp is withheld.
-      if (outcome === "failed") return;
       try {
-        // The wait ran out first, so the page has no state to show and says so, exactly as
-        // it does for an answer that brought none.
-        if (outcome === "waiting") await readNothing();
+        await readAndApply(initialRead);
+      } catch (error) {
+        failed(error);
+        return;
+      } finally {
+        releaseSlot();
+      }
+      try {
         await present();
       } catch (error) {
         failed(error);
@@ -355,11 +330,9 @@ export function createStateFeed({
       listen();
     });
     document.addEventListener("lf-session-active", listen);
-    // The ear opens once the page has presented, not once the container has answered: a
-    // page whose first read is still out has nothing for the first freshness answer to be
-    // compared with, so that answer asks — which is what the slot the read still holds is
-    // for. A page that did get its answer holds a reading, and an unchanged page is not
-    // asked for twice.
+    // The ear opens after the first answer or startup fault. A successful read holds
+    // a freshness token, so an unchanged page is not asked for twice; a failed read
+    // releases its slot for recovery on the shared clock.
     const initialPresentation = readAndPresent();
     if (offlineInteractive) return;
     initialPresentation.finally(() => {
@@ -400,28 +373,15 @@ const TICK_MS = 2000;
 // the next; request duration adds to the interval. Quiet checks do not rebuild.
 const LOOK_MS = 250;
 
-// How long the page waits on its first read before presenting without one. Presentation
-// is the user's page arriving, so this is the only bound a user feels, and it is set
-// where waiting longer stops being worth an unflashed banner: outside the readings a
-// working container takes — a container that has just run a hosted agent turn was
-// measured answering in 2.3-3.9 s — and inside the patience anyone has for a page. What
-// running out costs is a banner that corrects itself, because the read it stopped
-// waiting on is still coming.
-const PRESENTATION_WAIT_MS = 10_000;
-
-// How long the first read may take before the page gives up on it. Nothing waits on this
-// one — the wait above presents without it — so the bound frees the page's one read slot
-// rather than deciding when the page arrives, and is set outside what any live container
-// takes rather than inside it: the deploy gate gives every read of a container running a
-// hosted turn a 120-second revision wait after presentation. This read starts before
-// that wait, so abandoning it sooner would abort an answer while the gate is still
-// waiting; at this bound the gate observes the resulting offline state. A proxy that
-// accepts the connection and never answers is therefore still bounded here.
+// The interface is usable at upgrade while the first reading finishes. Bound its
+// network slot outside the hosted deploy gate's 120-second revision wait, rather than
+// aborting a live container's answer while the gate is still waiting for it. An expired
+// read is a completed offline answer and releases the slot for a retry.
 const FIRST_READ_TIMEOUT_MS = 120_000;
 
 // How long every read after that may take. These have no wait beside them, and the
 // banner's one honesty mechanism about the server runs through a read that *completed*
-// with nothing: `renderStatus(null)` is the only path to OFFLINE_LINE, and a read still
+// with nothing: its `unreachable` reach is the only path to OFFLINE_LINE, and a read still
 // in flight holds the slot, so freshness or a clock tick only queues a trailing read
 // behind it. This bound is therefore the whole time a user watching a live page can be
 // shown a reading the server has stopped standing behind, which is a user's timescale

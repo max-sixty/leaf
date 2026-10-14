@@ -1,6 +1,6 @@
 import { shownParts, TEXT_BOX } from "/runtime/widget-api.js";
 import { shownBox, userScrollport } from "/runtime/check-api.js";
-import { at } from "./locate.js";
+import { at, unique } from "./locate.js";
 import { coveredWords } from "./words.js";
 
 // One read-only view of controls and words a reader cannot reach. The render gate
@@ -24,7 +24,7 @@ export function reachabilityReading() {
 // words is a line tall wherever it is laid out, which leaves a flattened chip caught.
 //
 // Declared, not read off the computed display, because a custom element with no rule
-// left standing computes as inline: a theme that lost the chip block would silence the
+// left computes as inline: a theme that lost the chip block would silence the
 // check that exists to catch it.
 //
 // [hidden] needs its own exclusion: hidden="until-found" (what a closed tab wears)
@@ -110,7 +110,9 @@ export function clippedControls() {
         );
         if (lost > 1) {
           out.push({
-            ctrl: el.className,
+            code: "clipped-control",
+            at: at(el),
+            control: el.className,
             id: el.id,
             by: `<${a.tagName.toLowerCase()}${a.id ? " id=" + a.id : ""}>`,
             lost,
@@ -193,8 +195,8 @@ export function unmarkableElements() {
     if (!(box.width && box.height)) continue;
     if (shownParts(el).length) continue;
     found.push({
-      tag: el.tagName.toLowerCase(),
-      id: el.id,
+      code: "unmarkable",
+      at: at(el),
       w: Math.round(box.width),
       h: Math.round(box.height),
     });
@@ -233,7 +235,7 @@ function unreachableWords() {
       .filter((c) => c && c.startsWith('"'));
     for (const { name, value } of el.attributes)
       if (value.length > 1 && shown.some((c) => c.includes(value)))
-        found.push(`${at(el)} paints ${name}="${value}" rather than saying it`);
+        found.push({ code: "painted-words", at: at(el), attr: name, value });
   }
   // The lf-* element something stands in, if any. A .lf-ui is a widget's own
   // chrome by standing in one of these, and the runtime's layer is appended to
@@ -257,7 +259,12 @@ function unreachableWords() {
   // the runtime builds it through `offer`, as a widget builds its own.
   const CONTROL = `button, ${TEXT_BOX}, input, select, label, a[href], [data-lf-offer]`;
   const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+  // A text walk visits text nodes.
+  for (
+    let n = /** @type {Text} */ (walk.nextNode());
+    n;
+    n = /** @type {Text} */ (walk.nextNode())
+  ) {
     const el = n.parentElement;
     if (!n.data.trim()) continue;
     // Whose the .lf-ui is, per `widget` above. A widget's own chrome is read
@@ -282,12 +289,13 @@ function unreachableWords() {
     // a box shows (render-checks/widgets.js, render-checks/words.js) spell
     // the same pair.
     if (el.closest(".lf-quiet, [hidden]")) continue;
-    found.push(
-      `${at(widget(el))} puts ${JSON.stringify(n.data.trim().slice(0, 40))} ` +
-        `under .lf-ui, where no comment can reach it`,
-    );
+    found.push({
+      code: "chrome-words",
+      at: at(widget(el)),
+      words: n.data.trim().slice(0, 40),
+    });
   }
-  return [...new Set(found)];
+  return unique(found);
 }
 
 // A declared label inside a form control is out of reach whatever it is marked: Chrome
@@ -303,8 +311,11 @@ export function wordsInFormControls() {
       let widget = el;
       while (widget && !widget.tagName.startsWith("LF-")) widget = widget.parentElement;
       return widget
-        ? `${at(widget)} says ${JSON.stringify(el.textContent.trim().slice(0, 40))} ` +
-            `inside a form control, where no selection can reach it`
+        ? {
+            code: "form-control-words",
+            at: at(widget),
+            words: el.textContent.trim().slice(0, 40),
+          }
         : null;
     })
     .filter(Boolean);

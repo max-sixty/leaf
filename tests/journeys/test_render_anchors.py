@@ -34,7 +34,6 @@ from render_harness import (
     RELEASE_FOCUS,
     command_reference_rows,
     compare_with,
-    hold_selection,
     leaf_page,
     open_page,
     open_versions,
@@ -87,12 +86,12 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     wait_until_ready(page)
     result = page.evaluate(
         """async () => {
-        const {pageRange} = await window.__lfRuntimeImport('/runtime/passages.js');
-        const {TEXT_BLOCK} = await window.__lfRuntimeImport('/runtime/passage-facts.js');
+        const {pageRange} = await window.__lfCheckApi();
+        const {TEXT_BLOCK} = await window.__lfCheckApi();
         const {anchorForRange, resolveAnchor} =
-            await window.__lfRuntimeImport('/runtime/anchor-resolution.js');
-        const {nextRender, renderingState} =
-            await window.__lfRuntimeImport('/runtime/rendering.js');
+            await window.__lfCheckApi();
+        const {nextRender} = await window.__lfWidgetApi();
+        const {renderingState} = await window.__lfCheckApi();
         const tick = () => new Promise(r => setTimeout(r, 0));
         const rendered = async () => {
             let timer;
@@ -334,7 +333,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             + '<lf-code id="numbered" language="python" hi="2"><pre>'
             + escape(widget)
             + '</pre><lf-note at="2">This annotation is not source.</lf-note></lf-code>'
-            + '<lf-draft id="draft"><pre>Non-code data has no copy control.</pre></lf-draft>',
+            + '<lf-draft id="draft"><pre>A draft copies its own Markdown.</pre></lf-draft>',
             head="<style>#plain { anchor-name: --authored-plain; }"
             "#numbered.lf-rendered > pre { anchor-name: --authored-numbered; }</style>",
         )
@@ -342,7 +341,9 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     url = live_url(serve(document()))
     page = open_page(browser, url)
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
-    controls = page.locator(".lf-code-copy")
+    # The draft's control is its own (`lf-draft.js`); these are the code blocks'.
+    expect(page.locator("#draft > .lf-code-copy")).to_have_count(1)
+    controls = page.locator(".lf-code-copy:not(#draft > *)")
     expect(controls).to_have_count(3)
     document_controls = page.locator(".lf-chrome > .lf-code-copy")
     expect(document_controls).to_have_count(2)
@@ -415,12 +416,6 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             # the block's aria-keyshortcuts.
             pre.focus()
             assert "copy code" in shortcut_bar_text(page)
-            # The corner control serves a pointer, so the banner keeps its own row.
-            expect(
-                page.locator(".lf-banner-actions").get_by_role(
-                    "button", name="Copy code", exact=True
-                )
-            ).to_have_count(0)
             expect(pre).to_have_attribute("aria-keyshortcuts", "Enter")
             page.keyboard.press("?")
             page.keyboard.press("?")
@@ -522,15 +517,14 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         permissions=["clipboard-read", "clipboard-write"],
     )
     touch = open_page(browser, url, context=touch_context)
-    # A finger has no hover to show intent before it lands, so the corner control never
-    # draws over the code; standing on a block puts its Copy on the banner instead.
+    # A finger shows no intent before it lands, so the corner control stays hidden, and
+    # out of a press's way, until a tap stands the user on the block: the touch form of
+    # hover.
     touch_control = touch.locator(".lf-chrome > .lf-code-copy")
+    touch_button = touch_control.get_by_role("button")
     expect(touch_control).to_have_count(1)
-    expect(touch_control).to_be_hidden()
-    banner_copy = touch.locator(".lf-banner-actions").get_by_role(
-        "button", name="Copy code", exact=True
-    )
-    expect(banner_copy).to_have_count(0)
+    expect(touch_control).to_have_css("opacity", "0")
+    expect(touch_control).to_have_css("pointer-events", "none")
     expect(touch.locator("#plain")).to_have_css("padding-top", "12px")
 
     def copied(expected):
@@ -541,14 +535,32 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
 
     touch_pre = touch.locator("#plain")
     frame = touch_pre.bounding_box()
+    # The tap that reveals the control does not also press it, though its click is
+    # aimed once the control shows.
+    touch.evaluate("navigator.clipboard.writeText('cleared')")
+    corner = touch_control.bounding_box()
+    touch.touchscreen.tap(
+        corner["x"] + corner["width"] / 2, corner["y"] + corner["height"] / 2
+    )
+    expect(touch_control).to_have_css("opacity", "1")
+    rendered(touch)
+    expect(touch_button).to_have_accessible_name("Copy code")
+    assert touch.evaluate("navigator.clipboard.readText()") == "cleared"
+    touch.locator("#title").tap()
+    expect(touch_control).to_have_css("opacity", "0")
+
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_pre).to_be_focused()
     expect(touch_pre).to_have_attribute("tabindex", "0")
-    banner_copy.tap()
+    expect(touch_control).to_have_css("opacity", "1")
+    hit = touch_button.bounding_box()
+    assert hit and hit["width"] >= 44 and hit["height"] >= 44, hit
+    touch_button.tap()
     expect(touch.locator(".lf-notice")).to_have_text("Code copied")
     copied(plain)
-    expect(touch_pre).to_be_focused()
     assert touch_pre.bounding_box() == frame
+    touch.locator("#title").tap()
+    expect(touch_control).to_have_css("opacity", "0")
 
     # The source owns a finger's horizontal swipe. Focus must not cancel the native
     # scroll.
@@ -572,7 +584,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     scroll_settled(touch)
     touch_pre.evaluate("pre => pre.scrollLeft = pre.scrollWidth")
 
-    def select_suffix():
+    def suffix_uncovered():
         reading = touch_pre.evaluate(
             """(pre, suffix) => {
           const text = pre.querySelector('code').firstChild;
@@ -594,17 +606,15 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         assert reading["suffix"] == suffix
         assert reading["frame"][0] < reading["start"][0]
         assert reading["end"][0] < reading["frame"][1]
-        hold_selection(touch, reading["start"], reading["end"])
-        assert touch.evaluate("window.getSelection().toString()") == suffix
-        touch.mouse.up()
 
-    select_suffix()
+    # Leaving the block hides the control, and the words beneath it take presses again.
     touch.locator("#title").tap()
-    expect(banner_copy).to_have_count(0)
+    suffix_uncovered()
+    touch.locator("#title").tap()
     expect(touch_pre).to_have_attribute("tabindex", "0")
 
     # A fitting dense line ends where the corner control would stand: its final
-    # characters are readable and selectable on arrival, before any tap.
+    # characters are readable and take presses on arrival, before any tap.
     fitting = touch_pre.evaluate(
         """(pre, suffix) => {
           const code = pre.querySelector('code');
@@ -629,7 +639,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         "getComputedStyle(document.querySelector('#plain'), '::after').content === 'none'"
     )
     frame = touch_pre.bounding_box()
-    select_suffix()
+    suffix_uncovered()
     touch_pre.tap(position={"x": 20, "y": 20})
     expect(touch_pre).to_be_focused()
     touch.keyboard.press("Enter")
@@ -639,19 +649,21 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     assert touch_pre.bounding_box() == frame
 
     # A wrapping widget's block has no authored stop to retain. Its touch focus is lent
-    # for the reading gesture, carries the same Copy step, and disappears when the user
-    # leaves its source.
+    # for the reading gesture, shows the same corner control, and disappears when the
+    # user leaves its source.
     numbered_pre = touch.locator("#numbered > pre")
+    numbered_control = touch.locator("#numbered > .lf-code-copy")
     assert numbered_pre.get_attribute("tabindex") is None
-    expect(touch.locator("#numbered > .lf-code-copy")).to_be_hidden()
+    expect(numbered_control).to_have_css("opacity", "0")
     numbered_pre.tap(position={"x": 20, "y": 20})
     expect(numbered_pre).to_be_focused()
+    expect(numbered_control).to_have_css("opacity", "1")
     touch.evaluate("navigator.clipboard.writeText('cleared')")
-    banner_copy.tap()
+    numbered_control.get_by_role("button").tap()
     copied(widget)
     touch.locator("#title").tap()
     expect(numbered_pre).not_to_have_attribute("tabindex")
-    expect(banner_copy).to_have_count(0)
+    expect(numbered_control).to_have_css("opacity", "0")
 
 
 def test_a_revised_example_travels_between_its_own_versions(browser, serve):
@@ -955,18 +967,15 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         "<pre></pre></lf-diff>",
     )
     url = serve(authored)
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "review-patch",
-        """diff --git a/app.py b/app.py
+    patch = """diff --git a/app.py b/app.py
 --- a/app.py
 +++ b/app.py
 @@ -1,2 +1,2 @@
  def route(request):
 -    return f"legacy:{request.token.id}"
 +    return f"tok:{request.token.id}"
-""",
-    )
+"""
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
@@ -998,12 +1007,8 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     details.evaluate(
         "element => { element.open = false; window.__lfDiffDetails = element; }"
     )
-    page.evaluate(
-        """async () => {
-          const {notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
-          await notifyDataSubscribers();
-        }"""
-    )
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    told(page)
     assert details.evaluate("element => element === window.__lfDiffDetails")
     expect(details).not_to_have_attribute("open", "")
     details.evaluate("element => { element.open = true; }")
@@ -1057,7 +1062,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     input_.evaluate("input => input.setSelectionRange(7, 16)")
     page.evaluate(
         """async () => {
-          const {threadSurface} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {threadSurface} = await window.__lfWidgetApi();
           threadSurface(document.querySelector('#patch')).update();
         }"""
     )
@@ -1066,16 +1071,16 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
         7,
         16,
     ]
-    # Folding the file away removes the inline outlet, but the draft remains on
-    # screen with its words and focus until the file is opened again.
+    # Folding the file away removes the inline outlet and withholds its seated
+    # editor. The native draft and its words return when the file opens again.
     details.evaluate("element => { element.open = false; }")
     expect(composer_outlet).to_have_count(0)
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
     expect(page.locator(".lf-fab-input")).to_have_js_property(
         "value", "Review the whole added line."
     )
     details.evaluate("element => { element.open = true; }")
+    expect(composer_outlet.locator(".lf-fab-bar")).to_be_visible()
     expect(composer_outlet.locator(".lf-fab-input")).to_have_js_property(
         "value", "Review the whole added line."
     )
@@ -1179,7 +1184,7 @@ def test_a_data_bound_diff_aims_and_selects_one_source_line(browser, serve):
     with sending(page, "the comment on the selected expression"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator(".lf-thread .lf-quote").nth(1)).to_have_text(
-        "app.py · new line 2 · “request.token.id”"
+        "§ app.py · new line 2"
     )
 
     comments = [
@@ -1275,7 +1280,6 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root["id"]}"]')
     panel_thread = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
     expect(thread).to_have_count(1)
-    expect(thread).to_have_attribute("open", "")
     expect(thread.locator("leaf-text")).to_be_visible()
 
     # News updates the root's workflow line in both views, in place.
@@ -1408,14 +1412,14 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     resolve.focus()
     with sending(page, "the inline keyboard resolution"):
         page.keyboard.press("Enter")
-    expect(thread).not_to_have_attribute("open", "")
-    summary = thread.locator(".lf-page-thread-summary")
-    expect(summary).to_have_text("Resolved · 4 messages")
+    resolved = page.locator("lf-diff .lf-resolved-threads")
+    summary = resolved.locator(":scope > summary")
+    expect(summary).to_have_text("Resolved · 1")
+    expect(summary).to_be_focused()
     expect(thread.locator(".lf-msg").first).to_be_hidden()
     summary.click()
     expect(thread.locator(".lf-msg").first).to_be_visible()
     with sending(page, "the inline reopening"):
         thread.get_by_role("button", name="Reopen", exact=True).click()
-    expect(thread).to_have_attribute("open", "")
-    expect(summary).to_be_hidden()
+    expect(resolved).to_have_count(0)
     expect(thread.locator("leaf-text")).to_be_visible()

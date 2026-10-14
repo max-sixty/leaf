@@ -11,15 +11,15 @@
 import { applicationState } from "./semantic-state.js";
 import { LIVE_ROOT } from "./context.js";
 
-const servedRevision = document.querySelector(
-  'meta[name="lf-revision"][data-lf-runtime]',
+const servedRevision = /** @type {HTMLMetaElement | null} */ (
+  document.querySelector('meta[name="lf-revision"][data-lf-runtime]')
 )?.content;
-const servedStampMarker = document.querySelector(
-  'meta[name="lf-version"][data-lf-runtime]',
+const servedStampMarker = /** @type {HTMLMetaElement | null} */ (
+  document.querySelector('meta[name="lf-version"][data-lf-runtime]')
 );
 
-export const servedExecutable = document.querySelector(
-  'meta[name="lf-executable"][data-lf-runtime]',
+export const servedExecutable = /** @type {HTMLMetaElement | null} */ (
+  document.querySelector('meta[name="lf-executable"][data-lf-runtime]')
 )?.content;
 
 export const documentWidgetDigests = (doc) => {

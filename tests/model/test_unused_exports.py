@@ -3,118 +3,132 @@
 An export nothing imports is what a removed caller leaves behind: the module keeps
 offering it, the next reader takes it for a contract, and the code it holds up
 outlives its last use. The check runs here, over the whole tree, rather than in a
-JavaScript tool such as knip, because the runtime's readers are not all
-JavaScript: the browser tests import runtime modules inside Python strings
-(`__lfRuntimeImport('/runtime/…')`), the render gate calls probes by name, and
-packages load by tag. A word search sees all of them.
+JavaScript tool such as knip, because the runtime's readers are not all JavaScript.
+
+What a module exports, and what each module reads from others, come from its parse
+(`tests/js_facts.mjs`, `exports` and `imports`), a TypeScript module's types and
+interfaces included. A module reads a name it imports or re-exports, names in a type
+`import("…").Name`, TypeScript's or a JSDoc comment's, or takes from a module
+namespace, each resolved to the module that exports it; `imports` says how. A read
+through `export * from` reaches the modules re-exported. A committed bundle exports
+nothing this checks, since its source is checked, but its imports are readers: what
+it left external is what it reads from the tree. A read of a bundle compiled from one
+module here, such as `vendor/browser-runtime.js`, is a read of that module.
+
+The readers that are not JavaScript are found by word, and only in the files that hold
+them: a Python test that imports runtime modules inside a string
+through the widget or diagnostic entry, or a render gate that calls probes by name, a
+page's inline script, and a contract's prose. A name counts as read where one of
+those files names it as a word, so a name that collides with another word there can
+still hide an unused export.
+
+A host reads the module it loads by its own rules: the Workers runtime reads each
+export of the Worker's entry (`worker/wrangler.toml`'s `main`) by name, as
+`@cloudflare/containers` does `ContainerProxy`, so all of them are read.
 
 A default export has no name of its own: its readers import the module, or a tool
 loads it by path, as eslint loads `eslint.config.mjs` and Pi loads `hooks/pi.ts`.
-So it counts as read where another file names the module's file name.
-
-A name counts as read where another tracked file names it as a word: in code,
-in a Python string, in a page, or in a contract's prose. A JavaScript comment or a
-stylesheet reads nothing, since a module's comment about another's helper keeps
-no caller alive, except for a JSDoc type import (`import("…").Name`). A name that
-collides with another word can still hide an unused export. The comment reading is
-textual, so a `/*` inside a string can only make the check report a used export,
-never pass an unused one.
+So it counts as read where a module imports it, or another file names the module's
+file name.
 """
 
+import json
 import re
+import tomllib
 from pathlib import PurePosixPath
 
-from interact_support import PLUGIN_ROOT, shipped_payload
+from interact_support import PLUGIN_ROOT, js_facts, shipped_payload
 
 SOURCES = (".js", ".mjs", ".ts")
-# Not `//` after a colon, quote or backtick, which is a URL or a string.
-COMMENT = re.compile(r"/\*.*?\*/|(?<![:\"'`\\])//[^\n]*", re.DOTALL)
-TYPE_IMPORT = re.compile(r"import\(\s*[\"'][^\"']+[\"']\s*\)\.([A-Za-z_$][\w$]*)")
-# Committed bundles are generated from the sources this reads, and a bundle names
-# every export it inlined, so they neither export nor read.
+WORDED = (".py", ".html", ".md")
 VENDORED = re.compile(r"(^|/)vendor/")
 # A third-party bundle's own input under `build/` exports the surface of the package
 # it stands in for, which the bundled dependency reads and this tree never names
-# (`build/AGENTS.md`). Its own imports are still readers.
-STAND_INS = re.compile(r"^build/(?!browser/)[^/]+/")
-DECLARED = re.compile(
-    r"^export\s+(?:async\s+)?(?:function\*?|const|let|var|class|type|interface|enum)"
-    r"\s+([A-Za-z_$][\w$]*)",
-    re.MULTILINE,
-)
-LISTED = re.compile(r"^export\s+(?:type\s+)?\{([^}]*)\}", re.MULTILINE)
-# `export default …`, `export { x as default }` and `export { default } from …`, but not
-# `export { default as x } from …`, which is a named export.
-DEFAULT = re.compile(
-    r"^export\s+default\b|^export\s*\{[^}]*\b(?:as\s+default\b|default\s*[,}])",
-    re.MULTILINE,
+# (`build/AGENTS.md`). Its own imports are still readers. `protocol-contract.d.ts` is
+# `event-contract.d.ts` as it last stood at this protocol, which `build/browser/build.mjs`
+# copies whole, so its exports are those of the contract this checks.
+UNCHECKED = re.compile(
+    r"^build/(?!browser/)[^/]+/|^build/browser/protocol-contract\.d\.ts$"
 )
 # An escape is consumed whole, so `"\ndefine(…)"` in a Python string reads `define`.
 WORD = re.compile(r"\\[a-z]|([A-Za-z_$][\w$]*)")
-
-
-def exported_names(text):
-    names = set(DECLARED.findall(text))
-    for listed in LISTED.findall(text):
-        for item in listed.split(","):
-            if name := item.split(" as ")[-1].strip():
-                names.add(name)
-    return names - {"default"}
-
-
-def reading(relative, text):
-    """The text of `relative` that can read an export."""
-    if relative.endswith(".css"):
-        return ""
-    if relative.endswith(SOURCES):
-        return COMMENT.sub(" ", text) + " ".join(TYPE_IMPORT.findall(text))
-    return text
+WORKER = "worker/wrangler.toml"
 
 
 def test_every_export_has_a_reader_in_another_file():
     texts = {}
     for path in shipped_payload():
         relative = path.relative_to(PLUGIN_ROOT).as_posix()
-        if not path.is_file() or VENDORED.search(relative):
+        if not path.is_file():
             continue
         try:
             texts[relative] = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
+    sources = [relative for relative in texts if relative.endswith(SOURCES)]
+    modules = [
+        relative
+        for relative in sources
+        if not VENDORED.search(relative) and not UNCHECKED.search(relative)
+    ]
+    exported = json.loads(js_facts("exports", modules))
+    imported = json.loads(js_facts("imports", sources))
     exporters = {}
-    defaults = []
-    for relative, text in texts.items():
-        if relative.endswith(SOURCES) and not STAND_INS.match(relative):
-            for name in exported_names(text):
-                exporters.setdefault(name, set()).add(relative)
-            if DEFAULT.search(text):
-                defaults.append(relative)
+    for module in modules:
+        for name in exported[module]["names"]:
+            exporters.setdefault(name, set()).add(module)
     assert exporters, "no exports read — an empty set guards nothing"
 
-    readings = {relative: reading(relative, text) for relative, text in texts.items()}
-    readers = {}
-    for relative, text in readings.items():
-        for name in set(WORD.findall(text)) & exporters.keys():
-            readers.setdefault(name, set()).add(relative)
+    read = set()
+
+    def mark(module, name, through=()):
+        """Read `name` of `module`, or each of its names for `*`, through its stars."""
+        if module in through or module not in imported:
+            return
+        names = set(exported.get(module, {"names": []})["names"]) | {"default"}
+        if name == "*":
+            read.update((module, each) for each in names)
+        elif name in names:
+            read.add((module, name))
+            return
+        for star in imported[module]["stars"]:
+            mark(star, name, (*through, module))
+
+    for reader, facts in imported.items():
+        for module, name in facts["reads"]:
+            for target in exporters.get(name, ()) if module is None else (module,):
+                if target != reader:
+                    mark(target, name)
+    worker = PurePosixPath(WORKER).parent
+    mark(str(worker / tomllib.loads(texts[WORKER])["main"]), "*")
+
+    worded = {
+        relative: text for relative, text in texts.items() if relative.endswith(WORDED)
+    }
+    words = set()
+    for text in worded.values():
+        words.update(WORD.findall(text))
 
     unread = sorted(
         [
-            f"{exporter}: {name}"
-            for name, files in exporters.items()
-            if not readers.get(name, set()) - files
-            for exporter in files
+            f"{module}: {name}"
+            for module in modules
+            for name in exported[module]["names"]
+            if (module, name) not in read and name not in words
         ]
         + [
             f"{module}: default"
-            for module in defaults
-            if not any(
+            for module in modules
+            if exported[module]["default"]
+            and (module, "default") not in read
+            and not any(
                 PurePosixPath(module).name in text
-                for relative, text in readings.items()
-                if relative != module
+                for relative, text in texts.items()
+                if relative != module and not VENDORED.search(relative)
             )
         ]
     )
     assert not unread, (
-        "exports no other file names; drop `export` where only the module itself "
-        "uses the name, and delete what nothing uses:\n" + "\n".join(unread)
+        "exports nothing reads; drop `export` where only the module itself uses the "
+        "name, and delete what nothing uses:\n" + "\n".join(unread)
     )

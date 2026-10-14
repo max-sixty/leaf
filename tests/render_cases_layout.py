@@ -103,10 +103,10 @@ def arrival_findings(browser, url):
     write and cannot fix.
 
     What it reads: a fresh context holds nothing, so every other reading in the suite
-    is of a first visit — the thread panel shut, no drawer standing, design mode off —
+    is of a first visit — the thread panel shut, no drawer open, design mode off —
     and each of those is something a user turns on once and gets back on every load
     afterwards. That left the restores as the one road onto a page with nothing
-    watching it, and a drawer someone had left standing came up as a ReferenceError
+    watching it, and a drawer someone had left open came up as a ReferenceError
     instead of a page: it was put up by code running while the runtime was still
     evaluating, which could reach almost nothing. It reached the user, who reported
     it.
@@ -128,14 +128,17 @@ def arrival_findings(browser, url):
     notices = []
 
     def console_message(message):
-        if (error := render_gate_model.console_error(message)) is None:
-            return
-        target = notices if render_gate_model.resize_observer_error(error) else errors
-        target.append(error)
+        found = render_gate_model.console_finding(message, warnings=False)
+        if found is not None:
+            errors.append(found)
+
+    def window_error(error):
+        found = render_gate_model.window_finding(error)
+        (notices if found.code == "resize-loop" else errors).append(found)
 
     page.on("console", console_message)
     render_gate_model.collect_page_exceptions(page, errors)
-    render_checks_model.install_window_errors(page)
+    render_checks_model.install_window_errors(page, window_error)
     found = []
     # A first visit, from which to read the restore cases. Reported
     # rather than raised when it doesn't arrive: this is the reading that says what
@@ -155,7 +158,10 @@ def arrival_findings(browser, url):
         return [
             "[arrivals] the page never came up unarranged, so nothing could be "
             "arranged — "
-            + ("; ".join([*errors, *notices]) or "and no console error says why")
+            + (
+                "; ".join(map(str, [*errors, *notices]))
+                or "and no console error says why"
+            )
         ]
     found += arrival_transition_findings(page, "first visit")
     for restore_case in user_view_restore_cases(page):
@@ -169,7 +175,10 @@ def arrival_findings(browser, url):
         except (PlaywrightTimeout, render_checks_model.PageNotReady):
             found.append(
                 f"[{restore_case['name']}] the page never finished coming up — "
-                + ("; ".join([*errors, *notices]) or "and no console error says why")
+                + (
+                    "; ".join(map(str, [*errors, *notices]))
+                    or "and no console error says why"
+                )
             )
             continue
         found += arrival_transition_findings(page, restore_case["name"])
@@ -572,8 +581,8 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 # `drawnEdge` is that the two are one piece of furniture reflected — a reading written
 # for the panel alone would go on passing on the day the drawer's edge stopped working,
 # and the drawer's edge exists precisely because the panel's did not have to be written
-# a second time. The right edge holds Threads and Questions, one side panel at one width
-# (`QUESTIONS`); the left holds the Leaves drawer, which needs a neighbour to list.
+# a second time. The right edge holds Threads and the On panel, one side panel at one width
+# (`ON_PANEL`); the left holds the Leaves drawer, which needs a neighbour to list.
 #
 # `html` is a call rather than the markup, because a parametrize list is read at import.
 # `squeeze` is the window that has no room for what the user chose and the width the
@@ -605,9 +614,9 @@ EDGES = [
     ),
 ]
 EDGE_IDS = [edge.name for edge in EDGES]
-# The Questions panel, which stands on the Threads panel's edge at its width.
-QUESTIONS = SimpleNamespace(
-    name="questions",
+# The On panel, which stands on the Threads panel's edge at its width.
+ON_PANEL = SimpleNamespace(
+    name="on",
     html=lambda: ASKS_PAGE,
     comments=0,
     fixtures=(),
@@ -625,7 +634,7 @@ def edge_world(request, edge):
         request.getfixturevalue(name)
 
 
-# One Ask, so a page offers the Questions panel.
+# One Ask, so a page offers the On panel.
 ONE_ASK = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -644,7 +653,7 @@ def with_one_ask(html):
 
 
 def toggle_queue(page, open=True):
-    """Open or close the Questions panel from its banner control and wait for it to stand."""
+    """Open or close the On panel from its banner control and wait for it to stand."""
     banner_control(page, ".lf-queue").click()
     drawer = expect(page.locator(".lf-queue-panel"))
     opened = re.compile(r"\bopen\b")
@@ -893,7 +902,7 @@ BANNER_ORDER = r"""() => {
       // The version's age ticks with the clock between two readings; the order does not.
       .replace(/ · \S+ ago$/, '')
       // The queue's population does not change the control's place in that order.
-      .replace(/^Questions: \d+ waiting on you$/, 'Questions'));
+      .replace(/^On me: \d+$/, 'On me'));
 }"""
 
 
@@ -1296,7 +1305,7 @@ MANY_ASKS_PAGE = leaf_page(
 """
     + "\n".join(
         f'<lf-test-task id="t-{i}" status="review" owner="wren">'
-        f"<strong>Waiting on you, item {i}</strong>"
+        f"<strong>Waiting on me, item {i}</strong>"
         f'<lf-ask id="t-{i}-decision"><h2>Decision {i}</h2>'
         f'<lf-options id="t-{i}-choice" choose>'
         f'<lf-option id="t-{i}-yes"><strong>Approve</strong></lf-option>'

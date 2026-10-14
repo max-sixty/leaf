@@ -7,6 +7,7 @@ from urllib.parse import urlsplit
 
 import turbohtml
 
+from .findings import Finding
 from .schema import EVENT_ID, MEDIA_DIR
 
 DELIVERY_ENCODING_META = '<meta charset="utf-8" data-lf-runtime>'
@@ -86,13 +87,12 @@ AUTHORED_ALLOCATIONS = {
 PAGE_ALLOCATIONS = frozenset({"data-rail", "data-annotations"})
 
 
-def allocation_expects(attr: str, value: str) -> str | None:
-    """What an authored allocation's value should have been, or None where it is
-    one of the values `attr` takes."""
+def allocation_valid(attr: str, value: str) -> bool:
+    """Whether an authored allocation's value is one of the values `attr` takes."""
     values = AUTHORED_ALLOCATIONS[attr]
     if isinstance(values, re.Pattern):
-        return None if values.fullmatch(value) else "a whole number of CSS pixels"
-    return None if value in values else f"one of {', '.join(values)}"
+        return values.fullmatch(value) is not None
+    return value in values
 
 
 # Page-level declarations the runtime reads from <meta name="lf-*"> in the head,
@@ -362,12 +362,17 @@ class SourceDocument:
             current = current.parent
         return (1, 0)
 
+    def offsets(self, span) -> tuple[int, int]:
+        """Where one of the parser's source spans starts and ends in this source, so
+        a caller can splice the source at an element's own tags."""
+        return (
+            self._source_index(span.start_line, span.start_col),
+            self._source_index(span.end_line, span.end_col),
+        )
+
     def _span_source(self, span) -> str:
-        return self._source[
-            self._source_index(span.start_line, span.start_col) : self._source_index(
-                span.end_line, span.end_col
-            )
-        ]
+        start, end = self.offsets(span)
+        return self._source[start:end]
 
     @staticmethod
     def _source_element(element) -> bool:
@@ -423,9 +428,7 @@ class SourceDocument:
                 token = starts.get((error.line, error.col))
                 tag = token.tag if token is not None else "element"
                 self.errors.append(
-                    f"<{tag}/> at line {error.line} is self-closing: HTML ignores the "
-                    f"slash and the element would swallow what follows — write "
-                    f"<{tag} …></{tag}>"
+                    Finding("self-closing", f"<{tag}>", {"line": error.line})
                 )
 
     def _record_element(
@@ -523,17 +526,14 @@ class SourceDocument:
             if reference.startswith(("/page/", "page/", "./page/"))
         )
 
-        if tag == "noscript" or (tag == "template" and "data-sample" not in attrs):
-            self.errors.append(
-                f"<{tag}> at line {line}: the browser renders none of its content; "
-                "write it plainly or leave it out"
-            )
+        if tag == "noscript":
+            self.errors.append(Finding("noscript", "<noscript>", {"line": line}))
         if (
             not in_main
             and tag not in DOCUMENT_WRAPPERS
             and not (in_head and tag in HEAD_METADATA_TAGS)
         ):
-            self.outside_main.append(f"<{tag}> at line {line}")
+            self.outside_main.append({"tag": tag, "line": line, "text": False})
 
         if tag.startswith("lf-"):
             record = {
@@ -583,9 +583,7 @@ class SourceDocument:
         )
         if not attrs.get("id"):
             line, _ = self._position(template)
-            self.errors.append(
-                f"<template data-sample> at line {line}: needs a stable id"
-            )
+            self.errors.append(Finding("unnamed-sample", "<template>", {"line": line}))
         body = "".join(
             f' {name}="{escape(value)}"'
             for name, value in attrs.items()
@@ -595,8 +593,10 @@ class SourceDocument:
             '<!doctype html><html lang="en"><head>'
             '<meta name="viewport" content="width=device-width, initial-scale=1">'
             f"<title>{escape(attrs.get('id', 'Sample'))}</title></head>"
-            # A sample shows a column page; the template is its content, not its frame.
-            f'<body{body}><main class="layout-column">'
+            # The template is the child's content, not its frame. The child is a column
+            # page unless the template names its `main`'s classes, as a workspace's
+            # `layout-workspace` does, since a document's Layout is not every page's.
+            f'<body{body}><main class="{escape(attrs.get("class") or "layout-column")}">'
             # Preserve authored lines, including multiline tags in nested samples.
             + "\n" * (location.start_tag.end_line - 1)
             + self._source[content_start:content_end]
@@ -735,7 +735,9 @@ class SourceDocument:
                     and "main" not in next_ancestors
                     and element.tag not in {"script", "style", "title"}
                 ):
-                    self.outside_main.append(f"text in <{element.tag}> at line {line}")
+                    self.outside_main.append(
+                        {"tag": element.tag, "line": line, "text": True}
+                    )
 
         if element.tag == "template" and "data-sample" in attrs:
             self._sample_resources(element)
@@ -783,7 +785,7 @@ class SourceDocument:
     @property
     def overruled(self) -> set:
         """Ids this version declares it keeps its own state on, over a worker's
-        standing report — the agent writer's mirror of `restated`."""
+        report in force — the agent writer's mirror of `restated`."""
         return {
             rec["attrs"]["id"]
             for rec in self.lf_elements
@@ -834,6 +836,22 @@ def annotation_mode(document: SourceDocument) -> str:
     """
     body = document.tree.select_one("body")
     return element_attrs(body).get("data-annotations", "overlay") if body else "overlay"
+
+
+def page_layout(document: SourceDocument):
+    """The `layout-` names the document's `main` carries (`layout-column` is `column`),
+    space-separated, or None.
+
+    A Layout's class is on `main`, which the parser reaches after it has begun painting
+    the body, so delivery repeats it on the root for the Layout's own body rules
+    (layouts.css) to read before the first paint. Every name goes across, since a
+    block's own (`layout-tiles`) can stand on `main` beside the page's."""
+    main = document.tree.select_one("body > main")
+    tokens = main.attrs.get("class", []) if main else []
+    names = [
+        name for token in tokens if (name := token.removeprefix("layout-")) != token
+    ]
+    return " ".join(names) or None
 
 
 def review_mode(document: SourceDocument):

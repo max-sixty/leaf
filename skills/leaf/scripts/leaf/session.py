@@ -21,9 +21,15 @@ from .file_changes import (
     page_change,
     page_targets,
 )
-from .files import file_stamp, read_json
+from .files import file_stamp
 from .harness import Harness, claim_harness, session_harness
-from .leases import release_lease, take_lease, waiter_lease_path
+from .leases import (
+    end_if_terminated,
+    release_lease,
+    supersede_lease,
+    take_lease,
+    waiter_lease_path,
+)
 from .locations import path_location, paths_same
 from .machine import state_home
 from .presence import nudge_unwatched
@@ -31,11 +37,10 @@ from .refusals import Refused
 from .schema import (
     ANSWER_ASK_INSTRUCTION,
     MESSAGE_KINDS,
-    SERVICE_FILE,
     VIEWED_FILE,
 )
 from .served_state.reading import page_reading
-from .server import running_server
+from .server import read_service, running_server
 from .service import (
     PageTransaction,
     owned_pages,
@@ -43,7 +48,7 @@ from .service import (
     session_claims,
     unacknowledged,
 )
-from .state import SESSION_SUFFIX, session_file
+from .state import SESSION_SUFFIX, session_file, still_named
 
 # How often a watch rechecks a live page's server. It is also the longest a watch goes
 # without a pass on a page whose files have not moved: nothing else a pass reads
@@ -57,11 +62,11 @@ STOP_HOOK_S = 20
 
 def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
     """Declare the page waiting on its user, putting down every start that stands
-    (`tasks.put_down`), and return the declaration, with the updates still owed an
+    (`todos.put_down`), and return the declaration, with the updates still owed an
     answer, which the page goes on showing over it."""
     from .revisioning import activate_source
     from .served_state.context import read_page
-    from .tasks import put_down
+    from .todos import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
@@ -76,16 +81,16 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
 
     Idling over an event nobody has answered ends the leaf on a user still
     owed one — unread, or read and left. The watcher's whole batch, not the
-    user-facing count, so a worker's report cannot be left standing as
+    user-facing count, so a worker's report cannot be left in place as
     provisional state forever either. The answers it holds the page for are
     `activity.blocking_obligations`, a started update's included: the Stop hook lets
     the turn that started one end over it, but closing the page answers nothing. It
-    holds the page for every open task too, which only its ending discharges.
+    holds the page for every open to-do too, which only its ending discharges.
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
     from .served_state.context import read_page
-    from .tasks import put_down
+    from .todos import put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
@@ -114,12 +119,12 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
                 f"{unanswered(owed, page_dir, 'acknowledged')}; answer before idling. "
                 + ANSWER_ASK_INSTRUCTION
             )
-        # A task is work the agent still owes, which closing the page would leave
-        # standing on a page nobody holds.
-        if tasks := work.durable.log.owed:
-            named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
+        # A to-do is work the agent still owes, which closing the page would leave
+        # open on a page nobody holds.
+        if todos := work.durable.log.owed:
+            named = "; ".join(f"{todo['id']} ({todo['title']})" for todo in todos)
             raise Refused(
-                f"{len(tasks)} open to-do{'s' if len(tasks) != 1 else ''}: {named}. "
+                f"{len(todos)} open to-do{'s' if len(todos) != 1 else ''}: {named}. "
                 "End each before idling with "
                 '`leaf task end <page> <id> done "<where the result is>"`, or '
                 '`dropped "<why>"`.'
@@ -186,17 +191,25 @@ class Watch:
         self.changes = None
         self.change_pages = None
 
-    def acquire(self) -> bool:
-        """Hold the session lease, or every explicitly watched standalone page."""
+    def acquire(self, *, supersede: bool = False) -> bool:
+        """Hold the session lease, or every explicitly watched standalone page,
+        taking it from a live holder where `supersede` says to."""
         if self.leases:
             return True
         for path in self.lease_paths:
-            lease = take_lease(path)
+            lease = supersede_lease(path) if supersede else take_lease(path)
             if lease is None:
                 self.release()
                 return False
             self.leases.append(lease)
         return True
+
+    def holds(self) -> bool:
+        """Whether no later watch has superseded this one's leases."""
+        return all(
+            still_named(lease.fileno(), path)
+            for lease, path in zip(self.leases, self.lease_paths, strict=True)
+        )
 
     def pages(self) -> list:
         """Read the current ownership set and include explicitly named pages."""
@@ -223,6 +236,7 @@ class Watch:
         return (
             file_stamp(self.claims),
             tuple((target, file_stamp(target)) for target in sorted(discovery)),
+            tuple(map(file_stamp, self.lease_paths)),
             *map(_page_reading_or_none, self.watched),
         )
 
@@ -236,6 +250,7 @@ class Watch:
         }
         if self.session_id:
             targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
+        targets.update(path.resolve() for path in self.lease_paths)
         roots = {existing_root(self.claims): False}
         roots.update({existing_root(target.parent): False for target in targets})
         for page in pages:
@@ -278,6 +293,9 @@ class Watch:
             if self.reading() != before:
                 return True
             remaining = deadline - time.monotonic()
+            # A stop whose raise a finalizer discarded ends the watch here, since
+            # nothing would interrupt the wait (`release_on_termination`).
+            end_if_terminated()
             if remaining <= 0 or not self.changes.wait(generation, remaining):
                 return False
             # Native APIs may coalesce diagnostics with their parent directory,
@@ -346,7 +364,7 @@ class Watch:
         from .delivery import deliverable
 
         batch = deliverable(page) if watch_state != "lost" else []
-        service = read_json(page_dir / SERVICE_FILE)
+        service = read_service(page_dir)
         enabled = bool(service and service["enabled"])
         key, now, revive = str(page_dir), time.time(), False
         # Desired service state owns revival. Status says what the page is doing;
@@ -573,24 +591,32 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         print(f"another `leaf wait` is already active for {target}", file=sys.stderr)
         return 2
 
-    def print_delivery(reading: PageTick) -> None:
+    def print_delivery(reading: PageTick) -> bool:
         """Print immutable input; only the consumer can confirm receipt.
 
         An explicit wait is a complete delivery route. Earlier successful hooks
         cannot prove that a later one will run, so it never delegates its input
-        to the next hook. The native between-turn watch owns hook wakes.
+        to the next hook. The native between-turn watch owns hook wakes, and a
+        wait it has superseded prints nothing, since that watch carries the input.
         """
+        if not watch.holds():
+            return False
         print(delivery_json(reading, harness), flush=True)
+        return True
 
     try:
-        while True:
+        while watch.holds():
             mark = watch.mark()
             reading = read_watch_pass(watch, named, print_delivery)
+            if reading.delivered is False:
+                break
             if reading.outcome is not None:
                 return reading.outcome
             if not reading.live:
                 return _ended_watch(reading.readings, named)
             watch.await_news(mark)
+        print("a watch between turns took over this session's pages", file=sys.stderr)
+        return 2
     finally:
         watch.release()
 
@@ -631,15 +657,17 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     wake, while that turn's received input waits for a prompt.
     Settled thread input alone never wakes; it remains in the next receipt batch.
     The session lease and each page transaction retain ownership of delivery,
-    revival and competing-watch decisions.
+    revival and competing-watch decisions. The newest watch takes the lease from
+    any holder, and a watch superseded that way ends without a word: the newest
+    runs the Leaf its harness runs now, while an older one may run a Leaf the
+    session has since left, one that cannot read a page the session now holds.
     """
     # Event timestamps have millisecond precision. Include the startup millisecond
     # in immediate delivery rather than delaying an arrival in that millisecond.
     began = int(time.time() * 1000) / 1000
     settled = time.monotonic() + STOP_HOOK_S
     watch = Watch(harness)
-    if not watch.acquire():
-        return None
+    watch.acquire(supersede=True)
 
     def ready(reading: PageTick) -> bool:
         pending = wake_inputs(reading.transaction, reading.batch)
@@ -661,6 +689,9 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
         while harness.process_runs():
             mark = watch.mark()
             reading = read_watch_pass(watch, None, lambda tick: tick.page_dir, ready)
+            # Superseded during the pass, it leaves what it found to its successor.
+            if not watch.holds():
+                return None
             if reading.delivered is not None:
                 return new_input_line(reading.delivered)
             if reading.outcome is not None:

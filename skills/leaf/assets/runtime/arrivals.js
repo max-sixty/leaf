@@ -7,7 +7,7 @@
    producers can call each owner. `watchArrivals(selector, attributes, { arrive, leave })`
    watches for them instead:
 
-   - `arrive(el)` runs for each match standing when the watch starts and each one added
+   - `arrive(el)` runs for each match present when the watch starts and each one added
      since, however deep in what was added, shadow stages included. It runs again when
      a watched attribute changes, and when the nodes beside the element change: its own
      children, or a sibling added or removed next to it. That is where an owner's paint
@@ -39,7 +39,7 @@
    Widgets hold it through `whileConnected`, for resources, and `frameFor`, for
    scheduled paints, which `widget-api.js` exports in its place.
 
-   Standing means in `document.body`, or in a declared shadow stage whose host is
+   Present means in `document.body`, or in a declared shadow stage whose host is
    connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
    one door a stage is built through, hands each one it fills to `watchArrivalsIn`. No
    scroll crosses one either, so `watchScrolls` hears the document's and every stage's.
@@ -177,19 +177,28 @@ function* matching(node, selector) {
     if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
 }
 
+/**
+ * @param {string} selector
+ * @param {string[]} attributes
+ * @param {{
+ *   arrive?: (element: Element) => void,
+ *   arriveBatch?: (elements: Element[]) => void,
+ *   leave: (element: Element) => void,
+ * }} watcher Each arrival goes to `arriveBatch` where there is one, else to `arrive`.
+ */
 export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
   const arrived = new WeakSet();
   // Every departure a batch shows is decided before any arrival in it.
   const offerMany = (elements) => {
-    const standing = [];
+    const present = [];
     for (const el of elements) {
-      if (stands(el) && el.matches(selector)) standing.push(el);
+      if (stands(el) && el.matches(selector)) present.push(el);
       else if (arrived.delete(el)) leave(el);
     }
-    if (!arriveBatch) for (const el of standing) offer(el);
-    else if (standing.length) {
-      for (const el of standing) arrived.add(el);
-      arriveBatch(standing);
+    if (!arriveBatch) for (const el of present) offer(el);
+    else if (present.length) {
+      for (const el of present) arrived.add(el);
+      arriveBatch(present);
     }
   };
   const offer = (el) => {

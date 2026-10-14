@@ -41,23 +41,26 @@ primitive must give the user something that site would not:
 Leaf standardizes reading, commenting, and actions across sessions and agents.
 Page content and composition remain the agent's and user's choices.
 
+The agent that writes a page, sets its data, or changes Leaf works in a fast loop: it
+reads what fails and tries again. So Leaf lets a failure surface through the parser or
+check already in its path, and spends code preventing one only where the agent could
+not see it, where it would pass silently into what the user relies on, such as an
+admitted event or a stored decision. Every check, option, and special case is a
+permanent cost to every later maintainer, and one that buys nothing the agent's next
+attempt would not is removed.
+
 ## Stage
 
 Leaf has no users, deployment, database, or persisted state that constrains new
-code. Prefer the simpler interface even when it is incompatible. Delete and
-regenerate stale state. Add a guard only for a reachable condition with a useful
-response.
+code. Prefer the simpler interface even when it is incompatible. Spend no code or
+test complexity on backward compatibility with earlier runtimes. Delete and
+regenerate stale state.
 
 Regenerate or discard claims, logs, and pages from earlier runtimes. Add no
-migration, compatibility shim, or removal promise. Leave old state and recovery
-instructions out of the handoff.
-
-The state home is one directory per machine, written at once by every worktree,
-harness and session on it, each running the leaf it was built from, so a record
-older than the code reading it is ordinary rather than exceptional. If a record
-lacks fields this version expects, Leaf ignores it where it is loaded and treats
-the thing it described as absent. It neither migrates the record nor fails the
-session: a session is never taken down by state it does not own.
+migration, compatibility shim, old-record validator, fallback read, or removal
+promise. This includes the state home shared by worktrees and sessions: its old
+records are disposable, not inputs a new reader must accommodate. Leave old
+state and recovery instructions out of the handoff.
 
 Tests should protect behavior a user depends on. Treat rewriting or deleting a
 test as an ordinary part of a code change. Check which behavior its assertion
@@ -83,6 +86,18 @@ long as any architectural problem they leave remains easy to fix.
 Make improvements that follow from the repository. Ask the user only when the
 choice depends on purpose or intent the code cannot supply.
 
+### Responsiveness
+
+A gesture shows what it settles by itself in the turn the user makes it: a
+message in its thread, a widget's new state, a thread the user resolves. Facts
+derived from the rest of the log, such as whose turn a thread is and which asks
+the user owes, come back with the server's reading of the gesture. The server
+usually runs on the user's machine, so that reading should be on screen within
+100 ms. The browser does not anticipate it: a prediction is a second copy of the
+server's rules, and each gesture and subject it misses shows the wrong state
+until the reading lands. Where the reading cannot reach the screen within 100 ms,
+make that path faster rather than predicting what it will say.
+
 ### Pages across Leaf updates
 
 A page keeps the layer of the Leaf that vendored it, and each later Leaf serves,
@@ -91,11 +106,16 @@ checks and writes it, so the two often differ. Changes cross that gap in two way
 - **A protocol bump** breaks every page vendored before it, and the schema
   announces it: the kernel registry's `$events.protocol` changes, and a Leaf
   refuses a page vendored at another number, naming the `leaf page init` that
-  rebuilds it. A change to what a page's log holds, what its runtime posts, or the
-  reading its server serves, that an earlier page would break on, bumps the
-  number; the browser build holds the event contract to that. Bumps are rare,
-  perhaps one in five hundred commits. Once Leaf is released, a bump is the only
-  change allowed to break an existing page.
+  rebuilds it, except that the session holding a page vendored at an older
+  number makes that re-vendor itself on the first command naming the page, or at
+  its first prompt or Stop hook (`vendoring.renew_layer`). A change to what a
+  page's log holds, what its runtime posts, or the reading its server serves,
+  that an earlier page would break on, bumps the number; the browser build holds
+  the event contract to that. The number is Leaf's only version: each record
+  Leaf keeps outside a page, such as a delivery envelope or a browser draft,
+  carries it, and a change one of them needs bumps it too (`layer-registry.md`,
+  "Page protocol"). Bumps are rare, perhaps one in five hundred commits. Once
+  Leaf is released, a bump is the only change allowed to break an existing page.
 - **Drift**, while Leaf is in alpha, may occasionally break an older page without
   a bump, as when a render check imports a runtime name the page's runtime lacks.
   Leaf does not detect drift by comparing the page's files with its own: a check
@@ -199,7 +219,10 @@ each assertion at the boundary that owns it").
 Use maintained dependencies for established capabilities, including prototypes.
 Leaf code owns product-specific behavior and integration. Native platform and
 standard-library implementations count as reuse. Implement a mechanism ourselves
-only when existing implementations cannot meet a concrete requirement.
+only when existing implementations cannot meet a concrete requirement. In the
+browser, use the platform's layout, cascade and focus model before writing a
+mechanism of your own (`skills/leaf/assets/AGENTS.md`, "The browser answers
+first").
 
 Build browser dependencies in Leaf's development and release pipeline and ship
 ready assets. Consumers run no browser build.
@@ -218,8 +241,8 @@ install must be writable, and Leaf writes nothing else there. Point Codex
 at the git source, since a local-directory marketplace copies a checkout's
 `.venv` too. A plugin update may replace the directory wholesale, so what has to
 survive one belongs in the page directory or the state home. Runtime
-dependencies, and those a package script declares, state a floor and no cap. The
-host supplies Chrome and `jq`; leaf never downloads a browser.
+dependencies, and those a bundled package script declares, state a floor and no
+cap. The host supplies Chrome and `jq`; leaf never downloads a browser.
 
 Files under `skills/leaf/assets/vendor/` and each package's `vendor/` are
 generated and committed where their consumer reads them; `build/AGENTS.md` says
@@ -273,11 +296,10 @@ sends it, before the log answers; a disabled control, spinner, or other delivery
 status is not that result. The page can draw what its own document settles, such as
 a widget's state or the words of a turn the user adds to a thread. Which asks
 the document still holds, which of them the user owes, and whose turn a thread is
-depend on the whole log, so the browser reads them from the server's state and,
-while a thread gesture of its own is unresolved, from what the server read that
-gesture leaving (each thread's `after`). It adds only what it decides itself: a
-required-version approval, a thread it opened, and the resend a refused send
-leaves. A refusal restores the authoritative state.
+depend on the whole log, so the browser reads them from the server's state and
+waits for its reading of a gesture ("Responsiveness"). It adds only what it decides
+itself: a required-version approval, a to-do the user ends, a thread it opened, the
+answer a send is owed, and the resend a refused send leaves. A refusal restores the authoritative state.
 
 The active document has one immutable application publication. Only its publisher
 combines authored baselines, the complete admitted server reading, and the ordered
@@ -286,10 +308,12 @@ from it. Presentation proof is separate: it records whether required renderers h
 committed the active document's current semantic epoch. Renderer nodes, promises, and
 DOM attributes never enter the semantic snapshot.
 
-A publication is also what starts a renderer. Each one claims its region inside that
-synchronous publication and paints the current root on the pass that follows, so a
-caller that changes what the page shows publishes and waits for proof rather than
-naming renderers or sequencing them. Where one renderer reads DOM another materializes,
+A publication is also what starts a renderer. Each one names, as a selection of the
+root, the parts it draws; a publication that moves one claims its region inside that
+synchronous publication and paints the current root on the pass that follows, and one
+that moves none carries the region's last commit into the new epoch. A caller that
+changes what the page shows publishes and waits for proof rather than naming renderers
+or sequencing them. Where one renderer reads DOM another materializes,
 that order is declared once, beside the coordinator, not repeated at each publisher.
 
 Focus, scroll, selection, disclosure, draft editing, drag, and layout remain with their
@@ -342,14 +366,17 @@ live under `$` keys; each tag entry is one complete schema.
 
 ## Working on the repository
 
-When the user is to choose among designs, show the candidates in a playground
-(`/developing-leaf`, "Explore an open design").
+When the user is to choose among designs, show the candidates side by side and let
+the user select one (`/developing-leaf`, "Explore an open design").
 
 Before finishing a feature:
 
-- Give every action a keyboard route, without spending a page-level binding on
-  each one, and a route a finger can take (`runtime/keyboard/AGENTS.md`, "Touch
-  routes").
+- Give every result a pointer reaches a keyboard route, without spending a
+  page-level binding on each one, and a route a finger can take
+  (`runtime/keyboard/AGENTS.md`, "Touch routes"). The route is owed to the result,
+  not to each gesture: ask what a user could no longer see, reach, or decide
+  without the gesture. Dragging a thread card aside needs no route of its own,
+  since Escape also uncovers the passage beneath it.
 - Follow `examples/AGENTS.md` when adding or changing a feature, and regenerate
   the derived corpus.
 - If the feature changes what an agent can do or how it should do it, update
@@ -393,7 +420,7 @@ user-visible benefit and why it cannot wait. Bytes off that path, such as a lazi
 loaded module, a vendored file, or the install's size, are not on their own a reason
 for a change.
 
-Land through a pull request or with `wt merge`, which squash-merges to `main`.
-A failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`, "Run
-what the change needs"). Tend sessions follow
-**Landing** in `.claude/skills/running-tend/SKILL.md`.
+Land through a pull request or with `wt merge`, which squash-merges to `main`. For
+now, a failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`, "Run
+what the change needs"). Tend sessions follow **Landing** in
+`.claude/skills/running-tend/SKILL.md`.

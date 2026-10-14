@@ -10,6 +10,7 @@ import time
 from contextlib import contextmanager
 from itertools import count
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from interact_support import STATED_TIMEOUT
@@ -19,6 +20,69 @@ from leaf_dev.review_scenario import SLEEP
 
 def at(seconds: float) -> str:
     return f"2026-10-08T09:00:{seconds:06.3f}+00:00"
+
+
+def test_release_publication_requires_the_marker_in_board_markup():
+    """A site embeds its release hash in asset URLs before an agent edits the board."""
+    marker = "71b197da"
+
+    class Response:
+        ok = True
+
+        def __init__(self, html):
+            self.html = html
+
+        def text(self):
+            return self.html
+
+    class Request:
+        def __init__(self):
+            self.html = ""
+
+        def get(self, *args, **kwargs):
+            return Response(self.html)
+
+    request = Request()
+    end = journey.BrowserEnd(
+        SimpleNamespace(
+            context=SimpleNamespace(request=request),
+            url="https://leaf.page/",
+            pause=lambda _: None,
+        )
+    )
+    active = {"url": "revisions/2.html"}
+    request.html = (
+        f'<head><script src="/_leaf-release/{marker}/leaf.js"></script></head>'
+        "<body><main>Release board unchanged</main></body>"
+    )
+    assert not end.names(active, marker)
+    request.html = request.html.replace(
+        "Release board unchanged", f"Release {marker} passed"
+    )
+    assert end.names(active, marker)
+    request.html = f'<main><lf-column label="Release {marker}"></lf-column></main>'
+    assert end.names(active, marker)
+
+
+def test_release_publication_ignores_rebased_resource_urls_in_board():
+    from leaf.revision_delivery import rebase_document
+
+    marker = "71b197da"
+    authored = '<main><img src="/page/chart.svg" alt="Current chart"></main>'
+    served = rebase_document(authored, lambda path: f"/_leaf-release/{marker}{path}")
+    assert marker in served
+    assert not journey.board_names_release(served, marker)
+
+
+def test_release_publication_ignores_inline_script_and_style_text():
+    marker = "71b197da"
+    authored = (
+        "<main>Release board unchanged"
+        f"<script>const release = '{marker}'</script>"
+        f"<style>.release {{ content: '{marker}' }}</style>"
+        "</main>"
+    )
+    assert not journey.board_names_release(authored, marker)
 
 
 @pytest.mark.parametrize("end", ["http", "browser"])
@@ -379,9 +443,9 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     launched = []
 
     @contextmanager
-    def chrome():
+    def headless_shell():
         launched.append(True)
-        yield "chrome"
+        yield "browser"
 
     entered = []
 
@@ -398,7 +462,7 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
         end.close = lambda: None
         yield journey.User(end, "v"), {"target": target}, lambda: None
 
-    monkeypatch.setattr(journey, "chrome", chrome)
+    monkeypatch.setattr(journey, "headless_shell", headless_shell)
     monkeypatch.setattr(journey, "target_session", target_session)
     monkeypatch.setattr(journey, "samples_path", lambda: Path(os.devnull))
     runner = CliRunner()
@@ -408,5 +472,5 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     assert json.loads(result.stdout)["userEnd"] == "http"
     result = runner.invoke(journey.journey, ["claude-code", "--browser"])
     assert result.exit_code == 0, result.output
-    assert (launched, entered) == ([True], [None, "chrome"])
+    assert (launched, entered) == ([True], [None, "browser"])
     assert json.loads(result.stdout)["userEnd"] == "browser"

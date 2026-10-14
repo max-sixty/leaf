@@ -1,7 +1,10 @@
-/* This module owns banner wording, tone, tab-icon paint, and announcing a status kind
- * that has changed. */
+/* This module paints the banner's status in the words activity-words.js gives it,
+ * paints its tone on the tab icon, and announces changes after the first status
+ * reading. Provisional interface readiness paints the banner
+ * without establishing that announcement baseline; saved state or a failed read does. */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
-import { JUST_NOW, ago, clocked } from "./presence.js";
+import { ago } from "./presence.js";
+import { pageStatus, statusModel } from "./activity-words.js";
 import { el, offer, reserve } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { SHARE_ROOT, runtime, runtimeResource, shareUrl } from "./context.js";
@@ -15,7 +18,9 @@ import {
   showNews,
 } from "./banner-toolbar.js";
 import { iconElement } from "./icons.js";
+import { copyControl } from "./copy-control.js";
 import { latestChip, versionBtn } from "./version-picker.js";
+import { versionsReading } from "./version.js";
 import { othersBtn, queueBtn } from "./drawers.js";
 import { pagePresented } from "./page-paint.js";
 import { repaint } from "./repaint.js";
@@ -27,19 +32,30 @@ import {
   registerNoticePresentation,
 } from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
-import { readQuestions } from "./questions/model.js";
 import { createBannerStatusView } from "./banner-status-view.js";
 import { declareBanner } from "./geometry.js";
-import { agentName, watchSemantic } from "./semantic-state.js";
-import { taskNoun } from "./queues.js";
+import { agentName, readPart } from "./semantic-state.js";
+import { UPGRADE } from "./presentation.js";
+import { WEBSITE_DELIVERY } from "./context.js";
 import { readQueues } from "./queue-api.js";
+import { approvalBlockingAsks } from "./asks/model.js";
+
+const INITIAL = Object.freeze({
+  tone: "",
+  summary: "Loading…",
+  queues: "",
+  queuesWidest: "",
+  explanation:
+    "Loading the page's interface. Reading, links, and scrolling are already available.",
+  publication: null,
+});
 
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 declareBanner(banner);
-const bannerStatus = createBannerStatusView(repaint);
+const bannerStatus = createBannerStatusView(repaint, INITIAL);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
-// The agent's Tasks count, which opens the Questions panel listing them (drawers.js).
+// The agent's On count, which opens the On panel on the agent's list (queue-panel.js).
 export const queueCounts = bannerStatus.queues;
 
 // Threads reads "Threads: 3" on a desk and, on a phone's one row, a thread icon with its
@@ -78,17 +94,32 @@ export function setThreadCounts(open, unread) {
 }
 const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.id = "lf-approve";
-// The queue arrives at the one approval control, including its overflow seat.
-export const approvalTarget = () => (signoff ? approveBtn : null);
+// Another chrome that presents the approval in this control's place, as the floating
+// panel's On view does, names the control it shows and brings the user to it.
+let approvalPresentation = null;
+export function registerApprovalPresentation(presentation) {
+  approvalPresentation = presentation;
+}
+export const presentedApproval = () => approvalPresentation;
+// The queue arrives at the one approval control shown, including the banner's overflow
+// seat.
+export const approvalTarget = () =>
+  signoff ? (approvalPresentation ? approvalPresentation.target() : approveBtn) : null;
 approveBtn.title = "Approve this work; the page stays open for follow-up";
 // The page's decision is not actionable until the page itself is present. Discussion chrome
 // stays live during replay, but approving hidden authored content would decide a version
 // the user has not seen yet. The control states that refusal from its first reading.
 const AWAITING_STATE = "Approval waits until this page has read its current state";
-let approvalReason;
+// What Approval says and whether a press would approve, for another presentation of it,
+// such as the floating panel's Versions view; null where the page asks no sign-off. It
+// is derived each time it is read, so a paint reading it follows what it reads.
+export const approvalReading = () => {
+  if (!signoff) return null;
+  const { text, reason } = approvalWords();
+  return { text, reason };
+};
 // Keep a refused press focusable, with its reason available to keyboard and touch.
 function presentApproval({ reason, text, title }) {
-  approvalReason = reason;
   render(text, approveBtn);
   keeps(approveBtn, "aria-disabled", reason ? "true" : null);
   keeps(approveBtn, "aria-description", reason || null);
@@ -107,6 +138,7 @@ registerBannerControl({
   control: othersBtn,
   rank: BANNER_CONTROL_RANK.leaves,
   conditional: true,
+  row: { label: "All pages", group: "navigate" },
 });
 registerBannerControl({
   key: "latest",
@@ -114,17 +146,28 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.latest,
   conditional: true,
   urgent: "new",
+  row: { label: () => versionsReading().latest.label, group: "page" },
 });
 registerBannerControl({
   key: "queue",
   control: queueBtn,
   rank: BANNER_CONTROL_RANK.queue,
   seat: { desk: "row", phone: "menu" },
+  row: {
+    label: "On me",
+    value: () => String(readQueues().on_user.length),
+    group: "page",
+  },
 });
 registerBannerControl({
   key: "versions",
   control: versionBtn,
   rank: BANNER_CONTROL_RANK.versions,
+  row: {
+    label: "Versions",
+    value: () => versionsReading().picker.token.replace(/^Showing /, ""),
+    group: "page",
+  },
 });
 registerBannerControl({
   key: "approval",
@@ -132,67 +175,24 @@ registerBannerControl({
   rank: BANNER_CONTROL_RANK.approval,
   seat: { desk: "row", phone: "menu" },
   present: false,
+  row: { label: () => approvalWords().text, group: "page", press: () => approve() },
 });
 registerBannerControl({
   key: "threads",
   control: toggleBtn,
   rank: BANNER_CONTROL_RANK.threads,
   seat: "row",
+  row: {
+    label: "Threads",
+    value: () =>
+      openThreads === null
+        ? ""
+        : `${openThreads}${unreadThreads ? ` · ${unreadThreads} new` : ""}`,
+    group: "page",
+  },
 });
 
 // ---------- banner ----------
-const TONE = {
-  working: "working",
-  listening: "listening",
-  stalled: "away",
-  away: "away",
-  unheld: "",
-  closed: "",
-};
-const WORK_WORDS = {
-  thinking: "thinking",
-  tool: "using a tool",
-  awaiting_approval: "waiting for approval",
-  awaiting_input: "waiting for input",
-  awaiting_user: "waiting for you",
-  replying: "replying",
-};
-const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
-// What each canonical count says the agent owes, in the order a reader is told.
-const COUNT_PHRASES = {
-  active: "being worked on",
-  handling: "owed on picked-up updates",
-  queued: "owed on queued updates",
-  picked_up: "owed on picked-up updates; no current turn observed",
-  pending: "owed on updates awaiting delivery",
-};
-const phrased = (counts, kinds) =>
-  kinds
-    .filter((kind) => counts[kind])
-    .map((kind) => `${countResponses(counts[kind])} ${COUNT_PHRASES[kind]}`);
-// What the banner and the leaves drawer both read off one page's server-owned `activity`
-// before either words it. Each seat keeps its own sentences; a fact they share changes
-// here once:
-//
-// - `left` says the turn's ending retired the belief, and `silentSince` dates the
-//   silence by the reading's own `ts`, which the server already sets to that ending
-//   for a dropped claim.
-// - `listening` is whether input is still on its way to the agent (pending or queued),
-//   which turns a listening page's standing request into "listening".
-// - `waiting` phrases the queued and pending updates, in that order, and `owed` the
-//   other counts, for a seat with room to say them beside `waiting`.
-export function activityFacts({ activity }) {
-  const { counts } = activity;
-  return Object.freeze({
-    tone: TONE[activity.kind],
-    work: WORK_WORDS[activity.observed_kind] || "working",
-    left: Boolean(activity.dropped),
-    silentSince: ago(activity.ts),
-    listening: Boolean(counts.pending || counts.queued),
-    waiting: Object.freeze(phrased(counts, ["queued", "pending"])),
-    owed: Object.freeze(phrased(counts, ["active", "handling", "picked_up"])),
-  });
-}
 // The judgment's third seat. A user keeps a leaf in a tab for days and looks at
 // six of them; the tab strip is the whole of what the browser shows about a page nobody
 // has open, so the state that decides whether to go there belongs in it. Same judgment
@@ -242,17 +242,8 @@ export async function loadIcon() {
   const response = await fetch(runtimeResource("/icon.svg"));
   if (!response.ok) throw new Error(`icon.svg answered ${response.status}`);
   const doc = new DOMParser().parseFromString(await response.text(), "image/svg+xml");
-  // Two failures, and the same symptom: no element to paint. A parse error is reported
-  // as a document rather than thrown, so a mark that isn't SVG at all reaches the class
-  // check and fails it — sending whoever overrode the file to look for a class that is
-  // sitting right there in it.
-  const broken = doc.querySelector("parsererror");
-  if (broken)
-    throw new Error(
-      // Collapsed, because the browser's report is laid out as a page and reads as
-      // several lines of it; what matters is the line and column it names.
-      `icon.svg is not SVG — ${broken.textContent.replace(/\s+/g, " ").trim()}`,
-    );
+  // A package's replacement that is not SVG at all parses to an error document, which
+  // has no lf-tone element either.
   if (!doc.querySelector(".lf-tone"))
     throw new Error(
       "icon.svg carries no lf-tone element, which is where the page's " +
@@ -277,115 +268,41 @@ function paintTab() {
 let saidKind;
 let saidActionableWork;
 
-// The page's two queues (`served_state.queues`) are told apart in the banner by where
-// they stand. What waits on the user, which `q` walks, is the Questions door beside
-// Threads (queue-panel.js paints its count), and on a phone's one row it waits in More.
-// What waits on the agent, its Tasks, stands beside the status, apart from the sentence,
-// as the banner's whole account of the agent's side, with the disclosure naming both
-// sides' kinds and each open to-do's title. The Tasks count is a page fact, like the
-// Threads count, and stands apart from the sentence so the agent's words changing never
-// carries it. On one row it ends the status's room, which gives up its words to the
-// ellipsis first; where the banner takes two rows, the sentence has the first to itself
-// and the count leads the second, ahead of the controls, and a phone's one row leaves it
-// to the disclosure (chrome.css). Its box is reserved for the count it usually reaches,
-// as the Threads control is for "Threads: 999", and only grows, so a count changing
-// moves none of its words. Both are read from the application's publication rather
-// than the state answer: a reply the user sends leaves their count and joins the
-// agent's in the turn it is sent. A press on either opens the Questions panel, which
-// lists both.
-const QUEUE_WORDS = Object.freeze({
-  ask: ["ask", "asks"],
-  approval: ["approval", "approvals"],
-  resend: ["update to send again", "updates to send again"],
-  answer: ["answer", "answers"],
-  reply: ["reply", "replies"],
-  work: ["update with work started", "updates with work started"],
-  todo: ["to-do", "to-dos"],
-});
-function queueKinds(items) {
-  const byKind = new Map();
-  for (const item of items)
-    byKind.set(taskNoun(item), [...(byKind.get(taskNoun(item)) ?? []), item]);
-  return [...byKind].map(([kind, all]) => {
-    const words = `${all.length} ${QUEUE_WORDS[kind][all.length === 1 ? 0 : 1]}`;
-    // A to-do outlasts the turns and the thread that opened it (`tasks.py`), so each
-    // open one is named, including one on a thread the user has resolved.
-    return kind === "todo"
-      ? `${words} (${all.map((todo) => todo.title).join(" · ")})`
-      : words;
-  });
-}
-function queueWords() {
-  const { questions, tasks } = readQueues();
-  const agent = agentName();
-  const named = (items, whom) =>
-    items.length ? `Waiting on ${whom}: ${queueKinds(items).join(", ")}.` : "";
-  return {
-    summary: tasks.length ? `Tasks: ${tasks.length}` : "",
-    explanation: [named(questions, "you"), named(tasks, agent)]
-      .filter(Boolean)
-      .join(" "),
-    // The widest the count usually reaches, under ten, which its box keeps; more
-    // widens it once (banner-status-view.js).
-    widest: "Tasks: 9",
-  };
-}
-const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
-let lastStatus = null;
-const presentStatus = (status) => {
-  lastStatus = status;
-  const { kind, tone, summary, publication = null, actionableWork = null } = status;
-  let { explanation } = status;
-  const queues = WITHOUT_QUEUES.has(kind)
-    ? { summary: "", explanation: "", widest: "" }
-    : queueWords();
-  if (queues.explanation)
-    explanation = `${explanation}${explanation.endsWith(".") ? "" : "."} ${queues.explanation}`;
-  let publicationModel = null;
-  if (publication) {
-    // A publication's introduction and links remain an ordinary reading row.
-    // Links never become children of the status disclosure button.
-    const [said, installs] = publicationWords(publication);
-    const examples = publication.kind === "example" ? "Other examples" : null;
-    explanation = said + (examples ? `${examples} ` : "") + installs;
-    publicationModel = Object.freeze({
-      copy: said,
-      examples,
-      install: installs,
-      installUrl: publication.install_url,
-      examplesUrl: examples ? "/examples/" : null,
-    });
-  }
-  bannerStatus.present(
-    Object.freeze({
-      tone,
-      summary,
-      queues: queues.summary,
-      queuesWidest: queues.widest,
-      explanation,
-      publication: publicationModel,
-    }),
-  );
+// The queues are read from the application's publication rather than the state
+// answer: a reply the user sends joins the agent's count in the turn it is sent,
+// and leaves On me once the server has read it. A press on either opens the On
+// panel on the list it counts (`statusModel` words them).
+const presentStatus = ({ status, model }) => {
+  const { kind, actionableWork = null } = status;
+  bannerStatus.present(model);
   paintTab();
+  // Interface readiness precedes the first saved reading. It paints usable chrome,
+  // but only a state or failed read establishes the status announcement baseline.
+  if (kind === "loading") return;
   const changed =
     saidKind !== undefined &&
     (saidKind !== kind ||
       (actionableWork !== null && actionableWork !== saidActionableWork));
   saidKind = kind;
   saidActionableWork = actionableWork;
-  if (changed) announce(explanation);
+  if (changed) announce(model.explanation);
 };
+// Upgrade opens new comments before the buffered saved reading is applied.
+const LOADING = Object.freeze({
+  kind: "loading",
+  tone: "",
+  summary: "Loading saved state…",
+  explanation:
+    "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds." +
+    (WEBSITE_DELIVERY
+      ? " Website examples can take longer to load their saved state than a usual Leaf page."
+      : ""),
+});
 // The developer preview's identity: which checkout is serving this page, and a press to
 // copy the whole diagnostic. It is the banner's least-used control, so it stays behind
 // the overflow door at every width instead of adding a permanent chip to the reading row.
-function copyControl(trigger, success, error) {
-  const copy = offer("wa-copy-button", "lf-banner-copy");
-  copy.successLabel = success;
-  copy.errorLabel = error;
-  copy.tooltip = "none";
-  // Web Awesome announces the result; Leaf puts the same words in its status line.
-  copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
-  copy.addEventListener("wa-error", () => notice(error, { announce: false }));
+function bannerCopy(trigger, success, error) {
+  const copy = copyControl("lf-banner-copy", { success, error });
   copy.append(trigger);
   return copy;
 }
@@ -395,6 +312,7 @@ if (SHARE_ROOT) {
   const share = el("summary", "lf-btn", "Share");
   share.title = "Show this page's access link";
   const panel = el("div", "lf-share-panel");
+  const grants = "Grants access to all Leaf pages on this machine.";
   const label = el("label", "", "Share link");
   const link = offer("input", "lf-share-link");
   link.id = "lf-share-link";
@@ -404,14 +322,10 @@ if (SHARE_ROOT) {
   label.append(link);
   const copyButton = el("button", "lf-btn", "Copy link");
   copyButton.type = "button";
-  const copy = copyControl(copyButton, "Link copied", "Select and copy the link above");
+  const copy = bannerCopy(copyButton, "Link copied", "Select and copy the link above");
   copy.copyLabel = "Copy link";
   copy.hidden = !navigator.clipboard?.writeText;
-  panel.append(
-    el("p", "", "Grants access to all Leaf pages on this machine."),
-    label,
-    copy,
-  );
+  panel.append(el("p", "", grants), label, copy);
   details.append(share, panel);
   details.addEventListener("toggle", () => {
     if (details.open) link.value = copy.value = shareUrl();
@@ -424,6 +338,8 @@ if (SHARE_ROOT) {
     control: details,
     focusTarget: share,
     rank: BANNER_CONTROL_RANK.share,
+    // A presentation copies the link with its own copy control, beside it to select.
+    row: { label: "Share link", value: grants, copies: shareUrl, group: "about" },
   });
 }
 
@@ -449,23 +365,25 @@ const otherPayloadLines = (relation, provenance) => [
 ];
 
 let previewMarginEntry = null;
+let previewLabel = "";
 let previewMarginEntryCopy = null;
 let previewDiagnostics = "";
 function renderPreview(state) {
   const preview = state.preview;
   if (!preview) return;
+  const producer = state.layer.producer ?? {};
   // A user preview claims the page, so every press on it — the agent's own
   // screenshots included — comes back to the session as user input. That is the
   // mode worth marking; an unclaimed preview delivers nothing and needs no warning.
   const kind = preview.interaction === "user" ? "User" : "Preview";
-  const stem = `${kind} · ${preview.checkout}${preview.commit ? `@${preview.commit}` : ""}`;
-  const age = payloadAge(preview);
+  const stem = `${kind} · ${preview.checkout}${producer.commit ? `@${producer.commit}` : ""}`;
+  const age = payloadAge(producer);
   // The preview names the checkout and the Leaf that vendored the page
-  // (`preview_metadata`). Where another Leaf serves it (`state.leaf`), that follows.
+  // (`state.layer.producer`). Where another Leaf serves it (`state.leaf`), that follows.
   const served = state.leaf
     ? ` · served by ${shortCommit(state.leaf)}${payloadAge(state.leaf) ? ` · ${payloadAge(state.leaf)}` : ""}`
     : "";
-  const label = `${preview.commit && preview.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${served}`;
+  const label = `${producer.commit && producer.dirty ? `${stem}+` : stem}${age ? ` · ${age}` : ""}${served}`;
   const safeUrl = new URL(location.href);
   safeUrl.searchParams.delete("t");
   previewDiagnostics = [
@@ -473,9 +391,9 @@ function renderPreview(state) {
     `example: ${preview.example}`,
     `checkout: ${preview.checkout}`,
     `interaction: ${preview.interaction}`,
-    ...(preview.commit ? [`commit: ${preview.commit}`] : []),
-    ...(preview.dirty !== undefined ? [`dirty: ${preview.dirty}`] : []),
-    ...payloadDateLines(preview),
+    ...(producer.commit ? [`commit: ${producer.commit}`] : []),
+    ...(producer.dirty !== undefined ? [`dirty: ${producer.dirty}`] : []),
+    ...payloadDateLines(producer),
     ...(state.leaf ? otherPayloadLines("served by", state.leaf) : []),
     `started: ${preview.started}`,
     `layer generation: ${state.layer.generation}`,
@@ -490,7 +408,7 @@ function renderPreview(state) {
     previewMarginEntry = el("button", "lf-btn lf-preview", label);
     previewMarginEntry.type = "button";
     previewMarginEntry.setAttribute("aria-label", "Copy preview diagnostics");
-    previewMarginEntryCopy = copyControl(
+    previewMarginEntryCopy = bannerCopy(
       previewMarginEntry,
       "Copied preview diagnostics",
       "Couldn't copy preview diagnostics",
@@ -501,9 +419,18 @@ function renderPreview(state) {
       control: previewMarginEntryCopy,
       focusTarget: previewMarginEntry,
       rank: BANNER_CONTROL_RANK.preview,
+      // What it copies is the diagnostics, which a presentation shows to select as
+      // well; the line naming the preview says what they describe.
+      row: {
+        label: "Preview diagnostics",
+        value: () => previewLabel,
+        copies: () => previewDiagnostics,
+        group: "about",
+      },
     });
   }
   previewMarginEntryCopy.value = previewDiagnostics;
+  previewLabel = label;
   keepsText(previewMarginEntry, label);
   keeps(
     previewMarginEntry,
@@ -520,6 +447,7 @@ function renderPreview(state) {
 // whoever meets a problem can tell how far apart the two are (AGENTS.md, "Pages
 // across Leaf updates").
 let layerReferenceElement = null;
+let layerNamed = "";
 let layerReferenceElementCopy = null;
 let layerDiagnostics = "";
 function renderLayerReference(state) {
@@ -554,7 +482,7 @@ function renderLayerReference(state) {
   if (!layerReferenceElement) {
     layerReferenceElement = el("button", "lf-btn lf-layer-reference");
     layerReferenceElement.type = "button";
-    layerReferenceElementCopy = copyControl(
+    layerReferenceElementCopy = bannerCopy(
       layerReferenceElement,
       "Copied Leaf version",
       "Couldn't copy Leaf version",
@@ -564,6 +492,12 @@ function renderLayerReference(state) {
       control: layerReferenceElementCopy,
       focusTarget: layerReferenceElement,
       rank: BANNER_CONTROL_RANK.layer,
+      row: {
+        label: "Leaf version",
+        value: () => layerNamed,
+        copies: () => layerDiagnostics,
+        group: "about",
+      },
     });
   }
   layerReferenceElementCopy.value = layerDiagnostics;
@@ -571,6 +505,7 @@ function renderLayerReference(state) {
     ? ` · served by ${serverIdentity}${serverAge ? ` · ${serverAge}` : ""}`
     : "";
   const named = `Leaf ${identity}${age ? ` · ${age}` : ""}${servedBy}`;
+  layerNamed = named;
   layerReferenceElementCopy.copyLabel = `${named} · copy version`;
   render(
     served
@@ -602,105 +537,6 @@ function renderLayerReference(state) {
   );
   keeps(layerReferenceElement, "aria-label", `${named} · copy version`);
 }
-// Status sentences for an unreachable server or a state the page cannot apply.
-const OFFLINE_LINE =
-  "Server offline — reconnecting. Keep this page open so pending changes can send.";
-// A refused key leaves the page as cut off as a dead server, but the server is up and
-// only the user can end it. Opening the link in another tab sets the key this tab's
-// next request carries, so its pending changes send without a reload.
-const KEY_REFUSED_LINE =
-  "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.";
-const BROKEN_LINE = "Page couldn't apply current state — reload";
-// A published page states who replies and where to install Leaf.
-const publicationWords = (published) => [
-  `${
-    published.kind === "example"
-      ? "This is an example on the Leaf website."
-      : "This website is a Leaf page."
-  } ${published.agent} replies and revises this private copy. `,
-  "Install Leaf",
-];
-
-// The updates an open turn picked up, by kind: a comment in a thread, or an answer to a
-// ask. A lone update is the user's own; several are counted.
-function pickedUpWords({ comments, answers }) {
-  if (comments + answers === 1) return comments ? "your comment" : "your answer";
-  const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
-  return [
-    comments && counted(comments, "comment"),
-    answers && counted(answers, "answer"),
-  ]
-    .filter(Boolean)
-    .join(" and ");
-}
-
-// Both levels of wording follow server-owned activity. Short summaries retain the
-// actionable distinction: working, listening, away, or nobody holding the page. How many
-// updates are waiting or saved is the disclosure's; the row counts what waits on each
-// side instead (`queueWords`).
-function statusWords({
-  age,
-  agent,
-  dated,
-  shortDate,
-  detail,
-  handling,
-  kind,
-  listening,
-  overdue,
-  saved,
-  work,
-}) {
-  if (kind === "closed") return ["Page closed", "Page closed"];
-  if (kind === "unheld")
-    return [
-      "No session",
-      `No session holds this page. ${saved} It picks up again when a session does.`,
-    ];
-  // The agent's own sentence is the reason to look at the row while it works, so the
-  // row keeps it and the ellipsis fits it to the room the controls leave. A sentence just
-  // renewed needs no date; an older one is dated ahead of the detail, because the detail
-  // is what the ellipsis eats first and a stale sentence with its date cut off is the one
-  // reading this row must not give.
-  //
-  // Until the agent writes that sentence, what Leaf knows is which of the user's
-  // updates its open turn picked up, so the row names them, in the words of their
-  // Picked up stage, rather than standing on a bare "working", and the disclosure
-  // says the agent's own words are still to come.
-  if (kind === "working") {
-    const picked = pickedUpWords(handling);
-    const said = detail ? " — " + detail : picked ? " — picked up " + picked : "";
-    return [
-      `${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}${said}`,
-      detail || !picked
-        ? `${agent} is ${work}${said}`
-        : `${agent} picked up ${picked} and hasn't said what it's doing yet`,
-    ];
-  }
-  // A declared request tells the user what to do. Preserve it on the row when
-  // no pending input supersedes it; a generic attendance label would lose that cue.
-  if (kind === "listening") {
-    const awaits = `${agent} awaits — ${detail || "select text to comment"}`;
-    return listening
-      ? [`${agent} listening`, `${agent} is listening${detail ? " — " + detail : ""}.`]
-      : [awaits, awaits];
-  }
-  if (kind === "stalled")
-    return [shortDate, `${dated}${detail ? ": " + detail : ""}. ${saved}`];
-  // Away is only worth a nudge once input has stalled (`counts.overdue`): the
-  // session's next turn picks up whatever it finds, and Leaf messages a harness it
-  // can reach once it has seen the turn end.
-  return overdue
-    ? [
-        `Nudge ${agent} in terminal`,
-        `${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
-      ]
-    : [
-        `${agent} away`,
-        `${agent} isn't watching right now. ${saved} It picks them up next turn.`,
-      ];
-}
-
 // The public website support handle is available on demand with the banner's other
 // low-frequency controls. It does not compete with the page's live status sentence.
 let sessionReferenceElement = null;
@@ -717,7 +553,7 @@ function renderSessionReference() {
       sessionReferenceLabel,
     );
     sessionReferenceElement.type = "button";
-    sessionReferenceElementCopy = copyControl(
+    sessionReferenceElementCopy = bannerCopy(
       sessionReferenceElement,
       "Copied session reference",
       "Couldn't copy session reference",
@@ -727,6 +563,11 @@ function renderSessionReference() {
       control: sessionReferenceElementCopy,
       focusTarget: sessionReferenceElement,
       rank: BANNER_CONTROL_RANK.session,
+      row: {
+        label: "Session reference",
+        copies: () => runtime.sessionReference,
+        group: "about",
+      },
     });
   }
   sessionReferenceElementCopy.value = runtime.sessionReference;
@@ -740,87 +581,45 @@ function renderSessionReference() {
   keeps(sessionReferenceElement, "title", `${sessionReferenceLabel} · copy reference`);
 }
 
-function renderStatusNow(state) {
-  renderSessionReference();
-  if (state instanceof Error) {
-    presentStatus({
-      kind: "broken",
-      tone: "offline",
-      summary: BROKEN_LINE,
-      explanation: BROKEN_LINE,
-    });
-    return;
-  }
-  if (state === null) {
-    presentStatus({
-      kind: "unreachable",
-      tone: "offline",
-      ...(runtime.keyRefused
-        ? {
-            summary: "Key refused — open Leaf's link in a new tab",
-            explanation: KEY_REFUSED_LINE,
-          }
-        : {
-            summary: "Server offline — reconnecting; keep page open",
-            explanation: OFFLINE_LINE,
-          }),
-    });
-    return;
-  }
-  renderLayerReference(state);
-  renderPreview(state);
-  const publication = state.publication;
-  if (publication) {
-    presentStatus({ kind: "publication", tone: "", publication });
-    return;
-  }
-  const { activity } = state;
-  const { kind, detail } = activity;
-  const facts = activityFacts(state);
-  const { agent } = state;
-  // What the user's words do meanwhile. The log takes them with nobody on the other
-  // end; the only thing attendance changes is when they are read.
-  const saved = "Your updates are saved.";
-  const checkedIn = facts.silentSince
-    ? `${agent} last checked in ${facts.silentSince}`
-    : `No check-in from ${agent} is recorded`;
-  const ended = `${agent}’s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
-  const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-  const [summary, text] = statusWords({
-    age,
-    agent,
-    dated: facts.left ? ended : checkedIn,
-    shortDate: facts.left ? ended : checkedIn,
-    detail,
-    handling: {
-      comments: activity.counts.handling_comments,
-      answers: activity.counts.handling - activity.counts.handling_comments,
-    },
-    kind,
-    listening: facts.listening,
-    overdue: activity.counts.overdue,
-    saved,
-    work: facts.work,
-  });
-  let explanation = age ? `${text} (${age})` : text;
-  // What a transport can watch for itself, when the sentence beside it was written by
-  // the agent: two facts about one turn, so the row keeps the one meant for the user
-  // and the disclosure holds the step proving the session is still moving.
-  if (activity.observed && activity.observed !== detail)
-    explanation += ` · ${activity.observed}`;
-  if (facts.waiting.length && ["working", "listening"].includes(kind))
-    explanation += `${explanation.endsWith(".") ? "" : "."} ${facts.waiting.join(" · ")}.`;
-  const actionableWork = activity.awaiting ? activity.observed_kind : null;
-  // An approval or a question the agent's own window holds is answered there, and
-  // the page is the one place the user may be looking instead.
-  if (actionableWork && kind === "working")
-    explanation += `${explanation.endsWith(".") ? "" : "."} It waits in its own session, not on this page.`;
-  presentStatus({ kind, tone: facts.tone, summary, explanation, actionableWork });
+// The status says how the server answered the page's latest read (`reach`) and what
+// the reading it adopted says, with the queues and the agent's name; it paints whenever
+// one of those moves, and on the clock for the ages it words. Before any answer it says
+// nothing until upgrade has opened the page, and then that saved state is loading.
+const reach = readPart((root) => root.reach);
+let upgraded = false;
+// The status with its words for the banner (`statusModel`), or null before there is one
+// to say. It is derived where it is read, so another presentation of it, the floating
+// panel's leaf and comment field, says the same words in the same tone and follows
+// the same inputs; only upgrade, which is mechanical, asks each to paint.
+function currentStatus() {
+  const answer = reach();
+  if (answer === "waiting" && !upgraded) return null;
+  const status =
+    answer === "waiting" ? LOADING : pageStatus(runtime.state, { reach: answer });
+  return { status, model: statusModel(status, readQueues(), agentName()) };
 }
+export const statusReading = () => currentStatus()?.model ?? null;
+function paintStatus() {
+  renderSessionReference();
+  const state = runtime.state;
+  if (state) {
+    renderLayerReference(state);
+    renderPreview(state);
+  }
+  const current = currentStatus();
+  if (current) presentStatus(current);
+}
+const statusWatch = watchProjection(document.body, paintStatus);
+document.addEventListener(
+  UPGRADE,
+  () => {
+    upgraded = true;
+    statusWatch.refresh();
+  },
+  { once: true },
+);
 
-export const renderStatus = clocked(document.body, renderStatusNow);
-
-// Sign-off is the page's decision, not standing chrome: the approve button is offered only
+// Sign-off is the page's decision, not fixed chrome: the approve button is offered only
 // when the version declares <meta name="lf-review" content="sign-off"> — a plan or
 // proposed change seeking assent. An informational page takes comments only, and
 // nothing stands in the button's place there. A neutral "End leaf" did once, and it
@@ -830,24 +629,24 @@ export const renderStatus = clocked(document.body, renderStatusNow);
 // them an ending it could not deliver. The declaration rides the document, so a
 // pinned older version keeps its own decision.
 export const isSignoffDeclared = () =>
-  document.querySelector('meta[name="lf-review"]')?.content === "sign-off";
+  /** @type {HTMLMetaElement | null} */ (
+    document.querySelector('meta[name="lf-review"]')
+  )?.content === "sign-off";
 
 let signoff = false;
 
 // The banner's row mounts after the version picker and drawers exist. Its complete
 // inventory and order already belong to the shelf's explicit registrations above.
-export function mountBanner({ approveVersion, paintApproval }) {
+export function mountBanner({ approveVersion }) {
   signoff = isSignoffDeclared();
   showBannerControl(approveBtn, signoff);
-  watchProjection(document.body, paintApproval);
-  // The queues move with the application's publication, not only with a state answer.
-  watchSemantic(() => lastStatus && presentStatus(lastStatus));
+  approvalWatch = watchProjection(document.body, drawApproval);
   showNews(othersBtn, false);
   banner.append(bannerStatus, bannerStatus.queues, bannerActions);
-  // On two rows the Tasks count stands on the second line only where the run leaves it
+  // On two rows the agent's count stands on the second line only where the run leaves it
   // room whole, else on a third the banner does not draw, and a phone's one row leaves
   // it out (chrome.css). A press there is a stop nobody can see, so an undrawn count is
-  // inert; the Questions door and the status's disclosure still reach what it says.
+  // inert; the On me door and the status's disclosure still reach what it says.
   const counts = bannerStatus.queues;
   const seatCounts = sizeObserver(() => {
     const drawn =
@@ -858,11 +657,13 @@ export function mountBanner({ approveVersion, paintApproval }) {
   });
   for (const box of [banner, bannerActions, counts]) seatCounts.observe(box);
   reserveBannerControls();
-  approveBtn.onclick = async () => {
+  approveBtn.onclick = approve;
+  async function approveNow() {
     if (approving) return;
     // A refused press answers with its reason where every user sees it.
-    if (approvalReason) {
-      notice(approvalReason);
+    const { reason } = approvalWords();
+    if (reason) {
+      notice(reason);
       return;
     }
     approving = true;
@@ -875,8 +676,13 @@ export function mountBanner({ approveVersion, paintApproval }) {
       approveBtn.removeAttribute("aria-busy");
       paintApproval();
     }
-  };
+  }
+  approveWith = approveNow;
 }
+
+// The one approval press, whichever control the user made it on.
+let approveWith = null;
+export const approve = () => approveWith?.();
 
 // Sign-off belongs to the authored revision, and the head it rides in is the only copy
 // of it: a revision this document takes on in place brings its own, so the reading is
@@ -884,7 +690,7 @@ export function mountBanner({ approveVersion, paintApproval }) {
 // the declaration alone; the banner's allocation is independent of it: a control a
 // stamp put up would be news taking room on the row. Before a stamp the press is refused
 // with its reason (paintApproval) instead.
-export function stateSignoff(next, syncLayout, paintApproval) {
+export function stateSignoff(next, syncLayout) {
   const shown = next;
   if (shown === signoff) return;
   signoff = shown;
@@ -900,18 +706,24 @@ export function stateSignoff(next, syncLayout, paintApproval) {
 // More without changing the page's reading loop.
 function reserveBannerControls() {
   if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-  reserve(queueBtn, ["Questions: 99"]);
+  reserve(queueBtn, ["On me: 99"]);
   reserve(toggleBtn, ["Threads", "Threads: 999"]);
 }
 
 let approving = false;
+// Whether the user has approved the shown version.
+const versionApproved = readPart((root) =>
+  root.effective.asks.all.some(
+    (ask) => ask.source.kind === "approval" && ask.status === "answered",
+  ),
+);
 
-// `blockingQuestions` is the unanswered asks that hold approval, or null before the page has
-// read the log and so cannot say which those are.
-export function paintApproval(blockingQuestions) {
-  const approved = readQuestions().all.some(
-    (question) => question.source.kind === "approval" && question.status === "answered",
-  );
+// What Approval says now: its `text`, its `title`, why a press is refused (`reason`,
+// null where it approves) and whether it is `open`. The asks holding approval are null
+// before the page has read the log and so cannot say which those are.
+function approvalWords() {
+  const approved = versionApproved();
+  const blockingAsks = approvalBlockingAsks();
   // The word and the title turn over together. The title read "Approve this work; the
   // page stays open for follow-up" whether or not the work had been approved, so the one
   // surface that could have told a user what pressing it would do next went on
@@ -920,22 +732,32 @@ export function paintApproval(blockingQuestions) {
   // Why a press is refused now, or null where it approves. A press already in flight
   // is refused silently: its aria-busy says so.
   const reason = approved
-    ? "Approved. Press z to undo while approval is still your latest update"
+    ? "Approved. Press z to undo while approval is still the latest update"
     : runtime.currentStamp === null
       ? "There is no stamped version to approve yet"
-      : !signoff || !pagePresented() || blockingQuestions === null
+      : !signoff || !pagePresented() || blockingAsks === null
         ? AWAITING_STATE
-        : blockingQuestions.length
+        : blockingAsks.length
           ? "Answer every ask before approving this work"
           : null;
-  presentApproval({
+  return {
     reason: reason ?? (approving ? "Approving this version" : null),
     text: approved ? "✓ Version approved" : "Approve version",
     title: reason ?? "Approve this work; the page stays open for follow-up",
-  });
+    open: reason === null,
+  };
+}
+// Approval paints through one watcher, so what it reads repaints it, and a mechanical
+// change (a press in flight, the sign-off declaration, the page presenting) asks it to
+// paint again.
+let approvalWatch = null;
+export const paintApproval = () => approvalWatch?.refresh();
+function drawApproval() {
+  const words = approvalWords();
+  presentApproval(words);
   // Approval is open while a press would approve this version, and behind More, on a
   // phone, that puts More's dot up. A refused press does not: the dot comes up when the
   // last ask holding approval is answered, which is when the user can act on it.
-  markBannerControl(approveBtn, reason === null ? "approval open" : null);
+  markBannerControl(approveBtn, words.open ? "approval open" : null);
   repaint();
 }

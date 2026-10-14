@@ -33,7 +33,7 @@ import {
   tellDraft,
 } from "../drafts.js";
 import { sendLanding } from "./reply-landing.js";
-import { readCaret, focused } from "../focus.js";
+import { readCaret, focused, standingIn } from "../focus.js";
 import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
@@ -42,6 +42,7 @@ import { editContext } from "./message-edit.js";
 import { el, offer } from "../widget-elements.js";
 import { move } from "../dom-move.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
+import { pressIsKeyboardActivation } from "../pointer.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 
 const REPLY_COMPOSITION = Symbol("reply composition");
@@ -173,7 +174,7 @@ export function cancelReplyDictation(surface) {
 document.addEventListener(
   "click",
   (event) => {
-    if (event.detail === 0) return;
+    if (pressIsKeyboardActivation(event)) return;
     const within = replyDraftContext(event.composedPath()[0]);
     for (const context of compositions.keys())
       if (context !== within) dismissContext(context);
@@ -277,7 +278,7 @@ const sendReply = (draftCtx, key, text, owns, actions) =>
 // after the draft began. The typed action resolves that target from the current reading.
 // What the row does for a view, its actions, `onChange` and `editLast`, is the binding
 // of whichever view holds it now (`attach`).
-function wireReply(key, row, input, send, wireInput) {
+function wireReply(key, row, input, send, wireInput, { hint, accessibleName }) {
   row.classList.add("lf-comment-box");
   const draftCtx = replyContext(key);
   const composition = {
@@ -291,8 +292,8 @@ function wireReply(key, row, input, send, wireInput) {
   row[REPLY_COMPOSITION] = composition;
   input.value = loadDraft(draftCtx) ?? "";
   const sync = wireInput(input, {
-    hint: "Reply",
-    accessibleName: "Reply",
+    hint,
+    accessibleName,
     sends: "send",
     sendBtn: send,
     // localStorage notifies other tabs but skips this document. Page, margin, and panel
@@ -304,10 +305,12 @@ function wireReply(key, row, input, send, wireInput) {
       remember(composition);
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
-    // sent from, around wherever the send left them standing.
+    // sent from, around wherever the send left them standing. A view whose box stays
+    // for the next turn lands the send itself (`sent`).
     send: (_text, raw, owns) => {
-      const { actions, landSent } = composition.binding;
+      const { actions, landSent, sent } = composition.binding;
       if (!sendReply(draftCtx, key, raw, owns, actions)) return;
+      if (sent) return sent();
       landSent(closestAcross(input, THREAD));
       sendLanding(input, focused())();
     },
@@ -318,7 +321,7 @@ function wireReply(key, row, input, send, wireInput) {
       {
         id: "message.edit.last",
         keys: ["ArrowUp"],
-        description: "Edit your last message in the thread",
+        description: "Edit my last message in the thread",
         title: "edit last message",
         when: () =>
           !sync.value() && Boolean(composition.binding?.editLast?.available()),
@@ -414,6 +417,9 @@ export async function restoreReplyEditing(editing, land) {
 
 // Native editor construction has one home; cards and package fragments share its
 // draft, input, delivery and recovery lifetime rather than constructing another one.
+// A presentation may say what its empty box reads (`hint`) and is named
+// (`accessibleName`), and where its box stays for the next turn, as the floating
+// panel's field does, land a send itself (`sent`) rather than stand on the thread.
 export function createReplyView(
   key,
   commands,
@@ -423,6 +429,9 @@ export function createReplyView(
     reveal = null,
     sizes = null,
     redraw = null,
+    hint = "Reply",
+    accessibleName = "Reply",
+    sent = null,
   } = {},
 ) {
   const fresh = () => {
@@ -431,10 +440,13 @@ export function createReplyView(
     input.name = "reply";
     const send = offer("button", "lf-btn lf-thread-send", "Send");
     row.append(input, send);
-    return wireReply(key, row, input, send, commands.wireInput);
+    return wireReply(key, row, input, send, commands.wireInput, {
+      hint,
+      accessibleName,
+    });
   };
   let composition = fresh();
-  const binding = { ...commands, onChange, editLast, reveal, sizes };
+  const binding = { ...commands, onChange, editLast, reveal, sizes, sent };
   let detach = attach(composition, binding);
   // A view that draws its row again on `redraw` can take the session's in its place,
   // and give its own up for a fresh one (`carry`), drawn by the step it returns.
@@ -448,7 +460,7 @@ export function createReplyView(
     binding.take = (owner) => {
       // The row going holds no place of the user's: whoever carries the owner's row
       // puts them in it (focus.js, `replyDestination`), not the redraw's focus hold.
-      if (composition.row.contains(focused())) focused().blur();
+      if (standingIn(composition.row)) focused().blur();
       detach();
       // The row given up is gone for good, so no later hand-off carries it back.
       composition.retired = true;

@@ -29,6 +29,7 @@ import {
   keeps,
   keepsHidden,
   keepsText,
+  pressIsKeyboardActivation,
 } from "/runtime/widget-api.js";
 
 const LABEL_GAP = 6;
@@ -231,8 +232,12 @@ export class RecordingTimeline {
 
   #maxZoom() {
     // The narrowest window spans 10 ms of recording, within the widest box
-    // Chrome lays out (33.5M px).
-    const width = Math.max(1, this.scroller?.clientWidth ?? 1);
+    // Chrome lays out (33.5M px). The width is the one the size observer last
+    // reported (`#resized`), so asking whether the timeline can zoom in, as its
+    // command's liveness does, forces no layout. A timeline not yet laid out with a
+    // width, such as one in a closed disclosure, is bounded by its recording alone
+    // until the observer's first report clamps the zoom to its box.
+    const width = Math.max(1, this.#width);
     return Math.max(1, Math.min((this.#model?.duration ?? 0) / 10, 16e6 / width));
   }
   #trackWidth() {
@@ -831,7 +836,7 @@ export class RecordingTimeline {
       return;
     }
     // A mouse press already scrubbed; a tap seeks once.
-    if (event.pointerType === "touch" || event.detail === 0)
+    if (event.pointerType === "touch" || pressIsKeyboardActivation(event))
       this.#options.onSeek(this.#eventTime(event), true);
   }
 

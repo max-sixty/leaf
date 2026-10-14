@@ -65,9 +65,11 @@ import {
   openerOf,
   rove,
   standingIn,
+  deepFocus,
 } from "../focus.js";
 import { closeControl, searchField } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
+import { renderedOrder } from "../shadow.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
 import { EVERYTHING } from "./text-entry.js";
 import {
@@ -174,9 +176,7 @@ function declaredStack(origin) {
       .filter(
         (node) => node?.isConnected && scopesAt(node).some((scope) => scope.title),
       );
-    held.sort((left, right) =>
-      left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
-    );
+    held.sort(renderedOrder);
     const seen = new Set();
     for (const node of held) {
       for (const section of scopesAt(node)) {
@@ -213,6 +213,7 @@ const EMPTY_CATALOG = Object.freeze({
   entries: Object.freeze([]),
   sections: Object.freeze([]),
 });
+/** @type {ReturnType<typeof captureCommandReferenceCatalog>} */
 let commandReferenceCatalog = EMPTY_CATALOG;
 let commandReferenceState = {
   query: "",
@@ -327,7 +328,7 @@ function captureCommandReferenceCatalog() {
   // A control's native Enter/Space scope can name that capability without an action of
   // its own. Prefer a row the reference can invoke, then teach a keyboard route rather
   // than an unbound control; among keyboard routes,
-  // prefer the reachable one (a Question digit can replace a shadowed intrinsic key).
+  // prefer the reachable one (an ask digit can replace a shadowed intrinsic key).
   // Invoking the reference names the capability, so any executable route makes the
   // entry available even when its displayed sequence has not been entered yet.
   const preferred = new Map();
@@ -846,7 +847,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
     dismissPopoversOutside(commandReferenceDialog);
-    // The origin is read off the scene the reference leaves standing: hiding a popover
+    // The origin is read off the scene the reference leaves behind: hiding a popover
     // hands focus back to where the user stood when it opened, and that is the place
     // the reference owes them. A control, or nothing: a user working from the page
     // stands on `body`, which is not a place to be given back — focusing it resets the
@@ -866,6 +867,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
       metaOverride: null,
     };
     presentCommandReference();
+    /** @type {HTMLInputElement} */
     const search = commandReferenceDialog.querySelector(".lf-command-reference-search");
     const results = commandReferenceDialog.querySelector(
       ".lf-command-reference-results",
@@ -897,8 +899,8 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     closeLayer(
       () => {
         if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (commandReferenceDialog.contains(document.activeElement))
-          document.activeElement.blur();
+        if (standingIn(commandReferenceDialog))
+          /** @type {HTMLElement | null} */ (deepFocus())?.blur();
         repaint();
       },
       handingBack && (() => handBack(restore)),
@@ -919,9 +921,11 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
 }
 
 const commandButton = (id) =>
-  [...commandReferenceDialog.querySelectorAll(".lf-command-reference-command")].find(
-    (button) => button.dataset.lfCommand === id,
-  ) ?? null;
+  [
+    .../** @type {NodeListOf<HTMLElement>} */ (
+      commandReferenceDialog.querySelectorAll(".lf-command-reference-command")
+    ),
+  ].find((button) => button.dataset.lfCommand === id) ?? null;
 
 const focusedCommandId = () =>
   focused()?.matches?.(".lf-command-reference-command")
@@ -1005,7 +1009,7 @@ pageScope("command reference", {
       repeat: true,
       runFromCommandReference: false,
       // The list is built before search receives focus, so physical liveness is false at
-      // that instant even though this is one of the reference's standing instructions.
+      // that instant even though the reference always lists this instruction.
       commandReferenceWhen: () => true,
       when: () => commandReferenceCommandActive(),
       run: () => moveCommandReferenceSelection(1),

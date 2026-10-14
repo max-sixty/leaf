@@ -1,0 +1,86 @@
+# From session 848900aa. Its survey of Leaf's cascade layers went to the user as prose,
+# a table and options written as code, though every finding was which tier a kind of
+# CSS lands in and what it can beat; the page pointed at the tier diagram on How it Works
+# instead of showing one. The user: "but there are no diagrams, it's a block of text",
+# and asked that a Leaf whose request says nothing about its form show diagrams or
+# images. Run cold, base 1518bc9bf read page-authoring.md and drew the tiers in 3 of 3,
+# and its options' change in 2 of 2, so this case guards the default rather than
+# reproducing the failure. Replaying the session from just before it wrote the page
+# reproduced it: base showed the tiers in 4 of 15 pages; SKILL.md's picture default and
+# code-as-effect rule, over four wordings, in 12 of 17, the committed wording 4 of 4.
+description: findings-page-shows-its-subject
+metadata:
+  purpose:
+    "Show the subject: a findings page whose request names no form shows what its
+    findings are about in a picture on the page, not only in prose, tables and code."
+  authoring: true
+  tags:
+    - drawing
+vars:
+  prompt: |
+    Earlier the user asked: "let's do a survey of our various levels of CSS impl, add a
+    section / diagram to our How it Works section. Our primary consideration should be
+    how users would want to override various parts -- i.e. for a layout, for a page, for
+    a package/widget". You wrote that section, with its tier diagram, and it is merged
+    (#2796) and live at https://leaf.page/how-it-works/#styles.
+
+    The user now asks: "ok, no great stress. Where can I see the survey? How do we do vs
+    the intention?"
+
+    Your notes from the survey. Each row was checked by building a page with
+    `leaf-dev probe` and reading the computed style.
+
+    Intent (root AGENTS.md, layer.py, layouts.css, page-sheets.js, packages.md): the
+    user's word overrides Leaf's defaults; a page has the last word on its own content
+    but not on Leaf's controls; a package refines through tokens or rules of its own.
+
+    Cascade, lowest first: `lf-reset` (form-control clearing), `lf-base` (the kernel
+    theme, every package's theme.css, theme packages included, and each widget's
+    sheet, scoped to its tags), `lf-layouts` (layouts.css), `lf-shadow`, `lf-state`
+    (retirement and other semantic state), then the page's own unlayered `<style>`.
+    Chrome stays unlayered above all of it.
+
+    | Override | What happens | Against intent |
+    | --- | --- | --- |
+    | A page restyles its content, widgets or Layout | its `<style>` and its own `@layer` blocks beat every Leaf tier | holds |
+    | A page dresses its own `button` | Leaf's controls keep their face unless the selector names them | holds |
+    | A page restyles a widget's shadow tree | only inherited tokens and exported `::part`s cross | holds |
+    | A package styles its own widget | works with `:scope` | holds |
+    | A package adjusts a Layout | only through the tokens the Layout reads (`--col`, `--page-pad-*`); any rule loses, whatever its specificity | gap |
+    | A theme package restyles another package's widget | tokens work; an equally specific rule loses to the widget's scoped rule whatever the order | gap |
+
+    | Rule | Where | Computed |
+    | --- | --- | --- |
+    | `body.site-page main { padding-top: 28px }` | site theme package, lf-base | 72px, the Layout's value |
+    | `lf-card:not(.nope) { padding-left: 26px }` | test theme package, same specificity as the board's rule, later | 10px, the board's value |
+    | `@scope (lf-card) { :scope:is(lf-card) { padding-right: 22px } }` | test theme package | 22px, the only form that wins |
+
+    The site rule dated from #763; #1246 moved Layouts above lf-base nine days later and
+    nothing noticed it had stopped applying, for 2½ weeks.
+
+    Open decision for the user: should a theme package (one declaring no widgets) get
+    its own tier between `lf-layouts` and `lf-state`, so it acts like a page's `<style>`
+    on every page (your recommendation; a broad rule like `button {}` would then beat
+    widget controls, so it likely needs page-sheets.js's narrowing; not prototyped), or
+    keep tokens and a mirrored `@scope` as the package route, as the docs now say?
+
+    Write the survey as a Leaf page.
+assert:
+  - type: llm-rubric
+    metric: shows-the-subject
+    value: |
+      The survey's findings are about where each kind of CSS sits in Leaf's cascade and
+      which tiers it can or cannot beat. Pass only if the page itself holds at least one
+      picture of that: an inline `<svg>`, an `<img>`, an `lf-diagram`, an `lf-chart`, an
+      `lf-shot`, or an HTML figure laid out as the tiers, showing the tiers in order and
+      where a page's, a theme package's or a widget package's rules land or what they
+      reach. Fail if the cascade and who reaches what are given only in prose, lists,
+      tables or code, or only by linking to the How it Works diagram.
+  - type: llm-rubric
+    metric: options-show-the-change
+    value: |
+      Find the ask deciding whether theme packages get their own tier. Pass only if
+      each of its options shows, in a picture inside that option or in a figure inside
+      the ask setting today beside the change, where a theme package's rules would sit
+      among the tiers and what they would then beat. Fail if either option gives its
+      effect only in prose, CSS, or a table.

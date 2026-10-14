@@ -25,19 +25,12 @@ import { drawingSchema } from "./drawing-schema.js";
 // generated from registry.json, each field from its own declaration, so a bound
 // changes there alone.
 const FIELDS = drawingSchema.properties;
-export const DRAWING_FORMAT = FIELDS.format.const;
 export const MAX_DRAWING_STROKES = FIELDS.strokes.maxItems;
 export const MAX_DRAWING_FRAME_DEPTH = FIELDS.frame.properties.path.maxItems;
 export const MAX_DRAWING_POINTS = FIELDS.strokes.items.maxItems;
 export const DRAWING_COORDINATE_LIMIT =
   FIELDS.strokes.items.items.prefixItems[0].maximum;
 export const MAX_DRAWING_SAYS_LENGTH = FIELDS.says.maxLength; // code points
-
-// Whether a stored value is a drawing this runtime draws. Admission holds a comment's
-// drawing to its schema, and drawing.js clamps a draft's to the same bounds as it
-// draws, so only the format, which separates a draft saved by an older runtime, is
-// asked here.
-export const validDrawing = (drawing) => drawing?.format === DRAWING_FORMAT;
 
 // The drawing as a comment carries it.
 export function sentDrawing(drawing) {

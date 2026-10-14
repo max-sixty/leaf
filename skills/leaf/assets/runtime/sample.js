@@ -7,9 +7,10 @@
  * private port; an ordinary reload reconnects.
  * An opaque parent cannot classify a later document which has no Leaf bootstrap.
  * Departed ports cannot settle the replacement's calls.
- * `ready` is the presentation of the sample's next document. When the child
+ * `ready` is the usable, upgraded interface of the sample's next document,
+ * independent of its authoritative saved-state reading. When the child
  * document departs, through an authored navigation or a reload, `ready` becomes one
- * promise for the document a reload presents next, which announces itself with
+ * promise for the document a reload upgrades next, which announces itself with
  * `loading`. A call made meanwhile waits on it, and whatever the owner applied to the
  * departed document it applies again once it resolves. Nothing follows an external
  * destination, so that wait lasts until the owner resets or destroys the host.
@@ -25,7 +26,7 @@
  * waits; an allocation already in flight is allowed to finish so its returned
  * capability can be released. Lifecycle records enter the interaction stream at
  * these decisions, with a host/allocation identity and the connected document
- * nonce. Native load is distinct from Leaf presentation;
+ * nonce. Native load is distinct from Leaf upgrade;
  * an opaque destination cannot be classified from its load event. Retirement
  * records the local realm's destruction, before the allocation release answers.
  * A mounted frame answers for its image: the child draws the requested part of its
@@ -56,7 +57,7 @@ import { recordInteraction } from "./interaction-log.js";
 import { aborted } from "./abort.js";
 
 // A page can carry many samples. Their child documents each import the runtime;
-// presenting them together can exhaust the browser's request pool before any child
+// upgrading them together can exhaust the browser's request pool before any child
 // finishes loading its module graph. Bound simultaneous loads across this page. A
 // loaded child can keep reading slow state without holding up the next sample.
 const MAX_LOADING_SAMPLES = 3;
@@ -110,7 +111,10 @@ const request = (url, body, headers = {}) =>
     "sample",
   );
 
-export function mountSample(frame, { template, window: asWindow = false }) {
+export function mountSample(
+  frame,
+  { template, window: asWindow = false, chrome = undefined },
+) {
   if (!template) throw new Error("a sample needs an authored template id");
   // A template is declared in its revision's document or in a message's frozen
   // markup, which the server reads from the log beside the current revision.
@@ -134,7 +138,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
   let nextId = 0;
   let readyResolve;
   let readyReject;
-  let presenting = false;
+  let upgrading = false;
   let hasConnected = false;
   let connectedNonce = null;
   const hostId = ++nextHost;
@@ -219,7 +223,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
   }
   // Public readiness includes failure retirement. Reset coalesces with an
   // allocation's own operation, so a reported failure already permits a fresh one.
-  // A reload's presentation, or a departure's wait, is not an operation: Reset then
+  // A reload's upgrade, or a departure's wait, is not an operation: Reset then
   // allocates afresh.
   function begin(work) {
     const active = work;
@@ -243,30 +247,30 @@ export function mountSample(frame, { template, window: asWindow = false }) {
       throw error;
     }
   }
-  function presentation() {
-    presenting = true;
+  function interfaceReady() {
+    upgrading = true;
     return new Promise((resolve, reject) => {
       readyResolve = (value) => {
-        presenting = false;
+        upgrading = false;
         resolve(value);
       };
       readyReject = (error) => {
-        presenting = false;
+        upgrading = false;
         reject(error);
       };
     });
   }
-  // A departed or replaced document's successor presents into the presentation
+  // A departed or replaced document's successor upgrades into the readiness
   // already pending, so a departure and the reload after it share one `ready`.
   function awaitNext() {
-    if (presenting) return;
-    host.ready = settle(presentation());
+    if (upgrading) return;
+    host.ready = settle(interfaceReady());
     // Owners read its outcome from `ready`; a host nobody awaits drops it, as an
     // operation's does.
     host.ready.catch(() => {});
   }
   function failure(error) {
-    if (presenting) readyReject(error);
+    if (upgrading) readyReject(error);
     else {
       begin(settle(Promise.reject(error)));
       notify("loading");
@@ -290,7 +294,9 @@ export function mountSample(frame, { template, window: asWindow = false }) {
     const pair = new MessageChannel();
     const port = pair.port1;
     // Publish this private document endpoint at the existing diagnostic seam.
-    document.querySelector("script[data-lf-entry]").lfDocumentPort = port;
+    /** @type {HTMLScriptElement} */ (
+      document.querySelector("script[data-lf-entry]")
+    ).lfDocumentPort = port;
     candidates.add(port);
     port.onmessage = ({ data }) => {
       if (data.type === "connected") {
@@ -339,7 +345,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
           );
         else resolve(data.result);
       } else if (data.type === "ready") {
-        record("presented");
+        record("upgraded");
         readyResolve(data.detail);
         visibility();
       } else if (data.type === "error") {
@@ -366,7 +372,7 @@ export function mountSample(frame, { template, window: asWindow = false }) {
       {
         sample: event.data.sample,
         nonce,
-        settings: { window: asWindow, dress: dressFor(frame) ?? undefined },
+        settings: { window: asWindow, dress: dressFor(frame) ?? undefined, chrome },
       },
       "*",
       [pair.port2],
@@ -472,13 +478,13 @@ export function mountSample(frame, { template, window: asWindow = false }) {
             await retire("destroyed");
             throw new DOMException("sample destroyed", "AbortError");
           }
-          const presented = presentation();
-          // A loaded module graph frees its slot even while presentation waits on
-          // slow state. Native load needs no access to the opaque child document.
+          const upgraded = interfaceReady();
+          // A loaded module graph frees its slot even while Leaf upgrade waits on
+          // widget preparation. Native load needs no access to the opaque child document.
           frame.addEventListener("load", release, { once: true });
           record("loading");
           frame.src = current;
-          return await presented;
+          return await upgraded;
         } finally {
           frame.removeEventListener("load", release);
         }

@@ -304,13 +304,29 @@ def wait_for_theme(page) -> None:
     page.wait_for_function(_THEME_READY)
 
 
-def pre_upgrade_findings(page) -> list[str]:
-    """Read authored structure before the held Leaf entry is released."""
+def pre_upgrade_findings(page) -> list[dict]:
+    """Read authored structure before the held Leaf entry is released, as finding
+    records (`leaf.findings`)."""
     _ensure_driver(page)
     return page.evaluate(_PRE_UPGRADE_FINDINGS)
 
 
-def install_window_errors(page) -> None:
-    """Install the pre-navigation error channel shared by the gate and suite."""
+def install_window_errors(page, heard) -> None:
+    """Hand `heard` each error the page's windows raise with no exception behind it,
+    as `{"text": ..., "resizeLoop": ...}`, from navigation on.
+
+    Chrome writes those to no console: a ResizeObserver loop notice is one, which the
+    gate and the suite each judge over a confirming reading rather than at once, so
+    `init.js` says which a report is where it reads the event. One channel per page,
+    shared by every reader installed on it, since a binding is registered once."""
     install_driver(page)
-    page.add_init_script(path=WINDOW_ERRORS_SOURCE)
+    page = getattr(page, "page", page)
+    listeners = getattr(page, "_leaf_window_error_listeners", None)
+    if listeners is None:
+        listeners = page._leaf_window_error_listeners = []
+        page.expose_binding(
+            "__leafWindowError",
+            lambda _source, error: [listener(error) for listener in listeners],
+        )
+        page.add_init_script(path=WINDOW_ERRORS_SOURCE)
+    listeners.append(heard)

@@ -36,6 +36,7 @@ import {
   wear,
   whileConnected,
   widgetController,
+  focused,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
 
@@ -81,7 +82,7 @@ function jsonSnapshot(value, path = "configuration") {
 customElements.define(
   "lf-playground",
   class extends HTMLElement {
-    // What the Question was answered with: the instruction the chosen configuration sent.
+    // What the ask was answered with: the instruction the chosen configuration sent.
     static answerWords(value) {
       return value.instruction;
     }
@@ -168,8 +169,6 @@ customElements.define(
 
     registerInstructionProvider(provider) {
       if (!this.#ready) throw new Error("playground is not ready");
-      if (typeof provider !== "function")
-        throw new Error("instruction provider must be a function");
       if (this.#instructionProvider)
         throw new Error("playground already has an instruction provider");
       this.#instructionProvider = provider;
@@ -214,7 +213,11 @@ customElements.define(
         this.addEventListener("mousedown", (event) => {
           if (event.target.closest(".lf-playground-control-label")) return;
           const pressed = event.target.closest(ONE_PRESS);
-          if (pressed?.closest("lf-playground") === this && this.#standsInPreview()) {
+          if (
+            pressed?.closest("lf-playground") === this &&
+            !this.#preview.contains(pressed) &&
+            this.#standsInPreview()
+          ) {
             const selection = getSelection();
             if (selection && !this.#preview.contains(selection.focusNode))
               selection.removeAllRanges();
@@ -224,7 +227,7 @@ customElements.define(
               // Return focus after that default takes it, so dragging remains native
               // while the preview keeps showing its focused state. An opaque sample
               // restores its own standing through its private port.
-              let standing = document.activeElement;
+              let standing = focused(document);
               while (standing?.contentDocument)
                 standing = standing.contentDocument.activeElement;
               range.addEventListener(
@@ -282,9 +285,12 @@ customElements.define(
     // Readable labels allow the browser's selection gesture. Text and colour controls
     // take focus to be operated, and a key reaches any control by moving focus onto it
     // first, so the keyboard still acts where it stands.
+    // A control written in the preview is not a candidate: standing on one is standing
+    // on a control.
     #standsInPreview() {
-      let at = document.activeElement;
-      if (!this.#preview.contains(at)) return false;
+      let at = focused(document);
+      if (!this.#preview.contains(at) || at.closest("lf-playground-control"))
+        return false;
       // A sample's frame holds focus for its child page, which may stand on nothing.
       while (at?.contentDocument) at = at.contentDocument.activeElement;
       if (at?.localName === "iframe")
@@ -379,7 +385,7 @@ customElements.define(
         return;
       }
       const instruction = this.#instructionProvider(this.values);
-      if (typeof instruction !== "string" || !instruction.trim())
+      if (!instruction.trim())
         throw new Error("instruction provider must return non-empty text");
       this.#output.renderInstruction(instruction.trim());
     }

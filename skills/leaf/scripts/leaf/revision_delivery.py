@@ -63,6 +63,7 @@ from .structure import (
     SourceDocument,
     annotation_mode,
     element_attrs,
+    page_layout,
     rel_tokens,
     review_mode,
     rewrite_attribute_references,
@@ -150,7 +151,9 @@ def rebase_css(
 
 def rebase_module(data: bytes, base: str, address: Address) -> bytes:
     """Re-address every literal import of an authored module at `base`."""
-    return bind_imports(data, authored_imports(data, base), address)
+    return bind_imports(
+        data, authored_imports(data, base), lambda path: address(quote(path, safe="/"))
+    )
 
 
 def rebase_document(
@@ -591,7 +594,7 @@ def delivered_resource(
 
 
 def delivery_identity(
-    revision: int, version: int | None, executable: str | None, widgets: dict
+    revision: int, version: int | None, executable: str, widgets: dict
 ) -> str:
     """State which revision a delivered document is, and what it is made of.
 
@@ -608,18 +611,11 @@ def delivery_identity(
     Every delivered document carries this (`compose_document`). A document that says
     part of it is a document the next reader of the contract has to guess about.
     """
-    # A revision captured before these were recorded says neither, rather than saying it
-    # is something called "None". A document that does not state its executable identity
-    # is one an open page cannot take a revision from, which is the reload path.
     return (
         f'<meta name="lf-revision" data-lf-runtime content="{revision}">'
-        + (
-            f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
-            f'<meta name="lf-widgets" data-lf-runtime '
-            f'content="{html.escape(json.dumps(widgets, separators=(",", ":")), quote=True)}">'
-            if executable is not None
-            else ""
-        )
+        f'<meta name="lf-executable" data-lf-runtime content="{executable}">'
+        f'<meta name="lf-widgets" data-lf-runtime '
+        f'content="{html.escape(json.dumps(widgets, separators=(",", ":")), quote=True)}">'
         + (
             f'<meta name="lf-version" data-lf-runtime content="{version}">'
             if version is not None
@@ -675,7 +671,7 @@ def delivery_prelude(
     document: SourceDocument,
     revision: int,
     version: int | None,
-    executable: str | None,
+    executable: str,
     widgets: dict,
 ) -> str:
     """Declare encoding, a device-width viewport, and immutable Leaf identity.
@@ -728,7 +724,7 @@ def compose_document(
     revision: int,
     version: int | None,
     *,
-    executable: str | None,
+    executable: str,
     widgets: dict,
     resources: Mapping[str, Resource],
     registry: Mapping,
@@ -749,9 +745,10 @@ def compose_document(
     hears of it, so it comes before that. Used `x-initial` bundles follow it and
     register the package producers that the body's parser invocations run; and it
     stands before the theme, since a
-    script after a stylesheet still loading waits for it. The root carries the host's attributes and the page's
+    script after a stylesheet still loading waits for it. The root carries the host's attributes, the page's
     declared review (`data-lf-review`), which the render-blocking theme reads to
-    reserve the banner a sign-off page will draw before the runtime draws it. The
+    reserve the banner a sign-off page will draw before the runtime draws it, and the
+    page's Layout (`data-lf-layout`), whose body rules must hold before `main` is parsed. The
     import map precedes every script, since a browser reads no map once a module has
     begun to load.
     """
@@ -838,6 +835,8 @@ def compose_document(
     root = dict(delivery.html_attributes)
     if (review := review_mode(document)) is not None:
         root["data-lf-review"] = review
+    if (layout := page_layout(document)) is not None:
+        root["data-lf-layout"] = layout
     if root:
         attributes = _attributes(root)
         insertions.append(

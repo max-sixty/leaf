@@ -223,16 +223,12 @@
       ]
     </script>
     <script type="module">
-      import {
-        afterPresentation,
-        commands,
-        readQuestions,
-      } from "/runtime/widget-api.js";
+      import { afterPresentation, commands, readAsks } from "/runtime/widget-api.js";
 
       document.querySelector("#bg-read-question").addEventListener("click", () => {
-        const question = readQuestions().all.find((q) => q.id === "widget:bg-choice");
+        const ask = readAsks().all.find((q) => q.id === "widget:bg-choice");
         const output = document.querySelector("#bg-question-reading");
-        output.textContent = JSON.stringify(question, null, 2);
+        output.textContent = JSON.stringify(ask, null, 2);
         output.hidden = false;
       });
 
@@ -361,33 +357,34 @@
           <section id="bg-core-surfaces">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
             <h2>
-              <strong>Questions</strong
+              <strong>On me</strong
               ><span class="bg-feature-detail">: decisions and answers</span>
             </h2>
             <p id="bg-core-surfaces-guide">
               An <code>lf-ask</code> puts a heading and context around the choice below.
-              Your questions are everything waiting on you: open asks, threads whose
-              question is yours to answer (such as the gallery thread about a pasted
-              image), to-dos the agent put on you, and updates whose reply failed and
-              need sending again.
+              <strong>On me</strong> lists everything waiting on you: open asks, threads
+              whose question is yours to answer (such as the gallery thread about a
+              pasted image), to-dos the agent put on you, and updates whose reply failed
+              and need sending again.
             </p>
             <ul id="bg-core-surfaces-steps">
               <li>
-                Press <kbd>q</kbd>: the page moves to your next question in page order,
-                and <kbd>Shift+Q</kbd> walks back. Where that question is in another
+                Press <kbd>m</kbd>: the page moves to the next item on you in page
+                order, and <kbd>Shift+M</kbd> walks back. Where that item is in another
                 view, it appears at once and the view's tab name briefly highlights;
                 with reduced motion, there is no glide or highlight.
               </li>
               <li>
-                Look at the banner: the <strong>Questions</strong> control beside
-                Threads counts your questions, and the agent's Tasks count follows its
-                status.
+                Look at the banner: the <strong>On me</strong> control beside Threads
+                counts what is on you, and the agent's count, such as
+                <strong>On Claude: 1</strong>, follows its status.
               </li>
               <li>
-                Press either, or <kbd>g</kbd> then <kbd>Shift+Q</kbd>: the experimental
-                Questions panel opens where Threads opens, with both lists and with
-                answered asks and ended to-dos folded under Done. Press Enter on a row:
-                it goes where <kbd>q</kbd> would.
+                Press either, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the experimental
+                On panel opens where Threads opens, on the list you pressed, with a tab
+                for the other. What left each list is folded under it as Done: answered
+                asks under On me, sent replies and ended to-dos under the agent's. Press
+                Enter on a row: it goes where <kbd>m</kbd> would.
               </li>
               <li>
                 On a stamped page that asks for sign-off, find the version approval
@@ -395,7 +392,7 @@
                 answers it, and Undo reopens it.
               </li>
               <li>
-                Comment on the map question, then press <kbd>q</kbd> until it lands
+                Comment on the map question, then press <kbd>m</kbd> until it lands
                 there: the discussion stays closed while you read and choose, even when
                 Tab enters the controls. Press <kbd>c</kbd> to reply in that discussion,
                 <kbd>t</kbd> to read it, or, under a finger, its Thread marker to open
@@ -432,14 +429,14 @@
               </p>
               <ul>
                 <li>
-                  Open the Questions panel: the to-do waits under Questions, and its row
-                  has a Done button.
+                  Open the On panel: the to-do waits under On me, and its row has a Done
+                  button.
                 </li>
                 <li>
-                  Press <kbd>q</kbd> until it lands on the to-do, after the ask above,
+                  Press <kbd>m</kbd> until it lands on the to-do, after the ask above,
                   then press <kbd>x</kbd>, or under a finger the banner's
-                  <strong>Done</strong>: the to-do moves to the panel's Done fold, and
-                  the agent is told.
+                  <strong>Done</strong>: the to-do moves to On me's Done fold, and the
+                  agent is told.
                 </li>
               </ul>
             </section>
@@ -471,10 +468,44 @@
                 preference stays off, then turn it on to restore the hints and keys.
               </p>
             </section>
+            <section id="bg-floating-panel">
+              <h3>The floating panel (experimental)</h3>
+              <p>
+                Add <code>?lf-chrome=floating</code> to this page's address: the banner
+                and the bottom bar give way to one panel hovering over the foot of the
+                page, and the choice stays for every page until
+                <code>?lf-chrome=classic</code> restores them. A window sample shows the
+                chrome its <code>chrome</code> attribute names, whichever you chose.
+                Below, the same page in each: press the floating panel's leaf for the
+                menu, and its field to comment.
+              </p>
+              <lf-sample
+                id="bg-chrome-classic"
+                label="classic chrome"
+                window
+                chrome="classic"
+              >
+                <template id="bg-chrome-classic-page" data-sample>
+                  <h1>Trail notes</h1>
+                  <p>The covered terrace is a short walk from the shelter.</p>
+                </template>
+              </lf-sample>
+              <lf-sample
+                id="bg-chrome-floating"
+                label="floating panel"
+                window
+                chrome="floating"
+              >
+                <template id="bg-chrome-floating-page" data-sample>
+                  <h1>Trail notes</h1>
+                  <p>The covered terrace is a short walk from the shelter.</p>
+                </template>
+              </lf-sample>
+            </section>
             <p id="bg-core-controls-guide">
               The banner also shows <strong>Threads</strong>, the
               <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
-              then <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd>
+              then <kbd>Shift+P</kbd>), <strong>Command reference</strong> (<kbd>?</kbd>
               twice), and <strong>All pages</strong> when another Leaf page is live. A
               quiet status line at the bottom right reports the current keyboard walk or
               a useful command result. It moves above the bottom-left shortcuts when
@@ -551,13 +582,14 @@
             <p class="eyebrow bg-feature-elements">lf-draft</p>
             <h2>
               <strong>Drafts</strong
-              ><span class="bg-feature-detail">: editable passages and history</span>
+              ><span class="bg-feature-detail">: editable passages</span>
             </h2>
             <p id="bg-editing-guide">
               Drafts render Markdown as readable prose. “Edit” opens its exact source;
-              “Save” records it, “Cancel” discards the unsaved edit, and “Close” keeps
-              it for later. These controls stay in the box when annotations are hidden.
-              After an edit, “Changes” lists saved versions and “Restore” reapplies one.
+              “Save” records it, and “Cancel” or <kbd>Escape</kbd> discards the unsaved
+              edit. These controls stay in the box when annotations are hidden. Copy, at
+              the box’s top right, copies its Markdown. Press <kbd>z</kbd> to undo a
+              saved edit.
             </p>
             <lf-draft id="bg-draft">
               <pre>
@@ -919,6 +951,39 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 empty to inspect automatic arrival.
               </p>
             </section>
+
+            <section id="bg-carried-comment">
+              <h3>
+                <strong>Move a comment</strong
+                ><span class="bg-feature-detail"
+                  >: carry the box or card off the words it covers</span
+                >
+              </h3>
+              <p id="bg-carried-comment-guide">
+                A passage's comment box and a thread card both move by their edge.
+              </p>
+              <ul id="bg-carried-comment-steps">
+                <li>
+                  Select a sentence here and press <kbd>c</kbd>. Point just outside the
+                  box's border: the pointer becomes a hand. Drag the box over the next
+                  paragraph and type: the caret stays and the box stays where you
+                  dropped it.
+                </li>
+                <li>
+                  Scroll: the box travels with its passage at the spot you chose. Send:
+                  the thread card opens there.
+                </li>
+                <li>
+                  Rest the pointer on the card's padding: after a beat its border
+                  lights. Drag it from there; its words, buttons and links keep their
+                  own presses, and on a touch screen a finger carries it too.
+                </li>
+                <li>
+                  Resize the window, or open another thread: the surface returns to
+                  where the page would stand it.
+                </li>
+              </ul>
+            </section>
           </section>
         </lf-tab>
 
@@ -940,7 +1005,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Open threads
               </button>
               <button type="button" class="button" data-view="you" aria-pressed="false">
-                On you
+                On me
               </button>
               <button
                 type="button"
@@ -1029,14 +1094,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <kbd>T</kbd>: the same thread stays focused in the panel.
               </li>
               <li>
-                Under “View”, choose “Open”, “On you”, “On agent”, or “Resolved” to
-                narrow the list, and combine “Page” or “Anchored” with “Content” or
-                “Layer”. Switch “Order” from the page's order to “Recent”: the thread
-                with the latest message comes first under its day.
+                Under “View”, choose “Open” or “Resolved”, and “Me” or the agent's name
+                under “Waiting on”, to narrow the list, and combine “Page” or “Anchored”
+                with “Content” or “Design”. Switch “Order” from the page's order to
+                “Recent”: the thread with the latest message comes first under its day.
               </li>
               <li>
                 Look at a collapsed row: it keeps its message count, last activity, and
-                status, and “On you” also names the action you owe.
+                status, and “On me” also names the action you owe.
               </li>
               <li>
                 Open a short thread: Reply follows its last message. In a long one,
@@ -1085,7 +1150,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   Start a conversation and mark the proofreading to-do Done: the
-                  package's lists and Leaf's Questions panel show the same outcomes.
+                  package's lists and Leaf's On panel show the same outcomes.
                 </li>
                 <li>
                   Use first-unread and question navigation: each lands in this reader.
@@ -1361,11 +1426,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <p id="bg-thread-text">
                     <strong>An existing thread.</strong> The sample agenda has room for
                     one more topic. Its speech-bubble control is green, and hovering it
-                    shows “On you” under the label. The image question still needs an
-                    answer even though the agent added a later progress message. In
-                    Threads, “On you” still says to answer the question. Open the
+                    shows “My turn to answer” under the label. The image question still
+                    needs an answer even though the agent added a later progress
+                    message. In Threads, “My turn to answer” still says so. Open the
                     control and reply: the control turns blue as the thread comes back
-                    to the agent. The same reading fills the panel’s “On you” filter and
+                    to the agent. The same reading fills the panel’s “Me” filter and
                     this target’s Page Map row.
                   </p>
                   <p id="bg-thread-media">
@@ -1442,7 +1507,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Choose “Progress messages” in the practice page, then use “Show 2
                 progress messages” beside the answer’s timestamp with a press or Enter.
                 Expanded progress runs have an inset border and ordinary message headers
-                on the page’s normal background. User replies separate the groups.
+                on the page’s normal background. User replies separate the groups. The
+                later room check has no answer yet, so it stands as a dim working
+                message above the reply box rather than as a reply, and counts nothing
+                unread.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread,
@@ -1466,7 +1534,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   Look at a margin control whose thread holds unread replies: it carries
-                  the same dot as Threads. “On you to answer” still identifies an
+                  the same dot as Threads. “My turn to answer” still identifies an
                   outstanding question after you read it.
                 </li>
               </ul>
@@ -1604,20 +1672,25 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
           </section>
 
           <section id="bg-side-list">
-            <p class="eyebrow">list="side"</p>
+            <p class="eyebrow bg-feature-elements">lf-tabs · lf-tally</p>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
               The tab list stands left of the open item: each row shows its name and
               summary, and rows sharing a <code>group</code> sit under that group's
-              heading.
+              heading. The <code>lf-tally</code> above it counts the queue's asks still
+              to answer.
             </p>
             <ul id="bg-side-list-steps">
               <li>
                 Walk the list with the up and down arrows: they pass the headings by.
               </li>
               <li>
-                Answer the first item's ask: its row shows a check and the option you
-                picked. Undo takes them away.
+                Press Next on me in the tally: it opens the first item's ask, whose row
+                carries an open mark.
+              </li>
+              <li>
+                Answer the ask: its row shows a check and the option you picked, and the
+                tally says Answered. Undo puts the open mark and the count back.
               </li>
               <li>
                 Narrow the window below the set's 36rem: the list becomes a row above
@@ -1625,6 +1698,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 the check.
               </li>
             </ul>
+            <p id="bg-side-left">
+              <lf-tally id="bg-side-tally" for="bg-side-queue" next></lf-tally>
+            </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
                 id="bg-side-4107"
@@ -2600,23 +2676,29 @@ gallery/
                 stays at the top of the view until the pair ends, below any page tabs.
                 This pair carries
                 <code>outlines</code>, so outlines mark each region where the two images
-                differ, on both sides of the divider, and the rail counts them.
+                differ, on both sides of the divider. The rail offers three views:
+                Plain, Outlines, and Pixels. Outlines starts selected; Plain hides the
+                outlines, while Pixels shows the after image greyed with every changed
+                pixel painted over it: red where only Before drew something, blue where
+                only After did, and amber where both did. Use the arrow keys to select a
+                view, or choose it directly. Hover or focus Outlines to read the changed
+                and moved counts, or hold it on a phone. Slide off before releasing to
+                leave the current view selected. Clicking the pixel picture returns to
+                the previous comparison view with its divider preserved.
               </p>
               <lf-shot
                 id="bg-shot"
                 outlines
+                pixels
                 alt="a sample run list with and without a status column"
                 before="/media/051bee487bfb5d13.png"
                 after="/media/a99a1b63048502d0.png"
               ></lf-shot>
               <p id="bg-shot-plain-guide">
-                The same pair without <code>outlines</code>: nothing is marked, and the
-                rail says nothing, since the pair has a change to point at. This one
-                carries <code>pixels</code> instead: choose “changed pixels” in the
-                middle of the rail, or press it with Enter, to see the after image
-                greyed with every changed pixel painted over it. Choose Before or After
-                to leave it, or click the picture to return to the comparison as it
-                stood.
+                The same pair without <code>outlines</code> offers Plain and Pixels,
+                starting in Pixels, which shows what each image draws differently in one
+                picture. Selecting Pixels again keeps that view open. Choose Plain,
+                Before or After, or click the pixel picture, to see the comparison.
               </p>
               <lf-shot
                 id="bg-shot-plain"
@@ -2635,6 +2717,54 @@ gallery/
                 before="/media/051bee487bfb5d13.png"
                 after="/media/051bee487bfb5d13.png"
               ></lf-shot>
+              <p id="bg-capture-table-guide">
+                Captures that differ by something other than a version, such as the
+                moments of one journey, share a table whose heads name each column's and
+                each row's value once. Open a capture: Image preview names it by its
+                column and its row.
+              </p>
+              <table id="bg-capture-table" data-width="wide">
+                <thead>
+                  <tr>
+                    <td></td>
+                    <th scope="col">Opened</th>
+                    <th scope="col">Documentation reviewed</th>
+                    <th scope="col">API changes reviewed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Release review</th>
+                    <td>
+                      <a href="/media/c9f9c30f168dd264.png"
+                        ><img
+                          src="/media/c9f9c30f168dd264.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with both sections pending"
+                      /></a>
+                    </td>
+                    <td>
+                      <a href="/media/298268218fde4619.png"
+                        ><img
+                          src="/media/298268218fde4619.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with documentation reviewed and API changes pending"
+                      /></a>
+                    </td>
+                    <td>
+                      <a href="/media/006a318b091c6d1d.png"
+                        ><img
+                          src="/media/006a318b091c6d1d.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with both sections reviewed"
+                      /></a>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </section>
           </section>
 

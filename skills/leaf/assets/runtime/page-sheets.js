@@ -1,11 +1,18 @@
-/* The page's own rules keep off the layer's apparatus unless they name it.
+/* The page's own rules, and a theme package's, keep off the layer's apparatus unless
+   they name it.
 
    A page's stylesheet is unlayered, above every layer the kernel and the packages state
    their faces in (layer.py, CASCADE_LAYERS), so the page has the last word on its own
    document. At no specificity that also gave it the last word on the layer's: a page
    dressing its `button` and `a` is dressing its prose, and that rule took the family,
    ink, border and padding of every control a widget builds in the page (each wears
-   .lf-ui) and of every button in the chrome.
+   .lf-ui) and of every button in the chrome. A theme package, one that declares no
+   widgets, styles every page as the page's sheet styles one, from the `lf-theme` tier
+   above the widgets' defaults and the Layouts, so its rules are narrowed the same way.
+   They are the `lf-theme` blocks of the layer's theme sheet, and of the runtime's own
+   sheets only those blocks are read. The copy of a theme's shadow.css that reaches a
+   widget's shadow tree stands as written, since a rule there is written for the
+   widget's insides.
 
    So each selector the page writes that names no widget and nothing of the layer's — no
    custom element, no `lf-` class or id, no `data-lf-` attribute, in itself or in a rule
@@ -106,8 +113,9 @@ function narrowRules(rules, named) {
 }
 
 // A sheet's own rules are narrowed once; the sheets it imports are asked after every
-// pass, since an import can still be loading when its parent is first read.
-function narrowSheet(sheet) {
+// pass, since an import can still be loading when its parent is first read. Of a
+// runtime sheet, only the theme packages' tier is the author's (layer.py, `lf-theme`).
+function narrowSheet(sheet, runtime) {
   const owner = sheet.ownerNode;
   if (
     sheet.href &&
@@ -117,10 +125,15 @@ function narrowSheet(sheet) {
     return;
   if (!narrowed.has(sheet)) {
     narrowed.add(sheet);
-    narrowRules(sheet.cssRules, false);
+    if (!runtime) narrowRules(sheet.cssRules, false);
+    else
+      for (const rule of sheet.cssRules)
+        if (rule instanceof CSSLayerBlockRule && rule.name === "lf-theme")
+          narrowRules(rule.cssRules, false);
   }
   for (const rule of sheet.cssRules)
-    if (rule instanceof CSSImportRule && rule.styleSheet) narrowSheet(rule.styleSheet);
+    if (rule instanceof CSSImportRule && rule.styleSheet)
+      narrowSheet(rule.styleSheet, runtime);
 }
 
 // Every sheet the page states that has not been narrowed yet. Boot calls this before the
@@ -130,10 +143,11 @@ function narrowSheet(sheet) {
 // there calls it again once it loads.
 let watching = false;
 export function keepPageRulesOffLayer() {
-  for (const sheet of document.styleSheets) {
-    if (sheet.ownerNode?.hasAttribute("data-lf-runtime")) continue;
-    narrowSheet(sheet);
-  }
+  for (const sheet of document.styleSheets)
+    narrowSheet(
+      sheet,
+      /** @type {Element | null} */ (sheet.ownerNode)?.hasAttribute("data-lf-runtime"),
+    );
   if (watching) return;
   watching = true;
   new MutationObserver((records) => {

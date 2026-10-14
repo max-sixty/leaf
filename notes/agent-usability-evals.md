@@ -96,7 +96,7 @@ with ordinary HTML/CSS/JS and no Leaf payload. Nine pairs at a2cf7a001 with Opus
 on Claude Code: three each of `document` (a review the team decides from), `queue`
 (eight escalations, list beside detail) and `configuration` (six alert thresholds to
 tune). The first configuration pair ran at 51ef3d615, whose prompts are the same.
-Each sample authors the page, revises it for the 900px standing preference, then
+Each sample authors the page, revises it for the 900px lasting preference, then
 handles a comment that adds a fact to one passage. Leaf gets the comment anchored on
 the passage, or on the page whole where no candidate quote appears exactly once
 (5 of 9, including every configuration, whose alert text the author's script
@@ -105,17 +105,27 @@ API prices on the signed-in login, including a discarded document sample whose
 comment named the wrong weekday; the Codex screenshot judge read about 7M tokens and
 the pairwise judge cost $11.
 
-```sh
-uv run leaf-dev eval document queue configuration --harness claude-code \
-  --condition both --repeat 3 -j 1
-uv run leaf-dev eval-pairs .tmp/eval/<run>
-```
-
 Within each task, the three Leaf samples ran before the three HTML samples, so the
 minutes are confounded with any drift in host load (load average 4 to 7 throughout);
-tokens, cost and code are not. To counterbalance, alternate `--condition leaf` and
-`--condition html` runs of one repeat each, swapping which goes first, and pass
-every run to `eval-pairs`.
+tokens, cost and code are not.
+
+The executor has since been rebuilt on the real loop, so these commands no longer
+reproduce this run: Leaf runs as the installed plugin and hands the page over, the
+comment is posted from a browser selection and delivered by the hook, every task
+ends with a decision the user makes on the page and asks to have applied, and
+`eval-pairs` is the quality score (`evals/README.md`, "Reading the results").
+Runs alternate the conditions, one repeat each, swapping which goes first:
+
+```sh
+for task in document queue configuration; do
+  uv run leaf-dev eval $task --harness claude-code --condition leaf --repeat 1 -j 1
+  uv run leaf-dev eval $task --harness claude-code --condition html --repeat 1 -j 1
+  uv run leaf-dev eval $task --harness claude-code --condition html --repeat 1 -j 1
+  uv run leaf-dev eval $task --harness claude-code --condition leaf --repeat 1 -j 1
+done
+uv run leaf-dev eval-pairs .tmp/eval/<run>...
+uv run leaf-dev eval-report "$(mktemp -d)/report" .tmp/eval/<run>...
+```
 
 Every sample completed every phase and passed its render gate; every page's files
 carried the comment's fact, and every answer named it, on the comment's thread in Leaf and in
@@ -172,7 +182,7 @@ conditions repaired about equally often.
   pairwise judge runs the authors' model, Opus 5.5, and Leaf's viewer chrome in the
   screenshots shows it which page is Leaf's.
   - Documents: on the two documents Leaf won, it won on decisions in both orders,
-    since it put both decisions on the page as Questions where HTML offered a reply
+    since it put both decisions on the page as asks where HTML offered a reply
     to copy. HTML's sticky contents ran out of the short 900px window on all three;
     both conditions' comparison tables lost a column at 390px.
   - Configurations: every Leaf author used `lf-playground`, whose control panel sits

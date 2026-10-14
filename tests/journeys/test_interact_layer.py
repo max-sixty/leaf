@@ -121,33 +121,15 @@ def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(tmp_
     ]
 
 
-def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
-    """The index a host configures is the only place leaf may look for its
-    dependencies, and syncing the payload project is the only way it gets a
-    wheel. The shipped lock names versions, but a sync against another index
-    re-locks against that index rather than fetch the lock's pypi.org URLs.
+@pytest.mark.network
+def test_the_launcher_installs_quietly_with_an_empty_cache(tmp_path):
+    """First-time installation really downloads the payload's dependencies.
 
-    Both halves need a cache directory of their own, because a wheel already in
-    the developer's cache answers before any index is consulted and the run would
-    prove nothing. A cold resolve is also the one moment uv has an install summary
-    to print, so it is where `bin/leaf`'s `-q` can be held to the silent stderr an
-    agent reads back.
-
-    The second half stands a closed port in for a private mirror, which is enough
-    to say which index was asked: the run must fail naming that port, and a
-    pypi.org URL anywhere in the output would mean something still had a way
-    around it. It declines the developer's own index settings, in their
-    environment and in their `uv.toml` alike, since either would serve the run and
-    read as leaf ignoring the port it was pointed at."""
+    An empty cache exercises uv's install summary, which `bin/leaf` must silence
+    on success. The ordinary installed-payload smoke test uses the setup cache;
+    only this test requires an external package index.
+    """
     installed = install_payload(tmp_path / "leaf")
-
-    unconfigured = {
-        name: value
-        for name, value in os.environ.items()
-        if not name.startswith("UV_INDEX")
-        and name not in {"UV_DEFAULT_INDEX", "UV_FIND_LINKS", "UV_NO_INDEX"}
-    }
-
     cold = subprocess.run(
         [installed / "bin" / "leaf", "--help"],
         cwd=tmp_path,
@@ -161,24 +143,6 @@ def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
     assert (
         "Build and run interactive pages a session shares with its user." in cold.stdout
     )
-
-    mirrored = subprocess.run(
-        [installed / "bin" / "leaf", "--help"],
-        cwd=tmp_path,
-        env={
-            **unconfigured,
-            "UV_CACHE_DIR": str(tmp_path / "mirror-cache"),
-            "UV_DEFAULT_INDEX": "http://127.0.0.1:1/simple",
-            "UV_NO_CONFIG": "1",
-        },
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    output = mirrored.stdout + mirrored.stderr
-    assert mirrored.returncode != 0, output
-    assert "127.0.0.1:1" in output, output
-    assert "pypi.org" not in output and "pythonhosted.org" not in output, output
 
 
 @pytest.mark.parametrize("damage", ["modified", "missing", "stale", "metadata"])

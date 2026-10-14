@@ -31,9 +31,11 @@ const {
   nextFrame,
   cancelRender,
   afterScript,
+  afterSettling,
   sizeObserver,
   renderingState,
   holdRendering,
+  observePreparations,
 } = await import("/runtime/rendering.js");
 
 const { observeQueuedWork } = await import("/runtime/queued-work.js");
@@ -111,6 +113,36 @@ test("finite preparation retires once and owes its final quiet update", async ()
     updatesSettled: true,
     preparationsSettled: true,
   });
+});
+
+test("preparation observers follow one hold through exactly one terminal", async () => {
+  const first = [];
+  const stopFirst = observePreparations((...event) => first.push(event));
+  const cancel = holdRendering();
+  stopFirst();
+  const second = [];
+  const stopSecond = observePreparations((...event) => second.push(event));
+  cancel("cancel");
+  cancel();
+  const settle = holdRendering();
+  settle();
+  settle("cancel");
+  stopSecond();
+  assert.deepEqual(
+    first.map(([phase]) => phase),
+    ["begin", "cancel"],
+  );
+  assert.deepEqual(
+    second.map(([phase]) => phase),
+    ["begin", "settle"],
+  );
+  assert.equal(first[0][1], first[1][1]);
+  assert.equal(second[0][1], second[1][1]);
+  assert.notEqual(first[0][1], second[0][1]);
+  assert.ok(Object.isFrozen(first[0][1]));
+  assert.ok(Object.isFrozen(second[0][1]));
+  await update();
+  assert.equal(Object.values(renderingState()).every(Boolean), true);
 });
 
 test("work a callback queues runs before the same update paints", async () => {
@@ -293,4 +325,39 @@ test("a hidden page reads settled while work waits for an update it will not get
   } finally {
     delete document.hidden;
   }
+});
+
+test("work waiting on settling waits for an update after it and the preparations begun since", async () => {
+  const unrelated = holdRendering();
+  await update();
+  assert.equal(renderingState().updatesSettled, true);
+  let settled = 0;
+  afterSettling(() => settled++);
+  assert.equal(settled, 0, "settled updates still owe the update after the ask");
+  const preparing = holdRendering();
+  await update();
+  await update();
+  assert.equal(settled, 0, "a preparation begun since the ask holds it");
+  preparing();
+  await update();
+  assert.equal(settled, 1, "a preparation waiting before the ask is not the asker's");
+  unrelated();
+  await update();
+});
+
+test("a preparation released between an update and its check owes another update", async () => {
+  await update();
+  let settled = 0;
+  const preparing = holdRendering();
+  afterSettling(() => settled++);
+  // The update's frame callbacks run, then the preparation lands before their check.
+  const due = [...queued.values()];
+  queued.clear();
+  for (const callback of due) await callback(0);
+  preparing();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(settled, 0, "the release's commit has had no update yet");
+  assert.equal(renderingState().updatesSettled, false);
+  await update();
+  assert.equal(settled, 1);
 });

@@ -11,7 +11,7 @@
    append-only log, in one envelope: `id`, typed `target`, `source`, `action`,
    structured `detail`, declared human-readable `text`, `ts`, attribution,
    `disposition`, and the report's version and sequence. The work the agent has in hand
-   is no report: it is the served workflows' Working stage and the open tasks' `running`
+   is no report: it is the served workflows' Working stage and the open to-dos' `running`
    start.
 
    A report holds until a stamped revision's note absorbs or overrules it. The closed
@@ -23,26 +23,26 @@
    when their source retains history. A module showing freshness therefore still sees
    when the log last heard from a worker after a stamp absorbs the worker's report.
 
-   An agent-written x-state verb may declare `report: true`, requiring non-empty
-   `detail.text`. That is the envelope's `text`; consumers never infer prose from
-   a field, verb, or widget name. The state boundary exposes it once.
+   An agent-written x-state verb may declare `text: true`, which requires each report
+   to carry non-empty `detail.text`. That is the envelope's `text`; consumers never
+   infer prose from a field, verb, or widget name. The state boundary exposes it once.
 
-   `reportSequence` filters the server-normalized report feed. `watchReports` and
-   `watchHistory` are `watchProjection` (`projection-watch.js`) with their own reading,
-   so a module connected before the first state and one a later thread reconcile builds
-   render through the same callback. `watchReports` withholds a reading until the
-   projection has committed every report coordinate its target holds, so a callback
-   never narrates a report the widget has not yet painted.
+   `reportSequence` filters the server-normalized report feed, and `readHistory` selects
+   the history reading; a paint reads them under `watchProjection`
+   (`projection-watch.js`), so a module connected before the first state and one a later
+   thread reconcile builds render through the same paint. `reportsPresented(target)` is
+   that watcher's proof for a paint that narrates reports: it holds until the projection
+   has committed every report coordinate its target holds, so a paint never narrates a
+   report the widget has not yet painted.
 
    Accepted and local attempts publish one complete snapshot, including reads whose
    event list did not grow and definitive refusals that restore authoritative truth.
-   Time-dependent paints are separate:
-   `presence.js` records synchronous `ago` and `clockValue` readings inside a `clocked`
-   callback. The shared tick reruns only callbacks whose reading changed and drops
-   disconnected owners. Subscription callbacks use this same mechanism, so a new widget
-   owes no entry in a kernel list of clock consumers. A held state does not reset the
-   measured server clock offset. Callbacks render from the sequence they receive;
-   register once, as `watchProjection` owns their connection lifetime.
+   Time-dependent paints are separate: a synchronous `ago` or `clockValue` reading is
+   recorded with what else the paint read (`presence.js`), and the shared tick repaints
+   only paints whose reading changed, while their owners stand, so a new widget owes no
+   entry in a kernel list of clock consumers. A held state does not reset the
+   measured server clock offset. Register a watcher once, as `watchProjection` owns its
+   connection lifetime.
 
    `active.revision` identifies the immutable document currently shown; `active.version`
    is its public stamp when it has one, otherwise null, and `active.label` is `vN`,
@@ -52,11 +52,8 @@
 
    The shared presentation coordinator owns the proof that guards report callbacks.
    Raw report and history readings remain direct semantic selections. */
-import { watchProjection } from "./projection-watch.js";
 import { currentProjection } from "./projection/state.js";
-import { readApplication, projectionRegionsPresented } from "./semantic-state.js";
-
-import { runtime } from "./context.js";
+import { projectionRegionsPresented, readPart } from "./semantic-state.js";
 import { closestAcross } from "./passages.js";
 
 function reportTarget(target) {
@@ -76,48 +73,50 @@ function reportTarget(target) {
 }
 const targetKey = (target) =>
   target ? JSON.stringify([target.kind, target.id]) : null;
-export const reportSequence = (target = null) => {
-  const key = targetKey(reportTarget(target));
-  return (runtime.view?.reports ?? [])
-    .filter((report) => key === null || targetKey(report.target) === key)
-    .map((report) => structuredClone(report));
+// Each target's reports through a selection of its own, so a watcher reading one
+// target's sequence repaints when that target's reports move and no other's.
+const reportsByTarget = new Map();
+const reportsFor = (key) => {
+  if (!reportsByTarget.has(key))
+    reportsByTarget.set(
+      key,
+      readPart((root) =>
+        (root.effective.view?.reports ?? []).filter(
+          (report) => key === null || targetKey(report.target) === key,
+        ),
+      ),
+    );
+  return reportsByTarget.get(key)();
 };
+export const reportSequence = (target = null) =>
+  reportsFor(targetKey(reportTarget(target))).map((report) => structuredClone(report));
 
-const publishedAt = () => runtime.view?.published_at ?? null;
+const publishedAt = readPart((root) => root.effective.view?.published_at ?? null);
 export const saidAt = (el) =>
   closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head time")?.dateTime ||
   publishedAt();
 
-// The server's history reading: the newest events, newest first, each already carrying
-// its thread, whether it was undone, and a gesture's words as its own document had
-// them. The server sends it only to a page holding a widget that declares
-// `x-history`; elsewhere the callback reads an empty feed. The second argument names
-// whether this is the complete ready application, so a retained mechanical reading
-// is never replaced by the empty preparation reading.
-export const watchHistory = (owner, callback) =>
-  watchProjection(owner, () =>
-    callback(structuredClone(runtime.browser?.history ?? []), {
-      ready: readApplication().phase === "ready",
-    }),
-  );
+// The server's history reading: `events`, the newest logged events, newest first,
+// each already carrying its thread, whether it was undone, and a gesture's words as its
+// own document had them, and the application's `phase`, so a widget never replaces a
+// reading it retained with the empty one a page shows before it is `ready`. The server
+// sends the events only to a page holding a widget that declares `x-history`; elsewhere
+// they are empty.
+export const readHistory = readPart((root) => ({
+  phase: root.phase,
+  events: root.authoritative?.browser.history ?? [],
+}));
 
 // A report can speak only once the renderer of its widget and coordinate chrome
 // have committed. Required asynchronous preparation is the same coordinator region
 // used by startup and pending release, not a second coordinate/event-id commit map.
-export const watchReports = (target, callback) => {
+export const reportsPresented = (target = null) => {
   const key = targetKey(reportTarget(target));
-  const reportWidgets = () => {
-    const widgets = new Set(target instanceof Element ? [target.id] : []);
-    for (const entry of currentProjection().classified.values()) {
-      if (entry.terminal || entry.e.kind !== "report") continue;
-      if (key === null || key === targetKey({ kind: "widget", id: entry.e.widget }))
-        widgets.add(entry.e.widget);
-    }
-    return [...widgets];
-  };
-  return watchProjection(
-    target instanceof Element ? target : document.body,
-    () => callback(reportSequence(target)),
-    () => projectionRegionsPresented(reportWidgets()),
-  );
+  const widgets = new Set(target instanceof Element ? [target.id] : []);
+  for (const entry of currentProjection().classified.values()) {
+    if (entry.terminal || entry.e.kind !== "report") continue;
+    if (key === null || key === targetKey({ kind: "widget", id: entry.e.widget }))
+      widgets.add(entry.e.widget);
+  }
+  return projectionRegionsPresented([...widgets]);
 };

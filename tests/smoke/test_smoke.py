@@ -1,9 +1,11 @@
 """The real-browser gate the broad selection keeps."""
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
+from conftest import LEAF_COMMAND
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
 from leaf.render_gate import version as render_gate_model
@@ -16,6 +18,7 @@ from render_harness import (
     open_page,
     resized,
     scroll_settled,
+    undo,
 )
 
 ROOT = Path(__file__).parents[2]
@@ -26,9 +29,19 @@ def test_a_shipped_page_passes_the_real_browser_gate(browser, serve):
     assert render_gate_model.render_version(browser, serve(example)).failures == []
 
 
-def test_ship_review_asks_are_directly_answerable(browser, serve):
+def test_ship_review_asks_are_directly_answerable(browser, serve, tmp_path):
     example = ROOT / "examples" / "ship-review.html"
     page = open_page(browser, serve(example))
+
+    # Both page producers use the prepared kernel. A host-launcher override alone
+    # would leave a direct child `page init` serving a second source graph.
+    child = tmp_path / "child-page"
+    subprocess.run(
+        [*LEAF_COMMAND, "page", "init", "--no-packages", str(child)], check=True
+    )
+    for directory in (serve.page_dir, child):
+        assert not (directory / "runtime/semantic-state.js").exists()
+        assert list((directory / "runtime").glob("bundle-*.js"))
 
     expect_asks_answered(page, "1/2")
     expect(page.locator("#off-workaround-review .lf-pick")).to_have_count(2)
@@ -45,6 +58,10 @@ def test_ship_review_asks_are_directly_answerable(browser, serve):
         page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
     ).not_to_have_count(0)
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
+    page.locator("#off-workaround-review .lf-pick").first.click()
+    expect_asks_answered(page, "0/2")
+    undo(page)
+    expect_asks_answered(page, "1/2")
 
 
 @pytest.mark.parametrize("size", [(1200, 520), (509, 429)])

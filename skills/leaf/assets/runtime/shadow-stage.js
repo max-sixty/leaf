@@ -41,13 +41,19 @@ const widgetSheets = new Map();
 export function registerWidgetStyles(name, text) {
   const existing = widgetSheets.get(name);
   if (existing) return existing;
-  const sheet = constructSheet(inBaseLayer(text), name);
+  const sheet = constructSheet(inBaseLayer(text));
   widgetSheets.set(name, sheet);
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
   for (const root of liveStages())
     root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
   return sheet;
 }
+
+// A stage's theme <style>, kept while its rules are unchanged. A widget stages again
+// whenever its content changes, and a fresh <style> restyles every node in the root,
+// even with the same rules: a diff staging again as each file opened recomputed the
+// style of every file already open.
+const stageStyles = new WeakMap();
 
 export function shadowStage(host, nodes) {
   const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
@@ -65,8 +71,13 @@ export function shadowStage(host, nodes) {
   watchDisclosures(root);
   watchLayers(root);
   watchStandingIn(root);
-  const style = document.createElement("style");
-  style.textContent = SHADOW_STARTUP_CSS + shadowRules;
+  const rules = SHADOW_STARTUP_CSS + shadowRules;
+  let style = stageStyles.get(root);
+  if (style?.textContent !== rules) {
+    style = document.createElement("style");
+    style.textContent = rules;
+    stageStyles.set(root, style);
+  }
   // Fragment hydration can add a sheet while the user uses an existing control.
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
   setChildren(root, [style, ...nodes]);

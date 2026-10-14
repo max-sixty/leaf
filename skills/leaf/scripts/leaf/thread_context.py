@@ -4,7 +4,7 @@ from functools import lru_cache
 from typing import NamedTuple
 
 from leaf.events import (
-    Standing,
+    InForce,
     action_retracted,
     active_summaries,
     build_threads,
@@ -139,7 +139,7 @@ def thread_names(events: list) -> dict:
     (`event_contracts._parent_error`).
 
     Two readings of the panel's own document resolve a message to its thread, and
-    they must answer alike: a Question and a question naming different threads for one
+    they must answer alike: an ask and a question naming different threads for one
     message is a disagreement no reader could account for. (`build_threads` walks
     the same relation to a different end — the thread object itself, with its
     resolution — so it keeps its own walk.)"""
@@ -255,7 +255,7 @@ def thread_memberships(
     Leaf owns the relation because each event kind names its thread in a
     different way (`event_threads`), and some change a thread without naming it at
     all: an action, undo, or version note that changes which action wins a
-    coordinate (`Standing`) changes the threads the winner before and after it
+    coordinate (`InForce`) changes the threads the winner before and after it
     answer. A later action supersedes the answer there, its undo restores it, and a
     note retracting an answer's superseder closes that answer's thread again. An
     undo also inherits the membership of the gesture it takes back.
@@ -269,18 +269,18 @@ def thread_memberships(
     update the user made in a thread, rather than every thread it changed.
     """
     memberships: dict[str, list[str]] = {}
-    standing = Standing(within)
+    in_force = InForce(within)
     for event in events:
         kind = event["kind"]
         if kind == "undo":
             named = memberships.get(event["undoes"], [])
-            changes = [standing.withdraw(event["undoes"])]
+            changes = [in_force.withdraw(event["undoes"])]
         else:
             named = event_threads(event, names, widgets)
             changes = (
-                [standing.admit(event)]
+                [in_force.admit(event)]
                 if kind == "action"
-                else standing.restate(event)
+                else in_force.restate(event)
                 if kind == "note"
                 else []
             )
@@ -410,7 +410,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     registry is a gate — a page vendored before the layer last changed fails it
     by design — but containment was never the vocabulary's to answer. Folding
     with no page at all was the alternative, and it would show a settlement a
-    floor had taken back as standing, and a superseder taken back the same way
+    floor had taken back as still in force, and a superseder taken back the same way
     as masking one: the user sees their question reopened while the agent is
     told it was answered, and neither side can see the disagreement.
 
@@ -470,7 +470,7 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         covered = {identity for summary in summaries for identity in summary["covers"]}
         # Keep the newest exchange verbatim. The suggested range is one exact,
         # contiguous uncovered run before it, so following the hint can never hide
-        # a new message or create a summary on top of one already standing.
+        # a new message or create a summary on top of one already in force.
         prefix = {message["id"] for message in conversation_turns(threads[t])[:-2]}
         runs = []
         run = []

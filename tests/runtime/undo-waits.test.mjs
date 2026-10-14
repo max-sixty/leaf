@@ -22,7 +22,7 @@ const action = (attempt, extra = {}) => ({
 const earlier = action("earlier", { id: "e0", seq: 1 });
 const noAsks = () => ({ all: [], user: [], unanswered: [] });
 let taken = 0;
-// A reading whose log holds `events`, each standing and each the user's to take back.
+// A reading whose log holds `events`, each in force and each the user's to take back.
 const reading = (events) => ({
   taken: ++taken,
   layer: { generation: "test" },
@@ -46,7 +46,7 @@ const reading = (events) => ({
         },
         coverage: [],
         undo: events.map((event) => ({ event })).reverse(),
-        queues: { questions: [], tasks: [], done: [], held: [] },
+        queues: { on_user: [], on_agent: [], done: [] },
         approval_blocking: [],
         document: {
           asks: noAsks(),

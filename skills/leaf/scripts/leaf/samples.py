@@ -37,6 +37,10 @@ class Sample:
     # Held for the sample's life, so the sample keeps its readings however many
     # sibling samples push it out of the process's recent pages (`page_memory`).
     memory: PageMemory
+    # The parent's, held for the same life: a page serving samples is being read, and
+    # its own samples are what would otherwise push it out, so every state answer it
+    # gave would check and capture its whole source again.
+    parent_memory: PageMemory
     lock: Lock = field(default_factory=Lock)
     closed: bool = False
 
@@ -154,6 +158,7 @@ class Samples:
                 artifact.registry["$layer"],
                 asset_root,
                 memory,
+                memory_of(parent),
             )
         return identity
 

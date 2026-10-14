@@ -3,9 +3,10 @@
 The public gallery shows a real first viewport for each example, but the site build
 deliberately needs no browser. These JPEGs live under `examples/` in
 max-sixty/leaf-assets (`leaf_dev.leaf_assets`). This command captures them through the
-website's Leaf server with an isolated state home, validates the draft's catalog and
-assets together, then publishes the asset commit and updates Leaf's exact pin and
-catalog links. Host pages are not part of the captured scene.
+website's Leaf server with an isolated state home, builds the site from the draft
+assets, whose catalog then names the new stills (`leaf_dev.docs`), then publishes the
+asset commit and moves Leaf's exact pin. Host pages are not part of the captured
+scene.
 
     uv run leaf-dev refresh-previews    (or `wt refresh-previews`)
 """
@@ -24,12 +25,12 @@ import leaf_website
 from leaf.hosting import LeafHTTPServer
 from leaf.render_gate.scheme import collect_page_exceptions
 from PIL import Image
-from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import Page
 
 from leaf_dev import site as site_build
-from leaf_dev.browser import load, tab
+from leaf_dev.browser import headless_shell, load, tab
 from leaf_dev.example_data import catalog_sources
-from leaf_dev.leaf_assets import catalog_updates, pinned_assets, publish, stage
+from leaf_dev.leaf_assets import pinned_assets, publish, stage
 
 VIEWPORT = (1120, 700)
 # docs/index.html and docs/examples.html reserve this 8:5 box before a preview loads.
@@ -115,7 +116,7 @@ def refresh_previews() -> None:
 
     with (
         tempfile.TemporaryDirectory(prefix="leaf-preview-site-") as raw_site,
-        sync_playwright() as playwright,
+        headless_shell() as browser,
     ):
         staging = Path(raw_site)
         assets = bootstrap_assets(staging / "assets")
@@ -123,31 +124,25 @@ def refresh_previews() -> None:
         # `serve_examples` runs this checkout's website adapter, which serves only the
         # pages this checkout's Leaf vendored.
         site_build.build_examples(site, site_build.checkout_leaf(), assets=assets)
-        # The locked headless shell the browser suite runs, not the host's Chrome
-        # (`chrome()`), so the published pixels do not follow each host's Chrome.
-        browser = playwright.chromium.launch()
-        try:
-            with serve_examples(site) as origin, tab(browser, VIEWPORT) as page:
-                errors = []
-                collect_page_exceptions(page, errors)
-                for source in catalog_sources():
-                    errors.clear()
-                    load(page, f"{origin}/examples/{source.stem}/")
-                    if not captures:
-                        require_capture_fonts(page)
-                    png = page.screenshot(animations="disabled", caret="hide")
-                    image = Image.open(io.BytesIO(png)).convert("RGB")
-                    image = image.resize(OUTPUT_SIZE, Image.Resampling.LANCZOS)
-                    target = f"example-{source.stem}.jpg"
-                    output = io.BytesIO()
-                    image.save(
-                        output, "JPEG", quality=82, optimize=True, progressive=True
+        with serve_examples(site) as origin, tab(browser, VIEWPORT) as page:
+            errors = []
+            collect_page_exceptions(page, errors)
+            for source in catalog_sources():
+                errors.clear()
+                load(page, f"{origin}/examples/{source.stem}/")
+                if not captures:
+                    require_capture_fonts(page)
+                png = page.screenshot(animations="disabled", caret="hide")
+                image = Image.open(io.BytesIO(png)).convert("RGB")
+                image = image.resize(OUTPUT_SIZE, Image.Resampling.LANCZOS)
+                target = f"example-{source.stem}.jpg"
+                output = io.BytesIO()
+                image.save(output, "JPEG", quality=82, optimize=True, progressive=True)
+                if errors:
+                    raise RuntimeError(
+                        f"{source.name}: {'; '.join(map(str, errors[:3]))}"
                     )
-                    if errors:
-                        raise RuntimeError(f"{source.name}: {errors[:3]}")
-                    captures[target] = output.getvalue()
-        finally:
-            browser.close()
+                captures[target] = output.getvalue()
 
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = stage("examples", captures, Path(raw))
@@ -155,7 +150,6 @@ def refresh_previews() -> None:
             site_build.OUT,
             site_build.prepared_leaf(site_build.OUT),
             assets=checkout.path,
-            source_markup=catalog_updates(checkout.path),
         )
         revision = publish(checkout, "Refresh generated example previews")
         click.echo(f"  max-sixty/leaf-assets@{revision}")

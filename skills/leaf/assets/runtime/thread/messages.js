@@ -154,7 +154,7 @@ const authoredMessage = (message) => {
 const FAILURE_LABEL = "Not answered";
 export function messageReading(
   message,
-  { panel, nativeAuthored = false, reactions, workflows },
+  { panel, nativeAuthored = false, reactions, workflows, leaves = null },
 ) {
   const workflow = strongestWorkflow(workflows);
   const token = isReaction(message) ? tokenEntry(message.token) : null;
@@ -169,12 +169,18 @@ export function messageReading(
     id: message.id,
     // A reply still streaming, which the answer it stands for completes in place.
     provisional: Boolean(message.provisional),
+    // The agent's progress message (`ephemeral`): a step of work in hand, which the
+    // thread shows as its working message until an answer folds it (thread-card.js).
+    progress: Boolean(message.ephemeral),
+    // What an answer leaves standing, while it stands: "Waiting on me" for the prose ask the
+    // user owes, "To-do open" for work it promised and has not ended (thread-card.js).
+    leaves,
     version: message.content_version,
     seq: moved(message).seq,
     unread: message.unread,
     attempt: message.attempt ?? null,
     author: message.author,
-    by: message.author === "agent" ? message.agent : "You",
+    by: message.author === "agent" ? message.agent : "Me",
     timestamp: message.ts,
     age: ago(message.ts),
     // What the message said before its last rewrite is the edited mark's to tell, since
@@ -234,6 +240,9 @@ export class MessageView {
     // makes of the node is written once, on the first presentation.
     if (!prior) {
       this.node.classList.add("lf-msg");
+      // Which message a node draws, for a presentation handing the user's place in a
+      // thread to another, as the floating panel does to a page's own reader.
+      this.node.dataset.message = model.key;
       this.#header.className = "lf-msg-head";
       if (panel) this.node.tabIndex = -1;
       else {
@@ -246,7 +255,12 @@ export class MessageView {
       // editor then sets its own caret, which clearing the selection after would take. A
       // link keeps its own double click.
       this.node.addEventListener("dblclick", (event) => {
-        if (event.target.closest?.(".lf-msg-editor, a[href]")) return;
+        if (
+          /** @type {Partial<Element>} */ (event.target).closest?.(
+            ".lf-msg-editor, a[href]",
+          )
+        )
+          return;
         if (!this.#model?.editable) return;
         window.getSelection()?.removeAllRanges();
         this.openEdit();
@@ -312,6 +326,11 @@ export class MessageView {
         ><span class="lf-msg-meta"
           ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
           ${
+            model.leaves
+              ? html`<span class="lf-msg-leaves">${model.leaves}</span>`
+              : nothing
+          }
+          ${
             model.failure
               ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
               : nothing
@@ -330,7 +349,7 @@ export class MessageView {
             this.#kept
               ? html`<span
                   class="lf-msg-kept"
-                  title="Your rewrite is kept; open it to save or cancel"
+                  title="The rewrite is kept; open it to save or cancel"
                   >unsaved edit</span
                 >`
               : nothing

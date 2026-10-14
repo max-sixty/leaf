@@ -18,8 +18,9 @@ from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
-from leaf_dev import record_demo
-from leaf_dev import site as site_model
+from leaf_dev import docs, record_demo
+from leaf_dev.example_data import document_metadata
+from leaf_dev.page_fixtures import authored_markup
 from unidiff import PatchSet
 
 ROOT = Path(__file__).parents[2]
@@ -97,85 +98,86 @@ def test_every_published_source_says_what_its_page_is():
 def test_catalog_descriptions_follow_example_metadata(tmp_path, monkeypatch):
     """A page edit changes its catalog caption without editing the catalog.
 
-    Generated captions are committed for raw page readers; publication also
-    derives them to prevent an omitted regeneration from publishing stale copy.
+    The catalog authors its selection, grouping and order; every builder composes
+    each caption from its example's description, escaped as text.
     """
-    catalog = (DOCS / "examples.html").read_text()
-    sources = SourceDocument(catalog).tree.select("a.example-link")
-    for link in sources:
-        name = link.attrs["href"].strip("/").split("/")[-1]
+    source = DOCS / "examples.html"
+    catalog = source.read_text()
+    links = SourceDocument(catalog).tree.select("a.example-link")
+    for link in links:
+        name = docs.example_name(link)
         (tmp_path / f"{name}.html").write_text((EXAMPLES / f"{name}.html").read_text())
     changed = tmp_path / "review-a-plan.html"
-    metadata = SourceDocument(changed.read_text()).named_metas
-    old = next(meta["content"] for meta in metadata if meta["name"] == "description")
+    _, old = document_metadata(changed)
     description = 'Review a plan & choose <the next step> with "clear evidence".'
     changed.write_text(
         changed.read_text().replace(
             html.escape(old, quote=True), html.escape(description, quote=True)
         )
     )
-    monkeypatch.setattr(site_model, "EXAMPLES", tmp_path)
-    composed = site_model.catalog_markup(catalog)
-    rebuilt = SourceDocument(composed)
-    for link in rebuilt.tree.select("a.example-link"):
-        name = link.attrs["href"].strip("/").split("/")[-1]
-        _, expected = site_model.document_metadata(tmp_path / f"{name}.html")
-        assert link.select_one(".example-description").text.strip() == expected
+    monkeypatch.setattr(docs, "EXAMPLES", tmp_path)
+    composed = SourceDocument(docs.compose(source, catalog)).tree
+    assert [link.attrs["href"] for link in composed.select("a.example-link")] == [
+        link.attrs["href"] for link in links
+    ]
+    for link in composed.select("a.example-link"):
+        _, expected = document_metadata(tmp_path / f"{docs.example_name(link)}.html")
+        assert link.select_one(".example-description").text == expected
     assert (
-        rebuilt.tree.select_one(
+        composed.select_one(
             'a[href="/examples/review-a-plan/"] .example-description'
         ).text
         == description
     )
-    assert site_model.catalog_markup(composed) == composed
-    # Caption derivation preserves authored selection, grouping and disabled cards.
-    assert [link.attrs["href"] for link in rebuilt.tree.select("a.example-link")] == [
-        link.attrs["href"] for link in sources
-    ]
-    assert (
-        composed[composed.index("<!--") : composed.index("-->") + 3]
-        == catalog[catalog.index("<!--") : catalog.index("-->") + 3]
-    )
 
 
-def test_every_product_page_has_the_same_site_navigation():
-    expected = [
-        ("/", "leaf"),
-        ("/examples/", "Examples"),
-        ("/how-it-works/", "How it works"),
-        ("/extending/", "Extending"),
-        ("https://github.com/max-sixty/leaf", "GitHub"),
-    ]
-    for source in sorted(DOCS.glob("*.html")):
-        text = source.read_text()
-        nav = re.search(r'<nav class="sitenav"[^>]*>(.*?)</nav>', text, re.DOTALL)
-        assert nav, source.name
-        assert re.findall(r'<a[^>]*href="([^"]+)"[^>]*>([^<]+)</a>', nav.group(1)) == (
-            expected
-        ), source.name
+@pytest.mark.parametrize(
+    ("slot", "copy"),
+    [
+        (
+            '<nav class="sitenav" aria-label="Site"></nav>',
+            '<nav class="sitenav" aria-label="Site"><a href="/">leaf</a></nav>',
+        ),
+        (
+            '<img\n                alt="Sandbox',
+            '<img src="/media/0000000000000000.jpg"\n                alt="Sandbox',
+        ),
+    ],
+)
+def test_a_composed_part_refuses_an_authored_copy(slot, copy):
+    """A slot holding a copy of its owner's facts would go stale silently."""
+    source = DOCS / "index.html"
+    authored = source.read_text()
+    assert slot in authored
+    with pytest.raises(ValueError, match="composed from its owner"):
+        docs.compose(source, authored.replace(slot, copy))
+
+
+def links(name: str) -> set[tuple[str, str]]:
+    """Each link one product source authors, as its target and its text."""
+    tree = SourceDocument((DOCS / name).read_text()).tree
+    return {(link.attrs["href"], link.text) for link in tree.select("a[href]")}
 
 
 def test_extension_references_follow_the_concepts_they_explain():
-    extending = (DOCS / "extending.html").read_text()
-    how_it_works = (DOCS / "how-it-works.html").read_text()
-    registry = (DOCS / "registry.html").read_text()
-    assert 'href="/registry/"' in extending
-    assert '<a href="/registry/">registry</a>' in how_it_works
-    assert 'href="/extending/"' in registry
-    assert 'href="/event-log/"' in extending
-    assert '<a href="/event-log/">event log</a>' in how_it_works
+    extending = {href for href, _ in links("extending.html")}
+    assert {"/registry/", "/event-log/"} <= extending
+    assert {("/registry/", "registry"), ("/event-log/", "event log")} <= links(
+        "how-it-works.html"
+    )
+    assert "/extending/" in {href for href, _ in links("registry.html")}
 
 
 def test_package_catalog_routes_every_optional_package_to_inspectable_content():
-    extending = (DOCS / "extending.html").read_text()
-    catalog = re.findall(
-        r'<a\s+class="package-card"\s+href="([^"]+)"\s*>\s*<strong>([^<]+)</strong>',
-        extending,
-    )
+    tree = SourceDocument((DOCS / "extending.html").read_text()).tree
+    cards = [
+        (card.attrs["href"], card.select_one("strong").text)
+        for card in tree.select("a.package-card")
+    ]
     declared = json.loads((EXAMPLES / "layer.json").read_text())
 
-    assert [name.casefold().replace(" ", "-") for _, name in catalog] == declared
-    for href, _ in catalog:
+    assert [name.casefold().replace(" ", "-") for _, name in cards] == declared
+    for href, _ in cards:
         if href.startswith("/examples/"):
             assert href.endswith("/")
         else:
@@ -185,14 +187,8 @@ def test_package_catalog_routes_every_optional_package_to_inspectable_content():
 
 
 def test_package_tutorial_registry_entry_is_valid(page_dir):
-    blocks = re.findall(
-        r"<pre[^>]*><code[^>]*>(.*?)</code></pre>",
-        (DOCS / "extending.html").read_text(),
-        re.DOTALL,
-    )
-    entry = json.loads(
-        html.unescape(next(block for block in blocks if block.lstrip().startswith("{")))
-    )
+    tree = SourceDocument((DOCS / "extending.html").read_text()).tree
+    entry = json.loads(tree.select_one("#callout-registry").text)
     registry = json.loads((page_dir / "registry.json").read_text()) | entry
 
     registry_validation.validate_registry(registry, "package tutorial")
@@ -202,13 +198,9 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
 EVENT_LOG = DOCS / "event-log.html"
 
 
-def code_block(source: str, block_id: str) -> str:
-    """The unescaped body of one authored `lf-code`'s `<pre>`."""
-    found = re.search(
-        rf'<lf-code id="{block_id}"[^>]*>\s*<pre>\n?(.*?)</pre>', source, re.DOTALL
-    )
-    assert found, block_id
-    return html.unescape(found.group(1))
+def code_block(page: SourceDocument, block_id: str) -> str:
+    """The text of one authored `lf-code`'s `<pre>`."""
+    return page.tree.select_one(f"lf-code#{block_id} > pre").text
 
 
 def test_pr_walkthrough_excerpts_match_the_captured_patch():
@@ -298,15 +290,12 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     commands it records go back through the append door on the same markup, and
     what the door stores now has to be what the page shows, `id` and `ts` aside.
     A changed field, meaning, or refusal fails here with the records to paste."""
-    source = EVENT_LOG.read_text()
-    template = re.search(
-        r'<template id="try-page" data-sample>(.*?)</template>', source, re.DOTALL
-    )
-    assert template
+    source = SourceDocument(EVENT_LOG.read_text())
+    template = source.tree.select_one("template#try-page").inner_html
     (page_dir / "index.html").write_text(
         '<!doctype html><html lang="en"><head><title>Release question</title>'
         '<meta name="description" content="The sample."></head>'
-        f"<body><main>{template.group(1)}</main></body></html>"
+        f"<body><main>{template}</main></body></html>"
     )
     stamped = CliRunner().invoke(
         cli_model.cli, ["page", "stamp", str(page_dir), "--text", "v1"]
@@ -388,36 +377,16 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
         line_of(answered, "attention") - 1,  # the answer closes that record's meaning
         last_line(undo),  # an undo, under its last line
     ]
-    notes = re.search(
-        r'<lf-code id="captured-log".*?</pre>(.*?)</lf-code>', source, re.DOTALL
-    )
-    assert notes
+    notes = source.tree.select("lf-code#captured-log > lf-note")
     assert '"answer": ' in lines[expected[3] - 1]
-    assert [int(at) for at in re.findall(r'<lf-note at="(\d+)"', notes.group(1))] == (
-        expected
-    ), f"place #captured-log's notes at {expected}"
-
-
-def record(verb_state: dict) -> str:
-    """What the page's verb table says a verb's standing state reads as in markup."""
-    if "creates" in verb_state:
-        return f"creates an <code>{verb_state['creates']['child']}</code>"
-    shape = verb_state.get("record")
-    if shape is None:
-        return "none"
-    if shape["kind"] == "position":
-        return f"position in an <code>{shape['within']}</code>"
-    if shape["kind"] == "body":
-        return "body"
-    written = ", written by the agent" if verb_state.get("writer") == "agent" else ""
-    return f"<code>{shape['attr']}</code> attribute{written}"
+    assert [int(note.attrs["at"]) for note in notes] == expected, (
+        f"place #captured-log's notes at {expected}"
+    )
 
 
 def test_the_event_log_page_quotes_the_registry():
-    """The declaration the page annotates is `lf-options`' own, and its table of
-    verbs is every verb the kernel and bundled packages declare, each with the
-    unit and markup record its declaration gives it."""
-    source = EVENT_LOG.read_text()
+    """The declaration the page annotates is `lf-options`' own."""
+    source = SourceDocument(EVENT_LOG.read_text())
     entry = json.loads((DEFAULT_PACKAGE / "registry.json").read_text())["lf-options"]
     shown = json.loads("{" + code_block(source, "options-verbs") + "}")
     assert shown == {
@@ -427,35 +396,6 @@ def test_the_event_log_page_quotes_the_registry():
             "answered": entry["x-awaits"]["answered"],
         },
     }
-
-    registries = [
-        ASSETS / "registry.json",
-        *sorted((ROOT / "skills" / "leaf" / "packages").glob("*/registry.json")),
-    ]
-    declared = sorted(
-        (
-            f"<code>{tag}</code>",
-            f"<code>{verb}</code>",
-            verb_state["unit"],
-            record(verb_state),
-        )
-        for path in registries
-        for tag, element in json.loads(path.read_text()).items()
-        if tag.startswith("lf-")
-        for verb, verb_state in element.get("x-state", {}).items()
-    )
-    table = re.search(
-        r'<table id="all-verbs">.*?<tbody>(.*?)</tbody>', source, re.DOTALL
-    )
-    assert table
-    rows = [
-        tuple(
-            " ".join(cell.split())
-            for cell in re.findall(r"<td>(.*?)</td>", row, re.DOTALL)
-        )
-        for row in re.findall(r"<tr>(.*?)</tr>", table.group(1), re.DOTALL)
-    ]
-    assert sorted(rows) == declared
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():
@@ -470,23 +410,18 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     are read from the application entry that routes them.
     """
 
-    def shown_in(text):
-        """Prompt lines inside a transcript, and the inline mentions in the prose.
-
-        A block's own tags sit on its first and last lines — `<pre><code>$ leaf …`
-        and `… 3</code></pre>` — so the markup comes out before the lines are read,
-        or the sweep silently skips the first command it was written for.
-        """
-        for block in re.findall(r"<pre[^>]*>(.*?)</pre>", text, re.DOTALL):
-            yield from re.findall(
-                r"^\$ +leaf +(.+)$", re.sub(r"<[^>]+>", "", block), re.MULTILINE
-            )
-        yield from re.findall(r"<code>leaf +([^<]+)</code>", text)
+    def shown_in(tree):
+        """Prompt lines inside a transcript, and the inline mentions in the prose."""
+        for block in tree.select("pre"):
+            yield from re.findall(r"^\$ +leaf +(.+)$", block.text, re.MULTILINE)
+        for code in tree.select(":not(pre) > code"):
+            if found := re.fullmatch(r"leaf +(.+)", code.text, re.DOTALL):
+                yield found.group(1)
 
     shown = [
         (source.name, line)
         for source in sorted(DOCS.glob("*.html"))
-        for line in shown_in(html.unescape(source.read_text()))
+        for line in shown_in(SourceDocument(authored_markup(source)).tree)
     ]
     assert len(shown) > 10, (
         f"only {len(shown)} leaf commands found in the docs — the sweep is reading "

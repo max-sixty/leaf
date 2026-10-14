@@ -1,8 +1,27 @@
 /* This module owns declared shadow roots, the shadow.css rules they render under, and
  * the shared highlight rules. */
 import { registry, tagsDeclaring } from "./registry.js";
-import { shadowHost, upFrom, renderedParent } from "./shadow-tree.js";
-export { shadowHost, upFrom, renderedParent };
+import {
+  byRenderedOrder,
+  composedParentNode,
+  nativeLayerKind,
+  renderedOrder,
+  renderedParent,
+  renderedUnder,
+  shadowHost,
+  under,
+  upFrom,
+} from "./shadow-tree.js";
+export {
+  byRenderedOrder,
+  composedParentNode,
+  renderedOrder,
+  renderedParent,
+  renderedUnder,
+  shadowHost,
+  under,
+  upFrom,
+};
 
 // The open shadow roots under some root that hold the page's own words, from what the
 // registry declares rather than from a sweep of every element: an x-shadow widget is
@@ -35,14 +54,14 @@ export const shadowRootsIn = (root) =>
     .map(declaredRoot)
     .filter(Boolean);
 export const pageShadowRoots = () => shadowRootsIn(document);
-// Explicit inertness excludes a node through its composed ancestry. A standing native
+// Explicit inertness excludes a node through its composed ancestry. An open native
 // modal escapes inherited inertness outside itself, but an inert modal or descendant
 // remains excluded. Read node kind rather than realm-specific Element: a sample asks
 // this of the frame its containing document holds too.
 export function excludedByInert(node) {
   for (let owner = node; owner; owner = renderedParent(owner)) {
     if (owner.inert) return true;
-    if (owner.nodeType === Node.ELEMENT_NODE && owner.matches(":modal")) break;
+    if (nativeLayerKind(owner) === "modal") break;
   }
   return false;
 }
@@ -52,26 +71,6 @@ export const renderedChildren = (node) =>
   node.localName === "slot"
     ? node.assignedNodes({ flatten: true })
     : (node.shadowRoot ?? node).childNodes;
-// Containment in the rendered tree includes slots and their shadow ancestors.
-export const renderedUnder = (node, root) => {
-  for (let at = node; at; at = renderedParent(at)) if (at === root) return true;
-  return false;
-};
-
-// Which layer a node stands in — the runtime's chrome, a declared label, or the
-// document — is asked by every reading that climbs out of a widget, so it is answered
-// here, beside the climb, where geometry.js and widget-elements.js can ask it without
-// importing the passage readings back.
-// Is `node` inside `root`, or `root` itself? `Element.contains` stops at a shadow
-// boundary and these readings walk through one, so the climb is the same one
-// `closestAcross` makes. The boundary decides whether a quote is found at all: a section
-// holding an x-shadow widget does not `contains` the words that widget renders, so
-// narrowing a search to that section threw away every candidate inside it and the
-// passage resolved to nothing — the anchor captured, the mark never painted.
-export const under = (node, root) => {
-  for (let a = node; a; a = a.parentNode ?? shadowHost(a)) if (a === root) return true;
-  return false;
-};
 
 // What stands for `node` in the tree `root` roots (a Document or a ShadowRoot): the node
 // itself when it is in that tree, else the host of the shadow tree holding it, climbed
@@ -84,6 +83,10 @@ export const hostIn = (node, root) => {
   return at;
 };
 
+// Which layer a node stands in — the runtime's chrome, a declared label, or the
+// document — is asked by every reading that climbs out of a widget, so it is answered
+// here, beside the climb, where geometry.js and widget-elements.js can ask it without
+// importing the passage readings back.
 // The chrome over a node, read within one frame: above the frame it is nobody's, and with
 // no frame at all it is the document's own reading, unchanged.
 export const overIn = (el, selector, frame) => {
@@ -129,17 +132,26 @@ export let shadowRules = "";
 // Every legitimate page shadow tree is built here, so repeat the generated-interface
 // boundary and transition suppression inside it. The shadow's ordinary contents paint
 // immediately and its generated interface paints after upgrade, on the same boundaries
-// as authored and generated light DOM.
+// as authored and generated light DOM. A selector in the tree cannot see body's stamps,
+// so the theme states each boundary as an inherited property these rules query with
+// `@container style()`, which Chrome, Firefox and Safari support; `:host-context()`,
+// which reads the stamps directly, has no Firefox or Safari support. The anonymous
+// layer leads the tree's sheets, so these important declarations outrank every later
+// layer.
 export const SHADOW_STARTUP_CSS = `
 @layer {
   @media screen {
-    :host-context(body:not([data-lf-presented])) *,
-    :host-context(body:not([data-lf-presented])) *::before,
-    :host-context(body:not([data-lf-presented])) *::after {
-      transition: none !important;
+    @container style(--lf-before-presentation: 1) {
+      *,
+      *::before,
+      *::after {
+        transition: none !important;
+      }
     }
-    :host-context(body:not([data-lf-upgraded])) .lf-ui {
-      visibility: hidden !important;
+    @container style(--lf-before-upgrade: 1) {
+      .lf-ui {
+        visibility: hidden !important;
+      }
     }
   }
 }`;

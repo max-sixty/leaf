@@ -33,6 +33,7 @@ from render_harness import (
     SAMPLE_MARKUP,
     SAMPLE_TEXT,
     consume_browser_errors,
+    holding,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -362,7 +363,9 @@ def test_a_shot_compares_pixels_inside_an_opaque_live_sample(browser, serve):
     shot = child.locator("#sample-shot")
     reading = shot.evaluate("async shot => await shot.difference")
     assert reading["regions"]
-    expect(shot.locator(".lf-shotdelta")).to_have_text("1 changed area")
+    expect(shot.get_by_role("radio", name="Outlines", exact=True)).to_have_attribute(
+        "aria-description", "1 changed area"
+    )
     expect(shot.locator(".lf-shotdiff > span").first).to_be_visible()
 
 
@@ -476,12 +479,11 @@ def test_a_tall_shot_keeps_its_endpoint_labels_in_view(browser, serve, holder):
         page.mouse.wheel(0, 600)
         scroll_settled(page)
         landed = page.evaluate("""async () => {
-          const {scrollIntoReadingBand} = await window.__lfRuntimeImport('/runtime/landing-scroll.js');
-          const {scrollToFragment} = await window.__lfRuntimeImport('/runtime/anchor-travel.js');
-          const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const {scrollIntoReadingBand, scrollIntoView} = await window.__lfWidgetApi();
+          const {landingBand} = await window.__lfCheckApi();
           const passage = document.querySelector('#embedded-destination');
           const strip = document.querySelector('#embedded-tabs > .lf-tabstrip');
-          scrollToFragment(passage);
+          scrollIntoView(passage, {behavior: 'auto', block: 'start'});
           const elementTop = passage.getBoundingClientRect().top;
           const range = document.createRange();
           range.selectNodeContents(passage);
@@ -515,11 +517,29 @@ def test_a_tall_shot_keeps_its_endpoint_labels_in_view(browser, serve, holder):
 
 
 def test_a_shot_adopts_a_fallback_choice_when_the_divider_arrives(browser, serve):
-    """A user's before → after → before choice survives the deferred import."""
+    """View choices preserve the initial split; endpoint choices survive upgrade."""
+    after = solid_png(600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30)))
     url = serve(
-        SHOT_PAGE,
-        media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
+        SHOT_PAGE.replace("<lf-shot ", "<lf-shot outlines pixels "),
+        media={SHOT_SRC["before"]: SHOTS["before"], SHOT_SRC["after"]: after},
     )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held = []
+    page.route("**/vendor/webawesome.esm.js", lambda route: held.append(route))
+    page.goto(url, wait_until="domcontentloaded")
+    holding(page, held, 1, "the deferred comparison divider")
+    shot = page.locator("lf-shot")
+    views = shot.get_by_role("radiogroup", name="Comparison view")
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Outlines")
+    for view in ("Plain", "Pixels", "Plain"):
+        views.get_by_role("radio", name=view, exact=True).click()
+        expect(views.locator('[aria-checked="true"]')).to_have_text(view)
+    expect(shot.locator("wa-comparison")).to_have_count(0)
+    for route in held:
+        route.continue_()
+    expect(shot.locator("wa-comparison")).to_have_attribute("position", "50")
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Plain")
+
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.add_init_script(
         """new MutationObserver(() => {
@@ -635,10 +655,10 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     where a pair differs, or that it differs nowhere: a handoff once shipped a pair
     whose sides matched in every part its prose described. So the widget outlines what
     changed where each frame holds it, and nothing where a frame holds nothing, and
-    says on the rail what they add up to, including a difference too slight to point
-    at. The outlines and their count are the author's to ask for, with `outlines`; the
-    rest of the reading shows on every pair. With `pixels`, the reading opens a view
-    over the comparison that paints each changed pixel."""
+    offers mutually exclusive Plain, Outlines and Pixels views. The full outline
+    count reads on hover, keyboard focus, or a held pointer. A difference too slight
+    to point at still reads on the rail. The author offers the enhanced views with
+    `outlines` and `pixels`."""
     plain = solid_png(600, 300, (210, 220, 235))
     patched = solid_png(
         600, 300, (210, 220, 235), patch=(420, 200, 60, 40, (30, 30, 30))
@@ -668,12 +688,20 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
                  before="{sources[plain]}" after="{sources[tinted]}"></lf-shot>
                <lf-shot id="shot-pixels" pixels alt="a dark square appears"
                  before="{sources[plain]}" after="{sources[patched]}"></lf-shot>
+               <lf-shot id="shot-both" outlines pixels alt="a dark square appears"
+                 before="{sources[plain]}" after="{sources[patched]}"></lf-shot>
                </main>""",
         ),
         media={source: data for data, source in sources.items()},
     )
     page = open_page(browser, url)
-    expect(page.locator("#shot-patch .lf-shotdelta")).to_have_text("1 changed area")
+    patch = page.locator("#shot-patch")
+    group = patch.get_by_role("radiogroup", name="Comparison view")
+    expect(group.get_by_role("radio")).to_have_text(["Plain", "Outlines"])
+    outlines = group.get_by_role("radio", name="Outlines", exact=True)
+    expect(outlines).to_have_attribute("aria-description", "1 changed area")
+    expect(group.locator('[aria-checked="true"]')).to_have_text("Outlines")
+    expect(group.locator('[tabindex="0"]')).to_have_count(1)
     expect(page.locator("#shot-same .lf-shotdelta")).to_have_text("identical")
     assert page.locator("#shot-same .lf-shotdiff > span").count() == 0
     expect(page.locator("#shot-tint .lf-shotdelta")).to_have_text("only slight changes")
@@ -699,50 +727,139 @@ def test_a_shot_outlines_where_its_images_differ(browser, serve):
     assert left < 420 and right > 480 and top < 200 and bottom > 240
     assert right - left < 80 and bottom - top < 60
 
-    # Without `outlines` a pair hides its outlines and their count, but not the word
-    # that it has nothing to point at.
+    # Plain hides every outline. Without either opt-in there is no view selector,
+    # but warnings still explain pairs with no region to point at.
     quiet = page.locator("#shot-quiet")
     expect(quiet.locator(".lf-shotdiff > span")).to_have_count(1)
     expect(quiet.locator(".lf-shotdiff").first).to_be_hidden()
-    expect(quiet.locator(".lf-shotdelta")).to_have_text("1 changed area")
-    expect(quiet.locator(".lf-shotdelta")).to_be_hidden()
+    expect(quiet.get_by_role("radiogroup")).to_have_count(0)
     for shot, reading in (("same", "identical"), ("tint", "only slight changes")):
         delta = page.locator(f"#shot-quiet-{shot} .lf-shotdelta")
         expect(delta).to_have_text(reading)
         expect(delta).to_be_visible()
 
-    # With `pixels`, the reading is the press that opens a view standing exactly over
-    # the comparison; without outlines it names that view rather than a count. Clicking
-    # the view returns to the comparison as it stood, and an endpoint leaves it too.
-    expect(page.locator('#shot-patch .lf-shotdelta[role="button"]')).to_have_count(0)
+    # Tab enters the selected radio only; the full count appears on keyboard
+    # arrival, while the resting rail contains just the short labels.
+    outlines.scroll_into_view_if_needed()
+    page.mouse.move(0, 0)
+    outlines.press("Shift+Tab")
+    assert (
+        outlines.evaluate("node => getComputedStyle(node, '::after').content") == "none"
+    )
+    page.keyboard.press("Tab")
+    expect(outlines).to_be_focused()
+    expect(outlines).to_have_attribute("data-lf-focus", "")
+    assert (
+        outlines.evaluate("node => getComputedStyle(node, '::after').content")
+        == '"1 changed area"'
+    )
+    group.get_by_role("radio", name="Plain", exact=True).click()
+    expect(patch).to_have_attribute("data-lf-shot-view", "plain")
+    expect(patch.locator(".lf-shotdiff").last).to_be_hidden()
+
+    # Hold Outlines to read without selecting it. Sliding off cancels, releasing
+    # on it selects, and pressing an already selected view never toggles it off.
+    box = outlines.bounding_box()
+    point = {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
+    page.mouse.move(**point)
+    page.mouse.down()
+    expect(outlines).to_have_attribute("data-lf-held-word", "")
+    assert (
+        outlines.evaluate("node => getComputedStyle(node, '::after').content")
+        == '"1 changed area"'
+    )
+    expect(group.locator('[aria-checked="true"]')).to_have_text("Plain")
+    page.mouse.move(0, 0)
+    page.mouse.up()
+    expect(outlines).not_to_have_attribute("data-lf-held-word", "")
+    expect(group.locator('[aria-checked="true"]')).to_have_text("Plain")
+    page.mouse.move(**point)
+    page.mouse.down()
+    page.mouse.up()
+    expect(outlines).not_to_have_attribute("data-lf-held-word", "")
+    expect(group.locator('[aria-checked="true"]')).to_have_text("Outlines")
+    expect(patch.locator(".lf-shotdiff > span").first).to_be_visible()
+    outlines.press("Space")
+    outlines.press("Enter")
+    expect(group.locator('[aria-checked="true"]')).to_have_text("Outlines")
+
+    # A pixels-only comparison starts in Pixels, the dark square painted as what the
+    # after image drew. Selecting Pixels again keeps it open; selecting Plain, the
+    # picture, or an endpoint returns to the same divider.
     shot = page.locator("#shot-pixels")
-    press = shot.locator(".lf-shotdelta")
-    expect(press).to_have_text("changed pixels")
-    expect(press).to_have_attribute("role", "button")
+    views = shot.get_by_role("radiogroup", name="Comparison view")
+    expect(views.get_by_role("radio")).to_have_text(["Plain", "Pixels"])
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Pixels")
+    pixels = views.get_by_role("radio", name="Pixels", exact=True)
     view = shot.locator(".lf-shotpixels")
-    expect(view).to_have_count(0)
+    expect(view).to_be_visible()
+    for side in ("before", "after"):
+        expect(view.locator(f'[data-lf-shot-side="{side}"]')).to_have_attribute(
+            "style", re.compile("--lf-shot-pixels")
+        )
     comparison = shot.locator(".lf-shotcomparison")
     expect(comparison).to_be_attached()
-    standing = comparison.get_attribute("position")
-    press.click()
+    before = comparison.get_attribute("position")
+    pixels.press("Enter")
     expect(view).to_be_visible()
-    expect(press).to_have_attribute("aria-pressed", "true")
     for state in ("before", "after"):
         expect(shot.locator(f'.lf-shotcap[data-lf-state="{state}"]')).to_have_attribute(
             "aria-pressed", "false"
         )
     assert view.bounding_box() == pytest.approx(comparison.bounding_box(), abs=1)
+    pixels.press("ArrowLeft")
+    expect(views.get_by_role("radio", name="Plain", exact=True)).to_be_focused()
+    expect(view).to_be_hidden()
+    assert comparison.get_attribute("position") == before
+    page.keyboard.press("ArrowRight")
+    expect(pixels).to_be_focused()
+    expect(view).to_be_visible()
     view.click()
     expect(view).to_be_hidden()
-    expect(press).to_have_attribute("aria-pressed", "false")
-    assert comparison.get_attribute("position") == standing
-    press.focus()
-    page.keyboard.press("Enter")
-    expect(view).to_be_visible()
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Plain")
+    assert comparison.get_attribute("position") == before
+    pixels.click()
     after = shot.locator('.lf-shotcap[data-lf-state="after"]')
     after.click()
     expect(view).to_be_hidden()
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Plain")
     expect(after).to_have_attribute("aria-pressed", "true")
+
+    # The three-view group selects and focuses with every arrow direction, wraps,
+    # and keeps exactly one roving Tab stop. Returning from Pixels restores the
+    # last non-pixel view, with the divider unchanged.
+    both = page.locator("#shot-both")
+    views = both.get_by_role("radiogroup", name="Comparison view")
+    expect(views.get_by_role("radio")).to_have_text(["Plain", "Outlines", "Pixels"])
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Outlines")
+    outlines = views.get_by_role("radio", name="Outlines", exact=True)
+    outlines.press("ArrowRight")
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Pixels")
+    expect(both.locator(".lf-shotpixels")).to_be_visible()
+    expect(both.locator(".lf-shotdiff").last).to_be_hidden()
+    page.keyboard.press("ArrowDown")
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Plain")
+    page.keyboard.press("ArrowLeft")
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Pixels")
+    page.keyboard.press("ArrowUp")
+    expect(outlines).to_be_focused()
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Outlines")
+    expect(views.locator('[tabindex="0"]')).to_have_count(1)
+    comparison = both.locator(".lf-shotcomparison")
+    handle = comparison.locator('[role="scrollbar"]')
+    handle.press("Home")
+    handle.press("ArrowRight")
+    expect(comparison).to_be_attached()
+    before = comparison.get_attribute("position")
+    views.get_by_role("radio", name="Pixels", exact=True).click()
+    both.locator(".lf-shotpixels").click()
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Outlines")
+    assert comparison.get_attribute("position") == before
+    views.get_by_role("radio", name="Plain", exact=True).click()
+    views.get_by_role("radio", name="Pixels", exact=True).click()
+    both.locator(".lf-shotpixels").click()
+    expect(views.locator('[aria-checked="true"]')).to_have_text("Plain")
+    assert comparison.get_attribute("position") == before
 
 
 def stage_reach_cases(page):
@@ -900,12 +1017,13 @@ def test_render_reads_widget_chrome_where_it_stands(
     assert [
         said
         for said in render_checks_model.evaluate_probe(page, "wordsInFormControls")
-        if "c-lax" in said
+        if said["at"] == "<lf-option id=c-lax>"
     ] == [
-        (
-            '<lf-option id=c-lax> says "Lax, host-only" inside a form control, where '
-            "no selection can reach it"
-        )
+        {
+            "code": "form-control-words",
+            "at": "<lf-option id=c-lax>",
+            "words": "Lax, host-only",
+        }
     ]
     # The two-width pair fails soft, as the gate below is to hear.
     consume_browser_errors(page, '<lf-shot id="shot-pair"> failed')
@@ -914,34 +1032,24 @@ def test_render_reads_widget_chrome_where_it_stands(
     failures = render_gate_model.render_version(
         primed(browser.unwatched, stage_reach_cases), url
     ).failures
-    assert [f for f in failures if "600px" in f and "400px" in f], failures
-    clipped = [f for f in failures if "(#clipped-offer)" in f]
-    assert len(clipped) == 2, failures
-    assert all(
-        "outside the <div id=clipped-holder> that clips it" in f for f in clipped
+    pair = [f for f in failures if f.code == "console-error"]
+    assert pair and all(
+        "shot-pair" in f.values["text"]
+        and "600px" in f.values["text"]
+        and "400px" in f.values["text"]
+        for f in pair
+    ), failures
+    clipped = [f for f in failures if f.code == "clipped-control"]
+    assert [f.values["id"] for f in clipped] == ["clipped-offer"] * 2, failures
+    assert all(f.values["by"] == "<div id=clipped-holder>" for f in clipped), clipped
+    words = sorted(
+        {(f.code, f.at, f.values["words"]) for f in failures if f not in pair + clipped}
     )
-    assert not [f for f in failures if "(#shown-offer)" in f], failures
-    found = sorted(
-        {
-            f.split("] ", 1)[1]
-            for f in failures
-            if "shot-pair" not in f and f not in clipped
-        }
-    )
-    assert found == [
-        (
-            '<lf-badge id=rp-badge> puts "Sent by the reviewer" under .lf-ui, where no '
-            "comment can reach it"
-        ),
-        (
-            '<lf-option id=c-lax> puts "Session cookies" under .lf-ui, where no comment '
-            "can reach it"
-        ),
-        (
-            '<lf-option id=c-lax> puts "opens in a new tab" under .lf-ui, where no '
-            "comment can reach it"
-        ),
-    ], found
+    assert words == [
+        ("chrome-words", "<lf-badge id=rp-badge>", "Sent by the reviewer"),
+        ("chrome-words", "<lf-option id=c-lax>", "Session cookies"),
+        ("chrome-words", "<lf-option id=c-lax>", "opens in a new tab"),
+    ], failures
 
 
 FILM_DECLARATION = {
@@ -986,7 +1094,7 @@ def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     expect(page.locator(".lf-thread-panel #t-bad .lf-error")).to_contain_text(
-        "does not parse"
+        "Unexpected token"
     )
     report = '<lf-chart id="t-bad"> failed: '
     consume_browser_errors(page, report)

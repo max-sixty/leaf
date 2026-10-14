@@ -117,7 +117,7 @@ variants:
         sites, and the direction.
 
         #7 The server decides; the browser re-derives.
-        - CONFIRMED: the Questions panel shows a quiet agent's task as live while
+        - CONFIRMED: the On panel shows a quiet agent's task as live while
           the thread card says "Task open" (activity.py:422 marks it stale;
           queue-panel.js:184 ignores that).
         - CONFIRMED: accepting a suggestion that resolves a thread leaves that
@@ -136,14 +136,14 @@ variants:
         #9 Layers and modals.
         - CONFIRMED (probed): the margin treats everything in the always-open
           auxiliary dialog as an open layer, so cluster options never fold when
-          focus moves into the Questions panel (margin-projection.js:264).
+          focus moves into the On panel (margin-projection.js:264).
         - CONFIRMED: Page Map's modal has no Tab loop, so Tab from its last control
           leaves the page.
         - Direction: layer-stack.js owns "open layer"; one modal helper takes the
           Tab loop.
 
         #10 Walks and the working place.
-        - CONFIRMED: `t` skips a thread whose passage contains the caret, while `q`
+        - CONFIRMED: `t` skips a thread whose passage contains the caret, while `m`
           stops at it (navigation.js:62 vs queue-walk.js:186).
         - Direction: one walk over places, used by both keys.
 
@@ -189,6 +189,7 @@ variants:
   # so the answer is genuinely one set. Both arms passed 3/3 at e1c3d2b3d. A
   # blunter rule (one Question per item, never a multi-select across items)
   # passed 0/4, posing six separate Asks; the dependence wording passed 4/4.
+  # Reworded by #2506 (one ask); at 3fe3eb0af it passed 1/1 on Claude Code.
   dispatch-two-of-six:
     metadata:
       purpose: 'Asks: a choice constrained across items stays one ask whose answer is the set.'
@@ -207,7 +208,7 @@ variants:
           and thread names across surfaces. Medium.
         - #9 Layers and modals: confirmed focus escape from Page Map's modal.
           Small.
-        - #10 Walks: `t` and `q` disagree on a caret's own thread. Small.
+        - #10 Walks: `t` and `m` disagree on a caret's own thread. Small.
         - #11 Data contracts: plausible only; owner unsettled. Small.
         - #12 Test fixtures: plausible only; touches every browser test. Large.
 

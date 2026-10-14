@@ -2,7 +2,7 @@ r"""Offline JSON Schema validation shared by registry, markup, and event admissi
 
 Each validator owns a self-contained resource graph and is cached by schema content.
 Leaf's date-time format admits only absolute, timezone-aware RFC3339 instants, and its
-uri format only absolute URLs the browser's URL parser accepts. A registry schema may
+uri format only absolute URLs parsed by pywhatwgurl. A registry schema may
 name only a format `FORMAT_CHECKER` checks (`check_schema`).
 
 A schema's regular expressions are ECMAScript, as JSON Schema defines them and the
@@ -11,8 +11,8 @@ before a final newline (`"abc\n"` passed `^[a-z]+$`) and which refuses ECMAScrip
 `\p{L}`. It has no option for another engine, so this module points the one call it
 makes, `re.search`, in the modules that make it at regress, an ECMAScript engine; that
 covers `pattern`, `patternProperties` and the `additionalProperties` and
-`unevaluatedProperties` accounting built on it, and `check_schema` compiles patterns
-with the same engine.
+`unevaluatedProperties` accounting built on it, and `check_schema` compiles patterns,
+and the `regex` format checks a value, with the same engine.
 """
 
 import functools
@@ -20,12 +20,12 @@ import json
 import re
 from datetime import datetime
 
-import ada_url
 import jsonschema._keywords
 import jsonschema._utils
 import regress
 from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError
+from pywhatwgurl import URL
 from referencing import Registry
 from referencing.exceptions import Unresolvable
 from referencing.jsonschema import DRAFT202012
@@ -46,14 +46,16 @@ def is_aware_datetime(value) -> bool:
 
 @FORMAT_CHECKER.checks("uri")
 def is_browser_url(value) -> bool:
-    """An absolute URL by the WHATWG URL Standard, which a page parses it by.
+    """An absolute URL parsed by the pure-Python WHATWG implementation.
 
     jsonschema checks `uri` only with an optional RFC 3987 package, and RFC 3986
     admits URLs the browser refuses, such as a port past 65535; a widget's
-    `new URL` would then throw on a value `data set` accepted."""
+    `new URL` would then throw on a value `data set` accepted. pywhatwgurl avoids
+    a native compiler requirement; its IDNA handling can differ from browsers
+    for unusual internationalized domains."""
     if not isinstance(value, str):
         return True  # the declared JSON Schema owns the type complaint
-    return ada_url.check_url(value)
+    return URL.can_parse(value)
 
 
 def aware_instant(value: str):
@@ -90,6 +92,8 @@ jsonschema._utils.re = _EcmaSearch
 META_FORMAT_CHECKER = FormatChecker()
 
 
+# A value a schema declares `format: regex` is read as ECMAScript too.
+@FORMAT_CHECKER.checks("regex", raises=regress.RegressError)
 @META_FORMAT_CHECKER.checks("regex", raises=regress.RegressError)
 def is_ecma_regex(value) -> bool:
     return not isinstance(value, str) or bool(_ecma(value))
@@ -154,8 +158,25 @@ def _validator(canonical: str) -> Draft202012Validator:
 
 def schema_error(schema: dict, instance) -> str | None:
     """The first deterministic complaint about an instance, if it is invalid."""
+    complaint = schema_complaint(schema, instance)
+    return complaint["error"] if complaint else None
+
+
+def schema_complaint(schema: dict, instance) -> dict | None:
+    """`schema_error` with the place it concerns: `field`, the JSON pointer of the
+    value it is about (empty for the instance itself), and `rule`, the schema keyword
+    that value breaks, beside `error`."""
     error = min(json_validator(schema).iter_errors(instance), key=str, default=None)
-    return schema_error_message(error) if error else None
+    if error is None:
+        return None
+    return {
+        "field": "".join(
+            f"/{str(part).replace('~', '~0').replace('/', '~1')}"
+            for part in error.absolute_path
+        ),
+        "rule": error.validator if error.schema is not False else "false",
+        "error": schema_error_message(error),
+    }
 
 
 def json_value(value) -> str:
@@ -194,6 +215,16 @@ def schema_error_message(error) -> str:
     }:
         return f"{actual} does not satisfy {error.validator}: {expected}"
     return error.message
+
+
+def schema_reading(error) -> dict:
+    """A validator's complaint as a finding's values: the schema `keyword` it broke,
+    the `path` into the instance it read, and its words (`schema_error_message`)."""
+    return {
+        "keyword": error.validator,
+        "path": list(error.absolute_path),
+        "reason": schema_error_message(error),
+    }
 
 
 def unresolved_schema_reference(schema: dict) -> str | None:

@@ -15,8 +15,97 @@ from render_harness import (
     consume_browser_errors,
     holding,
     open_page,
+    page_comment,
+    said,
     take_browser_errors,
+    write,
 )
+
+
+@pytest.mark.parametrize("surface", ["panel", "page"])
+@pytest.mark.parametrize("newer_input", [False, True])
+def test_sample_upgrade_does_not_wait_for_child_saved_state(
+    browser, serve, surface, newer_input
+):
+    """A saved-thread request waits for history and yields to a newer child draft."""
+    source = leaf_page(
+        "Independent sample startup",
+        '<h1>Independent sample startup</h1><p id="outer">Parent passage.</p>'
+        '<lf-sample id="practice" label="Practice" window>'
+        '<template id="practice-source" data-sample data-sample-events="history">'
+        '<h1>Practice</h1><p id="inner">Child passage.</p>'
+        "</template></lf-sample>",
+        head="""<script id="history" type="application/json">
+          [{"id":"saved-thread","kind":"comment","anchor":{"section":"inner"},
+            "text":"A saved child conversation."}]
+        </script>""",
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held = []
+    route_pattern = re.compile(r"/api/samples/[^/]+/api/state")
+    page.route(route_pattern, lambda route: held.append(route))
+    page.goto(serve(source), wait_until="load")
+    holding(page, held, 1, "the child's unanswered saved-state read")
+    expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    expect(child.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+    expect(child.locator("body")).not_to_have_attribute("inert")
+    expect(child.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(child.locator(".lf-status-text")).to_have_text("Loading saved state…")
+    outer_box = page_comment(page)
+    write(outer_box, "Parent draft")
+    page.keyboard.press("Escape")
+    inner_box = page_comment(child)
+    write(inner_box, "Child draft")
+    page.keyboard.press("Escape")
+    child.evaluate("""() => {
+      window.sampleRequestReceived = false;
+      document.documentElement.lfSample.receive(({method}) => {
+        if (method === 'thread') window.sampleRequestReceived = true;
+      });
+    }""")
+    sample.evaluate(
+        """(sample, surface) => {
+      window.sampleSelected = false;
+      sample.showThread('saved-thread', {surface}).then(result => {
+        window.sampleSelectionResult = result;
+        window.sampleSelected = true;
+      });
+    }""",
+        surface,
+    )
+    # The child has received this command before newer input supersedes it.
+    child.wait_for_function("window.sampleRequestReceived")
+    assert page.evaluate("window.sampleSelected") is False
+    child_words = "Child draft"
+    if newer_input:
+        inner_box = page_comment(child)
+        child_words = "A newer child draft owns this view"
+        write(inner_box, child_words)
+    expect(outer_box).to_have_js_property("value", "Parent draft")
+    expect(inner_box).to_have_js_property("value", child_words)
+    page.unroute(route_pattern)
+    for route in held:
+        route.continue_()
+    page.wait_for_function("window.sampleSelected")
+    assert page.evaluate("window.sampleSelectionResult") is (not newer_input)
+    expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(outer_box).to_have_js_property("value", "Parent draft")
+    expect(inner_box).to_have_js_property("value", child_words)
+    if newer_input:
+        expect(child.locator(".lf-thread-panel")).not_to_have_class(
+            re.compile(r"\bopen\b")
+        )
+        expect(inner_box).to_be_focused()
+    else:
+        destination = child.locator(
+            ".lf-thread-panel" if surface == "panel" else ".lf-page-thread"
+        )
+        expect(
+            destination.get_by_text("A saved child conversation.", exact=True)
+        ).to_be_visible()
 
 
 def interaction_records(page, page_dir, *, document=None):
@@ -34,7 +123,7 @@ def interaction_records(page, page_dir, *, document=None):
     ):
         (document or page).evaluate(
             """async checkpoint => {
-              const {recordInteraction} = await __lfRuntimeImport('/runtime/interaction-log.js');
+              const {recordInteraction} = await window.__lfCheckApi();
               recordInteraction('test-checkpoint', {checkpoint});
             }""",
             checkpoint,
@@ -139,7 +228,7 @@ document.querySelector('#popup').addEventListener('click', () => {
         "loading",
         "loaded",
         "connected",
-        "presented",
+        "upgraded",
     }
     assert {row["allocation"] for row in initial} == {1}
     child_records = interaction_records(page, serve.page_dir, document=child)
@@ -182,7 +271,7 @@ document.querySelector('#popup').addEventListener('click', () => {
         for row in child_records
         if row.get("type") == "sample"
         and row["template"] == "nested-source"
-        and row["phase"] == "presented"
+        and row["phase"] == "upgraded"
     )
     grandchild_records = interaction_records(page, serve.page_dir, document=grandchild)
     grandchild_page = [
@@ -218,11 +307,11 @@ document.querySelector('#popup').addEventListener('click', () => {
     assert documents[-1]["reloading"] is True
     assert documents[0]["document"] != documents[-1]["document"]
     assert {row["allocation"] for row in reloaded} == {1}
-    assert [row for row in reloaded if row["phase"] == "presented"][-1][
+    assert [row for row in reloaded if row["phase"] == "upgraded"][-1][
         "document"
     ] == documents[-1]["document"]
     child.evaluate("""async () => {
-      const {registerSampleCommand} = await __lfRuntimeImport('/runtime/sample-child.js');
+      const {registerSampleCommand} = await window.__lfCheckApi();
       registerSampleCommand('thread', function rejectSampleCommand() {
         throw new RangeError('Sample command failed');
       });
@@ -240,6 +329,83 @@ document.querySelector('#popup').addEventListener('click', () => {
     assert destroyed[-1]["reason"] == "destroyed"
     persisted = interaction_records(page, serve.page_dir)
     assert any(row.get("page") == grandchild_page for row in persisted)
+
+
+def test_reload_swap_retires_pending_sample_faults(browser, serve):
+    """A swap cancels old startup work without retiring the replacement allocation."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Reload during startup",
+                '<h1>Parent</h1><lf-sample id="practice" window>'
+                '<template id="practice-source" data-sample><h1>Practice</h1></template>'
+                "</lf-sample>",
+            )
+        ),
+    )
+    sample = page.locator("#practice")
+    sample.evaluate("async sample => await sample.ready")
+    child = sample.locator("iframe").element_handle().content_frame()
+    document_url = child.url
+    icons = []
+    icon_pattern = re.compile(
+        re.escape(urlsplit(document_url).path) + r"revisions/[^/]+/icon.svg$"
+    )
+    page.route(icon_pattern, lambda route: icons.append(route))
+    with child.expect_navigation(wait_until="commit"):
+        child.evaluate("location.reload()")
+    holding(page, icons, 1, "the middle document's pending icon fetch")
+    page.unroute(icon_pattern)
+    destination = []
+    page.route(document_url, lambda route: destination.append(route))
+    child.evaluate("location.reload()")
+    holding(page, destination, 1, "the replacement before its document swap")
+    # The old realm remains alive while the server holds the destination. A native
+    # task checkpoint cannot be mistaken for the document's actual departure.
+    assert child.evaluate(
+        "() => new Promise(resolve => setTimeout(() => resolve(document.body.isConnected), 0))"
+    )
+    assert sample.evaluate("sample => sample.isConnected")
+    assert not [row for row in sample_records(page, serve) if row["phase"] == "failed"]
+    with child.expect_navigation(wait_until="domcontentloaded"):
+        destination[0].continue_()
+    page.unroute(document_url)
+    sample.evaluate("async sample => await sample.ready")
+    expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(child.get_by_role("heading", name="Practice", exact=True)).to_be_visible()
+    records = sample_records(page, serve)
+    assert {row["allocation"] for row in records} == {1}
+    assert not [row for row in records if row["phase"] in {"failed", "retired"}]
+    assert len([row for row in records if row["phase"] == "departed"]) == 2
+    assert len([row for row in records if row["phase"] == "connected"]) == 3
+    assert take_browser_errors(page) == []
+
+
+def test_canceled_native_departure_keeps_fault_reporting(browser, serve):
+    """Canceling beforeunload leaves genuine faults owned by the live document."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Canceled departure",
+                '<h1>Still here</h1><button id="activate">Activate</button>'
+                '<button id="fail">Report a fault</button>',
+            )
+        ),
+    )
+    page.locator("#activate").click()
+    page.evaluate("""() => {
+      window.addEventListener('beforeunload', event => { event.preventDefault(); event.returnValue = ''; });
+      document.querySelector('#fail').onclick = () => { throw new Error('live fault after canceled departure'); };
+    }""")
+    page.once("dialog", lambda dialog: dialog.dismiss())
+    with page.expect_event("dialog") as dialog:
+        page.evaluate("location.reload()")
+    assert dialog.value.type == "beforeunload"
+    expect(page.get_by_role("heading", name="Still here")).to_be_visible()
+    page.locator("#fail").click()
+    consume_browser_errors(page, "live fault after canceled departure")
 
 
 @pytest.mark.parametrize("response_type", ["json", "html"])
@@ -283,7 +449,7 @@ def test_sample_release_failure_records_the_retired_allocation(
     assert records[-1]["document"] == next(
         row["document"] for row in records if row["phase"] == "connected"
     )
-    consume_browser_errors(page, "503")
+    consume_browser_errors(page, {"code": "failed-load", "status": 503})
 
 
 @pytest.mark.parametrize("status", [404, 200])
@@ -346,11 +512,15 @@ def test_sample_document_without_bootstrap_retires_and_can_reset(
     )
     replacement = sample_records(page, serve)
     assert {row["host"] for row in replacement} == {records[0]["host"]}
-    completed = [row for row in replacement if row["phase"] == "presented"][-1]
+    completed = [row for row in replacement if row["phase"] == "upgraded"][-1]
     assert completed["allocation"] == 2
     assert completed["document"]
     if status == 404:
-        consume_browser_errors(page, "404", "The sample document did not start Leaf")
+        consume_browser_errors(
+            page,
+            {"code": "failed-load", "status": 404},
+            "The sample document did not start Leaf",
+        )
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
@@ -388,7 +558,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
     child = sample.locator("iframe").element_handle().content_frame()
     previous = child.url
     child.evaluate("""async () => {
-      const {registerSampleCommand} = await __lfRuntimeImport('/runtime/sample-child.js');
+      const {registerSampleCommand} = await window.__lfCheckApi();
       registerSampleCommand('thread', () => {
         window.waitingCommand = true;
         return new Promise(() => {});
@@ -424,7 +594,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
         row for row in departed_records if row["phase"] == "departed"
     )
     assert departed_record["document"] == next(
-        row["document"] for row in departed_records if row["phase"] == "presented"
+        row["document"] for row in departed_records if row["phase"] == "upgraded"
     )
     # The selection and `ready` wait for a next document, which only Reset brings here.
     assert page.evaluate("window.departedCall") is None
@@ -453,7 +623,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
         next(row for row in reset_records if row["phase"] == "retired")["reason"]
         == "reset"
     )
-    completed = [row for row in reset_records if row["phase"] == "presented"][-1]
+    completed = [row for row in reset_records if row["phase"] == "upgraded"][-1]
     assert completed["allocation"] == 2
     assert completed["document"] != departed_record["document"]
     # Only account for teardown refusals from the proven departing capability.
@@ -465,8 +635,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
     )
     departure_errors = take_browser_errors(page)
     assert all(
-        cancellation_error.fullmatch(error.splitlines()[0])
-        for error in departure_errors
+        cancellation_error.fullmatch(said(error)) for error in departure_errors
     ), departure_errors
     # A fresh header forces a new native preflight rather than reusing the old
     # document's cached one. Revocation must remain an HTTP refusal in both engines.
@@ -482,4 +651,6 @@ def test_sample_native_departure_keeps_destination_and_reset(
         )
         == 404
     )
-    consume_browser_errors(page, "404 " + previous + "api/state")
+    consume_browser_errors(
+        page, {"code": "failed-load", "status": 404, "url": previous + "api/state"}
+    )

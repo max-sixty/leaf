@@ -9,7 +9,8 @@ import {
   render,
   saidAt,
   reportSequence,
-  watchReports,
+  reportsPresented,
+  watchProjection,
   widgetController,
 } from "/runtime/widget-api.js";
 customElements.define(
@@ -22,7 +23,11 @@ customElements.define(
       this.line.dataset.lfGen = "1";
       this.append(this.line);
       this.#controller.subscribe(() => {});
-      watchReports(this, () => this.show());
+      watchProjection(
+        this,
+        () => this.show(),
+        () => reportsPresented(this),
+      );
     }
     renderState(state) {
       keeps(this, "state", state.state.value);

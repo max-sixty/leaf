@@ -198,7 +198,9 @@ export function watchData(element, input, callback) {
 export async function loadDeferred(manifest, key) {
   const { source, revision } = manifest;
   const current = () => {
-    const reading = runtime.data.sources[source];
+    const reading = /** @type {{revision?: string, contract?: unknown} | undefined} */ (
+      runtime.data.sources[source]
+    );
     return (
       reading?.revision === revision &&
       reading.contract === manifest.contract &&
@@ -214,6 +216,12 @@ export async function loadDeferred(manifest, key) {
     const item = offlineData().sources[source].value[records.items].find(
       (item) => item[records.key] === key,
     );
+    if (!item)
+      throw new Error(`unknown record key '${key}' in data source '${source}'`);
+    if (!Object.hasOwn(item, records.deferred))
+      throw new Error(
+        `record '${key}' in data source '${source}' has no deferred field '${records.deferred}'`,
+      );
     return structuredClone(item[records.deferred]);
   }
   const params = new URLSearchParams({ source, source_revision: revision, key });

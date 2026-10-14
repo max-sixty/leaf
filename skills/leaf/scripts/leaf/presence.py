@@ -11,7 +11,6 @@ from pathlib import Path
 
 from .activity import Turn, current_turn, declared_at, takes_input
 from .event_log import read_cursor
-from .file_changes import FileChanges, existing_root
 from .files import (
     entry_stamps,
     file_stamp,
@@ -51,7 +50,6 @@ VIEWED_RENEW_S = 30
 _candidates = ((), ())
 _candidates_lock = threading.Lock()
 _row_files = {}
-_row_subscription = None
 _row_home = None
 
 
@@ -121,44 +119,22 @@ def neighbor_candidates() -> tuple:
     stamp; readers hold the parsed envelopes until a producer changes them.
     Server leases are still checked on every observation, independent of files.
     """
-    global _candidates, _row_home, _row_subscription, _row_files
+    global _candidates, _row_home, _row_files
     home = state_home()
     rows = home / "rows"
     stamp = (home, file_stamp(rows))
     with _candidates_lock:
-        roots = {existing_root(rows.parent): False, existing_root(rows): False}
-        if (
-            _row_home != rows
-            or _row_subscription is None
-            or not _row_subscription.matches(roots)
-        ):
-            if _row_subscription is not None:
-                _row_subscription.close()
-            _row_subscription = FileChanges(
-                roots,
-                lambda changed: (
-                    changed == rows
-                    or (changed.parent == rows and changed.suffix == ".json")
-                ),
-                collect=True,
-            )
-            if _row_home != rows:
-                _row_files = {}
+        if _row_home != rows:
+            _row_files = {}
             _row_home = rows
-        changes = {Path(path) for path in _row_subscription.batch(0)}
-        if _candidates[0] == stamp and not changes:
+        if _candidates[0] == stamp:
             return _candidates[1]
-        # Atomic producer publications move the directory stamp. Native batches
-        # normally identify the changed files; a read ahead of notification
-        # delivery still observes the directory's authoritative changed listing.
-        if _candidates[0] != stamp or rows in changes:
-            current = set(rows.glob("*.json")) if rows.is_dir() else set()
-            for path in _row_files.keys() - current:
-                del _row_files[path]
-            changes |= current
-        for path in changes:
-            if path.parent != rows or path.suffix != ".json":
-                continue
+        # Atomic producer publications move the directory stamp. Scan only when
+        # it changes; the parsed rows retain their per-file stamps between scans.
+        current = set(rows.glob("*.json")) if rows.is_dir() else set()
+        for path in _row_files.keys() - current:
+            del _row_files[path]
+        for path in current:
             key = file_stamp(path)
             if key is None:
                 _row_files.pop(path, None)
@@ -179,7 +155,7 @@ def other_leaves(page_dir: Path) -> list:
     """Live neighboring pages, from their own compact canonical publications.
 
     A closed page is not one of them. Its server stays up so the page stays
-    readable, a standing one for good, so nothing else would ever drop its row, and
+    readable, a persistent one for good, so nothing else would ever drop its row, and
     a count the user glances at to find who needs them would become a tally of
     everything that has run here. This page's own row is never in the list, so a
     user looking at a closed page still sees it.
@@ -222,7 +198,7 @@ def other_leaves(page_dir: Path) -> list:
     return sorted(others, key=lambda entry: entry["title"].lower())
 
 
-def live_facts(page_dir: Path, claim: dict | None) -> dict:
+def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> dict:
     """The presence facts no page file records, read from processes and the harness
     at this moment: whether the claimant's wait lease is held, whether its
     lifetime stands, and what its harness says of its turn (`Harness.live_turn`).
@@ -230,16 +206,42 @@ def live_facts(page_dir: Path, claim: dict | None) -> dict:
     keys on them, and the freshness token carries them."""
     active = claim if claim_is_active(claim) else None
     return {
-        "listening": wait_is_live(page_dir, active["id"] if active else None),
+        "listening": process
+        and wait_is_live(page_dir, active["id"] if active else None),
         # None when nothing claimed the page — leaf run outside an agent harness.
         "session_alive": active is not None if claim else None,
         "live_turn": claim_harness(active).live_turn() if active else None,
     }
 
 
+def page_agent(claim: dict | None, events: list, *, process: bool = True) -> str:
+    """The name the page calls its agent: the claimant's, who reads what the user
+    writes; on a page no session holds now, the voice that last wrote on it, whose
+    words the page shows; and `UNNAMED_AGENT` where neither names one. One name for
+    the agent's side, so a page whose session ended still calls its agent what its
+    messages do.
+
+    A captured publication (`process` false) names none from its log: whoever
+    answers a hosted copy is the host's agent, not the one that wrote the page."""
+    if claim:
+        return claim["agent"]
+    if not process:
+        return UNNAMED_AGENT
+    return next(
+        (
+            event["agent"]
+            for event in reversed(events)
+            if event["author"] == "agent" and event.get("agent")
+        ),
+        UNNAMED_AGENT,
+    )
+
+
 def presence_with_activity(
     page_dir: Path,
     events: list,
+    *,
+    process: bool = True,
 ) -> tuple[dict, dict | None]:
     """Gather public presence and server-only live activity as separate values.
 
@@ -250,15 +252,19 @@ def presence_with_activity(
 
     `full_state` spreads it into the page's own state answer, so the runtime's one
     claim-against-proof judgment reads these fields. The server's row publication
-    carries only the compact presentation fields derived from these facts."""
-    stored_status = read_status(page_dir)
+    carries only the compact presentation fields derived from these facts. A captured
+    host publication without a process keeps durable acknowledgement and pending
+    input, while omitting claimant, watcher, turn and live activity facts."""
+    stored_status = (
+        read_status(page_dir) if process else {"state": "waiting", "detail": ""}
+    )
     # The declaration's own fields; the harness's stream stays server-side.
     status = {
         key: value
         for key, value in stored_status.items()
         if key in {"state", "detail", "ts"}
     }
-    claim = page_claim(page_dir)
+    claim = page_claim(page_dir) if process else None
     active = claim if claim_is_active(claim) else None
     # What the wait owner has acknowledged after the complete batch reached its
     # next durable consumer. An action past this seq has not reached that point,
@@ -266,7 +272,7 @@ def presence_with_activity(
     cursor = read_cursor(page_dir)
     reading = {
         "status": status,
-        **live_facts(page_dir, claim),
+        **live_facts(page_dir, claim, process=process),
         "cursor": cursor,
         # The user's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
@@ -274,10 +280,11 @@ def presence_with_activity(
         "pending": sum(
             1 for e in unacknowledged(events, cursor) if e["author"] == "user"
         ),
-        # The claimant's chosen display name. Harness-specific facts stay out of
-        # this reading: it is what a browser seat may know, and the browser has
-        # never had a use for which program is running the agent.
-        "agent": claim["agent"] if claim else UNNAMED_AGENT,
+        # The page's agent, by the name every label naming the agent's side reads
+        # (`page_agent`). Harness-specific facts stay out of this reading: it is what
+        # a browser seat may know, and the browser has never had a use for which
+        # program is running the agent.
+        "agent": page_agent(claim, events, process=process),
         # Which session the turn-closed evidence belongs to. Thread updates carry
         # their posting session too, so a claim another session wrote — the page
         # task's, while a Codex watcher task holds the page — is not declared
@@ -302,7 +309,7 @@ def presence_with_activity(
         # nobody has ever viewed, which keeps it distinct from one the user studied
         # and left. Hidden tabs stop their freshness reads, so this records
         # user attention rather than tab lifetime.
-        "viewed": _viewed_at(page_dir),
+        "viewed": _viewed_at(page_dir) if process else None,
         # Where the claimant is working (claim_page), for the drawer's hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that

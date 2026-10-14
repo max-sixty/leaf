@@ -31,10 +31,11 @@
    a connected field builds its editor, so a page whose card never opens builds none.
    Until then it holds its draft unconnected. */
 import { showNativeLayer, closeNativeLayer } from "../keyboard/layer-stack.js";
+import { isNativeLayer } from "../shadow-tree.js";
 import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
-import { closeLayer, focusDestination } from "../focus.js";
+import { closeLayer, focusDestination, focused } from "../focus.js";
 import { retainUserIntent } from "../user-intent.js";
 import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
 import { flashDuration, backgroundFlash } from "../motion.js";
@@ -83,7 +84,7 @@ export function createPageComment({
 
   const hint = () => (designModeActive() ? "Comment on the design" : NAME);
   const holds = () => Boolean(loadDraft("general")?.trim());
-  const cardIsOpen = () => card.matches(":popover-open");
+  const cardIsOpen = () => isNativeLayer(card);
   keys(card, "In the page comment card", [
     {
       id: "comment.card-close",
@@ -115,6 +116,7 @@ export function createPageComment({
     control,
     rank: BANNER_CONTROL_RANK.pageComment,
     seat: { desk: "row", phone: "menu" },
+    row: { label: "Comment on the page", group: "page" },
   });
 
   function open() {
@@ -135,6 +137,7 @@ export function createPageComment({
     focusDestination(input, "move");
   }
 
+  /** @type {(() => void) & {cancelDictation?: () => void}} */
   let sync = () => {};
   const stops = [];
   function mount(chromeRoot) {
@@ -179,8 +182,7 @@ export function createPageComment({
         // Delivery may refuse long after Send. Restore text entry only while the user
         // still stands at the door; a later gesture owns its focus and disclosure.
         void Promise.resolve(flight).then((accepted) => {
-          if (!accepted && document.activeElement === door && mayRestore())
-            mayRestore.handoff(open);
+          if (!accepted && focused() === door && mayRestore()) mayRestore.handoff(open);
         });
       },
     });

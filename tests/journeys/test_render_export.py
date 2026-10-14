@@ -22,6 +22,7 @@ from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
     install_payload,
+    neighbour_page,
     wait_for,
 )
 from leaf import cli as cli_model
@@ -32,11 +33,14 @@ from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
+from leaf import machine as machine_model
 from leaf import server as server_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
+from leaf.findings import Finding
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.schema import ELEMENT_ID
+from leaf.served_state.service import PageStateService
 from leaf.structure import SourceDocument
 from leaf_dev import preview as preview_model
 from playwright.sync_api import expect
@@ -56,13 +60,36 @@ ROOT = Path(__file__).parents[2]
 PREVIEW = [sys.executable, "-m", "leaf_dev", "preview"]
 
 
+def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
+    """Sharing an offline record grants no access to the machine's other pages."""
+    serve(leaf_page("Exported record", "<h1>Exported record</h1>"), packages=())
+    neighbor = machine_model.state_home() / "pages" / "private-neighbor"
+    url = neighbour_page(neighbor, title="Private neighboring page")
+    live = PageStateService(serve.page_dir).page_state(1)
+    assert any(row["url"] == url for row in live["others"])
+
+    output = tmp_path / "offline.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "export", str(serve.page_dir), "--out", str(output)],
+    )
+    assert result.exit_code == 0, result.output
+    exported = output.read_text(encoding="utf-8")
+    assert server_model.host_key() not in exported
+    assert "Private neighboring page" not in exported
+    assert any(
+        row["url"] == url
+        for row in PageStateService(serve.page_dir).page_state(1)["others"]
+    )
+
+
 @pytest.fixture(name="preview_slot")
 def preview_slot_fixture(tmp_path, monkeypatch):
     """A previews root of this test's own.
 
     `LEAF_PREVIEWS_ROOT` puts the slots under `tmp_path` instead of the checkout's
     `.tmp/previews`, which every run in this checkout shares: a run leaves nothing
-    behind there, and a preview a developer has standing is not a page these tests
+    behind there, and a preview a developer has running is not a page these tests
     find. A preview is a foreground process, so the `spawn` that started it ends it.
     """
     monkeypatch.setenv("LEAF_PREVIEWS_ROOT", str(tmp_path / "previews"))
@@ -559,6 +586,11 @@ def watching(tmp_path, preview_slot, spawn, user: bool):
     source = tmp_path / "watched.html"
     source.write_text(REPLAYED_PAGE, encoding="utf-8")
     runtime = install_payload(tmp_path / "watched-runtime")
+    # The runtime is a developer checkout for this preview: its compiler uses
+    # the development dependencies installed in the test checkout.
+    (runtime / "node_modules").symlink_to(
+        ROOT / "node_modules", target_is_directory=True
+    )
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
     process, url = start_preview(
@@ -1204,7 +1236,17 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.on(
         "requestfailed",
-        lambda request: page.lf_errors.append(f"unfetched {request.url}"),
+        lambda request: page.lf_errors.append(
+            Finding(
+                "request-failed",
+                values={
+                    "kind": request.resource_type,
+                    "error": request.failure,
+                    "frame": request.frame.url,
+                    "url": request.url,
+                },
+            )
+        ),
     )
     page.goto(out.as_uri(), wait_until="load")
     source = (ROOT / "examples" / "pr-walkthrough.html").read_text(encoding="utf-8")
@@ -1217,11 +1259,11 @@ def test_the_example_preview_command_exports_a_file_that_opens_on_its_own(
 
 
 def test_exporting_an_example_leaves_the_live_preview_untouched(
-    monkeypatch, page_dir, standing_server
+    monkeypatch, page_dir, persistent_server
 ):
     """An offline handoff can be made while its live preview keeps serving."""
     live_source = (page_dir / "index.html").read_bytes()
-    live_server = standing_server(page_dir)
+    live_server = persistent_server(page_dir)
     monkeypatch.setattr(preview_model, "TMP", page_dir.parent)
 
     try:

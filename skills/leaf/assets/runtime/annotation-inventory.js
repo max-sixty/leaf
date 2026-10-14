@@ -1,6 +1,6 @@
 /* The current annotation inventory, independent of its page presentation.
 
-   This owner projects the application's published Threads, Questions, provenance and
+   This owner projects the application's published Threads, On lists, provenance and
    workflows together with producer-declared contributions. Frozen readings contain
    no browser capability. Current target/point nodes and generated action capabilities
    stay in this directory; contributed actions resolve through their registration.
@@ -12,7 +12,7 @@ import { KINDS } from "./contribution-model.js";
 import { excerptWords, labelWords } from "./words.js";
 import { contributionEntries } from "./contributions.js";
 import { marginInventory } from "./margin-model.js";
-import { standingPoint } from "./pointed-place.js";
+import { livePoint } from "./pointed-place.js";
 import { ago } from "./presence.js";
 import { runtime } from "./context.js";
 import { elementById, inChrome } from "./passages.js";
@@ -33,9 +33,9 @@ import {
   threadAttention,
   workflowLabel,
 } from "./thread/workflow.js";
-import { renderedParent, shadowHost, under } from "./shadow.js";
+import { renderedOrder, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./standing-target.js";
-import { questionPlace } from "./questions/place.js";
+import { askPlace } from "./asks/place.js";
 import { scrollBehavior } from "./motion.js";
 import {
   comparisonBase,
@@ -44,11 +44,24 @@ import {
   toggleInlineComparison,
 } from "./version.js";
 
+// What the inventory reads from the semantic root: the Questions, the workflows its
+// entries report, the shown revision and the agent's to-dos, and the projection whose
+// reported and overridden marks it lists once the projection's chrome has painted them.
+// Threads reach it through their presentation, which renders the annotations once it
+// commits.
+export const annotationSelection = (root) => ({
+  projection: root.effective.projection,
+  asks: root.effective.asks,
+  workflows: root.effective.workflows,
+  revision: root.document.revision,
+  todos: root.authoritative?.browser.todos ?? null,
+});
+
 export function createAnnotationInventory({
-  readQuestions,
+  readAsks,
   placedAt,
   openThread,
-  goToQuestion,
+  goToAsk,
   scrollToElement,
 }) {
   const humanized = (value) =>
@@ -94,34 +107,7 @@ export function createAnnotationInventory({
     if (left === right) return 0;
     if (!left) return 1;
     if (!right) return -1;
-    // compareDocumentPosition calls nodes in separate shadow trees disconnected and
-    // leaves their order implementation-specific. Build each composed ancestry instead:
-    // the first divergent nodes share a document or shadow root and therefore have a
-    // stable order. Keeping every inner step also distinguishes a target in an outer
-    // tree from a later target inside one of its nested shadow hosts.
-    const ancestry = (target) => {
-      const chain = [];
-      for (let node = target; node;) {
-        chain.push(node);
-        node = renderedParent(node);
-      }
-      return chain.reverse();
-    };
-    const leftChain = ancestry(left);
-    const rightChain = ancestry(right);
-    let index = 0;
-    while (
-      index < leftChain.length &&
-      index < rightChain.length &&
-      leftChain[index] === rightChain[index]
-    )
-      index += 1;
-    if (index === leftChain.length || index === rightChain.length)
-      return leftChain.length - rightChain.length;
-    return leftChain[index].compareDocumentPosition(rightChain[index]) &
-      Node.DOCUMENT_POSITION_FOLLOWING
-      ? -1
-      : 1;
+    return renderedOrder(left, right);
   }
 
   // Targets and generated-reading callbacks stay outside the model. Registered
@@ -135,7 +121,7 @@ export function createAnnotationInventory({
   // what it is about, asks this.
   const points = new Map();
   const entryPoint = (entry) =>
-    entry ? standingPoint(targetFor(entry), points.get(entry.key)) : null;
+    entry ? livePoint(targetFor(entry), points.get(entry.key)) : null;
   const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
   // A pointed row is named by its words as the page reads them, cells and blocks apart.
   const pointName = (words) => {
@@ -166,7 +152,7 @@ export function createAnnotationInventory({
   };
   // One group per target, and one more for each row inside it that pointing gestures
   // stood threads at (pointed-place.js): those threads stand there together, and
-  // everything else about the target (its other threads, a Question's marker, a widget's
+  // everything else about the target (its other threads, an ask's marker, a widget's
   // actions) keeps the target's own row. `pointed` is `{ key, element, words }`: the
   // row's key, which its first comment gave it and later ones share, the element it is,
   // and its words as the page reads them, which name it.
@@ -242,34 +228,34 @@ export function createAnnotationInventory({
   // resolved record as collection, navigation and paint.
   function threadIdsAt(node) {
     const place = placeOf(node);
-    let standing = null;
+    let best = null;
     for (const thread of threadList()) {
       if (!threadHasDiscussion(thread)) continue;
       const placement = placedAt(thread.id);
       const target = placement?.place;
       if (!target || !under(place, target)) continue;
-      const point = standingPoint(target, placement.point);
+      const point = livePoint(target, placement.point);
       const rank = !point ? 1 : under(place, point) ? 2 : 0;
-      if (standing && target === standing.target && point === standing.point) {
-        standing.ids.push(thread.id);
+      if (best && target === best.target && point === best.point) {
+        best.ids.push(thread.id);
         continue;
       }
       if (
-        !standing ||
-        (target === standing.target
-          ? rank >= standing.rank
-          : under(target, standing.target))
+        !best ||
+        (target === best.target ? rank >= best.rank : under(target, best.target))
       )
-        standing = { target, point, rank, ids: [thread.id] };
+        best = { target, point, rank, ids: [thread.id] };
     }
-    return standing?.ids ?? [];
+    return best?.ids ?? [];
   }
 
   function collectEntries() {
     const groups = new Map();
     const receiptByCoordinate = new Map();
     for (const receipt of visibleWidgetWorkflows()) {
-      receiptByCoordinate.set(stateCoordinate(...receipt.coordinate), receipt);
+      // A widget's workflow names its owner, unit and verb.
+      const coordinate = /** @type {[string, string, string]} */ (receipt.coordinate);
+      receiptByCoordinate.set(stateCoordinate(...coordinate), receipt);
     }
     for (const thread of threadList()) {
       if (!threadHasDiscussion(thread) || !thread.anchor || claimed(thread.id))
@@ -280,7 +266,7 @@ export function createAnnotationInventory({
       const onUser = attention?.kind === "needs_user";
       const unread = thread.unread.length;
       const placement = placedAt(id);
-      const point = standingPoint(target, placement?.point);
+      const point = livePoint(target, placement?.point);
       const pointed = point
         ? { key: placement.pointRow, element: point, words: placement.pointWords }
         : null;
@@ -325,25 +311,23 @@ export function createAnnotationInventory({
     }
 
     // Only a widget ask has a place on the page; the rest have no node.
-    for (const question of readQuestions().user) {
-      const id = question.id;
-      const target = questionPlace(question).node;
+    for (const ask of readAsks().user) {
+      const id = ask.id;
+      const target = askPlace(ask).node;
       if (!target) continue;
       add(groups, target, {
         kind: "ask",
-        id: `question:${id}`,
+        id: `ask:${id}`,
         // The group this row stands in already names the ask; the row says why it is
         // there, since these are the asks the user owes.
-        text: "Waiting on you",
+        text: "Waiting on me",
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows.
         label: addressableLabel(target) || null,
         activate: () => {
-          const standing = readQuestions().user.filter(
-            (question) => question.source.kind === "widget",
-          );
-          const next = standing.find((candidate) => candidate.id === id);
-          if (next) goToQuestion(next, standing);
+          const asks = readAsks().user.filter((ask) => ask.source.kind === "widget");
+          const next = asks.find((candidate) => candidate.id === id);
+          if (next) goToAsk(next, asks);
         },
       });
     }
@@ -447,28 +431,28 @@ export function createAnnotationInventory({
     // A to-do the agent opened on a page widget or element stands beside it, as Working
     // with the line of the start running on it, or as an open to-do under its title.
     // A thread's to-do is its thread's attention (above); the page's is the banner's. A
-    // to-do on the user is on their Questions instead.
-    for (const task of runtime.browser?.todos ?? []) {
+    // to-do on the user is on their list, On me, instead.
+    for (const todo of runtime.todos) {
       if (
-        task.owner !== "agent" ||
-        (task.subject.kind !== "widget" && task.subject.kind !== "element") ||
-        task.revision > runtime.currentRevision
+        todo.owner !== "agent" ||
+        (todo.subject.kind !== "widget" && todo.subject.kind !== "element") ||
+        todo.revision > runtime.currentRevision
       )
         continue;
-      if (activityAlreadyShown.has(`widget:${task.subject.id}`)) continue;
-      const target = elementById(task.subject.id);
-      const { running } = task;
+      if (activityAlreadyShown.has(`widget:${todo.subject.id}`)) continue;
+      const target = elementById(todo.subject.id);
+      const { running } = todo;
       const label = running ? "Working" : "To-do open";
-      const account = [task.agent, running?.text ?? task.title]
+      const account = [todo.agent, running?.text ?? todo.title]
         .filter(Boolean)
         .join(" · ");
       const age = running && ago(running.ts);
       add(groups, target, {
         kind: "activity",
-        id: `task:${task.id}`,
+        id: `todo:${todo.id}`,
         text: labelWords(account),
         workflowFace: Object.freeze({ ...KINDS.activity, label }),
-        context: [age && `Checked in ${age}`, running && task.title]
+        context: [age && `Checked in ${age}`, running && todo.title]
           .filter(Boolean)
           .join(" · "),
         activate: () => revealTarget(target, account, scrollToElement),

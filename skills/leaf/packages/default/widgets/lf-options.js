@@ -1,10 +1,10 @@
-/* lf-options: a question the user answers. The theme draws both of its forms and
+/* lf-options: an ask the user answers. The theme draws both of its forms and
  * this module makes them answerable — without it the markup still reads as a decision,
  * and nothing here is load-bearing on the look.
  *
  * Which form a group takes is a fact about its options, decided in CSS and never here:
  * an option leading with a <strong> title argues its own case and is a card on a row of
- * its own, and a group whose options are bare labels is a question *about* the page,
+ * its own, and a group whose options are bare labels is an ask *about* the page,
  * drawn as compact rows.
  * The difference this module sees is only what a row adds — `for`, the id of the block
  * the row names, rendered as a reference the user can follow. It points and never
@@ -38,7 +38,7 @@
  *
  * The keyboard walk stops at options. This widget assigns 1–9 to authored options,
  * then its add field and Done; generated options receive the remaining numbers. Each
- * of them wears its digit in the group's one badge column, Done included: a Question
+ * of them wears its digit in the group's one badge column, Done included: an ask
  * whose last step showed no key could not be finished by a user reading the keys.
  * Removing or disabling a choice leaves the other bindings intact. Tab remains the
  * platform's path through every control and into that field. There it follows Leaf's
@@ -48,9 +48,9 @@
  * In a thread the existing reply box already owns those words, so Enter from a mark
  * continues into that box. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set
- * is whole, posted as an `answer` action and held as the Question's closing
+ * is whole, posted as an `answer` action and held as the ask's closing
  * condition (x-awaits.answered). Answered is paint on the press, never a wider word. A
- * second press withdraws that answer through the widget's exact undo, reopening the Question;
+ * second press withdraws that answer through the widget's exact undo, reopening the ask;
  * the set can still change after either press, and each toggle reaches the agent.
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
@@ -69,8 +69,8 @@
  *
  * The keyboard path: every mark is a checkbox, so Tab reaches it and Space toggles. From a
  * mark, the runtime's row walk moves among the options: ↑/↓ clamp at the ends, and Home and
- * End land on them. This widget owns 1–9; Question forwards those declarations across the
- * whole question. The column is held whether or not a key is in it, which is the theme's
+ * End land on them. This widget owns 1–9; the ask view forwards those declarations across the
+ * whole ask. The column is held whether or not a key is in it, which is the theme's
  * half of this. The rows are
  * declared per mark, on the mark rather than on the group — the group holds the option's
  * own argument too, and a scope over the whole subtree would promise to work an option with
@@ -109,6 +109,7 @@ import {
   landInThread,
   markdownWords,
   offer,
+  pressIsKeyboardActivation,
   quoted,
   reachedForWords,
   rowWalk,
@@ -131,11 +132,11 @@ const label = (option) => wrote(option.querySelector(":scope > strong") ?? optio
 // while the control states arity in the two registers it has: corner shape for the eye and
 // this word in the aria-label below. The open word stays visually silent in every form. A
 // user who hears "choose any" knows the next press adds where "choose one" would have
-// replaced, and knows it while the question is still open rather than after answering it.
+// replaced, and knows it while the ask is still open rather than after answering it.
 const OPEN = { one: "choose one", any: "choose any" };
 const SELECTED = "selected";
 
-const SECTION = "In a question's options";
+const SECTION = "In an ask's options";
 const MARK_TAG = "lf-option-control";
 const DONE_TAG = "lf-options-done";
 // The controller paints retained controls in its synchronous render. These generated
@@ -144,7 +145,7 @@ const DONE_TAG = "lf-options-done";
 customElements.define(
   "lf-options",
   class extends HTMLElement {
-    // What the Question was answered with: the picked options' names, the group's own in its
+    // What the ask was answered with: the picked options' names, the group's own in its
     // order and then the user's in the order they added them. An option the user added
     // is named by the words its `add` carries, and an authored one by its markup.
     static answerWords(value, group) {
@@ -237,11 +238,11 @@ customElements.define(
         // A click ending a drag-select belongs to the selection rather than the option.
         const option = e.target.closest?.("lf-option");
         if (!option || option.parentElement !== this) return;
-        if (e.detail !== 0 && reachedForWords(option)) return;
+        if (!pressIsKeyboardActivation(e) && reachedForWords(option)) return;
         // A click something in the option has a use for is not a pick: the user was
         // working the case — flipping a shot, opening a disclosure, following a link —
         // rather than choosing between the options. `worksInside` is the whole of that
-        // question, and what it cannot answer is which of the controls in here this
+        // ask, and what it cannot answer is which of the controls in here this
         // module put there: the mark is the pick's own control, and the digit stands in
         // the column beside it, so a press on either is aimed at this option after all.
         const inner = worksInside(e.target, option);
@@ -303,14 +304,14 @@ customElements.define(
         : [];
     }
 
-    // A page question owns the ordinary add form below its options. A question already
+    // A page ask owns the ordinary add form below its options. A ask already
     // inside a thread has no second form; its surrounding thread owns the reply.
     #reply() {
       return this.#addition.input ? null : threadInput(this);
     }
 
     // The one statement a live channel can't derive: the set is whole. Done is a
-    // reversible gesture; its pressed state is the standing answer action. Its digit
+    // reversible gesture; its pressed state is the answer action in force. Its digit
     // is inside the button, as an option's is inside the option, so a press on it is a
     // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
@@ -327,8 +328,8 @@ customElements.define(
 
     #doneUndo() {
       const answer = this.reading?.actions.answer;
-      const standing = answer?.standing[0]?.event;
-      return answer?.undo.find((event) => event.id === standing?.id) ?? null;
+      const inForce = answer?.inForce[0]?.event;
+      return answer?.undo.find((event) => event.id === inForce?.id) ?? null;
     }
 
     #doneAvailable() {
@@ -373,9 +374,7 @@ customElements.define(
       keeps(
         this.#done.control,
         "aria-label",
-        answered
-          ? "Take back Done: reopen this question"
-          : "Done: my picks here are complete",
+        answered ? "Take back Done: reopen this ask" : "Done: these picks are complete",
       );
       keeps(this.#done.control, "aria-pressed", String(answered));
       keeps(this.#done.control, "aria-busy", this.#answering ? "true" : null);
@@ -401,7 +400,7 @@ customElements.define(
     }
 
     // From a mark, arrows walk the options and Space toggles. The group owns stable
-    // numbered commands; Question forwards those same declarations.
+    // numbered commands; the ask view forwards those same declarations.
     #keys() {
       for (const bindingBadge of this.querySelectorAll(
         ":scope > lf-option > .lf-key-badge",
@@ -444,7 +443,7 @@ customElements.define(
             run: () =>
               landInThread(this.#reply(), {
                 target: mark,
-                line: "back to question",
+                line: "back to ask",
               }),
           },
           // Numbered choices own the shortcut bar; arrow navigation stays in the reference.
@@ -579,9 +578,9 @@ customElements.define(
       // including accepted replay.
       const detail = state.choose?.detail ?? this.#authoredChoice();
       const added = Object.fromEntries(
-        Object.entries(state.add?.units ?? {}).map(([id, standing]) => [
+        Object.entries(state.add?.units ?? {}).map(([id, record]) => [
           id,
-          standing.detail.text,
+          record.detail.text,
         ]),
       );
       const created = this.#addition.reconcile(added, this.#done);

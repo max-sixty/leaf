@@ -3,7 +3,7 @@
 A delivery is transport-independent input: one or more complete page batches,
 each preserving the page's monotonic event order. Thread membership is
 context, not a partition key, and response requirements are a snapshot of the
-standing projection at capture. Response commands validate the current page
+current projection at capture. Response commands validate the current page
 again when they write, so this snapshot never becomes settlement authority.
 Receipt validates the current receiver and captured event identities under the
 page transaction before advancing its cursor. Pickup records harness acceptance or
@@ -25,7 +25,7 @@ stands and when it clears. While it stands, no other delivery can reserve the
 address, the turn's final message commits as the reply, and failure receipts and
 other provider finals are refused or write nothing. A direct `leaf response reply` still commits at once,
 and the turn's final then yields to it. `writer` is the hint captured at freeze;
-only a standing reservation decides who writes. Neither changes the answer's
+only an open reservation decides who writes. Neither changes the answer's
 operation: reply and markup answers mean the same on every transport.
 
 Freeze emits an exact `answer.ref`, qualified by delivery, page batch and input.
@@ -35,7 +35,7 @@ of the page, such as a refusal naming the input a thread owes, recovers the ref
 without the envelope's id; an input no receipt has carried has none, and nothing
 mints one outside a delivery. Direct authors and provider
 finals resolve it through `response_address` before the rich durable reply writer
-rechecks the captured logical owner, exact input and standing obligation under the
+rechecks the captured logical owner, exact input and open obligation under the
 page lock. An address may be forwarded to a worker without changing its own
 author identity; another session's claim supersedes its authorization even after
 release or end. The owning session's process restart preserves it.
@@ -56,6 +56,7 @@ from .files import read_json
 from .harness import session_harness
 from .machine import state_home
 from .refusals import Refused
+from .registry.kernel import record_format
 from .schema import CURSOR_FILE, WIDGET_KINDS
 from .service import (
     PageTransaction,
@@ -71,7 +72,7 @@ from .state import (
     write_json,
 )
 
-DELIVERY_FORMAT = "leaf-delivery-v5"
+DELIVERY_FORMAT = record_format("delivery")
 DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
     "page",
@@ -295,6 +296,15 @@ def batch_refs(batch: dict) -> dict[str, dict]:
     }
 
 
+def reads_reference(reference: str) -> bool:
+    """Whether this Leaf reads the delivery that emitted `reference`. One an earlier
+    Leaf wrote at another page protocol it does not (`read_delivery`), so the hooks
+    treat the update it owes an answer as having no usable reference and capture it
+    again (`hook_transport.read_plans`)."""
+    payload = read_json(delivery_path(reference.partition(":")[0]))
+    return isinstance(payload, dict) and payload.get("format") == DELIVERY_FORMAT
+
+
 def response_address(reference: str) -> dict:
     """Resolve only a complete reference emitted by an immutable delivery.
 
@@ -481,6 +491,13 @@ def read_delivery(delivery_id: str) -> dict:
     payload = read_json(path)
     if payload is None:
         raise Refused(f"unknown delivery {delivery_id!r}")
+    if isinstance(payload, dict) and payload.get("format") != DELIVERY_FORMAT:
+        raise Refused(
+            f"delivery {delivery_id!r} is {payload.get('format')!r}, written by a Leaf "
+            f"at another page protocol, and this Leaf reads {DELIVERY_FORMAT!r}. The "
+            "updates it carried that still owe an answer are captured again in a "
+            "delivery this Leaf writes, which the session's next prompt or Stop names."
+        )
     if not readable_delivery(payload, delivery_id):
         raise RuntimeError(f"delivery {delivery_id!r} has an invalid envelope")
     return payload
@@ -677,8 +694,9 @@ def deliverable(page: PageTransaction) -> list[dict]:
     a page whose log this Leaf may not write (`event_contracts.write_refusal`), where
     `receive_batch` refuses its receipt. Handed over anyway, it stayed pending, so a
     watch woke its session on every pass and a Codex watch opened a turn for it each
-    time. It waits for a Leaf that can write the page; the prompt hook names the
-    re-vendor that frees it (`hook_transport.remedies`). A page with nothing pending
+    time. Its session's hooks and commands re-vendor such a page before they read it
+    (`vendoring.renew_layer`), so input waits here only on a page whose re-vendor was
+    refused, and the hooks name why (`hook_transport.remedies`). A page with nothing pending
     is answered without loading its layer, since Codex asks after every tool call."""
     pending = unacknowledged(page.events, page.cursor)
     if not pending:
@@ -723,7 +741,7 @@ def receive_batch(
         if not may_receive(page.claim, session_id):
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
         if refusal := write_refusal(page.page_dir):
-            raise ReceiptRefused(refusal)
+            raise ReceiptRefused(str(refusal))
         expected = {event["seq"]: event["id"] for event in batch["events"]}
         delivered = {event["seq"]: event for event in page.events}
         if not expected or any(

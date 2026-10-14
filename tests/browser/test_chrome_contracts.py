@@ -3,6 +3,7 @@
 import io
 import json
 import re
+from datetime import datetime, timedelta
 from urllib.parse import urljoin
 
 import pytest
@@ -30,9 +31,11 @@ from render_harness import (
     open_page,
     open_versions,
     panel_settled,
+    refuse,
     resized,
     scroll_settled,
     select,
+    ticked,
     told,
     write,
 )
@@ -188,9 +191,7 @@ def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve
             "text": "This belongs to the other thread. " * 5,
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     expect(card).to_have_attribute("open", "")
     assert last_selected.evaluate(
         "el => el.getBoundingClientRect().top"
@@ -201,6 +202,9 @@ class _ProblemPage:
     url = "https://leaf.test/example"
 
     def add_init_script(self, **_):
+        pass
+
+    def expose_binding(self, *_):
         pass
 
     def on(self, *_):
@@ -351,7 +355,7 @@ def test_a_thread_news_resolves_stays_where_it_stands_until_the_user_moves_on(
 def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
     browser, serve
 ):
-    """Under "Waiting on you", the user's answer from another tab takes the thread out
+    """Under "Waiting on me", the user's answer from another tab takes the thread out
     of the view. Its card, open in front of them, stays where it stands, and its
     summary's title row stays the same size when the answered status disappears; the
     browser fixture's shift watch fails anything that moves. The news lands well after
@@ -378,7 +382,7 @@ def test_news_that_answers_a_thread_waiting_on_you_leaves_its_card_in_place(
         {"kind": "reply", "author": "user", "parent": asked, "token": "keep"},
     )
     told(page)
-    expect(page.locator(".lf-needs")).to_have_text("You (0)")
+    expect(page.locator(".lf-needs")).to_have_text("Me (0)")
     rendered(page)
     expect(card).to_be_visible()
     assert card.locator(".lf-thread-summary").bounding_box() == stood
@@ -827,19 +831,17 @@ def test_more_menu_stays_put_when_the_layer_age_gains_a_digit(browser, serve, wi
     version = menu.locator(".lf-layer-reference")
     expect(version).to_be_visible()
 
+    producer = page.evaluate(
+        "async () => (await window.__lfCheckApi()).readApplication().authoritative.layer.producer"
+    )
+    stamp = datetime.fromisoformat(producer.get("committed") or producer["installed"])
+    page.route("**/api/state*", refuse)
+
     def age_at(minutes):
-        page.evaluate(
-            """async minutes => {
-              const {observeServerNow, tickClock} = await window.__lfRuntimeImport(
-                '/runtime/presence.js');
-              const title = document.querySelector('.lf-layer-reference').title;
-              const stamp = title.match(/(?:committed|installed): ([^\\n]+)/)?.[1];
-              if (!stamp) throw new Error(`Layer has no dated provenance: ${title}`);
-              observeServerNow(new Date(Date.parse(stamp) + minutes * 60000).toISOString());
-              await tickClock(error => { throw new Error(error); });
-            }""",
-            minutes,
-        )
+        # Fixed Date advances the displayed age while native monotonic clocks and
+        # the shared feed timer keep their normal browser semantics.
+        page.clock.set_fixed_time(stamp + timedelta(minutes=minutes))
+        ticked(page)
         rendered(page)
 
     age_at(9)
@@ -878,7 +880,7 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
                 page.get_by_role("button", name="Close threads", exact=True).click()
             panel_settled(page, open=panel_open)
         page.evaluate("""async () => {
-          const {notice} = await window.__lfRuntimeImport('/runtime/notifications.js');
+          const {notice} = await window.__lfWidgetApi();
           notice('Update recorded');
         }""")
         if width <= 480 and not panel_open:
@@ -1092,10 +1094,10 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
           };
           const { chromeSheet: chrome, marksSheet: marks, annotationSheets,
             annotationMarkSheets } =
-            await window.__lfRuntimeImport("/runtime/stylesheets.js");
+            await window.__lfCheckApi();
           if (![chrome, marks, ...annotationSheets].every(sheet => document.adoptedStyleSheets.includes(sheet)))
             throw new Error("The document did not adopt its chrome and marks sheets");
-          const {shadowStage}=await window.__lfRuntimeImport('/runtime/shadow-stage.js');
+          const {shadowStage}=await window.__lfWidgetApi();
           const host=document.createElement('div'); document.querySelector('main').append(host);
           const root=shadowStage(host,[document.createTextNode('A declared shadow stage')]);
           if (![marks,...annotationMarkSheets].every(sheet=>root.adoptedStyleSheets.includes(sheet)))
@@ -1133,6 +1135,47 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     assert ".lf-target-trace {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
     assert "::highlight(lf-version-insert)" in selected["marks"]
+
+
+def test_indication_defaults_yield_to_widget_faces_in_document_and_shadow(
+    browser, serve
+):
+    """A widget can choose its indication face in either kind of rendering root.
+
+    Ordinary indicated elements still get the shared contour. The default must
+    yield to layered widget rules, while action-target apparatus keeps its face.
+    """
+    page = open_page(
+        browser, serve(leaf_page("indication-faces", '<h1 id="t">Indication</h1>'))
+    )
+    readings = page.evaluate(
+        """async () => {
+          const {shadowStage} = await window.__lfWidgetApi();
+          const {inBaseLayer} = await window.__lfWidgetApi();
+          const nodes = () => {
+            const style = document.createElement('style');
+            style.textContent = inBaseLayer('.custom-indication, .lf-action-target { outline: 4px dashed red; }');
+            return [style, ...['default-indication', 'custom-indication', 'lf-action-target'].map(cls => {
+              const p = document.createElement('p');
+              p.className = cls;
+              p.textContent = cls;
+              p.setAttribute('data-lf-indicated', '');
+              return p;
+            })];
+          };
+          const main = document.querySelector('main');
+          main.append(...nodes());
+          const host = document.createElement('div');
+          main.append(host);
+          const shadow = shadowStage(host, nodes());
+          return [main, shadow].map(root =>
+            [...root.querySelectorAll('[data-lf-indicated]')].map(p => {
+              const s = getComputedStyle(p);
+              return [s.outlineStyle, s.outlineWidth];
+            }));
+        }"""
+    )
+    assert readings == [[["solid", "2px"], ["dashed", "4px"], ["solid", "1px"]]] * 2
 
 
 def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
@@ -1293,7 +1336,7 @@ def toggle_surface(page, surface, open=True):
 
 
 # The wide page, whose side track the surface stands over, at both widths; the column
-# and the Questions panel at one each.
+# and the On panel at one each.
 @pytest.mark.parametrize(
     ("case", "width"),
     [
@@ -1306,7 +1349,7 @@ def toggle_surface(page, surface, open=True):
 def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     browser, serve, case, width
 ):
-    """Opening Threads or the Questions panel never moves the page: each stands over the
+    """Opening Threads or the On panel never moves the page: each stands over the
     right edge of the window they share, so the reading column keeps its place, its width and its wrapping, a
     wide page's side track stays where its Layout put it, and the document neither grows nor
     scrolls under it. The page beside the surface stays live rather than going inert
@@ -1382,7 +1425,7 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
     page.evaluate(
         """async () => {
           const {contributionEntry, registerContribution} =
-            await window.__lfRuntimeImport('/runtime/widget-api.js');
+            await window.__lfWidgetApi();
           const contribute = (key, target, label) => registerContribution({
             key, target,
             read: () => ({entries: [contributionEntry({key: 'action', icon: 'dot', label})]}),
@@ -1401,7 +1444,7 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
         }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     expect(dialog).to_be_visible()
     row = dialog.get_by_role("button", name="Action 15", exact=True)
@@ -1524,7 +1567,7 @@ def test_a_popover_reseated_by_the_panel_stays_on_its_source(browser, serve):
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     door = page.locator(".lf-thread[open] .lf-msg").first.evaluate_handle("""async message => {
-      const {showNativeLayer} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {showNativeLayer} = await window.__lfWidgetApi();
       const widget = document.createElement('span');
       const door = Object.assign(document.createElement('button'), {textContent: 'Details'});
       widget.attachShadow({mode: 'open'}).append(door);

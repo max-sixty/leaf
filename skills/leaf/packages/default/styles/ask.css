@@ -1,13 +1,39 @@
 /* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
  * question's opening and reaches around the context and control the standing ring says
- * are one Question. */
+ * are one ask. */
 :scope:is(lf-ask) { display: block; }
+/* An Ask allocated the column around a block of its own that breaks out of it (`wide`
+ * or `available`, layouts.css) reaches as far as that block, and its padding gives
+ * everything else it holds the column back. Nothing in it moves, since its content box
+ * is still its holder's, and the block still breaks out exactly as it did; what changes
+ * is the box, so the ring the user stands in (chrome.css, `[data-lf-ask]`) goes round
+ * the block rather than cutting across it at the column's edges. Where the block does
+ * not break out, the Ask does not either: in a box that draws a frame the room is the
+ * frame's (layouts.css, `--lf-block-frame`), and where the page arranged the Ask or a
+ * box above it, as a grid track, the block keeps to its holder (`data-lf-arranged`,
+ * prepaint.js). The runtime reads how far the Ask stands in from the column with its
+ * block's (prepaint.js, `indents`). Only its own children count, as for the measure it
+ * widens to (theme.css). */
+@media screen {
+  :scope:is(lf-ask)[data-lf-space="column"]:has(> [data-lf-space="wide"]:not([data-lf-arranged])) {
+    --lf-reach: min(var(--wide), var(--lf-room, 0px));
+  }
+  :scope:is(lf-ask)[data-lf-space="column"]:has(> [data-lf-space="available"]:not([data-lf-arranged])) {
+    --lf-reach: var(--lf-room, 0px);
+  }
+  :scope:is(lf-ask)[data-lf-space="column"]:has(> :is([data-lf-space="wide"], [data-lf-space="available"]):not([data-lf-arranged])) {
+    margin-left: calc(-1 * var(--lf-grow-l));
+    margin-right: calc(-1 * var(--lf-grow-r));
+    padding-left: var(--lf-grow-l);
+    padding-right: var(--lf-grow-r);
+  }
+}
 /* An Ask whose evidence includes a figure (its heading first, a chart, image, table
  * or shot after it, and one option list last) outruns a window when its options stack:
  * the cards land below the figure they turn on, one under another. It asks its option
  * list to lay them across instead (`--lf-options-across`, said on the Ask and read by
- * its own children; options.css), so as many cards as the Question's width holds stand
+ * its own children; options.css), so as many cards as the ask's width holds stand
  * side by side under the evidence, and they stack where only one fits.
  * The content decides, so there is no attribute for it: an Ask of words alone keeps its
  * cards reading down, since there the cards are most of what the reader weighs.

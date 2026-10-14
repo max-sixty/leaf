@@ -2,10 +2,11 @@
    shares, the panel's Recent order, and the page part each thread stands in. */
 import { addressableLabel, addressableWord } from "../addressable-names.js";
 import { sectionOf } from "../anchor-resolution.js";
-import { inChrome, pageParts } from "../passages.js";
+import { inChrome, pageParts, pageReadingVersion } from "../passages.js";
+import { documentChanged } from "../semantic-state.js";
 import { serverNow } from "../presence.js";
 import { readingRegionFor } from "../reading-regions.js";
-import { hostIn, upFrom } from "../shadow.js";
+import { byRenderedOrder, renderedOrder, renderedUnder, upFrom } from "../shadow.js";
 import { threadSummary } from "./model.js";
 // ---------- where the panel puts a thread ----------
 // The list reads in the page's order, not the log's. A page is a document with a
@@ -34,49 +35,43 @@ import { threadSummary } from "./model.js";
 // What is left resolves nowhere at all: a general comment, which names nowhere, and an
 // anchor whose element this version no longer holds either. Both go under the list rather
 // than at some point in the middle of it.
-// Where a thread stands, said in the document's own tree. A passage a widget renders into
-// a declared shadow root is placed inside that root, and `compareDocumentPosition` answers
-// across trees with "disconnected, in an implementation-specific order" — an order no
-// user has ever seen, and one `contains` cannot correct. The host is the element the
-// page holds, and where the page holds it is where those words are. A place in no tree at
-// all — an element a version activation has replaced — is no place, which is the same
-// answer an anchor that resolves nowhere gets.
-const inPage = (el) => hostIn(el, document);
-
-const threadPlace = (t, placedAt) =>
-  inPage(placedAt(t.id)?.place ?? (t.anchor ? sectionOf(t.anchor) : null));
-
-// Which of two elements the user reaches first. `compareDocumentPosition` answers for
-// a containing element too — a section reaches the user before the paragraph inside it
-// — which is what makes it the whole reading rather than a comparison of two indexes
-// into a list this file would have to keep.
-const pageOrder = (a, b) =>
-  a === b
-    ? 0
-    : a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING
-      ? -1
-      : 1;
+// Where a thread stands, for every reading of the page's order of threads: the list's
+// sort and both walks' steps (`threadPlace` in destination.js). A passage a widget renders into a declared shadow root is
+// placed inside that root, and the page's order is read across those trees
+// (`renderedOrder`, shadow-tree.js), so threads inside one widget keep their order among
+// themselves. A place in no tree at all — an element a version activation has replaced —
+// is no place, which is the same answer an anchor that resolves nowhere gets.
+export const threadPlace = (t, placedAt) => {
+  const place = placedAt(t.id)?.place ?? (t.anchor ? sectionOf(t.anchor) : null);
+  return place?.isConnected ? place : null;
+};
 
 // The log's order is the tiebreak, so two threads on one paragraph read in the order they
 // were opened, and a page that gave nothing an id keeps exactly the list it had.
-export function inPageOrder(threads, placedAt) {
-  const seat = new Map(threads.map((t, i) => [t, i]));
-  const place = new Map(threads.map((t) => [t, threadPlace(t, placedAt)]));
-  return [...threads].sort((a, b) => {
-    const pa = place.get(a);
-    const pb = place.get(b);
-    if (!pa || !pb) return (pa ? 0 : 1) - (pb ? 0 : 1) || seat.get(a) - seat.get(b);
-    return pageOrder(pa, pb) || seat.get(a) - seat.get(b);
-  });
-}
+export const inPageOrder = (threads, placedAt) =>
+  byRenderedOrder(threads, (t) => threadPlace(t, placedAt));
 
-// The page's own outline, in document order. Read off the headings the author wrote
+// The page's own outline, in the order it renders, widgets' shadow trees included. Read off the headings the author wrote
 // rather than off <section> nesting, because both shapes are in the corpus and a heading
 // is the thing a user navigates by in either — a page written as one flow of h2s has an
 // outline just as much as one written as nested sections. The runtime's own chrome
 // contributes none (pageParts), which also keeps a heading inside a reply's Markdown out
 // of the page's outline.
-export const pageOutline = () => pageParts("h1, h2, h3, h4, h5, h6");
+//
+// It is a reading of the page's own nodes, so it stands until the page reading moves
+// (passages.js, `pageReadingVersion`) or a caller says the document changed
+// (`presentDocument`): a thread pass over an unchanged page reads the outline it read.
+let outlined = null;
+export function pageOutline() {
+  const key = [pageReadingVersion(), documentChanged()];
+  if (outlined?.key.every((part, index) => part === key[index]))
+    return outlined.outline;
+  const outline = Object.freeze(
+    byRenderedOrder(pageParts("h1, h2, h3, h4, h5, h6"), (heading) => heading),
+  );
+  outlined = { key, outline };
+  return outline;
+}
 
 const subjectLabel = (target) => addressableLabel(target) || addressableWord(target);
 
@@ -118,9 +113,8 @@ function regionLabel(node) {
 function headingFor(place, outline) {
   let above = null;
   for (const heading of outline) {
-    if (heading === place || place.contains(heading)) return heading;
-    if (heading.compareDocumentPosition(place) & Node.DOCUMENT_POSITION_FOLLOWING)
-      above = heading;
+    if (renderedUnder(heading, place)) return heading;
+    if (renderedOrder(heading, place) < 0) above = heading;
     else break;
   }
   return above;
@@ -130,13 +124,28 @@ function headingFor(place, outline) {
 // not why it is unplaced: it may be removed or ambiguous. Search also reads the page
 // part it stands in. A general comment never claims a location; a thread in the
 // runtime's own chrome stands in no authored part.
+// Which heading a thread stands under is kept while its place and the outline stand;
+// the heading's name is read each time, since an attribute can rename it without moving
+// the page reading.
+const headings = new WeakMap();
 export function threadSection(t, outline, placedAt) {
   const place = threadPlace(t, placedAt);
   // The authored owner may still order an unresolved passage; only the canonical
   // resolver establishes that passage's location.
   const unplaced = Boolean((t.detached_from || t.anchor) && !placedAt(t.id));
-  const heading = place && !inChrome(place) ? headingFor(place, outline) : null;
-  return Object.freeze({ unplaced, section: heading ? subjectLabel(heading) : "" });
+  let kept = headings.get(t);
+  if (!kept || kept.place !== place || kept.outline !== outline) {
+    kept = {
+      place,
+      outline,
+      heading: place && !inChrome(place) ? headingFor(place, outline) : null,
+    };
+    headings.set(t, kept);
+  }
+  return Object.freeze({
+    unplaced,
+    section: kept.heading ? subjectLabel(kept.heading) : "",
+  });
 }
 
 // ---------- the panel's Recent order ----------

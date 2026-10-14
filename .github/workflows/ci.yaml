@@ -104,12 +104,20 @@ jobs:
       - name: Check bundles, browser, runtime, Worker and eval assertions
         run: pnpm run check
 
-      # Hooks only check source, so they can overlap Python and the private website
-      # build.
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # Hooks rewrite what they flag, so they run in a worktree of their own: a rewrite
+      # must not reach the Python tests and website build reading this checkout.
       - name: 🔍 Pre-commit hooks
         id: lint
         background: true
-        uses: pre-commit/action@v3.0.1
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/lint"
+          cd "$RUNNER_TEMP/lint"
+          uv run --project "$GITHUB_WORKSPACE" pre-commit run --all-files --show-diff-on-failure --color=always
 
       # The synchronous gates fail before Python spends its runner time.
       # The runner's four vCPUs sat ~41% idle under two workers; four left 7% idle
@@ -181,7 +189,7 @@ jobs:
           pnpm --dir .. exec wrangler --cwd worker deploy --dry-run --outdir ../.tmp/worker-deploy
         working-directory: worker
 
-      - name: Measure the bundled release in Chrome
+      - name: Measure the bundled release in a browser
         if: github.event_name == 'pull_request'
         run: uv run leaf-dev verify-site website-worker
 

@@ -38,7 +38,13 @@
    (#2387), which every later change to when a card leaves had to repeat and which
    committing had to rebuild from the drawn rows. */
 import { html, repeat, ref } from "../../vendor/browser-runtime.js";
-import { holdFocus, onStanding, focusDestination, focused } from "../focus.js";
+import {
+  holdFocus,
+  onStanding,
+  focusDestination,
+  focused,
+  standingIn,
+} from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { threadHoldsDraft } from "./replies.js";
@@ -75,6 +81,7 @@ const turnOnItsWay = (thread) =>
 const rowStop = (row) =>
   row.kind === "thread" ? threadFocusStop(row.node) : row.node.querySelector("button");
 
+/** @typedef {ThreadListView} ThreadListViewElement For its tag (`runtime-globals.d.ts`). */
 class ThreadListView extends RetainedFace {
   #commands = null;
   #views = new Map();
@@ -331,7 +338,7 @@ class ThreadListView extends RetainedFace {
   // Forward gestures paint their complete generated result in their sending turn.
   async present(model) {
     const generation = ++this.#generation;
-    if (!this.#rollbackFocus && this.contains(focused())) {
+    if (!this.#rollbackFocus && standingIn(this)) {
       const node = focused();
       this.#rollbackFocus = {
         node,
@@ -348,9 +355,9 @@ class ThreadListView extends RetainedFace {
     const wanted = new Set(
       model.rows.filter((row) => row.kind === "thread").map((row) => row.key),
     );
-    // Unknown counts describe unavailable placeholders, not removed identities.
-    // Candidate fallback is only paint; the complete committed reading retires
-    // departed choices and adopts the choice its narrowing left visible.
+    // An unavailable reading has no complete identity inventory from which to
+    // retire a choice or a dismissal. Its visible fallback also cannot replace
+    // the choice: a local thread may stand while saved history is unavailable.
     if (model.count !== null) {
       const present = new Set(this.#rows.map((row) => row.key));
       this.#selection = this.#selection.filter((key) => present.has(key));
@@ -359,9 +366,9 @@ class ThreadListView extends RetainedFace {
           .filter((row) => row.kind === "withdrawn" && this.#dismissed.has(row.key))
           .map((row) => row.key),
       );
-      const chosen = this.#expandedRow();
-      if (chosen) this.#select(chosen.key);
     }
+    const chosen = this.#expandedRow();
+    if (chosen && model.count !== null) this.#select(chosen.key);
     for (const [key, view] of this.#views) {
       if (wanted.has(key)) view.commit();
       else {
@@ -402,7 +409,8 @@ class ThreadListView extends RetainedFace {
       if (row.kind !== "thread") {
         if (row.kind === "withdrawn") {
           const previous = this.#rows.find((drawn) => drawn.key === row.key);
-          if (previous?.node?.contains(focused())) this.#withdrawnFocus = row.key;
+          if (previous?.node && standingIn(previous.node))
+            this.#withdrawnFocus = row.key;
           rows.push({ ...row, node: null });
         } else rows.push(row);
         continue;
@@ -436,7 +444,10 @@ class ThreadListView extends RetainedFace {
         });
       }
       if (viewChanged) view.releaseNews();
-      view.present(row.descriptor, { retaining: this.#retaining, viewChanged });
+      // A card whose reading and outside inputs are what it last drew keeps its drawing;
+      // only the cards a pass changed draw again.
+      if (viewChanged || this.#retaining || !view.shows(row.descriptor))
+        view.present(row.descriptor, { retaining: this.#retaining, viewChanged });
       rows.push({ kind: "thread", key: row.key, node: view.node });
     }
     for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();

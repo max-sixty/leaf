@@ -61,13 +61,7 @@
   </head>
   <body class="site-page">
     <main class="layout-column">
-      <nav class="sitenav" aria-label="Site">
-        <a class="brand" href="/">leaf</a>
-        <a href="/examples/">Examples</a>
-        <a href="/how-it-works/">How it works</a>
-        <a href="/extending/" aria-current="page">Extending</a>
-        <a href="https://github.com/max-sixty/leaf">GitHub</a>
-      </nav>
+      <nav class="sitenav" aria-label="Site"></nav>
 
       <header id="top">
         <p class="eyebrow">extending</p>
@@ -243,10 +237,12 @@ packages/callout/
       <section id="theme">
         <h2>Style the element</h2>
         <p>
-          A package's <code>theme.css</code> joins Leaf's existing cascade. This package
-          only styles the element it introduces:
+          A package's <code>theme.css</code> joins Leaf's existing cascade. Leaf scopes
+          a package's rules to the elements it declares, so <code>:scope</code> names
+          the <code>lf-callout</code> element itself and any other selector names
+          something inside it:
         </p>
-        <pre id="callout-theme"><code class="language-css">lf-callout {
+        <pre id="callout-theme"><code class="language-css">:scope {
   display: block;
   padding: var(--sp-3);
   border: 1px solid var(--rule);

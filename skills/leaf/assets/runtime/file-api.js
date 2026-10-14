@@ -6,10 +6,12 @@
    file move on the page's own news rather than by reading it on a timer. */
 import { offlineInteractive, pageUrl } from "./context.js";
 import { LayerRefused, requestJson } from "./layer-client.js";
-import { applicationState, readApplication } from "./semantic-state.js";
+import { applicationState, readPart } from "./semantic-state.js";
+
+const live = readPart((root) => root.document.live);
 
 export function boundFile(binding) {
-  const writable = () => !offlineInteractive && readApplication().document.live;
+  const writable = () => !offlineInteractive && live();
   async function request(options = {}) {
     if (!writable()) throw new Error("File editing is available in live pages.");
     try {
@@ -20,7 +22,7 @@ export function boundFile(binding) {
       );
     } catch (error) {
       if (error instanceof LayerRefused)
-        throw new Error("Leaf changed while accessing the file. Your draft is kept.");
+        throw new Error("Leaf changed while accessing the file. The draft is kept.");
       throw error;
     }
   }

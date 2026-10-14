@@ -15,7 +15,7 @@ probe results leave the tracked tree unchanged.
 ## Where tooling goes
 
 When agents keep writing the same throwaway script, the job becomes a `leaf-dev`
-command: a module here that owns its mechanism, registered in `cli.py`. Standing
+command: a module here that owns its mechanism, registered in `cli.py`. Recurring
 tooling that CI, a hook or an alias runs is a command here too, so the repository
 has no directory of loose scripts. A mechanism two tools need, such as building an
 arm or serving a page, lives in one module here and the others import it. Code
@@ -25,12 +25,18 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `arms.py`: arms (the plugin payload at a ref, or as the working tree has it) and
   an A/B's pair of them, whose base defaults to the merge base with `main`
   (`base_ref`); pages served from an authored source on an arm; the machine's load
-  average a timed command prints; the isolated `claude -p` children evals run; and
-  the throwaway Claude Code, Codex and Pi homes a child of each runs under.
+  average a timed command prints; the isolated `claude -p` children evals run, and
+  the live session (`LiveSession`) every live eval driver plays its user against;
+  and the throwaway Claude Code, Codex and Pi homes a child of each runs under.
+  `eval_user.py` is that user in a browser: a comment from a selection, and a
+  decision a user agent makes through the page's own controls.
 - `page_fixtures.py` builds a page directory from an authored source;
-  `example_data.py` reads the catalog, names, and each page's companions.
-- `browser.py` launches Chrome, and opens and settles a tab, the same way for every
-  command that reads one.
+  `example_data.py` reads the catalog, names, and each page's companions; `docs.py`
+  composes into a product document under `docs/` the parts other sources own, so
+  every builder of one, the site and a preview alike, shows them.
+- `browser.py` launches Playwright's pinned headless shell, the build the suite
+  drives, and opens and settles a tab, the same way for every command that reads
+  one.
 - `leaf-dev probe SOURCE` opens a page built from this working tree, runs input
   steps, and prints what a JavaScript expression returns, the console errors, and
   optionally a screenshot; `--base` does the same on the merge base. Its startup
@@ -45,6 +51,11 @@ reaches a module by importing it from this package, never through `sys.path`,
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair in its own run directory under `.tmp/stills/`.
   Repeat `--state NAME` to compare only the states a change touches.
+- `leaf-dev pins [--base]` seats comment pins on a small, unselected catalogue of
+  ordinary and pathological targets (`pins.py`'s `CASES`) at a desktop and a phone
+  width, and writes a Leaf page of crops beside the faults read in each; with `--base`
+  each crop is a before/after pair. `test_render_margin.py` holds every case to the
+  same reading, so a placement that looks wrong anywhere becomes a case.
 - `leaf-dev thread-snapshots` owns reviewed message-delivery images in leaf-assets;
   `thread_snapshots.py` owns capture and acceptance. Acceptance alone advances
   `leaf-assets.json`'s `thread_snapshots_revision`; media publication advances
@@ -63,10 +74,11 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev bugback NODEID...` runs the tests on HEAD and with the branch's non-test
   change reverted, in a scratch worktree, and reports which went red.
 - `leaf-dev bench-latency [BASE_REF]` times an open page's answer to a gesture, an
-  agent write, and a revision in Chrome, with the traffic each causes, for a base
-  runtime and HEAD's.
+  agent write, and a revision in Chrome, with the traffic each causes and who held
+  the main thread, for a base runtime and HEAD's; `--tree` with one `--page` and
+  `--transition` times the working tree alone in under a minute.
 - `leaf-dev profile SOURCE TRANSITION` says where one of those transitions spends its
-  time in this working tree: main-thread tasks up to the painted frame, forced style
+  time in this working tree: main-thread tasks up to its last painted goal, forced style
   recalculations and the writes that invalidated them, and JS by function. Traces and
   CPU profiles stay in its own run directory under `.tmp/profile/`.
 - `leaf-dev bench-check [BASE_REF]` times `leaf page check --render` on a few
@@ -76,8 +88,12 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev eval [CASE]... --harness claude-code|codex|both` runs the eval catalog
   through Promptfoo on the working tree, and with `--base` the merge base too.
   `evals/README.md` owns the format and how to read the results.
+- `authoring_eval.py` runs short cases that need a writable page and native tools,
+  using the shared isolated child and page checks; their assertions read the saved
+  HTML. `metadata.authoring` selects this mode in the catalog.
 - `leaf-dev eval-pairs RUN...` judges an authored task's samples across a run's two
-  columns side by side, in both orders.
+  columns side by side, in both orders, and `leaf-dev eval-report PAGE RUN...` writes
+  those samples, their spend and the verdicts to a Leaf page.
 - `leaf-dev eval-ui-review` runs the retained internal viewer-review diagnostics;
   `evals/ui-review-detection/README.md` owns their scope, controls and automatic grading.
 
@@ -86,16 +102,17 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev preview [EXAMPLE]` serves one example or developer fixture as a live
   page, or exports it with `--export`. `/developing-leaf` says when to pass `--user`.
 - `leaf-dev corpus` generates `examples/corpus.html` and its companions.
-- `leaf-dev keydocs` writes the `x-` key index in `docs/registry.html`.
-- `leaf-dev catalog` refreshes `docs/examples.html` descriptions from example metadata;
-  the site build derives them again before publication.
 
 ## Website and demo
 
 `leaf-dev distribution --output NEW-DIRECTORY` builds the installation tree the
-website's container runs, with the browser runtime compiled into one kernel. Source
-checkouts and consumer installs run the source modules directly; neither they nor
-custom packages require a browser compiler.
+website's container runs, with the browser runtime compiled into one kernel.
+`distribution.cached_installation` shares the same preparation between suite workers
+and developer previews, keyed by payload and compiler inputs. Authored-page edits reuse
+it; relevant runtime revisions build a new immutable payload. Source consumer installs
+and custom-package authoring retain their build-free workflow. Developer arms use the
+kernel by default; `arms.build_source(..., compiled=False)` provides a source baseline
+for startup comparisons.
 
 CI, the root pnpm scripts and `.config/wt.toml` run these. The images they
 write live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin
@@ -114,7 +131,7 @@ in `leaf-assets.json` and the README's image URLs that name it.
   and retained logs under `.tmp/verify-site/run-*/`. `worker/README.md` owns hosted-agent
   diagnostics and the failure contract.
 - `worker/deploy-dev.sh` (`pnpm run deploy:dev`) deploys the checkout
-  to the standing `leaf-website-dev` environment and verifies it. Production deploys
+  to the persistent `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.
 - `leaf-dev fetch-assets` fetches the `max-sixty/leaf-assets` revision pinned in
   `leaf-assets.json` (`leaf_assets.py`, which the site build also calls).

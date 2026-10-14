@@ -28,6 +28,7 @@
  * owner has revealed the view, so the next command reads the returned place from the browser.
  * These are return checkpoints, never a reading of the user's current position; a
  * newer gesture cancels a delayed return, and a node removed since is not restored.
+ * Checkpoints hold nodes weakly: history owns the return, not the old markup.
  *
  * A fragment navigation, a followed `#id` link, is not a traversal: it adds its entry
  * and is a trip to the element it names. Travel claims it (`followFragment`) where the
@@ -50,34 +51,48 @@ import { pageScroller } from "./scrolling.js";
 const claims = new Set();
 const places = new Map();
 
-// Read once when leaving an entry. Plain endpoints keep a removed passage from being
-// silently retargeted by a live Range. pageRange shares the declared-shadow reading
-// used for commenting; the selection's direction also keeps its working end.
-function readPlace() {
-  const focus = deepFocus();
+// The user's working place, read once before something borrows it: leaving an entry, or
+// opening More (banner-toolbar.js), whose place-keeping commands hand it back. `focus` is
+// the node they stood on, when the reading comes after focus has left it. Plain endpoints
+// keep a removed passage from being silently retargeted by a live Range. pageRange
+// shares the declared-shadow reading used for commenting; the selection's direction also
+// keeps its working end.
+export function readPlace(focus = deepFocus()) {
+  const place = placeOf(focus);
   const selection = getSelection();
   const range = selection.rangeCount ? pageRange(selection) : null;
   const ends = range && [
-    [range.startContainer, range.startOffset],
-    [range.endContainer, range.endOffset],
+    [new WeakRef(range.startContainer), range.startOffset],
+    [new WeakRef(range.endContainer), range.endOffset],
   ];
   if (ends && selectionBackward(selection, range)) ends.reverse();
   return {
-    focus,
-    place: placeOf(focus),
+    focus: focus && new WeakRef(focus),
+    place: place && new WeakRef(place),
     caret: readCaret(focus),
     ends,
     offset: [scrollX, scrollY],
   };
 }
 
-function returnPlace({ focus, place, caret, ends }) {
-  if (focus !== document.body && drawn(focus))
+// Put the user back in a place `readPlace` read. A live revision may have removed or
+// shortened what it named since, so a node no longer drawn is not returned to, and a
+// selection end past its node's current length is not restored.
+export function returnPlace(checkpoint) {
+  const focus = checkpoint.focus?.deref();
+  const place = checkpoint.place?.deref();
+  const { caret } = checkpoint;
+  const ends = checkpoint.ends?.map(([ref, offset]) => [ref.deref(), offset]);
+  if (focus !== document.body && drawn(focus)) {
     focusDestination(focus, "return", { caret });
+    // A field's caret is its whole selection, and clearing the document's would
+    // collapse it.
+    if (caret) return;
+  }
   // A thread card may have closed on departure. Its page target is the same working
   // place from the other side, and remains a browser focus destination on return.
   else if (drawn(place)) focusDestination(place, "return");
-  else deepFocus()?.blur();
+  else /** @type {HTMLElement | null} */ (deepFocus())?.blur();
   const selection = getSelection();
   selection.removeAllRanges();
   // Editing the passage can remove its saved endpoint. That checkpoint then has no
@@ -85,6 +100,7 @@ function returnPlace({ focus, place, caret, ends }) {
   if (
     ends?.every(
       ([node, offset]) =>
+        node &&
         drawn(node.nodeType === 1 ? node : upFrom(node)) &&
         offset <= (node.nodeType === 3 ? node.length : node.childNodes.length),
     )
@@ -145,6 +161,7 @@ export function prepareEntry() {
 
 // `claim(url)` returns the handler that places the page at a traversal to `url`, or
 // nothing when the entry is not the claimant's. The first claim to answer takes it.
+/** @param {(url: string) => unknown} claim @param {{signal?: AbortSignal}} [options] */
 export function claimTraversals(claim, { signal } = {}) {
   claims.add(claim);
   signal?.addEventListener("abort", () => claims.delete(claim), { once: true });

@@ -2,6 +2,11 @@
 
 ## Biggest current challenges
 
+- **Improve our outputs against a standard HTML output.** Agents given plain
+  HTML wrote pages judges preferred on every configuration and some queues, at a
+  third to a half of Leaf's cost ([comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)).
+  Make Leaf's pages at least as good, and find which widgets and instructions
+  help an author rather than constrain one.
 - **Simplify the harness, host, and CLI workflow.** Make feedback delivery and
   agent wake-up reliable, including Codex's message back into the session and
   Claude Code's potentially overcomplicated state machine.
@@ -16,7 +21,8 @@
   interaction mechanisms so each new case does not require another fix.
 - **Reduce the burden of tests.** Tests now take long enough to meaningfully
   slow development. Reduce their runtime and the work needed to run them while
-  preserving useful coverage.
+  preserving useful coverage. `notes/shift-watch-cost.md` records what the
+  Stability sensor costs and when a cheaper gate would be worth revisiting.
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
@@ -51,10 +57,10 @@ has tried; settle that before building it.
   `PiHarness` has no `title_generator`, so a Pi page's thread is named only by the
   agent's reply. Give the page server a request on Pi's configured model, such as
   a print-mode run with tools, extensions and hooks off, and measure it.
-- **Keep a long Thread's standing visible.** Summary checkpoints already condense
+- **Keep a long Thread's current status visible.** Summary checkpoints already condense
   older messages. Test a current one-line reading of what is decided and what remains
   open, distinct from a historical summary, and decide how a revision invalidates it.
-  See the [Thread plan](notes/threads.md#current-standing).
+  See the [Thread plan](notes/threads.md#current-status).
 - **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
   search in Threads and use Page Map on narrow pages; show only one margin treatment
@@ -64,15 +70,22 @@ has tried; settle that before building it.
   [the comparison finding](notes/comparisons.md#phone-annotation-placement-2026-10-05).
 - **Make the next move and its result apparent.** Play through `review-a-plan`,
   `triage-board`, `pr-walkthrough`, and `ship-review`; fix dead ends and moves whose
-  result is hidden. Decide whether a page needs one progress reading across Questions,
+  result is hidden. Decide whether a page needs one progress reading across On me,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
+- **#28 — Finish the floating panel.** The opt-in floating panel
+  (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
+  user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Work
+  through its remaining list (status in the field, opened sizes, the menu's rows, the
+  On me count, motion) before making it the default or removing the banner,
+  bottom bar, and preference. The phone waits until the desktop design is firm, and
+  where a passage thread opens from Threads waits until later.
 
 ### Agent and author experience
 
 - **Decide whether `page check` should still refuse an `lf-ask` without a leading
-  heading.** The heading is the Question's title in the Questions panel, the banner
-  and the `q` announcement, which all show an empty title without one, and the
+  heading.** The heading is the ask's title in the On panel, the banner
+  and the `m` announcement, which all show an empty title without one, and the
   `lf-ask` instructions already ask for it. Wait until the other narrow checks
   removed in October 2026 have been gone a while; if pages written since still
   carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
@@ -82,11 +95,6 @@ has tried; settle that before building it.
   currently remain unrestricted; decide whether such a reminder helps before
   adding one.
 
-- **#3 — Prevent an obsolete execution from closing continued work.** A later
-  `task start` records a new execution, but admission still accepts an older
-  session's `todo_end`. Test competing continuations and keep the delayed result
-  from closing the newer work ([comparison proposal](notes/comparisons.md#concrete-follow-up-proposals-2026-10-04-revised-2026-10-05)).
-
 - **#20 — Act on the plain HTML comparison.** The
   [comparison](notes/agent-usability-evals.md#authoring-against-plain-html-2026-10-12)
   found Leaf authors write much less CSS and script but spend 2–3 times the cost,
@@ -94,8 +102,12 @@ has tried; settle that before building it.
   plain HTML's configurations, which put each alert's controls beside its evidence,
   and Leaf's documents, which put decisions on the page.
   [Teach the compositions that prove useful](notes/workspace-followups.md#item-20),
-  starting with per-item controls for configuration and progress through a queue,
-  and say where an owed input's `<answer.ref>` comes from.
+  starting with progress through a queue; per-item controls for configuration
+  landed in #2711.
+- **Give a recommendation's reason beside the options, not in its card.** The
+  default registry's `lf-options` example writes the reason into the recommended
+  card (`<em>My take: …</em>`). The user accepted moving it into prose beside the
+  options on 2026-10-12. Score the change with `evals/` before and after.
 - **Keep agent activity intelligible throughout a task.** Run the
   [status evaluations](notes/user-feedback-responsiveness.md) for delivery,
   multi-step work, and delegation. Show the plan as well as the current step;
@@ -168,8 +180,8 @@ has tried; settle that before building it.
   before refining it (`skills/leaf/assets/AGENTS.md`, "Space and scrolling"). The
   redesign also settles how focus stays off page content a panel covers (Max,
   2026-10-10). His rule (2026-10-06): the panels dominate focus, so moving focus never
-  closes or changes a standing panel, and focus never lands on content a panel covers.
-  Tab walked onto page content under Threads, or under the Questions panel that shares
+  closes or changes an open panel, and focus never lands on content a panel covers.
+  Tab walked onto page content under Threads, or under the On panel that shares
   its right edge, at 1440×900 on an example since retired; no surviving page has been
   checked for it. Making covered content inert
   was built and withdrawn: the visible part of a partly covered element went dead to
@@ -195,7 +207,7 @@ and its chrome coordinate.
   it only in the count; give that arrival a visible route while preserving the
   current reading.
 - **Fit `rust-sort`'s stage pane.** At 720px it runs 100px past its region, which
-  `page-authoring.md` asks an author to trim or split
+  `page-layout.md` asks an author to trim or split
   ([why a workspace doesn't scroll](notes/chrome-and-covers.md#decided-a-workspace-is-a-screen)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
@@ -265,6 +277,22 @@ and its chrome coordinate.
   while a sample still scrolled inside a fixed-height frame, with no reproduction.
   The frame now takes its page's height, so nothing scrolls inside it; check that the
   report no longer reproduces once the scrolling changes land.
+- **Keep a playground's rail in view beside a tall preview.** With controls beside
+  each item in the preview (#2711), the user works down a long stage while the
+  page-wide controls, the instruction and the submit button scroll away above it.
+  Bound the rail to the window's height, as the sidebar's sticky panel is (#2636).
+- **Decide whether a sidebar built from several blocks sticks.** A sidebar panel
+  sticks only when it is a single block, so existing multi-panel pages keep
+  flowing; dropping that condition makes every sidebar page's panel stick.
+- **Decide whether a too-narrow table fails a page at the fixed widths.** It is
+  advice at every width, the two fixed viewports included, where it once refused
+  the page.
+- **Report a control clipped anywhere in the width sweep.** The clipped-control
+  check runs only at the two fixed viewports, so a control cut off only between
+  360 and 440px goes unreported.
+- **Clear a quoted playground's empty item boxes.** A playground quoted in a static
+  sample hides its controls, those written beside items in its preview included,
+  but leaves the author's settings boxes standing empty.
 
 ### Layout stability
 
@@ -291,11 +319,11 @@ that changes size after first paint, with its cause.
 
 ### Queues
 
-A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, "A
+A queue is one `lf-tabs list="side"` beside its open item (`page-layout.md`, "A
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Start `q` from the open item's ask.** From a row, `q` goes to the queue's first
+- **Start `m` from the open item's ask.** From a row, `m` goes to the queue's first
   open ask, and `1` then picks for an item the user isn't looking at. The walk
   measures from focus (`queue-walk.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
@@ -306,12 +334,35 @@ height and where a switch lands wait on the workspace decision under Layout.
   label sticky at the row's start, stepping clear of the start press while stuck
   (`scroll-state(stuck)`, Chrome 133+), keeps it named, but `#showTab` then has to
   bring a tab in clear of a label whose width changes once it sticks.
+- **Close the tally's small gaps.** On a phone the workspace header, tally
+  included, scrolls away after Next; Undo's announcement doesn't name what it
+  undid; the `m` help text is ambiguous; and a row's ○ mark has no legend.
+
+### Before/after comparison
+
+- **#29 — Make `lf-shot`'s views one coherent comparison.** A pair now offers
+  Plain, Outlines and Pixels, and Pixels paints one picture: red where only the
+  before image drew, blue where only the after image did, amber where both did. A
+  shot with `pixels` alone opens in Pixels, one with `outlines` in Outlines, and
+  any other in Plain. Settle the details as one design: which view a pair opens
+  in, and whether every pair should offer every view rather than the author
+  choosing them per shot; a key for the three colours; the rail's reading
+  ("identical", "only slight changes", "2 areas changed"), which stands among the
+  view buttons in another voice and reads as a view or a warning, as "identical"
+  does over a pair of pin captures whose pins never moved; and the faint amber
+  halo a moved mark's redrawn shadow leaves in Pixels.
 
 ### Recorded interaction review
 
 Keep the optional Leaf timeline alongside Playwright's viewer, as Max chose
 on 2026-10-07.
 
+- **Start videos without a flash or oversized play animation.** Provide shared,
+  quiet video controls with compact play/pause and a timeline, keeping the image
+  stable during startup. Firefox's native controls expand the initial play button
+  to three times its size while fading it out over 400 ms; rewinding and replaying
+  skips that effect. Verify first play and replay, including keyboard and touch
+  access ([Firefox implementation](https://github.com/mozilla-firefox/firefox/blob/main/toolkit/content/widgets/videocontrols.js)).
 - **Explore DOM selection in the imported timeline.** The optional `playwright`
   package imports native actions, checkpoint images, captured frames and saved
   accessibility elements; following their comments restores the moment. Reuse
@@ -322,6 +373,9 @@ on 2026-10-07.
 
 ### The agent's text interface
 
+- **Answer a comment that arrived before the page changed hands.** Its new owner
+  has no delivery to answer it from. A command that hands out a fresh recovery
+  delivery for it would give one.
 - **Keep a blocked stop from hiding the agent's answer.** When Leaf's Stop hook blocks
   a stop, the agent writes one more message, and where the harness shows only the last
   message (Claude Code's focus mode) that message replaces the answer: a user who typed
@@ -385,6 +439,20 @@ on 2026-10-07.
   broad selection is about 3,700 s of test time on a CI runner. If the rate rose,
   look at which escapes a cheap fixed set of tests would have caught, and choose
   that set by measured catches per second rather than by kind.
+- **Require `test` on `main` again.** Since 2026-10-13 Leaf merges any change that
+  introduces no new failure, so `test` is not a required check: a pull request
+  inherits whatever main fails among the tests it runs, and only an admin could merge
+  past that (`tests/AGENTS.md`, "Selecting checks"). Once main stays green
+  between merges, make `test` required again in `main`'s branch protection and drop
+  that paragraph's exception.
+- **Resume the thread appearance gate.** Since 2026-10-12 the message-delivery
+  journey and acceptance tests in `tests/*/test_render_thread_snapshots.py` are
+  skipped to save test time while development moves fast; the references had already
+  drifted twice unnoticed, since only a manual macOS run compares them. Once
+  development slows, remove the skips, then capture, review and accept current images
+  (`leaf-dev thread-snapshots`), and have landing run the comparison so it cannot
+  drift again, such as `wt merge`'s macOS pre-merge when the thread runtime or theme
+  changes.
 - **Guard thread appearance on CI again.** The thread snapshot gate compares images
   on macOS only (`dev/leaf_dev/thread_snapshots.py`), so a pull request's Linux CI
   checks the delivery journey but not how it looks. Fonts and antialiasing differ by
@@ -410,8 +478,8 @@ on 2026-10-07.
   print the samples' rows and leave the chart to the agent writing the page. Keep it
   if it gets used for later readings; otherwise reduce it to the rows.
 - **Choose how installs get the compiled kernel before a proper release.** Installs
-  follow `main` and load about 260 source modules; only the website compiles them
-  into one kernel (`leaf_dev.distribution`). On `pr-walkthrough` (2026-10-11, 8
+  follow `main` and load about 260 source modules; the website, suite, and developer
+  previews prepare a kernel with `leaf_dev.distribution`. On `pr-walkthrough` (2026-10-11, 8
   paired runs on a loaded Mac), the kernel's 57 JS requests presented about 755 ms
   after document receipt, against about 940 ms for source modules; `modulepreload`
   hints for the 222 statically imported modules recovered only about 35 ms. A
@@ -423,21 +491,7 @@ on 2026-10-07.
   the host's requirements. Committing the kernel in each pull request conflicts too
   often: of 25 replayed pairs of consecutive runtime commits, the minified chunks
   conflicted in 20, and one unminified file per entry conflicted in 3 and merged one
-  more cleanly into bytes that differ from a rebuild. The suite and previews would
-  gain from the same kernel (next item).
-- **Run the suite and previews on the compiled kernel.** They boot about 245 source
-  modules and 4 MB, where the kernel `leaf_dev.distribution` compiles for the website
-  is 46 runtime files and 1.9 MB. On the triage board at a 4× CPU throttle the kernel
-  of the same commit opened 16% sooner (748 ms against 886) and 30% sooner
-  unthrottled, which would be roughly 6% of the suite's cost. The blocker is that the
-  suite reads private runtime modules from inside the page,
-  `window.__lfRuntimeImport('/runtime/…')` at 518 sites in about 30 files, including
-  the harness's own readings of state (`semantic-state.js`) and focus (`focus.js`); the
-  kernel bundles those modules into chunks, so with it compiled into a copy of the tree
-  121 of 479 tests in `test_render_widgets`, `test_render_drawing` and
-  `test_render_aim` failed on such imports. Move those readings onto what the page
-  exposes to every reader, then build the kernel once per suite run, which takes about
-  2 s, so local and CI runs test what ships.
+  more cleanly into bytes that differ from a rebuild.
 
 ## Etc
 
@@ -488,7 +542,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
   instructions don't yet say when that is. Trigger: an agent ends a to-do as done that
   the user wanted to see first.
-- **Let the user edit items in the Questions panel.** The user's only edit today is Done
+- **Let the user edit items in the On panel.** The user's only edit today is Done
   on a to-do the agent put on them, so dropping a to-do, renaming it or ending one of the
   agent's means asking in a thread. Editing the row directly in the panel would record the user's change as
   their own move. Trigger: a user writes a comment only to close or adjust an item.
@@ -500,7 +554,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   building a feed or presence on it.
 - **Show which pane has focus, and move between panes by key.** A terminal marks
   its active pane and one key moves to the next. In a workspace today the arrow keys
-  walk a side list, `q` reaches the next item on Questions, and a pane body that scrolls is a
+  walk a side list, `m` reaches the next item on On me, and a pane body that scrolls is a
   Tab stop, but nothing marks the active pane and no key moves from one pane to the
   next. The runtime already tracks it: `userReadingRegion` (`reading-regions.js`) is the
   pane holding focus, or else the last one pressed, wheeled or touched, and `j`/`k`/`d`/`u`
@@ -570,9 +624,6 @@ Revisit these when their stated trigger becomes real; they are not an active que
   A disposable full-history rewrite saved about 27 MiB. Coordinate the rewrite
   across remote refs and local worktrees, retaining the commit mapping and testing
   that updates preserve active work without restoring the removed history.
-- **Consider dragging thread cards and comment boxes.** Once both share placement,
-  try temporary, passage-relative movement from a handle. Keep it only if scrolling,
-  typing, and resizing stay predictable and the implementation stays simple.
 - **Calibrate agent-driven UI diagnosis.** Try one known miss and one intentional or
   invalid control with a bounded explorer and cold user. The
   [quality brief](notes/agent-driven-ui-quality.md) also proposes a Tend acceptance-policy
@@ -591,6 +642,40 @@ Revisit these when their stated trigger becomes real; they are not an active que
   container's Durable Object, and nothing recovers a dispatch whose container
   disappears or outlives the `waitUntil` window. Trigger: a hosted answer lost that
   way.
+- **Start each release's containers on its own image.** The Worker goes live on a
+  release before Cloudflare rolls its image out, so for up to ten minutes after a
+  deploy a session's new container can start on the previous image. The Worker
+  holds requests behind `503 Retry-After` (`rollingOut` in `worker/src/index.ts`),
+  and only event sends retry it, so a sample opened then fails until a reload.
+  Cloudflare's `durable_object` scheduling policy uploads the image map with the
+  Worker version and lets the session pick its image at start
+  ([docs](https://developers.cloudflare.com/containers/configuration/scheduling-policy/)),
+  which removes the window, `rollingOut`, the retry, and `verify-site`'s rollout
+  wait. Moving costs a new container application, a port off the `Container` class
+  (pings, sleep, outbound interception) and `standard-1` in place of `basic`.
+  Trigger: the policy leaves beta, or leaf.page gains visitors a deploy would
+  interrupt.
+- **Push page updates instead of polling.** Each visible tab asks `api/news` every
+  250 ms (`runtime/state-feed.js`). Pages streamed updates until #1589 replaced
+  per-document streams with polling, because the streams used up HTTP/1.1's six
+  connections per host. Measured on 2026-10-13, polling costs about 1% of one core
+  per visible tab locally. On leaf.page each look bills a Worker and a Durable
+  Object request, under $1.20 a month per user at list price and inside the
+  included quotas, and polling accounts for about 1% of container hours. A stopped
+  container stays asleep under polling, since its Durable Object answers `api/news`
+  from the page the container last saved; a stream held in the container would
+  wake it for a passive reader, so push needs an idle path of its own before its
+  cost compares with polling's. Push would show an agent's
+  change sooner: locally the file watcher notices an append in about 90 ms against
+  polling's 125 ms average, and on leaf.page, where a look takes about 370 ms, it
+  would save roughly 250 ms. A sketch of one stream per browser (a leader tab
+  holding it through a Web Lock, relaying over a BroadcastChannel, with samples
+  relayed through their parent) adds about 115 lines more than it deletes; a
+  WebSocket per document avoids the leader and the relay. Either way, first give
+  the server one subscribable change detector per page, whose watched files and
+  stat token derive from one declaration of page inputs (today `page_reading` and
+  `file_changes.page_targets` disagree on bound files and `viewed.json`). Trigger:
+  hosted replies visibly lag.
 - **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

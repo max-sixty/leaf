@@ -109,7 +109,7 @@ def planned_activation(page_dir: Path, checked: SourceCheck) -> Activation:
     revisions = list_revisions(page_dir)
     active = revisions[-1] if revisions else None
     if checked.errors:
-        return Activation(active, "; ".join(checked.errors), False)
+        return Activation(active, "; ".join(map(str, checked.errors)), False)
     return Activation(checked.revision.candidate, None, not checked.revision.unchanged)
 
 
@@ -141,9 +141,13 @@ def finish_publications(page: PageTransaction, publications: list[dict]) -> None
     for event in publications:
         revision = event["revision"]
         reading = staged_reading(page.page_dir, event["publication"])
-        previous = revision - 1
+        previous = max(
+            (value for value in list_revisions(page.page_dir) if value < revision),
+            default=0,
+        )
         predecessor = PredecessorReading(
             previous,
+            revision,
             False,
             False,
             previous,
@@ -191,9 +195,10 @@ def _publish_checked_source(page, checked, event=None):
             **admitted_event(view or PageView(page.page_dir), page.events, event),
             "seq": page.events[-1]["seq"] + 1 if page.events else 1,
         }
-        previous = (revision - 1) if activation.created else revision
+        previous = checked.revision.active if activation.created else revision
         predecessor = PredecessorReading(
             previous,
+            revision,
             False,
             False,
             previous,

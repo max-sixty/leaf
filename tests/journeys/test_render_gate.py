@@ -2,15 +2,14 @@
 
 import itertools
 import json
-import re
 
 import pytest
 from interact_support import (
     add_test_widget,
 )
 from leaf import render_checks as render_checks_model
+from leaf.findings import Finding
 from leaf.render_checks import wait_until_ready
-from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -52,6 +51,7 @@ from render_harness import (
     LONG_PAGE,
     at_rest,
     leaf_page,
+    names,
     open_page,
     panel_settled,
     plant_quiet_word,
@@ -137,29 +137,26 @@ def test_a_drawing_fitted_until_its_labels_are_unreadable_gets_advice_and_still_
     assert reading.failures == []
 
     def named(figure):
-        return [line for line in reading.advice if f"<figure id={figure}>" in line]
+        return [
+            advice
+            for advice in reading.advice
+            if advice.at == f"<svg> in <figure id={figure}>"
+        ]
 
     assert len(reading.advice) == 4, reading.advice
+    assert {advice.code for advice in reading.advice} == {"shrunk-labels"}
+    assert {advice.values["threshold"] for advice in reading.advice} == {10}
     (squeezed,), (large,) = named("squeezed"), named("large")
-    assert squeezed.startswith(
-        "at 360–1920px wide <svg> in <figure id=squeezed> draws labels below 10px, "
-        "3 at 360px, the smallest ("
-    ), squeezed
-    assert "from the 11px it was set at" in squeezed, squeezed
-    spans = re.match(
-        r"at 360–(\d+)px wide <svg> in <figure id=large> draws labels below 10px, "
-        r"2 at 360px, the smallest \(.*\) at [\d.]+px from the 28px it was set at",
-        large,
-    )
-    assert spans and 540 <= int(spans[1]) < 1200, large
+    assert squeezed.widths == (360, 1920), squeezed
+    assert (squeezed.values["labels"], squeezed.values["set"]) == (3, 11), squeezed
+    low, high = large.widths
+    assert low == 360 and 540 <= high < 1200, large
+    assert (large.values["labels"], large.values["set"]) == (2, 28), large
     compare = named("compare")
     assert len(compare) == 2, reading.advice
-    named_compare = "<svg> in <figure id=compare> draws labels below 10px, "
-    assert all(named_compare in advice for advice in compare), compare
-    assert {re.search(r"\(('\w+')\)", advice)[1] for advice in compare} == {
-        "'before'",
-        "'canary'",
-    }, compare
+    assert {advice.values["words"] for advice in compare} == {"before", "canary"}, (
+        compare
+    )
 
 
 def test_the_render_gate_reads_content_through_bounded_pane_regions(browser, serve):
@@ -192,12 +189,15 @@ def test_a_broken_probe_module_is_a_gate_finding(browser, serve):
         )
 
     failures = render_gate_model.render_version(
-        primed(browser, break_probe), serve(LONG_PAGE)
+        primed(browser.unwatched, break_probe), serve(LONG_PAGE)
     ).failures
 
     assert failures
-    assert all("browser probe module failed" in failure for failure in failures)
-    assert all("probe module failed for test" in failure for failure in failures)
+    assert {failure.code for failure in failures} == {"probe-failed"}, failures
+    assert all(
+        "probe module failed for test" in failure.values["error"]
+        for failure in failures
+    )
 
 
 def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser, serve):
@@ -220,7 +220,7 @@ def test_an_async_wait_probe_is_refused_instead_of_passing_as_a_promise(browser,
     ).failures
 
     assert failures
-    assert all("must be synchronous" in failure for failure in failures)
+    assert all("must be synchronous" in failure.values["error"] for failure in failures)
 
 
 def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
@@ -243,10 +243,10 @@ def test_a_probe_module_that_stops_loading_is_a_gate_finding(browser, serve):
     ).failures
 
     assert asked, "the probe route was never requested, so no module load stalled"
-    assert failures
-    assert all("did not load" in failure for failure in failures)
-    assert all("within 500ms" in failure for failure in failures)
-    assert all('File "' not in failure for failure in failures), failures
+    errors = [failure.values["error"] for failure in failures]
+    assert errors
+    assert all("did not load" in error and "within 500ms" in error for error in errors)
+    assert all('File "' not in error for error in errors), failures
 
 
 @pytest.mark.parametrize("fault", ["exception", "null"])
@@ -270,17 +270,18 @@ def test_a_failed_probe_import_keeps_its_original_throw_site(browser, serve, fau
         serve(LONG_PAGE),
     ).failures
     assert len(failures) == 2, failures
-    assert all('File "' not in failure for failure in failures), failures
+    errors = [failure.values["error"] for failure in failures]
+    assert all('File "' not in error for error in errors), failures
     if fault == "exception":
         assert all(
-            "TypeError: probe import rejected" in failure
-            and "loadBrowserProbes" in failure
-            and "checks/index.js:" in failure
-            for failure in failures
+            "TypeError: probe import rejected" in error
+            and "loadBrowserProbes" in error
+            and "checks/index.js:" in error
+            for error in errors
         ), failures
     else:
         assert all(
-            "null" in failure and "did not load" not in failure for failure in failures
+            "null" in error and "did not load" not in error for error in errors
         ), failures
 
 
@@ -323,7 +324,6 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                         "unit": "widget",
                         "record": None,
                         "creates": None,
-                        "report": False,
                         "detail": {
                             "type": "object",
                             "properties": {"outcome": {"enum": ["accept", "reject"]}},
@@ -340,20 +340,20 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
     wait_until_ready(declared)
     restore_cases = user_view_restore_cases(declared)
     suggestion_state = declared.locator("#sug-rewrite").get_attribute("data-lf-state")
-    option_transition = declared.locator("#wait-day").evaluate(
+    fold_transition = declared.locator("#sug-rewrite > lf-old").evaluate(
         "element => getComputedStyle(element).transitionProperty"
     )
     declared.close()
     assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
     assert suggestion_state == "accept"
-    assert option_transition == "box-shadow, transform"
+    assert fold_transition == "padding"
 
     arrived = [f for f in arrival_findings(primed(browser.unwatched, prepare), url)]
     assert [f.split("]")[0].lstrip("[") for f in arrived] == [
         a["name"] for a in restore_cases
     ]
     # And each was the restore case it names rather than that one plus everything the
-    # reloads before it left standing — a difference no finding could show on its own,
+    # reloads before it left open — a difference no finding could show on its own,
     # since all of them would still be reported, each under a name that had stopped
     # being true. Only the other restore cases' keys are held against an arrival: the
     # page writes its own reading position on the way out of every load, so a store
@@ -370,9 +370,9 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     """A page put back the way the user left it is simply there, and does not assemble
     itself in front of them.
 
-    Standing a drawer up is a gesture and gestures move: the drawer slides in over a fifth
+    Opening a drawer is a gesture and gestures move: the drawer slides in over a fifth
     of a second and the document steps aside to make the room. Coming back to a drawer
-    that was already standing is not a gesture — nothing was just decided, and a page
+    that was already open is not a gesture — nothing was just decided, and a page
     that replays the decisions on arrival would be showing the user a fifth of a
     second of furniture instead of what they came back to read. The auxiliary-surface
     owner passes arrival separately from a gesture, so even a drawer whose first paint
@@ -400,13 +400,17 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     So the poll is held on every load and let go once the surface is up, which is this
     suite's answer to a race wherever it finds one, and the reading it waits for is the
     page's own. The window that opens is also the one this test is about: it is where a
-    restore is put back, and standing in it is strictly more than catching it.
+    restore is put back, and waiting in it is strictly more than catching it.
 
-    What the user left standing is the restore case the runtime declares, all of them
+    What the user left open is the restore case the runtime declares, all of them
     in turn, so a fourth remembered surface is covered the day it starts remembering.
     """
     url = serve(CHANGE_SHAPES_PAGE)
     page = open_page(browser, url)
+    # A ResizeObserver notice is the render gate's to adjudicate over two attempts on
+    # one document; one heard on these loads is the platform under load and says
+    # nothing, so the harness hands them here rather than to the fixture.
+    page.lf_resize_notices = []
     resized(page, 1200, 900)
 
     cdp = page.context.new_cdp_session(page)
@@ -428,7 +432,7 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
         return found
 
     def arrive():
-        """One load, standing in the arrival rather than catching it as it goes past."""
+        """One load, waiting in the arrival rather than catching it as it goes past."""
         held = []
         polls = itertools.count()
         page.route(
@@ -456,8 +460,8 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     restore_cases = user_view_restore_cases(page)
     assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
 
-    # The control, and the whole reason the silences below say anything: standing the
-    # drawer up by hand is the gesture whose motion the arrivals must not have. What it
+    # The control, and the whole reason the silences below say anything: opening the
+    # drawer by hand is the gesture whose motion the arrivals must not have. What it
     # paints is the runtime's business and is not named here; that it paints at all is
     # this reading's, and a reading that reports nothing when something moved would
     # pass every assertion after it.
@@ -476,10 +480,7 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
             f"returning to {restore_case['name']} moved what a first visit does not: "
             + "; ".join(f"{k} at {moved_at(cdp, node)}" for k, node in extra.items())
         )
-    # A ResizeObserver notice is the render gate's to adjudicate over two attempts on
-    # one document; one seen here is the platform under load and says nothing.
-    errors = take_browser_errors(page)
-    assert [e for e in errors if not render_gate_scheme.resize_observer_error(e)] == []
+    assert take_browser_errors(page) == []
 
 
 def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
@@ -505,13 +506,16 @@ def test_a_recurring_resize_notice_fails_the_render_gate(browser, serve):
     recurring = [
         failure
         for failure in failures
-        if "recurred on the confirming render attempt" in failure
+        if failure.code == "resize-loop"
+        and failure.values.get("confirmation") == "recurred"
     ]
-    assert len(recurring) == 1, failures
-    assert recurring[0].startswith("[light]"), recurring
-    assert all("ResizeObserver loop" in failure for failure in recurring)
+    assert [failure.scheme for failure in recurring] == ["light"], failures
+    assert recurring[0].values["text"].startswith("ResizeObserver loop"), recurring
     warnings = [
-        failure for failure in failures if "warning: authored warning" in failure
+        failure
+        for failure in failures
+        if failure.code == "console-warning"
+        and failure.values["text"] == "authored warning"
     ]
     assert len(warnings) == 2, failures
 
@@ -530,7 +534,7 @@ def test_the_gate_passes_what_the_renderer_draws(browser, serve):
     family it can draw is no failure, whether or not the guide names it.
     """
     extra = (
-        """<lf-diagram id="authored-life" parts="node:_start2 node:_end2"><pre>
+        """<lf-diagram id="authored-life" parts="all"><pre>
 stateDiagram-v2
   [*] --&gt; _start2
   _start2 --&gt; _end2
@@ -604,8 +608,8 @@ def test_rest_watches_a_frame_created_by_contained_arrival(browser, serve):
     wait_until_ready(child)
     child.evaluate(
         """async () => {
-            const {deferredArrival} = await window.__lfRuntimeImport('/runtime/presentation.js');
-            deferredArrival(new Promise(resolve => setTimeout(() => {
+            const {afterPresentation} = await window.__lfWidgetApi();
+            afterPresentation(() => new Promise(resolve => setTimeout(() => {
                 const nested = document.createElement('iframe');
                 nested.srcdoc = `<body><script>
                     Object.defineProperty(window, 'lfRest', {
@@ -673,7 +677,7 @@ def test_page_fixture_renders(browser, serve, source):
     # while the scroll pass measures its writes.
     page = still_page(browser, url, width=RESIZE_PATH[0])
     findings = {
-        "render gate": gate,
+        "render gate": [str(finding) for finding in gate],
         "at rest": rest_findings(page),
         "framing": [
             str(finding)
@@ -682,13 +686,13 @@ def test_page_fixture_renders(browser, serve, source):
             if not finding["chrome"]
         ],
         "apparatus among authored": [
-            str(stray)
+            str(Finding.read(stray))
             for stray in render_checks_model.evaluate_probe(
                 page, "apparatusAmongAuthored"
             )
         ],
         "words in form controls": [
-            str(said)
+            str(Finding.read(said))
             for said in render_checks_model.evaluate_probe(page, "wordsInFormControls")
         ],
         "scrolled": scroll_findings(page),
@@ -997,19 +1001,25 @@ def test_the_render_gate_reports_a_table_squeezed_by_what_cannot_break(browser, 
     advice = reading.advice
 
     assert reading.failures == [], reading.failures
-    squeezed = [a for a in advice if "<table id=held> scrolls" in a]
+    assert {a.code for a in advice} == {"squeezed-table"}, advice
+
+    def wrapped(table):
+        return [
+            {c["heading"]: c["width"] for c in a.values["columns"] if c["wraps"]}
+            for a in advice
+            if a.at == f"<table id={table}>"
+        ]
+
+    squeezed = wrapped("held")
     assert squeezed, advice
-    for finding in squeezed:
-        widths = dict(re.findall(r'"([^"]+)" wraps at (\d+)px', finding))
-        assert {"Mechanism", "Held by"} <= widths.keys(), finding
-        assert int(widths["Held by"]) > 3 * int(widths["Mechanism"]), finding
-    owners = [a for a in advice if "<table id=sessions> scrolls" in a]
-    assert owners, advice
-    assert all('"Owners" wraps at' in a for a in owners), owners
-    phone = [a for a in advice if "<table id=options> scrolls" in a]
-    assert phone, advice
-    assert all(a.startswith("at 360") for a in phone), phone
-    assert not [a for a in advice if a not in squeezed + owners + phone], advice
+    for widths in squeezed:
+        assert {"Mechanism", "Held by"} <= widths.keys(), squeezed
+        assert widths["Held by"] > 3 * widths["Mechanism"], squeezed
+    owners = wrapped("sessions")
+    assert owners and all("Owners" in widths for widths in owners), advice
+    phone = [a for a in advice if a.at == "<table id=options>"]
+    assert phone and all(a.widths[0] == 360 for a in phone), advice
+    assert len(squeezed) + len(owners) + len(phone) == len(advice), advice
 
 
 def test_the_runtime_holds_a_scroller_the_page_wrote(browser, serve):
@@ -1178,60 +1188,46 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
         f"nothing clipped the note, so this proves nothing about the gate: {seen}"
     )
     failures = render_gate_model.render_version(browser, url).failures
+    clipped = {
+        (f.at, f.values["container"]) for f in failures if f.code == "clipped-out"
+    }
+    controls = {f.values["id"] for f in failures if f.code == "clipped-control"}
 
-    assert [
-        f
-        for f in failures
-        if "<aside id=boxed-note> is drawn" in f
-        and "outside <lf-options id=where>" in f
-    ], f"a note the user never sees went out with the handover: {failures}"
-
-    assert [
-        f
-        for f in failures
-        if "<div id=eaten> is drawn" in f and "outside <div id=clipping>" in f
-    ], f"a box drawn nowhere went out with the handover: {failures}"
-    assert not [f for f in failures if "reachable" in f or "scrolling" in f], (
+    assert ("<aside id=boxed-note>", "<lf-options id=where>") in clipped, (
+        f"a note the user never sees went out with the handover: {failures}"
+    )
+    assert ("<div id=eaten>", "<div id=clipping>") in clipped, (
+        f"a box drawn nowhere went out with the handover: {failures}"
+    )
+    assert not [f for f in failures if names(f, "reachable", "scrolling")], (
         "a box the user scrolls to is where its container means it to be"
     )
-    assert not [f for f in failures if "id=hung>" in f and "id=holding>" in f], (
-        "a placed box was laid at the door of a static box that never held it"
-    )
-    assert not [f for f in failures if "<span id=told> is drawn" in f], (
+    assert not [
+        f for f in failures if names(f, "id=hung>") and names(f, "id=holding>")
+    ], "a placed box was laid at the door of a static box that never held it"
+    assert not [f for f in failures if f.at == "<span id=told>"], (
         f"a box that marks its own cut was refused for making it: {failures}"
     )
-    assert not [f for f in failures if "foreignobject" in f], (
+    assert not [f for f in failures if names(f, "foreignobject")], (
         "a drawing's own accounting inside its svg read as the page losing words"
     )
-    assert [
-        f
-        for f in failures
-        if "<div id=under-border> is drawn" in f and "outside <div id=bordered>" in f
-    ], f"a box drawn under a border read as inside it: {failures}"
-    assert [
-        f
-        for f in failures
-        if "<div id=over-by-far> is drawn" in f and "outside <div id=inner-box>" in f
-    ], f"a 3px loss out of one box hid a 400px loss out of another: {failures}"
-    assert [
-        f
-        for f in failures
-        if "<div id=cut-by-paint> is drawn" in f and "outside <div id=contained>" in f
-    ], f"a container that cuts by containment answered for nothing: {failures}"
-    assert not [f for f in failures if "id=drawing-pixels>" in f], failures
-    assert [
-        f
-        for f in failures
-        if "<div id=outside-viewport> is drawn" in f
-        and "outside <div id=drawing-holder>" in f
-    ], f"a drawing viewport escaped its page-flow holder: {failures}"
-    assert [
-        f
-        for f in failures
-        if "(#clipped-drawing-control)" in f
-        and "page offers a press it does not show" in f
-    ], f"the drawing declaration concealed a lost control: {failures}"
-    assert not [f for f in failures if "(#clean-drawing-control)" in f], failures
+    assert ("<div id=under-border>", "<div id=bordered>") in clipped, (
+        f"a box drawn under a border read as inside it: {failures}"
+    )
+    assert ("<div id=over-by-far>", "<div id=inner-box>") in clipped, (
+        f"a 3px loss out of one box hid a 400px loss out of another: {failures}"
+    )
+    assert ("<div id=cut-by-paint>", "<div id=contained>") in clipped, (
+        f"a container that cuts by containment answered for nothing: {failures}"
+    )
+    assert not [f for f in failures if names(f, "id=drawing-pixels>")], failures
+    assert ("<div id=outside-viewport>", "<div id=drawing-holder>") in clipped, (
+        f"a drawing viewport escaped its page-flow holder: {failures}"
+    )
+    assert "clipped-drawing-control" in controls, (
+        f"the drawing declaration concealed a lost control: {failures}"
+    )
+    assert "clean-drawing-control" not in controls, failures
 
 
 def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):

@@ -5,6 +5,7 @@ from html import escape
 import pytest
 from leaf import data as data_model
 from leaf.render_checks import one_frame, rendered
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_harness import (
     consume_browser_errors,
@@ -61,25 +62,15 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
     data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
-        {
-            "files": [
-                {
-                    "path": "config.py",
-                    "kind": "patch",
-                    "additions": 1,
-                    "deletions": 1,
-                    "patch": """diff --git a/config.py b/config.py
+        patch_manifest("""diff --git a/config.py b/config.py
 --- a/config.py
 +++ b/config.py
 @@ -1 +1 @@
 -enabled = False
 +enabled = True
-""",
-                }
-            ]
-        },
+"""),
     )
-    page = open_page(browser, url)
+    context = browser.new_context()
     attempts = []
     pending = []
 
@@ -92,12 +83,13 @@ def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serv
         else:
             route.continue_()
 
-    page.route("**/api/deferred*", fail_until_success)
-    summary = page.locator("lf-diff summary")
-    with page.expect_event(
+    context.route("**/api/deferred*", fail_until_success)
+    with context.expect_event(
         "requestfailed", lambda request: "/api/deferred" in request.url
     ) as failed:
-        summary.click()
+        page = open_page(browser, url, context=context)
+    summary = page.locator("lf-diff summary")
+    summary.focus()
     assert failed.value.failure == "net::ERR_FAILED"
     expect(page.locator("lf-diff .lf-error")).to_contain_text(
         "That file's diff failed to load: Failed to fetch"
@@ -281,6 +273,73 @@ diff --git a/other.md b/other.md
     expect(head.locator("..").locator("[data-line]").last).to_contain_text("new")
 
 
+def test_one_press_folds_every_shown_file_and_the_page_shows_between_them(
+    browser, serve
+):
+    """The filter's quiet press opens every file the filter shows while any is closed,
+    and closes them once all are open. The diff keeps the page's paper and ink between
+    its files after the first file brings the renderer's sheets, whose `:host` is one
+    file's box where here it is the whole diff."""
+    patch = "".join(
+        f"diff --git a/src/f{index}.py b/src/f{index}.py\n"
+        f"--- a/src/f{index}.py\n+++ b/src/f{index}.py\n@@ -1 +1 @@\n-old\n+new\n"
+        for index in range(3)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Fold all",
+                f'<h1>Fold all</h1><lf-diff id="patch" collapsed><pre>{escape(patch)}'
+                "</pre></lf-diff>",
+            )
+        ),
+    )
+    diff = page.locator("#patch")
+    folds = diff.locator("details.lf-diff-fold")
+    editor = diff.locator(".lf-diff-search input")
+    press = diff.locator(".lf-diff-fold-all")
+    paints = """node => {
+      const style = getComputedStyle(node);
+      return [style.backgroundColor, style.color];
+    }"""
+    page_paint = diff.evaluate(paints)
+    assert page_paint[0] == "rgba(0, 0, 0, 0)"
+    folds.first.locator("summary").click()
+    rendered(page)
+    assert diff.evaluate(paints) == page_paint
+
+    expect(press).to_have_accessible_name("Expand all files")
+    press.click()
+    for index in range(3):
+        expect(folds.nth(index)).to_have_attribute("open", "")
+    rendered(page)
+    expect(folds.locator("[data-line]")).to_have_count(6)
+    expect(press).to_have_accessible_name("Collapse all files")
+
+    # Only what the filter shows, and the field's Tab order reaches the press.
+    editor.fill("f1")
+    expect(press).to_have_accessible_name("Collapse all files")
+    editor.press("Tab")
+    expect(press).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(folds.nth(1)).not_to_have_attribute("open", "")
+    expect(press).to_have_accessible_name("Expand all files")
+    # A filter that shows nothing to open idles the press in its room, so the count
+    # beside it does not move.
+    count = diff.locator(".lf-diff-progress")
+    place = count.bounding_box()
+    editor.fill("none")
+    expect(count).to_have_text("0 of 3")
+    expect(press).to_have_attribute("inert", "")
+    assert count.bounding_box() == place
+    editor.fill("")
+    expect(press).not_to_have_attribute("inert", "")
+    expect(folds.nth(0)).to_have_attribute("open", "")
+    expect(folds.nth(2)).to_have_attribute("open", "")
+    expect(press).to_have_accessible_name("Expand all files")
+
+
 PATH_PARTS = """head => {
   const path = head.querySelector('.lf-diff-path');
   const room = path.getBoundingClientRect();
@@ -330,3 +389,69 @@ def test_printed_diff_rows_hold_their_whole_paths(browser, serve):
         parts = head.evaluate(PATH_PARTS)
         assert "".join(part["text"] for part in parts) == path
         assert all(part["shown"] and part["whole"] for part in parts), (path, parts)
+
+
+def test_closed_manifest_rows_judge_their_evidence_before_showing_metadata(
+    browser, serve
+):
+    """Closed rows derive copy, mode and counts from checked Git evidence."""
+    patch = """diff --git a/original.py b/copied.py
+similarity index 75%
+copy from original.py
+copy to copied.py
+old mode 100644
+new mode 100755
+--- a/original.py
++++ b/copied.py
+@@ -1 +1 @@
+-old = True
++new = True
+"""
+    corruptions = {
+        "copy": patch.replace("copy from original.py", "copy from wrong.py"),
+        "move": patch.replace("copy from original.py\n", ""),
+        "mode": patch.replace("old mode 100644\n", ""),
+        "hunk": patch.replace("@@ -1 +1 @@", "@@ -2 +2 @@").replace(
+            "+new = True", "+new = True\n+lost"
+        ),
+    }
+    ids = ["valid", *corruptions]
+    url = serve(
+        leaf_page(
+            "Closed evidence",
+            "<h1>Closed evidence</h1>"
+            + "".join(
+                f'<lf-diff id="{name.lower()}" source="source-{name.lower()}" collapsed><pre></pre></lf-diff>'
+                for name in ids
+            ),
+        )
+    )
+    for name in ids:
+        manifest = patch_manifest(patch)
+        if name != "valid":
+            manifest["files"][0]["patch"] = corruptions[name]
+        data_model.cmd_data_set(serve.page_dir, f"source-{name.lower()}", manifest)
+    page = open_page(browser, url)
+    rendered(page)
+    for name in corruptions:
+        host = page.locator(f"#{name.lower()}")
+        expect(host.locator(".lf-error")).to_contain_text("cannot be shown")
+        expect(host.locator(".lf-diff-stat")).to_have_count(0)
+        expect(host.locator(".lf-diff-evidence")).to_have_count(0)
+        expect(host.locator(".lf-diff-source-path")).to_have_count(0)
+    consume_browser_errors(
+        page, *(f'<lf-diff id="{name.lower()}"> failed: ' for name in corruptions)
+    )
+    good = page.locator("#valid")
+    expect(good.locator("summary")).to_contain_text("copied")
+    expect(good.locator("summary")).to_contain_text("+1")
+    expect(good.locator("details")).not_to_have_attribute("open", "")
+    expect(good.locator("[data-line]")).to_have_count(0)
+    assert not any(
+        "pierre-diffs.esm.js" in resource["name"]
+        for resource in page.evaluate(
+            "performance.getEntriesByType('resource').map(({name}) => ({name}))"
+        )
+    ), "checking closed evidence must not load the textual renderer"
+    good.locator("summary").click()
+    expect(good.locator("[data-line]").last).to_contain_text("new = True")

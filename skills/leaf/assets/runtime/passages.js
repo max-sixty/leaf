@@ -88,7 +88,8 @@
    until it finds the actual control.
 
    Hit testing asks two different questions. `elementFromPointAcross` and `markAt`
-   (anchor-resolution.js) may descend into a shadow root when the exact marked text matters.
+   (anchor-resolution.js) may descend into a declared shadow root when the exact marked
+   text matters.
    `aimedTarget` (composing/aim.js) may keep document retargeting when the host is the
    addressable element. Choose the reading by the question, not by convenience.
 
@@ -116,9 +117,9 @@ import {
   upFrom,
 } from "./shadow.js";
 import { decisionFor, registry } from "./registry.js";
-import { PAGE_PAINT_ATTRIBUTE, pagePresented } from "./page-paint.js";
+import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
-import { readApplication } from "./semantic-state.js";
+import { readPart } from "./semantic-state.js";
 import { COLLAPSE, TEXT_BLOCK } from "./passage-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
@@ -162,34 +163,48 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // and never back from the mark that paint leaves: a mark a module wrote where the log
 // decided nothing silences no words.
 //
-// `settlements` is that reading per holder id: its tag, and the tags its standing
-// outcome retires.
-// It is rebuilt once per publication or registry, and `settledKey` names it, so the
-// page reading is forgotten exactly when it changes (`catchUpReading`).
-let settledFrom = [];
-let settled = new Map();
+// `settlements` is that reading per holder id: its tag, and the tags its outcome
+// in force retires.
+// It is a selection of the publication, one per registry, so it moves only when a
+// settlement does, and a paint that reads a passage's words repaints for a decision
+// rather than for every widget's state. `settledKey` names it, so the page reading is
+// forgotten exactly when it changes (`catchUpReading`).
+let settledReading = null;
+let settledDecisions;
+let settled = null;
 let settledKey = "[]";
 function settlements() {
-  const { document: shown, effective } = readApplication();
-  const from = [effective.widgets, registry.$decisions];
-  if (from.every((input, index) => input === settledFrom[index])) return settled;
-  settledFrom = from;
-  settled = new Map();
-  for (const [id, { state }] of effective.widgets) {
-    const tag = shown.authored.get(id)?.tag;
-    const decision = registry.$decisions?.[tag];
-    const outcome = decision && state[decision.verb]?.detail?.outcome;
-    const retires = outcome ? decision.retires[outcome] : null;
-    if (retires?.length) settled.set(id, { tag, retires });
+  if (settledDecisions !== registry.$decisions || !settledReading) {
+    const decisions = (settledDecisions = registry.$decisions);
+    settledReading = readPart((root) => {
+      const holders = new Map();
+      for (const [id, { state }] of root.effective.widgets) {
+        const tag = root.document.authored.get(id)?.tag;
+        const decision = decisions?.[tag];
+        // A decision verb's state is an action value, which carries the detail.
+        const outcome =
+          decision &&
+          /** @type {{detail?: {outcome?: string}} | undefined} */ (
+            state[decision.verb]
+          )?.detail?.outcome;
+        const retires = outcome ? decision.retires[outcome] : null;
+        if (retires?.length) holders.set(id, { tag, retires: [...retires] });
+      }
+      return holders;
+    });
   }
-  settledKey = JSON.stringify([...settled]);
+  const next = settledReading();
+  if (next !== settled) {
+    settled = next;
+    settledKey = JSON.stringify([...settled]);
+  }
   return settled;
 }
 // A slot its holder's decision took off the page: a child of the holder, in its light
-// tree or its shadow root, whose tag the standing outcome retires. Only this
+// tree or its shadow root, whose tag the outcome in force retires. Only this
 // document's holders are settled; a parsed revision's elements share their ids.
 function retiredSlot(el) {
-  const holder = el.parentElement ?? shadowHost(el.parentNode);
+  const holder = upFrom(el);
   if (!holder?.id || el.ownerDocument !== document) return false;
   const settlement = settlements().get(holder.id);
   return (
@@ -321,11 +336,11 @@ export const elementOver = (n) => {
 // refuses the text once, here, whichever reader reaches it first, and no reader meets it
 // again. Thrown out of each reader instead, it was refused again on every repaint frame,
 // key and selection, each an uncaught error and each a report. The one refusal is
-// reported to the agent here, and before the page presents it is also the page's
+// reported to the agent here, and before the page upgrades it is also the page's
 // startup failure, its own fault, which no server update fixes: it is declared
 // (`lf-startup-failed`, `page`), so the readable fallback shows at once, the notice says
 // the page has a problem, and the page never presents (leaf.js). A page already
-// presented keeps running without those words, and without the root: a mark or a
+// upgraded keeps running without those words, and without the root: a mark or a
 // projection painted into it is never cleared, and an id inside it stops resolving,
 // since every sweep of declared roots (`shadowRootsIn`) has dropped it.
 function refusesBareText(root) {
@@ -335,7 +350,7 @@ function refusesBareText(root) {
   refuseShadowRoot(root);
   const refusal = bareTextRefusal(bare);
   reportPageError(refusal);
-  if (!pagePresented())
+  if (!pageUpgraded())
     window.dispatchEvent(
       new CustomEvent("lf-startup-failed", {
         detail: { reason: refusal.message, error: refusal, page: true },
@@ -351,7 +366,7 @@ function refusesBareText(root) {
 // A widget riding a message stands inside the thread panel, so the panel is `.lf-ui`
 // over every word it says — and read straight, a question an agent asked in a reply says
 // nothing whatever. That silence did not read as one: it read as an empty slot, so the
-// group named its options by their ids in the accessibility tree, the Questions list named the
+// group named its options by their ids in the accessibility tree, the On panel named the
 // question by its id, and every widget reading its own words in a message got "" and fell
 // back to something else.
 //
@@ -633,6 +648,7 @@ export function closestAcross(node, selector) {
 //
 // `root` narrows the search to one authored document (`authoredScope`), with the roots
 // declared inside it.
+/** @param {string} id @param {Document | Element} [root] */
 export const elementById = (id, root = document) => {
   const found =
     root === document
@@ -658,10 +674,12 @@ export const authoredScope = (node) =>
 // elementFromPoint retargets to the host for a point over a shadow tree, so it names the
 // widget rather than the thing in it, and each root answers for its own. Mark hit testing
 // and item aim both use this exact reading, so a projected datum inside a declared shadow
-// tree can outrank its host.
+// tree can outrank its host. Only a declared root is entered: another library's tree is
+// its control's insides, whose ids (Web Awesome Copy's `#copy-button`) the page never
+// authored, so the hit stays at the control.
 export const elementFromPointAcross = (x, y) => {
   let el = document.elementFromPoint(x, y);
-  while (el?.shadowRoot) {
+  while (el && declaredRoot(el)) {
     const inner = el.shadowRoot.elementFromPoint(x, y);
     if (!inner || inner === el) break;
     el = inner;
@@ -715,14 +733,18 @@ export function pageRange(sel) {
 // still the programmatic write or a later user adjustment (including touch handles).
 let writtenSelection = null;
 let writtenBackward = false;
+// Each end is a boundary point, `[node, offset]`.
 export function selectEnds(anchor, focus) {
   const selection = getSelection();
   const from = document.createRange(),
     to = document.createRange();
-  from.setStart(...anchor);
-  to.setStart(...focus);
+  from.setStart(.../** @type {[Node, number]} */ (anchor));
+  to.setStart(.../** @type {[Node, number]} */ (focus));
   writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
-  selection.setBaseAndExtent(...anchor, ...focus);
+  selection.setBaseAndExtent(
+    .../** @type {[Node, number]} */ (anchor),
+    .../** @type {[Node, number]} */ (focus),
+  );
   writtenSelection = selectionEnds(selection);
 }
 const selectionEnds = (selection) => {
@@ -863,8 +885,12 @@ function readSegments(segments, mapCharacters) {
   });
   return mapCharacters ? { text, units } : text;
 }
-export const quoteFrom = (segments) => readSegments(segments, false);
-export const readingFrom = (segments) => readSegments(segments, true);
+export const quoteFrom = (segments) =>
+  /** @type {string} */ (readSegments(segments, false));
+export const readingFrom = (segments) =>
+  /** @type {{text: string, units: {text: string, start: any, end: any}[]}} */ (
+    readSegments(segments, true)
+  );
 // Cutting one to length is the caller's business and always by code point: half a surrogate
 // pair is a character no UTF-8 file can hold, and a quote is written to one.
 export const cut = (text, from, to) => [...text].slice(from, to).join("");
@@ -1029,7 +1055,7 @@ export function neighbourhood(reading, at, want, before) {
 // The reading is a function of the document and the user's settlements, so those are
 // what say when it may change. Everything it is built out of is here: the page's words
 // and their shape, the markers those words are read through, the vocabulary the markers
-// mean something against, the slots the standing decisions retire (`settlements`), and
+// mean something against, the slots the decisions in force retire (`settlements`), and
 // the widget parts the cell walk fences on. The first two a MutationObserver reports;
 // the rest have one door each.
 //
@@ -1103,10 +1129,19 @@ const changesTheReading = (record) => {
   const wasSaid = record.attributeName === "data-lf-said" && record.oldValue !== null;
   return wasSaid || holdsSaid(target) || pageReads(target.parentNode);
 };
+// Which page reading stands: it advances each time one is forgotten, so a reading
+// derived from the page's own nodes, as the visual responses are, keeps what it derived
+// while this stands.
+let readingVersion = 0;
 const forgetReading = () => {
   reading = null;
   elementReadings = new WeakMap();
+  readingVersion += 1;
 };
+export function pageReadingVersion() {
+  catchUpReading();
+  return readingVersion;
+}
 function watchReading() {
   if (watcher) return watcher;
   watcher = new MutationObserver((records) => {

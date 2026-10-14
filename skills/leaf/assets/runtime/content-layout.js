@@ -11,7 +11,8 @@ import { pageDocument } from "./passages.js";
 // authored resident on its preferred side, or in flow when there is no room. The
 // column's runtime grid offset is removed before measuring, including RTL, while an
 // authored offset remains part of its room. --lf-resident (layouts.css) declares posture
-// preferences; data-lf-margin and the shell's --lf-column-shift publish their geometry.
+// preferences; data-lf-margin and the shell's --lf-column-shift publish their geometry,
+// and data-lf-beside whether a sidebar page's track stands beside its body.
 // Read at most once per frame after widgets upgrade. Every completed read notifies
 // the selected annotation owner, including an unchanged or missing column; only a
 // changed reading repaints page geometry. Imports never start this document owner.
@@ -39,6 +40,14 @@ function readResidency() {
 }
 export function scheduleResidency() {
   if (residencyOpen) residencyPending ||= nextRender(residencyPass);
+}
+// A revision returns the reader to their place once its document stands, and where that
+// place is depends on the residents' postures: a sidebar page's track that a revision
+// replaced is not yet marked beside its body, so its block would not yet scroll and the
+// place would land in the page. The revision reads them first (version.js, `land`); a
+// scheduled pass still follows.
+export function settleResidency() {
+  if (residencyOpen) readResidency();
 }
 // The same read also says how far each breakout's holder stands in from the column,
 // and whether the page arranged the box the breakout is in (prepaint.js, `indents`),

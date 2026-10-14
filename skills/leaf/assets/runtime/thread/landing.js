@@ -32,9 +32,10 @@
    out is the thread it belongs to whichever of them put the user in it, and the
    panel's own find box hands back to the Threads list. A page-owned first-message seat
    has no standing place of its own; a widget control that explicitly enters its box
-   supplies the caller-owned return target through `landInThread`. Sending leaves
-   focus on the conversation's card or title on every surface (`landSent`). Returning
-   to the page is a separate navigation gesture. */
+   supplies the caller-owned return target through `landInThread`. Sending from a
+   conversation's own box leaves focus on its card or title (`landSent`); the floating
+   panel's field, which stands for the thread open above it, keeps focus for the next
+   turn. Returning to the page is a separate navigation gesture. */
 import {
   alreadyShown,
   fitsWhole,
@@ -42,7 +43,6 @@ import {
   scrollIntoView,
 } from "../landing-scroll.js";
 import { landingBand, shownBox } from "../geometry.js";
-import { documentFocused } from "../keyboard/scopes.js";
 import {
   focusDestination,
   focused,
@@ -51,6 +51,8 @@ import {
   pressing,
   takesLetters,
   whenLeft,
+  deepFocus,
+  standingIn,
 } from "../focus.js";
 import { under } from "../shadow.js";
 import { scrollBehavior } from "../motion.js";
@@ -76,10 +78,11 @@ import {
   heldThread,
   threadReplyInput,
   threadFocusDestination,
+  threadPart,
+  wholeThread,
 } from "./focus.js";
 import { landingTarget, latestTurn, scrollThreadIntoView } from "./reply-landing.js";
 
-export { SAY_BOX } from "./selectors.js";
 export { scrollThreadIntoView } from "./reply-landing.js";
 const threadReturns = new WeakMap();
 
@@ -138,10 +141,12 @@ export function threadInput(node) {
 }
 
 const heldThreadOrSeat = () => focused() && closestAcross(focused(), SAYS_IN);
+// The thread the user writes in from where they stand, whole where it is drawn in
+// pieces (focus.js, `wholeThread`), and its box.
 export const standingThread = () => {
   const held = heldThreadOrSeat();
   const box = threadReplyInput(held);
-  return box ? { held, box } : null;
+  return box ? { held: wholeThread(held), box } : null;
 };
 const backFromThread = (box) => threadReturns.get(box) ?? null;
 
@@ -159,14 +164,15 @@ const backFromThread = (box) => threadReturns.get(box) ?? null;
 // editing this: the question is the same one, and the answer moved.
 function backFromBox() {
   const held = heldThreadOrSeat();
-  if (held?.matches(THREAD)) return { target: held, line: "back to thread" };
+  if (held?.matches(THREAD))
+    return { target: wholeThread(held), line: "back to thread" };
   const route = backFromThread(focused());
   return route?.target?.isConnected ? route : null;
 }
 // Whether the box the user is typing in has somewhere to hand them back: the
 // thread it belongs to, or the panel's list from the panel's own find box.
 const boxHandsBack = () =>
-  Boolean(backFromBox()) || Boolean(documentFocused()?.closest?.(".lf-thread-panel"));
+  Boolean(backFromBox()) || Boolean(focused(document)?.closest?.(".lf-thread-panel"));
 // The box, or the reply's composition row around it, which takes its Send control too.
 const inBox = () => takesLetters(focused()) || replyDraftContext(focused()) !== null;
 // Whether Escape here leaves a box for the place it hands back to. The page's let-go
@@ -197,16 +203,16 @@ pageScope("text entry", {
       description: "Leave the box, keeping what is typed",
       title: () => backFromBox()?.line ?? "back to list",
       // The thread the box belongs to, or the panel's list from its own find box. A
-      // page text box that is neither leaves the row dead and the page's rung standing,
+      // page text box that is neither leaves the row dead and the page's rung in place,
       // which is the honest answer: nothing there to go back to.
       when: leavesBox,
       run: () => {
         const back = backFromBox();
         dismissReplyAt(focused());
-        const panelList = documentFocused()
+        const panelList = focused(document)
           ?.closest?.(".lf-thread-panel")
           ?.querySelector(".lf-threads");
-        document.activeElement.blur();
+        /** @type {HTMLElement | null} */ (deepFocus())?.blur();
         const target = back?.target ?? panelList;
         if (!target) return;
         if (!target.matches?.(THREAD)) {
@@ -249,16 +255,14 @@ const cardThread = () => {
 };
 // Settlement belongs to the thread, wherever its view places that control.
 const resolutionControl = (thread) =>
-  thread
-    ? ([...thread.querySelectorAll(".lf-resolve, .lf-reopen")].find(
-        (control) => control.closest(THREAD) === thread,
-      ) ?? null)
-    : null;
+  thread ? threadPart(thread, "settlement") : null;
 
+// A box a presentation declares as its thread's reply may stand outside the thread
+// (focus.js, `threadPart`), so landing in one asks for the box alone.
 function prepareLanding({ held = null, box, route = null }) {
-  held ??= box && closestAcross(box, SAYS_IN);
-  if (!held) return false;
-  if (route && !held.hasAttribute("tabindex")) {
+  if (!box) return false;
+  held ??= closestAcross(box, SAYS_IN);
+  if (route && held && !held.hasAttribute("tabindex")) {
     threadReturns.set(box, route);
     whenLeft(box, () => threadReturns.delete(box));
   }
@@ -417,7 +421,7 @@ export function wireThreadLanding(threadsBox) {
   });
 }
 
-// Shown, not merely standing: a card the narrowing hid keeps its node (thread-list.js),
+// Shown, not merely present: a card the narrowing hid keeps its node (thread-list.js),
 // and a destination in one is as unreachable as a destination with no node at all.
 const listNode = (id, threadsBox, preferMessage = false) => {
   const threadId = threadNames(allThreads()).get(id)?.id ?? id;
@@ -500,7 +504,7 @@ async function showThreadNow(
       else focusDestination(destination, "move");
     });
   }
-  const directThread = node === thread && thread.contains(focused());
+  const directThread = node === thread && standingIn(thread);
   // A direct arrival aims at the reply area wherever the user stands in the thread; a
   // long thread whose reply row is pinned aims at the thread's end, which the row
   // stands over.
@@ -546,9 +550,9 @@ const listedThreads = (ids, threadsBox) =>
   ids
     .map((id) => listNode(id, threadsBox))
     .filter((node) => node?.matches(".lf-thread") && !node.closest(".lf-going"));
-export const accompaniedThread = (ids, threadsBox) =>
+const accompaniedThread = (ids, threadsBox) =>
   listedThreads(ids, threadsBox).find((node) => node.open) ?? null;
-export function accompanyThread(ids, threadsBox) {
+function accompanyThread(ids, threadsBox) {
   const expanded = accompaniedThread(ids, threadsBox);
   const thread = expanded ?? listedThreads(ids, threadsBox)[0];
   if (!thread) return;

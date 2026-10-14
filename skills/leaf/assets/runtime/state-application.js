@@ -35,18 +35,14 @@ import {
   semanticNewsNotice,
   semanticNewsReading,
 } from "./semantic-news.js";
-import { renderVersions } from "./version.js";
 
 export function createStateApplication({
   prepareActivation,
   acceptData,
   notifyDataSubscribers,
   isSignoffDeclared,
-  renderStatus,
   stateSignoff,
-  renderOthers,
   accountPending,
-  paintKeys,
 }) {
   let observedSemanticNews = null;
   let presentedNewsReading = null;
@@ -56,6 +52,7 @@ export function createStateApplication({
 
   async function runSerialized(operation) {
     const prior = admission;
+    /** @type {PromiseWithResolvers<void>} */
     const { promise, resolve: release } = Promise.withResolvers();
     admission = promise;
     await prior;
@@ -160,10 +157,7 @@ export function createStateApplication({
       stateApplying = true;
       try {
         settleAcceptedDrafts();
-        renderStatus(state);
-        renderVersions(state);
         stateSignoff(isSignoffDeclared());
-        renderOthers(state);
         // Optional interface preparation joins imports and installation, without
         // pretending to be a semantic renderer. Adoption already claimed every document
         // region for this epoch, and frozen
@@ -203,7 +197,6 @@ export function createStateApplication({
         throw error;
       } finally {
         stateApplying = false;
-        paintKeys();
       }
     });
   }

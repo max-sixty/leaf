@@ -5,6 +5,23 @@
 // document when it runs, and before the bootstrap and the theme (`compose_document`).
 (() => {
   const root = document.documentElement;
+  // A cross-document swap commits departure before Chrome rejects its aborted
+  // fetches. Those rejections belong to the old document, not its replacement.
+  // beforeunload is cancelable and therefore cannot end this lifetime; pageshow
+  // reopens it when the browser restores the same realm from its page cache.
+  let documentActive = true;
+  root.lfDocumentLifetime = Object.freeze({
+    get active() {
+      return documentActive;
+    },
+  });
+  for (const type of ["pageswap", "pagehide"])
+    window.addEventListener(type, () => {
+      documentActive = false;
+    });
+  window.addEventListener("pageshow", () => {
+    documentActive = true;
+  });
   // The runtime will run here and upgrade the page's widgets, so the themes give each
   // widget the box its module will draw it at (`html[data-lf-interactive]`). A reading
   // with no runtime, a source file or a page with scripts off, keeps the readable
@@ -52,6 +69,7 @@
   // mark off where it is incomplete. The first is the earliest evidence and a later one
   // is often its consequence; the bootstrap's report keeps the first as well.
   const fault = (reason, incomplete, error = null, page = false) => {
+    if (!documentActive) return;
     if (incomplete) root.toggleAttribute("data-lf-interactive", false);
     if (root.hasAttribute("data-lf-startup-error")) return;
     root.dataset.lfStartupError = reason;
@@ -83,7 +101,7 @@
         target.matches("[rel=stylesheet][data-lf-runtime]")
       )
         fault("theme stylesheet did not load", true);
-      else if (target === window && !document.body?.hasAttribute("data-lf-presented"))
+      else if (target === window && !document.body?.hasAttribute("data-lf-upgraded"))
         // A browser that treats the script as another origin gives "Script error." and
         // nothing else, so the file and line ride along: between them they are enough
         // to find the fault in a build nobody here can run.
@@ -112,7 +130,9 @@
   // addresses. "" where that root is the origin's own, so a server serving one page
   // keeps every key unprefixed; an export, which has no server and no link, is its own
   // address. The runtime's stores read it from here (storage.js).
-  const canonical = document.querySelector('link[rel="canonical"][data-lf-runtime]');
+  const canonical = /** @type {HTMLLinkElement | null} */ (
+    document.querySelector('link[rel="canonical"][data-lf-runtime]')
+  );
   const rootPath = canonical ? new URL(canonical.href).pathname : location.pathname;
   const scope = rootPath === "/" ? "" : rootPath;
   root.dataset.lfPageScope = scope;
@@ -201,6 +221,65 @@
       quick = on;
       userStore.set(quickKey, String(on));
       document.dispatchEvent(new CustomEvent("lf-keyboard-preference"));
+    },
+  };
+
+  // Which chrome the user reads the page with: the banner and bottom bar (`classic`,
+  // the default) or the floating panel (`floating`, floating-panel.js), with the size the
+  // panel was left at (`row`, the comment field and its counts, or `mark`, the leaf
+  // alone in the window's corner). One preference for every page on
+  // the origin, read here because the classic bars' room is reserved before the
+  // first paint (theme.css). `?lf-chrome=floating` or `?lf-chrome=classic` sets it. A
+  // sample child takes its parent's choice, or its element's, in its settings
+  // (sample.js), since its store is its own.
+  const chromeKeys = {
+    mode: "lf-chrome",
+    rest: "lf-chrome-rest",
+  };
+  const chromeValues = {
+    mode: ["classic", "floating"],
+    rest: ["row", "mark"],
+  };
+  const chrome = {};
+  const paintChrome = () => {
+    const floating = chrome.mode === "floating";
+    const write = (name, value) => {
+      if (root.getAttribute(name) !== value)
+        if (value === null) root.removeAttribute(name);
+        else root.setAttribute(name, value);
+    };
+    write("data-lf-floating-chrome", floating ? "" : null);
+  };
+  for (const [name, key] of Object.entries(chromeKeys)) {
+    const value = userStore.get(key);
+    chrome[name] = chromeValues[name].includes(value) ? value : chromeValues[name][0];
+  }
+  // The bootstrap takes the parameter out of the address with its other marks.
+  const askedMode = new URL(location.href).searchParams.get("lf-chrome");
+  if (chromeValues.mode.includes(askedMode)) {
+    chrome.mode = askedMode;
+    userStore.set(chromeKeys.mode, askedMode);
+  }
+  paintChrome();
+  root.lfChrome = {
+    get mode() {
+      return chrome.mode;
+    },
+    get rest() {
+      return chrome.rest;
+    },
+    // A sample's settings choose for it alone, so nothing is stored.
+    adopt(mode) {
+      if (!chromeValues.mode.includes(mode) || chrome.mode === mode) return;
+      chrome.mode = mode;
+      paintChrome();
+    },
+    set(name, value) {
+      if (!chromeValues[name]?.includes(value) || chrome[name] === value) return;
+      chrome[name] = value;
+      userStore.set(chromeKeys[name], value);
+      paintChrome();
+      document.dispatchEvent(new CustomEvent("lf-chrome-preference"));
     },
   };
 
@@ -353,7 +432,14 @@
   const failedPlacements = new WeakMap();
   const authoredSheets = () =>
     [...document.styleSheets]
-      .filter((sheet) => !sheet.ownerNode?.hasAttribute("data-lf-runtime"))
+      .filter(
+        (sheet) =>
+          !(
+            /** @type {Element | null} */ (sheet.ownerNode)?.hasAttribute(
+              "data-lf-runtime",
+            )
+          ),
+      )
       .flatMap((sheet) => {
         let rules;
         try {
@@ -464,13 +550,13 @@
       currentInputs.every((input, at) => input === priorFailure[at]);
     const allocate = (room, movable) => {
       const taken = { left: 0, right: 0 };
-      const standing = [];
+      const granted = [];
       if (
         (document.body.dataset.annotations ?? "overlay") === "overlay" &&
         document.body.getAttribute("data-rail") !== "none" &&
         room.right >= need("--rail")
       ) {
-        standing.push("rail");
+        granted.push("rail");
         taken.right = need("--rail");
       }
       for (const postures of preferences)
@@ -480,7 +566,7 @@
           if (wants.left + wants.right > room.left + room.right + 0.5) continue;
           if (!movable && (wants.left > room.left || wants.right > room.right))
             continue;
-          standing.push(posture);
+          granted.push(posture);
           Object.assign(taken, wants);
           break;
         }
@@ -494,7 +580,7 @@
       // Auto margins can centre the column only while its track still holds it.
       const reach = Math.max(0, (shell.width - column.width) / 2);
       const shift = movable ? Math.max(-reach, Math.min(reach, requested)) : 0;
-      return { taken, standing, shift };
+      return { taken, granted, shift };
     };
     let allocation = allocate(
       sameFailure
@@ -529,8 +615,8 @@
     } else if (!sameFailure) {
       failedPlacements.delete(main);
     }
-    const { shift, standing } = allocation;
-    const tokens = standing.join(" ");
+    const { shift, granted } = allocation;
+    const tokens = granted.join(" ");
     const seated = (main.getAttribute("data-lf-margin") ?? "") !== tokens;
     if (!seated && shift === shellWritten) return shellChanged;
     // Source copies keep the authored shell before initial geometry writes to it;
@@ -590,6 +676,7 @@
     let holder = breakout;
     let display;
     do {
+      // `renderedParent` spelled out: this classic script runs before any module loads.
       holder = holder.assignedSlot ?? holder.parentElement ?? holder.getRootNode().host;
       if (holder === main) break;
       display = getComputedStyle(holder).display;
@@ -664,12 +751,17 @@
           width: edges.right - edges.left,
           breakouts: [breakout],
         });
-      readings.push([
-        breakout,
+      const reading = [
         Math.max(0, Math.round(edges.left - column.left)),
         Math.max(0, Math.round(column.right - edges.right)),
-        false,
-      ]);
+      ];
+      readings.push([breakout, ...reading, false]);
+      // A holder allocated the column can span the breakout it holds, as an Ask does
+      // (the default package's ask.css), and its padding keeps its content box where
+      // its own holder's is, so it stands in from the column as far: it takes the same
+      // reading, and grows as far each way as the block does.
+      if (holder.matches('[data-lf-space="column"]'))
+        readings.push([holder, ...reading, false]);
     }
     let changed = false;
     for (const [breakout, left, right, arranged] of readings) {
@@ -692,10 +784,78 @@
     }
     return { changed, breakouts, holders };
   };
+  // Whether each track (`--lf-resident: track`, a sidebar page's `aside`, layouts.css)
+  // stands beside the body, which it says as `data-lf-beside` so the Layout keeps the
+  // block it holds in view only there. Flex wrapping places it, from the window's width,
+  // the shares the page gives the track and the body, and the minimum the body's content
+  // declares, and no query reads that. A track stands beside the body when one of the
+  // other boxes `main` lays out in its flex lines shares its line and stands wholly to
+  // one side of it: a box `main` lays out is a child that draws a box and is not taken
+  // out of the flow, or one inside a child that draws none (`display: contents`), and
+  // another track does not count. A track holding one block runs its line's height
+  // (layouts.css), and a line holds its items' margin boxes whatever margins a page gives
+  // them, so a box on the line is level with the track and one on another line, such as
+  // the header, the footer or a stacked body, is above or below it or spans it. Sticking
+  // moves only the block inside the track, so the track's own box is where the flex line
+  // put it. Every box is read before any track is written.
+  const BESIDE = "data-lf-beside";
+  const items = (element) => {
+    const style = getComputedStyle(element);
+    if (style.display === "contents")
+      return [...element.children].flatMap((child) => items(child));
+    if (!element.checkVisibility() || ["absolute", "fixed"].includes(style.position))
+      return [];
+    const { left, right, top, bottom, width } = element.getBoundingClientRect();
+    return [
+      {
+        element,
+        track: style.getPropertyValue("--lf-resident").trim() === "track",
+        left,
+        right,
+        width,
+        top: top - parseFloat(style.marginTop),
+        bottom: bottom + parseFloat(style.marginBottom),
+      },
+    ];
+  };
+  const stand = () => {
+    const main = document.querySelector("body > main");
+    if (!main) return false;
+    const tracks = [...main.children].filter(
+      (child) =>
+        getComputedStyle(child).getPropertyValue("--lf-resident").trim() === "track",
+    );
+    if (!tracks.length) return false;
+    const laid = [...main.children].flatMap((child) => items(child));
+    const own = laid.filter((item) => !item.track);
+    const readings = tracks.map((track) => {
+      const line = laid.find((item) => item.element === track);
+      return /** @type {[Element, boolean]} */ ([
+        track,
+        line !== undefined &&
+          own.some(
+            (box) =>
+              box.width > 0 &&
+              box.top < line.bottom - 0.5 &&
+              box.bottom > line.top + 0.5 &&
+              (box.right <= line.left + 0.5 || box.left >= line.right - 0.5),
+          ),
+      ]);
+    });
+    let changed = false;
+    for (const [track, beside] of readings) {
+      if (track.hasAttribute(BESIDE) === beside) continue;
+      if (!sourceShells.has(track)) sourceShells.set(track, track.cloneNode(false));
+      track.toggleAttribute(BESIDE, beside);
+      changed = true;
+    }
+    return changed;
+  };
   const residency = () => {
     const seated = seat();
+    const stood = stand();
     const reading = indents();
-    return { ...reading, changed: reading.changed || seated };
+    return { ...reading, changed: reading.changed || seated || stood };
   };
 
   // The id a URL fragment spells, for location.hash and for a link's href alike, from
@@ -739,7 +899,8 @@
       for (const node of [host, ...host.querySelectorAll("*")])
         if (!parents.has(node)) parents.set(node, node.parentElement);
       rememberSource(authoredCopy(host));
-      for (let node = host; node; node = node.parentNode) sourceScopes.add(node);
+      for (let node = /** @type {Node} */ (host); node; node = node.parentNode)
+        sourceScopes.add(node);
       const drawing = render(host, {
         tabStore,
         offer,
@@ -760,11 +921,12 @@
       // no frame can show an unfinished or uninitialized instance.
       template.replaceWith(host);
       for (const node of [host, ...host.querySelectorAll("*")].reverse())
-        if (producers.has(node.localName)) this.paint(node);
+        if (producers.has(node.localName))
+          this.paint(/** @type {HTMLElement} */ (node));
     },
     restoreSource(root) {
       for (const template of root.querySelectorAll("template[data-lf-initial-source]"))
-        template.replaceWith(template.content);
+        template.replaceWith(/** @type {HTMLTemplateElement} */ (template).content);
       for (const delivery of root.querySelectorAll("script[data-lf-initial]"))
         delivery.remove();
       for (const placeholder of root.querySelectorAll("[data-lf-prepaint]"))
@@ -791,7 +953,10 @@
   // last shown first, because the address need not have followed what was shown: a set
   // below the page's own tab strip changes its member and leaves the fragment.
   const OPEN_KEY = "lf-open:";
-  const reloaded = performance.getEntriesByType("navigation")[0]?.type === "reload";
+  const reloaded =
+    /** @type {PerformanceNavigationTiming | undefined} */ (
+      performance.getEntriesByType("navigation")[0]
+    )?.type === "reload";
   const named = (members) => {
     if (!location.hash) return null;
     const target = document.getElementById(fragmentId(location.hash));

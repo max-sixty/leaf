@@ -66,6 +66,7 @@ from leaf import render_checks as render_checks_model
 from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
+from leaf.findings import Finding
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev.browser import (
@@ -499,7 +500,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
     things that example ships beside itself: the media it names, external data,
     and the event log, where it has one. The log for the same reason
     `test_page_fixtures_pass_check` reads one — a page is what its markup and its
-    standing log make together, and a corpus that reads only the markup is reading
+    current log make together, and a corpus that reads only the markup is reading
     half of it. A thread and any widget a message carries exist nowhere else, so
     without this every sweep is green over a page the user never gets.
 
@@ -837,8 +838,8 @@ def admit_before_presenting_comment(page, page_dir, text):
     )
     page.wait_for_function(
         """async id => {
-          const {threadList} = await window.__lfRuntimeImport('/runtime/thread/state.js');
-          return threadList().some(thread => thread.id === id);
+          const {readThreads} = await window.__lfWidgetApi();
+          return readThreads().threads.some(thread => thread.id === id);
         }""",
         arg=admitted["id"],
     )
@@ -1099,7 +1100,7 @@ def ticked(page):
 #
 # So the press waits on the fact the page states rather than on the gesture before it
 # having painted. The line and the dispatcher ask one predicate (`live`), so no surface
-# can promise a press the dispatcher refuses — which makes the offer standing on the
+# can promise a press the dispatcher refuses — which makes the offer shown on the
 # line the page saying this press will be taken. Then the trip: the press's own send is
 # not counted at the moment it is made, and a `round_trip` that reads the counters
 # before the browser has reported the request is a wait on a page that has not started
@@ -1194,7 +1195,7 @@ def draft_key(page, ctx: str) -> str:
     """The `localStorage` key the page's own draft store keeps the draft at `ctx`
     under, page scope included (`whereDraft`, runtime/drafts.js)."""
     return page.evaluate(
-        """async ctx => (await window.__lfRuntimeImport('/runtime/drafts.js'))
+        """async ctx => (await window.__lfCheckApi())
           .whereDraft(ctx).key""",
         ctx,
     )
@@ -1203,7 +1204,7 @@ def draft_key(page, ctx: str) -> str:
 def stored_draft(page):
     """The page's own reader of stored drafts (`storedDraft`, runtime/drafts.js)."""
     return page.evaluate_handle(
-        """async () => (await window.__lfRuntimeImport('/runtime/drafts.js'))
+        """async () => (await window.__lfCheckApi())
           .storedDraft"""
     )
 
@@ -1274,7 +1275,7 @@ def clean_browser(test=None):
         for page, problem_list in captured
         for problem in problem_list
     ]
-    assert problems == [], problems
+    assert not problems, "\n".join(problems)
 
 
 def judge_watches():
@@ -1358,13 +1359,17 @@ def _frame_owners_drawn(frame):
 
 
 def watched(page, *, java_script_enabled=True):
-    """Collect browser problems into one retained list per page.
+    """Collect browser problems into one retained list per page, each a record
+    (`leaf/findings.py`) a test reads by its fields.
 
-    Console warnings/errors and uncaught exceptions are joined by window errors
-    without exceptions, installed through the same `install_window_errors` helper
-    the render gate uses, by DOM writes that change nothing (`write_watch.js`), and
-    by layout shifts without input or that carry a field being typed in
-    (`shift_watch.js`), and by typed words leaving the screen without a key or press
+    The browser's own reports, taken from Playwright's events as the render gate takes
+    them: console warnings and errors, a failed response, and uncaught exceptions.
+    Window errors without exceptions join them, installed through the same
+    `install_window_errors` helper the render gate uses, and so do the health
+    sensors' findings, which each sensor hands over as a record through the
+    `__leafWatchFinding` binding: DOM writes that change nothing (`write_watch.js`),
+    layout shifts without input or that carry a field being typed in
+    (`shift_watch.js`), and typed words leaving the screen without a key or press
     (`words_watch.js`).
     Call before navigation so the init scripts take effect. With scripting disabled,
     retain native console and page errors but install no script-driven sensors and
@@ -1381,15 +1386,27 @@ def watched(page, *, java_script_enabled=True):
     page.lf_java_script_enabled = java_script_enabled
 
     def console_message(message):
-        problem = render_gate_model.console_problem(message)
-        if problem:
+        if (problem := render_gate_model.console_finding(message)) is not None:
+            errors.append(problem)
+
+    def window_error(error):
+        # `navigate` takes the ResizeObserver notices of a navigation it is making;
+        # any other notice, like every other error, reaches the fixture.
+        problem = render_gate_model.window_finding(error)
+        notices = getattr(page, "lf_resize_notices", None)
+        if problem.code == "resize-loop" and notices is not None:
+            notices.append(problem)
+        else:
             errors.append(problem)
 
     page.on("console", console_message)
     render_gate_model.collect_page_exceptions(page, errors)
     if not java_script_enabled:
         return errors
-    render_checks_model.install_window_errors(page)
+    render_checks_model.install_window_errors(page, window_error)
+    page.expose_binding(
+        "__leafWatchFinding", lambda _source, found: errors.append(Finding.read(found))
+    )
     page.add_init_script(path=WRITE_WATCH_SOURCE)
     # One init script keeps cause tracking installed before its words subscriber;
     # Playwright does not promise an order between separately registered scripts.
@@ -1409,12 +1426,20 @@ def watched(page, *, java_script_enabled=True):
     )
     if _TEST is None or watches_shifts(_TEST):
         page.add_init_script(script=shift_watch_source())
-    # Diagnostics join the document's captured module graph, not the mutable layer.
+    # Diagnostics join the captured graph through its compiled public entries. Tests
+    # cannot name a private source path or load a second runtime from the mutable layer.
     page.add_init_script(
-        script="""window.__lfRuntimeImport = path => {
-          const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-          return import(new URL(path.replace(/^\\//, ''), new URL(entry, location.href)).href);
-        };"""
+        script="""(() => {
+          const entry = path => {
+            const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
+            return import(new URL(path, new URL(boot, location.href)).href);
+          };
+          window.__lfWidgetApi = () => entry('runtime/widget-api.js');
+          window.__lfCheckApi = () => entry('runtime/check-api.js');
+          window.__lfOverlayApi = () => entry('runtime/annotation-overlay/check-api.js');
+          window.__lfClientApi = () => entry('runtime/layer-client.js');
+          window.__lfVendorImport = name => entry(`vendor/${name}`);
+        })();"""
     )
     return errors
 
@@ -1445,15 +1470,67 @@ def restarting(page):
     del page.lf_errors[mark:]
 
 
+def names(finding, *words):
+    """Whether a render-gate finding names an element whose name holds one of
+    `words`: the element it is about, or another it names in its values, such as the
+    box that clips it. A probe's record (a dict) answers the same way."""
+    if isinstance(finding, dict):
+        at, values = finding.get("at", ""), finding
+    else:
+        at, values = finding.at, finding.values
+    named = [at, *(value for value in values.values() if isinstance(value, str))]
+    return any(word in name for name in named for word in words)
+
+
 def take_browser_errors(page):
-    """Return and consume problems a test intentionally caused on one page."""
+    """Return and consume problems a test intentionally caused on one page, as the
+    fixture's records (`watched`)."""
     errors = page.lf_errors[:]
     page.lf_errors.clear()
     return errors
 
 
+def said(problem):
+    """The first line of what the page itself said in a browser problem: a console
+    entry, an uncaught exception, or a window error. None for a problem the browser or
+    a health sensor reports in fields of its own, such as a failed response's `status`
+    and `url`."""
+    text = problem.values.get("text")
+    return None if text is None else text.splitlines()[0]
+
+
+_ABSENT = object()
+
+
+def is_problem(problem, expected):
+    """Whether a browser problem is the one a test expects.
+
+    A string is a fragment of what the page said (`said`), so stack locations cannot
+    authorize a problem. A dict names the record as a probe returns one,
+    `{code, at, ...values}`: its `code`, and each field the test cares about, equal to
+    what was found, such as `{"code": "failed-load", "status": 400}`. A function of the
+    record answers for itself, for a field read other than by equality."""
+    if callable(expected):
+        return expected(problem)
+    if isinstance(expected, str):
+        return (line := said(problem)) is not None and expected in line
+    fields = dict(expected)
+    if problem.code != fields.pop("code"):
+        return False
+    return all(
+        (problem.at if name == "at" else problem.values.get(name, _ABSENT)) == value
+        for name, value in fields.items()
+    )
+
+
+def shown(problems):
+    """Browser problems in their words, for a failing assertion's message."""
+    return "\n".join(map(str, problems))
+
+
 def reported_browser_errors(page, *expected):
-    """Wait for the complete report a fault draws, then consume it.
+    """Wait for the complete report a fault draws, then consume it: one problem for
+    each of `expected` (`is_problem`), in order.
 
     One exception is reported once, but one injected fault can raise several, and the
     later reports can be separated from the first by whatever the page does on the way.
@@ -1465,81 +1542,66 @@ def reported_browser_errors(page, *expected):
     The wait is a Playwright call rather than a sleep, because the sync driver hands
     console messages to this process only while it is inside one."""
     assert expected, "expected browser problems cannot be empty"
-    wanted = list(expected)
+
+    def complete(errors):
+        return len(errors) == len(expected) and all(map(is_problem, errors, expected))
+
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
-    while [
-        error.splitlines()[0] for error in page.lf_errors
-    ] != wanted and time.monotonic() < deadline:
+    while not complete(page.lf_errors) and time.monotonic() < deadline:
         page.wait_for_timeout(25)
     errors = take_browser_errors(page)
-    assert [error.splitlines()[0] for error in errors] == wanted, errors
+    assert complete(errors), shown(errors)
     return errors
-
-
-def _names(fragment, line):
-    """Whether an expected fragment names a browser problem's first line. An HTTP
-    status names the entry a failed response is recorded as, `"<status> <url>"`
-    (`render_gate.scheme.console_error`), by its start: elsewhere in a line, a port
-    or a stack's address can hold the same digits."""
-    if fragment.isdigit():
-        return line.startswith(f"{fragment} ")
-    return fragment in line
 
 
 def consume_browser_errors(page, *expected):
-    """Assert intentional messages; stack locations cannot authorize a problem."""
-    assert expected, "expected browser-error fragments cannot be empty"
+    """Consume the problems a test caused on one page, each of which must be one of
+    `expected` (`is_problem`)."""
+    assert expected, "expected browser problems cannot be empty"
     errors = take_browser_errors(page)
     assert errors and all(
-        any(_names(fragment, error.splitlines()[0]) for fragment in expected)
-        for error in errors
-    ), errors
+        any(is_problem(error, wanted) for wanted in expected) for error in errors
+    ), shown(errors)
     return errors
-
-
-# What navigate reports when a ResizeObserver loop notice comes back on the confirming
-# navigation, so a one-off notice is dropped and a recurring one fails the test.
-RECURRING_RESIZE_NOTICE = (
-    "window error: ResizeObserver loop notice recurred on the confirming navigation"
-)
 
 
 def navigate(page, url, *, wait_until="load", upgraded=True):
     """Navigate through a complete page handover, classifying only the
     ResizeObserver notices raised during that navigation.
 
-    A platform notice seen once under load is not a page fault; one repeated by the
-    confirming navigation is. Everything else remains on the page from the attempt that
+    A platform notice seen once under load is not a page fault; one the confirming
+    navigation repeats is, reported with the `confirmation` value `recurred`, as the
+    render gate reports one. Everything else remains on the page from the attempt that
     reported it, and anything arriving after this helper returns remains strict.
     """
 
     errors = page.lf_errors
 
     def complete_navigation():
-        start = len(errors)
-        page.goto(
-            url, wait_until=wait_until, timeout=render_checks_model.HANDOVER_DEADLINE_MS
-        )
-        if upgraded:
-            wait_until_ready(page)
-        else:
-            page.wait_for_function(
-                "() => document.querySelector('.lf-banner') !== null",
+        # A test that adjudicates the page's notices itself keeps its own list.
+        outside = getattr(page, "lf_resize_notices", None)
+        notices = page.lf_resize_notices = []
+        try:
+            page.goto(
+                url,
+                wait_until=wait_until,
                 timeout=render_checks_model.HANDOVER_DEADLINE_MS,
             )
-        # Let the rendering turn that earned the readiness stamp finish. A loop
-        # notice is delivered by that turn, rather than by the DOM write alone.
-        one_frame(page)
-        fresh = errors[start:]
-        del errors[start:]
-        notices = [
-            error for error in fresh if render_gate_model.resize_observer_error(error)
-        ]
-        errors.extend(
-            error
-            for error in fresh
-            if not render_gate_model.resize_observer_error(error)
-        )
+            if upgraded:
+                wait_until_ready(page)
+            else:
+                page.wait_for_function(
+                    "() => document.querySelector('.lf-banner') !== null",
+                    timeout=render_checks_model.HANDOVER_DEADLINE_MS,
+                )
+            # Let the rendering turn that earned the readiness stamp finish. A loop
+            # notice is delivered by that turn, rather than by the DOM write alone.
+            one_frame(page)
+        except BaseException:
+            errors.extend(notices)
+            raise
+        finally:
+            page.lf_resize_notices = outside
         return notices
 
     notices = complete_navigation()
@@ -1551,7 +1613,7 @@ def navigate(page, url, *, wait_until="load", upgraded=True):
         errors.extend(notice for notice in notices if notice not in errors)
         raise
     if confirming_notices:
-        errors.append(RECURRING_RESIZE_NOTICE)
+        errors.append(confirming_notices[0].but(values={"confirmation": "recurred"}))
 
 
 def shortcut_bar_text(page):
@@ -1581,8 +1643,7 @@ def active_digit_bindings(page):
     rendered(page)
     digits = page.evaluate(
         """async () => {
-          const {availableCommandRoutes} = await window.__lfRuntimeImport(
-            '/runtime/keyboard/dispatch.js');
+          const {availableCommandRoutes} = await window.__lfCheckApi();
           return [...new Set([...availableCommandRoutes().values()].flatMap(
             keys => [...keys].filter(key => /^[1-9]$/.test(key))))].sort();
         }"""
@@ -1603,7 +1664,7 @@ def open_versions(page):
 def banner_control(page, selector):
     """Return a banner control, opening its fixed menu seat when needed.
 
-    Approval, Questions and Threads stand on the row; every secondary control stands in More at
+    Approval, On me and Threads stand on the row; every secondary control stands in More at
     every width, and a gesture's next step stands on the row in their place. A caller
     reaching a gesture step reads it off the row rather than through this, since opening
     More would hide a step that had wrongly been seated there. A caller may already have
@@ -1655,10 +1716,10 @@ def expect_banner_control_offered(control, *, offered=True):
 
 
 # How many of the page's active Asks are answered, as "answered/total": the publisher's
-# own Ask reading, which the Questions panel's Done list and the `q` walk select from. Before
+# own Ask reading, which the On panel's Done list and the `m` walk select from. Before
 # the page has admitted a state answer the reading is empty, which is no count at all.
 _ASKS_ANSWERED = """async () => {
-  const { readApplication } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+  const { readApplication } = await window.__lfCheckApi();
   window.__lfAsksAnswered = () => {
     const application = readApplication();
     if (application.phase !== 'ready') return null;
@@ -2041,7 +2102,7 @@ def live_leaf(tmp_path, monkeypatch):
         )
         # Use the durable server's maintenance loop: the row remains canonical
         # even while no browser has visited this neighboring page.
-        url = hosting_model.start_server(d, standing=True, harness=None).url
+        url = hosting_model.start_server(d, persistent=True, harness=None).url
         served.append(d)
         return url.split("?")[0].rstrip("/"), d
 
@@ -2058,32 +2119,23 @@ def other_leaf(live_leaf):
 
 
 def margins_laid_out(page):
-    """Run the margin layout the page has scheduled, so a geometry read follows it.
+    """Announce a layout change and wait for the margin's own placement delivery.
 
-    The margin's own geometry owner answers a width change through a ResizeObserver on
-    the body and a `requestAnimationFrame`, which is one whole rendering turn later than
-    the resize event `resized` waits for. A read taken in between is a read of the rows
-    at the width they have just left: on a page narrowed to exactly what its residents
-    need, the widest margin row was still at its roomy width and hung 24px past the
-    window — but only on the runs where the frame had not landed yet, which is why the
-    same probe condensed on one run and not the next.
-
-    The pending frame is not a fact to wait a frame for (`tests/AGENTS.md`, "Waits"), so the work is run instead of guessed at.
-    Whether the observer schedules it at all is `test_render_margin.py`'s subject, not
-    that of a test reading the layout it produces.
-
-    The module load is awaited from the driver rather than inside `page.evaluate`, which
-    takes no timeout in any binding: a preview that stalls on the way out would hold the
-    worker for the rest of the job step instead of failing in thirty seconds naming its
-    test. `SERVED_TIMEOUT_MS` is the same patience the payload's own probes carry.
-
-    The `true` is load-bearing, not the comma operator's leftover: `wait_for_function`
-    awaits a promise the predicate returns, but a falsy resolution ends the wait rather
-    than polling again, so a predicate handing back the layout's own result would return
-    at once and prove nothing."""
+    The public widget invalidation runs the normal observer/scheduler path. Its
+    native completion event proves placement occurred; no private solver is invoked.
+    """
+    page.evaluate(
+        """async () => {
+          const {layoutChanged} = await window.__lfWidgetApi();
+          window.__lfMarginLaidOut = false;
+          document.addEventListener('lf-margin-layout', () => {
+            window.__lfMarginLaidOut = true;
+          }, {once: true});
+          layoutChanged(document.body);
+        }"""
+    )
     page.wait_for_function(
-        "() => window.__lfRuntimeImport('/runtime/annotation-overlay/margin-layout.js')"
-        ".then(({layoutMarginRows}) => (layoutMarginRows(), true))",
+        "() => window.__lfMarginLaidOut",
         timeout=render_checks_model.SERVED_TIMEOUT_MS,
     )
 
@@ -2109,7 +2161,7 @@ def suggestion_owner(suggestion_id: str) -> str:
 
 
 def draft_control(scope, key: str, draft_id: str, *, visible=True):
-    """A draft's local command button (edit, save, cancel, close or retry)."""
+    """A draft's local command button (edit, save, cancel or retry)."""
     action = "save" if key == "retry" else key
     return scope.locator(
         f'lf-draft[id="{draft_id}"] [data-lf-draft-action="{action}"]'
@@ -2173,7 +2225,7 @@ SHELL_BOX = """(() => {
 # runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.
 RELEASE_FOCUS = """async () =>
-  (await window.__lfRuntimeImport('/runtime/focus.js')).releaseFocus()"""
+  (await window.__lfCheckApi()).releaseFocus()"""
 
 
 def panel_settled(page, open=True):
@@ -2241,10 +2293,7 @@ def fills_the_window(page, block, fills):
 
 # An async page expression for the top of the page scroller's landing band, below the
 # banner and anything else covering its top edge: where a reading place is measured from.
-LANDING_TOP = (
-    "(await window.__lfRuntimeImport('/runtime/geometry.js'))"
-    ".landingBand(document.scrollingElement).top"
-)
+LANDING_TOP = "(await window.__lfCheckApi()).landingBand(document.scrollingElement).top"
 
 
 def resized(page, width, height):

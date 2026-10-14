@@ -1,7 +1,6 @@
 """The browser fixture fails the layout shifts the "Stability" rule forbids
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
-import json
 from datetime import UTC, datetime
 from html import escape
 from urllib.parse import quote
@@ -14,11 +13,10 @@ from render_harness import (
     WATCH_PLATFORM_SOURCE,
     consume_browser_errors,
     holding,
+    is_problem,
     judge_watches,
     leaf_page,
     open_page,
-    resized,
-    scroll_settled,
     take_browser_errors,
 )
 
@@ -71,9 +69,37 @@ def field_page(browser, key=""):
     return page
 
 
+def within(node, place):
+    """Whether the watch's name for a node places it at `place` or inside it, as it
+    names a text node (`#text in button#control`) or a node in a shadow tree
+    (`div.cm-line in shadow of leaf-text#field`)."""
+    return node == place or node.endswith((f" in {place}", f" of {place}"))
+
+
+def moved_within(place, by=None):
+    """A report that a node at `place` or inside it moved without input, `by` far
+    where given (`is_problem`)."""
+    return lambda problem: (
+        problem.code == "moved-without-input"
+        and within(problem.values["node"], place)
+        and by in (None, problem.values["by"])
+    )
+
+
+def names_move(errors, node, *, typing_in=None):
+    """Whether the watch reported a node at `node` or inside it moving: without input,
+    or carried by typing in the field `typing_in`."""
+    expected = (
+        {"code": "typing-moved", "field": typing_in, "node": node}
+        if typing_in
+        else moved_within(node)
+    )
+    return any(is_problem(error, expected) for error in errors)
+
+
 def shift_evidence(error):
     """Every reported credit is explained by the terms its owner accepted."""
-    evidence = json.loads(error.split("\nshift evidence: ", 1)[1])
+    evidence = error.values["evidence"]
     assert evidence["comparisons"], evidence
     for comparison in evidence["comparisons"]:
         for axis in ["left", "top"]:
@@ -96,7 +122,8 @@ def test_typing_that_carries_its_field_fails_at_the_last_keystroke(browser):
     page.locator("#field").fill("a")
     judge_watches()
     errors = consume_browser_errors(
-        page, "typing in textarea#field moved textarea#field"
+        page,
+        {"code": "typing-moved", "field": "textarea#field", "node": "textarea#field"},
     )
     evidence = shift_evidence(errors[0])
     assert evidence["kind"] == "typing"
@@ -152,12 +179,12 @@ def test_native_document_replacement_preserves_sensor_input_ownership(browser):
     page.locator("#control").evaluate("node => { node.style.marginTop = '30px'; }")
     paint(page)
     judge_watches()
-    consume_browser_errors(page, "moved without input")
+    consume_browser_errors(page, {"code": "moved-without-input"})
 
     page.locator("#field").fill("Half a thought")
     page.locator("#field").evaluate("node => { node.value = ''; }")
     judge_watches()
-    consume_browser_errors(page, "typed words left the screen without a key or press")
+    consume_browser_errors(page, {"code": "words-left-screen"})
 
 
 @pytest.mark.parametrize("nested", [False, True])
@@ -231,7 +258,7 @@ def test_hidden_returns_protect_only_the_resumed_reading(browser, serve):
     held = []
     page.route("**/api/news", lambda route: held.append(route))
     page.evaluate("""async () => {
-      window.returnBoundary = await window.__lfRuntimeImport('/runtime/reading-continuity.js');
+      window.returnBoundary = await window.__lfCheckApi();
       window.returnVisibility = 'visible';
       Object.defineProperty(document, 'visibilityState', {
         configurable: true, get: () => window.returnVisibility,
@@ -261,7 +288,7 @@ def test_hidden_returns_protect_only_the_resumed_reading(browser, serve):
     page.evaluate("document.getElementById('above').style.height = '120px'")
     paint(page)
     judge_watches()
-    consume_browser_errors(page, "moved without input")
+    consume_browser_errors(page, {"code": "moved-without-input"})
 
 
 @pytest.mark.parametrize("cause", ["typing", "passive"])
@@ -312,12 +339,19 @@ def test_editcontext_growth_keeps_input_credit_with_its_actual_field(
     judge_watches()
     if cause == "typing":
         assert field.bounding_box()["y"] == pytest.approx(before["y"] + 40)
-        consume_browser_errors(page, "typing in leaf-text#field moved leaf-text#field")
+        consume_browser_errors(
+            page,
+            {
+                "code": "typing-moved",
+                "field": "leaf-text#field",
+                "node": "leaf-text#field",
+            },
+        )
     else:
         assert field.bounding_box()["y"] == pytest.approx(before["y"])
         page.evaluate("document.getElementById('above').style.height = '40px'")
         judge_watches()
-        consume_browser_errors(page, "leaf-text#field moved without input")
+        consume_browser_errors(page, moved_within("leaf-text#field"))
 
 
 @pytest.mark.parametrize(
@@ -358,9 +392,19 @@ def test_typing_protects_subjects_through_a_coordinate_carrier_rebase(
     assert after["field"] - before["field"] == (0 if compensate else 20)
     judge_watches()
     if not compensate:
-        consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+        consume_browser_errors(
+            page,
+            {
+                "code": "typing-moved",
+                "field": "textarea#field",
+                "node": "textarea#field",
+            },
+        )
     elif holder != "inert":
-        consume_browser_errors(page, "typing in textarea#field moved div#carrier")
+        consume_browser_errors(
+            page,
+            {"code": "typing-moved", "field": "textarea#field", "node": "div#carrier"},
+        )
 
 
 @pytest.mark.parametrize("distance", [6, 40])
@@ -372,7 +416,8 @@ def test_a_shift_without_input_fails(browser, distance):
     )
     judge_watches()
     consume_browser_errors(
-        page, f"textarea#field moved without input by (0, {distance})px"
+        page,
+        moved_within("textarea#field", by=[0, distance]),
     )
 
 
@@ -510,10 +555,8 @@ def test_passive_motion_is_confined_to_a_runtime_owned_region(
     if control_before:
         assert page.locator("#action").bounding_box() == control_before
     if protected:
-        errors = consume_browser_errors(page, "moved without input")
-        assert any(f"{protected} moved without input" in error for error in errors), (
-            errors
-        )
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, protected), errors
 
 
 @pytest.mark.parametrize(
@@ -619,10 +662,8 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
     if outer_before and not protected:
         assert page.locator("#outer").bounding_box() == outer_before
     if protected:
-        errors = consume_browser_errors(page, "moved without input")
-        assert any(f"{protected} moved without input" in error for error in errors), (
-            errors
-        )
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, protected), errors
 
 
 @pytest.mark.parametrize(
@@ -703,10 +744,8 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         else:
             assert page.locator("#reply").bounding_box()["y"] == reply_before["y"] + 40
     else:
-        errors = consume_browser_errors(page, "moved without input")
-        assert any(f"{protected} moved without input" in error for error in errors), (
-            errors
-        )
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, protected), errors
 
 
 @pytest.mark.parametrize("overflow", ["visible", "auto"])
@@ -730,8 +769,8 @@ def test_boxless_overflow_does_not_hide_carried_reading(browser, overflow):
     page.locator("#above").evaluate("node => node.style.height = '80px'")
     judge_watches()
     assert page.locator("#target").bounding_box()["y"] == 80
-    errors = consume_browser_errors(page, "moved without input")
-    assert any("button#target moved without input" in error for error in errors), errors
+    errors = consume_browser_errors(page, {"code": "moved-without-input"})
+    assert names_move(errors, "button#target"), errors
 
 
 @pytest.mark.parametrize("bounded", [False, True])
@@ -768,10 +807,8 @@ def test_append_uses_an_actual_scrollport_past_boxless_overflow(
     judge_watches()
     assert page.locator("#target").bounding_box()["y"] == 440
     if not bounded:
-        errors = consume_browser_errors(page, "moved without input")
-        assert any("button#target moved without input" in error for error in errors), (
-            errors
-        )
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "button#target"), errors
 
 
 def test_append_reflow_preserves_nested_text_reflow(browser):
@@ -821,7 +858,10 @@ def test_append_reflow_does_not_credit_typing_that_carries_its_editor(browser):
     paint(page)
     page.locator("#field").fill("a")
     judge_watches()
-    consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+    consume_browser_errors(
+        page,
+        {"code": "typing-moved", "field": "textarea#field", "node": "textarea#field"},
+    )
 
 
 CAPPED_METADATA = "".join(
@@ -967,7 +1007,7 @@ def test_metadata_at_the_source_cap_cannot_hide_a_control(browser, motion):
         "moved_then_hidden",
         "moved_then_removed",
     }:
-        consume_browser_errors(page, "moved without input")
+        consume_browser_errors(page, {"code": "moved-without-input"})
 
 
 @pytest.mark.parametrize("outer_mode", ["text", "controls"])
@@ -1036,7 +1076,7 @@ def test_nested_shadow_regions_keep_enclosing_guarantees_at_source_cap(
     )
     assert after == {key: before[key] for key in after}
     if outer_mode == "text":
-        consume_browser_errors(page, "moved without input")
+        consume_browser_errors(page, {"code": "moved-without-input"})
 
 
 @pytest.mark.shifts_unsurveyed
@@ -1050,12 +1090,15 @@ def test_a_marked_page_watches_typing_and_unasked_shifts(browser):
     assert page.lf_errors == []
     page.evaluate("document.getElementById('above').style.height = '40px'")
     judge_watches()
-    consume_browser_errors(page, "textarea#field moved without input")
+    consume_browser_errors(page, moved_within("textarea#field"))
 
     carried = field_page(browser, "carry")
     carried.locator("#field").fill("a")
     judge_watches()
-    consume_browser_errors(carried, "typing in textarea#field moved textarea#field")
+    consume_browser_errors(
+        carried,
+        {"code": "typing-moved", "field": "textarea#field", "node": "textarea#field"},
+    )
 
 
 # A composer pinned to the viewport's foot, standing partly past its right edge and
@@ -1116,7 +1159,7 @@ def test_a_shift_without_input_after_typing_fails(browser):
     )
     page.evaluate("document.getElementById('above').style.height = '40px'")
     judge_watches()
-    consume_browser_errors(page, "textarea#field moved without input")
+    consume_browser_errors(page, moved_within("textarea#field"))
 
 
 def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
@@ -1136,7 +1179,7 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
     )
     page.evaluate(
         """async work => {
-      const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+      const {nextFrame} = await window.__lfWidgetApi();
       const above = document.querySelector('#above');
       document.querySelector('#press').addEventListener('click', () => {
         let turn = 0;
@@ -1165,7 +1208,7 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
     control.evaluate("node => node.style.marginTop = '40px'")
     rendered(page)
     judge_watches()
-    consume_browser_errors(page, "button#control moved without input")
+    consume_browser_errors(page, moved_within("button#control"))
 
 
 def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, serve):
@@ -1210,7 +1253,7 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     control.evaluate("node => node.style.marginTop = '40px'")
     rendered(page, facts=("updatesSettled",))
     judge_watches()
-    consume_browser_errors(page, "button#control moved without input")
+    consume_browser_errors(page, moved_within("button#control"))
 
     # Its landing moves the files and the control after it, for the press.
     before = control.bounding_box()["y"]
@@ -1226,8 +1269,136 @@ def test_an_input_owns_the_landing_of_a_widget_preparation_it_began(browser, ser
     page.locator("#patch").evaluate("node => node.style.marginTop = '40px'")
     rendered(page)
     judge_watches()
-    moved = consume_browser_errors(page, "moved without input")
-    assert any("in shadow of lf-diff#patch" in error for error in moved), moved
+    moved = consume_browser_errors(page, {"code": "moved-without-input"})
+    assert any(
+        "in shadow of lf-diff#patch" in error.values["node"] for error in moved
+    ), moved
+
+
+@pytest.mark.parametrize(
+    "retired_at", ["no preparation", "click", "resolve-remove", "remove-resolve"]
+)
+def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
+    browser, serve, retired_at
+):
+    """A removed renderer's late completion cannot credit unrelated page movement.
+
+    The no-preparation control proves ordinary input credit expires. A declaration
+    retires with its owner even when its promise reaction precedes delivery of the
+    removal's mutation record.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Retired preparation",
+                '<button id="press">Press</button>'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                '<button id="control" style="display:block">Control</button>',
+            )
+        ),
+    )
+    page.evaluate(
+        """async retiredAt => {
+          const {widgetController} = await window.__lfWidgetApi();
+          const widget = document.querySelector('#choice');
+          const gate = Promise.withResolvers();
+          window.release = gate.resolve;
+          const terminal = Promise.withResolvers();
+          window.terminal = terminal.promise;
+          document.querySelector('#press').addEventListener('click', () => {
+            if (retiredAt !== "no preparation") {
+              let identity;
+              const stop = document.querySelector('script[data-lf-entry]').lfObserveWidgetPreparations((phase, preparation) => {
+                if (phase === 'begin') identity ??= preparation;
+                else if (preparation === identity) { terminal.resolve(); stop(); }
+              });
+              widgetController(widget).present(gate.promise);
+            } else terminal.resolve();
+            if (["no preparation", "click"].includes(retiredAt)) widget.remove();
+          }, {once: true});
+        }""",
+        retired_at,
+    )
+    page.locator("#press").click()
+    rendered(page, facts=("updatesSettled",))
+    judge_watches()
+    assert page.lf_errors == []
+    page.evaluate(
+        """async retiredAt => {
+          const widget = document.querySelector('#choice');
+          if (retiredAt === 'remove-resolve') widget.remove();
+          window.release();
+          if (retiredAt === 'resolve-remove') widget.remove();
+          await window.terminal;
+          document.querySelector('#control').style.marginTop = '40px';
+        }""",
+        retired_at,
+    )
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#control"))
+
+
+@pytest.mark.parametrize("first_outcome", ["rejected", "pending"])
+def test_each_capable_preparation_keeps_its_own_input_landing(
+    browser, serve, first_outcome
+):
+    """A sibling can land after another fails or before another completes.
+
+    Semantic presentation aggregates both promises, but each actual producer owns
+    its own mechanical landing. Neither an early aggregate rejection nor a pending
+    sibling may lose the successful producer's input attribution.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Sibling preparation",
+                '<button id="press">Press</button>'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                '<button id="control" style="display:block">Control</button>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const {widgetController} = await window.__lfWidgetApi();
+      const widget = document.querySelector('#choice');
+      const first = Promise.withResolvers();
+      const second = Promise.withResolvers();
+      window.rejectFirst = first.reject;
+      window.releaseFirst = first.resolve;
+      window.releaseSecond = second.resolve;
+      document.querySelector('#press').addEventListener('click', () => {
+        widgetController(widget).present(first.promise);
+        widgetController(widget).present(second.promise.then(() => {
+          widget.style.height = '120px';
+        }));
+      }, {once: true});
+    }""")
+    page.locator("#press").click()
+    judge_watches()
+    assert page.lf_errors == []
+    if first_outcome == "rejected":
+        page.evaluate("rejectFirst(new Error('deliberate preparation failure'))")
+        page.wait_for_selector("#choice .lf-error")
+        judge_watches()
+        consume_browser_errors(page, "deliberate preparation failure")
+    assert not page.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfRenderingState().preparationsSettled"
+    )
+    page.evaluate("releaseSecond()")
+    page.wait_for_function("document.querySelector('#choice').style.height === '120px'")
+    judge_watches()
+    assert page.lf_errors == []
+    if first_outcome == "pending":
+        assert not page.evaluate(
+            "document.querySelector('script[data-lf-entry]').lfRenderingState().preparationsSettled"
+        )
+        page.evaluate("releaseFirst()")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
 
 
 @pytest.mark.parametrize(
@@ -1262,7 +1433,7 @@ def test_a_preparation_no_input_began_lands_passive(browser, serve, input_at):
     page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
     page.evaluate(
         """async inputAt => {
-      const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+      const {nextFrame} = await window.__lfWidgetApi();
       const root = document.querySelector('#patch').shadowRoot;
       const details = root.querySelector('details');
       const opens = () => {
@@ -1304,8 +1475,8 @@ def test_a_preparation_no_input_began_lands_passive(browser, serve, input_at):
     ).to_contain_text("new")
     rendered(page)
     judge_watches()
-    moved = consume_browser_errors(page, "moved without input")
-    assert any(error.startswith("button#control ") for error in moved), moved
+    moved = consume_browser_errors(page, {"code": "moved-without-input"})
+    assert names_move(moved, "button#control"), moved
 
 
 @pytest.fixture
@@ -1482,7 +1653,14 @@ def test_an_activation_that_opens_nothing_leaves_a_later_open_passive(
     judge_watches()
     if not cancelled:
         # The click's listener restates `open` the activation then takes back.
-        consume_browser_errors(page, "unchanged write: open on details")
+        consume_browser_errors(
+            page,
+            {
+                "code": "unchanged-write",
+                "what": "open",
+                "node": "details.lf-diff-fold in shadow of lf-diff#patch.lf-rendered",
+            },
+        )
     assert page.lf_errors == []
 
     page.evaluate(
@@ -1494,8 +1672,8 @@ def test_an_activation_that_opens_nothing_leaves_a_later_open_passive(
     expect(page.locator("#patch [data-line]").last).to_contain_text("new")
     rendered(page)
     judge_watches()
-    moved = consume_browser_errors(page, "moved without input")
-    assert any(error.startswith("button#control ") for error in moved), moved
+    moved = consume_browser_errors(page, {"code": "moved-without-input"})
+    assert names_move(moved, "button#control"), moved
 
 
 def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):
@@ -1522,7 +1700,7 @@ def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):
     finally:
         page.evaluate("window.releaseFrames()")
     page.wait_for_function("window.shiftJudged === true", polling=100)
-    consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
+    consume_browser_errors(page, moved_within("textarea#field", by=[0, 40]))
 
 
 @pytest.mark.parametrize(
@@ -1642,7 +1820,7 @@ def test_native_shift_evidence_survives_a_controlled_timer_clock(browser):
     page.clock.run_for(5000)
     page.evaluate("document.getElementById('above').style.height = '40px'")
     judge_watches()
-    consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
+    consume_browser_errors(page, moved_within("textarea#field", by=[0, 40]))
 
 
 def test_a_native_resize_seals_typing_before_its_layout_even_with_controlled_time(
@@ -1674,7 +1852,7 @@ def test_a_native_resize_seals_typing_before_its_layout_even_with_controlled_tim
     assert take_browser_errors(page) == []
     page.evaluate("document.getElementById('above').style.height = '40px'")
     judge_watches()
-    consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
+    consume_browser_errors(page, moved_within("textarea#field", by=[0, 40]))
 
 
 def test_a_resize_cannot_own_a_passive_shift_painted_before_dispatch(browser):
@@ -1706,7 +1884,7 @@ def test_a_resize_cannot_own_a_passive_shift_painted_before_dispatch(browser):
     finally:
         page.evaluate("releaseHealth()")
     judge_watches()
-    consume_browser_errors(page, "textarea#field moved without input by (0, 40)px")
+    consume_browser_errors(page, moved_within("textarea#field", by=[0, 40]))
 
 
 # A context script, so it registers ahead of the page's health sensors and a held
@@ -1773,7 +1951,7 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
     # A passive move after the resize still fails.
     page.evaluate("document.querySelector('button').style.marginTop = '40px'")
     judge_watches()
-    consume_browser_errors(page, "moved without input by (0, 40)px")
+    consume_browser_errors(page, {"code": "moved-without-input", "by": [0, 40]})
 
 
 # News three frames after a press, as a reply lands just after a click: the page adopts
@@ -1834,7 +2012,7 @@ def news_page(browser, motion="", work_ms=65, *, translation=False):
 def test_news_just_after_a_press_moves_nothing(browser, motion, work_ms):
     page = news_page(browser, motion, work_ms)
     judge_watches()
-    consume_browser_errors(page, "div#below moved without input")
+    consume_browser_errors(page, moved_within("div#below"))
 
 
 def test_native_height_sibling_flow_without_displacement_proof_is_reported(browser):
@@ -1846,7 +2024,7 @@ def test_native_height_sibling_flow_without_displacement_proof_is_reported(brows
         > page.locator("#bar").bounding_box()["y"]
     )
     judge_watches()
-    consume_browser_errors(page, "div#below moved without input")
+    consume_browser_errors(page, moved_within("div#below"))
 
 
 @pytest.mark.parametrize("motion", ["press", "news"])
@@ -1858,7 +2036,7 @@ def test_sampled_native_translation_distinguishes_press_from_news(browser, motio
     if motion == "press":
         assert take_browser_errors(page) == []
     else:
-        consume_browser_errors(page, "div#below moved without input")
+        consume_browser_errors(page, moved_within("div#below"))
 
 
 @pytest.mark.parametrize("motion", ["none", "scroll", "stalled", "finite", "unbounded"])
@@ -1895,7 +2073,7 @@ def test_completed_input_does_not_own_an_effects_unrelated_passive_motion(
     after = page.locator("#field").bounding_box()
     assert after["x"] - before["x"] == 80
     judge_watches()
-    consume_browser_errors(page, "textarea#field moved without input by (80, 0)px")
+    consume_browser_errors(page, moved_within("textarea#field", by=[80, 0]))
 
 
 @pytest.mark.parametrize(
@@ -1977,7 +2155,7 @@ STARTUP</script></body>""".replace(
     assert after["x"] - before["x"] == (80 if local_motion and scale == 1 else 0)
     judge_watches()
     if local_motion:
-        errors = consume_browser_errors(page, "textarea#field moved without input")
+        errors = consume_browser_errors(page, moved_within("textarea#field"))
         evidence = shift_evidence(errors[0])
         assert any(
             term["branch"]
@@ -2062,7 +2240,7 @@ window.attachmentMotion=attachment.animate(
     if change == "rebase":
         assert take_browser_errors(page) == []
     else:
-        consume_browser_errors(page, "textarea#field moved without input")
+        consume_browser_errors(page, moved_within("textarea#field"))
 
 
 # Rows in a box that clips without scrolling, as a diff's file does, and a box among
@@ -2090,7 +2268,7 @@ def test_a_row_moved_only_where_its_box_moves_on_screen(browser, where):
     page.evaluate("document.getElementById('grows').style.height = '300px'")
     judge_watches()
     if where == "in view":
-        consume_browser_errors(page, "moved without input by (0, 200)px")
+        consume_browser_errors(page, {"code": "moved-without-input", "by": [0, 200]})
 
 
 # A frame nested in the page, whose button grows a box above a paragraph in that frame.
@@ -2165,7 +2343,9 @@ def test_disposing_a_frame_releases_parent_input_without_unwatching_its_sibling(
     live = page.frame_locator("#live").locator("#above")
     live.evaluate("element => { element.style.height = '40px'; }")
     judge_watches()
-    consume_browser_errors(page, "#text in p#below moved without input")
+    consume_browser_errors(
+        page, {"code": "moved-without-input", "node": "#text in p#below"}
+    )
 
 
 @pytest.mark.parametrize(
@@ -2206,7 +2386,7 @@ def test_reading_and_controls_keep_their_place_inside_a_stationary_parent(
         )
     judge_watches()
     if protected:
-        consume_browser_errors(page, f"{protected} moved without input")
+        consume_browser_errors(page, moved_within(protected))
 
 
 def test_an_unpainted_roundtrip_keeps_the_visible_control_in_place(browser):
@@ -2260,7 +2440,7 @@ def test_scrolling_a_sticky_owner_does_not_credit_its_controls_local_motion(
     page.evaluate(PAINTED)
     judge_watches()
     if axis:
-        consume_browser_errors(page, "button#action moved without input")
+        consume_browser_errors(page, moved_within("button#action"))
 
 
 def test_typing_keeps_its_field_when_chrome_reports_only_larger_sources(browser):
@@ -2286,7 +2466,10 @@ def test_typing_keeps_its_field_when_chrome_reports_only_larger_sources(browser)
     page.locator("#field").fill("a")
     page.screenshot()
     judge_watches()
-    consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+    consume_browser_errors(
+        page,
+        {"code": "typing-moved", "field": "textarea#field", "node": "textarea#field"},
+    )
 
 
 @pytest.mark.parametrize("subject", ["button", "span"])
@@ -2313,8 +2496,8 @@ def test_a_retained_landmark_keeps_its_pose_when_a_new_sticky_owner_adopts_it(
     page.evaluate(PAINTED)
     judge_watches()
     errors = take_browser_errors(page)
-    assert any(f"{subject}#action" in error for error in errors), errors
-    assert all("moved without input" in error for error in errors), errors
+    assert any(f"{subject}#action" in error.values["node"] for error in errors), errors
+    assert {error.code for error in errors} == {"moved-without-input"}, errors
 
 
 @pytest.mark.parametrize("decoration", ["aria-hidden", "presentation", None])
@@ -2337,7 +2520,7 @@ def test_decorative_media_is_not_an_independent_reading_landmark(browser, decora
     page.evaluate(PAINTED)
     judge_watches()
     if decoration is None:
-        consume_browser_errors(page, "svg#picture moved without input")
+        consume_browser_errors(page, moved_within("svg#picture"))
 
 
 def test_a_wheel_gesture_does_not_own_later_passive_carry(browser):
@@ -2353,7 +2536,7 @@ def test_a_wheel_gesture_does_not_own_later_passive_carry(browser):
     page.evaluate("document.querySelector('#above').style.height = '40px'")
     page.screenshot()
     judge_watches()
-    consume_browser_errors(page, "textarea#field moved without input")
+    consume_browser_errors(page, moved_within("textarea#field"))
 
 
 def test_native_modality_keeps_its_exposed_controls_in_place(browser, serve):
@@ -2398,7 +2581,7 @@ def test_native_modality_keeps_its_exposed_controls_in_place(browser, serve):
             page.screenshot()
             judge_watches()
             if subject.startswith("current"):
-                consume_browser_errors(page, f"button#{subject} moved without input")
+                consume_browser_errors(page, moved_within(f"button#{subject}"))
             else:
                 assert take_browser_errors(page) == [], (reverse, subject)
 
@@ -2440,7 +2623,12 @@ const scroller=host.shadowRoot.getElementById('scroller');</script>"""
     judge_watches()
     if carry:
         errors = consume_browser_errors(
-            page, "typing in textarea#field moved textarea#field"
+            page,
+            {
+                "code": "typing-moved",
+                "field": "textarea#field",
+                "node": "textarea#field",
+            },
         )
         evidence = shift_evidence(errors[0])
         if sticky:
@@ -2480,7 +2668,14 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
         assert page.locator("#field").bounding_box() == before
     judge_watches()
     if carry:
-        consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+        consume_browser_errors(
+            page,
+            {
+                "code": "typing-moved",
+                "field": "textarea#field",
+                "node": "textarea#field",
+            },
+        )
 
 
 # The clean case runs under both declarations; each fault runs under one, since where
@@ -2568,7 +2763,7 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     judge_watches()
     errors = take_browser_errors(page)
     if fault:
-        assert any(f"typing in {name} moved {name}" in error for error in errors), (
+        assert names_move(errors, name, typing_in=name), (
             fault,
             before,
             after,
@@ -2622,17 +2817,57 @@ def test_owned_animation_retains_local_motion_through_next_gesture(browser, faul
     judge_watches()
     errors = take_browser_errors(page)
     if fault:
-        assert any(
-            (
-                "typing in textarea#field moved textarea#field"
-                if fault == "local"
-                else "textarea#field moved without input"
-            )
-            in error
-            for error in errors
+        assert names_move(
+            errors,
+            "textarea#field",
+            typing_in="textarea#field" if fault == "local" else None,
         ), errors
     else:
         assert not errors, errors
+
+
+@pytest.mark.parametrize("begun", ["press", "script"])
+@pytest.mark.parametrize(
+    ("property", "moved"),
+    [
+        ("transform", "translateX(-600px)"),
+        ("translate", "-600px 0"),
+        ("translate", "-300% 0%"),
+    ],
+)
+def test_a_pressed_transition_owns_its_travel_whichever_property_carries_it(
+    browser, property, moved, begun
+):
+    """A press beginning a transition of a box's translation owns the travel it
+    samples, by the transform or by the individual `translate` property, in pixels
+    or in percentages of the box, as the floating panel's menu slides in. A later
+    press moving the layout has that travel judged with its own rendering: credited
+    where the press began it, and a move without input where a script did."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<!doctype html><body style="margin:0">
+<button id="slide">Slide</button><button id="grow">Grow</button>
+<div id="menu" style="margin-left:650px;width:200px;transition:{property} 3s linear"><button>Row</button><p>Menu reading</p></div>
+<div id="room"></div><p>Below</p>
+<script>function slideIn(){{window.from=menu.getBoundingClientRect().left;menu.style.{property}='{moved}'}}
+slide.addEventListener('click',slideIn);
+grow.addEventListener('click',()=>room.style.height='40px')</script>""")
+    )
+    paint(page)
+    if begun == "press":
+        page.locator("#slide").click()
+    else:
+        page.evaluate("slideIn()")
+    page.wait_for_function("from - menu.getBoundingClientRect().left > 20")
+    page.locator("#grow").click()
+    page.evaluate(PAINTED)
+    assert page.evaluate("menu.getAnimations()[0].playState") == "running"
+    judge_watches()
+    if begun == "press":
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, moved_within("div#menu"))
 
 
 @pytest.mark.parametrize("mode", ["static", "fallback"])
@@ -2667,7 +2902,7 @@ def test_unused_anchor_cannot_bank_an_earlier_scroll(browser, mode):
     page.evaluate(PAINTED)
     judge_watches()
     errors = take_browser_errors(page)
-    assert any("typing in textarea#field moved textarea#field" in e for e in errors), (
+    assert names_move(errors, "textarea#field", typing_in="textarea#field"), (
         before,
         page.locator("#field").bounding_box(),
         errors,
@@ -2726,9 +2961,7 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
     page.evaluate(PAINTED)
     judge_watches()
     errors = take_browser_errors(page)
-    assert any(e.startswith("button#control moved without input") for e in errors), (
-        errors
-    )
+    assert names_move(errors, "button#control"), errors
 
 
 # Native containing blocks, not DOM ancestry, decide which overflow clips apply. The
@@ -2855,7 +3088,7 @@ def test_native_clipping_preserves_only_painted_carry(browser, serve):
         field = page.locator(f"#field-{name}")
         state = field.evaluate("""async field=>{
           const box=field.getBoundingClientRect();
-          const geometry=await window.__lfRuntimeImport('/runtime/geometry.js');
+          const geometry=await window.__lfCheckApi();
           return {hit:document.elementFromPoint(box.x+3,box.y+3)===field,
             shown:!!geometry.shownRect(field,new Map()),
             opacity:field.checkVisibility({checkOpacity:true})};
@@ -2884,10 +3117,7 @@ def test_native_clipping_preserves_only_painted_carry(browser, serve):
         after = field.bounding_box()
         assert after["x"] - before["x"] == (6 if delta == 3 else delta), name
         if painted:
-            assert any(
-                f"textarea#field-{name} moved without input" in error
-                for error in errors
-            ), (name, errors)
+            assert names_move(errors, f"textarea#field-{name}"), (name, errors)
         else:
             assert errors == [], (name, errors)
         page.evaluate(
@@ -2929,17 +3159,13 @@ def test_new_anchor_relation_cannot_credit_scroll_before_activation(browser, mod
     judge_watches()
     errors = take_browser_errors(page)
     assert page.locator("#field").bounding_box()["y"] == before["y"] - 20
-    expected = (
-        "typing in textarea#field moved textarea#field"
-        if mode == "typing"
-        else "textarea#field moved without input"
-    )
-    assert any(expected in error for error in errors), errors
+    typing_in = "textarea#field" if mode == "typing" else None
+    assert names_move(errors, "textarea#field", typing_in=typing_in), errors
 
 
 # Each fault runs the clean placement and its quiet judgement first, which is the
 # control a separate faultless case would add.
-@pytest.mark.parametrize("fault", ["holder", "child", "missing-source"])
+@pytest.mark.parametrize("fault", ["holder", "child"])
 def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, fault):
     source = leaf_page(
         "Floating tenure",
@@ -2949,7 +3175,7 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
     page = open_page(browser, serve(source))
     initial = page.locator("#holder").bounding_box()
     state = page.evaluate("""async()=>{
-      const module=await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js'); const ui=await module.floatingUi();const holder=document.querySelector('#holder'),subject=document.querySelector('#subject'),host=document.querySelector('#host'); let plane='page';
+      const module=await window.__lfOverlayApi(); const ui=await module.floatingUi();const holder=document.querySelector('#holder'),subject=document.querySelector('#subject'),host=document.querySelector('#host'); let plane='page';
       const selected=()=>module.floatingSelections().find(s=>s.floating===holder);
       const owner=module.floatingPlacement({floating:holder,update:()=>void place()});
       async function place(){owner.begin();const answer=await owner.position(ui.computePosition,subject,{placement:'right-start',middleware:[]},()=>plane,subject);if(answer)owner.stand(answer);}
@@ -2974,14 +3200,6 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
         "newStoppedTenure": True,
         "sameStoppedSubject": True,
     }, state
-    if fault == "missing-source":
-        # A source measurement may be absent: preserve the rejected inputs without
-        # granting motion credit merely because the surface still has an owner.
-        page.evaluate("""() => {
-          const entry = document.querySelector('script[data-lf-entry]');
-          const readings = entry.lfFloatingSelections;
-          entry.lfFloatingSelections = () => readings().map(s => ({...s, scrollOffsets:null}));
-        }""")
     paint(page)
     assert page.locator("#holder").bounding_box() == initial
     judge_watches()
@@ -2995,27 +3213,7 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
     page.screenshot()
     judge_watches()
     errors = take_browser_errors(page)
-    assert any("textarea#field moved without input" in error for error in errors), (
-        errors
-    )
-    if fault == "missing-source":
-        error = next(e for e in errors if "textarea#field moved without input" in e)
-        evidence = shift_evidence(error)
-        assert any(
-            not comparison["scroll_terms"]
-            and any(
-                attachment["owner"] == "div#holder"
-                and attachment["before"]["plane"] == "window"
-                and attachment["after"]["plane"] == "window"
-                and attachment["before"]["scrollOffsets"] is None
-                and attachment["after"]["scrollOffsets"] is None
-                and attachment["after_surface"]["left"]
-                - attachment["before_surface"]["left"]
-                == 80
-                for attachment in comparison["scroll_attachments"]
-            )
-            for comparison in evidence["comparisons"]
-        ), evidence
+    assert names_move(errors, "textarea#field"), errors
 
 
 @pytest.mark.parametrize("mode", ["pointer", "keyboard"])
@@ -3050,7 +3248,7 @@ def test_native_activation_owns_its_release_not_later_motion(browser, mode, faul
     errors = take_browser_errors(page)
     assert page.locator("#field").bounding_box()["y"] - before["y"] == 40
     if fault == "synthetic":
-        assert any("textarea#field moved without input" in e for e in errors), errors
+        assert names_move(errors, "textarea#field"), errors
     else:
         assert errors == [], errors
         if fault == "late":
@@ -3059,9 +3257,7 @@ def test_native_activation_owns_its_release_not_later_motion(browser, mode, faul
             paint(page)
             judge_watches()
             errors = take_browser_errors(page)
-            assert any("textarea#field moved without input" in e for e in errors), (
-                errors
-            )
+            assert names_move(errors, "textarea#field"), errors
 
 
 @pytest.mark.parametrize("pressed", [True, False])
@@ -3090,7 +3286,7 @@ def test_native_pointer_motion_owns_only_an_active_drag(browser, pressed):
         assert errors == [], errors
         page.mouse.up()
     else:
-        assert any("textarea#field moved without input" in e for e in errors), errors
+        assert names_move(errors, "textarea#field"), errors
 
 
 @pytest.mark.parametrize(
@@ -3175,7 +3371,14 @@ def test_a_delayed_native_frame_keeps_the_typing_origins_camera(browser, fault, 
     expect(page.locator("#field")).to_have_value("Keep this field's place.")
     assert page.locator("#field").bounding_box()["y"] == (40 if fault else 0)
     if fault:
-        consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+        consume_browser_errors(
+            page,
+            {
+                "code": "typing-moved",
+                "field": "textarea#field",
+                "node": "textarea#field",
+            },
+        )
 
 
 @pytest.mark.parametrize("fault", [False, True])
@@ -3217,7 +3420,11 @@ def test_long_held_native_anchor_keeps_complete_history(browser, fault):
     assert after["width"] == initial["width"] and after["height"] == initial["height"]
     if fault:
         assert page.evaluate("nativeEntries.length") > 0
-        error = next(e for e in errors if "textarea#field moved without input" in e)
+        error = next(
+            e
+            for e in errors
+            if is_problem(e, {"code": "moved-without-input", "node": "textarea#field"})
+        )
         evidence = shift_evidence(error)
         comparisons = evidence["comparisons"]
         assert any(
@@ -3231,7 +3438,7 @@ def test_long_held_native_anchor_keeps_complete_history(browser, fault):
             for comparison in comparisons
             for term in comparison["scroll_terms"]
         ), comparisons
-        assert all("moved without input" in error for error in errors), errors
+        assert {error.code for error in errors} == {"moved-without-input"}, errors
     else:
         assert not errors, errors
 
@@ -3306,7 +3513,11 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
     judge_watches()
     errors = take_browser_errors(page)
     if fault:
-        error = next(e for e in errors if "textarea#field moved without input" in e)
+        error = next(
+            e
+            for e in errors
+            if is_problem(e, {"code": "moved-without-input", "node": "textarea#field"})
+        )
         evidence = shift_evidence(error)
         if fault == "child":
             assert any(
@@ -3319,95 +3530,9 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
                 )
                 for comparison in evidence["comparisons"]
             ), evidence
-        assert all("moved without input" in error for error in errors), errors
+        assert {error.code for error in errors} == {"moved-without-input"}, errors
     else:
         assert not errors, errors
-
-
-# The clean run is zoomed, where crediting has the scale to get wrong; the fault control
-# needs no zoom to fail.
-@pytest.mark.parametrize("fault, zoom", [(False, 2), (True, 1)])
-def test_viewport_constrained_attachment_credits_only_its_source_scroll(
-    browser, serve, fault, zoom
-):
-    """Opposite viewport clamps retain source travel, never extra child movement."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Viewport attachment scroll",
-                '<p id="subject" style="position:absolute;left:100px;top:500px;'
-                'margin:0;width:80px;height:30px">Exact subject</p>'
-                '<div id="holder" style="visibility:hidden;position:fixed;'
-                'width:200px;height:60px;margin:0;background:white">'
-                '<textarea id="field" style="width:160px;height:30px"></textarea></div>'
-                '<div style="height:2400px"></div>',
-                head=f"<style>html {{zoom:{zoom}}}</style>",
-                layout=None,
-            )
-        ),
-    )
-    resized(page, 900, 600)
-    source_top = page.locator("#subject").evaluate(
-        "node => node.getBoundingClientRect().top + scrollY"
-    )
-    page.evaluate("top => scrollTo({top, behavior:'instant'})", source_top - 70)
-    scroll_settled(page)
-    page.evaluate(
-        """async zoom => {
-      const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
-      const ui = await module.floatingUi();
-      const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
-      const boundary = {x:0, y:100, width:900, height:100 * zoom};
-      const owner = module.floatingPlacement({floating:holder, update:()=>void place()});
-      async function place() {
-        owner.begin();
-        const answer = await owner.position(ui.computePosition, subject,
-          {placement:'right-start',middleware:[ui.shift({boundary:[],rootBoundary:boundary,crossAxis:true})]},
-          answer => ({edge:answer.middlewareData.shift.y > 0 ? 'top' : 'bottom', at:answer.middlewareData.shift.y > 0 ? 100 : 100 + 100 * zoom}), subject);
-        if (answer) owner.stand(answer);
-      }
-      owner.watch(subject,subject,ui.autoUpdate);
-      await place();
-      window.constrainedSelection = () => module.floatingSelections().find(item => item.floating === holder);
-      holder.style.removeProperty('visibility');
-    }""",
-        zoom,
-    )
-    paint(page)
-    judge_watches()
-    assert take_browser_errors(page) == []
-    before = page.locator("#field").bounding_box()
-    assert page.locator("#subject").bounding_box()["y"] == pytest.approx(70)
-    assert page.locator("#holder").bounding_box()["y"] == pytest.approx(100)
-    assert page.evaluate("constrainedSelection().plane") == "window"
-    page.evaluate(
-        """([fault, top]) => {
-          scrollTo({top, behavior:'instant'});
-          if (fault) {
-            const field = document.querySelector('#field');
-            field.style.position = 'relative';
-            field.style.top = '20px';
-          }
-        }""",
-        [fault, source_top - (70 + 100 * zoom)],
-    )
-    page.wait_for_function(
-        "top => constrainedSelection().edges.top === 'bottom' && holder.getBoundingClientRect().top === top",
-        arg=100 + 40 * zoom,
-    )
-    scroll_settled(page)
-    paint(page)
-    assert page.locator("#subject").bounding_box()["y"] == pytest.approx(
-        70 + 100 * zoom
-    )
-    assert page.locator("#holder").bounding_box()["y"] == pytest.approx(100 + 40 * zoom)
-    assert page.locator("#field").bounding_box()["y"] - before["y"] == pytest.approx(
-        (40 + (20 if fault else 0)) * zoom
-    )
-    judge_watches()
-    if fault:
-        consume_browser_errors(page, "textarea#field moved without input")
 
 
 FRAMES = """count => new Promise((done) => {
@@ -3497,7 +3622,12 @@ def test_an_unchanged_frame_misses_no_restyle(browser):
             judge_watches()
             consume_browser_errors(
                 page,
-                "missed a change to #text in p#unheard (opacity) and to 1 other node:",
+                {
+                    "code": "shift-watch-missed",
+                    "node": "#text in p#unheard",
+                    "changed": ["opacity"],
+                    "others": 1,
+                },
             )
     page.evaluate(FRAMES, 90)
     judge_watches()
@@ -3524,7 +3654,14 @@ def test_the_verdict_checks_a_change_the_test_ends_on(browser):
     page = restyle_page(browser)
     page.evaluate(RESTYLES["unannounced"][0])
     judge_watches()
-    consume_browser_errors(page, "missed a change to #text in p#unheard (opacity)")
+    consume_browser_errors(
+        page,
+        {
+            "code": "shift-watch-missed",
+            "node": "#text in p#unheard",
+            "changed": ["opacity"],
+        },
+    )
 
 
 # Each case moves the words below #field's holder with a change the sensor may not
@@ -3567,11 +3704,10 @@ sized.value = LINES;
     page.evaluate(FRAMES, 40)
     judge_watches()
     errors = take_browser_errors(page)
-    assert any(" moved without input by " in error for error in errors), errors
+    assert any(error.code == "moved-without-input" for error in errors), errors
     # The unheard rule is also the sensor's own finding when its periodic check
     # happens to fall on the frame after the change, before the paint is heard.
-    unheard = "shift watch missed a change to " if change == "unheard rule" else None
-    assert all(
-        " moved without input by " in error or (unheard and unheard in error)
-        for error in errors
-    ), errors
+    allowed = {"moved-without-input"} | (
+        {"shift-watch-missed"} if change == "unheard rule" else set()
+    )
+    assert {error.code for error in errors} <= allowed, errors

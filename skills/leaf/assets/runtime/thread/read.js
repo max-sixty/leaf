@@ -19,12 +19,14 @@
    and the panel's visible control share the same exact-message arrival. Ordinary
    `u` remains paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
+import { signal } from "../../vendor/browser-runtime.js";
 import { containingView, presented, seenRect, watchRoom } from "../geometry.js";
 import { intersect } from "../rect.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
 import { keeps, keepsHidden } from "../keeps.js";
+import { savedReadingSettled } from "../keyboard/bindings.js";
 import {
   onSampleVisibility,
   sampleVisibility,
@@ -74,7 +76,11 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   const refusedThisVisit = new Set();
   const sizes = sizeObserver(() => scheduleScan());
   const frameWatches = [];
-  let committedThreads = [];
+  // The threads the last presented pass drew. A signal, because the first-unread
+  // command's liveness reads it once the pass has committed.
+  const committedThreads = signal(
+    /** @type {ReturnType<typeof readThreads>["threads"]} */ ([]),
+  );
   let threadsPresented = false;
   let presentationGeneration = 0;
   let visitGeneration = 0;
@@ -102,7 +108,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
     const live = new Set(
       unreadIn(readThreads().threads).map(({ item }) => keyOf(item)),
     );
-    return unreadIn(committedThreads).filter(({ item }) => live.has(keyOf(item)));
+    return unreadIn(committedThreads.value).filter(({ item }) => live.has(keyOf(item)));
   };
 
   function firstUnread() {
@@ -114,6 +120,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
 
   const firstUnreadCommand = {
     id: "thread.unread.first",
+    ready: savedReadingSettled,
     keys: ["u"],
     description: "Go to the first unread message",
     title: "first unread",
@@ -262,7 +269,7 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
     void whenDocumentPresented()
       .then(() => {
         if (generation !== presentationGeneration) return;
-        committedThreads = threads;
+        committedThreads.value = threads;
         threadsPresented = true;
         const unread = unreadIn(threads);
         const current = new Set(unread.map(({ item }) => keyOf(item)));

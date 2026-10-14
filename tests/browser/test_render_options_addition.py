@@ -200,11 +200,9 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # Working the Ask keeps its decisions clear. Opening its existing discussion
-    # explicitly makes c enter the reply instead of adding an answer or opening
-    # another comment box.
+    # Standing on the Ask shows its discussion beside it, so c enters the reply
+    # instead of adding an answer or opening another comment box.
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
-    page.get_by_role("button", name=re.compile(r"Thread, On you to answer")).click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("c")
     expect(reply).to_be_focused()
@@ -220,7 +218,7 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
 
     The press paints that option before the log has answered, so the words have moved and
     the box they came from is empty in that same turn; a user who saw both would read
-    their own answer as still unsent. The generation is standing rather than settled, and
+    their own answer as still unsent. The generation is open rather than settled, and
     the refusal shows the difference. It takes the option away and gives the words back,
     out of a record that never left the store.
     """
@@ -260,7 +258,7 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
         for event in events_model.read_events(serve.page_dir)
         if event.get("kind") == "action" and event.get("widget") == "jobs"
     ]
-    consume_browser_errors(page, "400")
+    consume_browser_errors(page, {"code": "failed-load", "status": 400})
 
 
 def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, serve):
@@ -390,7 +388,7 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     ]
 
 
-def test_an_arrival_cannot_hide_a_question_draft(browser, serve):
+def test_an_arrival_cannot_hide_an_ask_draft(browser, serve):
     """An exact-section thread cannot take an unsent option's field.
 
     The draft remains part of the decision and still becomes a real option. The thread

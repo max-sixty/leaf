@@ -13,6 +13,7 @@
    rendering readiness until completion or removal; queued updates can independently
    settle while it waits. Local editing defers the render
    region at its newest unpublished reading, without painting a detached owner. */
+import { untracked } from "../vendor/browser-runtime.js";
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
@@ -21,6 +22,7 @@ import { dragHeld, watchDragRelease } from "./widget-elements.js";
 import { watchOwner } from "./arrivals.js";
 import { readingPaint } from "./presence.js";
 import { holdRendering } from "./rendering.js";
+import { paintKeysWithin } from "./keyboard/scopes.js";
 
 const controllers = new WeakMap();
 const lifecycles = new WeakMap();
@@ -93,7 +95,7 @@ function createWidgetController(owner) {
   let deferredReading = null;
   let stopSelection = null;
   let renderHandle = null;
-  // Whether the standing reading's total render and every subscriber completed.
+  // Whether the current reading's total render and every subscriber completed.
   let drawn = false;
   let preparationHandle = null;
   const pendingPreparations = new Map();
@@ -118,19 +120,21 @@ function createWidgetController(owner) {
     return preparationHandle;
   };
 
-  const holdPreparation = (settled) => {
-    if (pendingPreparations.has(settled)) {
-      if (owner.isConnected && !pendingPreparations.get(settled))
-        pendingPreparations.set(settled, holdRendering());
+  const holdPreparation = (promise) => {
+    if (pendingPreparations.has(promise)) {
+      if (owner.isConnected && !pendingPreparations.get(promise))
+        pendingPreparations.set(promise, holdRendering());
       return;
     }
-    pendingPreparations.set(settled, owner.isConnected ? holdRendering() : null);
+    pendingPreparations.set(promise, owner.isConnected ? holdRendering() : null);
     // A failed child reports immediately, but its siblings can still commit DOM.
     // Superseded batches can also still report failure into this connected owner.
-    settled.then(() => {
-      pendingPreparations.get(settled)?.();
-      pendingPreparations.delete(settled);
-    });
+    const settled = () => {
+      // A promise reaction can precede the observer delivering its owner's departure.
+      pendingPreparations.get(promise)?.(owner.isConnected ? "settle" : "cancel");
+      pendingPreparations.delete(promise);
+    };
+    Promise.resolve(promise).then(settled, settled);
   };
 
   const presentPreparation = (handle, { value, completion }) =>
@@ -176,6 +180,8 @@ function createWidgetController(owner) {
       }
       failed(notify(reading));
       drawn = true;
+      // The render may have changed what this widget's commands read from its nodes.
+      paintKeysWithin(owner);
     },
     () => refresh(),
   );
@@ -205,19 +211,23 @@ function createWidgetController(owner) {
     presentRender(latest);
   };
 
-  const publish = () => {
-    const reading = read();
-    if (deferred || dragHeld()) {
-      holdRender(reading);
-      if (dragHeld()) gestureDeferred.add(resumeGestureRender);
-      return;
-    }
-    presentRender(reading);
-  };
+  // The controller is an owner of its own: a paint that mounts its widget connects it,
+  // and what it reads to draw is its selection's to follow, never that paint's.
+  const publish = () =>
+    untracked(() => {
+      const reading = read();
+      if (deferred || dragHeld()) {
+        holdRender(reading);
+        if (dragHeld()) gestureDeferred.add(resumeGestureRender);
+        return;
+      }
+      presentRender(reading);
+    });
 
-  const connect = () => {
+  const connect = () => untracked(connectOwner);
+  const connectOwner = () => {
     if (!owner.isConnected) return;
-    for (const settled of pendingPreparations.keys()) holdPreparation(settled);
+    for (const promise of pendingPreparations.keys()) holdPreparation(promise);
     if (subscriptions.size && !stopSelection) {
       const parentChanged = connectedParent !== owner.parentElement;
       connectedParent = owner.parentElement;
@@ -248,9 +258,9 @@ function createWidgetController(owner) {
     renderHandle = null;
     preparationHandle?.disconnect();
     preparationHandle = null;
-    for (const [settled, release] of pendingPreparations) {
-      release?.();
-      pendingPreparations.set(settled, null);
+    for (const [promise, release] of pendingPreparations) {
+      release?.("cancel");
+      pendingPreparations.set(promise, null);
     }
     deferredReading = null;
   };
@@ -305,6 +315,8 @@ function createWidgetController(owner) {
         const latest = deferredReading ?? read();
         deferredReading = null;
         if (subscriptions.size) presentRender(latest);
+        // The gesture rewrote this widget's nodes, which its commands may read.
+        paintKeysWithin(owner);
         invalidateDom();
         return latest;
       };
@@ -318,8 +330,8 @@ function createWidgetController(owner) {
       const batch = preparationBatch;
       const completion = Promise.all(batch.promises);
       batch.completion = completion;
-      preparation = { value, completion, settled: Promise.allSettled(batch.promises) };
-      holdPreparation(preparation.settled);
+      preparation = { value, completion };
+      holdPreparation(promise);
       const handle = prepared();
       if (handle) presentPreparation(handle, preparation);
       const clear = () => {

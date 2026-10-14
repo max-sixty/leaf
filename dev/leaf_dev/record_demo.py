@@ -36,14 +36,14 @@ from leaf.served_state.page import read_served_page
 from leaf.service import PageTransaction
 from leaf.session import cmd_waiting
 from leaf.state import session_record
-from leaf.tasks import cmd_start
 from leaf.thread import post_reply
+from leaf.todos import cmd_start
 from leaf.vendoring import cmd_init
 from PIL import Image
 from playwright.sync_api import Page
 
 from leaf_dev import LEAF_COMMAND
-from leaf_dev.browser import chrome, settle, tab
+from leaf_dev.browser import headless_shell, settle, tab
 from leaf_dev.leaf_assets import publish, stage
 from leaf_dev.recording import write_gif
 
@@ -376,7 +376,7 @@ def record(
         arg=applied_before_move,
     )
     if "card-oncall" not in folded_board(page_dir)["col-during"]:
-        raise RuntimeError("the board move did not reach the page's standing log")
+        raise RuntimeError("the board move did not reach the page's current log")
     return frames, durations
 
 
@@ -460,7 +460,7 @@ def record_demo(output: Path | None) -> None:
         url = started.url
         waiter = DemoWaiter(page_dir)
         try:
-            with chrome() as browser, tab(browser, GIF_SIZE) as page:
+            with headless_shell() as browser, tab(browser, GIF_SIZE) as page:
                 page.goto(url)
                 frames, durations = record(page, waiter, page_dir)
                 write_gif(frames, durations, recording / "demo.gif")

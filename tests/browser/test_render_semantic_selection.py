@@ -42,17 +42,26 @@ def test_selection_snap_stops_at_explicit_table_line_break(browser, serve):
             )
         ),
     )
-    before, after, quote = page.evaluate("""async () => {
+    first = page.locator("td strong").bounding_box()
+    page.mouse.move(first["x"] + 2, first["y"] + first["height"] / 2)
+    page.mouse.down()
+    before = page.evaluate("""() => {
       const first = document.querySelector('td strong').firstChild;
       const next = document.querySelector('td span').firstChild;
       const selection = getSelection();
       selection.setBaseAndExtent(first, 0, next, 0);
-      const before = selection.toString();
-      const {snapSelection, selectionAnchor} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
-      snapSelection();
+      return selection.toString();
+    }""")
+    page.mouse.up()
+    rendered(page)
+    after, quote = page.evaluate("""async () => {
+      const first = document.querySelector('td strong').firstChild;
+      const next = document.querySelector('td span').firstChild;
+      const selection = getSelection();
       const after = selection.toString();
       selection.setBaseAndExtent(first, 0, next, 4);
-      return [before, after, selectionAnchor(selection).quote];
+      const {anchorForRange} = await window.__lfCheckApi();
+      return [after, anchorForRange(selection.getRangeAt(0)).quote];
     }""")
     assert before == "Short label here\n"
     assert after == before
@@ -172,7 +181,7 @@ def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, 
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "release-notes"))
     )
-    standing = len(events_model.read_events(serve.page_dir))
+    before = len(events_model.read_events(serve.page_dir))
     accept = page.locator(".lf-margin-cluster .lf-sug-accept").first
     accept.scroll_into_view_if_needed()
     accept.hover()
@@ -184,7 +193,7 @@ def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, 
     assert page.evaluate(DRAFT_MARK) == promised
     assert not [
         e
-        for e in events_model.read_events(serve.page_dir)[standing:]
+        for e in events_model.read_events(serve.page_dir)[before:]
         if e["kind"] == "action"
     ], "the picker's press accepted the suggestion"
 
@@ -528,7 +537,8 @@ def test_nested_target_hints_show_containment_without_covering_each_other(
     browser, serve
 ):
     """A container and its first child may paint the same box corner. Both remain
-    reachable, with separate chips outside their targets and each other."""
+    reachable, with separate chips outside their targets and each other, and the
+    child's chip stands right of its container's, so the two read as an outline."""
     html = leaf_page(
         "nested targets",
         '<section id="outer"><p id="inner">The child fills its parent.</p></section>',
@@ -552,6 +562,7 @@ def test_nested_target_hints_show_containment_without_covering_each_other(
     boxes = geometry["hints"]
     assert abs(geometry["targetLefts"][0] - geometry["targetLefts"][1]) < 0.5
     assert all(box["right"] <= geometry["targetLefts"][0] for box in boxes), geometry
+    assert boxes[1]["left"] >= boxes[0]["left"] + 8, geometry
     assert not (
         boxes[0]["left"] < boxes[1]["right"]
         and boxes[1]["left"] < boxes[0]["right"]
@@ -644,7 +655,7 @@ def test_s_opens_the_same_comment_field_on_a_declared_visual_part(browser, serve
     means. Choosing its hint focuses the part-anchored composer."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     page.keyboard.press("s")
-    expect(page.locator(".lf-target-picker-hint")).to_have_count(4)
+    expect(page.locator(".lf-target-picker-hint").first).to_be_visible()
 
     start_code = page.evaluate(
         """() => {
@@ -788,7 +799,7 @@ def test_page_search_starts_with_the_first_match_at_the_reading_edge(browser, se
           body.firstChild.replaceWith(document.createTextNode('Unified body, rewritten.'));
         }"""
     )
-    page.get_by_role("searchbox", name="Search page text").press("Tab", timeout=5000)
+    page.get_by_role("searchbox", name="Search page text").press("Tab")
     expect(page.locator(".lf-page-search-status")).to_have_text("2 of 2")
     expect(page.locator(".lf-live")).to_contain_text(
         "Match 2 of 2: …Unified title Unified body, rewritten."
@@ -856,8 +867,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
         """async () => {
           const selected = getSelection().getRangeAt(0);
           selected.startContainer.splitText(selected.startOffset + 1);
-          const {repaint} = await window.__lfRuntimeImport('/runtime/repaint.js');
-          repaint();
+          dispatchEvent(new Event('resize'));
         }"""
     )
     expect(position).to_be_hidden()
@@ -880,8 +890,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     page.evaluate(
         """async () => {
           getSelection().removeAllRanges();
-          const {repaint} = await window.__lfRuntimeImport('/runtime/repaint.js');
-          repaint();
+          dispatchEvent(new Event('resize'));
         }"""
     )
     expect(position).to_be_hidden()

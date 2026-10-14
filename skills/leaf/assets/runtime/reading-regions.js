@@ -113,30 +113,49 @@ export function registerReadingRegion({ id, host, body }) {
   };
 }
 
-// The box a page's Layout makes scroll, which no widget owns: the workspace's body,
-// which scrolls as a whole where a pane in it does not bound itself (layouts.css). The
-// stylesheet marks it (`--lf-reading-region: layout`) and it is registered like any
-// other region, so a flowing pane inside it is carried by it rather than by the page.
-// Chrome layout asks on every pass, since a revision can replace `main`'s children.
-let layoutRegion = null;
+// The boxes a page's Layout makes scroll, which no widget owns: the workspace's body,
+// which scrolls as a whole where a pane in it does not bound itself, a column page's
+// sidebar standing in the margin, and the one block a sidebar page's track holds, which
+// scrolls while it stands beside the body (layouts.css). The stylesheet marks each one
+// (`--lf-reading-region: layout`): a child of `main`, or the only child of one that is
+// not itself marked. Each is registered like any other region, so what it holds is
+// carried by it rather than by the page, and its posture is read from whether it
+// scrolls. Its id is the authored id of the box or, for an only child, of the child of
+// `main` holding it, as a sidebar's `aside` names the block it holds, so a neighbour's
+// arrival or removal never renames it; an unnamed one takes its place among the unnamed
+// ones, in a namespace of its own. Chrome layout asks on every pass, since a revision can
+// replace `main`'s children and a resize can change which of them the stylesheet marks.
+const layoutRegions = new Map();
+const marked = (box) =>
+  box.checkVisibility() &&
+  getComputedStyle(box).getPropertyValue("--lf-reading-region").trim() === "layout";
 export function syncLayoutRegion() {
   const main = pageDocument();
-  const body = main
-    ? [...main.children].find(
-        (child) =>
-          child.checkVisibility() &&
-          getComputedStyle(child).getPropertyValue("--lf-reading-region").trim() ===
-            "layout",
-      )
-    : undefined;
-  if (body === layoutRegion?.body) return;
-  layoutRegion?.stop();
-  layoutRegion = body
-    ? {
-        body,
-        stop: registerReadingRegion({ id: "lf-region:layout", host: body, body }),
-      }
-    : null;
+  const bodies = main
+    ? [...main.children].flatMap((child) => {
+        if (marked(child)) return [[child, child.id]];
+        const only = child.childElementCount === 1 ? child.firstElementChild : null;
+        return only && marked(only) ? [[only, only.id || child.id]] : [];
+      })
+    : [];
+  let unnamed = 0;
+  const ids = new Map(
+    bodies.map(([body, name]) => [
+      body,
+      name ? `lf-region:layout#${name}` : `lf-region:layout@${unnamed++}`,
+    ]),
+  );
+  for (const [body, region] of layoutRegions)
+    if (ids.get(body) !== region.id) {
+      region.stop();
+      layoutRegions.delete(body);
+    }
+  for (const [body, id] of ids)
+    if (!layoutRegions.has(body))
+      layoutRegions.set(body, {
+        id,
+        stop: registerReadingRegion({ id, host: body, body }),
+      });
 }
 
 // Replace a region's contents with another subject's (see the header). A region not
@@ -227,7 +246,8 @@ for (const type of ["pointerdown", "wheel", "touchstart", "click"])
     (event) => {
       const at = event.composedPath()[0];
       if (type !== "click") actedAt(at, false);
-      else if (event.isTrusted && event.button === 0) readingInput(at);
+      else if (event.isTrusted && /** @type {MouseEvent} */ (event).button === 0)
+        readingInput(at);
     },
     { capture: true, passive: true },
   );
@@ -323,7 +343,7 @@ export function* scrollersOf(node) {
 
 // The boxes a scroll passes to once each inner one is spent, as native input chains it
 // at a box whose overscroll-behavior lets it go: `scrollersOf`'s, then the page's. A
-// fixed box ends `scrollersOf` because the page's scroll leaves it standing, but its
+// fixed box ends `scrollersOf` because the page's scroll leaves it in place, but its
 // scroll still chains to the page, the box its containing block, the viewport, scrolls.
 export function* scrollChainOf(node) {
   let last = null;

@@ -9,13 +9,14 @@ from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE
 from render_harness import (
-    consume_browser_errors,
+    is_problem,
     judge_watches,
     leaf_page,
     open_page,
+    refuse,
     resized,
-    scroll_settled,
     take_browser_errors,
+    ticked,
 )
 
 
@@ -77,25 +78,17 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     thread_before = surface_root.bounding_box()
     owner = header.locator("xpath=..")
     owner_before = owner.bounding_box()
-    held = []
-    page.route("**/api/state*", lambda route: held.append(route))
+    page.route("**/api/state*", refuse)
     now = datetime.now().astimezone()
     for delta, age in [
         (timedelta(minutes=1), "1m ago"),
         (timedelta(minutes=10), "10m ago"),
         (timedelta(hours=3), "3h ago"),
     ]:
-        # Advance Leaf's calibrated server clock without changing the browser's
-        # monotonic clock: native LayoutShift and frame readings must share time.
-        page.evaluate(
-            """async now => {
-              const clock = await window.__lfRuntimeImport('/runtime/presence.js');
-              const {reportPageError} = await window.__lfRuntimeImport('/runtime/layer-client.js');
-              clock.observeServerNow(now);
-              await clock.tickClock(reportPageError);
-            }""",
-            (now + delta).isoformat(),
-        )
+        # Fixed Date advances the age without changing Chrome's monotonic clock;
+        # LayoutShift, frame readings and input attribution still share native time.
+        page.clock.set_fixed_time(now + delta)
+        ticked(page)
         expect(timestamp).to_have_text(age)
         expect(receipt).to_have_text("Sent")
         judge_watches()
@@ -145,7 +138,7 @@ def test_real_floating_plane_retains_local_motion(
     initial = "page" if destination == "window" else "window"
     first = page.evaluate(
         """async initial => {
-          const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
+          const module = await window.__lfOverlayApi();
           const ui = await module.floatingUi();
           const holder = document.querySelector('#holder');
           const subject = document.querySelector('#subject');
@@ -262,13 +255,13 @@ def test_real_floating_plane_retains_local_motion(
             state["expected"][axis] + before[axis] - holder_before[axis] + shifted,
             abs=1,
         )
-    expected = (
-        "typing in textarea#field moved textarea#field"
+    expected = {"node": "textarea#field"} | (
+        {"code": "typing-moved", "field": "textarea#field"}
         if guard_mode == "typing"
-        else "textarea#field moved without input"
+        else {"code": "moved-without-input"}
     )
     if fault:
-        error = next(error for error in errors if expected in error)
+        error = next(error for error in errors if is_problem(error, expected))
         evidence = shift_evidence(error)
         assert evidence["kind"] == guard_mode
         comparisons = evidence["comparisons"]
@@ -296,139 +289,3 @@ def test_real_floating_plane_retains_local_motion(
         ), comparisons
     else:
         assert errors == [], errors
-
-
-@pytest.mark.parametrize(
-    "case",
-    [
-        # A requested page plane resolves to the window plane here, the way "window"
-        # asks for it outright, so "window" stands for both.
-        "window",
-        "edge",
-        "scaled",
-        "fixed-both",
-        "sticky",
-        "fixed-fault",
-        "clamp",
-        "clamp-fault",
-    ],
-)
-def test_observed_attachment_credits_only_the_measured_scroll_placement(
-    browser, serve, case
-):
-    """Fixed/sticky constraints and solver clamps retain only their solved movement.
-
-    A physical reference does not always travel by its ancestry's entire scroll.
-    Matching that scroll with an extra holder move must still fail.
-    """
-    style = {
-        "scaled": "transform:scale(2);transform-origin:top left;",
-        "fixed-both": "position:fixed;top:180px;left:100px;",
-        "fixed-fault": "position:fixed;top:180px;left:100px;",
-        "sticky": "position:sticky;top:170px;",
-    }.get(case, "")
-    source = leaf_page(
-        "Observed reference scroll",
-        '<div style="height:180px"></div><p id="subject" style="margin:0;height:130px;overflow:auto;width:350px;'
-        + style
-        + '">First line<br>'
-        + "More words<br>" * 50
-        + "</p>"
-        '<div id="holder" style="visibility:hidden;position:fixed;width:200px;height:60px">'
-        '<textarea id="field" style="width:160px;height:30px"></textarea></div>'
-        '<div style="height:1800px"></div>',
-        layout=None,
-    )
-    page = open_page(
-        browser,
-        serve(source),
-        init_script="""const supports = CSS.supports.bind(CSS);
-          CSS.supports = (property, value) => property === 'anchor-name' ? false : supports(property, value);
-          delete window.ViewTimeline; delete window.ScrollTimeline;""",
-    )
-    resized(page, 1200, 700)
-    if case.startswith("clamp"):
-        offset = page.evaluate(
-            """() => {
-              const offset = subject.getBoundingClientRect().top + scrollY - 12;
-              scrollTo(0, offset);
-              return offset;
-            }"""
-        )
-        page.wait_for_function("offset => scrollY === offset", arg=offset)
-        scroll_settled(page)
-    if case == "sticky":
-        page.locator("#subject").evaluate(
-            "node => node.style.top = `${node.getBoundingClientRect().top - 10}px`"
-        )
-    page.evaluate(
-        """async ({clamp, wanted}) => {
-      const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
-      const ui = await module.floatingUi();
-      const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
-      const range = document.createRange(); range.selectNodeContents(subject.firstChild);
-      const reference = {contextElement:subject, contextNode:subject.firstChild,
-        getBoundingClientRect:()=>range.getBoundingClientRect()};
-      const owner = module.floatingPlacement({floating:holder, update:()=>void place()});
-      async function place() {
-        owner.begin();
-        const answer = await owner.position(ui.computePosition, reference,
-          {placement:'right-start',middleware:clamp ? [ui.shift({crossAxis:true,padding:0})] : []},
-          () => wanted === 'edge' ? {edge:'top',at:0} : wanted, subject);
-        if (answer) owner.stand(answer);
-      }
-      owner.watch(subject,reference,ui.autoUpdate);
-      await place();
-      holder.style.removeProperty('visibility');
-    }""",
-        {
-            "clamp": case.startswith("clamp"),
-            "wanted": case if case in {"window", "edge"} else "page",
-        },
-    )
-    expect(page.locator("#holder")).to_have_attribute("data-lf-plane", "window")
-    paint(page)
-    judge_watches()
-    held_stretch(page)
-    before = page.locator("#field").bounding_box()
-    holder_before = page.locator("#holder").bounding_box()
-    if case.startswith("clamp"):
-        assert 0 < holder_before["y"] < 30
-    scroll = page.evaluate(
-        """([scenario, extra]) => {
-      const before = {root:scrollY, inner:subject.scrollTop};
-      if (scenario !== 'scaled') scrollBy(0,30);
-      if (scenario === 'scaled' || scenario === 'fixed-both') subject.scrollBy(0,30);
-      if (scenario.endsWith('fault')) holder.style.marginTop = `${-extra}px`;
-      return before;
-    }""",
-        [case, 30 - holder_before["y"] if case == "clamp-fault" else 30],
-    )
-    if case != "scaled":
-        page.wait_for_function("offset => scrollY === offset", arg=scroll["root"] + 30)
-    if case in {"scaled", "fixed-both"}:
-        expect(page.locator("#subject")).to_have_js_property(
-            "scrollTop", scroll["inner"] + 30
-        )
-    scroll_settled(page, "#subject" if case in {"scaled", "fixed-both"} else None)
-    rendered(page)
-    paint(page)
-    judge_watches()
-    delta = {"scaled": -60, "sticky": -10, "clamp": -holder_before["y"]}.get(case, -30)
-    assert page.locator("#field").bounding_box()["y"] == pytest.approx(
-        before["y"] + delta, abs=1
-    )
-    if case.endswith("fault"):
-        errors = consume_browser_errors(page, "textarea#field moved without input")
-        evidence = shift_evidence(errors[0])
-        assert any(
-            term["branch"] == "observed_attachment"
-            and term["owner"] == "div#holder"
-            and term["axis"] == "top"
-            and term["amount"] == term["inputs"]["placed"]
-            and term["inputs"]["before"]["plane"] == "window"
-            and term["inputs"]["after"]["plane"] == "window"
-            and not term["inputs"]["crosses_fixed"]
-            for comparison in evidence["comparisons"]
-            for term in comparison["scroll_terms"]
-        ), evidence

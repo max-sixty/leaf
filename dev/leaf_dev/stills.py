@@ -31,23 +31,27 @@ change `base-crop.png` and `head-crop.png` cropped to the union of its regions (
 whole, when the reading names none), ready to hand off as an `lf-shot` pair, and
 `diff.png` outlining the head's own regions, a change in red and a move in blue. The
 crops cover both stills' regions.
+
+Capture and comparison failures are reported per state, with tracebacks in its
+directory; the remaining states still run. Only complete pairs enter the
+comparison. Arm construction, browser setup failures, and interrupts end the command.
 """
 
 import re
 import tempfile
+import traceback
 from collections.abc import Callable
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 import click
-from leaf.render_checks import PageNotReady
 from PIL import Image, ImageDraw
-from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page, expect
 
 from leaf_dev import ROOT
 from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
-from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
+from leaf_dev.browser import BESIDE, DESKTOP, headless_shell, load, settle, tab
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -107,17 +111,23 @@ def drawing_comment(page: Page) -> None:
 def drawing_photo_comment(page: Page) -> None:
     """Drawing and photo removal together in the same draft attachment shelf."""
     drawing_comment(page)
-    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
-    page.evaluate("""async () => {
-      const response = await fetch('/media/051bee487bfb5d13.png');
-      const image = await response.blob();
-      await navigator.clipboard.write([new ClipboardItem({'image/png': image})]);
-    }""")
     field = page.locator(".lf-fab-input")
     field.focus()
     with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        page.keyboard.press("ControlOrMeta+v")
-    expect(page.get_by_role("button", name="Remove pasted image 1")).to_be_visible()
+        # This state exercises the paste handler and shelf; keep its payload local
+        # to the tab so captures cannot overwrite or race the machine's clipboard.
+        field.evaluate("""async field => {
+          const response = await fetch('/media/051bee487bfb5d13.png');
+          const image = await response.blob();
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([image], 'pasted.png', {type: 'image/png'}));
+          field.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true, cancelable: true, clipboardData: transfer,
+          }));
+        }""")
+    expect(
+        page.get_by_role("button", name="Remove attached image 1", exact=True)
+    ).to_be_visible()
     settle(page)
 
 
@@ -154,6 +164,29 @@ def banner_more(page: Page) -> None:
     """The banner's More icon with its keyboard focus paint."""
     page.keyboard.press("Tab")
     page.locator(".lf-banner-more").focus()
+
+
+def floating_thread(page: Page) -> None:
+    """The floating panel (`lf-chrome`) with a thread opened from Threads: its head
+    names the way back, the thread's title and where it stands among the open ones,
+    beside On the page, Resolve and Close."""
+    page.evaluate("localStorage.setItem('lf-chrome', 'floating')")
+    load(page, page.url)
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+
+
+def floating_thread_retitled(page: Page) -> None:
+    """The same head once the thread's opening message is rewritten short, so its
+    title is far narrower than the head."""
+    floating_thread(page)
+    page.locator(".lf-fp-view[data-view=thread] .lf-msg-body").first.dblclick()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Ship it?")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text("Ship it?")
 
 
 def playground_choice(page: Page) -> None:
@@ -468,12 +501,30 @@ def options_in_pane(page: Page) -> None:
     page.locator("#ar-latency-decision > lf-options").scroll_into_view_if_needed()
 
 
+def tally_after_an_answer(page: Page) -> None:
+    """A queue's tally after Next on me and one answer: the count down by one, the
+    answered row's check above the open marks, and Next on me's second ask open."""
+    next_on_me = page.locator("#ar-left .lf-tally-next")
+    next_on_me.click()
+    page.locator("#ar-canary-consecutive").click()
+    expect(page.locator("#ar-left .lf-tally-words")).to_have_text("8 of 9 to answer")
+    next_on_me.click()
+    expect(page.locator("#ar-latency-decision")).to_be_focused()
+    settle(page)
+
+
 def card_grabbed(page: Page) -> None:
     """A board card grabbed by keyboard and carried one column left."""
     page.keyboard.press("Tab")
     page.locator("#card-tz > .lf-grip").focus()
     page.keyboard.press("Enter")
     page.keyboard.press("ArrowLeft")
+
+
+def into_the_body(page: Page) -> None:
+    """Two windows down the page, where a sidebar page's track stands beside the body
+    it scrolls past."""
+    page.evaluate("() => scrollTo(0, 2 * innerHeight)")
 
 
 def code_note(page: Page) -> None:
@@ -622,6 +673,27 @@ def diff_file_reply(page: Page) -> None:
     )
 
 
+def diff_file_resolved_closed(page: Page) -> None:
+    """Both conversations under a diff file resolved, their outlet as it folds them."""
+    diff = page.frame_locator("#dfg-sample iframe").locator("#dfg-patch")
+    resolve = diff.get_by_role("button", name="Resolve thread", exact=True)
+    expect(resolve).to_have_count(2)
+    for remaining in (1, 0):
+        resolve.first.click()
+        expect(resolve).to_have_count(remaining)
+    page.mouse.move(0, 0)
+
+
+def diff_file_resolved(page: Page) -> None:
+    """Both conversations under a diff file resolved, and every resolved disclosure the
+    outlet draws opened."""
+    diff_file_resolved_closed(page)
+    diff = page.frame_locator("#dfg-sample iframe").locator("#dfg-patch")
+    folded = diff.locator(".lf-diff-thread-outlet details:not([open]) > summary")
+    while folded.count():
+        folded.first.click()
+
+
 def diff_line_composer(page: Page) -> None:
     """A line's thread control, number and shared composer in one reading."""
     diff = page.locator("#pr-exact-patch")
@@ -635,7 +707,7 @@ def diff_line_composer(page: Page) -> None:
 
 
 def code_source_by_touch(page: Page) -> None:
-    """Code stood on by touch, its Copy offered on the banner rather than over its words."""
+    """Code stood on by touch, its corner Copy shown by the tap."""
     code_note(page)
     page.locator("lf-code pre").first.tap(position={"x": 60, "y": 20})
 
@@ -709,8 +781,8 @@ def versions_menu(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open Ask, reached with `q`: its ring and its marker in view."""
-    page.keyboard.press("q")
+    """The next open Ask, reached with `m`: its ring and its marker in view."""
+    page.keyboard.press("m")
     page.locator("lf-ask").first.wait_for()
 
 
@@ -835,6 +907,13 @@ STATES = (
         touch=True,
         region=".lf-banner-more",
     ),
+    State("floating-thread", "ship-review", floating_thread, region=".lf-fp-head"),
+    State(
+        "floating-thread-retitled",
+        "ship-review",
+        floating_thread_retitled,
+        region=".lf-fp-head",
+    ),
     State(
         "playground-choice",
         "notification-playground",
@@ -936,6 +1015,12 @@ STATES = (
     State("visual-review-menu", "developer/visual-review-gallery", visual_review_menu),
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
+    State(
+        "diff-file-resolved-closed",
+        "developer/diff-thread-gallery",
+        diff_file_resolved_closed,
+    ),
+    State("diff-file-resolved", "developer/diff-thread-gallery", diff_file_resolved),
     State(
         "diff-file-reply-dark-touch",
         "developer/diff-thread-gallery",
@@ -1103,6 +1188,13 @@ STATES = (
     ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
+    State(
+        "thread-choice-hints",
+        "../tests/fixtures/pages/thread-choice-hints",
+        card_by_keyboard,
+        viewport=(741, 838),
+        region=".lf-margin-preview",
+    ),
     State("plan-card-reply", "review-a-plan", card_reply),
     State(
         "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
@@ -1243,6 +1335,7 @@ STATES = (
     State(
         "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
     ),
+    State("alert-queue-tally", "alert-review", tally_after_an_answer),
     State("alert-option-long", "alert-review", option_long),
     State("alert-options-in-pane", "alert-review", options_in_pane),
     State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
@@ -1262,6 +1355,27 @@ STATES = (
         touch=True,
     ),
     State("triage-grabbed", "triage-board", card_grabbed),
+    State(
+        "walkthrough-body-short",
+        "pr-walkthrough",
+        into_the_body,
+        viewport=(900, 600),
+    ),
+    State(
+        "walkthrough-body-short-dark",
+        "pr-walkthrough",
+        into_the_body,
+        viewport=(900, 600),
+        scheme="dark",
+    ),
+    State(
+        "walkthrough-body-phone",
+        "pr-walkthrough",
+        into_the_body,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("progress-body-short", "live-progress", into_the_body, viewport=(900, 600)),
     State("walkthrough-code", "pr-walkthrough", code_note),
     State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
     State("walkthrough-diff-comment", "pr-walkthrough", diff_line_composer),
@@ -1363,9 +1477,13 @@ def capture(browser, address: str, state: State, path: Path) -> dict | None:
         return {key: value * scale for key, value in clip.items()} if clip else None
 
 
-def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
-    """`lf-shot`'s reading of each named state's two stills, from the module that
-    owns it, served beside them to a blank page."""
+@contextmanager
+def differences(browser, out: Path):
+    """One comparison tab, yielding `lf-shot`'s reading of a named state's pair.
+
+    Reuse the browser module for the catalogue; each comparison is a separate call
+    so a state's unreadable image or failed crop leaves the other pairs available.
+    """
 
     def serve(route) -> None:
         path = route.request.url.removeprefix(ORIGIN)
@@ -1383,10 +1501,13 @@ def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
         context.route(f"{ORIGIN}/**", serve)
         page = context.new_page()
         page.goto(f"{ORIGIN}/")
-        return {
-            name: page.evaluate(
-                """async (name) => {
-                  const { compareImages } = await import("/image-difference.js");
+        compare_images = page.evaluate_handle(
+            "async () => (await import('/image-difference.js')).compareImages"
+        )
+
+        def compare(name: str) -> dict:
+            return compare_images.evaluate(
+                """async (compareImages, name) => {
                   const load = async (arm) => {
                     const image = new Image();
                     image.src = `/${name}/${arm}.png`;
@@ -1397,8 +1518,8 @@ def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
                 }""",
                 name,
             )
-            for name in names
-        }
+
+        yield compare
     finally:
         context.close()
 
@@ -1452,8 +1573,18 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
     each state that changed into a before/after pair under .tmp/stills/."""
     states = [state for state in STATES if not names or state.name in names]
     out = run_directory(OUT)
-    failed: dict[str, str] = {}
-    crop_regions: dict[str, list[dict]] = {}
+    failed: dict[str, list[str]] = {}
+    read: dict[str, dict] = {}
+
+    def failure(state: State, phase: str, error: Exception) -> None:
+        message = (
+            error.message.strip().rsplit("\n", 1)[-1].split("; ")[0]
+            if isinstance(error, click.ClickException)
+            else str(error).split("\n", 1)[0]
+        ) or type(error).__name__
+        failed.setdefault(state.name, []).append(f"on {phase}: {message}")
+        (out / state.name / f"{phase}-error.txt").write_text(traceback.format_exc())
+
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
@@ -1463,18 +1594,21 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                 source_roots[arm] = scratch / f"{arm}-source"
                 source_roots[arm].mkdir()
                 copy_committed(
-                    ("examples", "leaf-assets.json"), source_roots[arm], commit
+                    ("examples", "tests/fixtures/pages", "leaf-assets.json"),
+                    source_roots[arm],
+                    commit,
                 )
-        with chrome() as browser:
+        with headless_shell() as browser, differences(browser, out) as compare:
             for state in states:
+                folder = out / state.name
+                folder.mkdir()
+                crop_regions = []
                 for arm, arm_dir in arms.items():
                     # Every state starts from its authored fixture. A prior Send or
                     # Resolve must not become the next state's initial event log.
                     # The base refuses a source written in vocabulary only the head
                     # declares; that state has no base still, and the head's still
                     # stands alone in its folder.
-                    folder = out / state.name
-                    folder.mkdir(exist_ok=True)
                     try:
                         with serving_source(
                             arm_dir,
@@ -1485,26 +1619,27 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                                 browser, address, state, folder / f"{arm}.png"
                             )
                             if region:
-                                crop_regions.setdefault(state.name, []).append(region)
-                    except click.ClickException as error:
-                        failed[state.name] = (
-                            f"on {arm}: {error.message.strip().splitlines()[-1].split('; ')[0]}"
+                                crop_regions.append(region)
+                    except Exception as error:  # noqa: BLE001 - isolate each capture
+                        failure(state, arm, error)
+                if state.name in failed:
+                    continue
+                try:
+                    difference = compare(state.name)
+                    if difference["changed"]:
+                        crop(
+                            folder, difference["regions"], framing=crop_regions or None
                         )
-                    except (PlaywrightError, PageNotReady) as error:
-                        failed[state.name] = f"on {arm}: {str(error).splitlines()[0]}"
-            read = differences(
-                browser,
-                [state.name for state in states if state.name not in failed],
-                out,
-            )
+                    read[state.name] = difference
+                except Exception as error:  # noqa: BLE001 - isolate each comparison
+                    failure(state, "comparison", error)
     click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
     unchanged = 0
     for state in states:
         folder = out / state.name
         if state.name in failed:
-            click.echo(f"  failed  {state.name} {failed[state.name]}")
+            click.echo(f"  failed  {state.name} {'; '.join(failed[state.name])}")
         elif (difference := read[state.name])["changed"]:
-            crop(folder, difference["regions"], framing=crop_regions.get(state.name))
             click.echo(
                 f"  changed {state.name}: {difference['changed']} px -> {folder}"
             )

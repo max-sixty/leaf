@@ -3,9 +3,9 @@
 This file owns browser-wide contracts: how the page should look and move, module
 boundaries, startup, state authority, and the render gates. Each module's header
 owns its local contract. Page-authoring rules live in
-`../references/page-authoring.md`, module authoring in
-`../references/module-authoring.md`, package contracts in `../references/packages.md`,
-and rules shared with Python in root `AGENTS.md`, "Cross-runtime invariants".
+`../references/page-authoring.md`, module authoring in `../references/module-*.md`,
+package contracts in `../references/packages.md` and `package-*.md`, and rules
+shared with Python in root `AGENTS.md`, "Cross-runtime invariants".
 
 Shared stylesheet owners live under `styles/`: `styles/shadow.css` composes
 `styles/components/` into the shared root sheet. Document composition loads that
@@ -27,7 +27,7 @@ representative desktop viewport.
 
 - **The page owns its arrangement.** A page arranges itself with a shipped Layout
   class (`layouts.css`, `@layer lf-layouts`) or its own CSS. Leaf owns what pages and
-  widgets coordinate through: the bands, the reading measure as typography, and each
+  widgets coordinate through: the bands, the reading measure a Layout sets, and each
   widget's contract to fill the box it is given, declare the minimum it needs, and
   never let its content widen its holder.
 - **A Layout, a style and a widget never read one another.** A Layout (`layouts.css`)
@@ -39,7 +39,7 @@ representative desktop viewport.
   answer another, the owner sets a token describing the box and the reader keys on it
   with a style query: `--lf-full-height` (this box's children have a definite height
   to fill; it does not inherit), `--lf-wide-page` (the page spans the window),
-  `--lf-resident` (what sits in the column's margin), and `--lf-density` (the working
+  `--lf-resident` (what sits in the column's margin, or beside a sidebar page's body), and `--lf-density` (the working
   setting, for what a width alone cannot decide). A width needs no token, since a size
   query on the reader's own container answers it. Before adding a token, ask whether a
   hand-written page giving the same box would want the same answer; if not, the token
@@ -51,19 +51,18 @@ representative desktop viewport.
   when their CSS loads before first paint: adding, removing or moving one keeps every
   block's position, wrapping and size. No rule pads, indents, widens or reflows a block
   to clear a pin, since reserved room would make the page's geometry depend on which
-  markers exist and where. Where a pin covers something the user needs, the answers are
-  `o` (Hide annotations under More on a touch screen) and a better placement
-  (`TODO.md`), never room made for it. The rail sits right of `main` wherever the window
+  markers exist and where. A pin stands by its target, over the target's own words
+  where no seat beside it is clear; hiding annotations reveals what it covers. The rail sits right of `main` wherever the window
   has room, and seating it there never moves, narrows or indents the column
   (`content-layout.js`). `data-rail` on `body` withholds or reserves it: `"right"` makes
   the shell give up the rail's width, so the page's layout gets narrower
   (`annotation-theme.css`). Otherwise only the left resident and sidenotes move the
   column, through prepaint.js `residency`.
   Checks: `test_a_comment_leaves_its_block_as_the_page_wrote_it` and the shift watch
-  ("Stability"). Owners: the default package's `margin-placement.js` for where a margin
+  ("Stability"). Owners: `runtime/annotation-overlay/margin-placement.js` for where a margin
   row sits and when a pin folds.
 - **Auxiliary surfaces open over the page and never change its geometry.** The
-  Questions panel, the thread panel and the Pages drawer take no room from the page;
+  On panel, the thread panel and the Pages drawer take no room from the page;
   `auxiliary-surfaces.js` says when one leaves the page live beside it and when it
   covers the page (`--lf-auxiliary-beside`, `standsBeside`). Which box scrolls is the
   stylesheet's, a Layout's or the page's, and the runtime reads it rather than deciding
@@ -77,7 +76,7 @@ representative desktop viewport.
   bounded block's theme and a full-height workspace's scrolling regions do. Check: the
   widget quality check `grows-with-content` (`scripts/leaf/render_gate/widget_quality.py`),
   run on each package's worked examples and, in the suite, on every corpus page. Page
-  authors' side: `../references/page-authoring.md`, "Bounds and widths".
+  authors' side: `../references/page-layout.md`, "Bounds and widths".
 - **A necessary scroller works like part of the document.** It chains into the
   document at its edges; isolate scrolling only at a bounded task or modal boundary.
   Wheel and touch keep their navigation meaning, and deliberate controls enter pan and
@@ -126,13 +125,14 @@ representative desktop viewport.
   A hidden tab ends the reading this protects; keyboard blur does not. Check:
   `test_news_just_after_a_press_moves_nothing` and the shift watch. Owners:
   `thread/held-news.js` for every thread surface and, through `HeldReading`, for a
-  widget's rows that only the log or the clock decides; `thread/thread-card.js`
+  widget's rows that only the log or the clock decides, and through `heldGrowth` for
+  a box a deferred arrival resizes, such as a live sample's frame; `thread/thread-card.js`
   (`newsMoves`) for whether a change would move what is seen; `thread/thread-list.js`
   for the Threads panel's reading place; `thread/thread-list-view.js` (`keeping`) for a
   card news would take out of the panel's view; `reading-continuity.js` for a hidden
   tab.
 - **A turn of the user's own takes them with it.** A turn that takes its card out of
-  the Threads panel's view, as a reply under "Waiting on you" or a rewrite or Reopen
+  the Threads panel's view, as a reply under "Waiting on me" or a rewrite or Reopen
   under Resolved does, widens the view to one that holds the thread and takes the user
   with it; a refusal puts the view back only while they have not acted since. Owners:
   `thread/thread-card.js` (`#speak`), `thread/folding.js`.
@@ -202,10 +202,12 @@ representative desktop viewport.
 ### Motion
 
 - **Animations are restrained and finite, and acknowledge state changes.** An
-  unchanged state does not animate continuously. The sheen across “Generating title”
-  on an untitled thread awaiting the agent is the one continuous animation; it stops when
-  the title arrives or the thread stops awaiting the agent, and is static under reduced
-  motion (`styles/chrome.css`).
+  unchanged state does not animate continuously. One sheen is the only continuous
+  animation, and it marks work under way: across “Generating title” on an untitled thread
+  awaiting the agent (`styles/chrome.css`), across a thread's working message while the
+  agent's work on it runs (`styles/components/surfaces.css`), and across the floating
+  panel's empty field while it says the agent is working (`styles/floating-panel.css`).
+  It stops when that state ends, and is static under reduced motion.
 - **Nothing the user must read, press, or decide waits on a clock.** Motion runs from
   a state that is already true, and motion that must finish before the result can be
   read is a pause. A motion the user waits on stays under 300ms; one that moves
@@ -232,7 +234,7 @@ page only, before any resource the page loads. It marks the page live
 (`data-lf-live`), so the theme reserves the chrome's room; it shows a startup failure
 and waits for a server that can start the page, even if the module graph never loads,
 or says the page has a problem where the fault is the page's own, as words a module
-staged where the page cannot read them; and it holds page keys pressed before presentation. Content modules import only
+staged where the page cannot read them; and it holds page keys until their declared inputs are available. Content modules import only
 `runtime/widget-api.js`, the public helper surface; owners never reach back
 through it or the entry module. Owners are constructed with explicit capabilities
 and cross-owner reads happen in their mounts. Pure projection, thread, and
@@ -248,7 +250,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Composition and semantic publication | `application.js`, `semantic-state.js`, `context.js` |
 | Delivery, accepted state, and wakeups | `delivery.js`, `state-application.js`, `state-feed.js`, `layer-client.js`, `traffic.js` |
 | Undo and withdrawal | `undo.js` |
-| State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `questions/model.js`, `queues.js` |
+| State models and projection | `projection/`, `thread/model.js`, `thread/workflow.js`, `thread/state.js`, `pending/`, `asks/model.js`, `queues.js` |
 | Widget capture and lifecycle | `document-identity.js`, `widget-descriptors.js`, `widget-controller.js`, `widget-loader.js`, `widget-upgrade.js` |
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
@@ -258,7 +260,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
 | Focus and navigation | `focus.js`, `standing-target.js`, `navigation.js`, `queue-walk.js`, `history.js`, `user-intent.js`, `walk-position.js` |
-| Asks | `questions/` |
+| Asks | `asks/` |
 | Comment capture | `composing/`, `drafts.js`, `media.js` |
 | Threads | `thread/`, `thread-panel.js` |
 | Annotation inventory and controls | `annotation-inventory.js`, `annotation-view.js`, `contributions.js`, `contribution-controls.js`, `inline-contributions.js` |
@@ -268,7 +270,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Anchor placement, decoration and travel | `anchor-placement.js`, `anchor-note-view.js`, `anchor-controls.js`, `anchor-travel.js`, `target-paint.js`, `target-paint-geometry.js`, `visual-parts.js`, `indication.js` |
 | Banner and approvals | `banner*.js` |
 | Drawers and neighboring pages | `drawers.js`, `queue-panel.js`, `queue-list.js`, `live-leaves*.js` |
-| Activity and reports | `presence.js`, `reports.js` |
+| Activity and reports | `presence.js`, `activity-words.js`, `reports.js` |
 | Notices and announcements | `semantic-news.js`, `notifications.js`, `keyboard/shortcut-bar.js` |
 | Reactions and design review | `reactions.js`, `design.js`, `design-readings.js` |
 | Presentation and validation | `presentation.js`, `declared-words.js`, `validation.js`, `projection-watch.js`, `retained-face.js` |
@@ -320,26 +322,66 @@ value. The corpus holds each rule, in
 
 Stylesheets apply in cascade layers, in the order `layer.py`'s `CASCADE_LAYERS`
 declares and `../references/packages.md`, "Styles and composition", describes;
-`state.css` takes the top tier so semantic retirement wins over package defaults and
-Layouts. `theme.css` holds page tokens, element styles, idioms, and CSS-only widgets,
-and each package theme follows it; shared shadow rules compose into `/shadow.css`,
-whose shared native `.lf-ui-face` defaults come before component rules. Custom-element
-hosts own their appearance; `.lf-ui` marks apparatus without imposing a face. Each
-package's rules reach only its own widgets (`layer.py`, `widget_confinement`), so a
-rule several packages' widgets need is the kernel's. The page's rules skip the chrome
-and every `.lf-ui` control unless they name a widget or the layer's vocabulary
-(`runtime/page-sheets.js`). The chrome's root and native `.lf-ui-face` defaults
+`state.css` takes the top tier so semantic retirement wins over package defaults,
+Layouts and theme packages, whose `lf-theme` tier sits above the Layouts. `theme.css`
+holds page tokens, element styles, idioms, and CSS-only widgets, and each package theme
+follows it; shared shadow rules compose into `/shadow.css`, whose shared native
+`.lf-ui-face` defaults come before component rules. Custom-element hosts own their
+appearance; `.lf-ui` marks apparatus without imposing a face. Each widget package's
+rules reach only its own widgets (`layer.py`, `widget_confinement`), so a rule several
+packages' widgets need is the kernel's. The page's rules, and a theme package's, skip
+the chrome and every `.lf-ui` control unless they name a widget or the layer's
+vocabulary (`runtime/page-sheets.js`). The chrome's root and native `.lf-ui-face` defaults
 state the face they would otherwise inherit from the page; imported components
 receive theme variables, preserving their own state presentation.
-`runtime/chrome.css` and `runtime/marks.css` stay unlayered, apart from
-`chrome.css`'s form-control reset in `lf-reset`, below every layer that chooses a face.
-Their paint lies over the page, so they are adopted after page and package sheets and win by their
-selectors. `runtime/marks.css` is adopted by the document and shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
+`runtime/stylesheets.js` owns chrome and mark precedence, including the overridable
+indication default in `runtime/marks.css`. Chrome and apparatus marks are adopted
+after page and package sheets. `runtime/marks.css` is adopted by the document and
+shadow stages. A `:has()` whose rightmost compound carries no class, id, attribute, or
 type restyles every element on ordinary runtime writes
 (`test_no_has_rule_restyles_the_whole_document`); key a repeated type by a class
 its owner writes. A `:has()` on the chrome root, `body` or `html` is read again on
 every write below it and restyles it (`test_no_has_rule_stands_on_a_root`), so the
 owner of such a condition states it as an attribute on the element the rule styles.
+
+### The browser answers first
+
+The browser runs a layout engine, a cascade, and a focus model on every page. A script
+that recomputes one of their answers disagrees with them under zoom, subpixel
+rounding, a transform, or the page's own CSS. So before a module measures, positions,
+stacks, isolates, or tracks something, find the browser feature that already decides
+it, and shape the markup and CSS so the runtime uses its answer:
+
+| Question | The browser feature that answers it |
+| --- | --- |
+| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell |
+| Where a box stands against another box or the scroller holding it | the containing block, sticky positioning, anchor positioning, scroll timelines |
+| Which of Leaf's surfaces paints over which | the top layer, and stacking contexts |
+| Whether a box is rendered at all | `checkVisibility` |
+| Which rules reach an element | cascade layers, `@scope`, and a shadow root as the boundary |
+
+Where the feature nearly fits, change what the runtime asks of it, such as where a
+box lives in the DOM or which element carries a style, rather than computing its
+answer. A module that answers one of these questions in script says why in its
+header: the requirement the feature cannot meet and the case that shows it. A review
+asks for that reason, and a change that adds a script answer without one does not
+land. Patching a built-in prototype or a dependency's internals needs the same reason.
+
+Some questions already have script answers. `focus.js` paints
+`data-lf-focus` and `data-lf-focus-within` because native `:focus` also matches
+retargeted shadow hosts and a held label press, so style focus on those marks.
+Whether the user can see a box, and what covers it, stay with `geometry.js`
+(`seenRect`, `declareOccluder`), since Leaf's chrome stands over the page without
+clipping it, and some of it, such as the shortcut bar, takes no pointer hits for
+`elementsFromPoint` to find. `reserve` (`widget-elements.js`) predates this rule and
+measures each label in script; a change that touches it replaces it with labels
+stacked in one grid cell, or states why that fails.
+
+Each rendering callback gathers its layout reads before it writes: a read after a
+write forces a synchronous style and layout. A document-wide renderer that reads DOM
+another one materializes takes an entry in `PRESENTATION_ORDER`
+(`runtime/semantic-state.js`), which says why CSS or the publication cannot supply
+that reading.
 
 ### One writer for each fact
 
@@ -382,17 +424,24 @@ A question the runtime asks in many places has one owner, which every caller ask
 second copy usually starts where a symptom appeared and its author did not find the
 first, then drifts from it at the edges: under a stuck header, in a shadow tree, in
 right-to-left text. Before writing a predicate or reading, or approving one in review,
-look for its question here. A change that creates an owner adds its row; a caller that
-keeps its own test says why beside it. Rows marked *lint* are enforced in
-`eslint.config.mjs`.
+look for its question in "The browser answers first", then here. A change that
+creates an owner adds its row; a caller that keeps its own test says why beside it.
+Rows marked *lint* are enforced in `eslint.config.mjs`.
 
 | Question | Owner |
 | --- | --- |
-| Where the user stands: focus inside open shadow trees, or a label press holding them | `focus.js` `focused` |
+| Where the user stands: focus inside open shadow trees, or a label press holding them; asked in one tree, the node standing for it there | `focus.js` `focused`, `focused(tree)` (*lint*) |
+| Whether the user stands in a scope, across shadow trees and slots | `focus.js` `standingIn` (*lint*) |
+| The user's working place, read before something borrows it and handed back after | `history.js` `readPlace`, `returnPlace` |
+| Where a page walk starts, and which item it steps to from there | `standing-target.js` `walkOrigin`, `stepFrom` |
+| Which of two nodes the reader reaches first, across shadow trees | `shadow-tree.js` `renderedOrder`, `byRenderedOrder` |
+| Whether a node stands inside another across shadow trees, by composed parents or as rendered | `shadow-tree.js` `under`, `renderedUnder`, `composedParentNode` |
 | Put the user on an element, saying what moved them | `focus.js` `focusDestination(node, cause)` (*lint*) |
 | Place a node that may already stand somewhere, keeping the user's place in it | `dom-move.js` `move(parent, node, before)` (*lint*) |
 | Make a list of nodes, some already placed, a parent's children | `dom-children.js` `setChildren` |
 | Whether a control takes typed letters | `focus.js` `typesText`, `takesLetters` |
+| Which keys move a caret, and whether a key is Select All | `control-selectors.js` `CARET_KEYS`, `selectsAll` |
+| A hint map's walk and choose rows | `keyboard/hints.js` `createHintSession`, its session's walkRows |
 | Which focused control counts as the user's place: shown, and not under a stuck box | `user-place.js` `focusedInView` |
 | Whether a click came from the keyboard | `pointer.js` `pressIsKeyboardActivation` |
 | Whether a press is the plain one a control claims: primary button, no modifier | `pointer.js` `plainPress` |
@@ -414,12 +463,14 @@ keeps its own test says why beside it. Rows marked *lint* are enforced in
 | Whether a place is already shown, and the room a landing needs | `landing-scroll.js` `alreadyShown`, `landingRoom` |
 | Bring something into view without scrolling the page around it | `landing-scroll.js` `scrollIntoView` (*lint*) |
 | Open or close a native modal or popover | `keyboard/layer-stack.js` `showNativeLayer`, `closeNativeLayer` (*lint*) |
-| Which native layers are open, and whether a modal admits a node | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits` |
+| Whether a node is an open native layer, of which kind, or stands in one as rendered | `shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (*lint*) |
+| Which native layers are open, in opening order, and whether a modal admits a node | `keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits` |
 | The element a URL fragment names | `anchor-resolution.js` `fragmentTarget` |
 | The language a file path means | `syntax.js` `langForPath`, from the registry's `$languages` |
 | Paint on the next frame, or watch a size | `rendering.js` `nextRender`, `nextFrame`, `sizeObserver` (*lint*) |
 | Write a DOM value only when it changed | `keeps.js` `keeps` |
 | Threads, workflow, attention, asks, settlement | the server's folds, under "One writer for each fact" |
+| Which asks a region of the page holds | `asks/place.js` `asksIn` |
 
 ### Facts both runtimes know
 
@@ -449,21 +500,32 @@ not generated.
 8. Run the dressing passes and wait for the coordinator publication.
 9. Join the page-interface owners' reconciliation (`PAGE_INTERFACE`), separate from
    this document's semantic proof.
-10. Land a fresh URL's fragment, then stamp `data-lf-upgraded="1"`.
-11. Start the state feed; its first answer presents the page, or after a bounded
-    wait the page presents offline and applies the answer when it lands.
+10. Land a fresh URL's fragment, prepare anchor-dependent chrome, then stamp
+    `data-lf-upgraded="1"` and open comment capture against the shown document.
+11. Start the state feed; its first answer presents the page. A failed or expired
+    read presents offline; an unanswered request keeps its loading status.
 
 Authored HTML paints immediately, and the render-blocking theme reserves the
 banner and bottom bar so mounting the runtime moves nothing. Prose, links, and
-scrolling work while widgets upgrade. Page keys wait, because a command reads
-state the first answer brings: the bootstrap holds printed keys pressed before
-presentation and the keyboard controller replays them in order once the page
-presents, while any other key or a pointer press drops the held run. Durable
-controls wait for `data-lf-presented` (`../references/module-authoring.md`, "Startup and presentation"). An async
+scrolling work while widgets upgrade. New comments, anchors, drawing and their
+keys work at upgrade, while private thread history still says it is loading.
+The bootstrap holds printed keys before upgrade; the controller replays them
+in order as each command's declared input becomes ready. A history-dependent
+key keeps its ordered run until presentation, while any other key or a pointer
+press drops the held run. Ordinary UI commands use the shown document immediately;
+commands that need saved readings declare that dependency. Offline presentation
+discards pending keys and ends startup capture. Decision commands await the canonical
+saved reading
+(`../references/module-authoring.md`, "Startup and presentation"). An async
 producer joins settlement before `data-lf-upgraded`, or stays off the
-presentation path through `afterPresentation`, which declares the deferred
-arrival so `pageReadiness` still answers for it. `presentPage` owns the one
-transition to stateful interaction; its synchronous `PRESENTATION` signal lets
+presentation path through `afterPresentation`, which waits for presentation before
+starting it, or `deferredArrival`, which counts work already running. Both declare
+the deferred arrival, so `pageReadiness` still answers for it and startup lands the
+fragment again once it has. Work stays on the presentation path when the page reads
+it or when its landing would move what the reader sees (`growthIsSeen`), as a live
+sample's child does only where its frame's resize would be seen (`lf-sample.js`).
+`presentPage` owns initial authoritative presentation; its synchronous
+`PRESENTATION` signal lets
 box-derived apparatus replace provisional geometry before the presented state
 paints. A reader outside the page waits on `pageReadiness`, through
 `wait_until_ready` in Python, rather than combining these stamps.
@@ -481,10 +543,9 @@ contains its source, prompt, typed answer, status and next actor. The browser
 selects each widget answer from the same local-inclusive state its controls draw,
 without folding its `x-awaits.answered` completion rule again. A required-version
 approval is another ask source: its local approval or undo updates its contained
-answer and status immediately, with refusal restoring the admitted reading. While a
-reply, rewrite, settlement or settling reaction is unresolved, its thread's attention and the asks
-in it the user owes are what the server read that gesture leaving them (each served
-thread's `after`); a refusal restores the admitted reading. Asks derive their queue rows directly, while to-dos hold
+answer and status immediately, with refusal restoring the admitted reading. A thread
+gesture changes no served thread's attention and no ask until the server's reading of it
+arrives (root `AGENTS.md`, "Responsiveness"). Asks derive their queue rows directly, while to-dos hold
 explicit committed work. Every state read has
 one `through_seq`, and version comparison asks `/api/view` at the sequence
 already applied. A page widget's projection stops at the current revision; a
@@ -529,9 +590,19 @@ container ownership and how placements keep the user's place. Paints whose contr
 turn use `render`; `LitElement` schedules updates on a microtask and belongs only to
 runtime faces that permit that delay.
 
+A watcher's paint subscribes to every selection it reads (`projection-watch.js`), so a
+reader a paint can call derives what it returns inside its own selection (`readPart`)
+rather than selecting a broader part and narrowing it afterwards: the paint then runs
+again only when that answer moves. Reading the whole root inside a paint throws.
+
 `build/browser/build.mjs` compiles the TypeScript foundation into
 `vendor/browser-runtime.js` and the modules beside it in `vendor/browser-runtime/`,
 which import the runtime's own modules, and writes `vendor/lit.js`, the page's one copy of Lit
 (`build/AGENTS.md` owns the commands). What a module decides on its own is
 tested under `tests/runtime/` (`pnpm run test:runtime`; `tests/AGENTS.md` says
-which readings may go there).
+which readings may go there). `pnpm run check:browser` type-checks every runtime
+module, the framework's types reaching it through `vendor/browser-runtime.d.ts`; a
+module marked `// @ts-check` is held to strict mode, and the rest are checked without
+it. What the classic scripts hang on `<html>` and `window`, the events the runtime
+dispatches with a detail, and the runtime's own elements by tag are declared once in
+`build/browser/runtime-globals.d.ts` (`build/browser/build.mjs`, `typecheck`).

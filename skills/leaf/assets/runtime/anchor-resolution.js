@@ -20,11 +20,12 @@ import { clippedContents } from "./geometry.js";
 import { inUi, shadowHost, under, upFrom } from "./shadow.js";
 import {
   registeredVisualPart,
-  registeredVisualPartAt,
   registeredVisualPartLabel,
-  registeredVisualParts,
   revealRegisteredVisualPart,
   revealsVisualParts,
+  usableVisualPartAt,
+  usableVisualParts,
+  registeredVisualParts,
   visualPartAdmission,
 } from "./visual-parts.js";
 import {
@@ -63,8 +64,9 @@ import {
 } from "./addressable-names.js";
 import { fragmentId } from "./initial-render.js";
 
-// Anchors are durable coordinates, so every route that can mint one begins only after
-// replay has reconciled the authored document. The presentation root owns the writer.
+// Every route that mints an anchor starts after the shown document's widgets and
+// selectable words have settled. Private history can still be loading: the gesture
+// names the revision and coordinate the user actually saw. The entry owns the writer.
 let anchoringReady = false;
 export const anchoringIsReady = () => anchoringReady;
 export function setAnchoringReady(ready) {
@@ -117,7 +119,8 @@ function suppliedDatum(source, key) {
   const supplied = source?.lfDataDatum?.(key);
   return supplied instanceof Element &&
     under(supplied, source) &&
-    supplied.dataset.lfProjection === source.id
+    /** @type {HTMLElement | SVGElement} */ (supplied).dataset.lfProjection ===
+      source.id
     ? supplied
     : null;
 }
@@ -187,28 +190,23 @@ export function revealAddressed(source, key) {
   return source.lfRevealDatum?.(key) ?? null;
 }
 
-// A generated visual part keeps a semantic id its provider's declaration admits
-// (`visualPartAdmission`). Element ids never escape into the event log; the
-// declaration bounds the inventory core will trust. No rank when the visual declares
-// no parts at all.
-const visualPartRank = (visual) =>
-  visual
-    ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"])?.rank
-    : null;
+// A generated visual part keeps an id its provider's declaration admits.
+const visualAdmission = (visual) =>
+  visual ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"]) : null;
 
 const wholeVisualSurface = (element) =>
   registry[element?.localName]?.["x-visual"] ? element : null;
 
-/** The registered parts a visual's declaration admits, in declaration order. */
-export function visualParts(visual) {
-  const rank = visualPartRank(visual);
-  if (!rank) return [];
-  return registeredVisualParts(visual)
-    .filter((part) => rank(part.id) >= 0)
-    .sort((a, b) => rank(a.id) - rank(b.id));
+/** The admitted parts in their registered inventory order. */
+export function visualParts(visual, { strict = false } = {}) {
+  const admits = visualAdmission(visual);
+  if (!admits) return [];
+  return (strict ? registeredVisualParts(visual) : usableVisualParts(visual)).filter(
+    (part) => admits(part.id),
+  );
 }
 
-const admitsVisualPart = (visual, part) => visualPartRank(visual)?.(part) >= 0;
+const admitsVisualPart = (visual, part) => visualAdmission(visual)?.(part) ?? false;
 
 function visualPart(visual, part) {
   return admitsVisualPart(visual, part) ? registeredVisualPart(visual, part) : null;
@@ -221,10 +219,8 @@ function revealVisualPart(visual, part) {
 }
 
 function visualPartAt(visual, target) {
-  const rank = visualPartRank(visual);
-  return rank
-    ? registeredVisualPartAt(visual, target, (part) => rank(part.id) >= 0)
-    : null;
+  const admits = visualAdmission(visual);
+  return admits ? usableVisualPartAt(visual, target, (part) => admits(part.id)) : null;
 }
 
 export const visualPartLabel = (visual, part) =>
@@ -364,7 +360,9 @@ export function datumAimTarget(datum) {
   return {
     anchor,
     element: datum,
-    label: datum.dataset.lfDatumLabel?.trim() || aimLabel(datum),
+    label:
+      /** @type {HTMLElement | SVGElement} */ (datum).dataset.lfDatumLabel?.trim() ||
+      aimLabel(datum),
   };
 }
 
@@ -374,8 +372,22 @@ export function datumAimTarget(datum) {
 // or the real boundary is exhausted. An unresolved passage remains unresolved.
 // `anchorForPassage` captures segments already taken from the page reading, under
 // `node`, without walking the reading again to find them.
+/**
+ * @typedef {{
+ *   section: string,
+ *   quote?: string,
+ *   prefix?: string,
+ *   suffix?: string,
+ *   detached?: boolean,
+ *   datum?: string,
+ *   source?: string,
+ *   source_revision?: string,
+ *   identity?: string,
+ * }} CapturedAnchor
+ */
 export const anchorForRange = (range) =>
   anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
+/** @returns {CapturedAnchor} */
 export function anchorForPassage(segments, node) {
   const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
   // The neighbours come from the same indexed reading the search uses and stop at
@@ -637,6 +649,7 @@ function designTargetAt(
 
 // The returned element is the coordinate's durable owner. A named control part also
 // supplies its own hint seat, so several controls in one owner keep separate identities.
+/** @param {Node} node @param {{design?: boolean, marginTargetAt?: any}} [options] */
 export function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
   if (design) {
     const target = designTargetAt(node, marginTargetAt);

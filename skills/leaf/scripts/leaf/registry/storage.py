@@ -1,16 +1,14 @@
 """Vendored registry storage and page lookup."""
 
-import re
 from collections.abc import Collection
-from datetime import datetime
 from pathlib import Path
 
 from leaf.files import file_stamp, latest_revision, read_json
 from leaf.page_memory import Slot, memo
 
 from ..refusals import Refused
-from .contract import RegistryError, read_registry_declarations
-from .layer import layer_facts_error
+from .contract import RegistryError, read_registry_declarations, registry_error
+from .layer import check_layer_facts
 
 
 class _Layer(Slot):
@@ -43,8 +41,8 @@ def load_registry(page_dir: Path):
 def _read_layer(page_dir: Path, path: Path) -> dict | None:
     try:
         registry = read_registry_declarations(path)
-        if registry is not None and (error := layer_facts_error(registry)):
-            raise RegistryError(f"{path}: {error}")
+        if registry is not None:
+            check_layer_facts(registry, path)
     except RegistryError as error:
         raise _revendor(page_dir, error) from None
     return registry
@@ -116,12 +114,14 @@ def compose_candidate(
     vendor, to check a re-vendor before writing it. ``validated`` is a vocabulary
     already validated, which a composition equal to it is not validated against again.
 
-    A page that declares nothing composes the layer alone, so a fault in it is the
-    vendored layer's, which a re-vendor repairs."""
+    A fault the layer shows on its own is the vendored layer's, which a re-vendor
+    repairs, whether or not the page declares anything over it; one that appears only
+    with the page's declarations is the page's to fix."""
     from .page import compose_page_registry
 
     source = page_dir / "page" / "registry.json"
     declarations = read_registry_declarations(source) or {}
+
     try:
         return compose_page_registry(
             layer,
@@ -131,14 +131,20 @@ def compose_candidate(
             validated=validated,
         )
     except RegistryError as error:
-        if declarations:
-            raise
-        raise _revendor(page_dir, error) from None
+        if not declarations:
+            raise _revendor(page_dir, error) from None
+        # The layer alone, validated afresh: the active revision's vocabulary may be
+        # this same layer, stamped before this Leaf, and would excuse it unread.
+        try:
+            compose_page_registry(layer, {}, widgets, source=page_dir / "registry.json")
+        except RegistryError as layer_error:
+            raise _revendor(page_dir, layer_error) from None
+        raise
 
 
 def _revendor(page_dir: Path, error: RegistryError) -> RegistryError:
     """A fault in the vendored layer, which `page init` wrote and re-vendoring fixes."""
-    return RegistryError(f"{error}; run `leaf page init {page_dir}` to re-vendor it")
+    return RegistryError(error.findings[0].but(values={"revendor": str(page_dir)}))
 
 
 def _layer_packages(layer: dict, path: Path) -> list[str]:
@@ -148,9 +154,7 @@ def _layer_packages(layer: dict, path: Path) -> list[str]:
         or not all(isinstance(value, str) and value for value in packages)
         or len(set(packages)) != len(packages)
     ):
-        raise RegistryError(
-            f"{path}: $layer.packages must be a unique list of non-empty strings"
-        )
+        raise registry_error("layer-packages", path)
     return packages
 
 
@@ -166,72 +170,25 @@ def layer_packages(page_dir: Path) -> list[str]:
 
 
 def layer_metadata(page_dir: Path) -> dict:
-    """The identity recorded by this page's complete vendored layer."""
+    """The identity recorded by this page's complete vendored layer.
+
+    `page init` writes it, so it is read as written; a layer vendored before this
+    identity existed is one `page init` replaces."""
     path = page_dir / "registry.json"
-    registry = read_registry_declarations(path)
-    layer = (registry or {}).get("$layer", {})
-    generation = layer.get("generation")
-    if not isinstance(generation, str) or not generation:
-        raise RegistryError(
-            f"{path}: vendored registry lacks $layer.generation; run `leaf page init`"
-        )
-    packages = _layer_packages(layer, path)
-    fingerprint = layer.get("fingerprint")
-    if not (
-        isinstance(fingerprint, str)
-        and re.fullmatch(r"sha256:[0-9a-f]{64}", fingerprint)
-    ):
-        raise RegistryError(f"{path}: $layer.fingerprint must be a SHA-256 identity")
-    # A page vendored before this identity existed reads as having none.
-    identities = {}
-    server = layer.get("server")
-    if server is not None:
-        if not (
-            isinstance(server, str) and re.fullmatch(r"sha256:[0-9a-f]{64}", server)
-        ):
-            raise RegistryError(f"{path}: $layer.server must be a SHA-256 identity")
-        identities["server"] = server
-    producer = layer.get("producer")
-    if producer is not None and not isinstance(producer, dict):
-        raise RegistryError(f"{path}: $layer.producer must be an object")
-    if producer is not None:
-        commit = producer.get("commit")
-        dirty = producer.get("dirty")
-        if commit is not None and not (
-            isinstance(commit, str) and re.fullmatch(r"[0-9a-f]{7,40}", commit)
-        ):
-            raise RegistryError(
-                f"{path}: $layer.producer.commit must be a Git object name"
-            )
-        if dirty is not None and not isinstance(dirty, bool):
-            raise RegistryError(f"{path}: $layer.producer.dirty must be true or false")
-        dates = {
-            kind: producer[kind]
-            for kind in ("committed", "installed")
-            if producer.get(kind) is not None
-        }
-        # An offset is required: without one, each viewer's browser reads the time
-        # in its own zone, and one page shows different ages.
-        for kind, value in dates.items():
-            try:
-                offset = datetime.fromisoformat(value).utcoffset()
-            except (TypeError, ValueError):
-                offset = None
-            if offset is None:
-                raise RegistryError(
-                    f"{path}: $layer.producer.{kind} must be an ISO 8601 date "
-                    "with a timezone offset"
-                )
-        producer = {
-            **({"commit": commit} if commit is not None else {}),
-            **({"dirty": dirty} if dirty is not None else {}),
-            **dates,
-        }
+    layer = (read_registry_declarations(path) or {}).get("$layer", {})
+    if not (layer.get("generation") and layer.get("fingerprint")):
+        raise registry_error("layer-identity", path)
+    producer = {
+        kind: value
+        for kind in ("commit", "dirty", "committed", "installed")
+        if (value := layer.get("producer", {}).get(kind)) is not None
+    }
     return {
-        "generation": generation,
-        "fingerprint": fingerprint,
-        **identities,
-        "packages": packages,
+        "generation": layer["generation"],
+        "fingerprint": layer["fingerprint"],
+        # A page vendored before the server identity existed reads as having none.
+        **({"server": layer["server"]} if "server" in layer else {}),
+        "packages": _layer_packages(layer, path),
         **({"producer": producer} if producer else {}),
     }
 

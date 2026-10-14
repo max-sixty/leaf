@@ -1,11 +1,12 @@
 /* Retained controls derived from the canonical current anchor reading.
  *
- * This view owns visual comment proxies, standing reaction controls, and message
+ * This view owns visual comment proxies, controls for reactions in force, and message
  * fragment state. The dedicated anchor-note projection owns accessible comment notes.
  * Visual proxies are keyed Lit controls, one group per drawing's seat, standing on the
  * details shelf with the seat naming the group as its details (details-shelf.js). A
  * screen reader reaches them from the drawing; a keyboard reaches the drawing and each
- * declared part through the target picker (`s`). A standing reaction first reveals
+ * declared part through the target picker (`s`). A failed thread presentation withdraws
+ * visual proxies until a valid reading replaces them. A reaction in force first reveals
  * its dedicated removal action; only that action withdraws the reaction. Commands enter
  * only through the constructor.
  */
@@ -36,8 +37,9 @@ import {
 } from "./anchor-resolution.js";
 import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
-import { elementById, inChrome, pageQueryAll } from "./passages.js";
-import { pagePresented } from "./page-paint.js";
+import { elementById, inChrome, pageQueryAll, pageReadingVersion } from "./passages.js";
+import { pageUpgraded } from "./page-paint.js";
+import { documentChanged, readPart } from "./semantic-state.js";
 import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
@@ -46,6 +48,7 @@ import { keeps, keepsText } from "./keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
 
+const shownDocument = readPart((root) => root.document);
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 
 export function createAnchorControls({
@@ -109,12 +112,22 @@ export function createAnchorControls({
     for (const candidate of pageQueryAll(visualSelector())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
+      let parts;
+      try {
+        parts = visualParts(candidate, { strict: true });
+      } catch {
+        // Page check reports the malformed inventory. Withhold this visual's
+        // whole action too, while allowing the rest of the page to present.
+        continue;
+      }
+      // Controls must not outlive a malformed inventory: even the whole-visual
+      // action belongs to the same reading as the parts beside it.
       const targets = [
         {
           anchor: { section: found.id },
           label: sectionLabel(elementById(found.id)) || found.id,
         },
-        ...visualParts(candidate)
+        ...parts
           .filter((part) => unclaimedVisualGesture(part.element))
           .map((part) => ({
             anchor: { section: found.id, visual: part.id },
@@ -157,6 +170,7 @@ export function createAnchorControls({
     commentOnTarget({ anchor: control.lfAnchor });
   }
 
+  /** @param {{anchor: object, label: string, key?: string}} target */
   const visualActionTemplate = ({ anchor, label }) => html`
     <button
       type="button"
@@ -205,12 +219,32 @@ export function createAnchorControls({
     reconcileVisualActions(groups);
   }
 
+  // The plan is a reading of the page's own pictures, their labels and the parts their
+  // widgets register, none of which a thread changes. It is planned again when the page
+  // might have: its words moved (passages.js, `pageReadingVersion`), a caller said the
+  // document changed (`presentDocument`), the shown document was replaced, or a visual
+  // signalled new parts (`onLayoutInvalidated`). A thread pass over an unchanged page keeps
+  // the responses it published.
+  let plannedFor = null;
   function prepareVisualActions() {
+    const key = [pageReadingVersion(), documentChanged(), shownDocument()];
+    if (
+      plannedFor?.every((part, index) => part === key[index]) &&
+      !pendingVisualActions.size
+    )
+      return;
+    plannedFor = key;
     pendingVisualActions = visualActionPlan();
-    if (pagePresented()) publishVisualActions();
+    if (pageUpgraded()) publishVisualActions();
   }
 
-  // Each target contributes its complete standing reaction reading. Only the selected
+  function withholdVisualActions() {
+    plannedFor = null;
+    pendingVisualActions = new Map();
+    reconcileVisualActions(pendingVisualActions);
+  }
+
+  // Each target contributes its complete reading of its reactions in force. Only the selected
   // removal disclosure is local state; both rendered surfaces read the same entry keys.
   function seatReactions(seats) {
     const kept = new Set();
@@ -228,7 +262,7 @@ export function createAnchorControls({
       if (!record) {
         record = { roots, expanded: null, margin: null, surface: null };
         record.scope = commandScope(
-          "On a standing reaction",
+          "On a reaction",
           [
             {
               id: "reaction.removal.close",
@@ -259,7 +293,7 @@ export function createAnchorControls({
       if (!roots.some((root) => root.id === record.expanded)) record.expanded = null;
       if (!record.margin)
         record.margin = registerContribution({
-          key: "standing-reactions",
+          key: "reactions",
           target: at,
           read: () => ({
             side: "after",
@@ -336,7 +370,7 @@ export function createAnchorControls({
       keeps(
         anchor,
         "title",
-        alive ? `Jump to § ${id}` : `§ ${id} isn't in the version you're viewing`,
+        alive ? `Jump to § ${id}` : `§ ${id} isn't in the version shown`,
       );
     }
   }
@@ -398,7 +432,10 @@ export function createAnchorControls({
     });
   }
 
-  const onLayoutInvalidated = () => {
+  const onLayoutInvalidated = (event) => {
+    // A page visual's parts can move without its nodes moving, and their registration
+    // says so with this signal (visual-parts.js, `update`).
+    if (!inChrome(event.target)) plannedFor = null;
     invalidatePageGeometry();
     queueInvalidation();
   };
@@ -435,8 +472,7 @@ export function createAnchorControls({
     for (const record of reactionSeats.values()) record.margin.unregister();
     reactionSeats.clear();
     anchorNotes.destroy();
-    pendingVisualActions = new Map();
-    reconcileVisualActions(new Map());
+    withholdVisualActions();
   }
 
   return {
@@ -444,6 +480,7 @@ export function createAnchorControls({
     destroy,
     render,
     publishVisualActions,
+    withholdVisualActions,
     visualActionAnchor,
   };
 }

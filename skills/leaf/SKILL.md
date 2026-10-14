@@ -13,11 +13,12 @@ its URL with a status saying what you want back, and wait.
 Answer each delivered update on the page and in its thread, stamp checkpoints,
 and idle the page when it is finished.
 
-Anything you need from the user must appear in **Questions**. Zero Questions
-means you need nothing from them now. Before handing over or waiting, read
-`leaf page state <page>` and reconcile `queues.questions` and
-`queues.tasks` with the work and decisions still open.
-`references/conversation-loop.md`, "Questions and Tasks", owns what appears there
+Anything you need from the user must appear in the user's **On me** list. An
+empty On me list means you need nothing from them now. Your own list, which the
+user sees as **On <your name>**, holds what waits on you. Before handing over or
+waiting, read `leaf page state <page>` and reconcile `queues.on_user` (On me)
+and `queues.on_agent` (yours) with the work and decisions still open.
+`references/conversation-loop.md`, "The On lists", owns what appears there
 and how to register each request.
 
 The input is a subject to present, or a delivery from a page already handed
@@ -38,8 +39,14 @@ $ARGUMENTS
   headings, pictures, and controls, as a player takes in a board: where that leaves
   a view's point or its move unclear, the view has put in words what it should draw
   or let the user do.
-- **Visual.** The page shows its subject in pictures and controls, and uses words
-  for what they cannot say.
+- **Concrete.** The page puts the thing itself in front of the user, wherever they
+  judge it: an interface as it looks, a behavior running, a mechanism or proposal
+  drawn, a numeric relationship as a chart, wording as the text itself. Code is
+  wording only where its text is what the user judges; what code does, such as what
+  it draws, overrides or calls, is shown as that effect. Whatever the user would have
+  to picture from your words to judge, show instead; each option of an ask shows
+  what choosing it gives them. Words carry what the thing cannot show: the claim,
+  the reason, the cost.
 - **Current.** The page states what is true now, so a returning user finds each
   outcome in place.
 - **Personalized.** The user's word decides the page's content and presentation;
@@ -60,17 +67,24 @@ directory explicitly; export or copy anything that must outlive the page directo
    optional vocabulary or instructions, as in
    `leaf page init --package diagram --package diff <page>`. "Package reach" in
    `references/packages.md` lists the optional packages and what each adds;
-   `playground` fits whenever the user compares or tunes several values or
-   behaviors. Re-running
+   `playground` fits whenever the user tunes several values or behaviors before
+   choosing; candidates the user picks among as drawn need no package, since the
+   user selects the candidate itself (`references/authoring-asks.md`). Re-running
    `page init` with a selection adds it to a page already written.
-2. Read `references/page-authoring.md`, then the authoring reference each part
-   of the page needs, listed under "Author a version" below. Follow "Read the
-   registry" there to select elements and class idioms and read their examples
-   and selected instructions before authoring. Write
-   `<page>/index.html` in the registry's vocabulary. Each valid save becomes the
-   active immutable revision; an invalid save leaves the last valid one live and
-   reports its diagnostic in page state and the browser. You write `index.html` and
-   `page/`; Leaf alone writes revisions and version mappings.
+2. Read all of `references/page-authoring.md`, then the reference each part of
+   the page needs, listed under "Author a version" below. Select elements and
+   class idioms from the registry as it says, and read their examples and
+   selected instructions before authoring. Show each view's subject as
+   **Concrete** says, so the page carries pictures: drawings, captures, charts, or
+   the thing running. A picture on another page or in another section shows
+   nothing to a user judging this view, so show it here. A draft of only prose,
+   tables, lists and code has left in words what it should show, unless what the
+   user judges is the words or exact values themselves, such as a text edit, a
+   message, or a table read for lookup.
+   Write `<page>/index.html` in the registry's vocabulary. Each valid save becomes
+   the active immutable revision; an invalid save leaves the last valid one live
+   and reports its diagnostic in page state and the browser. You write
+   `index.html` and `page/`; Leaf alone writes revisions and version mappings.
 3. **Check the page.** Before you hand the page over or reply about a revision,
    run `leaf page check <page>` and fix every failure. That is the whole check for a quick page, one the user reacts to once
    and then revises or drops: hand it over without stamping or a browser review. It
@@ -81,7 +95,7 @@ directory explicitly; export or copy anything that must outlive the page directo
    conversation. A page declaring `<meta name="lf-review" content="sign-off">` is
    always one, since approval requires a stamped version. Before a record's first
    handoff, run `leaf page check <page> --render`, do the reading in
-   `references/page-authoring.md`, "Pre-handover review", and then run
+   `references/page-checkpoints.md`, "Pre-handover review", and then run
    `leaf page stamp <page> --text "<changelog>"`. The render check establishes that
    the page renders; the reading establishes that it shows the intended content.
    `references/page-checkpoints.md`, "Stamp checkpoints", says when to stamp again;
@@ -125,15 +139,15 @@ Unless the user specifies the page's shape or depth, a Leaf is a short sequence
 of visually distinct, self-contained views. Each view makes one point, shows one
 state, or offers one move, so the user can grasp it at a glance and continue;
 disclosures keep supporting detail available without putting it in that path.
-Where a view's point has a shape, it shows the point in a picture and uses words
-for what the picture cannot say; `references/page-authoring.md`, "Draw the
-subject", says which points have one.
+Each view shows its subject as **Concrete** says; `references/page-authoring.md`,
+"Show the subject", says which form each kind of subject takes.
 The visible page follows the subject's shape: prose read in order, regions read side
 by side on a sidebar page, or a workspace, a screen the user moves through rather than
 scrolls. A Layout class
 on `main` sets each of these shapes, and the page's own CSS adjusts it;
-`references/page-authoring.md`, "Composing a page", owns the concrete choices, and
-`references/authoring-questions.md` owns where each ask goes.
+`references/page-authoring.md`, "Composing a page", owns the choice of shape,
+`references/page-layout.md` each shape's geometry, and `references/authoring-asks.md`
+where each ask goes.
 
 Include only controls and gestures that advance the user's task. Widget actions,
 resolutions and sign-offs can be undone; sent words remain in the log.
@@ -173,11 +187,18 @@ so a phase does not depend on discovering a chain of references.
 
 ### Author a version
 
-- `references/page-authoring.md`: before writing or revising any version.
-- `references/authoring-questions.md`: when the page needs an answer from the user or
+- `references/page-authoring.md`: before writing or revising any version, all of it.
+- `references/page-layout.md`: before giving a page a Layout other than the reading
+  column, widening or bounding a block, placing its contents or notes in the margin,
+  styling Leaf's controls, or showing several contributors' activity.
+- `references/page-behavior.md`: before giving a page a script, a file under `page/`,
+  a `page/registry.json`, or anything loaded from another server.
+- `references/live-samples.md`: before letting the user operate a Leaf page inside a
+  page or a thread message.
+- `references/authoring-asks.md`: when the page needs an answer from the user or
   sign-off, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
-  proposing a rewrite, using a user-owned draft, or revising standing state.
+  proposing a rewrite, using a user-owned draft, or revising the page's current state.
 - `references/authoring-evidence.md`: for work updates or reviews, before drawing
   a figure, or using measured facts, diagrams, charts, source files or text edits,
   images, recordings, or before/after captures.
@@ -194,18 +215,25 @@ so a phase does not depend on discovering a chain of references.
 - `references/event-batches.md`: after delivery and before processing its events.
 - `references/threads.md`: before opening, naming, replying to,
   editing, summarizing, or resolving a thread.
-- `references/page-checkpoints.md`: before stamping or ending a page.
+- `references/page-checkpoints.md`: before a record's pre-handover review, stamping,
+  or ending a page.
 
 ### Serve or extend a page
 
 - `references/serving-pages.md`: for the first handoff, `--export`, an unreachable
-  URL, whether an operation changes a page's URL, `--host`, a standing page,
+  URL, whether an operation changes a page's URL, `--host`, a persistent page,
   re-vendoring a served page, a page a Leaf update broke, or resuming another
   session's page.
 - `references/module-authoring.md`: before writing or changing browser behavior in
-  a page script, page-owned widget, or package widget.
-- `references/packages.md`: for package design, registry declarations, theme rules,
-  data contracts, or a design comment whose fix belongs in a package.
+  a page script, page-owned widget, or package widget; then, as the behavior needs
+  them, `references/module-reading.md` for reading the page, content helpers, asks and
+  history, `references/module-state.md` for recorded state and data,
+  `references/module-input.md` for commands, focus and text entry,
+  `references/module-scroll-and-motion.md` for scrolling, travel and motion, and
+  `references/module-annotations.md` for margin entries, visual parts and Threads.
+- `references/packages.md`: for package design, registry declarations, or a design
+  comment whose fix belongs in a package; `references/package-themes.md` for theme
+  rules, and `references/package-data.md` for user state and data contracts.
 
 ### Set up a Codex connection
 

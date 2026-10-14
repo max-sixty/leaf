@@ -16,11 +16,11 @@
  *
  * Three seats partition the run, and measured geometry never changes the partition:
  *
- * - `row`: Threads, and on a desk Approval, Comment on the page and Questions, the
- *   page's standing reading loop: reading it, starting a conversation about it,
+ * - `row`: Threads, and on a desk Approval, Comment on the page and On me, the
+ *   page's own reading loop: reading it, starting a conversation about it,
  *   deciding it.
  * - `menu`: every secondary action, in one stable seat behind More. On a phone
- *   Approval, Comment on the page and Questions join them, so the banner keeps one row:
+ *   Approval, Comment on the page and On me join them, so the banner keeps one row:
  *   the status in words, Threads and More. More wears its news dot while the approval
  *   or a question behind it is still open.
  * - `gesture`: the next step of something the user is doing right now, such as
@@ -37,8 +37,22 @@
  * A contribution whose seat differs by face names one per face (`{ desk, phone }`). The
  * face is the window's, the stylesheet-owned --lf-banner-face that also dresses
  * the banner, so the partition changes only when the window crosses that width.
+ *
+ * Each contribution also says what it is as one line of a menu (`row`): its `label`,
+ * a terse `value` such as a count, the `shortcut` that reaches it from the keyboard as
+ * its steps, each spelled as a key chip spells it (by default the one that reaches its
+ * control, keyboard/control-keys.js), the `group` of controls it belongs with, the text
+ * it copies where it copies one (`copies`), which a presentation shows for the user to
+ * select beside its own copy control (copy-control.js) in place of a press, and the
+ * `press` that acts as the control would, given the place
+ * the presentation held when the user opened it (history.js, `readPlace`). The floating
+ * panel (floating-panel.js) draws the run from these rows rather than from the native
+ * nodes, so a control appears there without the panel naming it. `bannerRows` reads the run's rows in order, and
+ * `watchBannerRows` calls back after each change to which stand.
  */
 import { showNativeLayer, closeNativeLayer } from "./keyboard/layer-stack.js";
+import { controlShortcuts } from "./keyboard/control-keys.js";
+import { isNativeLayer } from "./shadow-tree.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { setChildLists } from "./dom-children.js";
 import { el } from "./widget-elements.js";
@@ -50,11 +64,11 @@ import {
   deepFocus,
   drawn,
   focusDestination,
+  focused,
   onStanding,
-  readCaret,
   releaseFocus,
 } from "./focus.js";
-import { selectEnds } from "./passages.js";
+import { readPlace, returnPlace } from "./history.js";
 
 const EMPTY = Object.freeze([]);
 
@@ -74,7 +88,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   keyboard: 95,
   approval: 100,
   pageComment: 105,
-  // Questions and Threads are the two doors to the one side panel, side by side.
+  // On me and Threads are the two doors to the one side panel, side by side.
   queue: 107,
   threads: 110,
   // The next steps in the mode or picker the user stands in.
@@ -94,6 +108,12 @@ overflowBtn.setAttribute("popovertarget", overflowMenu.id);
 overflowBtn.append(iconElement("more", "lf-action-icon"));
 
 const SEATS = ["row", "menu", "gesture"];
+// What a row is about, which decides where a menu built from rows puts it: on the menu
+// itself (`page`), behind its Navigate, Annotations or About entry, or, for a keyboard's
+// convenience for where the reader stands, such as Resume writing (`keys`), behind
+// Navigate only where no keyboard is there to reach it, so the menu a keyboard user
+// reads stays short and a finger keeps a way to each.
+const ROW_GROUPS = Object.freeze(["page", "navigate", "annotate", "about", "keys"]);
 // The render-blocking theme decides posture once, before the banner arrives.
 const bannerFace = () =>
   getComputedStyle(document.documentElement)
@@ -133,7 +153,7 @@ const currentMenuSeats = () =>
 // The door's name says what its dot stands for: each urgent control behind it names
 // its news.
 function paintDoor() {
-  const open = overflowMenu.matches(":popover-open");
+  const open = isNativeLayer(overflowMenu);
   const news = [
     ...new Set(
       menu.filter((entry) => entry.urgent && visible(entry)).map((e) => e.urgent),
@@ -143,7 +163,7 @@ function paintDoor() {
   keeps(overflowBtn, "aria-label", name);
   keeps(overflowBtn, "title", name);
   overflowBtn.toggleAttribute("data-lf-news", news.length > 0);
-  // Keep the native invoker standing until its open popover has closed. A semantic
+  // Keep the native invoker in place until its open popover has closed. A semantic
   // update can retire the last visible item while the user is inside it; closing then
   // lets paint remove the empty door.
   keepsHidden(overflowBtn, !open && !menu.some(visible));
@@ -155,27 +175,47 @@ function placeRuns() {
     [overflowMenu, menu.map((entry) => entry.control)],
   ]);
   paintDoor();
+  for (const listener of rowListeners) listener();
+}
+
+const rowListeners = new Set();
+const rowOf = (entry, shortcuts) => {
+  const read = (value) => (typeof value === "function" ? value() : value);
+  return Object.freeze({
+    key: entry.key,
+    label: read(entry.row.label),
+    value: read(entry.row.value) ?? "",
+    shortcut: read(entry.row.shortcut) ?? shortcuts.get(entry.focusTarget) ?? EMPTY,
+    group: entry.row.group,
+    copies: read(entry.row.copies) ?? "",
+    urgent: entry.urgent,
+    gesture: seatOf(entry) === "gesture",
+    disabled: entry.focusTarget.matches(":disabled, [aria-disabled='true']"),
+    press: entry.row.press ?? (() => entry.focusTarget.click()),
+  });
+};
+/** The run's rows present now, in the run's order, each read as it reads now. */
+export const bannerRows = () => {
+  const shortcuts = controlShortcuts();
+  return ordered()
+    .filter(onOffer)
+    .map((entry) => rowOf(entry, shortcuts));
+};
+/** Call `listener` after each change to the run; returns the way to stop. */
+export function watchBannerRows(listener) {
+  rowListeners.add(listener);
+  return () => rowListeners.delete(listener);
 }
 
 placeRuns();
 
 // More temporarily borrows the reader's focus. Context-preserving commands return
-// that browser checkpoint before acting; it never becomes a remembered page target.
+// that working place (history.js, `readPlace`) before acting; it never becomes a
+// remembered page target.
 let opener = null;
 function holdOpener(node = deepFocus()) {
   if (node === overflowBtn || overflowMenu.contains(node)) return;
-  const selection = getSelection();
-  opener = {
-    node,
-    caret: readCaret(node),
-    ends:
-      selection?.rangeCount && !selection.isCollapsed
-        ? [
-            [selection.anchorNode, selection.anchorOffset],
-            [selection.focusNode, selection.focusOffset],
-          ]
-        : null,
-  };
+  opener = readPlace(node);
 }
 overflowBtn.addEventListener("pointerdown", () => holdOpener());
 // A key's way onto More holds the place it left. Arriving from nowhere leaves the
@@ -193,10 +233,8 @@ export function bannerStanding() {
 export function restoreBannerStanding(held) {
   opener = null;
   // Handing the borrowed focus back is the menu's own return, not the user going there.
-  if (held?.node?.isConnected && held.node !== document.body)
-    focusDestination(held.node, "return", { caret: held.caret });
+  if (held) returnPlace(held);
   else releaseFocus();
-  if (held?.ends?.every(([node]) => node.isConnected)) selectEnds(...held.ends);
 }
 
 function paintControl(entry) {
@@ -215,22 +253,16 @@ function paintControl(entry) {
 // whether or not focus has left it yet. A control that stays on the row and goes is
 // its caller's to hand on (`focusAfterRemoval`).
 function paint() {
-  const held = [...controls.values()].find(
-    (entry) => document.activeElement === entry.focusTarget,
-  );
+  const held = [...controls.values()].find((entry) => focused() === entry.focusTarget);
   placeRuns();
   for (const entry of controls.values()) paintControl(entry);
-  if (
-    !held ||
-    (document.activeElement === held.focusTarget &&
-      !overflowMenu.contains(held.control))
-  )
+  if (!held || (focused() === held.focusTarget && !overflowMenu.contains(held.control)))
     return;
   // Where the control stands, not whether it would take a press: a refused Approval
   // is still a Tab stop.
   const door = bannerControlDoor(held.control);
   const place = door === held.control ? held.focusTarget : door;
-  if (place && document.activeElement !== place) focusDestination(place, "return");
+  if (place && focused() !== place) focusDestination(place, "return");
 }
 
 const focusable = (entry) =>
@@ -246,7 +278,7 @@ overflowMenu.addEventListener("beforetoggle", (event) => {
 overflowMenu.addEventListener("toggle", (event) => {
   const open = event.newState === "open";
   paintDoor();
-  const first = open && document.activeElement === overflowBtn && menu.find(focusable);
+  const first = open && focused() === overflowBtn && menu.find(focusable);
   if (first) {
     focusDestination(first.focusTarget, "move");
     scrollIntoView(first.focusTarget, { block: "nearest" });
@@ -281,7 +313,22 @@ function replaceEntry(prior, next) {
   menu = menu.map((entry) => (entry === prior ? next : entry));
 }
 
-/** Register one internal banner contribution and synchronously seat its native node. */
+/**
+ * Register one internal banner contribution and synchronously seat its native node.
+ *
+ * @param {{
+ *   key: string,
+ *   control: HTMLElement,
+ *   focusTarget?: HTMLElement,
+ *   rank: number,
+ *   seat?: string | { desk: string, phone: string },
+ *   conditional?: boolean,
+ *   present?: boolean,
+ *   offered?: boolean,
+ *   urgent?: string | null,
+ *   row: { label: string | (() => string), group: string, [field: string]: any },
+ * }} contribution
+ */
 export function registerBannerControl({
   key,
   control,
@@ -292,6 +339,7 @@ export function registerBannerControl({
   present = true,
   offered = !conditional,
   urgent = null,
+  row: menuRow,
 }) {
   const seats = typeof seat === "string" ? [seat] : [seat?.desk, seat?.phone];
   if (
@@ -302,6 +350,10 @@ export function registerBannerControl({
   )
     throw new TypeError(
       "A banner control needs a key, native control, numeric rank, and row, menu, or gesture seat, or one for each of desk and phone",
+    );
+  if (!menuRow?.label || !ROW_GROUPS.includes(menuRow.group))
+    throw new TypeError(
+      `Banner control ${key} needs a row: a label and one of the groups ${ROW_GROUPS.join(", ")}`,
     );
   const byKey = [...controls.values()].find((entry) => entry.key === key);
   if (byKey && byKey.control !== control)
@@ -321,6 +373,7 @@ export function registerBannerControl({
       present: Boolean(present),
       offered: Boolean(offered),
       urgent,
+      row: menuRow,
     }),
   );
   seatControls();
@@ -363,14 +416,13 @@ export function showBannerControls(changes) {
     moved.push({
       prior,
       entry: Object.freeze({ ...prior, present: Boolean(shown) }),
-      heldFocus: document.activeElement === prior.focusTarget,
+      heldFocus: focused() === prior.focusTarget,
       wasInMenu: menu.includes(prior),
     });
   }
   if (!moved.length) return;
   const loopFocus = row.find(
-    (candidate) =>
-      seatOf(candidate) !== "menu" && document.activeElement === candidate.focusTarget,
+    (candidate) => seatOf(candidate) !== "menu" && focused() === candidate.focusTarget,
   );
   for (const { prior, entry } of moved) replaceEntry(prior, entry);
   paint();
@@ -388,7 +440,7 @@ export function showNews(control, on) {
   if (!entry) throw new TypeError("Banner news control is not registered");
   on = Boolean(on);
   if (entry.conditional && entry.offered === on) return;
-  const focused = document.activeElement === entry.focusTarget;
+  const standing = focused() === entry.focusTarget;
   const wasInMenu = menu.includes(entry);
   const prior = entry;
   entry = Object.freeze({
@@ -398,7 +450,7 @@ export function showNews(control, on) {
   });
   replaceEntry(prior, entry);
   paint();
-  if (focused && !on) {
+  if (standing && !on) {
     focusAfterRemoval(entry, wasInMenu);
   }
 }
@@ -417,7 +469,7 @@ function focusAfterRemoval(entry, wasInMenu) {
 // answers the layer's shared disclosure route: `reveal` walks the ancestors of what a
 // caller means to show, and this is the only one that can open for a menu control.
 function revealMenuControl(control) {
-  if (!overflowMenu.matches(":popover-open")) {
+  if (!isNativeLayer(overflowMenu)) {
     showNativeLayer(overflowMenu);
     return;
   }
@@ -454,7 +506,7 @@ export function bannerControlDoor(control = overflowBtn) {
 // hands the user back to the door, and the user stands on the control.
 export function returnToBannerControl(control) {
   if (overflowMenu.contains(control)) {
-    if (!overflowMenu.matches(":popover-open")) focusDestination(overflowBtn, "return");
+    if (!isNativeLayer(overflowMenu)) focusDestination(overflowBtn, "return");
     revealMenuControl(control);
   }
   const destination = bannerControlDoor(control);
@@ -462,5 +514,5 @@ export function returnToBannerControl(control) {
 }
 
 export function dismissBannerControls() {
-  if (overflowMenu.matches(":popover-open")) closeNativeLayer(overflowMenu);
+  if (isNativeLayer(overflowMenu)) closeNativeLayer(overflowMenu);
 }

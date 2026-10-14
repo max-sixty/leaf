@@ -17,17 +17,17 @@ An ask contains its prompt, typed answer, lifecycle and source. A widget owns
 its canonical answer state; `lf-ask` is an optional context adapter, alongside other
 ask consumers. It owns neither another answer nor the ask's identity.
 
-`readQuestions()` exposes `question.answer.value` directly. A board can already
+`readAsks()` exposes `question.answer.value` directly. A board can already
 read that collection, group answers by value, and open their sources through
-`questionActions.open(question.id)`. It does not parse display labels or keep
+`askActions.open(question.id)`. It does not parse display labels or keep
 another answer collection. Multiple selection and partial values need an explicit
 board projection policy.
 
 The source's registry declaration chooses the answer verb with `x-awaits.value`;
 `x-awaits.answered` separately defines completion. Asks, to-dos and card order
 remain different facts. The current contract lives in
-`skills/leaf/references/module-authoring.md`, "Reading asks and obligation
-queues", and `skills/leaf/references/packages.md`. `questions.py` owns the server
+`skills/leaf/references/module-reading.md`, "Reading asks and obligation
+queues", and `skills/leaf/references/packages.md`. `asks.py` owns the server
 inventory.
 
 ## What a board write still needs

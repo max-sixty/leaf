@@ -40,7 +40,7 @@ export function placeKept(...boxes) {
 document.addEventListener(
   "scrollend",
   ({ target }) => {
-    const box = target === document ? pageScroller : target;
+    const box = target === document ? pageScroller : /** @type {Element} */ (target);
     if (kept.get(box) !== box.scrollTop) chooseScroll(box);
     kept.delete(box);
   },

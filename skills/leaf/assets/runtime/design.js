@@ -88,9 +88,7 @@ export function createDesignMode({
       announce(
         on
           ? `Design mode: a click comments on what it lands on — a widget, a control, a picture. ${
-              coarsePointer.matches
-                ? "Exit Design mode on the banner leaves."
-                : "Escape leaves."
+              coarsePointer.matches ? "Exit Design mode leaves." : "Escape leaves."
             }`
           : "Design mode off",
       );
@@ -390,6 +388,7 @@ export function createDesignMode({
       "Enter Design mode: comment on how the page looks and works — a widget, a control, a picture — rather than its words",
     title: "design mode",
     touch: "Design mode",
+    menu: "annotate",
     when: () => !designModeOn,
     run: () => setDesignMode(true),
   });

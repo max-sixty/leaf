@@ -7,6 +7,9 @@
 # Putting the marker obligation first instead lost comparison labels (0/2);
 # these bounded results do not establish general instruction reliability.
 # Matching the source's high effort reproduced base 0/2, candidate 2/2.
+# Once SKILL.md asked every page for pictures, the section drew the 68px shift above
+# the options (2/2) while the options stayed words; options-draw-nothing alone judges
+# the drawing, so comparison-labels no longer forbids a figure outside the options.
 description: options-stay-words-for-wording
 metadata:
   purpose: 'Asks: when the alternatives differ only in wording, each lf-option stays a title and a sentence,
@@ -35,18 +38,13 @@ vars:
     The page directory is not reachable from here, so reply with the section's HTML
     fragment rather than writing a file.
 assert:
-- type: regex
-  metric: has-options
-  value: <lf-option\b
-  transform: output.toLowerCase()
-- type: not-regex
+- type: llm-rubric
   metric: options-draw-nothing
-  value: <lf-option\b(?:(?!</lf-option>)[\s\S])*<(?:svg|img|lf-diagram)\b
-  transform: output.toLowerCase()
-- type: regex
-  metric: marks-recommendation
-  value: <lf-option\b(?:(?!</lf-option>)[\s\S])*<small\b[^>]*\bclass="tag[^\"]*"[^>]*>\s*recommended\s*</small>
-  transform: output.toLowerCase()
+  value: |
+    Pass only if each `lf-option` in the wording choice is words: its labels, a
+    title and a sentence or two, with the wording itself as text or code. Fail if
+    any option holds a drawing of the report, such as an inline `<svg>`, an `<img>`,
+    an `lf-diagram`, or an HTML mockup of how the finding would look.
 - type: llm-rubric
   metric: comparison-labels
   value: |
@@ -55,5 +53,4 @@ assert:
     order (for example actionable detail versus concise reporting), rather than
     duplicating the titles or labeling every option identically. Only the detailed,
     actionable wording has a recommended small.tag; its reason remains available in
-    prose. Neither option has chosen, since the user has not picked. No drawing is
-    needed for this wording choice.
+    prose. Neither option has chosen, since the user has not picked.

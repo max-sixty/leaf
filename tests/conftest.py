@@ -22,15 +22,21 @@ from leaf import layer as layer_model
 from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.render_gate import browser as browser_model
-from leaf_dev import LEAF_COMMAND
-from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts
+from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
+from leaf_dev.browser import shell_executable, use_linux_fonts
 from leaf_dev.page_fixtures import package_selection_args
 from playwright.sync_api import sync_playwright
 
 __all__ = ["LEAF_COMMAND"]
 
-# The canonical subprocess command. Tests of the installed harness boundary invoke
-# that payload's `bin/leaf`; every other process test runs the checkout directly.
+# Test modules retain this shared sequence when importing it. The active fixture
+# selects its launcher in place, so subprocess page producers follow the same kernel
+# as in-process commands without depending on the order modules were collected.
+LEAF_COMMAND = list(SOURCE_LEAF_COMMAND)
+
+# The canonical subprocess command. Browser tiers select the prepared payload;
+# source-installation model/process tests run the checkout directly. Tests of a
+# particular installed harness invoke that payload's own `bin/leaf`.
 # Start every child the way a terminal starts one. A run launched as a shell's
 # background job is handed SIGINT set to SIG_IGN, and an inherited SIG_IGN
 # survives both Python startup and `exec`, so everything the run spawns ignores
@@ -44,9 +50,8 @@ pytest_plugins = ("interact_support", "render_harness")
 
 
 # The layer a page carries is the same bytes in every fixture, and the file it
-# is made of is what a copy costs: an initialized page is 195 files, 158 of them
-# runtime modules, and the suite wants one page per test. Measured when a page
-# was 146, copying them all made a complete run 2,272 pages and 393,473
+# is made of is what a copy costs. Historically, copying an initialized page's
+# 146 files per test made a complete run 2,272 pages and 393,473
 # directory entries, which is the number a filesystem event watcher charges for
 # — hard links share the bytes but not the entry. So the layer is written once
 # per shape and lent, and only what a test actually changed is put back. A
@@ -77,7 +82,7 @@ class PagePool:
     The lent page is moved to the caller's own path, not handed over where it
     lies: a test that selects a fixture package beside its page reaches it as
     `page_dir.parent / ".leaf"`, and `_no_page_outlives_its_test` sweeps
-    `tmp_path` for a server still standing. It is left there when the test ends
+    `tmp_path` for a server still running. It is left there when the test ends
     and moved again on the next loan, so the sweep runs while the page is still
     under the root it walks.
     """
@@ -199,6 +204,40 @@ def _page_pool(tmp_path_factory):
     return PagePool(tmp_path_factory.mktemp("page-templates"))
 
 
+@pytest.fixture(scope="session")
+def compiled_installation():
+    """The existing prepared kernel, shared by workers and developer previews.
+
+    Preparation is serialized by content identity, so xdist workers reuse one build.
+    Source-only model tests need no compiler; the browser tiers request it lazily.
+    """
+    from leaf_dev.distribution import cached_installation
+
+    return cached_installation()
+
+
+@pytest.fixture(autouse=True)
+def compiled_pages(request, monkeypatch, isolated_session):
+    """Browser-tier page producers vendor the same kernel the website ships.
+
+    In-process commands retain their normal Python contracts and package resolution.
+    Only their kernel input comes from the prepared installation, whose manifest also
+    preserves the private-path protection after the source modules disappear.
+    Model and process tests of source installation keep that build-free boundary.
+    """
+    if request.path.parent.name not in {"smoke", "browser", "journeys"}:
+        return
+    installation = request.getfixturevalue("compiled_installation")
+    monkeypatch.setattr(layer_model, "ASSETS", installation / "skills/leaf/assets")
+    monkeypatch.setattr(layer_model, "PLUGIN_ROOT", installation)
+    monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(installation / "bin/leaf"))
+    original_command = LEAF_COMMAND[:]
+    LEAF_COMMAND[:] = [str(installation / "bin/leaf")]
+    request.addfinalizer(
+        lambda: LEAF_COMMAND.__setitem__(slice(None), original_command)
+    )
+
+
 @pytest.fixture
 def initialized_page(_page_pool, tmp_path):
     """Put a page initialized with `packages` at `destination`, from the pool.
@@ -244,7 +283,7 @@ def initialized_page(_page_pool, tmp_path):
         if any(root.is_relative_to(own) for root in resolved):
             initialize(destination)
             return destination
-        shape = (packages, resolved, key)
+        shape = (layer_model.ASSETS, packages, resolved, key)
         page = _page_pool.lend(shape, destination, initialize)
         lent.append((shape, page))
         return page
@@ -314,7 +353,8 @@ def run_tier(item):
 
 def pytest_collection_modifyitems(config, items):
     """Broad discovery runs the tests whose `run_tier` is the first and the tiers its
-    flags reach; explicit selections run what they name.
+    flags reach; explicit selections run what they name. Tests marked `network`
+    require an explicit selection or the nightly run, even when their source changes.
 
     A change that moves a browser behaviour usually edits the test that holds it, so both
     landing gates add the tests of either later tier whose own source the change
@@ -344,7 +384,9 @@ def pytest_collection_modifyitems(config, items):
         changed = _base_sources(config.rootpath, since)
     kept, skipped = [], []
     for item, tiered in zip(items, tiers):
-        runs = tiered is None or tiered in reached or _touches(item, changed)
+        runs = not item.get_closest_marker("network") and (
+            tiered is None or tiered in reached or _touches(item, changed)
+        )
         (kept if runs else skipped).append(item)
     items[:] = kept
     config.hook.pytest_deselected(items=skipped)
@@ -358,9 +400,9 @@ def _names_tests(path):
 
 
 def _base_sources(root, since):
-    """Each test function's source, decorators included, where `since` and HEAD part,
-    keyed by its module's name and its own. A test that moved to another tier directory
-    keeps its key, so a move that leaves its source alone is no edit of it."""
+    """Every test function's source, decorators included, where `since` and HEAD part.
+    A source names its function, so a test moved to another module or tier directory
+    with its source left alone is no edit of it."""
 
     def git(*args, stdin=None):
         run = subprocess.run(
@@ -383,7 +425,7 @@ def _base_sources(root, since):
     batch = git(
         "cat-file", "--batch", stdin="".join(f"{base}:{p}\n" for p in paths).encode()
     )
-    sources = {}
+    sources = set()
     for path in paths:
         header, _, batch = batch.partition(b"\n")
         size = int(header.split()[2])
@@ -392,9 +434,7 @@ def _base_sources(root, since):
         for node in ast.parse(text).body:
             if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
                 first = min([node.lineno, *(d.lineno for d in node.decorator_list)])
-                sources[Path(path).stem, node.name] = "".join(
-                    lines[first - 1 : node.end_lineno]
-                )
+                sources.add("".join(lines[first - 1 : node.end_lineno]))
     return sources
 
 
@@ -402,8 +442,7 @@ def _touches(item, base):
     """Whether a change edits the test's own function, decorators included."""
     if base is None:
         return False
-    source = "".join(inspect.getsourcelines(item.function)[0])
-    return base.get((item.path.stem, item.function.__name__)) != source
+    return "".join(inspect.getsourcelines(item.function)[0]) not in base
 
 
 # A harness session states its identity in the environment, under names of its own
@@ -440,7 +479,8 @@ def isolated_session(tmp_path_factory, monkeypatch):
     by the loop guard. Isolate XDG_STATE_HOME, where Leaf stores claims and installed
     packages, and CODEX_HOME, where Codex reads its configuration and sessions,
     while retaining HOME so subprocesses share the host's uv cache. Clear the
-    developer's App Server endpoint so a fake task cannot connect to it.
+    developer's App Server endpoint and host launcher override so a fake task
+    cannot use them.
 
     The session the tests run as is this worker: a synthetic id, so nothing of
     the developer's answers for it, and the worker's own pid. Every page a test
@@ -460,6 +500,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path_factory.mktemp("state")))
     monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
+    monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
     for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read
@@ -667,60 +708,10 @@ def headless_shell():
 
     The run is a host, and names its browser the way one does, through
     LEAF_BROWSER_EXECUTABLE, so every leaf it runs draws with the build the `_browser`
-    fixture drives. Left unnamed, each `page check` that runs a page's code or takes
-    `--render` would launch the installed Google Chrome afresh: about three seconds
-    apiece, and on macOS about a second of the keychain daemon's CPU for each new
-    process, where the shell costs neither. A test whose subject is how a host that
-    named no browser gets one clears every variable (`test_render_commands`,
-    `unnamed_browser`).
-
-    Playwright reports where its full Chromium build would be whether or not that
-    build is installed, and the documented setup installs the shell alone
-    (tests/AGENTS.md, "Run what the change needs"). Both sit under one
-    registry root at one build number, so the shell's path follows from Chromium's;
-    where a developer installed the full build instead, that is the browser to hand
-    over and the same tests hold on it. The `chromium-<build>` directory is found by
-    name rather than by depth, because macOS nests the executable inside an app
-    bundle and Linux does not.
-
-    Asked in a subprocess because the answer is a path and the question is not free
-    here: a second `sync_playwright()` inside this process raises where the
-    session's `browser` fixture already holds one open, so which tests had run
-    first would decide whether the fixture worked."""
-    if sys.platform == "linux":
-        require_linux_fonts()
-        os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
-    read = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            (
-                "from playwright.sync_api import sync_playwright\n"
-                "with sync_playwright() as p: print(p.chromium.executable_path)"
-            ),
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    chromium = Path(read.stdout.strip())
-    versioned = next(
-        (p for p in chromium.parents if p.name.startswith("chromium-")), None
-    )
-    if versioned is None:
-        raise AssertionError(f"{chromium} is not under a Playwright chromium build")
-    root, build = versioned.parent, versioned.name.rsplit("-", 1)[1]
-    shell = root / f"chromium_headless_shell-{build}"
-    shell_executables = sorted(shell.glob("*/chrome-headless-shell*")) + sorted(
-        shell.glob("*/headless_shell")
-    )
-    executable = next(
-        (str(c) for c in (*shell_executables, chromium) if c.is_file()), None
-    )
-    if executable is None:
-        raise AssertionError(
-            f"no Playwright Chromium under {root}; run `uv run playwright install "
-            "chromium --only-shell` (tests/AGENTS.md)"
-        )
+    fixture drives (`leaf_dev.browser.shell_executable`). A test whose subject is how
+    a host that named no browser gets one clears every variable
+    (`test_render_commands`, `unnamed_browser`)."""
+    use_linux_fonts()
+    executable = shell_executable()
     os.environ[browser_model.VARIABLE] = executable
     return executable

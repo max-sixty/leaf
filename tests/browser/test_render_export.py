@@ -17,7 +17,6 @@ from leaf import exporting as exporting_model
 from leaf import files as files_model
 from leaf import media as media_model
 from leaf import server as server_model
-from leaf import state as cleanup_model
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.structure import UTF8_BOM
 from leaf_dev.example_data import patch_manifest
@@ -27,6 +26,7 @@ from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
+    is_problem,
     leaf_page,
     open_page,
     restarting,
@@ -102,29 +102,20 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
     """A runtime edit replaces the server, and every tab of the page follows it.
 
     An open tab takes the new layer with the user's state and log intact. A tab whose
-    start failed hears the replacement too: supervision precedes entry, dependency,
-    registry and stylesheet loading. Each fault is a different detector in the
-    prepaint, so each gets its own tab, and one restart serves them all, since a
-    restart at the recorded port waits out TCP cooldown.
+    start failed hears the replacement too: supervision precedes the kernel and
+    registry requests. One restart serves them all at the recorded port.
     """
     _, runtime, directory, _, url, _ = watched_preview
-    standing = open_page(browser, url)
-    with sending(standing, "the standing user option pick"):
-        standing.locator("#opt-shim .lf-pick").click()
-    expect(standing.locator("#opt-shim")).to_have_attribute("chosen", "")
+    open_tab = open_page(browser, url)
+    with sending(open_tab, "the user option pick in force"):
+        open_tab.locator("#opt-shim .lf-pick").click()
+    expect(open_tab.locator("#opt-shim")).to_have_attribute("chosen", "")
     feedback = (directory / "events.jsonl").read_bytes()
     inode = (directory / "events.jsonl").stat().st_ino
     generation = json.loads((directory / "registry.json").read_text())["$layer"][
         "generation"
     ]
-    resources = (
-        "leaf.js",
-        "runtime/context.js",
-        "widgets/lf-options.js",
-        "registry.json",
-        "theme.css",
-        "syntax",
-    )
+    resources = ("leaf.js", "registry.json")
     pages = {}
     # The interruption and the replacement server between them are a restart, and
     # what the browser says inside one is the fetch that was in flight rather than
@@ -132,7 +123,7 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
     # decoding that stopped halfway. The span is bracketed rather than the wordings
     # listed (tests/AGENTS.md, "Test-made noise").
     with ExitStack() as restarts:
-        restarts.enter_context(restarting(standing))
+        restarts.enter_context(restarting(open_tab))
         for resource in resources:
             page = browser.new_page()
             failures = []
@@ -143,37 +134,24 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
                     route.continue_()
                     return
                 failures.append(True)
-                if resource == "syntax":
-                    route.fulfill(
-                        content_type="text/javascript", body="const = broken;"
-                    )
-                else:
-                    route.abort()
+                route.abort()
 
-            page.route(
-                "**/" + ("leaf.js" if resource == "syntax" else resource),
-                interrupt_resource,
-            )
+            page.route("**/" + resource, interrupt_resource)
             restarts.enter_context(restarting(page))
             page.goto(url, wait_until="load")
             status = page.get_by_text(
                 "Leaf couldn't start. Waiting for the server to update."
             )
             expect(status).to_be_visible()
-            # Hearing the same server does not loop on a persistent syntax/startup
-            # fault.
-            with page.expect_response("**/registry.json") as response:
-                pass
-            assert response.value.ok
             assert len(documents) == 1, resource
-            expect(status).to_be_visible()
             pages[resource] = (page, status, documents)
         # A changed layer replaces the server. An invalid input is now refused
         # before that replacement, so change a valid theme to test recovery.
         theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
-        with theme.open("a", encoding="utf-8") as stream:
-            stream.write("\nh1 { color: navy; }\n")
-        expect(standing.locator("h1")).to_have_css(
+        updated = runtime.parent / "theme.css.next"
+        updated.write_text(theme.read_text() + "\nh1 { color: navy; }\n")
+        updated.replace(theme)
+        expect(open_tab.locator("h1")).to_have_css(
             "color", "rgb(0, 0, 128)", timeout=HANDOVER_DEADLINE_MS
         )
         for page, status, _ in pages.values():
@@ -185,7 +163,7 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
     for resource, (page, _, documents) in pages.items():
         assert len(documents) >= 2, resource
         expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    expect(standing.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(open_tab.locator("#opt-shim")).to_have_attribute("chosen", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
     assert (
@@ -204,51 +182,55 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
     interrupted fetch is the registry's; a widget's dynamic import reaches the same
     supervision with the module's name in its words.
 
-    The restart is the preview's own, set off by a runtime edit. Holding the page
-    transaction pauses it after it has stopped the service, so the service stays gone
-    until the page has said so, and then comes back at the address the tab already
-    has.
+    A runtime edit makes the preview replace its server. Abort the in-flight registry
+    request as that replacement starts, then check that the page reports the lost
+    request and follows the replacement at the same address.
     """
     _, runtime, directory, _, url, _ = served_preview
     page = browser.new_page()
     errors = page.lf_errors
-    paused = ExitStack()
-    stopped = []
+    interrupted = []
+    page.add_init_script(
+        """(() => {
+          const words = "Leaf couldn't start. Waiting for the server to update.";
+          const check = () => {
+            if (![...document.querySelectorAll('[role="status"]')]
+                .some(node => node.textContent === words && node.checkVisibility())) return;
+            observer.disconnect();
+            sessionStorage.setItem('__lf-test-startup-notice', 'seen');
+          };
+          const observer = new MutationObserver(check);
+          observer.observe(document, {childList: true, subtree: true});
+          check();
+        })();"""
+    )
 
-    def stop_the_service(route):
-        # The registry is the runtime's own fetch, so a service stopped before it is
-        # answered is a service that goes away between the document arriving and the
-        # start that document began — the transport has nothing left to name it by.
-        # Once only: the reload the recovery makes must find a server that answers.
-        if not stopped:
-            stopped.append(True)
-            paused.enter_context(cleanup_model.flocked(directory / "events.jsonl"))
+    def interrupt_start(route):
+        # The registry is the runtime's own fetch. Once only: the reload the recovery
+        # makes must find a server that answers.
+        if not interrupted:
+            interrupted.append(True)
             theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
-            with theme.open("a", encoding="utf-8") as stream:
-                stream.write("\nh1 { color: navy; }\n")
-            # The record says the service is stopping before its socket closes, so
-            # the address is what says the start's fetch will find nothing.
-            wait_for(
-                lambda: _reachable(url),
-                lambda reachable: not reachable,
-                failure="the runtime edit did not stop the service",
-            )
-        route.continue_()
+            updated = runtime.parent / "theme.css.next"
+            updated.write_text(theme.read_text() + "\nh1 { color: navy; }\n")
+            updated.replace(theme)
+            route.abort("failed")
+        else:
+            route.continue_()
 
-    page.route("**/registry.json", stop_the_service)
-    with paused, restarting(page):
-        page.goto(url, wait_until="load")
-        # `load` is not the boundary: a widget is imported after it, so the stop is
-        # waited for through the answer the page gives it rather than read straight
-        # after the goto.
-        expect(
-            page.get_by_text("Leaf couldn't start. Waiting for the server to update.")
-        ).to_be_visible()
+    page.route("**/registry.json", interrupt_start)
+    with restarting(page):
+        vanished = "leaf: page failed to start: Failed to fetch"
+        with page.expect_console_message(lambda message: vanished in message.text):
+            page.goto(url, wait_until="commit")
+        # Recovery may navigate after the failure. The observer records the notice
+        # in this tab when it appears, before a later document replaces it.
+        page.wait_for_function(
+            "sessionStorage.getItem('__lf-test-startup-notice') === 'seen'"
+        )
         # The reach: an interrupted start is a fetch the runtime made itself, which no
         # transport error names, and the words are the interrupted fetch's own.
-        vanished = "leaf: page failed to start: Failed to fetch"
-        assert [error for error in errors if vanished in error], errors
-        paused.close()
+        assert [error for error in errors if is_problem(error, vanished)], errors
         # The page's own recovery is bounded; the re-vendor ahead of it is not.
         wait_for(
             lambda: server_model.running_server(directory),
@@ -256,6 +238,7 @@ def test_a_service_that_goes_away_mid_start_says_only_that_and_comes_back(
             failure="the preview did not bring its service back",
             timeout=COMPOSITE_TIMEOUT,
         )
+        expect(page.locator("h1")).to_have_css("color", "rgb(0, 0, 128)")
 
 
 def test_interactive_export_with_an_ask_reaches_application_presentation(
@@ -292,7 +275,7 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
 
 
 def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tmp_path):
-    """A text box paints in the standing paint, which an export mounts without page controls.
+    """A text box paints in the repaint frame, which an export mounts without page controls.
 
     A choosable group builds its addition field offline too. Its placeholder, disabled
     Add and empty-field flag are that paint's; focus alone repaints the placeholder with

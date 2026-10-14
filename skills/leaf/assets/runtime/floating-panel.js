@@ -53,7 +53,7 @@
  * stood to where it stands, the way the Codex app's floating panel moves
  * (`notes/floating-panel/GOAL.md`): nothing's layout tweens, so nothing a user aims at
  * travels after the gesture that moved it. */
-import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
+import { html, nothing, ref, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { iconTemplate } from "./icons.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
@@ -75,6 +75,8 @@ import { watchThreads } from "./thread/watch.js";
 import { threadAttention, workflowLabel } from "./thread/workflow.js";
 import { threadSummary } from "./thread/model.js";
 import { messageReading } from "./thread/messages.js";
+import { declareThreadParts } from "./thread/focus.js";
+import { replyAvailable } from "./thread/replies.js";
 import {
   draftHasContent,
   loadDraft,
@@ -917,6 +919,30 @@ export function createFloatingPanel({
       .catch(() => {});
   }
 
+  // A thread's reply and Resolve stand outside its view, in the field and the view's
+  // head, so the view declares them as its thread's own (thread/focus.js, `threadPart`):
+  // while it is the thread open, the field where the thread takes a reply, and Resolve.
+  // The head is the thread's heading, as a card's title is, so it stands for the thread
+  // too, declaring the same parts: `r` on its Resolve settles the thread as on a card's.
+  const openIn = (view) => {
+    const top = trail.at(-1);
+    const thread = top?.view === "thread" ? threadByKey(top.thread) : null;
+    return thread &&
+      !view.hasAttribute("data-leaving") &&
+      view.dataset.thread === thread.id
+      ? thread
+      : null;
+  };
+  const viewParts = Object.freeze({
+    reply: (view) => {
+      const thread = openIn(view);
+      return thread && replyAvailable(thread) ? editor(destination()).input : null;
+    },
+    settlement: (view) => (openIn(view) ? head.querySelector(".lf-fp-settle") : null),
+  });
+  const declareView = (view) => view && declareThreadParts(view, viewParts);
+  declareView(head);
+
   function threadView(key) {
     const thread = threadByKey(key);
     if (!thread)
@@ -1235,6 +1261,9 @@ export function createFloatingPanel({
         },
       );
     } else if (thread) {
+      // Resolve says it is unavailable while a settling is pending rather than leaving
+      // the tab order, so the user who pressed it, or `r` on it, stays standing on it;
+      // the action itself refuses a press meanwhile (thread/actions.js, `settle`).
       aux = html`${
           thread.anchor
             ? html`<button
@@ -1250,8 +1279,10 @@ export function createFloatingPanel({
             : nothing
         }<button
           type="button"
-          class="lf-fp-settle"
-          ?disabled=${!(thread.resolved ? thread.offers.reopen : thread.offers.resolve)}
+          class="lf-fp-settle ${thread.resolved ? "lf-reopen" : "lf-resolve"}"
+          aria-disabled=${String(
+            !(thread.resolved ? thread.offers.reopen : thread.offers.resolve),
+          )}
           @click=${() =>
             thread.resolved
               ? threadActions.reopen(thread.key)
@@ -1404,7 +1435,8 @@ export function createFloatingPanel({
 
     const views = [leaving, top].filter(Boolean);
     // A thread's view stands for that thread (thread/selectors.js, `THREAD`), so the
-    // user standing anywhere in it is in the thread, as in a card in Threads.
+    // user standing anywhere in it is in the thread, as in a card in Threads, and the
+    // thread's keys find its reply and Resolve where the view declares them.
     const shows = (route) =>
       route.view === "thread" ? (threadByKey(route.thread)?.id ?? null) : null;
     render(
@@ -1418,6 +1450,7 @@ export function createFloatingPanel({
             data-view=${route.view}
             data-thread=${shows(route) ?? nothing}
             ?data-lf-thread-view=${shows(route) !== null}
+            ${ref(declareView)}
             style=${
               rooms.has(routeKey(route))
                 ? `height: ${rooms.get(routeKey(route))}px`
@@ -1431,6 +1464,9 @@ export function createFloatingPanel({
       stage,
     );
     render(top ? headTemplate(top) : nothing, head);
+    const heading = top ? shows(top) : null;
+    keeps(head, "data-thread", heading);
+    keeps(head, "data-lf-thread-view", heading === null ? null : "");
 
     // The field: the destination's own editor stands in its place. The caret never
     // passes from one editor to the next, since words typed after the change would go
@@ -1765,13 +1801,6 @@ export function createFloatingPanel({
     follow.observe(card);
     presentation = registerChromeThreadPresentation(host, {
       render: nominate,
-      // The thread's reply is the panel's field, standing for the thread open here.
-      replyBox: (key) => {
-        const top = trail.at(-1);
-        return top?.view === "thread" && threadByKey(top.thread)?.key === key
-          ? editor(`reply:${key}`).input
-          : null;
-      },
       // A reader the page's package registers later takes the thread open here, and
       // the user's place in it where they stood in the panel, read before the panel's
       // reader, and the message they stood on, goes.

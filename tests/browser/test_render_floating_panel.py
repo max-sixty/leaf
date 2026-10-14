@@ -189,6 +189,82 @@ def test_c_in_an_open_thread_returns_to_its_reply(browser, serve):
     expect(thread).to_be_visible()
 
 
+def test_a_thread_s_keys_answer_in_its_view(browser, serve):
+    """The thread open in the panel answers the keys a card in Threads does, though its
+    reply is the field and its Resolve stands in the view's head: Enter on the view puts
+    the caret back in the reply with its words, Enter on a resolved thread reopens it,
+    `r` settles the thread from the view, a message in it or its Resolve and leaves the
+    user standing where they were, and `e` on a message opens the agent's reactions."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Is the window long enough?")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "Forty-eight hours covers the first cohort.",
+        },
+    )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    thread = page.locator(".lf-fp-view[data-view=thread]")
+    settle = page.locator(".lf-fp-settle")
+    expect(thread).to_be_visible()
+    field(page).click()
+    page.keyboard.type("Make it the weekend.")
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+
+    page.keyboard.press("Enter")
+    expect(field(page)).to_be_focused()
+    expect(field(page)).to_have_attribute("name", "reply")
+    expect(field(page)).to_have_js_property("value", "Make it the weekend.")
+    expect(thread).to_be_visible()
+
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    with sending(page, "the resolve"):
+        page.keyboard.press("r")
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
+    expect(settle).to_have_text(re.compile("Reopen"))
+    expect(thread).to_be_focused()
+
+    with sending(page, "the reopen"):
+        page.keyboard.press("Enter")
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
+    expect(settle).to_have_text(re.compile("Resolve"))
+
+    # A click on a message's words stands on the part of the thread drawing it.
+    message = thread.locator(".lf-primary-part", has_text="Is the window long enough?")
+    message.click()
+    expect(message).to_be_focused()
+    page.keyboard.press("e")
+    strip = thread.locator(".lf-msg.agent > .lf-react-strip")
+    expect(strip).to_contain_class("lf-react-open")
+    page.keyboard.press("Escape")
+    expect(strip).not_to_contain_class("lf-react-open")
+    message.click()
+    with sending(page, "the resolve from a message"):
+        page.keyboard.press("r")
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
+    expect(message).to_be_focused()
+
+    settle.focus()
+    with sending(page, "the reopen from Resolve's place"):
+        page.keyboard.press("r")
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
+    expect(settle).to_have_text(re.compile("Resolve"))
+    expect(settle).to_be_focused()
+    with sending(page, "the resolve from Resolve's place"):
+        page.keyboard.press("r")
+    assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
+    expect(settle).to_be_focused()
+
+
 def test_the_panel_names_the_agent_as_the_page_s_messages_do(browser, serve):
     """The agent has one name across the panel, the one the page gives it: on a page no
     session holds, the voice that last wrote there, so the page's field, a thread's reply

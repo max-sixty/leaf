@@ -216,6 +216,9 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot) {
   for (const file of result.outputFiles) {
     const destination = join(outputRoot, relative(join(layerRoot, OUT), file.path));
     await mkdir(dirname(destination), { recursive: true });
+    // Revisions share unchanged files as hard links; replace a file, never write
+    // through it into another revision.
+    await rm(destination, { force: true });
     await writeFile(destination, file.contents);
   }
   for (const path of frameworkPaths)

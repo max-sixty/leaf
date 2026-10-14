@@ -188,7 +188,9 @@ customElements.define(
             aria-label="On this page"
             ${ref(this.#navRef)}
           >
-            <p class="lf-toc-heading lf-label" data-lf-gen="1" data-lf-said>On this page</p>
+            <p class="lf-toc-heading lf-label" data-lf-gen="1" data-lf-said>
+              On this page
+            </p>
             <div class="lf-toc-rows" ${ref(this.#rowsRef)}>
               <span
                 class="lf-toc-window"

@@ -283,7 +283,11 @@ function render(host, { tabStore, offer, keeps }) {
       pane(
         "instruction",
         "Instruction to agent",
-        node("header", "lf-playground-instruction-title lf-label", "Instruction to agent"),
+        node(
+          "header",
+          "lf-playground-instruction-title lf-label",
+          "Instruction to agent",
+        ),
         output,
         actions,
       ),

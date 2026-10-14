@@ -439,6 +439,13 @@ summary {
     background-position: 0% 0;
   }
 }
+@media (forced-colors: active) {
+  @keyframes lf-sheen {
+    from, to {
+      -webkit-text-fill-color: currentColor;
+    }
+  }
+}
 .lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring);
   --lf-focus-ring: summary-fold;

@@ -918,7 +918,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     """At rest the empty field says what the agent is doing, in the banner's words and
     dimmer than anything written there, and while the work runs it carries the one sheen
     that marks work under way, standing still under reduced motion and once the work
-    ends. Clicking in gives the placeholder to where the words go and opens the line
+    ends, and never hiding the words under forced colours. Clicking in gives the placeholder to where the words go and opens the line
     above with the keys that send; once words hide the placeholder, that line says where
     they go. It never names who reads them, since every word here goes to the one agent.
     """
@@ -955,6 +955,12 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     alpha = float(re.search(r"/\s*([\d.]+)\)$", words.evaluate(ink)).group(1))
     assert alpha < 0.5, f"the resting status reads at {alpha:.0%} of ink"
     page.emulate_media(reduced_motion="no-preference")
+    sheen(True)
+    # Forced colours drop the gradient but keep the animation, so the words keep
+    # their fill rather than vanishing.
+    page.emulate_media(forced_colors="active")
+    sheen(False)
+    page.emulate_media(forced_colors="none")
     sheen(True)
 
     field(page).click()

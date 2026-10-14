@@ -477,8 +477,9 @@ summary { align-content: center; }
    "Motion"): a highlight passing across words painted as a background clipped to their
    glyphs, from the box's own colour to ink and back. A box runs it by naming it, and
    everything it paints lives in the keyframes, so where it stops — the state ending,
-   the shared reduced-motion guard's single near-instant pass, forced colours dropping
-   the gradient — the words are left in their own face with nothing to undo. */
+   or the shared reduced-motion guard's single near-instant pass — the words are left
+   in their own face with nothing to undo. Forced colours drop the gradient but keep
+   the animation, so there the keyframes leave the glyphs filled. */
 @keyframes lf-sheen {
   from, to { -webkit-text-fill-color: transparent; background-clip: text;
     background-image: linear-gradient(110deg, currentColor 42%, var(--ink) 50%,
@@ -486,6 +487,9 @@ summary { align-content: center; }
     background-size: 200% 100%; }
   from { background-position: 100% 0; }
   to { background-position: 0% 0; }
+}
+@media (forced-colors: active) {
+  @keyframes lf-sheen { from, to { -webkit-text-fill-color: currentColor; } }
 }
 .lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring); --lf-focus-ring: summary-fold;

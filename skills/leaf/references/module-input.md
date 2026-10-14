@@ -216,9 +216,10 @@ image that follows the pointer.
 
 A surface that must stop moving before Leaf handles a gesture, such as a playing
 animation, subscribes with `onUserInput(callback)`, which runs before Leaf handles each
-press, key, input, wheel or touch, or the window losing focus. The callback acts only on
-events whose target is in the surface, and doesn't consume them; call the returned
-function when the surface disconnects.
+press, key, input, wheel or touch, or the window losing focus. Leaf calls it for every
+such event on the page, so act only on events whose target is in the surface. The
+callback doesn't consume the event; call the returned function when the surface
+disconnects.
 
 Before a drawing stroke reads its coordinates, Leaf dispatches `lf-inspect` on the
 element drawn on; a moving visual listens for it and freezes what it shows.

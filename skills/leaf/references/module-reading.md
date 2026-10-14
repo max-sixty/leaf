@@ -11,10 +11,9 @@ author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims le
 blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters,
 as in a diff.
 
-An agent's message can carry markup that repeats ids on the page. To find an element by
-reference, such as the widget a partner element serves, search
-`authoredScope(element)`: the page's `main`, or the body of the message holding the
-element. `elementById(id, root)` finds an id within `root`, or the whole document,
+An agent's message can carry markup that repeats ids on the page. To look up an element
+by an id another element gives, search `authoredScope(element)`: the page's `main`, or
+the body of the message holding the element. `elementById(id, root)` finds an id within `root`, or the whole document,
 including widgets' shadow trees, which `getElementById` misses. `under(node, root)` says
 whether `node` is in `root` across shadow boundaries, and `inChrome(node)` whether it is
 in Leaf's own interface, as a widget in a Thread reply is.
@@ -215,12 +214,11 @@ only when its `phase` is `ready`.
 
 `readWork(scope)` reads a work hierarchy the page declares, such as goals and the
 workers on them, so a widget that counts its children's work reads it here rather than
-from their reports. The page's `$work.widgets` gives tags roles: `scope` bounds a
-hierarchy; `goal` and `worker` name their recorded `state` attribute and list the values
-under `done` and `stopped` (goals) or `running` and `retired` (workers), and a worker
-may name its assignment attribute in `on`; and `evidence` marks the element that shows
-observed data.
-The result lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`, and
+from their reports. The page's `$work.widgets` gives tags roles. `scope` bounds a
+hierarchy. A `goal` names its recorded `state` attribute and lists the values under
+`done` and `stopped`; a `worker` does the same under `running` and `retired`, and may
+name its assignment attribute in `on`. `evidence` marks the element that shows observed
+data. The result lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`, and
 `running` and `quiet` workers, each with its authored `element`, and `done` counts
 finished leaves. `workRole`, `workElements`, `directWorkElements` and `workAncestor` read
 the same declaration. Atlas in `examples/command-hub.page/` is the worked example.

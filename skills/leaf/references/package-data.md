@@ -220,8 +220,7 @@ value at once. `leaf data clear` removes the value, and each bound widget receiv
 `null`. A value that stops fitting a later contract shows users an error for that
 source, and `page check` and `page state` report it. A stamped version keeps the
 contract it was stamped with, so a value written for a changed contract shows there as
-a source error. `leaf page state PAGE` lists
-every binding under `data_bindings`, so a producer needn't parse markup. Every value
+a source error. `leaf page state PAGE` lists every binding under `data_bindings`, so a producer needn't parse markup. Every value
 goes to every user of the page, so never put credentials or private host state in one.
 
 Leaf keeps no old values: every document bound to a source, stamped versions and

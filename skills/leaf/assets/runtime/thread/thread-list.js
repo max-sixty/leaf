@@ -54,12 +54,15 @@ import { landingBand } from "../geometry.js";
 import { retainUserIntent } from "../user-intent.js";
 import { discussed, threadKey } from "./model.js";
 import { ago } from "../presence.js";
-import { readApplication, whenWidgetsPresented } from "../semantic-state.js";
+import { readPart, whenWidgetsPresented } from "../semantic-state.js";
+import { threadState } from "./state.js";
 import { reachScrollers } from "../reach.js";
 import { hasFolding } from "./folding.js";
 import { inPageOrder, inRecentOrder, pageOutline, threadSection } from "./placement.js";
 import { threadSearchReading } from "./narrowing.js";
 import { threadReading } from "./thread-card.js";
+
+const readDescriptors = readPart((root) => root.document.descriptors);
 
 // A folding card is renamed out of the list's cards in the frame its thread settles.
 export function createThreadListController({ panel, threadsBox, narrowingView }) {
@@ -225,7 +228,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
         }),
       );
     }
-    for (const e of readApplication().effective.thread.approvalHistory) {
+    for (const e of threadState().approvalHistory) {
       rows.push(
         Object.freeze({
           kind: "system",
@@ -321,8 +324,8 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
     commands.refreshAnchorHover?.();
   }
 
-  async function prepareFrozenWidgets(current) {
-    const widgets = [...readApplication().document.descriptors.values()]
+  async function prepareFrozenWidgets(current, resume) {
+    const widgets = [...resume(readDescriptors)().values()]
       .filter(
         (descriptor) =>
           descriptor.document.kind === "thread" &&
@@ -350,7 +353,9 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   // The Lit update, its geometry-dependent paint, and newly connected frozen widgets are
   // one proof for the existing thread presentation ticket. Only the newest call can
   // run post-paint work, capture authored values, or commit a fallback.
-  async function renderThreads(collection, commands) {
+  // A region paint hands `resume`, which collects what a continuation after a wait
+  // reads into that paint's parts (`applicationPresenter`); other callers need none.
+  async function renderThreads(collection, commands, resume = (run) => run) {
     const generation = ++renderGeneration;
     const current = () => generation === renderGeneration;
     let reading = rowModel(collection, commands);
@@ -362,7 +367,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       if (!(await threadsBox.present(reading)) || !current()) return;
       // Newly connected frozen markup can supply the words a different thread's
       // quote names. Re-derive that batch reading through the same descriptor owner.
-      const connected = rowModel(collection, commands);
+      const connected = resume(rowModel)(collection, commands);
       const changedQuotes = connected.rows.some((row, index) => {
         if (row.kind !== "thread") return false;
         const prior = reading.rows[index];
@@ -381,7 +386,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
       // wait only for their connected presentation proof inside this same ticket.
       finishScrollHold(hold, commands.panelIsOpen);
       held = false;
-      await prepareFrozenWidgets(current);
+      await prepareFrozenWidgets(current, resume);
       const newest =
         current() && incoming?.current() && threadsBox.scrollTop >= incoming.top - 2
           ? threadsBox.messageTail(incoming.id)

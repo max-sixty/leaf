@@ -7148,6 +7148,57 @@ def test_a_packages_rules_reach_only_inside_its_widgets(browser, serve, tmp_path
     assert faces["shelf"][1] == "3px", faces
 
 
+def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
+    browser, serve, tmp_path
+):
+    """A package that declares no widgets is a theme: its rules outrank the Layouts and
+    every widget package's defaults (layer.py, `lf-theme`), so its `main` padding beats
+    the column Layout's and its plain `lf-card` rule beats the board's own
+    `:scope:is(lf-card)`. Like the page's own rules, its bare `button` dresses the
+    page's buttons and leaves the controls the board builds alone, and a rule naming
+    the board reaches them (runtime/page-sheets.js)."""
+    theme = tmp_path / "theme"
+    theme.mkdir()
+    (theme / "theme.css").write_text(
+        "main { padding-top: 11px; }\n"
+        "lf-card { padding-left: 13px; }\n"
+        "button { font-family: cursive; }\n"
+        "lf-board button { outline: 3px solid rgb(0, 128, 0); }\n"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "t",
+                '<h1>t</h1><p><button id="own" type="button">Own</button></p>'
+                '<lf-board id="b"><lf-column id="c1" label="To do">'
+                '<lf-card id="k1">One</lf-card></lf-column></lf-board>',
+            ),
+            packages=("./theme",),
+        ),
+    )
+    faces = page.evaluate("""() => {
+        const cs = el => getComputedStyle(el);
+        return {
+            main: cs(document.querySelector('main')).paddingTop,
+            card: cs(document.getElementById('k1')).paddingLeft,
+            own: cs(document.getElementById('own')).fontFamily,
+            controls: [...document.querySelectorAll('lf-board button.lf-ui')].map(
+                el => [cs(el).fontFamily, cs(el).outlineColor]),
+            chrome: [...document.querySelectorAll('.lf-chrome button')].map(
+                el => cs(el).fontFamily),
+        };
+    }""")
+    assert faces["main"] == "11px", faces
+    assert faces["card"] == "13px", faces
+    assert faces["own"] == "cursive", faces
+    assert faces["controls"], "the board built no control to read"
+    assert faces["chrome"], "the chrome built no button to read"
+    assert not [f for f, _ in faces["controls"] if "cursive" in f], faces
+    assert not [f for f in faces["chrome"] if "cursive" in f], faces
+    assert {color for _, color in faces["controls"]} == {"rgb(0, 128, 0)"}, faces
+
+
 def _shadow_tree_widget(tag):
     """A declaration and module for a widget that renders one word into a declared
     shadow tree."""
@@ -7207,6 +7258,33 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
             .color]))""")
     assert colors["own"] == "rgb(0, 128, 0)", colors
     assert colors["other"] != "rgb(0, 128, 0)", colors
+
+
+def test_a_theme_packages_shadow_rules_outrank_the_widget_packages_own(
+    browser, serve, tmp_path
+):
+    """A theme package's `shadow.css` reaches every declared shadow tree from the
+    `lf-theme` tier, above the shadow rules of the package that owns the widget: its
+    bare `span` beats the owner's more specific rule for the same span."""
+    own, own_module = _shadow_tree_widget("lf-own-tree")
+    project = tmp_path / ".leaf"
+    project.mkdir()
+    (project / "shadow.css").write_text(":scope span { color: rgb(255, 0, 0); }\n")
+    theme = tmp_path / "theme"
+    theme.mkdir()
+    (theme / "shadow.css").write_text("span { color: rgb(0, 128, 0); }\n")
+    url = serve(
+        leaf_page("t", '<h1>t</h1><lf-own-tree id="own"></lf-own-tree>'),
+        packages=("./theme",),
+        layer_registry={"lf-own-tree": own},
+        layer_widgets={"lf-own-tree.js": own_module},
+    )
+    page = open_page(browser, url)
+    color = page.evaluate(
+        """() => getComputedStyle(document.getElementById('own').shadowRoot
+            .querySelector('span')).color"""
+    )
+    assert color == "rgb(0, 128, 0)", color
 
 
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):

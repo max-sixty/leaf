@@ -31,6 +31,7 @@ const {
   nextFrame,
   cancelRender,
   afterScript,
+  afterSettling,
   sizeObserver,
   renderingState,
   holdRendering,
@@ -324,4 +325,39 @@ test("a hidden page reads settled while work waits for an update it will not get
   } finally {
     delete document.hidden;
   }
+});
+
+test("work waiting on settling waits for an update after it and the preparations begun since", async () => {
+  const unrelated = holdRendering();
+  await update();
+  assert.equal(renderingState().updatesSettled, true);
+  let settled = 0;
+  afterSettling(() => settled++);
+  assert.equal(settled, 0, "settled updates still owe the update after the ask");
+  const preparing = holdRendering();
+  await update();
+  await update();
+  assert.equal(settled, 0, "a preparation begun since the ask holds it");
+  preparing();
+  await update();
+  assert.equal(settled, 1, "a preparation waiting before the ask is not the asker's");
+  unrelated();
+  await update();
+});
+
+test("a preparation released between an update and its check owes another update", async () => {
+  await update();
+  let settled = 0;
+  const preparing = holdRendering();
+  afterSettling(() => settled++);
+  // The update's frame callbacks run, then the preparation lands before their check.
+  const due = [...queued.values()];
+  queued.clear();
+  for (const callback of due) await callback(0);
+  preparing();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(settled, 0, "the release's commit has had no update yet");
+  assert.equal(renderingState().updatesSettled, false);
+  await update();
+  assert.equal(settled, 1);
 });

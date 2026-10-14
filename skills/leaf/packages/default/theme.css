@@ -2561,7 +2561,7 @@
 :scope:is(lf-sample) {
   display: table;
   table-layout: fixed;
-  width: var(--lf-breakout-width);
+  width: 100%;
   box-sizing: border-box;
   margin: 18px 0;
   padding-left: var(--sp-4);
@@ -2637,8 +2637,36 @@
   gap: 8px;
 }
 .lf-sample-status {
+  position: relative;
+  flex: 1 1 10em;
+  min-width: 0;
+  min-height: max(1lh, var(--aim-floor));
+  align-content: center;
+  white-space: nowrap;
   color: var(--muted);
   font: var(--t-6)/1.4 var(--sans);
+}
+.lf-sample-failure {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lf-sample-failure,
+.lf-sample-failure > summary {
+  font: inherit;
+  color: inherit;
+}
+.lf-sample-failure > summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lf-sample-failure[open] > summary {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  white-space: normal;
+  background: var(--paper);
+  border-bottom: 1px solid var(--border-2);
 }
 .lf-sample-frame {
   display: block;

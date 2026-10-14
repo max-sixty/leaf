@@ -342,19 +342,9 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     region: "queue",
     renderer: queueList,
     order: PRESENTATION_ORDER.queue,
-    // The panel draws the queues, places each row by its thread or Question, and names
-    // the agent; a publication that leaves those unchanged claims nothing.
-    reading: (root) =>
-      mounted
-        ? {
-            queues: root.effective.queues,
-            threads: root.effective.thread.collection.threads,
-            questions: root.effective.asks.all,
-            agent: root.authoritative?.agent ?? null,
-          }
-        : null,
+    reading: () => (mounted ? true : null),
     failSoft: failSoftAfterRetention(queueList),
-    paint: (epoch, current) => paintQueue(current),
+    paint: (owed, current) => paintQueue(current),
   });
   const present = () => presenter.present();
 

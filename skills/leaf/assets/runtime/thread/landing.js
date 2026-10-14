@@ -164,7 +164,8 @@ const backFromThread = (box) => threadReturns.get(box) ?? null;
 // editing this: the question is the same one, and the answer moved.
 function backFromBox() {
   const held = heldThreadOrSeat();
-  if (held?.matches(THREAD)) return { target: held, line: "back to thread" };
+  if (held?.matches(THREAD))
+    return { target: wholeThread(held), line: "back to thread" };
   const route = backFromThread(focused());
   return route?.target?.isConnected ? route : null;
 }

@@ -677,7 +677,7 @@ def test_page_fixture_renders(browser, serve, source):
     # while the scroll pass measures its writes.
     page = still_page(browser, url, width=RESIZE_PATH[0])
     findings = {
-        "render gate": gate,
+        "render gate": [str(finding) for finding in gate],
         "at rest": rest_findings(page),
         "framing": [
             str(finding)

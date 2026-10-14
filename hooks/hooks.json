@@ -7,7 +7,19 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(*leaf *)",
+            "if": "Bash(leaf *)",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code || exit 1",
+            "timeout": 20
+          },
+          {
+            "type": "command",
+            "if": "Bash(*/leaf *)",
+            "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code || exit 1",
+            "timeout": 20
+          },
+          {
+            "type": "command",
+            "if": "Bash(*/leaf)",
             "command": "\"$CLAUDE_PLUGIN_ROOT/bin/leaf\" hook --harness claude-code || exit 1",
             "timeout": 20
           }

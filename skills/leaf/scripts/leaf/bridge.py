@@ -22,8 +22,9 @@ browser can drive it. Codex's sandbox has no such road; its commands still run
 confined (`TODO.md`).
 
 A session that runs no `leaf` command starts no bridge and no hook for one: the
-hook's `if` rule (`hooks/hooks.json`) has Claude Code start it only before a
-command it reads as running `leaf`, or one whose commands it cannot read.
+hook's `if` rules (`hooks/hooks.json`) have Claude Code start it only before a
+command it reads as running `leaf` by name or by path, or one whose commands it
+cannot read.
 
 One bridge serves an install while any Claude Code process a hook registered for
 it is alive. A hook writes its pid before it looks at the bridge's lock, and a

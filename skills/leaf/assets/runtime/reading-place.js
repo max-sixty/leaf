@@ -144,8 +144,8 @@ const HEADING = "h1, h2, h3, h4, h5, h6";
 
 // The page's own text blocks the user can see, in document order, with the rect of each
 // one's first line — one reading of what is in front of them, for the two questions that
-// ask it: which passage the user returns to (below), and where a walk over the page's
-// Questions starts when they have pointed at nothing.
+// ask it: which passage the user returns to (below), and where a walk over what is
+// on the user starts when they have pointed at nothing.
 // A block's landmark is the top of its first line (a range), not its border box; restore
 // measures the matched text the same way, so the line box's leading cancels out.
 // The blocks are the page reading's (`pageBlocks`) rather than a query of the light DOM: a

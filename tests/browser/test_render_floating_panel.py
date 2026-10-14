@@ -4,7 +4,7 @@ chose it (`lf-chrome`, prepaint.js), in place of the banner and the bottom bar.
 Each test is one journey a user takes through the panel, which the suite's pages
 choose here, since they otherwise read with the bars (`watched`):
 writing a page comment and replying in the same field, settling the thread, finding
-threads and taking in news, answering questions, travelling between versions, and
+threads and taking in news, answering asks, travelling between versions, and
 folding the panel to the leaf in the window's corner and back."""
 
 import re
@@ -106,7 +106,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     )
     # The box empties as the reply leaves, and the counts take Send's place again.
     expect(page.locator(".lf-fp-send")).to_be_hidden()
-    expect(page.locator(".lf-fp-questions")).to_be_visible()
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
     settle = page.locator(".lf-fp-settle")
     with sending(page, "the resolve"):
@@ -508,7 +508,7 @@ def test_the_room_the_page_shows_stands_between_the_walk_and_the_panel(browser, 
     assert page.evaluate(room)["bottom"] == pytest.approx(foot, abs=1)
 
     page.locator("body").focus()
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     position = page.locator(".lf-walk-position")
     expect(position).to_contain_text("1 of 2")
     head = page.locator(".lf-bottom-status").bounding_box()
@@ -570,17 +570,17 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
     expect(page.locator(".lf-thread-panel")).not_to_have_class("open")
 
 
-def test_questions_are_answered_where_they_are_read(browser, serve):
-    """Questions lists what waits on the user, and each ask takes its answer there, by
-    the widget's own choice: the event is the widget's action. The answered card keeps
-    its place and height, so the next question does not move under the pointer, and
+def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
+    """On me lists what waits on the user, and each ask takes its answer there, by the
+    widget's own choice: the event is the widget's action. The answered card keeps its
+    place and height, so the next ask does not move under the pointer, and
     Undo takes the answer back."""
     page = floating(browser, serve(ASK_PAGE))
-    chip = page.locator(".lf-fp-questions")
+    chip = page.locator(".lf-fp-on-user")
     expect(chip).to_contain_text("2")
     chip.click()
-    view = page.locator(".lf-fp-view[data-view=questions]")
-    cards = view.locator(".lf-fp-question")
+    view = page.locator(".lf-fp-view[data-view=on]")
+    cards = view.locator(".lf-fp-on-item")
     expect(cards).to_have_count(2)
     expect(cards.first).to_contain_text("How should the schema migrate?")
     settled(page)
@@ -640,17 +640,15 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     expect(page).to_have_url(re.compile(rf"/versions/{number}\b"))
 
 
-def test_the_questions_walk_arrives_at_the_approval_in_the_panel(browser, serve):
-    """The version's approval waits on the user in Questions, and `q` arrives at it
-    where this chrome shows it: the panel's Questions, standing on its Approve."""
+def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
+    """The version's approval waits on the user in On me, and `m` arrives at it where
+    this chrome shows it: the panel's On view, standing on its Approve."""
     url = serve(SIGN_OFF)
     stamp_page(serve.page_dir, SIGN_OFF, "one")
     page = floating(browser, url)
     page.locator("body").focus()
-    page.keyboard.press("q")
-    approve = page.locator(
-        ".lf-fp-view[data-view=questions] [data-approval] .lf-fp-answer"
-    )
+    page.keyboard.press("m")
+    approve = page.locator(".lf-fp-view[data-view=on] [data-approval] .lf-fp-answer")
     expect(approve).to_be_focused()
     expect(page.locator(".lf-walk-position")).to_contain_text("Approval")
 
@@ -672,12 +670,12 @@ def test_the_questions_walk_arrives_at_the_approval_in_the_panel(browser, serve)
         }"""
     )
     page.locator("#to-approval").click()
-    card = page.locator(".lf-fp-view[data-view=questions] [data-approval]")
+    card = page.locator(".lf-fp-view[data-view=on] [data-approval]")
     expect(card.get_by_role("button", name="Undo")).to_be_focused()
 
 
-def test_the_approval_is_arrived_at_in_sight_below_many_questions(browser, serve):
-    """With more questions than Questions shows at once, arriving at the approval
+def test_the_approval_is_arrived_at_in_sight_below_many_asks(browser, serve):
+    """With more asks than On me shows at once, arriving at the approval
     scrolls its card into the view, so the Approve the user stands on is in sight."""
     asks = "".join(
         f'<lf-ask id="ask-{n}"><h3>Question {n}?</h3><lf-options id="o-{n}" choose>'
@@ -705,7 +703,7 @@ def test_the_approval_is_arrived_at_in_sight_below_many_questions(browser, serve
         }"""
     )
     page.locator("#to-approval").click()
-    view = page.locator(".lf-fp-view[data-view=questions]")
+    view = page.locator(".lf-fp-view[data-view=on]")
     approve = view.locator("[data-approval] .lf-fp-answer")
     expect(approve).to_be_focused()
     expect(approve).to_be_in_viewport()
@@ -729,10 +727,10 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     page.locator(".lf-fp-item", has_text="Draw mode").click()
     exit_step = page.locator(".lf-fp-step", has_text="Exit Draw mode")
     expect(exit_step).to_be_visible()
-    expect(page.locator(".lf-fp-questions")).to_have_count(0)
+    expect(page.locator(".lf-fp-on-user")).to_have_count(0)
     exit_step.click()
     expect(page.locator(".lf-fp-step")).to_have_count(0)
-    expect(page.locator(".lf-fp-questions")).to_be_visible()
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
 
 def test_the_leaf_s_menu_marks_what_opens_a_list_and_leaves_key_conveniences_out(
@@ -920,13 +918,13 @@ def test_send_stands_in_the_counts_place_while_the_user_types(browser, serve):
     page.keyboard.type("Could the rollback cover the weekend?")
     send = page.locator(".lf-fp-send")
     expect(send).to_be_visible()
-    expect(page.locator(".lf-fp-questions")).to_be_hidden()
+    expect(page.locator(".lf-fp-on-user")).to_be_hidden()
     settled(page)
     words = field(page).bounding_box()
     page.mouse.click(5, 5)
     expect(field(page)).not_to_be_focused()
     expect(send).to_be_hidden()
-    expect(page.locator(".lf-fp-questions")).to_be_visible()
+    expect(page.locator(".lf-fp-on-user")).to_be_visible()
     expect(page.locator(".lf-fp-context")).to_be_visible()
     settled(page)
     after = field(page).bounding_box()

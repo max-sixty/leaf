@@ -560,6 +560,11 @@ def watching(tmp_path, preview_slot, spawn, user: bool):
     source = tmp_path / "watched.html"
     source.write_text(REPLAYED_PAGE, encoding="utf-8")
     runtime = install_payload(tmp_path / "watched-runtime")
+    # The runtime is a developer checkout for this preview: its compiler uses
+    # the development dependencies installed in the test checkout.
+    (runtime / "node_modules").symlink_to(
+        ROOT / "node_modules", target_is_directory=True
+    )
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
     process, url = start_preview(

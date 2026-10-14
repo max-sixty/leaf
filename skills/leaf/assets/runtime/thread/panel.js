@@ -35,7 +35,7 @@ export function createThreadPanelKeys({
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   const hasThreads = () => threadsBox.walkRows().some(({ thread }) => thread);
   // The arrows walk the list's rows (`walkRows`), its threads' titles and withdrawn
-  // notices' Dismiss, as they walk the Questions panel's rows; `t` and `T` still step
+  // notices' Dismiss, as they walk the On panel's rows; `t` and `T` still step
   // and open. Only from a stop, so the arrows inside an open thread keep scrolling it.
   // A landing reports the position `t` would, counting the same threads.
   const stops = () => threadsBox.walkRows().map(({ stop }) => stop);
@@ -79,7 +79,7 @@ export function createThreadPanelKeys({
         id: "thread.waiting.toggle",
         ready: savedReadingSettled,
         // `w` for the words the control says. It is the phrase the page already uses for
-        // the same question the queue walk (q/Q) asks of the page, asked here of
+        // the same question the queue walk (m/M) asks of the page, asked here of
         // the thread — so the user learns one idea and reaches it two ways rather
         // than learning "needs you" beside it.
         //

@@ -409,8 +409,8 @@ def instructions(
 )
 def state(dir: str, target: str | None, after: int | None, limit: int | None) -> None:
     """Print the page as it is now, as one JSON object: the active revision's
-    file, the current widget actions and workers' reports, the Questions and Tasks
-    lists, thread summaries, versions, presence, and bound data. Read the active
+    file, the current widget actions and workers' reports, the user's On me list and
+    yours, thread summaries, versions, presence, and bound data. Read the active
     revision's HTML beside it for the document.
 
     ID narrows the output to what it names. A message, or a widget frozen into
@@ -1169,20 +1169,20 @@ def thread_resolve(dir: str, thread: str) -> None:
 
 
 @cli.group(
-    cls=RecordsGroup, short_help="Open or end to-dos, and start work on your Tasks."
+    cls=RecordsGroup, short_help="Open or end to-dos, and start work on your list."
 )
 def task() -> None:
-    """Open and end to-dos, and say which of your Tasks you are working on.
+    """Open and end to-dos, and say which item on your list you are working on.
 
-    Your Tasks hold each user update you owe an answer, named by the update's event
-    id, and each to-do you opened. Before working on one, run `leaf task start`
-    with a line saying what you are doing: the item reads Working with that line,
-    beside it and in the banner. A to-do stays on your Tasks through replies,
-    resolutions, versions and the end of the session that opened it, until
-    `leaf task end` or a stamp that `--completes` its widget ends it. A to-do you
-    open `--on user` goes on the user's Questions instead, until they press its
-    Done or you end it. Every write prints the record it appended, one JSON line,
-    as `page events` prints it.
+    Your list, which the user sees as On <your name>, holds each user update you owe
+    an answer, named by the update's event id, and each to-do you opened. Before
+    working on one, run `leaf task start` with a line saying what you are doing:
+    the item reads Working with that line, beside it and in the banner. A to-do
+    stays on your list through replies, resolutions, versions and the end of the
+    session that opened it, until `leaf task end` or a stamp that `--completes` its
+    widget ends it. A to-do you open `--on user` goes on the user's On me list
+    instead, until they press its Done or you end it. Every write prints the record
+    it appended, one JSON line, as `page events` prints it.
     """
 
 
@@ -1196,7 +1196,7 @@ def task() -> None:
     type=click.Choice(["agent", "user"]),
     default="agent",
     show_default=True,
-    help="Whose list the to-do is on: your Tasks, or the user's Questions.",
+    help="Whose list the to-do is on: yours, or the user's On me.",
 )
 def task_open(dir: str, subject: str, title: str, owner: str) -> None:
     """Open a to-do titled TITLE on SUBJECT: a page widget, which for your own to-do

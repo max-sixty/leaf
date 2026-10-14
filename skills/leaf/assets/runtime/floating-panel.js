@@ -1,7 +1,7 @@
 /* The floating panel: Leaf's chrome as one box hovering over the foot of the page, in
  * place of the banner and the bottom bar, which a reader has only by asking for them
  * (prepaint.js, `lfChrome`). It is another presentation of what the banner, the bottom
- * bar, Threads and Questions already own, so it reads their readings and calls their
+ * bar, Threads and the On panel already own, so it reads their readings and calls their
  * commands: the status (`watchStatus`), the toolbar's rows (`bannerRows`), the threads
  * (`readThreads`), the queues (`readQueues`), the versions (`versionPicker`), the
  * drafts (drafts.js) and the passing notices (notifications.js). It decides only how
@@ -13,7 +13,7 @@
  *   with a badge counting what waits on the user and a dot for threads with news. The
  *   user folds it from the leaf's menu; a press on the leaf unfolds it, and it stays as
  *   it was left across pages (`rest`).
- * - **The row**: the leaf, the comment field, and marks with counts for Questions and
+ * - **The row**: the leaf, the comment field, and marks with counts for On me and
  *   Threads. The empty field says what the agent is doing or wants, in the banner's own
  *   words (`watchStatus`), or what a passing notice says, where a placeholder would say
  *   "Comment"; in a thread it says whose turn it is. A status reads dimmer than anything
@@ -21,7 +21,7 @@
  *   way. Clicking in gives the placeholder to where the words go, and opens one quiet
  *   line above it naming who they go to; once words hide the placeholder, the line names
  *   where as well.
- * - **Opened**: a view above the same row (Questions, Threads, a thread, Versions, or a
+ * - **Opened**: a view above the same row (On, Threads, a thread, Versions, or a
  *   group of the page's controls) with where the user is at its top edge. It lasts while
  *   it is used: Escape or a press on the page puts it away. It is as tall as what it
  *   holds, so a one-message thread opens one message tall, up to most of the window's
@@ -123,7 +123,7 @@ const GROUPS = Object.freeze({
 // Rows the panel draws as views of its own rather than pressing the native control.
 const OWN_VIEWS = Object.freeze({
   threads: "threads",
-  queue: "questions",
+  queue: "on",
   versions: "versions",
 });
 // Rows held elsewhere, so the menu and its groups leave them out: by the panel's row or
@@ -336,9 +336,9 @@ export function createFloatingPanel({
   const unread = (thread) => thread.unread.length > 0;
   const newCount = () => threads().filter(unread).length;
   const openCount = () => threads().filter((thread) => !thread.resolved).length;
-  const questionCount = () => {
+  const onUserCount = () => {
     const queues = readQueues();
-    return queues.phase === "ready" ? queues.questions.length : 0;
+    return queues.phase === "ready" ? queues.on_user.length : 0;
   };
   const threadStatus = (thread) => {
     const words = [
@@ -362,7 +362,7 @@ export function createFloatingPanel({
   const titleOf = (route) =>
     ({
       threads: "Threads",
-      questions: "Questions",
+      on: "On",
       versions: "Versions",
       thread: route.thread ? threadTitle(route.thread) : "",
       group: GROUPS[route.group],
@@ -528,7 +528,7 @@ export function createFloatingPanel({
   function transition(before, { focus = true } = {}) {
     const after = trail.at(-1);
     const reading = [before, after].some((route) => route?.view === "thread");
-    if (after?.view !== "questions") {
+    if (after?.view !== "on") {
       seated = null;
       seatHeights.clear();
     }
@@ -893,13 +893,13 @@ export function createFloatingPanel({
     return html`<div class="lf-fp-messages lf-fp-outlet"></div>`;
   }
 
-  // ---------- Questions: answered where they are read ----------
+  // ---------- On: asks answered where they are read ----------
   // The three lists are the publisher's (`readQueues`): what waits on the user, on the
   // agent, and what is done. An item the user answers here stays where it stood, saying
-  // its answer and offering Undo, until the view closes, so answering one question never
+  // its answer and offering Undo, until the view closes, so answering one ask never
   // carries the next under the pointer.
   let queueTab = "you";
-  let seated = null; // queue item keys present in the open Questions view
+  let seated = null; // queue item keys present in the open On view
   // The height each seated card first stood at, which it keeps while seated, so an
   // answer that shortens it moves nothing below.
   const seatHeights = new Map();
@@ -911,7 +911,7 @@ export function createFloatingPanel({
   const queueLists = () => {
     const reading = readQueues();
     return reading.phase === "ready"
-      ? { you: reading.questions, agent: reading.tasks, done: reading.done }
+      ? { you: reading.on_user, agent: reading.on_agent, done: reading.done }
       : { you: [], agent: [], done: [] };
   };
 
@@ -927,7 +927,7 @@ export function createFloatingPanel({
   };
   const tabLabel = (tab) => (tab === "agent" ? `On ${agentName()}` : QUEUE_TABS[tab]);
 
-  function questionCard(item, list) {
+  function onItemCard(item, list) {
     const ask = item.kind === "ask" ? item.ask : null;
     const thread = item.thread ? threadByKey(item.thread) : null;
     // A prose ask is a message in its thread: the thread names it, and the message's
@@ -1028,7 +1028,7 @@ export function createFloatingPanel({
     const key = queueItemKey(item);
     const approval = ask?.source.kind === "approval";
     return html`<section
-      class="lf-fp-question"
+      class="lf-fp-on-item"
       data-list=${list}
       data-key=${key}
       ?data-approval=${approval}
@@ -1037,7 +1037,7 @@ export function createFloatingPanel({
     >
       ${
         prompt
-          ? html`<h3 class="lf-fp-qtitle">${title}</h3>
+          ? html`<h3 class="lf-fp-on-title">${title}</h3>
               <p class="lf-fp-prompt">${prompt}</p>`
           : html`<p class="lf-fp-prompt">${title}</p>`
       }
@@ -1046,7 +1046,7 @@ export function createFloatingPanel({
   }
 
   // The version's approval is answered here, in the banner control's place: arriving at
-  // it, as `q` and a Questions row do, opens this view on its card and stands on its
+  // it, as `m` and an On panel row do, opens this view on its card and stands on its
   // Approve, or once it is answered on its Undo, or the card itself.
   const approvalControl = () => {
     const card = stage.querySelector(".lf-fp-view:not([data-leaving]) [data-approval]");
@@ -1062,7 +1062,7 @@ export function createFloatingPanel({
       seated = null;
       seatHeights.clear();
     }
-    open({ view: "questions" }, { reopen: true, focus: false });
+    open({ view: "on" }, { reopen: true, focus: false });
     paint();
     const target = approvalControl();
     if (!target) return Promise.resolve(false);
@@ -1071,7 +1071,7 @@ export function createFloatingPanel({
     return Promise.resolve(true);
   }
 
-  function questionsView() {
+  function onView() {
     const lists = queueLists();
     const all = [...lists.you, ...lists.agent, ...lists.done];
     const byKey = new Map(all.map((item) => [queueItemKey(item), item]));
@@ -1085,7 +1085,7 @@ export function createFloatingPanel({
     const items = seated.map((key) => byKey.get(key));
     return items.length
       ? repeat(items, queueItemKey, (item) =>
-          questionCard(
+          onItemCard(
             item,
             lists.you.includes(item)
               ? "you"
@@ -1097,8 +1097,8 @@ export function createFloatingPanel({
       : html`<p class="lf-fp-empty">
           ${
             {
-              you: "Nothing waits on me.",
-              agent: `${agentName()} owes nothing here.`,
+              you: "Nothing waiting on me.",
+              agent: `Nothing waiting on ${agentName()}.`,
               done: "Nothing is done yet.",
             }[queueTab]
           }
@@ -1111,8 +1111,8 @@ export function createFloatingPanel({
         return threadsView();
       case "thread":
         return threadView(route.thread);
-      case "questions":
-        return questionsView();
+      case "on":
+        return onView();
       case "versions":
         return versionsView();
       case "group":
@@ -1169,7 +1169,7 @@ export function createFloatingPanel({
         >
           ${iconTemplate("search", "lf-action-icon")}
         </button>`;
-    } else if (top.view === "questions") {
+    } else if (top.view === "on") {
       const lists = queueLists();
       aux = tabs(
         Object.keys(QUEUE_TABS),
@@ -1290,12 +1290,12 @@ export function createFloatingPanel({
       paint();
     }
     landReader();
-    seatQuestions();
+    seatOnItems();
   }
-  function seatQuestions() {
-    if (trail.at(-1)?.view !== "questions") return;
+  function seatOnItems() {
+    if (trail.at(-1)?.view !== "on") return;
     for (const card of stage.querySelectorAll(
-      ".lf-fp-view:not([data-leaving]) .lf-fp-question[data-key]",
+      ".lf-fp-view:not([data-leaving]) .lf-fp-on-item[data-key]",
     ))
       if (!seatHeights.has(card.dataset.key))
         seatHeights.set(card.dataset.key, card.getBoundingClientRect().height);
@@ -1327,10 +1327,10 @@ export function createFloatingPanel({
     paintPeek();
 
     // What waits on the user, which the folded leaf carries as a badge and a dot.
-    const questions = questionCount();
+    const onUser = onUserCount();
     const news = newCount();
-    keepsText(badge, questions ? String(questions) : "");
-    keeps(badge, "data-shown", questions ? "" : null);
+    keepsText(badge, onUser ? String(onUser) : "");
+    keeps(badge, "data-shown", onUser ? "" : null);
     keeps(newsDot, "data-shown", news ? "" : null);
 
     render(menuOpen ? menuTemplate() : nothing, menu);
@@ -1452,14 +1452,14 @@ export function createFloatingPanel({
     render(
       html`<button
           type="button"
-          class="lf-fp-chip lf-fp-questions"
-          aria-pressed=${String(top?.view === "questions")}
-          ?data-due=${questions > 0}
-          aria-label=${`Questions${questions ? `, ${questions} on me` : ""}`}
-          @click=${() => open({ view: "questions" })}
+          class="lf-fp-chip lf-fp-on-user"
+          aria-pressed=${String(top?.view === "on")}
+          ?data-due=${onUser > 0}
+          aria-label=${onUser ? `On me: ${onUser}` : "On me"}
+          @click=${() => open({ view: "on" })}
         >
           ${iconTemplate("question", "lf-action-icon")}<span class="lf-fp-num"
-            >${questions || ""}</span
+            >${onUser || ""}</span
           ></button
         ><button
           type="button"
@@ -1628,12 +1628,12 @@ export function createFloatingPanel({
     true,
   );
 
-  // The Threads and Questions doors are the banner's controls, which every route to
+  // The Threads and On me doors are the banner's controls, which every route to
   // those surfaces presses, Go-to's included. In this chrome the panel stands for
   // them, so their press opens its view instead.
   for (const [door, view] of [
     [toggleBtn, "threads"],
-    [queueBtn, "questions"],
+    [queueBtn, "on"],
   ])
     door.addEventListener(
       "click",

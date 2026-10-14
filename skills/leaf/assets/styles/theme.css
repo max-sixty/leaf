@@ -150,9 +150,10 @@
   --lf-banner-row: max(42px, calc(var(--t-5) * var(--lf-ui-lh) + 19px),
     calc(var(--aim-floor) + 9px));
   --lf-banner-status-row: max(36px, calc(var(--t-5) * var(--lf-ui-lh) + 4px));
-  /* The complete toolbar owns 37em of UI type, Questions' 7em beside the rest, the
-     agent's Tasks count beside the status 4em, what "Tasks: 9" takes, and 220px is
-     left for the status, insets, and the gaps. Below that the banner takes two rows, and
+  /* The complete toolbar owns 37em of UI type, the On me door's 7em beside the rest,
+     the agent's On count beside the status 4em, which a count such as "On Claude: 9"
+     overruns into the status's room (banner.js cuts an agent name past 12 characters;
+     a wider reserve would put an 820px tablet's banner on two rows), and 220px is left for the status, insets, and the gaps. Below that the banner takes two rows, and
      the sentence has the first to itself (chrome.css), until a phone's face makes it one
      row again (below). The rooms are independent of page capabilities and of whether
      anything waits, since the counts come and go with the log after first paint. A
@@ -721,7 +722,7 @@ html { background: var(--paper); }
     --page-pad-end: 24px;
   }
 }
-/* The auxiliary surfaces — the thread panel and the Questions panel on the right, the
+/* The auxiliary surfaces — the thread panel and the On panel on the right, the
  * Leaves drawer on the left — stand over the page and never take room from it. The
  * page's geometry is the author's, and a surface the user raises for a moment does not reflow it: the shell
  * is the same width with a surface up as without one, so every container query, rail and
@@ -769,7 +770,7 @@ body {
     var(--lf-auxiliary-width, 0px));
 }
 @media screen {
-  /* Threads and Questions share the right edge and its width. */
+  /* Threads and the On panel share the right edge and its width. */
   html[data-lf-live] body:is([data-lf-auxiliary-surface="threads"],
       [data-lf-auxiliary-surface="queue"]) {
     --lf-auxiliary-width: var(--lf-thread-panel-width, var(--lf-thread-panel-default-width));

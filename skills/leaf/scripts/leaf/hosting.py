@@ -825,8 +825,9 @@ def cmd_stop(
 
 
 @contextlib.contextmanager
-def restarting_server(page_dir: Path):
-    """Hold a page's service down for the block, and start it again after.
+def restarting_server(page_dir: Path, harness: Harness | None):
+    """Hold a page's service down for the block, and start it again after, for the
+    session `harness` names.
 
     `page init` re-vendors inside this, since no server runs across a re-vendor:
     the layer it serves and the code it runs are both what the re-vendor replaces.
@@ -876,9 +877,17 @@ def restarting_server(page_dir: Path):
         yield
         return
     persistent = service["lifetime"] == "persistent"
-    comes_back = persistent or _restarts_for_this_session(page_dir)
+    held = page_claim(page_dir)
+    comes_back = persistent or _restarts_for_session(page_dir, harness)
     mark = secrets.token_hex(8) if comes_back else None
-    cmd_stop(page_dir, restart=mark)
+    # The stop is the claim's this read decided for: a session that takes the page
+    # meanwhile keeps its service, and the block does not run.
+    cmd_stop(page_dir, restart=mark, owner=held)
+    if not same_claim(page_claim(page_dir), held):
+        raise Refused(
+            f"another session took {page_dir} while it was being re-vendored; "
+            "re-vendor it from there"
+        )
     if not comes_back:
         print(
             f"{page_dir}'s server has no live session owner, so it stays "
@@ -910,21 +919,18 @@ def restarting_server(page_dir: Path):
         )
         return
     try:
-        start_server(
-            page_dir, persistent=persistent, revive=True, harness=session_harness()
-        )
+        start_server(page_dir, persistent=persistent, revive=True, harness=harness)
     except StartRefused as error:
         raise Refused(f"{page_dir}'s server did not start again: {error}")
 
 
-def _restarts_for_this_session(page_dir: Path) -> bool:
-    """Whether this command may restart a session service: its claim is this
+def _restarts_for_session(page_dir: Path, harness: Harness | None) -> bool:
+    """Whether `harness`'s session may restart a session service: its claim is that
     session's. False when no live session holds it any more; a refusal when
     another one does."""
     claim = page_claim(page_dir)
     if not claim_is_active(claim):
         return False
-    harness = session_harness()
     if harness is None or not claimant_matches(claim, harness):
         raise Refused(
             f"{page_dir} is served for another session, and only that session can "

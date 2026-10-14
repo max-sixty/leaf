@@ -100,7 +100,8 @@ The check reads the types generated from the schemas, which carry no patterns,
 bounds or conditional clauses, so a change to one of those is the author's to judge. The promise runs one
 way: an older Leaf serving a page a newer one vendored may refuse a field it does not
 know. Every page vendored before a bump, and one vendored before the number was
-declared, is refused until `leaf page init` re-vendors it.
+declared, is refused until `leaf page init` re-vendors it, which the first command or
+hook of the session holding the page runs itself (`vendoring.renew_layer`).
 
 The number is also the only version of what Leaf keeps outside a page's log and
 document: the delivery envelope and the Codex record of one in the state home, which

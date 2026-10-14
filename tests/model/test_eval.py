@@ -9,8 +9,8 @@ from pathlib import Path
 import click
 import pytest
 import yaml
-from leaf_dev.eval import catalog, native_provider, prepare, select_cases
-from leaf_dev.review_detection_eval import grading, summarize
+from leaf_dev.commands.eval import catalog, native_provider, prepare, select_cases
+from leaf_dev.commands.eval_ui_review import grading, summarize
 
 
 @pytest.mark.usefixtures("codex_cli")
@@ -135,7 +135,7 @@ def test_library_cases_supply_a_task_and_native_promptfoo_assertions(address):
 def test_catalog_rejects_execution_modes_conflicting_after_variant_inheritance(
     tmp_path, monkeypatch
 ):
-    from leaf_dev import eval as module
+    from leaf_dev.commands import eval as module
 
     path = tmp_path / "evals" / "example" / "case.yaml"
     path.parent.mkdir(parents=True)
@@ -159,7 +159,7 @@ def test_catalog_rejects_execution_modes_conflicting_after_variant_inheritance(
 def test_authoring_instruction_sources_stay_per_sample_with_the_task(
     tmp_path, monkeypatch
 ):
-    from leaf_dev import eval as module
+    from leaf_dev.commands import eval as module
 
     sources = {
         "first": ".claude/skills/developing-leaf/SKILL.md",
@@ -463,7 +463,7 @@ def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
 def test_native_javascript_assertions_and_asset_addresses_survive_preparation(
     tmp_path, monkeypatch
 ):
-    import leaf_dev.eval as module
+    import leaf_dev.commands.eval as module
 
     case = tmp_path / "evals" / "example" / "case.yaml"
     case.parent.mkdir(parents=True)
@@ -754,7 +754,7 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     """The command's own edges: case/option split, the optional base arm, the
     environment Promptfoo gets, and its exit status."""
     from click.testing import CliRunner
-    from leaf_dev import eval as module
+    from leaf_dev.commands import eval as module
 
     promptfoo = tmp_path / "promptfoo"
     calls = tmp_path / "calls"

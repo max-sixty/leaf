@@ -480,7 +480,7 @@ def test_on_shows_an_ask_as_its_message_and_reply_comes_back(browser, serve):
     back = page.locator(".lf-fp-back")
     expect(back).to_have_text("On me")
     back.click()
-    expect(page.locator(".lf-fp-view[data-view=on]")).to_be_visible()
+    expect(page.locator(".lf-fp-view[data-view=queue]")).to_be_visible()
 
 
 def test_clicking_into_the_field_moves_nothing_at_an_open_view_s_head(browser, serve):
@@ -1476,7 +1476,7 @@ def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
     # Keyboard shortcuts row say.
     expect(chip.locator("svg")).not_to_have_attribute("data-lf-icon", "question")
     chip.click()
-    view = page.locator(".lf-fp-view[data-view=on]")
+    view = page.locator(".lf-fp-view[data-view=queue]")
     cards = view.locator(".lf-fp-on-item")
     expect(cards).to_have_count(2)
     expect(cards.first).to_contain_text("How should the schema migrate?")
@@ -1604,7 +1604,7 @@ def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
     page = floating(browser, url)
     page.locator("body").focus()
     page.keyboard.press("m")
-    approve = page.locator(".lf-fp-view[data-view=on] [data-approval] .lf-fp-answer")
+    approve = page.locator(".lf-fp-view[data-view=queue] [data-approval] .lf-fp-answer")
     expect(approve).to_be_focused()
     expect(page.locator(".lf-walk-position")).to_contain_text("Approval")
 
@@ -1626,7 +1626,7 @@ def test_the_on_me_walk_arrives_at_the_approval_in_the_panel(browser, serve):
         }"""
     )
     page.locator("#to-approval").click()
-    card = page.locator(".lf-fp-view[data-view=on] [data-approval]")
+    card = page.locator(".lf-fp-view[data-view=queue] [data-approval]")
     expect(card.get_by_role("button", name="Undo")).to_be_focused()
 
 
@@ -1659,7 +1659,7 @@ def test_the_approval_is_arrived_at_in_sight_below_many_asks(browser, serve):
         }"""
     )
     page.locator("#to-approval").click()
-    view = page.locator(".lf-fp-view[data-view=on]")
+    view = page.locator(".lf-fp-view[data-view=queue]")
     approve = view.locator("[data-approval] .lf-fp-answer")
     expect(approve).to_be_focused()
     expect(approve).to_be_in_viewport()
@@ -1853,7 +1853,7 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
 
     on_mark.click()
     expect(page.get_by_role("button", name="On me 2", exact=True)).to_be_visible()
-    cards = page.locator(".lf-fp-view[data-view=on] .lf-fp-on-item")
+    cards = page.locator(".lf-fp-view[data-view=queue] .lf-fp-on-item")
     expect(cards).to_have_count(2)
     page.keyboard.press("ArrowDown")
     expect(cards.first).to_be_focused()

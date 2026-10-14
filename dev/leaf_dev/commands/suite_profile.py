@@ -1,6 +1,6 @@
 """Where the Python suite's time goes: recorded during a run, read back after it.
 
-Loaded as a pytest plugin (`-p leaf_dev.suite_profile`, as CI's `test` job loads it),
+Loaded as a pytest plugin (`-p leaf_dev.commands.suite_profile`, as CI's `test` job loads it),
 it gives every test one junit property, `profile`: JSON holding the seconds each
 phase took (`setup`, `call`, `teardown`), under `cpu` the CPU seconds the worker and
 every process it started used meanwhile, and, under `playwright`, the seconds and

@@ -1335,14 +1335,14 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
         }).observe(document, {subtree:true, attributes:true,
           attributeFilter:['data-lf-presented']});""",
     )
-    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(2)
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(2)
     assert page.evaluate("window.copyAtPresentation") == 1
     page.evaluate(
         "window.detachedCodeSource = document.querySelector('#source'); detachedCodeSource.remove()"
     )
-    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(1)
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(1)
     page.evaluate("document.querySelector('main').append(detachedCodeSource)")
-    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(2)
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(2)
     page.locator("#source").focus()
     assert "copy code" in shortcut_bar_text(page)
     page.keyboard.press("Tab")
@@ -1380,7 +1380,7 @@ def test_code_copy_reads_sources_before_positioning_many_controls(browser, serve
           });
         })()""",
     )
-    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(60)
+    expect(page.locator(".lf-chrome .lf-code-copy")).to_have_count(60)
     events = page.evaluate("window.copyPlacementEvents")
     assert events.count("read") >= 60
     assert "write" in events
@@ -1406,7 +1406,7 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     )
     page = open_page(browser, url)
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
-    controls = page.locator(".lf-chrome > .lf-code-copy")
+    controls = page.locator(".lf-chrome .lf-code-copy")
     expect(controls).to_have_count(100)
     control = controls.first
     expect(page.locator("#source")).to_be_hidden()
@@ -1468,7 +1468,7 @@ def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
         live_url(serve(leaf_page("Code stop", markup))),
     )
     pre = page.locator("#source")
-    control = page.locator(".lf-chrome > .lf-code-copy")
+    control = page.locator(".lf-chrome .lf-code-copy")
     expect(control).to_have_count(1)
     assert pre.evaluate("el => el.scrollWidth > el.clientWidth")
     pre.evaluate("(el, text) => el.replaceChildren(text)", source)

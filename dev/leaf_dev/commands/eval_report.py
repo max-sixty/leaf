@@ -21,7 +21,7 @@ import click
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.arms import observed_sum
 from leaf_dev.arrangement_eval import CASES, TASKS, WIDTHS, later_messages, phases
-from leaf_dev.eval_pairs import samples
+from leaf_dev.commands.eval_pairs import samples
 
 LABELS = {"laptop": "Laptop", "narrow": "900px", "short": "900 × 600", "phone": "Phone"}
 
@@ -272,7 +272,7 @@ def task_section(page: Path, subject: str, columns: dict, pairs: list[dict]) -> 
     )
 
 
-@click.command("eval-report")
+@click.command()
 @click.argument("page", type=click.Path(file_okay=False, path_type=Path))
 @click.argument(
     "runs",

@@ -35,7 +35,8 @@ from leaf import cli as cli_model
 from leaf import codex_adapter, leases, server, service, session
 from leaf.media import media_name
 from leaf.structure import SourceDocument
-from leaf_dev import arms, page_fixtures, preview
+from leaf_dev import arms, page_fixtures
+from leaf_dev.commands import preview
 from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 
@@ -517,7 +518,7 @@ from leaf.service import page_claim
 from leaf.state import end_session, write_json
 from leaf.harness import session_harness
 from leaf.hosting import cmd_stop
-from leaf_dev.preview import PreviewService
+from leaf_dev.commands.preview import PreviewService
 
 page, ready, done = map(Path, sys.argv[1:4])
 handoff = sys.argv[4]

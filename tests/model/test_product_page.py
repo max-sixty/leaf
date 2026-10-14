@@ -18,7 +18,8 @@ from leaf.registry import validation as registry_validation
 from leaf.registry.schema import check_schema
 from leaf.structure import SourceDocument
 from leaf.validation import composition as validation_model
-from leaf_dev import docs, record_demo
+from leaf_dev import docs
+from leaf_dev.commands import record_demo
 from leaf_dev.example_data import document_metadata
 from leaf_dev.page_fixtures import authored_markup
 from unidiff import PatchSet

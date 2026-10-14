@@ -16,7 +16,7 @@
 .lf-margin-projection { display: flex; height: 0; pointer-events: none; }
 .lf-margin-toolbar, .lf-margin-lane {
     position: absolute; left: 0; top: 0; width: 0; height: 0; }
-.lf-margin-lane { z-index: 2; }
+.lf-margin-lane, .lf-margin-cut { z-index: 2; }
 /* A carrier stands rows in the window, where its anchor puts it (margin-layout.js),
    painted while the element it is anchored to has scrolled out of view. */
 .lf-margin-carrier { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 2;

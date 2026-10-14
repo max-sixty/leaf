@@ -39,6 +39,7 @@ import {
 import {
   PRESSABLE,
   clippedContents,
+  headerCuts,
   hostIn,
   inUi,
   layoutChanged,
@@ -1254,6 +1255,19 @@ var cutPath = ({ x, y }) => {
   const open = (clips) => clips ? "0" : "-100000px";
   return `inset(${open(y)} ${open(x)})`;
 };
+var nowhere = { left: 0, top: 0, right: 0, bottom: 0 };
+function headerLevels(item, clips = /* @__PURE__ */ new Map()) {
+  return headerCuts(item, clips).map(({ box, band }) => {
+    const anchor = box === box.ownerDocument.scrollingElement ? null : anchorElement(box);
+    return {
+      anchor,
+      reading: anchor && anchorReading(anchor),
+      at: anchor?.getBoundingClientRect(),
+      band: band ?? nowhere,
+      axes: { x: false, y: true }
+    };
+  });
+}
 function cutFrames(levels, frames, make) {
   const kept = frames.slice(Math.max(0, frames.length - levels.length));
   const chain = [...Array.from({ length: levels.length - kept.length }, make), ...kept];
@@ -1263,7 +1277,8 @@ function cutFrames(levels, frames, make) {
   for (let i = 1; i < chain.length; i++)
     if (chain[i].parentNode !== chain[i - 1]) move(chain[i - 1], chain[i], null);
   for (const dropped of frames.slice(0, frames.length - kept.length)) dropped.remove();
-  levels.forEach(({ anchor, band, axes, at }, i) => {
+  levels.forEach(({ anchor, band, axes, at, reading }, i) => {
+    if (reading) nameAnchor(reading);
     anchorAt(chain[i], anchor, band, at);
     chain[i].style.clipPath = cutPath(axes);
   });
@@ -1404,6 +1419,7 @@ export {
   anchorFor,
   anchorName,
   anchorAt,
+  headerLevels,
   cutFrames,
   refreshAnchorView,
   anchorView

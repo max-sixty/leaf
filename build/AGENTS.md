@@ -29,7 +29,7 @@ below owns its own:
   and with stable chunk names so branches rarely conflict in it. An install vendors the
   kernel into pages only while `kernel.json` matches the tree's modules, and the source
   modules otherwise (`leaf.layer.current_kernel`). The website, the suite and developer
-  previews compile it again for their own tree (`leaf_dev.distribution`).
+  previews compile it again for their own tree (`leaf_dev.commands.distribution`).
 
 After `pnpm install --frozen-lockfile`, a build reproduces the committed bytes, so a
 diff after rebuilding means the lock, a build script, a runtime module or a registry

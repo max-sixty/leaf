@@ -20,7 +20,7 @@ contract, repair its setup or move its contract to a lower boundary.
 
 Each helper's docstring owns its contract, and code cites sections here by heading.
 Message delivery has one shared journey in `leaf_dev.thread_journey`;
-`leaf_dev.thread_snapshots` owns the thread appearance gate built on it.
+`leaf_dev.commands.thread_snapshots` owns the thread appearance gate built on it.
 
 Linux browser tests use `tests/fonts.conf` and the `fonts-dejavu` package, which must be
 installed before `wt setup`; macOS uses its native fonts.
@@ -68,7 +68,7 @@ runs it (`TIERS` in `conftest.py`):
   dispatch only.
 
 A test in `model/` or `process/` takes under three seconds on CI's runner, and one in
-`browser/` under eight (`BUDGETS` in `leaf_dev/suite_profile.py`). Put a new test in
+`browser/` under eight (`BUDGETS` in `leaf_dev/commands/suite_profile.py`). Put a new test in
 the directory of the boundary it crosses, or in `journeys/` when it is over budget or
 needs the external network, which it also marks `network`. Each `test` job's summary
 lists tests over budget, and tend's weekly pass moves them or speeds them up. To move a

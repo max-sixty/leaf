@@ -15,7 +15,8 @@ tracked tree unchanged.
 ## Where tooling goes
 
 When agents keep writing the same throwaway script, make it a `leaf-dev` command: a
-module here that owns the job, registered in `cli.py`. Tooling that CI, a hook or an
+module in `leaf_dev/commands/` that owns the job. The CLI finds commands there by
+module name, `journey_chart.py` for `leaf-dev journey-chart`. Tooling that CI, a hook or an
 alias runs is a command here too, so the repository has no directory of loose scripts.
 Code two tools need, such as building an arm or serving a page, lives in one module
 here that the others import, never through `sys.path`, `PYTHONPATH` or a file path.
@@ -122,6 +123,6 @@ Each target's module lists its steps and the harness promises it checks
 (`journey_claude_code.py`, `journey_codex.py`, `journey_pi.py`).
 
 Each run prints one JSON sample and appends it to
-`$XDG_STATE_HOME/leaf-dev/journey.jsonl`; `leaf-dev journey-chart` turns those samples
+`$XDG_STATE_HOME/leaf-dev/journey.jsonl`; `leaf-dev journey-chart` (`journey_chart.py`) turns those samples
 into an `lf-chart` for a page. `publish-site` runs the journey against each release.
 The harness targets spend the host's logins, so CI doesn't run them.

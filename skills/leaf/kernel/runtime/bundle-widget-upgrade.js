@@ -58,6 +58,8 @@ var widgetOf = (el) => {
     owner = owner.parentElement;
   return owner.localName.includes("-") ? owner : el;
 };
+var placers = /* @__PURE__ */ new WeakMap();
+var placesFailure = (el, place) => placers.set(el, place);
 function showFailure(el, text, source) {
   const box = document.createElement("div");
   box.className = "lf-error";
@@ -66,6 +68,11 @@ function showFailure(el, text, source) {
     const pre = document.createElement("pre");
     pre.textContent = source;
     box.append(pre);
+  }
+  const place = placers.get(el);
+  if (place) {
+    place(box);
+    return;
   }
   if (el.shadowRoot) {
     shadowStage(el, [box]);
@@ -253,6 +260,7 @@ export {
   failSoft,
   reportFailure,
   failSoftUnreported,
+  placesFailure,
   authoredStates,
   domValue,
   rememberAuthoredParents,

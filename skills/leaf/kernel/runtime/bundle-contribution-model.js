@@ -922,7 +922,8 @@ var INITIAL = Object.freeze({
   latest: Object.freeze({
     disabled: false,
     keyTitle: "Open the current page",
-    label: INITIAL_LATEST
+    label: INITIAL_LATEST,
+    shown: null
   }),
   rows: EMPTY,
   selection: Object.freeze({
@@ -970,7 +971,7 @@ var VersionPickerView = class {
       }
       this.#toggle?.();
     });
-    this.latestChip.onclick = () => this.#latest?.();
+    this.latestChip.onclick = () => this.latest();
     this.present(INITIAL);
   }
   configure({ activate, compare, latest, toggle }) {
@@ -1023,6 +1024,9 @@ var VersionPickerView = class {
   }
   compare(version) {
     this.#compare?.(version);
+  }
+  latest() {
+    this.#latest?.();
   }
   present(model) {
     this.#model = model;

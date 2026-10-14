@@ -95,7 +95,7 @@ import {
   sideEdge,
   standsBeside
 } from "./runtime/bundle-auxiliary-surfaces.js";
-import "./runtime/bundle-projection~state.js";
+import "./runtime/bundle-projection~presentation.js";
 import {
   BANNER_CONTROL_RANK,
   DESIGN_MODE_KEY,
@@ -476,9 +476,6 @@ import {
   whenWidgetsPresented
 } from "./runtime/bundle-semantic-state.js";
 import {
-  move
-} from "./runtime/bundle-dom-move.js";
-import {
   CARET_KEYS,
   MODIFIER_KEYS,
   PRESSES,
@@ -504,6 +501,7 @@ import {
   layerLanding,
   layoutPx,
   letGo,
+  move,
   nextFrame,
   nextRender,
   observePreparations,
@@ -5897,7 +5895,11 @@ function statusWords({
       `${agent} listening`,
       `${agent} is listening${detail ? " \u2014 " + detail : ""}.`,
       detail ? `It asked: ${detail}.` : ""
-    ] : [awaits, awaits, ""];
+    ] : (
+      // A request the agent declared asks the user for it; the stock words say only
+      // where a comment starts.
+      [awaits, awaits, "", Boolean(detail)]
+    );
   }
   if (kind === "stalled")
     return [
@@ -5908,7 +5910,8 @@ function statusWords({
   return overdue ? [
     `Nudge ${agent} in terminal`,
     `${dated}. ${saved} Nothing is answering them, so nudge it in the terminal.`,
-    `${dated}. ${saved} Nothing is answering them.`
+    `${dated}. ${saved} Nothing is answering them.`,
+    true
   ] : [
     `${agent} away`,
     `${agent} isn't watching right now. ${saved} It picks them up next turn.`,
@@ -5922,7 +5925,8 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
       tone: "offline",
       summary: BROKEN_LINE,
       explanation: BROKEN_LINE,
-      adds: ""
+      adds: "",
+      asks: true
     };
   if (reach2 !== "reached")
     return {
@@ -5931,7 +5935,8 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
       ...reach2 === "refused" ? {
         summary: "Key refused \u2014 open Leaf's link in a new tab",
         explanation: KEY_REFUSED_LINE,
-        adds: "Keep this tab open so pending changes can send."
+        adds: "Keep this tab open so pending changes can send.",
+        asks: true
       } : {
         summary: "Server offline \u2014 reconnecting; keep page open",
         explanation: OFFLINE_LINE,
@@ -5947,7 +5952,7 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
   const checkedIn = facts.silentSince ? `${agent} last checked in ${facts.silentSince}` : `No check-in from ${agent} is recorded`;
   const ended = `${agent}\u2019s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-  const [summary, text, beyond] = statusWords({
+  const [summary, text, beyond, asked = false] = statusWords({
     age,
     agent,
     dated: facts.left ? ended : checkedIn,
@@ -5974,9 +5979,17 @@ function pageStatus(state, { reach: reach2 = "reached" } = {}) {
   if (facts.waiting.length && ["working", "listening"].includes(kind))
     append(`${facts.waiting.join(" \xB7 ")}.`);
   const actionableWork = activity.awaiting ? activity.observed_kind : null;
-  if (actionableWork && kind === "working")
-    append("It waits in its own session, not on this page.");
-  return { kind, tone: facts.tone, summary, explanation, adds, actionableWork };
+  const waitsThere = Boolean(actionableWork) && kind === "working";
+  if (waitsThere) append("It waits in its own session, not on this page.");
+  return {
+    kind,
+    tone: facts.tone,
+    summary,
+    explanation,
+    adds,
+    asks: asked || waitsThere,
+    actionableWork
+  };
 }
 var QUEUE_WORDS = Object.freeze({
   ask: ["ask", "asks"],
@@ -6009,7 +6022,7 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
 }
 var WITHOUT_QUEUES = /* @__PURE__ */ new Set(["broken", "unreachable", "publication"]);
 function statusModel(status, queues, agent) {
-  const { kind, tone, summary, publication = null } = status;
+  const { kind, tone, summary, asks: asks2 = false, publication = null } = status;
   let { explanation, adds } = status;
   const counted = WITHOUT_QUEUES.has(kind) ? { summary: "", explanation: "", widest: "" } : queueWords(queues, agent);
   if (counted.explanation) {
@@ -6033,6 +6046,7 @@ function statusModel(status, queues, agent) {
   return Object.freeze({
     tone,
     summary,
+    asks: asks2,
     queues: counted.summary,
     queuesWidest: counted.widest,
     explanation,
@@ -6916,8 +6930,9 @@ if (SHARE_ROOT) {
     control: details,
     focusTarget: share,
     rank: BANNER_CONTROL_RANK.share,
-    // A presentation copies the link with its own copy control, beside it to select.
-    row: { label: "Share link", value: grants, copies: shareUrl, group: "about" }
+    // A presentation copies the link with its own copy control: a row of the page's own
+    // menu with one press, or, where no clipboard is offered, beside the link to select.
+    row: { label: "Link", value: grants, copies: shareUrl, group: "page" }
   });
 }
 var payloadAge = (provenance) => ago(provenance.committed ?? provenance.installed);
@@ -7241,7 +7256,9 @@ var HELD_ELSEWHERE = Object.freeze([
   "command:target.picker.open"
 ]);
 var listed = (entry) => !entry.gesture && !HELD_ELSEWHERE.includes(entry.key);
-var groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.group;
+var copyRefused = false;
+var canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
+var groupOf = (entry) => entry.group === "keys" && !advertisesKeys() ? "navigate" : entry.copies && !canCopy() ? "about" : entry.group;
 var FILTERS = Object.freeze(["open", "unread", "drafts", "resolved"]);
 var LISTS = Object.freeze(["threads", "on"]);
 var capital = (word2) => word2[0].toUpperCase() + word2.slice(1);
@@ -7305,13 +7322,15 @@ function createFloatingPanel({
   const mark = el("span", "lf-dot");
   leaf.append(mark);
   const field = el("div", "lf-fp-field");
+  const rowNoticeSeat = el("div", "lf-fp-row-notice");
   const quick = el("div", "lf-fp-quick");
-  row.append(leaf, field, quick);
+  row.append(leaf, field, rowNoticeSeat, quick);
   const CONNECTING = {
     tone: "",
     summary: "Connecting\u2026",
     explanation: "Connecting\u2026",
-    adds: ""
+    adds: "",
+    asks: false
   };
   const status = () => statusReading() ?? CONNECTING;
   let trail = [];
@@ -7654,11 +7673,13 @@ function createFloatingPanel({
     disabled = false,
     role = "menuitem",
     row: row2 = null,
-    opens = false
+    opens = false,
+    title = null
   } = {}) => html`<button
       type="button"
       role=${role ?? nothing}
       data-row=${row2 ?? nothing}
+      title=${title ?? nothing}
       class="lf-fp-item"
       ?disabled=${disabled}
       ?data-lf-urgent=${urgent}
@@ -7671,7 +7692,43 @@ function createFloatingPanel({
       >
     </button>`;
   const rowEnd = (entry) => html`${entry.value ? html`<span class="lf-fp-value">${entry.value}</span>` : nothing}${entry.shortcut.length && advertisesKeys() ? keySequenceTemplate(keySequenceModel(entry.shortcut)) : nothing}`;
+  const copyItems = /* @__PURE__ */ new Map();
+  function copyItem(entry) {
+    let copy = copyItems.get(entry.key);
+    if (!copy) {
+      copy = copyControl("lf-fp-copy-item", {
+        success: `${entry.label} copied`,
+        error: `${entry.label} not copied \xB7 select it to copy`
+      });
+      copy.addEventListener("wa-copy", () => putAwayThen(() => {
+      }));
+      copy.addEventListener("wa-error", () => {
+        copyRefused = true;
+        putAwayThen(() => open({ view: "group", group: "about" }));
+      });
+      copyItems.set(entry.key, copy);
+    }
+    copy.value = entry.copies;
+    copy.disabled = entry.disabled;
+    render(
+      menuItem(
+        `Copy ${entry.label[0].toLowerCase()}${entry.label.slice(1)}`,
+        html`<wa-icon library="system" name="copy" variant="regular"></wa-icon>`,
+        () => {
+        },
+        {
+          disabled: entry.disabled,
+          role: menuOpen ? "menuitem" : null,
+          row: entry.key,
+          title: entry.value || null
+        }
+      ),
+      copy
+    );
+    return copy;
+  }
   function rowFor(entry) {
+    if (entry.copies) return copyItem(entry);
     const view = OWN_VIEWS[entry.key];
     return menuItem(
       entry.label,
@@ -7763,7 +7820,7 @@ function createFloatingPanel({
     const copy = copies.get(entry.key);
     copy.value = entry.copies;
     copy.disabled = entry.disabled;
-    keepsHidden(copy, !navigator.clipboard?.writeText);
+    keepsHidden(copy, !canCopy());
     return copy;
   }
   function copyRow(entry) {
@@ -8381,6 +8438,12 @@ function createFloatingPanel({
     const reading = fieldReading(replying ? top.thread : null, input);
     keeps(host, "data-says", reading.says);
     keeps(host, "data-tone", status().tone || null);
+    keeps(host, "data-asks", status().asks ? "" : null);
+    keeps(
+      field,
+      "title",
+      reading.says === "status" ? status().explanation || status().summary : null
+    );
     const empty = draftOf(input) === "";
     const notice2 = noticeReading();
     const covered = notice2.visible && (!empty || reading.says === "destination");
@@ -8393,10 +8456,14 @@ function createFloatingPanel({
       contextKeys,
       input === focused() && advertisesKeys() ? `${submitLabel()} to send${submitLabel() === "\u23CE" ? " \xB7 \u21E7\u23CE new line" : ""}` : ""
     );
-    keepsHidden(
+    keeps(
       context,
-      !engaged || !(contextDest.textContent || contextKeys.textContent)
+      "data-empty",
+      !engaged || !(contextDest.textContent || contextKeys.textContent) ? "" : null
     );
+    const standing2 = rowNotice();
+    keepsHidden(rowNoticeSeat, !standing2);
+    render(standing2 ? rowNoticeTemplate(standing2) : nothing, rowNoticeSeat);
     const steps = rows2().filter((entry) => entry.gesture);
     keeps(quick, "data-steps", steps.length ? "" : null);
     if (steps.length) {
@@ -8431,7 +8498,7 @@ function createFloatingPanel({
           title=${onUserName}
           @click=${openOnMe}
         >
-          ${iconTemplate("question", "lf-action-icon")}<span class="lf-fp-num"
+          ${iconTemplate("inbox", "lf-action-icon")}<span class="lf-fp-num"
             >${onUser || ""}</span
           ></button
         ><button
@@ -8452,6 +8519,33 @@ function createFloatingPanel({
         </button>`,
       quick
     );
+  }
+  function rowNotice() {
+    const { latest } = versionsReading();
+    if (latest.shown === null) return null;
+    return {
+      says: latest.shown,
+      press: {
+        label: "Latest",
+        title: latest.keyTitle,
+        disabled: latest.disabled,
+        run: () => putAwayThen(() => versionPicker.latest())
+      }
+    };
+  }
+  function rowNoticeTemplate({ says, press }) {
+    return press ? html`<button
+          type="button"
+          class="lf-fp-chip lf-fp-row-notice-press"
+          title=${press.title}
+          ?disabled=${press.disabled}
+          @click=${press.run}
+        >
+          <span class="lf-fp-row-notice-face"
+            >${says}<span class="lf-fp-row-notice-sep" aria-hidden="true">·</span
+            ><span class="lf-fp-row-notice-act">${press.label}</span></span
+          >
+        </button>` : html`<span class="lf-fp-row-notice-face">${says}</span>`;
   }
   leaf.addEventListener("click", () => {
     if (host.dataset.rest === "mark") {
@@ -8597,7 +8691,7 @@ function createFloatingPanel({
   document.addEventListener(
     "pointerdown",
     (event) => {
-      if (event.composedPath().includes(host)) return;
+      if (event.composedPath().includes(host) || !nativeModalAdmits(host)) return;
       if (menuOpen) setMenu(false);
       if (trail.length) close();
     },
@@ -12379,7 +12473,7 @@ function renderShortcutBar(goToStatus) {
   const room = reserved && rowsUsed(reserved) > ceiling ? 0 : reserved;
   shortcutBarEl.style.setProperty("--lf-status-room", `${room}px`);
   for (const { presentation, span } of drawn2)
-    keepsHidden(span, presentation.hidden || trimmed.has(span));
+    span.toggleAttribute("data-lf-off-line", presentation.hidden || trimmed.has(span));
 }
 var shortcutBarExpanded = () => shortcutBarIsExpanded && shortcutHelpAvailable();
 function mountShortcutBar({

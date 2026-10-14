@@ -47,6 +47,7 @@ import {
 } from "./bundle-initial-render.js";
 import {
   ago,
+  aimedTop,
   atScrollEnd,
   chooseScroll,
   claimReachStop,
@@ -188,9 +189,6 @@ import {
   whenWidgetsPresented
 } from "./bundle-semantic-state.js";
 import {
-  move
-} from "./bundle-dom-move.js";
-import {
   CARET_KEYS,
   TEXT_FIELD,
   afterScript,
@@ -211,6 +209,7 @@ import {
   keepsHidden,
   keepsText,
   layoutPx,
+  move,
   nextFrame,
   nextRender,
   onPress,
@@ -371,7 +370,7 @@ function placeKeeper(scroller, { items, identity, active = () => true, preferred
       withinTask: !hold.spans
     });
     if (delta) {
-      scroller.scrollTop += delta;
+      moveScrollerBy(scroller, aimedTop(scroller) - scroller.scrollTop + delta);
       placeKept(scroller);
     }
     for (const candidate of hold.references) {
@@ -793,7 +792,7 @@ function drawnAt(body, box, x, edge, blocks) {
 }
 function capturePlace(region = null, blocks = textBlocks()) {
   const box = region ? effectiveScroller(region) : pageScroller;
-  const boxTop = landingBand(box).top;
+  const boxTop = landingBand(box).top + aimedTop(box) - box.scrollTop;
   const landmarkTop = (top, block, blockTop = top) => block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   const view = {
     y: box.scrollTop,

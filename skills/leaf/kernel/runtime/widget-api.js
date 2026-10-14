@@ -8,8 +8,11 @@ import {
   askWords,
   comparisonChanges,
   consumeAnnotations,
+  currentProjection,
+  dataReader,
   dispatchWidget,
   invalidateDom,
+  joinDataDelivery,
   landInThread,
   loadDeferred,
   mountThreadViews,
@@ -21,6 +24,7 @@ import {
   queueTitle,
   readQueues,
   registerThreadPresentation,
+  stagesOnly,
   threadActions,
   threadBox,
   threadInput,
@@ -37,9 +41,7 @@ import {
   presentContributionReceipts,
   registerContribution
 } from "./bundle-contribution-model.js";
-import {
-  currentProjection
-} from "./bundle-projection~state.js";
+import "./bundle-projection~presentation.js";
 import {
   HOLDS_WORD,
   HeldReading,
@@ -96,6 +98,7 @@ import {
   failSoft,
   failSoftUnreported,
   once,
+  placesFailure,
   quoted,
   reportFailure,
   widgetDescriptor
@@ -180,7 +183,6 @@ import {
   commandScope,
   commandsOn,
   declarationFor,
-  dragHeld,
   dragging,
   el,
   elementsDeclaring,
@@ -216,23 +218,23 @@ import {
   showNativeLayer,
   shownParts,
   shownWindow,
-  watchDragRelease,
   watchOwner,
   whileConnected,
   worksInside
 } from "./bundle-page-paint.js";
 import {
+  applicationRegionsPresented,
   applicationState,
+  attachApplicationPresentation,
   attachWidgetPresentation,
   offlineInteractive,
   pageUrl,
   projectionRegionsPresented,
+  proofReading,
   readPart,
+  readsProof,
   revisionLabel
 } from "./bundle-semantic-state.js";
-import {
-  move
-} from "./bundle-dom-move.js";
 import {
   TEXT_BOX,
   TEXT_FIELD,
@@ -251,6 +253,7 @@ import {
   keepsHidden,
   keepsText,
   layoutPx,
+  move,
   nextAnimation,
   nextFrame,
   nextRender,
@@ -264,13 +267,16 @@ import {
   whenLeft
 } from "./bundle-sample-visibility.js";
 import {
+  LitElement,
   M,
   classMap,
+  collectReads,
   createRef,
   guard,
   html,
   keyed,
   live,
+  noChange,
   nothing,
   rankAt,
   ref,
@@ -289,12 +295,13 @@ var controllers = /* @__PURE__ */ new WeakMap();
 var lifecycles = /* @__PURE__ */ new WeakMap();
 var ancestorRefreshes = /* @__PURE__ */ new Set();
 var ancestorRefreshQueued = false;
-var gestureDeferred = /* @__PURE__ */ new Set();
-watchDragRelease(() => {
-  const pending = [...gestureDeferred];
-  gestureDeferred.clear();
-  for (const resume of pending) resume();
-});
+var selfDrawn = /* @__PURE__ */ new WeakMap();
+var drawsItself = (owner, drawing) => selfDrawn.set(owner, drawing);
+function widgetMounted(owner, descriptor, parentChanged) {
+  if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
+    refreshAncestorControllers(owner);
+  invalidateDom();
+}
 function refreshAncestorControllers(owner) {
   for (let ancestor = owner.parentElement; ancestor; ancestor = ancestor.parentElement) {
     const lifecycle = lifecycles.get(ancestor);
@@ -419,21 +426,10 @@ function createWidgetController(owner) {
     deferredReading = reading;
     render2()?.present(reading);
   };
-  const resumeGestureRender = () => {
-    gestureDeferred.delete(resumeGestureRender);
-    if (deferred || !deferredReading || !subscriptions.size) return;
-    const latest = deferredReading;
-    deferredReading = null;
-    presentRender(latest);
-  };
   const publish = () => untracked(() => {
     const reading = read();
-    if (deferred || dragHeld()) {
-      holdRender(reading);
-      if (dragHeld()) gestureDeferred.add(resumeGestureRender);
-      return;
-    }
-    presentRender(reading);
+    if (deferred) holdRender(reading);
+    else presentRender(reading);
   });
   const connect = () => untracked(connectOwner);
   const connectOwner = () => {
@@ -444,9 +440,7 @@ function createWidgetController(owner) {
       connectedParent = owner.parentElement;
       render2();
       stopSelection = selected.subscribe(publish);
-      if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
-        refreshAncestorControllers(owner);
-      invalidateDom();
+      widgetMounted(owner, descriptor, parentChanged);
     }
     if (preparation && !preparationHandle) {
       const handle = prepared();
@@ -454,7 +448,6 @@ function createWidgetController(owner) {
     }
   };
   const disconnect = () => {
-    gestureDeferred.delete(resumeGestureRender);
     stopSelection?.();
     stopSelection = null;
     renderHandle?.disconnect();
@@ -472,7 +465,11 @@ function createWidgetController(owner) {
     paint.forget();
     publish();
   };
-  watchLifetime(owner, { connect, disconnect, refresh });
+  watchLifetime(owner, {
+    connect,
+    disconnect,
+    refresh: () => (selfDrawn.get(owner)?.refresh ?? refresh)()
+  });
   return Object.freeze({
     read,
     subscribe(callback) {
@@ -482,7 +479,6 @@ function createWidgetController(owner) {
       return () => {
         subscriptions.delete(callback);
         if (!subscriptions.size) {
-          gestureDeferred.delete(resumeGestureRender);
           stopSelection?.();
           stopSelection = null;
           renderHandle?.disconnect();
@@ -501,6 +497,19 @@ function createWidgetController(owner) {
     defer() {
       if (deferred) throw new Error("Widget presentation is already deferred");
       deferred = true;
+      const drawing = selfDrawn.get(owner);
+      if (drawing) {
+        const release = drawing.hold();
+        let released = false;
+        return () => {
+          if (released) return read();
+          released = true;
+          deferred = false;
+          release();
+          invalidateDom();
+          return read();
+        };
+      }
       paint.forget();
       let resumed = false;
       return () => {
@@ -553,6 +562,239 @@ function widgetController(owner) {
   }
   return controller;
 }
+
+// runtime/leaf-element.js
+var regions = 0;
+var LeafElement = class extends LitElement {
+  #descriptor = null;
+  #controller = null;
+  #verbs = [];
+  #region = null;
+  #regionName = null;
+  #connected = false;
+  #connectedParent = null;
+  // What the last gate and the last render read, each with the value it read.
+  #gateReads = /* @__PURE__ */ new Map();
+  #renderReads = /* @__PURE__ */ new Map();
+  #following = [];
+  // A draw owed to the next connection: queued as it left, or a reading moved meanwhile.
+  #owed = false;
+  // The open claim the next update that draws settles.
+  #ticket = null;
+  #held = false;
+  // The fail-soft box standing until the next update that draws; a `setup()` that threw
+  // leaves the element broken, drawing nothing.
+  #box = null;
+  #broken = false;
+  // The claim the update under way draws, settled once `updated` has run too.
+  #drawing = null;
+  #data = /* @__PURE__ */ new Map();
+  #leaveData = null;
+  createRenderRoot() {
+    return this;
+  }
+  connectedCallback() {
+    if (once(this)) this.#setup();
+    super.connectedCallback();
+  }
+  #setup() {
+    this.#descriptor = widgetDescriptor(this);
+    if (this.#descriptor) {
+      this.#controller = widgetController(this);
+      drawsItself(this, {
+        hold: () => this.#hold(),
+        refresh: () => this.#refresh()
+      });
+      this.#verbs = Object.keys(this.#descriptor.declaration["x-state"] ?? {});
+    }
+    this.#regionName = this.#descriptor ? null : `element:${this.localName}#${this.id}:${++regions}`;
+    placesFailure(this, (box2) => {
+      this.#box?.remove();
+      this.#box = box2;
+      (this.renderRoot ?? this.shadowRoot ?? this).prepend(box2);
+    });
+    try {
+      this.setup();
+    } catch (error) {
+      this.#broken = true;
+      failSoft(this, error);
+    }
+    watchOwner(this, {
+      connect: () => untracked(() => this.#connect()),
+      disconnect: () => this.#disconnect()
+    });
+  }
+  /** The module's one-time build, on the first connection, before the first render. */
+  setup() {
+  }
+  /** The widget's complete reading (`widgetController(this).read()`), collected; null
+   *  for an element the registry does not declare a widget, such as a quoted one. */
+  get reading() {
+    return this.#controller?.read() ?? null;
+  }
+  /** The widget's state, with every admitted and unresolved record folded in. */
+  get state() {
+    return this.reading.state;
+  }
+  /** The widget's controller, for `dispatch` and `present`. */
+  get controller() {
+    return this.#controller;
+  }
+  /** The bound source of a declared `x-data` input, as `watchData` delivers it. */
+  data(input) {
+    let read = this.#data.get(input);
+    if (!read) this.#data.set(input, read = dataReader(this, input));
+    return read();
+  }
+  // The controller's `defer` for this widget, which refuses a second hold and releases
+  // once: hold its presentation through a gesture that rewrites its nodes; the release
+  // draws the newest reading at once.
+  #hold() {
+    this.#held = true;
+    return () => {
+      this.#held = false;
+      this.#refresh();
+    };
+  }
+  #complete() {
+    if (!this.#controller) return true;
+    const { state } = this.#controller.read();
+    return this.#verbs.every((verb) => verb in state);
+  }
+  shouldUpdate(changed) {
+    if (!this.#connected || !this.isConnected) {
+      this.#owed = true;
+      return false;
+    }
+    if (this.#held) return false;
+    this.#drawing = this.#ticket;
+    this.#ticket = null;
+    if (this.#broken) return false;
+    const gate = collectReads(() => this.#complete());
+    this.#gateReads = gate.reads;
+    if ("error" in gate) {
+      this.#follow();
+      throw gate.error;
+    }
+    if (!gate.value) {
+      this.#follow();
+      return false;
+    }
+    return super.shouldUpdate(changed);
+  }
+  update(changed) {
+    const outcome = collectReads(() => super.update(changed));
+    this.#renderReads = outcome.reads;
+    this.#follow();
+    if ("error" in outcome) throw outcome.error;
+    this.#box?.remove();
+    this.#box = null;
+  }
+  // An update settles its claim once all of it has run, `updated` included, and one
+  // that failed anywhere, its gate too, reports once and shows its failure; Lit has
+  // marked it done, so the next move draws again. A draw that `updated` asks for at
+  // once, as a module's own paint may, settles its own claim inside this one; with no
+  // claim of its own, its failure is the enclosing claimed update's.
+  performUpdate() {
+    const outer = this.#drawing;
+    this.#drawing = null;
+    try {
+      super.performUpdate();
+      this.#drawing?.resolve();
+    } catch (error) {
+      if (outer && !this.#drawing) throw error;
+      this.#failed(error, this.#drawing);
+    } finally {
+      this.#drawing = outer;
+    }
+  }
+  updated(changed) {
+    super.updated(changed);
+    paintKeysWithin(this);
+  }
+  // Every failure is reported here, naming the widget; a claim's rejection then shows
+  // the box through the coordinator's fallback, which reports nothing again.
+  #failed(error, ticket) {
+    if (!ticket) return failSoft(this, error);
+    reportFailure(this, error);
+    ticket.reject(error);
+  }
+  #follow() {
+    for (const stop of this.#following) stop();
+    const reads = [...this.#gateReads, ...this.#renderReads];
+    this.#following = this.#connected ? reads.map(
+      ([reading, seen]) => reading.subscribe((now) => {
+        if (now === seen) return;
+        if (readsProof(reading)) this.requestUpdate();
+        else if (stagesOnly(reading)) this.#stage();
+        else this.#moved();
+      })
+    ) : [];
+  }
+  #moved() {
+    if (!this.#connected) {
+      this.#owed = true;
+      return;
+    }
+    this.#present();
+  }
+  // Claim the region for a reading that draws later, leaving the claim open.
+  #stage() {
+    if (!this.#connected || this.#ticket || !this.#region) return;
+    this.#ticket = this.#region.present(
+      untracked(() => this.#controller?.read() ?? {}),
+      (reason) => failSoftUnreported(this, reason)
+    );
+  }
+  // Claim the region for the reading as it stands, and draw it on the next update; a
+  // claim the next update cannot draw stays open until one does.
+  #present({ now = false } = {}) {
+    if (!this.#region) return;
+    const value = untracked(() => this.#controller ? this.#controller.read() : {});
+    this.#ticket = this.#region.present(
+      value,
+      (reason) => failSoftUnreported(this, reason)
+    );
+    if (this.#held) return;
+    this.requestUpdate();
+    if (now) this.performUpdate();
+  }
+  #refresh() {
+    if (this.#connected) this.#present({ now: true });
+    else this.#owed = true;
+  }
+  #connect() {
+    this.#connected = true;
+    this.#region = this.#descriptor ? attachWidgetPresentation(this.#descriptor.id, "render", this) : attachApplicationPresentation(this.#regionName, this);
+    const parentChanged = this.#connectedParent !== this.parentElement;
+    this.#connectedParent = this.parentElement;
+    if (registry[this.localName]?.["x-data"])
+      this.#leaveData = joinDataDelivery(
+        this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName
+      );
+    this.#follow();
+    const moved = untracked(
+      () => [...this.#gateReads, ...this.#renderReads].some(
+        ([reading, seen]) => reading.read() !== seen
+      )
+    );
+    if (!this.hasUpdated || this.#owed || moved) {
+      this.#owed = false;
+      this.#present();
+    } else
+      this.#region.present(untracked(() => this.#controller?.read() ?? {})).resolve();
+    if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
+  }
+  #disconnect() {
+    this.#connected = false;
+    this.#follow();
+    this.#leaveData?.();
+    this.#leaveData = null;
+    this.#ticket = null;
+    this.#region?.disconnect();
+    this.#region = null;
+  }
+};
 
 // runtime/indication.js
 var INDICATED = PAGE_PAINT_ATTRIBUTE.indicated;
@@ -626,7 +868,8 @@ var readHistory = readPart((root) => ({
   phase: root.phase,
   events: root.authoritative?.browser.history ?? []
 }));
-var reportsPresented = (target = null) => {
+var reportsPresented = (target = null) => projectionRegionsPresented([...reportWidgets(target)]);
+var reportWidgets = (target) => {
   const key = targetKey(reportTarget(target));
   const widgets2 = new Set(target instanceof Element ? [target.id] : []);
   for (const entry of currentProjection().classified.values()) {
@@ -634,8 +877,18 @@ var reportsPresented = (target = null) => {
     if (key === null || key === targetKey({ kind: "widget", id: entry.e.widget }))
       widgets2.add(entry.e.widget);
   }
-  return projectionRegionsPresented([...widgets2]);
+  return widgets2;
 };
+var reportsReady = (target) => proofReading(
+  () => applicationRegionsPresented([
+    "projection:chrome",
+    `widget:${target.id}:preparation`,
+    ...[...reportWidgets(target)].filter((widget) => widget !== target.id).flatMap((widget) => [
+      `widget:${widget}:render`,
+      `widget:${widget}:preparation`
+    ])
+  ])
+).read();
 
 // runtime/work.js
 var widgets = () => layerFact("$work")?.widgets ?? {};
@@ -901,7 +1154,7 @@ async function differingRegions(a, b) {
       ] : [];
     })
   );
-  const regions = [
+  const regions2 = [
     ...outlines(before, readBefore, struck, "before", unowned, DBSCAN),
     ...outlines(after, readAfter, struck, "after", unowned, DBSCAN)
   ].sort((p, q) => p.y - q.y || p.x - q.x).map(({ x, y, width: width2, height: height2, side, kind }) => ({
@@ -912,7 +1165,7 @@ async function differingRegions(a, b) {
     side,
     kind
   }));
-  return { width, height, changed, throughout: false, regions };
+  return { width, height, changed, throughout: false, regions: regions2 };
 }
 function outlines(blocks, states, struck, side, bare, DBSCAN) {
   const marks = [];
@@ -1310,10 +1563,10 @@ function changedPixels(a, b) {
   }
   return { width, height, ...masks };
 }
-function differenceKind({ changed, throughout, regions }) {
+function differenceKind({ changed, throughout, regions: regions2 }) {
   if (!changed) return "identical";
   if (throughout) return "throughout";
-  return regions.length ? "areas" : "slight";
+  return regions2.length ? "areas" : "slight";
 }
 function describeDifference(reading) {
   const kind = differenceKind(reading);
@@ -1328,8 +1581,8 @@ function describeDifference(reading) {
   if (!changedCount) return `${areas(movedCount)} moved`;
   return `${areas(changedCount).replace(" ", " changed ")}${movedCount ? `, ${movedCount} moved` : ""}`;
 }
-function countAreas(regions) {
-  const changes = regions.filter((region) => region.kind === "changed");
+function countAreas(regions2) {
+  const changes = regions2.filter((region) => region.kind === "changed");
   const before = changes.filter((region) => region.side === "before");
   const after = changes.filter((region) => region.side === "after");
   const shared = before.filter((p) => after.some((q) => near(p, q, 0))).length;
@@ -1337,7 +1590,7 @@ function countAreas(regions) {
     changed: before.length + after.length - shared,
     moved: Math.max(
       ...["before", "after"].map(
-        (side) => regions.filter((region) => region.kind === "moved" && region.side === side).length
+        (side) => regions2.filter((region) => region.kind === "moved" && region.side === side).length
       )
     )
   };
@@ -1427,6 +1680,7 @@ export {
   HeldReading,
   LAYOUT,
   LeafEditorView,
+  LeafElement,
   PAGE_INTERFACE,
   PRESENTATION,
   PRESS,
@@ -1542,6 +1796,7 @@ export {
   nextAnimation,
   nextFrame,
   nextRender,
+  noChange,
   nothing,
   notice,
   offer,
@@ -1597,6 +1852,7 @@ export {
   reportFailure,
   reportSequence,
   reportsPresented,
+  reportsReady,
   restorePlace,
   retainUserIntent,
   revisionLabel,

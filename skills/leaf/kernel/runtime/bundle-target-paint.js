@@ -58,9 +58,6 @@ import {
   shownBox
 } from "./bundle-page-paint.js";
 import {
-  move
-} from "./bundle-dom-move.js";
-import {
   atLayoutPrecision,
   cancelRender,
   closeLayer,
@@ -72,6 +69,7 @@ import {
   keepsHidden,
   keepsText,
   layoutPx,
+  move,
   nativeLayerHolding,
   nextRender,
   openLayer,

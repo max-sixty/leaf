@@ -25,11 +25,8 @@ import {
   watchContributions
 } from "./bundle-contribution-model.js";
 import {
-  createProjectionPresentation,
-  currentProjection,
-  projectionDeferred,
-  watchProjectionDeferral
-} from "./bundle-projection~state.js";
+  createProjectionPresentation
+} from "./bundle-projection~presentation.js";
 import {
   HOLDS_WORD,
   HeldNews,
@@ -357,9 +354,6 @@ import {
   whenWidgetsPresented
 } from "./bundle-semantic-state.js";
 import {
-  move
-} from "./bundle-dom-move.js";
-import {
   PRESSES,
   TEXT_BOX,
   TEXT_FIELD,
@@ -376,6 +370,7 @@ import {
   inputCount,
   keeps,
   keepsHidden,
+  move,
   nextAnimation,
   nextRender,
   onPress,
@@ -1856,7 +1851,6 @@ document.addEventListener(PRESENTATION, () => {
   const round = {};
   for (const moved2 of [...heard]) moved2(round);
 });
-var deferral = outsideReading(projectionDeferred, watchProjectionDeferral);
 var presented2 = outsideReading(
   () => presentations,
   (moved2) => {
@@ -1891,7 +1885,6 @@ function watchProjection(owner, paint, ready = null) {
     if (ready !== null && !ready()) return draw.forget();
     const outcome = collectReads(() => {
       presented2.read();
-      deferral.read();
       return paint();
     });
     read2 = outcome.reads;
@@ -2415,6 +2408,7 @@ var versionCount = () => runtime.versions.length + draftRevisions().size;
 var versionsOffered = () => versionCount() > 0;
 var versionsToWalk = () => versionCount() > 1;
 var behindCurrent = () => runtime.active !== null && runtime.currentRevision !== null && !runtime.showsActive;
+var shownBehind = () => runtime.currentStamp === null ? "An older draft" : runtime.active.version === null ? `v${runtime.currentStamp}` : `v${runtime.currentStamp} of ${runtime.active.version}`;
 var versionsWalkable = false;
 function menuRows(state, notes) {
   const latest = state.versions.at(-1)?.version;
@@ -2466,6 +2460,7 @@ function pickerModel(state) {
         failed: sourceFailed,
         activeLabel: behind ? runtime.active.label : null
       }),
+      shown: behind ? shownBehind() : null,
       news: sourceFailed || behind
     }),
     rows: state === null || runtime.active === null ? Object.freeze([]) : menuRows(state, runtime.browser?.version_notes ?? {}),
@@ -3633,10 +3628,10 @@ function createVersionController({
       }
       if (!holds.size) stopReapplying();
     });
-    let deliveries = 0;
+    let deliveries2 = 0;
     const observer = sizeObserver(() => {
       if (reapply !== observer) return;
-      if (++deliveries > SETTLING) return stopReapplying();
+      if (++deliveries2 > SETTLING) return stopReapplying();
       again();
     });
     reapply = observer;
@@ -3907,6 +3902,9 @@ function createVersionController({
     mount
   };
 }
+
+// runtime/projection/state.js
+var currentProjection = readPart((root) => root.effective.projection);
 
 // runtime/thread/placement.js
 var threadPlace = (t, placedAt) => {
@@ -7320,12 +7318,7 @@ function mountApplication(dependencies) {
     }
     return presentDocument();
   };
-  const projection = createProjectionPresentation({
-    onDeferredReady: () => {
-      invalidateDom2();
-      releasePendingSafely("deferred pending release");
-    }
-  });
+  const projection = createProjectionPresentation();
   const dataProjection = createDataProjection({ invalidateDom: invalidateDom2 });
   let delivery;
   const presentThread = () => threadPresenter.present();
@@ -8177,6 +8170,9 @@ function readingIdentity(reading) {
 }
 async function notifyDataSubscribers() {
   const version = runtime.data.version;
+  deliveries += 1;
+  const round = {};
+  for (const delivered of [...deliveryListeners]) delivered(round);
   const current = [...subscriptions];
   for (const subscription of current) subscription.notify();
   const regions = current.map((subscription) => subscription.region);
@@ -8187,12 +8183,76 @@ async function notifyDataSubscribers() {
   if (version !== null && runtime.data.version === version)
     setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.dataVersion, version);
 }
-function watchData(element, input, callback) {
+var declaredInput = (element, input) => {
   const declaration = registry[element.localName]?.["x-data"]?.[input];
   if (!declaration)
     throw new Error(
       `watchData(${element.localName}, ${input}) input is not declared by this widget`
     );
+  return declaration;
+};
+function dataReader(element, input) {
+  const declaration = declaredInput(element, input);
+  const source = element.getAttribute(declaration.source);
+  const selected = applicationState.select(
+    (root) => source && Object.hasOwn(root.data.sources, source) ? root.data.sources[source] : null
+  );
+  let shown;
+  let taken = -1;
+  const delivered = outsideReading(
+    () => {
+      if (taken !== deliveries) {
+        taken = deliveries;
+        shown = untracked(selected.read);
+      }
+      return shown;
+    },
+    (moved2) => {
+      deliveryListeners.add(moved2);
+      return () => deliveryListeners.delete(moved2);
+    }
+  );
+  stagedReadings.add(selected);
+  let reported = null;
+  return () => {
+    selected.read();
+    const sourceStore = (
+      /** @type {{contract: string, revision?: string} | null} */
+      delivered.read()
+    );
+    const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
+    if (incompatible && reported !== sourceStore) {
+      reported = sourceStore;
+      reportPageError(
+        `data source ${source} carries contract ${sourceStore.contract}; <${element.localName}> input ${input} requires ${declaration.contract}`
+      );
+    }
+    if (incompatible || !source || !sourceStore || !Object.hasOwn(sourceStore, "value"))
+      return null;
+    return structuredClone({
+      source,
+      ...sourceStore,
+      origin: {
+        input,
+        source,
+        contract: declaration.contract,
+        revision: sourceStore.revision
+      }
+    });
+  };
+}
+var deliveries = 0;
+var deliveryListeners = /* @__PURE__ */ new Set();
+var stagedReadings = /* @__PURE__ */ new WeakSet();
+var stagesOnly = (reading) => stagedReadings.has(reading);
+function joinDataDelivery(region) {
+  const subscription = { region, notify() {
+  } };
+  subscriptions.add(subscription);
+  return () => subscriptions.delete(subscription);
+}
+function watchData(element, input, callback) {
+  const declaration = declaredInput(element, input);
   const source = element.getAttribute(declaration.source);
   const paint = readingPaint(element, callback);
   const selectedSource = applicationState.select(
@@ -8342,6 +8402,7 @@ export {
   composerOpen,
   createSelectionComposer,
   watchProjection,
+  currentProjection,
   inPageOrder,
   pageOutline,
   threadSection,
@@ -8388,6 +8449,9 @@ export {
   askEnding,
   acceptData,
   notifyDataSubscribers,
+  dataReader,
+  stagesOnly,
+  joinDataDelivery,
   watchData,
   loadDeferred
 };

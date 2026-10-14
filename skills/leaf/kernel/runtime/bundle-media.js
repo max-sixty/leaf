@@ -189,7 +189,7 @@ var open = async (source, alt, from) => {
   keepsText(caption, description);
   keepsHidden(caption, !description);
   keepsText(viewerZoom, "100%");
-  if (!mediaViewer.open) showNativeLayer(mediaViewer);
+  if (!mediaViewer.open) showNativeLayer(mediaViewer, { source: from });
   focusDestination(viewerClose, "move");
   let url = source;
   if (canvas) {

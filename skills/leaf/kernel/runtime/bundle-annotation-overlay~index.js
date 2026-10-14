@@ -171,9 +171,6 @@ import {
   whenDocumentPresented
 } from "./bundle-semantic-state.js";
 import {
-  move
-} from "./bundle-dom-move.js";
-import {
   TEXT_FIELD,
   afterScript,
   cancelAnimation,
@@ -193,6 +190,7 @@ import {
   layerLanding,
   layoutPx,
   letGo,
+  move,
   nativeLayerHolding,
   nextAnimation,
   nextRender,

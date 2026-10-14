@@ -17,7 +17,6 @@ import {
 import {
   runtime
 } from "./bundle-semantic-state.js";
-import "./bundle-dom-move.js";
 import {
   closeLayer,
   focusDestination,

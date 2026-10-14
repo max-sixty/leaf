@@ -19,10 +19,8 @@ import {
   runtime
 } from "./bundle-semantic-state.js";
 import {
-  move
-} from "./bundle-dom-move.js";
-import {
   keeps,
+  move,
   nextRender,
   onSampleVisibility,
   readSampleVisibility,

@@ -53,15 +53,13 @@ import {
   union
 } from "./bundle-page-paint.js";
 import {
-  move
-} from "./bundle-dom-move.js";
-import {
   TAB_STOP,
   afterScript,
   atLayoutPrecision,
   cancelRender,
   keeps,
   layoutPx,
+  move,
   nextRender,
   renderedParent,
   renderedUnder,

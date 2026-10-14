@@ -1106,7 +1106,6 @@ function createPresentationCoordinator({ reportFailure }) {
     read
   });
 }
-var PRESENTATION_HELD = /* @__PURE__ */ Symbol("presentation held");
 function createPresentationSchedule(bindJob) {
   let queued = [];
   let running = [];
@@ -1178,7 +1177,6 @@ function createPresentationSchedule(bindJob) {
       } catch (error) {
         painted = Promise.reject(error);
       }
-      if (painted === PRESENTATION_HELD) return;
       presentation.resolve(painted);
       await presentation.ready;
     }
@@ -2424,7 +2422,6 @@ export {
   createSemanticApplication,
   describeFailure,
   createPresentationCoordinator,
-  PRESENTATION_HELD,
   createPresentationSchedule,
   LitElement,
   html,

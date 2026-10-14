@@ -15,9 +15,7 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   PAGE_PAINT_ATTRIBUTE,
-  decisionFor,
-  dragHeld,
-  watchDragRelease
+  decisionFor
 } from "./bundle-page-paint.js";
 import {
   PRESENTATION_ORDER,
@@ -31,25 +29,8 @@ import {
   keeps
 } from "./bundle-sample-visibility.js";
 import {
-  PRESENTATION_HELD,
   projectionOrigins
 } from "./bundle-queued-work.js";
-
-// runtime/projection/state.js
-var deferred = false;
-var heard = /* @__PURE__ */ new Set();
-var currentProjection = readPart((root) => root.effective.projection);
-var projectionDeferred = () => deferred;
-function watchProjectionDeferral(moved) {
-  heard.add(moved);
-  return () => heard.delete(moved);
-}
-function setProjectionDeferred(next) {
-  if (deferred === next) return;
-  deferred = next;
-  const round = {};
-  for (const moved of [...heard]) moved(round);
-}
 
 // runtime/projection/presentation.js
 function paintStateOrigins(projection) {
@@ -95,10 +76,9 @@ function paintSettlements(widgets) {
 }
 var answered = readPart((root) => root.authoritative !== null);
 var phase = readPart((root) => root.phase);
-var currentProjection2 = readPart((root) => root.effective.projection);
+var currentProjection = readPart((root) => root.effective.projection);
 var widgetStates = readPart((root) => root.effective.widgets);
-function createProjectionPresentation({ onDeferredReady }) {
-  let stopWatchingDrag = null;
+function createProjectionPresentation() {
   applicationPresenter({
     region: "projection:chrome",
     order: PRESENTATION_ORDER.projection,
@@ -131,29 +111,11 @@ function createProjectionPresentation({ onDeferredReady }) {
   };
   watchPresentation(updateCoverage);
   const retireProjectionCoverage = () => document.body.removeAttribute(PAGE_PAINT_ATTRIBUTE.applied);
-  function watchProjectionDrag() {
-    stopWatchingDrag ??= watchDragRelease(() => {
-      unwatchProjectionDrag();
-      onDeferredReady();
-    });
-  }
-  function unwatchProjectionDrag() {
-    stopWatchingDrag?.();
-    stopWatchingDrag = null;
-  }
   function presentCurrent() {
-    const projection = currentProjection2();
+    const projection = currentProjection();
     if (phase() === "waiting" || !answered()) {
-      setProjectionDeferred(false);
       return projection;
     }
-    if (dragHeld()) {
-      setProjectionDeferred(true);
-      watchProjectionDrag();
-      return projection;
-    }
-    unwatchProjectionDrag();
-    setProjectionDeferred(false);
     for (const entry of projection.classified.values())
       for (const id of entry.restated ?? [])
         keeps(elementById(id), PAGE_PAINT_ATTRIBUTE.restated, "1");
@@ -163,8 +125,7 @@ function createProjectionPresentation({ onDeferredReady }) {
     return projection;
   }
   function paintReading() {
-    const projection = presentCurrent();
-    return projectionDeferred() ? PRESENTATION_HELD : projection;
+    return presentCurrent();
   }
   return {
     retireProjectionCoverage
@@ -201,9 +162,6 @@ function shallowSigs(root) {
 }
 
 export {
-  currentProjection,
-  projectionDeferred,
-  watchProjectionDeferral,
   createProjectionPresentation,
   shallowSigs
 };

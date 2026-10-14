@@ -330,8 +330,17 @@ var scrollLimit = (box) => Math.max(0, box.scrollHeight - box.clientHeight);
 var SCROLL_SLACK = 2;
 var atScrollEnd = (box) => scrollLimit(box) - box.scrollTop <= SCROLL_SLACK;
 var scrollToEnd = (box, behavior = "instant") => box.scrollTo({ top: box.scrollHeight, behavior });
+var aims = /* @__PURE__ */ new WeakMap();
 var moveScrollerBy = (box, top, behavior = "instant") => {
+  const aim = box.scrollTop + top;
   if (Math.abs(top) >= 0.5) box.scrollBy({ top, behavior });
+  if (behavior === "instant" && Math.abs(aim - box.scrollTop) < 1)
+    aims.set(box, { aim, at: box.scrollTop });
+  else aims.delete(box);
+};
+var aimedTop = (box) => {
+  const kept2 = aims.get(box);
+  return kept2?.at === box.scrollTop ? kept2.aim : box.scrollTop;
 };
 var reachable = (box, top) => Math.max(-box.scrollTop, Math.min(scrollLimit(box) - box.scrollTop, top));
 
@@ -956,6 +965,7 @@ export {
   atScrollEnd,
   scrollToEnd,
   moveScrollerBy,
+  aimedTop,
   reachable,
   claimReachStop,
   releaseReachStop,

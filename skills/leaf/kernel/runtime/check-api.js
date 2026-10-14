@@ -9,7 +9,7 @@ import {
 } from "./bundle-auxiliary-surfaces.js";
 import {
   shallowSigs
-} from "./bundle-projection~state.js";
+} from "./bundle-projection~presentation.js";
 import {
   BANNER_CONTROL_RANK,
   PAGE_SCOPE,
@@ -141,7 +141,6 @@ import {
   whenApplicationRegionsPresented,
   whenDocumentPresented
 } from "./bundle-semantic-state.js";
-import "./bundle-dom-move.js";
 import {
   WORKS,
   onStanding,

@@ -382,11 +382,11 @@ function forwardFocus(destination) {
   );
 }
 var placing = null;
-var placed = (cause2, move) => {
+var placed = (cause2, move2) => {
   const was = placing;
   placing ??= cause2;
   try {
-    return move();
+    return move2();
   } finally {
     placing = was;
   }
@@ -1076,6 +1076,19 @@ function handBack(...destinations) {
   });
 }
 
+// runtime/dom-move.js
+function move(parent, node, before) {
+  if (parent.isConnected) watchStandingIn(parent.getRootNode());
+  if (parent.moveBefore && node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true }))
+    parent.moveBefore(node, before);
+  else {
+    const restore = node.nodeType === Node.ELEMENT_NODE ? holdFocus(node) : null;
+    parent.insertBefore(node, before);
+    restore?.();
+  }
+  return node;
+}
+
 export {
   sampleVisibility,
   onSampleVisibility,
@@ -1157,5 +1170,6 @@ export {
   declareRelease,
   release,
   letGo,
-  handBack
+  handBack,
+  move
 };

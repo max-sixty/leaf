@@ -4,7 +4,7 @@ import {
 } from "./bundle-passage-facts.js";
 import {
   PRESS,
-  SHADOW_STARTUP_CSS,
+  SHADOW_LEADING_CSS,
   liveStages,
   paintKeysWithin,
   rowArrows,
@@ -13,9 +13,7 @@ import {
   watchLayers
 } from "./bundle-page-paint.js";
 import {
-  move
-} from "./bundle-dom-move.js";
-import {
+  move,
   watchStandingIn
 } from "./bundle-sample-visibility.js";
 
@@ -363,7 +361,7 @@ function shadowStage(host, nodes) {
   watchDisclosures(root);
   watchLayers(root);
   watchStandingIn(root);
-  const rules = SHADOW_STARTUP_CSS + shadowRules;
+  const rules = SHADOW_LEADING_CSS + shadowRules;
   let style = stageStyles.get(root);
   if (style?.textContent !== rules) {
     style = document.createElement("style");

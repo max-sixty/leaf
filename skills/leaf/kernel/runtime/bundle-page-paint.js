@@ -20,6 +20,8 @@ import {
   isNativeLayer,
   keeps,
   keepsText,
+  move,
+  nativeLayerHolding,
   nativeLayerKind,
   nextRender,
   onStanding,
@@ -1051,8 +1053,12 @@ var uiInside = (el2, within) => {
 };
 var inUi = (node) => uiInside(node?.nodeType === 1 ? node : node?.parentElement, null);
 var shadowRules = "";
-var SHADOW_STARTUP_CSS = `
+var SHADOW_LEADING_CSS = `
 @layer {
+  [hidden]:not([hidden="until-found"]),
+  :host([hidden]:not([hidden="until-found"])) {
+    display: none !important;
+  }
   @media screen {
     @container style(--lf-before-presentation: 1) {
       *,
@@ -1795,6 +1801,11 @@ function pushNativeLayer(node, source = null) {
 function closing(event) {
   if (event.newState !== "closed") return;
   const entry = entries.find((candidate) => candidate.root === event.target);
+  if (entry?.kind === "popover") {
+    for (const layer of nativeLayers().toReversed())
+      if (layer.kind === "modal" && renderedUnder(layer.root, event.target))
+        closeNativeLayer(layer.root);
+  }
   if (entry?.kind === "popover" && entry.fromNowhere && !document.documentElement.inert && canPlaceFocus() && renderedUnder(focused(), event.target))
     releaseFocus();
 }
@@ -1814,12 +1825,27 @@ function showNativeLayer(layer, { source, modal = true } = {}) {
   if (withholdFocus) layer.inert = true;
   try {
     if (layer instanceof HTMLDialogElement) {
-      if (modal) layer.showModal();
-      else layer.show();
+      if (modal) {
+        if (source) seatModal(layer, source);
+        layer.showModal();
+      } else layer.show();
     } else layer.showPopover(source ? { source } : void 0);
   } finally {
     if (withholdFocus) layer.inert = false;
   }
+}
+var modalHomes = /* @__PURE__ */ new WeakMap();
+function seatModal(dialog, source) {
+  let home = modalHomes.get(dialog);
+  if (!home) {
+    modalHomes.set(dialog, home = dialog.parentNode);
+    dialog.addEventListener("close", () => {
+      if (!dialog.open && dialog.parentNode !== home) move(home, dialog);
+    });
+  }
+  const holder = nativeLayerHolding(source);
+  const seat = nativeLayerKind(holder) === "popover" && renderedUnder(holder, home) ? holder : home;
+  if (dialog.parentNode !== seat) move(seat, dialog);
 }
 function closeNativeLayer(layer) {
   const dialog = layer instanceof HTMLDialogElement;
@@ -2706,6 +2732,9 @@ var ICONS = {
   fit: '<path d="M6 3H3v3M10 3h3v3M3 10v3h3M13 10v3h-3"/>',
   fold: '<path d="M3 8h10M5.5 2.75 8 5.25l2.5-2.5M5.5 13.25 8 10.75l2.5 2.5"/>',
   more: '<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>',
+  // What waits on the user, an inbox's tray: the On me mark. The question mark stays
+  // with an ask and with help (`?`).
+  inbox: '<path d="M2.75 9.25h2.9l1 1.6h2.7l1-1.6h2.9M2.75 9.25 4.4 4h7.2l1.65 5.25v2.75H2.75z"/>',
   microphone: '<rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 7.5v.75a4 4 0 0 0 8 0V7.5M8 12.25V14M6 14h4"/><path class="lf-mic-slash" d="M2.5 2.5l11 11"/>',
   next: '<path d="m6 3.5 4.5 4.5L6 12.5"/>',
   pause: '<path d="M5 3v10M11 3v10"/>',
@@ -2781,18 +2810,12 @@ function el(tag, cls, text) {
 }
 var HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 var hands = M(/* @__PURE__ */ new Set());
-var releaseWatchers = /* @__PURE__ */ new Set();
 var dragHeld = () => hands.value.size > 0;
-function watchDragRelease(released) {
-  releaseWatchers.add(released);
-  return () => releaseWatchers.delete(released);
-}
 var dragging = (el2, on) => {
   const held = new Set(hands.peek());
   if (on) held.add(el2);
   else held.delete(el2);
   hands.value = held;
-  if (!held.size) for (const released of [...releaseWatchers]) released();
   paintKeysWithin(el2);
 };
 var LAYOUT = "lf-layout";
@@ -3399,7 +3422,7 @@ export {
   uiInside,
   inUi,
   shadowRules,
-  SHADOW_STARTUP_CSS,
+  SHADOW_LEADING_CSS,
   loadShadowRules,
   mountRepaint,
   repaint,
@@ -3506,7 +3529,6 @@ export {
   el,
   HIDDEN,
   dragHeld,
-  watchDragRelease,
   dragging,
   LAYOUT,
   layoutChanged,

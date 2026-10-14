@@ -4,6 +4,7 @@ import {
   createPresentationCoordinator,
   createPresentationSchedule,
   createSemanticApplication,
+  outsideReading,
   untracked
 } from "./bundle-queued-work.js";
 
@@ -162,6 +163,13 @@ var whenApplicationRegionsPresented = (regions, current) => presentation.whenCur
 var applicationRegionsPresented = (regions) => presentation.currentRegionsPresented(currentApplicationPresentation, regions);
 var projectionRegionsPresented = (widgets) => applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
 var watchPresentation = presentation.subscribe;
+var proofReadings = /* @__PURE__ */ new WeakSet();
+var proofReading = (read) => {
+  const reading = outsideReading(read, (moved) => watchPresentation(() => moved({})));
+  proofReadings.add(reading);
+  return reading;
+};
+var readsProof = (reading) => proofReadings.has(reading);
 var readApplicationPresentation = presentation.read;
 function setPresentationFailureReporter(report) {
   reportPresentationFailure = (reason) => report(reason, "Presentation failed");
@@ -326,8 +334,11 @@ export {
   applicationPresented,
   whenWidgetsPresented,
   whenApplicationRegionsPresented,
+  applicationRegionsPresented,
   projectionRegionsPresented,
   watchPresentation,
+  proofReading,
+  readsProof,
   readApplicationPresentation,
   setPresentationFailureReporter,
   watchSemantic,

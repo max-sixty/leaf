@@ -101,65 +101,59 @@ cases:
       reveal: ''
     assert:
     - &phase_1_quality
-      type: agent-rubric
+      type: javascript
       metric: phase-1-quality
-      value: 'Open every screenshot the output lists for version 1 before judging. Each width''s
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page''s
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region''s remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don''t infer interaction behavior from an unoperated screenshot. Pass
-        only if, at every width, version 1 keeps the request''s substantive information, lets
-        the user find and read the evidence, and provides the decisions or navigation the request
-        needs. '
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 1
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires.
     - &phase_2_quality
-      type: agent-rubric
+      type: javascript
       metric: phase-2-quality
-      value: 'Open every screenshot the output lists for version 2 before judging. Each width''s
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page''s
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region''s remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don''t infer interaction behavior from an unoperated screenshot. Pass
-        only if, at every width, version 2 keeps the request''s substantive information, lets
-        the user find and read the evidence, and provides the decisions or navigation the request
-        needs. '
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 2
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires.
     - &phase_3_quality
-      type: agent-rubric
+      type: javascript
       metric: phase-3-quality
-      value: 'Open every screenshot the output lists for version 3 before judging. Each width''s
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page''s
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region''s remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don''t infer interaction behavior from an unoperated screenshot. Pass
-        only if, at every width, version 3 keeps the request''s substantive information, lets
-        the user find and read the evidence, and provides the decisions or navigation the request
-        needs. '
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 3
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires. The requested comment change appears in the relevant
+          item or passage.
     - &phase_4_quality
-      type: agent-rubric
+      type: javascript
       metric: phase-4-quality
-      value: 'Open every screenshot the output lists for version 4 before judging. Each width''s
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page''s
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region''s remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don''t infer interaction behavior from an unoperated screenshot. Pass
-        only if, at every width, version 4 keeps the request''s substantive information, lets
-        the user find and read the evidence, and provides the decisions or navigation the request
-        needs. '
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 4
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires. The page preserves the final decisions the user
+          supplied.
     - &phase_2_preference
-      type: agent-rubric
+      type: javascript
       metric: phase-2-preference
-      value: Open every screenshot the output lists for version 2 before judging. Each width's
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page's
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region's remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don't infer interaction behavior from an unoperated screenshot. Pass
-        only if version 2 follows the lasting width preference the output quotes.
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 2
+        required_widths: [narrow, short]
+        rubric: >-
+          At both 900px window heights, the page follows the lasting preference quoted in the
+          output: summary, status, contents or queue remains beside the main content.
     - &comment_answered
-      type: agent-rubric
+      type: llm-rubric
       metric: comment-answered
       value: Pass only if the author's answer to the user's comment, which the output quotes,
         tells the user that the change the comment asked for is made.
@@ -365,36 +359,34 @@ cases:
       decision: null
       reveal: ''
     assert:
-    - type: agent-rubric
+    -
+      type: javascript
       metric: phase-1-quality
-      value: Open every screenshot the output lists for version 1 before judging. Each width's
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page's
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region's remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don't infer interaction behavior from an unoperated screenshot. Pass
-        only if, at every width, version 1 keeps the request's substantive information, lets
-        the user find and read the evidence, and provides the decisions or navigation the request
-        needs. The completed rollout's forty entries must remain readable in the document's
-        scroll, rather than showing only one screen of a separate listing. At both 900px window
-        heights, all six checks and their failing result stay accessible beside the log as it
-        scrolls. Page navigation and any supporting sidebar content remain reachable; a sticky
-        box must not hold them below the window. On a phone, the regions stack without covering
-        the log or hiding its entries.
-    - type: agent-rubric
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 1
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires. The completed rollout's forty entries must remain
+          readable in the document's scroll, rather than showing only one screen of a separate
+          listing. At both 900px window heights, all six checks and their failing result stay
+          accessible beside the log as it scrolls. Page navigation and any supporting sidebar
+          content remain reachable; a sticky box must not hold them below the window. On a
+          phone, the regions stack without covering the log or hiding its entries.
+    -
+      type: javascript
       metric: phase-2-quality
-      value: Open every screenshot the output lists for version 2 before judging. Each width's
-        screenshots run top to bottom with overlap. Fixed viewer controls are outside the page's
-        content. A labeled control whose content is out of view, such as a collapsed section,
-        an unselected item or a scroll region's remainder, counts as reachable but costs the
-        user a step; content cut off with no visible way to reach it does not count. Judge only
-        what a user sees; don't infer interaction behavior from an unoperated screenshot. Pass
-        only if, at every width, version 2 keeps the request's substantive information, lets
-        the user find and read the evidence, and provides the decisions or navigation the request
-        needs. The completed rollout's forty entries must remain readable in the document's
-        scroll, rather than showing only one screen of a separate listing. At both 900px window
-        heights, all six checks and their failing result stay accessible beside the log as it
-        scrolls. Page navigation and any supporting sidebar content remain reachable; a sticky
-        box must not hold them below the window. On a phone, the regions stack without covering
-        the log or hiding its entries.
+      value: file://../dev/leaf_dev/authoring_assertion.mjs
+      config:
+        phase: 2
+        rubric: >-
+          At every declared width, the page preserves the substantive information needed for the
+          user's task, makes its evidence readable and reachable, and provides the decisions or
+          navigation the request requires. The completed rollout's forty entries must remain
+          readable in the document's scroll, rather than showing only one screen of a separate
+          listing. At both 900px window heights, all six checks and their failing result stay
+          accessible beside the log as it scrolls. Page navigation and any supporting sidebar
+          content remain reachable; a sticky box must not hold them below the window. On a
+          phone, the regions stack without covering the log or hiding its entries.
     - *phase_2_preference

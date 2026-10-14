@@ -149,7 +149,14 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
         if notice_box is None:
             notice_box = news.bounding_box()
         else:
+            # The notice holds the room of the words it first showed, so longer news
+            # is cut there rather than widening it; its title keeps the words whole.
             assert news.bounding_box() == notice_box
+            expect(news).to_have_attribute("title", "2 new replies")
+            assert news.evaluate(
+                "n => { const w = n.querySelector('span');"
+                " return w.scrollWidth > w.clientWidth; }"
+            )
 
     resized(page, 360, 900)
     rendered(page)
@@ -1399,16 +1406,15 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     expect(topic).to_have_text("Generating title")
     paint = """element => {
       const style = getComputedStyle(element);
-      return [style.animationName, style.backgroundClip, style.color];
+      return [style.animationName, style.backgroundClip, style.webkitTextFillColor];
     }"""
     sweep, clip, fill = topic.evaluate(paint)
-    assert sweep.endswith("-sheen") and clip == "text"
+    assert (sweep, clip, fill) == ("lf-sheen", "text", "rgba(0, 0, 0, 0)")
     assert topic.evaluate("el => getComputedStyle(el).backgroundImage") != "none"
     # Reduced motion paints ordinary text instead of an animated clipped gradient.
     page.emulate_media(reduced_motion="reduce")
-    sweep, clip, fill = topic.evaluate(paint)
-    assert sweep == "none" and clip != "text"
-    assert fill != "rgba(0, 0, 0, 0)"
+    expect(topic).not_to_have_css("background-clip", "text")
+    assert topic.evaluate(paint)[2] != "rgba(0, 0, 0, 0)"
     page.emulate_media(reduced_motion="no-preference")
     focus_panel_thread(thread)
     editor = thread.locator("leaf-text")

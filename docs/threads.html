@@ -403,19 +403,19 @@
         <h2>Widgets in messages</h2>
         <p id="message-widgets-markup">
           An agent's reply can carry a small widget, typically a question with options
-          to choose from (<code>--markup</code> on <code>leaf response reply</code>).
-          The markup is stored in the log with the reply, so the thread shows the same
-          markup in every version of the page. Leaf validates the markup when it is
-          posted, and a later <code>leaf page init</code> refuses a vocabulary that
-          could no longer render it.
+          (<code>--markup</code> on <code>leaf response reply</code>). Leaf validates
+          the markup when it is posted and stores it in the log with the reply, so the
+          thread shows the same widget in every version of the page. A later
+          <code>leaf page init</code> refuses a vocabulary that could no longer render
+          it.
         </p>
         <p id="message-widgets-state">
-          A widget on the page gets its state from the version being viewed: the
-          authored markup of that version plus the actions taken up to it, less any that
-          a stamped version up to it marked <code>restated</code>. A widget in a message
-          belongs to no version. Its state is its frozen markup plus every action taken
-          on it in the log, whichever version is open, and no page revision can retract
-          one. The choice that answers the question hands the thread back to the agent.
+          A widget on the page takes its state from the version being viewed: that
+          version's markup plus the actions taken up to it, minus any a stamped version
+          marked <code>restated</code>. A widget in a message belongs to no version. Its
+          state is its markup plus every action taken on it, whichever version is open,
+          and no revision can retract one. Choosing the answer to its question hands the
+          thread back to the agent.
         </p>
       </section>
 
@@ -460,31 +460,31 @@
       <section id="ending">
         <h2>How a thread ends</h2>
         <p id="resolving-user">
-          The user ordinarily closes a thread with <strong>Resolve thread</strong>, once
-          they have read the answer. A resolved thread's marker and ink leave the page,
-          and it moves from Threads' default <strong>Open</strong> list to
+          The user usually closes a thread with <strong>Resolve thread</strong> once
+          they have read the answer. Its marker and ink leave the page, and it moves
+          from the Threads panel's <strong>Open</strong> list to
           <strong>Resolved</strong>. <strong>Reopen</strong> brings it back, as does
-          <kbd>z</kbd> when the resolve was the user's latest action.
+          <kbd>z</kbd> when resolving was the user's latest action.
         </p>
         <p id="resolving-agent">
-          The agent resolves a thread only when the user asks it to, or when no review
-          could change the outcome. A thread the agent closed reads “Resolved by” and
-          the agent's name. A new message from either side reopens a resolved thread; a
-          reaction, a progress message, or a failure notice does not.
+          The agent resolves a thread only when the user asks, or when no review could
+          change the outcome; the thread then reads “Resolved by” and the agent's name.
+          A new message from either side reopens a resolved thread. A reaction, a
+          progress message or a failure notice does not.
         </p>
         <p id="withdrawing">
-          The one message the user can take back is a reaction. Its mark's remove
+          A reaction is the only message the user can take back. Its mark's remove
           control, or <kbd>z</kbd> while it is the user's latest action, withdraws it:
-          the log gains an <code>undo</code> naming the reaction, the reaction itself
-          stays in the log, and its mark leaves the page. Withdrawn means undone, and a
-          thread a reaction started goes with it. A reaction can be withdrawn only while
-          nothing answers it, another reaction included, and its thread is open. A
-          message with words cannot be withdrawn.
+          the log gains an <code>undo</code> naming it, and the mark and any thread it
+          started leave the page. This works only while the thread is open and nothing,
+          not even another reaction, has answered it. A message with words cannot be
+          withdrawn.
         </p>
         <p id="unsent-words">
-          Unsent words outlast the box they were written in. Where a version removes the
-          content an edit was for, Resume writing (<kbd>g</kbd> <kbd>i</kbd>) opens the
-          saved words in Comment on the page, unsent, after any words already there.
+          Words typed but not sent are kept after their box closes. If a new version
+          removes the content they were about, Resume writing (<kbd>g</kbd>
+          <kbd>i</kbd>) opens them, unsent, in Comment on the page, after any words
+          already there.
         </p>
       </section>
 

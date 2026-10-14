@@ -288,6 +288,43 @@
     background: var(--accent);
     box-shadow: 0 0 0 1.5px var(--lf-fp-surface);
   }
+  .lf-fp-row-notice {
+    flex: none;
+    display: flex;
+    align-items: center;
+    min-height: var(--lf-fp-line);
+  }
+  .lf-floating-panel[data-typing] .lf-fp-row-notice {
+    display: none;
+  }
+  .lf-fp-row-notice-press {
+    padding: 0;
+  }
+  :where(.lf-floating-panel) .lf-fp-row-notice-press:hover {
+    background: none;
+  }
+  .lf-fp-row-notice-face {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 26px;
+    padding: 0 9px;
+    border-radius: 7px;
+    background: var(--warn-tint);
+    color: var(--ink);
+    font-size: 12px;
+  }
+  .lf-fp-row-notice-press:hover .lf-fp-row-notice-face {
+    background: color-mix(in srgb, var(--warn-ink) 16%, var(--warn-tint));
+  }
+  .lf-fp-row-notice-sep {
+    color: var(--lf-fp-quiet);
+  }
+  .lf-fp-row-notice-act {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    text-decoration-color: color-mix(in srgb, currentColor 45%, transparent);
+  }
   .lf-fp-step {
     color: var(--ink);
     box-shadow: inset 0 0 0 1px var(--lf-fp-ring);
@@ -327,6 +364,7 @@
     right: calc(20px + var(--lf-safe-right));
     margin: 0;
     .lf-fp-field,
+    .lf-fp-row-notice,
     .lf-fp-quick,
     .lf-fp-context,
     .lf-fp-opened {

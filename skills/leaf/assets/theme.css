@@ -715,7 +715,7 @@ ol.steps {
 ol.steps > li {
   counter-increment: step;
   position: relative;
-  padding-inline-start: 34px;
+  padding-inline-start: 2em;
   margin: 10px 0;
   --lf-step-line: 1lh;
 }
@@ -723,12 +723,12 @@ ol.steps > li::before {
   content: counter(step);
   position: absolute;
   inset-inline-start: 0;
-  top: calc((var(--lf-step-line) - 21px) / 2);
-  width: 21px;
+  top: calc((var(--lf-step-line) - 1lh) / 2);
+  width: 1lh;
   border-radius: 50%;
   background: var(--accent);
   color: var(--card);
-  font: 600 12px/21px var(--sans);
+  font: 600 round(0.7em, 1px)/round(1.75em, 1px) var(--sans);
   text-align: center;
 }
 svg.drawing {

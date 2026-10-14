@@ -1242,19 +1242,21 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
    pass that read the text would be guessing at the difference. */
 th.num, td.num { text-align: right; }
 ol.steps { list-style: none; counter-reset: step; padding-inline-start: 0; }
-/* The step's number sits in a disc centred on the step's first line. The step's line
-   crosses to the number as a length (--lf-step-line), since `lh` on the number would be
-   the number's own line, and the number's line is the disc's height, which centres it.
-   The 12px is off the ladder: the size is set against the disc, not the prose. The sans
-   face because a serif fallback such as Georgia draws old-style figures, and a 3 hangs
-   below a 2. */
+/* A step's number, in a disc sized from the step's own text: the number at 0.7 of it,
+   the disc one of the number's lines across (`1lh`), which centres the number in it.
+   Both round to whole pixels, since a fractional line draws the number up to a pixel
+   off its centre. The disc centres on the step's first line, which reaches the number as a length
+   (--lf-step-line), since `lh` written on the number is the number's own line. The
+   sans face because a serif fallback such as Georgia draws old-style figures, and a 3
+   hangs below a 2. */
 @property --lf-step-line { syntax: "<length>"; inherits: true; initial-value: 0px; }
-ol.steps > li { counter-increment: step; position: relative; padding-inline-start: 34px;
+ol.steps > li { counter-increment: step; position: relative; padding-inline-start: 2em;
                 margin: 10px 0; --lf-step-line: 1lh; }
 ol.steps > li::before { content: counter(step); position: absolute; inset-inline-start: 0;
-                        top: calc((var(--lf-step-line) - 21px) / 2); width: 21px;
+                        top: calc((var(--lf-step-line) - 1lh) / 2); width: 1lh;
                         border-radius: 50%; background: var(--accent); color: var(--card);
-                        font: 600 12px/21px var(--sans); text-align: center; }
+                        font: 600 round(0.7em, 1px)/round(1.75em, 1px) var(--sans);
+                        text-align: center; }
 
 /* A schematic drawing the page makes itself: every mark takes a theme token, so the
    figure follows the palette as the prose does, which an SVG loaded as an image cannot.

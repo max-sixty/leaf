@@ -2447,7 +2447,7 @@ function pickerModel(state) {
   return Object.freeze({
     picker: Object.freeze({
       offered,
-      token: `Showing ${currentVersionToken()}`,
+      token: currentVersionToken(),
       compared: diffOn || diffPendingBase !== null,
       news: behind,
       keyTitle: offered ? diffPendingBase !== null ? `${currentLabel}: loading a comparison with v${diffPendingBase}${newer}` : diffOn ? `${currentLabel}: showing what changed since v${diffBase} \u2014 pick a version, or press Compare again to stop${newer}` : `${currentLabel}: versions; read one, or mark what changed since it${newer}` : currentLabel,
@@ -6319,7 +6319,7 @@ function registerMirrorConsumer(owner, render, { commands }) {
   registrations.set(owner, handle);
   return handle;
 }
-function createPrimaryReader(owner, render, commands, update) {
+function createPrimaryReader(owner, render, commands, update, { answersAtOnce = false } = {}) {
   let active = true;
   let generation = 0;
   let pending = null;
@@ -6336,7 +6336,9 @@ function createPrimaryReader(owner, render, commands, update) {
       if (whole) return whole;
       return {
         node: drawingOf(parts) ?? parts.at(-1).node,
-        newsMoves: ({ news, changed, folds }) => parts.some(
+        // A presentation that makes room for the agent's answer to the user's last turn
+        // itself (`answersAtOnce`) is handed it whatever it moves.
+        newsMoves: ({ news, changed, folds, answers }) => !(answersAtOnce && answers) && parts.some(
           (part) => (news.appended || news.settled || changed.has(part.messageKey) || folds.messages.includes(part.messageKey) || folds.summaries.length) && growthIsSeen(part.node)
         )
       };
@@ -7609,12 +7611,13 @@ function mountApplication(dependencies) {
     return placePageThreads(owner, render, threadSurfaceCommands);
   };
   const mountThreadViews2 = (owner, render) => registerMirrorConsumer(owner, render, { commands: inlineView });
-  const attachPresentation = (owner, { render, reveal: reveal3 }) => {
+  const attachPresentation = (owner, { render, reveal: reveal3, answersAtOnce = false }) => {
     const reader = createPrimaryReader(
       owner,
       render,
       inlineView,
-      () => threadPresenter.present()
+      () => threadPresenter.present(),
+      { answersAtOnce }
     );
     const detachDestination = threadDestinations.register(owner, reveal3, reader);
     let detachPresentation;

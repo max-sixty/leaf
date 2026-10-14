@@ -481,10 +481,10 @@ def put_down(page) -> dict | None:
     return record
 
 
-def finished_in_view(page_dir: Path, end: dict) -> str | None:
-    """The element a `done` end finished, where it still stands among the open work
-    (`work.open_ids`) and nothing on it or inside it, a thread anchored there
-    included, is on either list; else None."""
+def finished_in_view(page_dir: Path, end: dict) -> Finding | None:
+    """Advice naming the element a `done` end finished, where it still stands among
+    the open work (`work.open_ids`) and nothing on it or inside it, a thread anchored
+    there included, is on either list; else None."""
     from .event_log import read_events
     from .served_state.context import read_page
     from .served_state.page import read_served_page
@@ -525,7 +525,9 @@ def finished_in_view(page_dir: Path, end: dict) -> str | None:
         for item in view["queues"][side]
     ):
         return None
-    return subject["id"]
+    return Finding(
+        "finished-in-view", values={"element": subject["id"]}, severity="advice"
+    )
 
 
 def cmd_end(page_dir: Path, todo: str, outcome: str, detail: str | None) -> dict:

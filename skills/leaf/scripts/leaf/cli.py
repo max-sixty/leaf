@@ -1279,12 +1279,5 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     _print_records(end)
     # The record leads, so a reader parsing the first line still gets it.
     sys.stdout.flush()
-    if element := finished_in_view(page_dir, end):
-        click.echo(
-            f"Your work on `{element}` is done, and it still stands among the open "
-            "work. Unless it is the page's current content, move it, cut to its "
-            "outcome, to the finished work collapsed after the open work, and let what "
-            'comes next take its place (authoring-revisions.md, "Keep the current page '
-            'current").',
-            err=True,
-        )
+    if advice := finished_in_view(page_dir, end):
+        click.echo(str(advice), err=True)

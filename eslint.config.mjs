@@ -32,6 +32,7 @@ const browserGlobals = Object.fromEntries(
     "CSS",
     "CSSImportRule",
     "CSSKeyframesRule",
+    "CSSLayerBlockRule",
     "CSSScopeRule",
     "CSSStyleRule",
     "CSSStyleSheet",

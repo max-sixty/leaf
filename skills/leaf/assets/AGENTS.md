@@ -321,15 +321,16 @@ value. The corpus holds each rule, in
 
 Stylesheets apply in cascade layers, in the order `layer.py`'s `CASCADE_LAYERS`
 declares and `../references/packages.md`, "Styles and composition", describes;
-`state.css` takes the top tier so semantic retirement wins over package defaults and
-Layouts. `theme.css` holds page tokens, element styles, idioms, and CSS-only widgets,
-and each package theme follows it; shared shadow rules compose into `/shadow.css`,
-whose shared native `.lf-ui-face` defaults come before component rules. Custom-element
-hosts own their appearance; `.lf-ui` marks apparatus without imposing a face. Each
-package's rules reach only its own widgets (`layer.py`, `widget_confinement`), so a
-rule several packages' widgets need is the kernel's. The page's rules skip the chrome
-and every `.lf-ui` control unless they name a widget or the layer's vocabulary
-(`runtime/page-sheets.js`). The chrome's root and native `.lf-ui-face` defaults
+`state.css` takes the top tier so semantic retirement wins over package defaults,
+Layouts and theme packages, whose `lf-theme` tier sits above the Layouts. `theme.css`
+holds page tokens, element styles, idioms, and CSS-only widgets, and each package theme
+follows it; shared shadow rules compose into `/shadow.css`, whose shared native
+`.lf-ui-face` defaults come before component rules. Custom-element hosts own their
+appearance; `.lf-ui` marks apparatus without imposing a face. Each widget package's
+rules reach only its own widgets (`layer.py`, `widget_confinement`), so a rule several
+packages' widgets need is the kernel's. The page's rules, and a theme package's, skip
+the chrome and every `.lf-ui` control unless they name a widget or the layer's
+vocabulary (`runtime/page-sheets.js`). The chrome's root and native `.lf-ui-face` defaults
 state the face they would otherwise inherit from the page; imported components
 receive theme variables, preserving their own state presentation.
 `runtime/stylesheets.js` owns chrome and mark precedence, including the overridable

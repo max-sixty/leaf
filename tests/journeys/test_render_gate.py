@@ -888,9 +888,10 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
     used to stop short and read as a table cut off. An explicit allocation on the
     table's figure also sizes the painted rows, not just their scrollport. The same
     table with no allocation keeps to what its columns hold, and so does one granted the
-    room itself, which is a limit rather than a size: its rows stand where the prose
-    starts. A table too wide for the panel still scrolls inside it.
-    Code in a cell is set relative to the cell's text rather than at the chip size."""
+    room itself, which is a limit rather than a size, and one in an Ask, which is
+    allocated only the column: its rows stand where the prose starts. A table too wide
+    for the panel still scrolls inside it. Code in a cell is set relative to the cell's
+    text rather than at the chip size."""
     page = open_page(browser, serve(FRAMED_TABLES_PAGE))
     measured = page.evaluate(
         """() => {
@@ -903,6 +904,7 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
         const wide = document.querySelector('#wide-framed');
         const cell = framed.querySelector('td'), code = cell.querySelector('code');
         const own = document.querySelector('#allocated');
+        const asked = document.querySelector('#asked-table');
         const allocated = ['figure-table'].map(id => {
             const table = document.getElementById(id);
             return Math.round(inner(table) - rowEnd(table));
@@ -914,6 +916,8 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
             ownShort: Math.round(inner(own) - rowEnd(own)),
             ownStart: Math.round(own.querySelector('tr').getBoundingClientRect().left
                 - bare.querySelector('tr').getBoundingClientRect().left),
+            askedShort: Math.round(inner(asked.parentElement) - rowEnd(asked)),
+            askedScrolls: asked.scrollWidth - asked.clientWidth,
             wideScrolls: wide.scrollWidth - wide.clientWidth,
             wideInside: Math.round(inner(wide.parentElement) - wide.getBoundingClientRect().right),
             codeRatio: parseFloat(getComputedStyle(code).fontSize)
@@ -925,6 +929,7 @@ def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its
     assert all(abs(short) <= 1 for short in measured["allocated"]), measured
     assert measured["bareShort"] > 100, "the bare table fills its column"
     assert measured["ownShort"] > 100 and measured["ownStart"] == 0, measured
+    assert measured["askedShort"] > 100 and measured["askedScrolls"] == 0, measured
     assert measured["wideScrolls"] > 0 and measured["wideInside"] >= 0, measured
     assert measured["codeRatio"] == pytest.approx(0.9, abs=0.01), measured
     assert root_overflow(page) == 0

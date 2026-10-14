@@ -3565,6 +3565,14 @@ FRAMED_TABLES_PAGE = leaf_page(
 <figure data-width="available">
 <table id="figure-table"><tr><th>Session</th><td>9:00</td></tr></table>
 </figure>
+<lf-ask id="asked">
+<h2>Which session moves?</h2>
+<table id="asked-table"><tr><th>Session</th><td>9:00</td></tr></table>
+<lf-options id="asked-choice" choose>
+<lf-option id="asked-early"><strong>Early</strong> Move it to 8:00.</lf-option>
+<lf-option id="asked-late"><strong>Late</strong> Move it to 10:00.</lf-option>
+</lf-options>
+</lf-ask>
 <section class="panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>

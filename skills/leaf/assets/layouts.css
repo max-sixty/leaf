@@ -370,7 +370,9 @@
      * arranged itself (`data-lf-arranged`), as in a grid track, stays the contained table
      * reading.css makes it, its columns scrolling in its box. Nor is the table the
      * container its caption reads its width from (reading.css), so the caption is held to
-     * the span, which is the box's width wherever the columns scroll. Only where the room
+     * the span, which is the box's width wherever the columns scroll; it says `normal`
+     * before `scroll-state` because Firefox and WebKit drop the second, and a size
+     * container would zero its `max-content`. Only where the room
      * is the page's: in a frame or inside another breakout, the table fills or starts at
      * its holder as every table there does. Margins, percentages and translation place it
      * the same in every engine. Two layouts this replaced did not: aligning the anonymous
@@ -382,6 +384,7 @@
       main.layout-column table:is([data-lf-space="wide"], [data-lf-space="available"]):not(
         :is([data-lf-space="wide"], [data-lf-space="available"]) table, [data-lf-arranged]) {
         contain: none;
+        container-type: normal;
         container-type: scroll-state;
         width: max-content;
         min-width: 100%;

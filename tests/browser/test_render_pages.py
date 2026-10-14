@@ -1695,6 +1695,43 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
     assert root_overflow(page) == 0
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, engine):
+    """A table whose cells hold sentences wraps them inside the box it stands in, and
+    scrolls nothing: in an Ask, in a panel, which it fills, and in a figure granted the
+    page's room. Firefox and WebKit have no scroll-state container and dropped the
+    table's `container-type: inline-size scroll-state` whole, so the width its fill
+    reads (100cqi) was the window's: an Ask's two-column table laid its rows out 1728px
+    wide in a 720px column and cut its second column off."""
+    sentence = "When a new copy is installed, the update copies each commit and records it. "
+    row = f"<tr><td>{sentence * 2}</td><td>{sentence}</td></tr>"
+    table = '<table id="{id}"><thead><tr><th>Decides</th><th>Can do</th></tr></thead>'
+    table += f"<tbody>{row * 2}</tbody></table>"
+    body = (
+        "<h1>Tables of prose</h1>"
+        '<lf-ask id="asked"><h2>Which copy should a session read?</h2>'
+        + table.format(id="in-ask")
+        + '<lf-options id="asked-choice" choose>'
+        '<lf-option id="asked-reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
+        '<lf-option id="asked-leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
+        "</lf-options></lf-ask>"
+        '<section class="panel" id="panel"><h2>Framed</h2>'
+        + table.format(id="in-panel")
+        + "</section>"
+        '<figure data-width="available">' + table.format(id="in-figure") + "</figure>"
+    )
+    page = open_page(request.getfixturevalue(engine), serve(leaf_page("Prose", body)))
+    resized(page, 1440, 900)
+    at = page.evaluate("""() => Object.fromEntries(['in-ask', 'in-panel', 'in-figure']
+      .map(id => { const t = document.getElementById(id), box = t.getBoundingClientRect();
+        const end = t.querySelector('tbody tr').getBoundingClientRect().right;
+        return [id, {scrolls: t.scrollWidth - t.clientWidth,
+                     past: Math.round(end - box.right)}]; }))""")
+    for held in at.values():
+        assert held["scrolls"] <= 1 and held["past"] <= 1, at
+    assert root_overflow(page) == 0
+
+
 INDENTED_CELLS = "".join(f"<td>measured value {i}</td>" for i in range(8))
 
 

@@ -125,25 +125,38 @@
 /* A table scrolls its own columns, so, like `pre`, its rows never size what holds it.
  * Scrolling sideways makes it the scroller for anything sticking inside it, which
  * sticks at the table's own top (`--lf-top`), and, like `pre`, leaves room under its
- * last row for an overlay scrollbar (shadow.css, beside `pre`). */
-:where(:root, .lf-thread-transcript) table { display: block; overflow-x: auto; container-type: inline-size scroll-state; --lf-top: 0px;
+ * last row for an overlay scrollbar (shadow.css, beside `pre`).
+ *
+ * It is the inline-size container its fill and its caption measure the scrollport by
+ * (100cqi, below) in every engine, and a scroll-state container only where the engine
+ * has one. Firefox and WebKit have none and drop a `container-type` that names one
+ * whole, so the table stopped being a size container there, its 100cqi measured the
+ * page, and a two-column table in a 720px Ask laid its rows out 1728px wide in a
+ * 1728px window and cut its second column off. So the size container is declared on
+ * its own first, which those engines keep. */
+:where(:root, .lf-thread-transcript) table { display: block; overflow-x: auto;
+        container-type: inline-size; container-type: inline-size scroll-state; --lf-top: 0px;
         border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
-/* A table's painted grid fills a drawn frame, or the allocation of a box holding it,
-   whose start edge the table shares with that box's other blocks. Otherwise the grid
-   keeps its columns' natural width; a frame that only trims draws no edge to fill
-   (`--lf-block-frame: trim`).
+/* A table's painted grid fills a drawn frame, or the room a box holding it was granted
+   beyond the column (`wide` or `available`), whose start edge the table shares with
+   that box's other blocks. Otherwise the grid keeps its columns' natural width. A box
+   allocated the column, such as an Ask, gives no more room than the column does and
+   draws no edge, so a table in one is set as the same table in a section is; spread
+   over the measure, an Ask's two-column table stood apart from every other table on
+   its page. A frame that only trims draws no edge to fill (`--lf-block-frame: trim`).
 
    The grid is an anonymous box inside the scrolling block, so CSS cannot size it
    directly. An empty caption as wide as the scrollport (100cqi) supplies its minimum;
    automatic table layout distributes that width among the columns. Wider content
    still scrolls. The claim stays on each table, so a nested table asks its own frame. */
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-:where(:root, .lf-thread-transcript) table:where([data-lf-space], [data-lf-space] *) { --lf-fills-frame: 1; }
+:where(:root, .lf-thread-transcript) table:where(:is([data-lf-space="wide"], [data-lf-space="available"]) *) {
+  --lf-fills-frame: 1; }
 /* A table granted room of its own (`data-width`) fills only a drawn frame: elsewhere it
    keeps its columns' natural width within that room rather than spreading the room
    between them, and layouts.css sizes its box to them. */
-:where(:root, .lf-thread-transcript) table:where([data-lf-space]:not([data-lf-space="column"])) {
+:where(:root, .lf-thread-transcript) table:where([data-lf-space="wide"], [data-lf-space="available"]) {
   --lf-fills-frame: 0; }
 @container style(--lf-block-frame: 1) {
   :where(:root, .lf-thread-transcript) table { --lf-fills-frame: 1; }

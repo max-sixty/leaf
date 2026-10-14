@@ -15,8 +15,9 @@ probe results leave the tracked tree unchanged.
 ## Where tooling goes
 
 When agents keep writing the same throwaway script, the job becomes a `leaf-dev`
-command: a module here that owns its mechanism, registered in `cli.py`. Recurring
-tooling that CI, a hook or an alias runs is a command here too, so the repository
+command: a module in `leaf_dev/commands/` that owns its mechanism. The CLI discovers
+commands there; module and function names agree, with underscores in Python and
+dashes on the CLI. Recurring tooling that CI, a hook or an alias runs is a command here too, so the repository
 has no directory of loose scripts. A mechanism two tools need, such as building an
 arm or serving a page, lives in one module here and the others import it. Code
 reaches a module by importing it from this package, never through `sys.path`,
@@ -86,7 +87,7 @@ reaches a module by importing it from this package, never through `sys.path`,
   time. Its arms, pages and state stay in its own run directory under
   `.tmp/bench-check/`.
 - `leaf-dev response-times PAGE...` queries retained page logs for time from a
-  user message version to exact-linked progress or an answer. `response_times.py`
+  user message version to exact-linked progress or an answer. `commands/response_times.py`
   owns its population, missing-evidence handling, and clock boundaries;
   `--json` keeps individual inputs and milestone evidence for further analysis.
 - `leaf-dev eval [CASE]... --harness claude-code|codex|both` runs the eval catalog
@@ -161,7 +162,7 @@ its steps (`journey_claude_code.py`, `journey_codex.py`, `journey_pi.py`).
 
 Each run prints one JSON sample and appends it to
 `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on the machine that ran it; `leaf-dev
-journey-chart` prints an `lf-chart` of those samples, for the latest version each
+journey-chart` (`journey_chart.py`) prints an `lf-chart` of those samples, for the latest version each
 target ran at each user end, to put on a page. `publish-site` runs the journey
 against each release. The harness targets spend the host's logins, so CI does not
 run them.

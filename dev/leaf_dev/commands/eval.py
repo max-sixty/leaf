@@ -476,7 +476,6 @@ def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
 
 
 @click.command(
-    "eval",
     context_settings={"ignore_unknown_options": True},
 )
 @click.argument("args", metavar="[CASE]... [PROMPTFOO_OPTION]...", nargs=-1)

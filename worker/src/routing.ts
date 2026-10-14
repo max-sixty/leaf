@@ -7,7 +7,7 @@ export const HTTP_ACTIVE_COOKIE_PREFIX = "leaf-active-local";
 
 const SESSION_ID = /^[0-9a-f]{32}$/;
 
-// The manifest `leaf-dev site` writes beside the assets (`dev/leaf_dev/site.py`), which
+// The manifest `leaf-dev site` writes beside the assets (`dev/leaf_dev/commands/site.py`), which
 // ships in the same release as this Worker. The build constructs each field: the asset
 // path from the release, the state from the page's current revision, the image from a
 // media file `check_links` proves resolves, and the title and description from the

@@ -184,7 +184,7 @@ def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
     its working tree. Developer pages use the same compiled kernel as the website.
     """
-    from leaf_dev.distribution import cached_installation
+    from leaf_dev.commands.distribution import cached_installation
 
     prepare_page(
         page,

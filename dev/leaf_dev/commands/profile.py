@@ -4,7 +4,7 @@
 
 `leaf-dev bench-latency` says how long a transition takes; this says where the time
 goes. It drives TRANSITION on this checkout's page exactly as the benchmark does
-(`leaf_dev.bench_latency.served`), RUNS times, each under a V8 CPU profile and a
+(`leaf_dev.commands.bench_latency.served`), RUNS times, each under a V8 CPU profile and a
 Chrome trace with style invalidation tracking, and reads the window from the last
 keydown (or the recording's start, for an agent write) to the last frame the
 benchmark's probe marks as painting one of the transition's goals: for a gesture,
@@ -30,8 +30,8 @@ import click
 
 from leaf_dev import ROOT
 from leaf_dev.arms import run_directory
-from leaf_dev.bench_latency import SOURCES, TRANSITIONS, served
 from leaf_dev.browser import headless_shell
+from leaf_dev.commands.bench_latency import SOURCES, TRANSITIONS, served
 
 OUT = ROOT / ".tmp" / "profile"
 RUNS = 3

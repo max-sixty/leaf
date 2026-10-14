@@ -12,7 +12,7 @@ from leaf import interaction_log as interaction_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
-from leaf_dev.response_times import page_timings
+from leaf_dev.commands.response_times import page_timings
 from playwright.sync_api import expect
 from render_cases_interaction import (
     LIVE_READING,

@@ -16,7 +16,7 @@ derived tree contains the immutable live shell Cloudflare serves before the cano
 server answers its API requests.
 
 Every `leaf` command a build runs comes from the Leaf its caller hands it. `leaf-dev
-site` hands it an installation prepared from this checkout (`leaf_dev.distribution`)
+site` hands it an installation prepared from this checkout (`leaf_dev.commands.distribution`)
 beside its output, so each page vendors the compiled kernel.
 The website's container image installs the same tree, so a revision a hosted session
 writes captures the layer the published revisions were built from. The suite and
@@ -77,7 +77,7 @@ from leaf_website import (
 
 from leaf_dev import LEAF_COMMAND, ROOT, docs
 from leaf_dev.arms import environment
-from leaf_dev.distribution import prepare
+from leaf_dev.commands.distribution import prepare
 from leaf_dev.docs import PRODUCT_ROUTES, catalog_preview, media_url
 from leaf_dev.example_data import catalog_sources, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
@@ -95,7 +95,7 @@ OUT = ROOT / ".tmp" / "site"
 BUNDLE_RUNTIME = ROOT / "worker" / "bundle-runtime.mjs"
 
 # The card a link to a product page unfurls into, shot at the 1.91:1 an unfurler draws
-# by `leaf_dev.record_demo`, relative to the asset tree. An example names its own
+# by `leaf_dev.commands.record_demo`, relative to the asset tree. An example names its own
 # catalog preview instead.
 SOCIAL_CARD = "demo/session-card.png"
 
@@ -254,7 +254,7 @@ def install_tree(out: Path) -> Path:
     """The website's sibling installation: a prepared Leaf and `leaf_website` beside it.
 
     The build runs its `leaf`, and the container image and the local adapter
-    (`leaf_dev.verify_site`) install it as the website's server."""
+    (`leaf_dev.commands.verify_site`) install it as the website's server."""
     return out.with_name(f"{out.name}-install")
 
 
@@ -503,7 +503,7 @@ def bundle_published_runtime(out: Path) -> None:
     deduplicate_tree(asset_site(out))
 
 
-@click.command("site")
+@click.command()
 @click.option(
     "--output",
     type=click.Path(path_type=Path),

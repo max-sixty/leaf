@@ -41,7 +41,7 @@ from leaf import cli as cli_model
 from leaf import codex_adapter, hosting, leases, server, service, state
 from leaf.harness import claim_harness
 from leaf.interaction_log import read_interactions
-from leaf_dev import preview
+from leaf_dev.commands import preview
 from leaf_dev.page_fixtures import read_fixture, record_run_context
 from model.test_interact_preview import _ScriptedChanges
 
@@ -78,7 +78,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
             [
                 sys.executable,
                 "-m",
-                "leaf_dev.preview",
+                "leaf_dev.commands.preview",
                 "--worker",
                 "--user",
                 "--source",
@@ -249,7 +249,7 @@ def test_abandoned_desktop_preview_publishes_no_claim(
         [
             sys.executable,
             "-m",
-            "leaf_dev.preview",
+            "leaf_dev.commands.preview",
             "--worker",
             "--user",
             "--source",

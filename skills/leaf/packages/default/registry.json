@@ -590,7 +590,7 @@
   },
   "lf-sample": {
     "description": "A quotation of page content, either static or an operable child Leaf page.",
-    "x-instructions": "For a live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome; chrome=\"floating\" or chrome=\"classic\" shows it in that chrome rather than the reader's own. Keep invented content visibly fictional. Read page-authoring.md, Live samples, for child-page interaction, reset, and isolation.",
+    "x-instructions": "For a live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome; chrome=\"floating\" or chrome=\"classic\" shows it in that chrome rather than the reader's own. Keep invented content visibly fictional. Read live-samples.md for child-page interaction, reset, and isolation.",
     "x-name": "label",
     "type": "object",
     "properties": {

@@ -137,7 +137,7 @@ styles outrank ordinary stylesheet declarations; neither is a customization API.
 Runtime chrome and annotation marks remain unlayered and own their apparatus paint.
 The generic indication contour is a default in `lf-base`, so a widget can style its
 indicated parts in its own sheets.
-`page-authoring.md`, "Theme and vocabulary", describes how page selectors opt into
+`page-layout.md`, "Page CSS and Leaf's controls", describes how page selectors opt into
 Leaf controls; broad content selectors leave that apparatus alone. A theme package's
 document rules are read the same way, so its rule for `button` dresses the page's own
 buttons and not the controls widgets build. Inherited theme
@@ -284,7 +284,7 @@ largest height among those images, read from their bytes, as `data-lf-media-widt
 (`aspect-ratio: attr(data-lf-media-width type(<number>)) / attr(data-lf-media-height
 type(<number>))`, as `lf-shot` does).
 How wide the page is, and how its blocks are arranged, is the page's choice, made with a
-Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's element fills
+Layout class or its own CSS (`page-layout.md`, "Layouts"); a package's element fills
 the box it is given, and its `x-space` states the width it prefers, which a page may
 override. Declare `column` for an element whose content is read as lines of text, such
 as a list of choices or a timeline, so in a flow wider than the column, such as a
@@ -299,7 +299,7 @@ container, which is the page's shell or a framed box around the widget (a pane's
 card), and a sample, which cannot be one, states `--lf-box-cap`. So in a box
 narrower than the floor the widget scrolls sideways rather than widening the page.
 Choose vertical bounds by the task need in
-`page-authoring.md`, "Bounds and widths", including a widget's `x-bound` default.
+`page-layout.md`, "Bounds and widths", including a widget's `x-bound` default.
 When a bounded widget's scroller should be a box inside it, such as a listing under a
 caption that stays in view, the package theme moves the bound there under
 `[data-lf-bound]` and declares `--lf-bound-box: 1` on that box, which is the one Leaf
@@ -747,7 +747,7 @@ the check refuses is reported as its one `package` finding. The checks:
   hid it.
 - `grows-with-content`: a box in the widget holds its own height and scrolls inside
   it. In ordinary flow a widget grows with what it holds, and a long one is read in
-  the page's scroll (`page-authoring.md`, "Bounds and widths"). The check names a box
+  the page's scroll (`page-layout.md`, "Bounds and widths"). The check names a box
   that scrolls vertically, and one whose CSS asks to and that overflows once a tall
   block is added to it, so a height the theme sets is found even while the widget's
   rows are empty. A

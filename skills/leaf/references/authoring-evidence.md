@@ -28,7 +28,7 @@ than in every page: initialize a page that wants one with
 refusals and empty drawings. Inspect each rendered diagram for the relationships it
 should communicate. Without visual access, check the source's labels and relations
 against its claims and state those claims in prose or a table beside it. Follow
-`page-authoring.md`, "Pre-handover review", for the checks and what remains unverified.
+`page-checkpoints.md`, "Pre-handover review", for the checks and what remains unverified.
 
 Draw what Mermaid's automatic layout cannot put where it belongs, such as a page
 layout, geometry, a wireframe, or a thumbnail inside an option, as the `svg.drawing`
@@ -52,10 +52,10 @@ available in Plot's own API. `lf-chart` needs no package. A handful of numbers t
 sentence beside them can carry is prose; a chart is for when the shape of the
 numbers is the point.
 
-For source snippets and code walkthroughs, follow `page-authoring.md`, "Theme and
-vocabulary". An `lf-code` block's `lines` attribute quotes an excerpt
-of a longer file under the file's own line numbers, with elided rows where it skips;
-a note placed at a skipped line captions that row with what was left out.
+For source snippets and code walkthroughs, follow `page-authoring.md`, "Markup". An
+`lf-code` block's `lines` attribute quotes an excerpt of a longer file under the
+file's own line numbers, with elided rows where it skips; a note placed at a skipped
+line captions that row with what was left out.
 
 A user can comment on a drawing as a whole and quote the words in it. A drawing
 that exposes stable named targets also accepts comments on those parts. In an

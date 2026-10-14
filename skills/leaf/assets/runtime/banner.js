@@ -18,6 +18,7 @@ import {
   showNews,
 } from "./banner-toolbar.js";
 import { iconElement } from "./icons.js";
+import { copyControl } from "./copy-control.js";
 import { latestChip, versionBtn } from "./version-picker.js";
 import { versionsReading } from "./version.js";
 import { othersBtn, queueBtn } from "./drawers.js";
@@ -300,14 +301,8 @@ const LOADING = Object.freeze({
 // The developer preview's identity: which checkout is serving this page, and a press to
 // copy the whole diagnostic. It is the banner's least-used control, so it stays behind
 // the overflow door at every width instead of adding a permanent chip to the reading row.
-function copyControl(trigger, success, error) {
-  const copy = offer("wa-copy-button", "lf-banner-copy");
-  copy.successLabel = success;
-  copy.errorLabel = error;
-  copy.tooltip = "none";
-  // Web Awesome announces the result; Leaf puts the same words in its status line.
-  copy.addEventListener("wa-copy", () => notice(success, { announce: false }));
-  copy.addEventListener("wa-error", () => notice(error, { announce: false }));
+function bannerCopy(trigger, success, error) {
+  const copy = copyControl("lf-banner-copy", { success, error });
   copy.append(trigger);
   return copy;
 }
@@ -327,7 +322,7 @@ if (SHARE_ROOT) {
   label.append(link);
   const copyButton = el("button", "lf-btn", "Copy link");
   copyButton.type = "button";
-  const copy = copyControl(copyButton, "Link copied", "Select and copy the link above");
+  const copy = bannerCopy(copyButton, "Link copied", "Select and copy the link above");
   copy.copyLabel = "Copy link";
   copy.hidden = !navigator.clipboard?.writeText;
   panel.append(el("p", "", grants), label, copy);
@@ -343,17 +338,8 @@ if (SHARE_ROOT) {
     control: details,
     focusTarget: share,
     rank: BANNER_CONTROL_RANK.share,
-    // The press is the Copy link control's own, with its success and failure notices.
-    row: {
-      label: "Share link",
-      value: grants,
-      copies: shareUrl,
-      group: "about",
-      press: () => {
-        copy.value = shareUrl();
-        copyButton.click();
-      },
-    },
+    // A presentation copies the link with its own copy control, beside it to select.
+    row: { label: "Share link", value: grants, copies: shareUrl, group: "about" },
   });
 }
 
@@ -422,7 +408,7 @@ function renderPreview(state) {
     previewMarginEntry = el("button", "lf-btn lf-preview", label);
     previewMarginEntry.type = "button";
     previewMarginEntry.setAttribute("aria-label", "Copy preview diagnostics");
-    previewMarginEntryCopy = copyControl(
+    previewMarginEntryCopy = bannerCopy(
       previewMarginEntry,
       "Copied preview diagnostics",
       "Couldn't copy preview diagnostics",
@@ -433,8 +419,8 @@ function renderPreview(state) {
       control: previewMarginEntryCopy,
       focusTarget: previewMarginEntry,
       rank: BANNER_CONTROL_RANK.preview,
-      // What the press copies is the diagnostics, which a presentation shows to select
-      // as well; the line naming the preview says what they describe.
+      // What it copies is the diagnostics, which a presentation shows to select as
+      // well; the line naming the preview says what they describe.
       row: {
         label: "Preview diagnostics",
         value: () => previewLabel,
@@ -496,7 +482,7 @@ function renderLayerReference(state) {
   if (!layerReferenceElement) {
     layerReferenceElement = el("button", "lf-btn lf-layer-reference");
     layerReferenceElement.type = "button";
-    layerReferenceElementCopy = copyControl(
+    layerReferenceElementCopy = bannerCopy(
       layerReferenceElement,
       "Copied Leaf version",
       "Couldn't copy Leaf version",
@@ -567,7 +553,7 @@ function renderSessionReference() {
       sessionReferenceLabel,
     );
     sessionReferenceElement.type = "button";
-    sessionReferenceElementCopy = copyControl(
+    sessionReferenceElementCopy = bannerCopy(
       sessionReferenceElement,
       "Copied session reference",
       "Couldn't copy session reference",

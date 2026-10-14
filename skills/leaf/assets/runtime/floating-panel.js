@@ -19,14 +19,14 @@
  *   "Comment"; in a thread it says whose turn it is. A status reads dimmer than anything
  *   written, and while the agent works it carries the one sheen that marks work under
  *   way. Clicking in gives the placeholder to where the words go, and opens one quiet
- *   line above it naming who they go to; once words hide the placeholder, the line names
- *   where as well.
+ *   line above it with the keys that send; once words hide the placeholder, the line
+ *   says where they go instead. It never names who reads them: the page has one agent.
  * - **Opened**: a view above the same row (On, Threads, a thread, Versions, or a
  *   group of the page's controls) with where the user is at its top edge. It lasts while
  *   it is used: Escape or a press on the page puts it away, Escape once the caret has
  *   left the field, since the caret is the innermost thing open. The room of the line
- *   naming where the words go stands while a view is open, so clicking in moves nothing
- *   at the view's head. It is as tall as what it
+ *   above the field stands while a view is open, one line tall whatever it says, so
+ *   clicking in or typing moves nothing at the view's head. It is as tall as what it
  *   holds, so a one-message thread opens one message tall, up to most of the window's
  *   height, the larger size a long thread or a long Threads list is read at; past that
  *   it scrolls. The user chose views that fit their content with a larger size for long
@@ -58,6 +58,7 @@
 import { html, nothing, ref, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { iconTemplate } from "./icons.js";
+import { copyControl } from "./copy-control.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import {
   approvalReading,
@@ -70,6 +71,7 @@ import { queueBtn } from "./drawers.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageCommand, pageRung } from "./keyboard/register.js";
 import { advertisesKeys, submitLabel } from "./keyboard/bindings.js";
+import { keySequenceModel, keySequenceTemplate } from "./keyboard/key-sequence.js";
 import { bannerRows, watchBannerRows } from "./banner-toolbar.js";
 import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
@@ -692,11 +694,13 @@ export function createFloatingPanel({
         >${end}${opens ? iconTemplate("next", "lf-fp-chevron") : nothing}</span
       >
     </button>`;
-  // A row's end says its value, then its shortcut where a keyboard is there to press it.
+  // A row's end says its value in words, then its shortcut where a keyboard is there to
+  // press it, each press a key as the command reference draws it, so the two never read
+  // as one run of text.
   const rowEnd = (entry) =>
     html`${entry.value ? html`<span class="lf-fp-value">${entry.value}</span>` : nothing}${
-      entry.shortcut && advertisesKeys()
-        ? html`<kbd class="lf-fp-key">${entry.shortcut}</kbd>`
+      entry.shortcut.length && advertisesKeys()
+        ? keySequenceTemplate(keySequenceModel(entry.shortcut))
         : nothing
     }`;
   function rowFor(entry) {
@@ -784,12 +788,30 @@ export function createFloatingPanel({
     </div>`;
   }
   // A row whose press copies a text, such as the share link, shows that text for the
-  // user to select as well, with its press beside it, since a browser offers the
-  // clipboard only to a secure context (https or localhost) and may refuse a write; the
-  // view stays open across the press, so the text is still there if the copy failed.
-  // Its value, which a one-line row would end with, says beneath it what the text is.
-  // A text of several lines, such as a preview's diagnostics, shows its first few, and
-  // selecting it takes the whole.
+  // user to select as well, with Leaf's copy control beside it (copy-control.js), which
+  // shows on its own face whether the copy took. A browser offers the clipboard only to
+  // a secure context (https or localhost), so where there is none the control stands
+  // down and the text is there to select; the view stays open across a press, so the
+  // text is still there if the copy failed. Its value, which a one-line row would end
+  // with, says beneath it what the text is. A text of several lines, such as a preview's
+  // diagnostics, shows its first few, and selecting it takes the whole.
+  const copies = new Map();
+  function copyFor(entry) {
+    if (!copies.has(entry.key))
+      copies.set(
+        entry.key,
+        copyControl("lf-fp-copy-press", {
+          label: `Copy ${entry.label}`,
+          success: `${entry.label} copied`,
+          error: `${entry.label} not copied · select it to copy`,
+        }),
+      );
+    const copy = copies.get(entry.key);
+    copy.value = entry.copies;
+    copy.disabled = entry.disabled;
+    keepsHidden(copy, !navigator.clipboard?.writeText);
+    return copy;
+  }
   function copyRow(entry) {
     const field = `lf-fp-copy-${entry.key}`;
     return html`<div class="lf-fp-copy">
@@ -804,14 +826,7 @@ export function createFloatingPanel({
         .value=${entry.copies}
         @focus=${(event) => event.target.select()}
       ></textarea
-      ><button
-        type="button"
-        class="lf-fp-quiet"
-        ?disabled=${entry.disabled}
-        @click=${() => entry.press(heldStanding)}
-      >
-        Copy
-      </button>
+      >${copyFor(entry)}
       ${entry.value ? html`<p class="lf-fp-copy-note">${entry.value}</p>` : nothing}
     </div>`;
   }
@@ -1572,7 +1587,7 @@ export function createFloatingPanel({
     const input = fieldInput();
     if (input) syncInput(input);
     const holds = Boolean(loadDraft(destination())?.trim());
-    // Clicking in opens one quiet line above the field naming who the words go to; it
+    // Clicking in opens one quiet line above the field with the keys that send; it
     // stays while the field holds words, and while a thread is open, whose field is
     // always its reply, so nothing moves when the caret leaves.
     const engaged = Boolean(thread) || writing || holds;
@@ -1589,20 +1604,15 @@ export function createFloatingPanel({
     // A passing notice is said where the field's placeholder would be; once the field
     // holds words, which hide that, it stands on this line instead, as a refused send's
     // reason does over the words it returned. Where the words go is said once: by the
-    // empty focused field's placeholder, and once words hide that, here, the way a
-    // field's label rises above what is written in it.
+    // empty focused field's placeholder, and once words hide that, here in the same
+    // words, the way a field's label rises above what is written in it. Who reads them
+    // goes unsaid: every word written here goes to the page's one agent.
     const empty = draftOf(input) === "";
     const covered = reading.says === "notice" && !empty;
-    const recipient = agentName();
-    const where = thread ? `Reply in ${threadSummary(thread).topic}` : whereTo(null);
     keeps(contextDest, "data-notice", covered ? "" : null);
     keepsText(
       contextDest,
-      covered
-        ? reading.words
-        : reading.says === "destination" && empty
-          ? `To ${recipient}`
-          : `${where} · to ${recipient}`,
+      covered ? reading.words : empty ? "" : whereTo(replying ? top.thread : null),
     );
     keepsText(
       contextKeys,
@@ -1610,7 +1620,11 @@ export function createFloatingPanel({
         ? `${submitLabel()} to send${submitLabel() === "⏎" ? " · ⇧⏎ new line" : ""}`
         : "",
     );
-    keepsHidden(context, !engaged);
+    // A line with nothing to say stands only as the room it keeps under an open view.
+    keepsHidden(
+      context,
+      !engaged || !(contextDest.textContent || contextKeys.textContent),
+    );
 
     // The next step of what the user is doing now, such as leaving Draw mode or
     // commenting on the words a finger selected, stands in the counts' place while that

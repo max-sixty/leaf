@@ -28,10 +28,10 @@
    region either way, so a returning widget never leaves its epoch waiting. A widget
    whose reading lacks a declared verb, as at startup before the log is read, draws
    nothing until it has them all; its claim settles with nothing drawn. While its
-   controller's `defer()` holds it, or a drag holds the page (`dragging`), its claim stays
-   open; the release draws the newest reading at once, changed or not, since the gesture
-   may have rewritten its nodes. An element whose tag declares `x-data` holds the page's
-   data version while it stands, until it has drawn what was delivered. `setup()` runs
+   controller's `defer()` holds it, its claim stays open; the release draws the newest
+   reading at once, changed or not, since the gesture may have rewritten its nodes. An
+   element whose tag declares `x-data` holds the page's data version while it stands,
+   until it has drawn what was delivered. `setup()` runs
    once, on the first connection, before the first render. */
 import { LitElement, collectReads, untracked } from "../vendor/browser-runtime.js";
 import {
@@ -43,21 +43,12 @@ import { widgetDescriptor } from "./widget-descriptors.js";
 import { drawsItself, widgetController, widgetMounted } from "./widget-controller.js";
 import { failSoft, failSoftUnreported, once } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
-import { dragHeld, watchDragRelease } from "./widget-elements.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
 import { dataReader, joinDataDelivery, stagesOnly } from "./data.js";
 import { registry } from "./registry.js";
 
 const REFRESH = Symbol("refresh");
 let regions = 0;
-
-// Elements a drag held back, drawn in the order they asked once the last hand is down.
-const dragWaiting = new Set();
-watchDragRelease(() => {
-  const waiting = [...dragWaiting];
-  dragWaiting.clear();
-  for (const element of waiting) element[REFRESH]();
-});
 
 export class LeafElement extends LitElement {
   #descriptor = null;
@@ -147,12 +138,8 @@ export class LeafElement extends LitElement {
       if (released) return;
       released = true;
       this.#holds -= 1;
-      if (!this.#held()) this[REFRESH]();
+      if (!this.#holds) this[REFRESH]();
     };
-  }
-
-  #held() {
-    return this.#holds > 0 || dragHeld();
   }
 
   #complete() {
@@ -168,10 +155,7 @@ export class LeafElement extends LitElement {
       this.#owed = true;
       return false;
     }
-    if (this.#held()) {
-      if (dragHeld()) dragWaiting.add(this);
-      return false;
-    }
+    if (this.#holds) return false;
     const gate = collectReads(() => this.#complete());
     this.#gateReads = gate.reads;
     if ("error" in gate) {
@@ -274,10 +258,7 @@ export class LeafElement extends LitElement {
     this.#ticket = this.#region.present(value, (reason) =>
       failSoftUnreported(this.renderRoot, reason),
     );
-    if (this.#held()) {
-      if (dragHeld()) dragWaiting.add(this);
-      return;
-    }
+    if (this.#holds) return;
     this.requestUpdate();
     if (now) this.performUpdate();
   }
@@ -317,7 +298,6 @@ export class LeafElement extends LitElement {
     this.#follow();
     this.#leaveData?.();
     this.#leaveData = null;
-    dragWaiting.delete(this);
     this.#ticket = null;
     this.#region?.disconnect();
     this.#region = null;

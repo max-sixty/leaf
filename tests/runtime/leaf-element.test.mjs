@@ -12,7 +12,6 @@ import {
   readPart,
 } from "/runtime/semantic-state.js";
 import { clockValue, tickClock } from "/runtime/presence.js";
-import { dragging } from "/runtime/widget-elements.js";
 import { adoptRegistry } from "/runtime/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
 
@@ -105,22 +104,6 @@ test("an element away draws on its return only what moved meanwhile", async () =
   element.remove();
 });
 
-test("a drag holds an element's draws until the last hand is down", async () => {
-  applicationState.setPhase("waiting");
-  const { element, draws } = probe(() => phase());
-  document.body.append(element);
-  await settled(element);
-  const hand = document.createElement("div");
-  dragging(hand, true);
-  applicationState.setPhase("offline");
-  await settled(element);
-  assert.deepEqual(draws, ["waiting"]);
-  dragging(hand, false);
-  await settled(element);
-  assert.deepEqual(draws, ["waiting", "offline"]);
-  element.remove();
-});
-
 test("a render that throws shows its failure and draws again for the next move", async () => {
   applicationState.setPhase("waiting");
   const errors = [];
@@ -183,35 +166,6 @@ test("an element that reads its bound data draws each accepted reading", async (
   assert.deepEqual(revisions, ["r1", "r2"]);
   assert.equal(element.textContent, "deployments");
   assert.equal(document.body.getAttribute("data-lf-data-version"), "second");
-  // A held reading holds the page's data version until it draws.
-  const hand = document.createElement("div");
-  dragging(hand, true);
-  accept("third", "r3");
-  const delivered = notifyDataSubscribers();
-  await settled(element);
-  assert.equal(document.body.getAttribute("data-lf-data-version"), "second");
-  dragging(hand, false);
-  await delivered;
-  assert.deepEqual(revisions, ["r1", "r2", "r3"]);
-  assert.equal(document.body.getAttribute("data-lf-data-version"), "third");
-  element.remove();
-});
-
-test("a claim a drag held settles once the release draws it", async () => {
-  applicationState.setPhase("waiting");
-  const { element, draws } = probe(() => phase());
-  document.body.append(element);
-  await settled(element);
-  applicationState.setPhase("offline");
-  const hand = document.createElement("div");
-  dragging(hand, true);
-  applicationState.setPhase("waiting");
-  await settled(element);
-  assert.ok(pending(element), "the held reading leaves its region waiting");
-  dragging(hand, false);
-  await settled(element);
-  assert.deepEqual(draws, ["waiting", "waiting"]);
-  assert.ok(!pending(element));
   element.remove();
 });
 
@@ -269,7 +223,7 @@ test("a failure in a part the element generated stays in that part, and the next
   element.remove();
 });
 
-test("bound data draws only as it is delivered, and a held element holds the version", async () => {
+test("bound data draws only as it is delivered", async () => {
   const tag = `lf-probe-delivered-${++tags}`;
   adoptRegistry({
     [tag]: { "x-data": { rows: { source: "source", contract: "rows" } } },
@@ -298,23 +252,15 @@ test("bound data draws only as it is delivered, and a held element holds the ver
   const element = document.createElement(tag);
   element.id = "builds";
   element.setAttribute("source", "builds");
-  const hand = document.createElement("div");
-  dragging(hand, true);
   document.body.append(element);
+  await settled(element);
+  assert.deepEqual(revisions, ["b1"]);
   accept("d2", "b2");
-  const delivered = notifyDataSubscribers();
   await settled(element);
-  assert.deepEqual(revisions, [], "a drag holds even the first draw");
-  assert.notEqual(document.body.getAttribute("data-lf-data-version"), "d2");
-  dragging(hand, false);
-  await delivered;
-  assert.deepEqual(revisions, ["b2"]);
-  assert.equal(document.body.getAttribute("data-lf-data-version"), "d2");
-  accept("d3", "b3");
-  await settled(element);
-  assert.deepEqual(revisions, ["b2"], "accepted is not yet delivered");
+  assert.deepEqual(revisions, ["b1"], "accepted is not yet delivered");
   await notifyDataSubscribers();
-  assert.deepEqual(revisions, ["b2", "b3"]);
+  assert.deepEqual(revisions, ["b1", "b2"]);
+  assert.equal(document.body.getAttribute("data-lf-data-version"), "d2");
   element.remove();
 });
 

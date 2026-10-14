@@ -261,8 +261,8 @@ for a bound source as `watchData` delivers it, and any page reading or time
 (`readAsks`, `reportSequence`, `ago`). The element draws again when anything it read
 moves, and not otherwise. Return a template, `nothing` when the render writes retained
 nodes itself, or `noChange` to keep what it drew last. `this.controller` dispatches and
-presents preparation; its `defer()` holds the element's draws, and a drag holds them
-without one. Lit's own reactive properties update the element for state it keeps
+presents preparation; its `defer()` holds the element's draws through a gesture that
+moves its nodes. Lit's own reactive properties update the element for state it keeps
 itself; `requestUpdate()` draws again after a mechanical change, such as revealing held
 news, and `performUpdate()` draws at once when the next lines read what it drew.
 

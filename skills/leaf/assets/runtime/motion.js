@@ -11,7 +11,7 @@
 //
 // Projection composes the complete final state before rendering. Ordered containers
 // measure once around that composition and show one FLIP from the current layout to the
-// final layout. A live drag defers the whole correction.
+// final layout. A widget whose drag moves its own nodes defers its correction.
 
 import { pagePresented } from "./page-paint.js";
 import { LEAVING, announceRoom } from "./geometry.js";

@@ -134,13 +134,7 @@ export function mountApplication(dependencies) {
     return presentDocument();
   };
 
-  // The drag that deferred the projection has ended: present the reading it held.
-  const projection = createProjectionPresentation({
-    onDeferredReady: () => {
-      invalidateDom();
-      releasePendingSafely("deferred pending release");
-    },
-  });
+  const projection = createProjectionPresentation();
   const dataProjection = createDataProjection({ invalidateDom });
 
   let delivery;

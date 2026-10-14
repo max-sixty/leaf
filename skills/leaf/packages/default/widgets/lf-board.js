@@ -7,8 +7,9 @@
  * The grip is a press (`offer`), so the keyboard path needs no pointer: Enter grabs,
  * arrows restate the card's placement (announced through the live region), Enter drops,
  * and Escape or focus loss restores the origin. For the whole gesture the board holds
- * the page's drag (`dragging`) — the runtime's poll gates on it (no version-follow,
- * no foreign-action replay mid-gesture) — and a completed move
+ * the page's drag (`dragging`), so no new revision or undo replaces the cards under it,
+ * and defers its own drawing (`defer`), so no foreign move replays mid-gesture; a
+ * completed move
  * reports through #send as one ranked `move` action, indistinguishable on
  * the wire. Its render receives every column's final ordered card ids. One render
  * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content

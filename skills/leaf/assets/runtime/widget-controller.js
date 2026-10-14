@@ -18,7 +18,6 @@ import { applicationState, attachWidgetPresentation } from "./semantic-state.js"
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
 import { failSoftUnreported } from "./widget-upgrade.js";
-import { dragHeld, watchDragRelease } from "./widget-elements.js";
 import { watchOwner } from "./arrivals.js";
 import { readingPaint } from "./presence.js";
 import { holdRendering } from "./rendering.js";
@@ -28,7 +27,6 @@ const controllers = new WeakMap();
 const lifecycles = new WeakMap();
 const ancestorRefreshes = new Set();
 let ancestorRefreshQueued = false;
-const gestureDeferred = new Set();
 // Owners that draw themselves (`LeafElement`, leaf-element.js), each with the hold its
 // gestures defer: such an owner subscribes to nothing here, and `defer` holds its paint.
 // An ancestor's remount refreshes it as it refreshes a subscribed controller.
@@ -47,12 +45,6 @@ export function widgetMounted(owner, descriptor, parentChanged) {
     refreshAncestorControllers(owner);
   invalidateDom();
 }
-
-watchDragRelease(() => {
-  const pending = [...gestureDeferred];
-  gestureDeferred.clear();
-  for (const resume of pending) resume();
-});
 
 function refreshAncestorControllers(owner) {
   for (
@@ -221,25 +213,13 @@ function createWidgetController(owner) {
     render()?.present(reading);
   };
 
-  const resumeGestureRender = () => {
-    gestureDeferred.delete(resumeGestureRender);
-    if (deferred || !deferredReading || !subscriptions.size) return;
-    const latest = deferredReading;
-    deferredReading = null;
-    presentRender(latest);
-  };
-
   // The controller is an owner of its own: a paint that mounts its widget connects it,
   // and what it reads to draw is its selection's to follow, never that paint's.
   const publish = () =>
     untracked(() => {
       const reading = read();
-      if (deferred || dragHeld()) {
-        holdRender(reading);
-        if (dragHeld()) gestureDeferred.add(resumeGestureRender);
-        return;
-      }
-      presentRender(reading);
+      if (deferred) holdRender(reading);
+      else presentRender(reading);
     });
 
   const connect = () => untracked(connectOwner);
@@ -260,7 +240,6 @@ function createWidgetController(owner) {
   };
 
   const disconnect = () => {
-    gestureDeferred.delete(resumeGestureRender);
     stopSelection?.();
     stopSelection = null;
     renderHandle?.disconnect();
@@ -297,7 +276,6 @@ function createWidgetController(owner) {
       return () => {
         subscriptions.delete(callback);
         if (!subscriptions.size) {
-          gestureDeferred.delete(resumeGestureRender);
           stopSelection?.();
           stopSelection = null;
           renderHandle?.disconnect();

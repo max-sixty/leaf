@@ -608,6 +608,17 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Implementation candidates
 
+- **Unconfirmed — Let Lit follow what a widget reads.** `LeafElement`
+  (`runtime/leaf-element.js`) collects what `render()` reads with Leaf's own
+  `collectReads` over Preact signals and outside readings such as the clock, because
+  Lit's `SignalWatcher` (`@lit-labs/signals`) follows only TC39 signals
+  (`signal-polyfill`). Were the publication and those readings TC39 signals,
+  `SignalWatcher` would draw again on a read's move, and the base class would keep
+  only Leaf's rules: the presentation claim, `defer()`, drawing nothing while away,
+  and data delivery. Settle first that `SignalWatcher` schedules its own updates
+  outside the coordinator's ordered pass (`notes/browser-reactivity.md`, "LitElement
+  and microtask updates"), and that TC39 signals are still a proposal. Trigger: every
+  widget draws as a `LeafElement`, so the change lands in one class.
 - **Consider moving the before/after reading out of the core.** How
   `runtime/image-difference.js` reads a pair (blocks, moves, outlines) is
   experimental and about 500 lines in the core runtime, consumed by `lf-shot`,

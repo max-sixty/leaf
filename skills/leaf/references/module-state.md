@@ -44,8 +44,8 @@ current entry's candidates. The server remains final admission for every command
 rearrangement. Call it before the first local DOM mutation; it returns a one-shot
 `resume`. Invoke `resume` only after `dispatch` has synchronously staged the semantic
 result, or after cancellation has restored the prior local DOM; it renders the newest
-reading. While a drag is held (`dragging`, `module-input.md`, "Pointer presses"), Leaf holds new readings
-back without a `defer`.
+reading. A widget the user drags (`dragging`, `module-input.md`, "Pointer presses")
+defers for the drag, since the drag moves its nodes.
 
 `present(promise)` registers asynchronous visible preparation, such as a renderer
 loading; the page does not read as ready until it settles.

@@ -187,8 +187,7 @@ The icon is decorative; the button supplies its accessible label.
 Each page reading below has a reader, and one watcher follows them all:
 `watchProjection(owner, paint)` calls `paint()` on the microtask after subscribing, then
 again, at most once per microtask, whenever anything `paint` read from the page's state
-has changed, a drag starts or stops holding the page's projection back (`module-input.md`, "Pointer
-presses"), or the page dispatches `PRESENTATION` (`module-authoring.md`, "Startup and presentation"). Register
+has changed, or the page dispatches `PRESENTATION` (`module-authoring.md`, "Startup and presentation"). Register
 it once for each owner. What the paint reads is tracked: every reader it calls
 synchronously, such as `readAsks`, `readQueues`, `readThreads`, `readWork`,
 `reportSequence`, `readHistory` or a widget controller's `read()`, so a paint never

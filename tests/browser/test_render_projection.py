@@ -5305,65 +5305,6 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     expect(page.locator("#ag-wren .lf-doing")).to_have_count(0)
 
 
-def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
-    """The page-wide drag gate withholds widget views and projection coverage."""
-    page = open_page(browser, serve(ROSTER_PAGE))
-    d = serve.page_dir
-    row = page.locator("#ag-wren")
-
-    first = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "report",
-            str(d),
-            "ag-wren",
-            "state",
-            "value=working",
-            "text=checking the first mount",
-        ],
-    )
-    assert first.exit_code == 0, first.output
-    told(page)
-    expect(row).to_have_attribute("state", "working")
-    expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
-
-    page.evaluate(
-        """async () => {
-          const {dragging} = await window.__lfWidgetApi();
-          dragging(document.body, true);
-        }"""
-    )
-    second = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "report",
-            str(d),
-            "ag-wren",
-            "state",
-            "value=idle",
-            "text=checking the second mount",
-        ],
-    )
-    assert second.exit_code == 0, second.output
-    told(page)
-    expect(row).to_have_attribute("state", "working")
-    expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
-
-    page.evaluate(
-        """async () => {
-          const {dragging} = await window.__lfWidgetApi();
-          dragging(document.body, false);
-        }"""
-    )
-    expect(row).to_have_attribute("state", "idle")
-    expect(row.locator(".lf-doing")).to_have_text("checking the second mount")
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
-
-
 @pytest.mark.parametrize("holding", ["defer", "preparation"])
 def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     browser, serve, holding

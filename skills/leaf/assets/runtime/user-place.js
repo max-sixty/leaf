@@ -65,7 +65,7 @@ import {
   stuckBox,
   visibleBand,
 } from "./geometry.js";
-import { placeKept, scrollLimit } from "./scrolling.js";
+import { aimedTop, moveScrollerBy, placeKept, scrollLimit } from "./scrolling.js";
 import { pointerAt } from "./pointer.js";
 import { recentPlaceInput, focused } from "./focus.js";
 
@@ -190,8 +190,11 @@ export function placeKeeper(
       held: hold.at,
       withinTask: !hold.spans,
     });
+    // From where the last correction aimed rather than where its rounding left the
+    // box: a fold corrects every frame, and each frame's rounding would add to the last
+    // (scrolling.js, `moveScrollerBy`).
     if (delta) {
-      scroller.scrollTop += delta;
+      moveScrollerBy(scroller, aimedTop(scroller) - scroller.scrollTop + delta);
       placeKept(scroller);
     }
     // Every candidate observed this reflow too; refresh their baselines after the

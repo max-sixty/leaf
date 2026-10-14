@@ -16,14 +16,15 @@
  * - **The row**: the leaf, the comment field, and marks with counts for On me and
  *   Threads. The empty field says what the agent is doing or wants, in the banner's own
  *   words (`statusReading`), or what a passing notice says, where a placeholder would say
- *   "Comment"; in a thread it says whose turn it is. A status reads dimmer than anything
- *   written, and while the agent works it carries the one sheen that marks work under
- *   way. Clicking in gives the placeholder to where the words go, a passing notice
- *   included, and opens one quiet line above it with the keys that send, which it shows
- *   only while the caret is in the field; a notice standing then moves to that line,
- *   where it also stands over words that hide the placeholder. Once words hide it, the
- *   line says where they go as well, and keeps saying it while they stand. It never
- *   names who reads them: the page has one agent.
+ *   "Comment"; in a thread it says whose turn it is. A status that reports reads dimmer
+ *   than anything written, and while the agent works it carries the one sheen that marks
+ *   work under way; one that asks the user to act reads in its tone's ink, and pointing
+ *   at the field says any status in full. Clicking in gives the placeholder to where
+ *   the words go, a passing notice included, and opens one quiet line above it with the
+ *   keys that send, which it shows only while the caret is in the field; a notice
+ *   standing then moves to that line, where it also stands over words that hide the
+ *   placeholder. Once words hide it, the line says where they go as well, and keeps
+ *   saying it while they stand. It never names who reads them: the page has one agent.
  * - **Opened**: a view above the same row (On, Threads, a thread, Versions, or a
  *   group of the page's controls) with where the user is at its top edge. It lasts while
  *   it is used: Escape or a press on the page puts it away, Escape once the caret has
@@ -254,6 +255,7 @@ export function createFloatingPanel({
     summary: "Connecting…",
     explanation: "Connecting…",
     adds: "",
+    asks: false,
   };
   const status = () => statusReading() ?? CONNECTING;
   // The trail of views open above the row, innermost last; empty at rest.
@@ -1712,10 +1714,19 @@ export function createFloatingPanel({
     typing = writing && Boolean(draftOf(input).trim());
     keeps(host, "data-typing", typing ? "" : null);
     // Whose reading the empty field says, which its face follows: a status dims, and
-    // carries the sheen while the agent works.
+    // carries the sheen while the agent works, unless it asks the user to act, such as
+    // to nudge the agent in its terminal, which it says in its tone's ink
+    // (`pageStatus`, `asks`). The field's room cuts a long status short, so pointing at
+    // the field says it in full, as the folded leaf's peek does.
     const reading = fieldReading(replying ? top.thread : null, input);
     keeps(host, "data-says", reading.says);
     keeps(host, "data-tone", status().tone || null);
+    keeps(host, "data-asks", status().asks ? "" : null);
+    keeps(
+      field,
+      "title",
+      reading.says === "status" ? status().explanation || status().summary : null,
+    );
     // A passing notice is said where the field's placeholder would be; once the caret
     // is in, where the placeholder says where the words go, or words hide it, the notice
     // stands on this line instead, as a refused send's reason does over the words it
@@ -1741,9 +1752,10 @@ export function createFloatingPanel({
         : "",
     );
     // A line with nothing to say stands only as the room it keeps under an open view.
-    keepsHidden(
+    keeps(
       context,
-      !engaged || !(contextDest.textContent || contextKeys.textContent),
+      "data-empty",
+      !engaged || !(contextDest.textContent || contextKeys.textContent) ? "" : null,
     );
 
     // The next step of what the user is doing now, such as leaving Draw mode or
@@ -1787,7 +1799,7 @@ export function createFloatingPanel({
           title=${onUserName}
           @click=${openOnMe}
         >
-          ${iconTemplate("question", "lf-action-icon")}<span class="lf-fp-num"
+          ${iconTemplate("inbox", "lf-action-icon")}<span class="lf-fp-num"
             >${onUser || ""}</span
           ></button
         ><button

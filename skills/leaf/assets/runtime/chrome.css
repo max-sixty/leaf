@@ -145,10 +145,6 @@
     margin: 0;
     box-shadow: none;
   }
-  .lf-fp-reply[hidden],
-  .lf-fp-reply > .lf-primary-part[hidden] {
-    display: none;
-  }
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
     outline: none;
   }
@@ -242,7 +238,7 @@
   .lf-floating-panel[data-typing] .lf-fp-quick:not([data-steps]) {
     display: none;
   }
-  .lf-fp-field .lf-compose-dictate:not([hidden]) {
+  .lf-fp-field .lf-compose-dictate {
     display: grid;
   }
   .lf-floating-panel:not([data-writing]) .lf-compose-dictate {
@@ -292,16 +288,12 @@
     background: var(--accent);
     box-shadow: 0 0 0 1.5px var(--lf-fp-surface);
   }
-  .lf-fp-news[hidden] {
-    display: none;
-  }
   .lf-fp-row-notice {
     flex: none;
     display: flex;
     align-items: center;
     min-height: var(--lf-fp-line);
   }
-  .lf-fp-row-notice[hidden],
   .lf-floating-panel[data-typing] .lf-fp-row-notice {
     display: none;
   }
@@ -349,12 +341,11 @@
     font-size: 12px;
     white-space: nowrap;
   }
-  .lf-fp-context[hidden] {
-    display: none;
-  }
-  .lf-floating-panel[data-open] .lf-fp-context[hidden] {
-    display: flex;
+  .lf-fp-context[data-empty] {
     visibility: hidden;
+  }
+  .lf-floating-panel:not([data-open]) .lf-fp-context[data-empty] {
+    display: none;
   }
   .lf-fp-dest {
     min-width: 0;
@@ -692,9 +683,6 @@
     color: var(--lf-fp-muted);
     font-size: 0;
     line-height: 0;
-  }
-  .lf-fp-copy-press[hidden] {
-    display: none;
   }
   .lf-fp-copy-press::part(button) {
     display: grid;
@@ -1522,9 +1510,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   :is(.lf-banner-menu, .lf-version-menu, .lf-status-detail) {
     top: calc(var(--lf-banner-h) + var(--lf-banner-panel-gap, 6px));
   }
-  .lf-banner-more[hidden] {
-    display: none;
-  }
   .lf-btn.lf-auxiliary-toggle[aria-expanded=true] {
     border-color: transparent;
     color: var(--accent);
@@ -1828,9 +1813,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     z-index: var(--lf-z-scrim);
     background: color-mix(in srgb, var(--ink) 24%, transparent);
     pointer-events: auto;
-  }
-  .lf-auxiliary-scrim[hidden] {
-    display: none;
   }
   :is(.lf-drawer-panel, .lf-thread-panel)[data-lf-covered] {
     z-index: var(--lf-z-covering-surface);
@@ -2166,9 +2148,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread-view-summary {
     flex: 1;
     min-width: 0;
-  }
-  .lf-thread-filters[hidden] {
-    display: none;
   }
   .lf-thread-filters {
     display: flex;
@@ -2508,7 +2487,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     block-size: calc(2 * var(--focus-ring-room));
     background: var(--lf-thread-surface);
   }
-  .lf-thread-compact[open]:not([hidden]):has(> .lf-thread-reply) {
+  .lf-thread-compact[open]:has(> .lf-thread-reply) {
     display: flex;
     flex-direction: column;
     box-sizing: border-box;
@@ -2608,9 +2587,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     display: flex;
     align-items: center;
     gap: 5px;
-  }
-  .lf-quote-expand[hidden] {
-    display: none;
   }
   .lf-quote-expand::before {
     content: "▸";
@@ -3134,12 +3110,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     gap: 2px;
   }
   @media screen {
-    :scope:is([data-lf-rail-covered], [data-lf-pins]) .lf-page-map-toggle:not([hidden]) {
+    :scope:is([data-lf-rail-covered], [data-lf-pins]) .lf-page-map-toggle {
       display: inline-flex;
     }
   }
   @supports not (anchor-name: --lf-page) {
-    .lf-page-map-toggle:not([hidden]) {
+    .lf-page-map-toggle {
       display: inline-flex;
     }
   }
@@ -3243,9 +3219,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-bottom-status:has(> .lf-walk-position[data-lf-boundary]) {
     color: var(--ink);
   }
-  .lf-walk-position[hidden] {
-    display: none;
-  }
   .lf-notice {
     display: none;
     color: inherit;
@@ -3281,7 +3254,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     gap: 5px;
     align-items: baseline;
   }
-  .lf-shortcut-bar .lf-shortcut[hidden] {
+  .lf-shortcut-bar .lf-shortcut[data-lf-off-line] {
     position: absolute;
     inset-block-start: 0;
     inset-inline-start: 0;
@@ -3317,9 +3290,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     color: inherit;
     font: inherit;
     cursor: pointer;
-  }
-  .lf-shortcut-more[hidden] {
-    display: none;
   }
   .lf-shortcut-more:hover {
     color: var(--ink-2);
@@ -3386,9 +3356,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     box-sizing: border-box;
     border-radius: var(--r);
     box-shadow: 0 8px 24px var(--shade);
-  }
-  .lf-page-search[hidden] {
-    display: none;
   }
   .lf-page-search-status {
     min-width: 0;
@@ -3461,7 +3428,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
       padding: 4px calc(3px + var(--lf-safe-right)) 4px calc(3px + var(--lf-safe-left));
       gap: 3px;
     }
-    .lf-banner-actions > .lf-btn:not([hidden]):not(.lf-signoff) {
+    .lf-banner-actions > .lf-btn:not(.lf-signoff) {
       display: inline-flex;
       align-items: center;
       justify-content: center;

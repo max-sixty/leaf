@@ -1755,9 +1755,10 @@ export function createFloatingPanel({
         : "",
     );
     // A line with nothing to say stands only as the room it keeps under an open view.
-    keepsHidden(
+    keeps(
       context,
-      !engaged || !(contextDest.textContent || contextKeys.textContent),
+      "data-empty",
+      !engaged || !(contextDest.textContent || contextKeys.textContent) ? "" : null,
     );
 
     const standing = rowNotice();

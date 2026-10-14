@@ -6,7 +6,7 @@ repos:
     hooks:
       - id: trailing-whitespace
         # Generated output and captured evidence must keep their original bytes.
-        exclude: &generated ^(skills/leaf/(assets/vendor|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$|evals/ui-review-detection/fixtures/)
+        exclude: &generated ^(skills/leaf/(assets/vendor|kernel|packages/.*/vendor)/|examples/(corpus\.html|pr-walkthrough\.patch)$|evals/ui-review-detection/fixtures/)
       - id: end-of-file-fixer
         exclude: *generated
       - id: check-yaml

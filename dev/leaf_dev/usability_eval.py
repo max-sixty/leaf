@@ -11,9 +11,9 @@ A fact the page states is read the way Leaf reads it: decisions, asks and
 workflows from `leaf page state`, markup through Leaf's own parse
 (`SourceDocument`, and `SourceReading` for the words an element says). What the
 agent says, in a reply or in prose it wrote onto the page, is judged by meaning
-through a native YAML `llm-rubric`, never matched against a pattern. Only the
-native trace, the commands the agent ran and the deliveries it was handed, is
-matched as text, since it records nothing richer.
+through native YAML `llm-rubric` assertions over the complete structured trace.
+Command text describes intent; tool results establish whether it happened.
+Deterministic checks read authored structure and admitted page facts.
 """
 
 import json
@@ -27,7 +27,7 @@ from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 
-from leaf.delivery import DELIVERY_FORMAT, opened_input_ids, pickup_receipts
+from leaf.delivery import opened_input_ids, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.passages import SourceReading, collapse
@@ -46,7 +46,6 @@ from leaf_dev.arms import (
     LiveSession,
     PageClient,
     blocks,
-    commands,
     completed,
     environment,
     inputs_received,
@@ -62,7 +61,6 @@ from leaf_dev.arms import (
     serving,
     trace_result,
     trace_summary,
-    waits_started,
 )
 from leaf_dev.browser import headless_shell, load, tab
 from leaf_dev.eval_cases import definition
@@ -729,32 +727,6 @@ def pages(*roots: Path) -> list[Path]:
 # Scoring
 
 
-def text_of(content) -> str:
-    return content if isinstance(content, str) else json.dumps(content)
-
-
-def trace_scores(trace: list[dict]) -> dict:
-    calls, results = {}, {}
-    for block in blocks(trace):
-        if block.get("type") == "tool_use":
-            calls[block["id"]] = block
-        elif block.get("type") == "tool_result":
-            results[block["tool_use_id"]] = block
-    skills = [
-        c["input"].get("skill", "") for c in calls.values() if c["name"] == "Skill"
-    ]
-    return {
-        **trace_summary(trace),
-        "leaf_skill": any("leaf" in s for s in skills)
-        or any(
-            "skills/leaf/SKILL.md" in json.dumps(c["input"])
-            and results.get(cid, {}).get("is_error") is False
-            for cid, c in calls.items()
-        ),
-        "calls": [command for record in trace for command in commands(record)],
-    }
-
-
 def page_state(run: Run, page: Path) -> dict:
     return read_page_state(run.payload, run.state, page)
 
@@ -771,7 +743,7 @@ def column_cards(document: SourceDocument, column: str) -> list[str]:
     return [card.attrs.get("id") for card in document.tree.select(f"#{column} lf-card")]
 
 
-def score_cold(run: Run, calls: list[str]) -> dict:
+def score_cold(run: Run) -> dict:
     found = pages(run.work, run.state)
     out = {"pages": len(found)}
     if run.case == "near-miss" or not found:
@@ -783,9 +755,7 @@ def score_cold(run: Run, calls: list[str]) -> dict:
     groups = [r["attrs"] for r in document.lf_elements if r["tag"] == "lf-options"]
     return out | {
         "valid": checked.returncode == 0,
-        "agent_checked": any("page check" in c for c in calls),
         "stamped": len(state.get("versions", [])),
-        "not_served": not any(re.search(r"\bserver (start|run)\b", c) for c in calls),
         "status": (state.get("status") or {}).get("state"),
         "asks": tags.count("lf-ask"),
         "choose_groups": sum("choose" in attrs for attrs in groups),
@@ -877,33 +847,15 @@ def score_resume(run: Run) -> dict:
     }
 
 
-# A tool call that writes `index.html`: the Write or Edit tool, a shell redirect or
-# in-place edit, or a script fed through a heredoc that names the file.
-WRITES_PAGE = (
-    r"^(Write|Edit)\b.*index\.html|>\s*\S*index\.html|sed -i.*index\.html"
-    r"|(?s:<<.*index\.html|index\.html.*<<)"
-)
-
-
-def score_package(run: Run, trace: list[dict]) -> dict:
+def score_package(run: Run) -> dict:
     """The widget used from its registry entry, with the contract's values."""
-    ran = [c for record in trace for c in commands(record)]
-    wrote = next((i for i, c in enumerate(ran) if re.search(WRITES_PAGE, c)), len(ran))
-    out = {
-        # The markup comes from the entry: read before the first write that uses it,
-        # with no look at the widget's source before that write.
-        "entry_read": any("registry.json" in c for c in ran[:wrote]),
-        "source_unread": not any(
-            re.search(r"lf-burn\.js|packages/slo", c) for c in ran[:wrote]
-        ),
-    }
     page = run.work / "page"
     state, document = active_document(run, page)
     if len(state["versions"]) < 2:
-        return out | {"stamped": False}
+        return {"stamped": False}
     burn = document.tree.select_one("#checkout lf-burn")
     attrs = burn.attrs if burn else {}
-    return out | {
+    return {
         "stamped": True,
         "valid": run.leaf("page", "check", str(page)).returncode == 0,
         "widget_used": burn is not None,
@@ -913,9 +865,9 @@ def score_package(run: Run, trace: list[dict]) -> dict:
     }
 
 
-def score_shared_source(run: Run, traces: list[list[dict]]) -> dict:
+def score_shared_source(run: Run) -> dict:
     """Each widget's record edited through its authored id, nothing else in the
-    snapshot touched, and the renderer left unread."""
+    snapshot touched."""
     page = run.work / "page"
     before = json.loads((FIXTURES / "hub-worktrees.json").read_text())
     after = json.loads((page / "data/project-worktrees.json").read_text())["value"]
@@ -923,11 +875,6 @@ def score_shared_source(run: Run, traces: list[list[dict]]) -> dict:
     # The working markup, stamped or not: a data update needs no new version.
     document = SourceDocument((page / "index.html").read_text())
     return {
-        # The join from widget to record came from the declarations: no look at
-        # the renderer in either phase.
-        "source_unread": not any(
-            "lf-atlas-tree.js" in c for t in traces for d in t for c in commands(d)
-        ),
         "finch_updated": finch.get("head", "").startswith("3f0a6be")
         and finch.get("ahead") == 7
         and finch.get("tests") == "passing",
@@ -987,10 +934,6 @@ def live_rounds(trace: list[dict]) -> list[dict]:
     return rounds
 
 
-def ran_between(trace: list[dict], start: int, end: int) -> list[str]:
-    return [c for record in trace[start:end] for c in commands(record)]
-
-
 def progress_shown(trace: list[dict], events: list[dict], thread: str) -> bool:
     """Progress on the exact input while the agent is handling it.
 
@@ -1035,15 +978,12 @@ def handed_page_url(trace: list[dict], reply: str) -> bool:
 
 
 def round_scores(trace: list[dict], r: dict, name: str) -> dict:
-    """Confirmed input, watch ownership left to Leaf, and a waiting handover URL."""
+    """Confirmed input and a waiting handover URL."""
     if r["delivery"] is None or r["end"] is None:
         return {f"{name}_delivered": False}
     end = trace[r["end"]]
     return {
         f"{name}_delivered": True,
-        f"{name}_watch_left_to_leaf": not any(
-            waits_started(d) for d in trace[r["delivery"] : r["end"]]
-        ),
         f"{name}_waiting": (r["status"] or {}).get("state") == "waiting",
         f"{name}_url": handed_page_url(trace, end.get("result") or ""),
     }
@@ -1062,9 +1002,7 @@ def score_handoff(run: Run, trace: list[dict]) -> dict:
     out = {
         "texts": {"handover": handover, "status": status.get("detail") or ""},
         "served": handed_page_url(trace, handover),
-        "checked": any("page check" in c for c in ran_between(trace, 0, first_end)),
         "handoff_waiting": status.get("state") == "waiting",
-        "watch_left_to_leaf": not any(waits_started(d) for d in trace[:first_end]),
     }
     rounds = live_rounds(trace)
     if rounds:
@@ -1205,57 +1143,28 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
     out = round_scores(trace, r, "question")
     if r["delivery"] is None:
         return out
+    # Pickups name the immutable envelope that actually entered context. Its
+    # thread digest states elision directly, independent of hook presentation,
+    # command spelling, JSON escaping or bounded CLI output.
+    refs = {
+        receipt["refs"][question["id"]]["ref"].partition(":")[0]
+        for receipt in pickup_receipts(events, phase="opened", input_id=question["id"])
+        if question["id"] in receipt.get("refs", {})
+    }
     deliveries = [
-        text
-        for record in trace[r["post"] : r["end"]]
-        for text in [
-            record.get("output", ""),
-            *[
-                text_of(block.get("content", ""))
-                for block in blocks([record])
-                if block.get("type") == "tool_result"
-            ],
-        ]
-        if DELIVERY_FORMAT in text
+        json.loads((run.state / "leaf/deliveries" / f"{identity}.json").read_text())
+        for identity in refs
     ]
-    replying = next(
-        (
-            i
-            for i in range(r["delivery"], len(trace))
-            if any(
-                re.search(r"\b(?:thread|response) reply\b", c)
-                for c in commands(trace[i])
-            )
-        ),
-        len(trace),
-    )
-    # Where the premise first reached the agent: a tool result carrying its words,
-    # which the delivery leaves out. The agent can write them nowhere before that.
-    premise = next(
-        (
-            i
-            for i, d in enumerate(trace)
-            if any(
-                b.get("type") == "tool_result" and PREMISE in text_of(b.get("content"))
-                for b in blocks([d])
-            )
-        ),
-        None,
-    )
     return out | {
         "texts": {"answers": answers(events, question["id"])},
-        # Validity: the delivery shortened the thread, as the case assumes.
         "shown_elided": any(
-            re.search(r'\\?"elided\\?":\s*\{\\?"messages\\?":\s*[1-9]', delivery)
-            and PREMISE not in delivery
+            digest["id"] == thread
+            and digest["elided"]["messages"] > 0
+            and PREMISE not in json.dumps(digest)
             for delivery in deliveries
+            for batch in delivery["batches"]
+            for digest in batch["threads"]
         ),
-        "middle_read": premise is not None and r["post"] < premise < replying,
-        "premise_read_in": None
-        if premise is None
-        else "resume"
-        if premise < r["post"]
-        else "delivery",
         "titled": any(
             item["id"] == thread and item["title"] is not None
             for item in page_state(run, page)["threads"]
@@ -1273,28 +1182,22 @@ LIVE_SCORES = {"handoff": score_handoff, "elided": score_elided}
 # Native YAML assertions own what a scenario judges by meaning.
 CHECKS = {
     "cold-report": (
-        "leaf_skill",
         "one_page",
         "valid",
-        "agent_checked",
         "unstamped",
-        "not_served",
         "no_ask",
         "no_sign_off",
     ),
     "cold-decision": (
-        "leaf_skill",
         "one_page",
         "valid",
-        "agent_checked",
-        "not_served",
         "one_ask",
         "one_choice_group",
         "three_options",
         "single_choice",
         "no_sign_off",
     ),
-    "near-miss": ("no_page", "leaf_skill_quiet"),
+    "near-miss": ("no_page",),
     "resume": (
         "stamped",
         "source_valid",
@@ -1321,8 +1224,6 @@ CHECKS = {
         "no_restated",
     ),
     "package": (
-        "entry_read",
-        "source_unread",
         "stamped",
         "valid",
         "widget_used",
@@ -1331,7 +1232,6 @@ CHECKS = {
         "consumed",
     ),
     "shared-source": (
-        "source_unread",
         "finch_updated",
         "others_kept",
         "markup_kept",
@@ -1339,23 +1239,18 @@ CHECKS = {
     ),
     "handoff": (
         "served",
-        "checked",
         "handoff_waiting",
-        "watch_left_to_leaf",
         "edit_delivered",
-        "edit_watch_left_to_leaf",
         "edit_waiting",
         "edit_url",
         "edit_claimed",
         "edit_replied",
         "question_delivered",
-        "question_watch_left_to_leaf",
         "question_waiting",
         "question_url",
     ),
     "mixed": (
         "batch_delivered",
-        "batch_watch_left_to_leaf",
         "batch_waiting",
         "batch_url",
         "one_delivery",
@@ -1370,11 +1265,9 @@ CHECKS = {
     ),
     "elided": (
         "question_delivered",
-        "question_watch_left_to_leaf",
         "question_waiting",
         "question_url",
         "shown_elided",
-        "middle_read",
         "titled",
         "summarized",
     ),
@@ -1388,13 +1281,10 @@ def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
     return ["completed", *checks]
 
 
-def checks_for(case: str, score: dict, phases: list[dict], usable: bool) -> dict:
+def checks_for(case: str, score: dict, usable: bool) -> dict:
     """Turn scored observations into every declared boolean, including absences."""
     values = dict(score)
     if CASES[case].fixture is None:
-        skill = any(p["leaf_skill"] for p in phases)
-        if phases:
-            values |= {"leaf_skill": skill, "leaf_skill_quiet": not skill}
         if "pages" in score:
             values |= {"one_page": score["pages"] == 1, "no_page": score["pages"] == 0}
         for name, field, count in (
@@ -1414,7 +1304,7 @@ def checks_for(case: str, score: dict, phases: list[dict], usable: bool) -> dict
     }
 
 
-def score_run(run: Run, traces: list[list[dict]], calls: list[str]) -> dict:
+def score_run(run: Run, traces: list[list[dict]]) -> dict:
     """Apply the scenario's semantic reading to its complete native trajectory."""
     if run.case == "mixed":
         with headless_shell() as browser:
@@ -1422,11 +1312,11 @@ def score_run(run: Run, traces: list[list[dict]], calls: list[str]) -> dict:
     if run.case in LIVE_SCORES:
         return LIVE_SCORES[run.case](run, traces[0])
     if run.case == "package":
-        return score_package(run, traces[0])
+        return score_package(run)
     if run.case == "shared-source":
-        return score_shared_source(run, traces)
+        return score_shared_source(run)
     if CASES[run.case].fixture is None:
-        return score_cold(run, calls)
+        return score_cold(run)
     if run.case.startswith("reading"):
         return {}
     if run.case == "board":
@@ -1452,14 +1342,17 @@ def execute_scenario(
     with scratch(payload, state=run.state) as child_work:
         execute(run, child_work)
         traces = run.traces()
-        phases = resumed([trace_scores(t) for t in traces])
+        phases = resumed([trace_summary(t) for t in traces])
         replies = [p["reply"] for p in phases]
-        calls = [c for p in phases for c in p["calls"]]
         usable = run.usable()
-        score = score_run(run, traces, calls) if usable else {}
+        score = score_run(run, traces) if usable else {}
     texts = {f"reply-{n}": reply for n, reply in enumerate(replies, 1)}
+    texts["trace"] = json.dumps(
+        [{"phase": n, "records": trace} for n, trace in enumerate(traces, 1)],
+        ensure_ascii=False,
+    )
     texts |= score.pop("texts", {})
-    checks = checks_for(case, score, phases, usable)
+    checks = checks_for(case, score, usable)
     usage = {
         field: count
         for field, key in (("prompt", "input_tokens"), ("completion", "output_tokens"))

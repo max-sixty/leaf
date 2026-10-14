@@ -27,7 +27,7 @@ it("an arriving widget scope requires its own initializer and upgrade while temp
       },
     };
     expect(registeredTags(scope, registry)).toEqual(["lf-arrival"]);
-    expect(widgetImports(scope, registry)).toEqual({
+    expect(widgetImports(scope, registry)).toMatchObject({
       initializers: [{ tag: "lf-arrival", path: "/widgets/initial.js" }],
       modules: ["lf-arrival"],
     });

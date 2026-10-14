@@ -3081,7 +3081,7 @@ def test_neighbor_discovery_needs_no_native_subscription(
     assert second in [page for page, _record in presence_model.neighbor_candidates()]
 
 
-def test_native_watcher_limit_has_an_actionable_refusal(tmp_path, monkeypatch):
+def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
     from leaf import file_changes
     from watchfiles._rust_notify import WatchfilesRustInternalError
 
@@ -3091,7 +3091,7 @@ def test_native_watcher_limit_has_an_actionable_refusal(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr(file_changes, "RustNotify", exhausted)
-    with pytest.raises(Refused, match=r"fs\.inotify\.max_user_instances"):
+    with pytest.raises(WatchfilesRustInternalError, match="Too many open files"):
         file_changes.FileChanges({tmp_path: False}, lambda _path: True)
 
 

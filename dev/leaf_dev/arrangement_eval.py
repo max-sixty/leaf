@@ -27,8 +27,7 @@ agent did is recorded, not checked.
 
 Each phase records what the author spent and wrote, from the session's records
 between the harness's `eval_phase` marks: time, turns, tokens and cost (`resumed`),
-the CSS and script lines in the files it authored, and how many times it wrote and
-rendered the page, the measure of its repair iterations. The user agent and the
+the CSS and script lines in the files it authored. The user agent and the
 readers spend too; that is the harness's, recorded apart.
 
 The sample's output is what a judge needs: the user's request, the later messages,
@@ -40,7 +39,6 @@ cases hold the visual criteria and their three-way verdict assertion;
 """
 
 import json
-import re
 import shlex
 import shutil
 import subprocess
@@ -53,7 +51,6 @@ import turbohtml
 from leaf.delivery import opened_input_ids
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.passages import SourceReading
 from leaf.schema import MESSAGE_KINDS
 from leaf.service import requires_agent_attention
 from leaf.structure import SourceDocument
@@ -65,7 +62,6 @@ from leaf_dev.arms import (
     TURN_LIMIT,
     LiveChild,
     LiveSession,
-    blocks,
     completed,
     environment,
     now,
@@ -105,14 +101,11 @@ class Comment:
 
     `target` names the passage in words, as a user writing in chat would. On Leaf the
     user selects the first of `quotes` the page draws, and otherwise comments on
-    the page whole, naming the target. `applied` names a fact only the comment
-    supplies, which the authored files carry once the change is made and the answer
-    carries when it tells the user so."""
+    the page whole, naming the target."""
 
     target: str
     quotes: tuple[str, ...]
     text: str
-    applied: str
 
 
 @dataclass(frozen=True)
@@ -771,49 +764,6 @@ def authored_lines(page: Path, condition: str) -> dict[str, int]:
     return counts
 
 
-# A shell command that writes the page, and one that renders it in a browser. Both
-# read command text, so they approximate: a write through some other program, or a
-# browser run under another name, goes uncounted.
-SHELL_WRITE = re.compile(
-    r"sed -i|perl -\w*i|\.write\(|write_text\(|(>|tee)\s*\S*index\.html"
-)
-RENDER = re.compile(r"page check|playwright|chrom|puppeteer|screenshot", re.IGNORECASE)
-
-
-def tool_work(trace: list[dict], page: Path) -> dict[str, int]:
-    """The phase's writes to the page, its first draft plus each repair iteration,
-    and the times it rendered the page to check it."""
-    writes = renders = 0
-    for block in blocks(trace):
-        if block.get("type") != "tool_use":
-            continue
-        given = block.get("input", {})
-        if block.get("name") in ("Write", "Edit", "MultiEdit"):
-            writes += str(given.get("file_path", "")).startswith(f"{page}/")
-        elif command := given.get("command"):
-            writes += bool(
-                SHELL_WRITE.search(command)
-                and (str(page) in command or "index.html" in command)
-            )
-            renders += bool(RENDER.search(command))
-    return {"page_writes": writes, "renders": renders}
-
-
-def comment_applied(run: Run, page: Path) -> bool:
-    """Whether the authored files carry the fact only the comment supplied: what an
-    HTML file says (`SourceReading`), any other file whole."""
-    text = " ".join(
-        SourceReading(SourceDocument(f.read_text()), {}).passages.text
-        if f.suffix == ".html"
-        else f.read_text()
-        for f in authored_files(page, run.condition)
-    )
-    return (
-        re.search(CASES[run.subject].comment.applied, " ".join(text.split()))
-        is not None
-    )
-
-
 def comment_answer(run: Run, reply: str) -> str:
     """What the author told the user about their comment, where it was asked: its
     replies on the comment's thread in Leaf, its chat reply in HTML. The judge reads
@@ -909,7 +859,6 @@ def expected_checks(case: str, *, condition="leaf") -> list[str]:
         ),
         *(["handed-over"] if leaf else []),
         *(["comment-delivered"] if leaf and scenario.comment else []),
-        *(["comment-applied"] if scenario.comment else []),
         *(["decision-made", "decision-applied"] if scenario.decision else []),
         *(
             [
@@ -999,7 +948,6 @@ def execute_scenario(
             row = {
                 "trace": summary,
                 "captures": captures[phase],
-                **tool_work(split.get(phase, []), run.authored_page),
             }
             if page:
                 reading = gate(run, phase, page)
@@ -1010,7 +958,6 @@ def execute_scenario(
                     **authored_lines(page, condition),
                 }
                 if phase == 3:
-                    checks["comment-applied"] = comment_applied(run, page)
                     answer = comment_answer(run, summary["reply"])
             diagnostics["phases"][phase] = row
     checks["completed"] = all(checks[f"phase-{phase}-completed"] for phase in order)

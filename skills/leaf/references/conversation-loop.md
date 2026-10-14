@@ -68,6 +68,7 @@ authoring:
 ```bash
 leaf task open <page> page "Add a glossary"
 leaf task start <page> <todo> "drafting the glossary entries"
+# After authoring the glossary and passing leaf page check:
 leaf task end <page> <todo> done "<where the result is>"
 ```
 

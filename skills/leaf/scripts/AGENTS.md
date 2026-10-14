@@ -69,6 +69,8 @@ transport boundary exits, prints, or answers HTTP.
   process-backed leases taken through `take_lease` and `release_lease`, page
   claims and serialized transactions, server state, HTTP servers, and detached
   starts;
+- `bridge`: the bridge Leaf's Claude Code hooks keep outside Claude Code's sandbox,
+  which runs each `leaf` command the sandbox confines;
 - `presence`: page, claim, and neighboring-leaf presence;
 - `server_rows`: each serving page's disposable canonical neighbor-row publication;
 - `user_views`: disposable per-document browser observations and passive check context;

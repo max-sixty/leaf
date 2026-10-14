@@ -53,6 +53,8 @@ $ARGUMENTS
   reading how they got there.
 - **Personalized.** The user's word decides the page's content and presentation;
   Leaf's defaults apply only where they have said nothing.
+- **Extensible.** Leaf has a small core and default packages. Independently
+  authored packages use the same declared interfaces as the defaults.
 
 ## Operate
 

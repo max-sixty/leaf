@@ -531,6 +531,7 @@ function adoptRegistry(declarations) {
   Object.assign(registry, declarations);
 }
 var stateIndex;
+var recordSlot = (record) => JSON.stringify([record.kind, "attr" in record ? record.attr : null]);
 function indexedState() {
   const generation = registry.$layer?.generation;
   if (typeof generation !== "string" || !generation)
@@ -540,17 +541,22 @@ function indexedState() {
   for (const [tag, entry] of elementDeclarations())
     for (const [verb, spec] of Object.entries(entry["x-state"] ?? {}))
       specs.push({ tag, verb, spec });
-  stateIndex = {
-    generation,
-    recordedWidgetSelector: [
-      ...new Set(specs.filter(({ spec }) => spec.record).map(({ tag }) => tag))
-    ].join(","),
-    specs
-  };
+  const recordTags = /* @__PURE__ */ new Map();
+  for (const { tag, spec } of specs) {
+    if (!spec.record) continue;
+    const slot = recordSlot(spec.record);
+    const tags = recordTags.get(slot) ?? /* @__PURE__ */ new Set();
+    tags.add(tag);
+    recordTags.set(slot, tags);
+  }
+  const recordSelectors = new Map(
+    [...recordTags].map(([slot, tags]) => [slot, [...tags].join(",")])
+  );
+  stateIndex = { generation, recordSelectors, specs };
   return stateIndex;
 }
 var stateSpecs = () => indexedState().specs;
-var recordedWidgetSelector = () => indexedState().recordedWidgetSelector;
+var recordedWidgetSelector = (record) => indexedState().recordSelectors.get(recordSlot(record)) ?? "";
 function layerFact(name) {
   const value = registry[name];
   return value === void 0 ? void 0 : structuredClone(value);
@@ -2295,6 +2301,18 @@ function visibleBand(scroller, item = null) {
   const bottom = band.bottom - footerInset(item, scroller);
   return bottom > top ? { ...band, top, bottom } : null;
 }
+var OPEN = 1e5;
+function headerCuts(item, clips = /* @__PURE__ */ new Map()) {
+  return clipWalk(item, clips, false).cuts.filter(({ covered, footed }) => covered || footed).reverse().map(({ box, band, covered, footed }) => ({
+    box,
+    band: band && {
+      left: band.left - OPEN,
+      right: band.right + OPEN,
+      top: covered ? band.top : band.top - OPEN,
+      bottom: footed ? band.bottom : band.bottom + OPEN
+    }
+  }));
+}
 function stuckBox(node, within = null) {
   for (let el2 = node; el2?.nodeType === 1 && el2 !== within; el2 = renderedParent(el2))
     if (getComputedStyle(el2).position === "sticky" && sticks(el2)) return el2;
@@ -2611,6 +2629,7 @@ function clipWalk(item, clips, held) {
         axes: c.axes,
         scrolls: c.scrolls,
         covered: c.axes.y && covered > c.band.top,
+        footed: c.axes.y && footed < c.band.bottom,
         band: c.axes.y && covered >= footed ? null : c.axes.y ? { ...c.band, top: covered, bottom: footed } : c.band
       });
     }
@@ -3495,6 +3514,7 @@ export {
   scrollsContent,
   headerInset,
   visibleBand,
+  headerCuts,
   stuckBox,
   landingBand,
   landingInsets,

@@ -231,9 +231,11 @@ import {
   pageUrl,
   projectionRegionsPresented,
   proofReading,
+  queueWidgetUpdate,
   readPart,
   readsProof,
-  revisionLabel
+  revisionLabel,
+  widgetRegions
 } from "./bundle-semantic-state.js";
 import {
   TEXT_BOX,
@@ -352,6 +354,7 @@ function createWidgetController(owner) {
   let deferredReading = null;
   let stopSelection = null;
   let renderHandle = null;
+  let renderTicket = null;
   let drawn = false;
   let preparationHandle = null;
   const pendingPreparations = /* @__PURE__ */ new Map();
@@ -420,11 +423,24 @@ function createWidgetController(owner) {
   );
   const presentRender = (reading) => {
     if (!owner.isConnected) return;
-    render2()?.present(reading, (reason) => failSoftUnreported(owner, reason)).resolve(paint(reading, reading));
+    const ticket = render2().present(
+      reading,
+      (reason) => failSoftUnreported(owner, reason)
+    );
+    renderTicket = ticket;
+    queueWidgetUpdate(descriptor.id, () => {
+      if (ticket !== renderTicket || deferred) return;
+      try {
+        ticket.resolve(paint(reading, reading));
+      } catch (error) {
+        ticket.reject(error);
+      }
+      return ticket.ready;
+    });
   };
   const holdRender = (reading) => {
     deferredReading = reading;
-    render2()?.present(reading);
+    renderTicket = render2()?.present(reading);
   };
   const publish = () => untracked(() => {
     const reading = read();
@@ -452,6 +468,7 @@ function createWidgetController(owner) {
     stopSelection = null;
     renderHandle?.disconnect();
     renderHandle = null;
+    renderTicket = null;
     preparationHandle?.disconnect();
     preparationHandle = null;
     for (const [promise, release] of pendingPreparations) {
@@ -483,6 +500,7 @@ function createWidgetController(owner) {
           stopSelection = null;
           renderHandle?.disconnect();
           renderHandle = null;
+          renderTicket = null;
           deferredReading = null;
           paint.forget();
         }
@@ -590,8 +608,22 @@ var LeafElement = class extends LitElement {
   #drawing = null;
   #data = /* @__PURE__ */ new Map();
   #leaveData = null;
+  #scheduled = null;
   createRenderRoot() {
     return this;
+  }
+  scheduleUpdate() {
+    return this.#scheduled ?? this.#queueUpdate();
+  }
+  #queueUpdate() {
+    if (!this.#descriptor) return super.scheduleUpdate();
+    const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
+      if (this.#scheduled !== scheduled) return;
+      this.#scheduled = null;
+      return super.scheduleUpdate();
+    });
+    this.#scheduled = scheduled;
+    return scheduled;
   }
   connectedCallback() {
     if (once(this)) this.#setup();
@@ -708,6 +740,15 @@ var LeafElement = class extends LitElement {
       this.#drawing = outer;
     }
   }
+  /** The render drawn again at once, outside any claim and Lit's own schedule, with a
+   *  failure thrown rather than shown: the render check's replay
+   *  (render-checks/replay.js), which holds a draw of the same reading to change
+   *  nothing. `updated()` does not run, since what follows a draw may start
+   *  preparation that would claim the widget's presentation and land after the check
+   *  reads the page. An update Lit has queued stays queued, with its claim. */
+  redraw() {
+    render(this.render(), this.renderRoot, this.renderOptions);
+  }
   updated(changed) {
     super.updated(changed);
     paintKeysWithin(this);
@@ -757,7 +798,10 @@ var LeafElement = class extends LitElement {
     );
     if (this.#held) return;
     this.requestUpdate();
-    if (now) this.performUpdate();
+    if (now) {
+      this.#scheduled = null;
+      this.performUpdate();
+    } else if (this.#descriptor) this.#queueUpdate();
   }
   #refresh() {
     if (this.#connected) this.#present({ now: true });
@@ -770,7 +814,7 @@ var LeafElement = class extends LitElement {
     this.#connectedParent = this.parentElement;
     if (registry[this.localName]?.["x-data"])
       this.#leaveData = joinDataDelivery(
-        this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName
+        this.#descriptor ? widgetRegions(this.#descriptor.id) : [this.#regionName]
       );
     this.#follow();
     const moved = untracked(

@@ -13,6 +13,7 @@ import {
   boundedBlockOf,
   carriedAnchor,
   cutFrames,
+  headerLevels,
   nameAnchor,
   scrollAxes,
   scrollsWith
@@ -228,9 +229,11 @@ var observedColumn = null;
 var layer = null;
 var carriers = /* @__PURE__ */ new Map();
 var carrierAxes = /* @__PURE__ */ new WeakMap();
-function carrierFor(anchor, axes, run) {
-  let held2 = carriers.get(anchor);
-  if (!held2) carriers.set(anchor, held2 = { xy: [], y: [] });
+function carrierFor(holder, anchor, axes, run) {
+  let byAnchor = carriers.get(holder);
+  if (!byAnchor) carriers.set(holder, byAnchor = /* @__PURE__ */ new Map());
+  let held2 = byAnchor.get(anchor);
+  if (!held2) byAnchor.set(anchor, held2 = { xy: [], y: [] });
   if (!held2[axes][run]) {
     const carrier = document.createElement("div");
     carrier.className = "lf-ui lf-margin-carrier";
@@ -240,6 +243,34 @@ function carrierFor(anchor, axes, run) {
   return held2[axes][run];
 }
 var isCarrier = (node) => node?.classList.contains("lf-margin-carrier");
+var ids = /* @__PURE__ */ new WeakMap();
+var idCount = 0;
+var idOf = (node) => ids.get(node) ?? (ids.set(node, ++idCount), idCount);
+var cutFramesByKey = /* @__PURE__ */ new Map();
+var chains = /* @__PURE__ */ new WeakMap();
+var outerFrame = /* @__PURE__ */ new WeakMap();
+var makeCutFrame = () => {
+  const frame = document.createElement("div");
+  frame.className = "lf-margin-cut";
+  return frame;
+};
+function cutRun(lane, read, run) {
+  const key = `${idOf(lane)}|${read.cutKey}`;
+  let held2 = cutFramesByKey.get(key);
+  if (!held2) cutFramesByKey.set(key, held2 = []);
+  const chain = cutFrames(read.cuts, chains.get(held2[run]) ?? [], makeCutFrame);
+  const inner = chain.at(-1);
+  if (held2[run] && held2[run] !== inner) chains.delete(held2[run]);
+  held2[run] = inner;
+  chains.set(inner, chain);
+  outerFrame.set(inner, chain[0]);
+  return inner;
+}
+var laneOf = (box) => {
+  for (let at = box; at; at = at.parentElement)
+    if (at === layer.root || at.classList.contains("lf-margin-lane")) return at;
+  return layer.root;
+};
 var laidOutScrollX = 0;
 var standsBy = /* @__PURE__ */ new WeakMap();
 function scrollSources(node) {
@@ -746,7 +777,9 @@ function scheduleScrollReading() {
     scrollReading = 0;
     const boxes = [...scrolled];
     scrolled.clear();
-    if (boxes.includes(pageScroller) && scrollX !== laidOutScrollX && [...carriers.values()].some((held2) => held2.y.length)) {
+    if (boxes.includes(pageScroller) && scrollX !== laidOutScrollX && [...carriers.values()].some(
+      (byAnchor) => [...byAnchor.values()].some((held2) => held2.y.length)
+    )) {
       scheduleMarginLayout();
       return;
     }
@@ -812,6 +845,7 @@ function layoutMarginRows() {
     }
   }
   const carrierNames = /* @__PURE__ */ new Map();
+  const cutClips = /* @__PURE__ */ new Map();
   for (const [row, options] of rows) {
     const target = options.anchor();
     if (!target?.isConnected) {
@@ -822,10 +856,12 @@ function layoutMarginRows() {
     if (skipped(target)) {
       present.push({ row, at: null });
       const home = row.parentElement ?? layer.root;
+      const container = isCarrier(home) ? home.parentElement : home;
       reads.push({
         row,
         options,
-        lane: isCarrier(home) ? home.parentElement : home,
+        lane: laneOf(container),
+        container,
         home,
         shown: false
       });
@@ -935,6 +971,12 @@ function layoutMarginRows() {
     if (!read.target) continue;
     const subject = read.point ?? read.target;
     read.carrier = carrierAnchor(subject, scrollSources(subject), read.scroller);
+    read.cuts = headerLevels(subject, cutClips);
+    read.cutKey = read.cuts.map(
+      ({ anchor, band, at }) => anchor ? `${idOf(anchor)}:${band.top - at.top}:${band.bottom - at.top}` : `window:${band.top}:${band.bottom}`
+    ).join("|");
+    if (read.cuts.length)
+      read.carrier ??= carriedAnchor(pageScroller) ?? anchorElement(targetBox(subject));
     read.carrierBox = read.carrier?.getBoundingClientRect();
     read.lane = read.scroller === pageScroller ? layer.root : null;
     if (read.carrier && !carrierNames.has(read.carrier))
@@ -980,7 +1022,6 @@ function layoutMarginRows() {
   for (const [scroller, lane] of layer.lanes) {
     const levels = regions.get(scroller);
     if (!levels) continue;
-    for (const { reading } of levels) nameAnchor(reading);
     const hidden = { left: 0, top: 0, right: 0, bottom: 0 };
     laneFrames.set(
       lane,
@@ -1001,31 +1042,51 @@ function layoutMarginRows() {
     }
     const cursors = /* @__PURE__ */ new Map([[lane, lane.firstElementChild]]);
     const runs = /* @__PURE__ */ new Map();
+    const cutRuns = /* @__PURE__ */ new Map();
+    const kept = new Set(
+      members.filter((read) => !read.target).flatMap(({ home, container }) => [home, container]).filter(Boolean)
+    );
     let previous = null;
     for (const read of members) {
       const { row } = read;
       if (read.target) {
+        if (!read.cutKey) read.container = lane;
+        else if (previous?.cutKey === read.cutKey && previous.container !== lane)
+          read.container = previous.container;
+        else {
+          const held2 = cutFramesByKey.get(`${idOf(lane)}|${read.cutKey}`) ?? [];
+          let run = cutRuns.get(read.cutKey) ?? 0;
+          while (kept.has(held2[run])) run += 1;
+          cutRuns.set(read.cutKey, run + 1);
+          read.container = cutRun(lane, read, run);
+        }
         const axes = read.place === "rail" ? "y" : "xy";
         if (!read.carrier) read.home = lane;
-        else if (previous?.carrier === read.carrier && previous.axes === axes)
+        else if (previous?.carrier === read.carrier && previous.axes === axes && previous.container === read.container)
           read.home = previous.home;
         else {
-          const key = carrierFor(read.carrier, axes, 0);
-          const run = runs.get(key) ?? 0;
+          const key = carrierFor(read.container, read.carrier, axes, 0);
+          let run = runs.get(key) ?? 0;
+          while (kept.has(carrierFor(read.container, read.carrier, axes, run)))
+            run += 1;
           runs.set(key, run + 1);
-          read.home = carrierFor(read.carrier, axes, run);
+          read.home = carrierFor(read.container, read.carrier, axes, run);
         }
         read.axes = axes;
       }
       previous = read;
+      const container = read.container ?? lane;
       const home = read.home ?? lane;
-      if (home !== lane && !cursors.has(home)) {
-        let at = cursors.get(lane);
-        if (at && at.parentElement !== lane) at = null;
-        if (at === home) cursors.set(lane, home.nextElementSibling);
-        else move(lane, home, at);
-        cursors.set(home, home.firstElementChild);
-      }
+      const seat = (holder, box, outer = box) => {
+        if (cursors.has(box)) return;
+        let at = cursors.get(holder);
+        if (at && at.parentElement !== holder) at = null;
+        if (at === outer) cursors.set(holder, outer.nextElementSibling);
+        else move(holder, outer, at);
+        cursors.set(box, box.firstElementChild);
+      };
+      if (container !== lane) seat(lane, container, outerFrame.get(container));
+      if (home !== container) seat(container, home);
       let before = cursors.get(home);
       if (before && before.parentElement !== home) before = null;
       if (before === row) {
@@ -1036,14 +1097,28 @@ function layoutMarginRows() {
       cursors.set(home, before);
     }
   }
-  for (const [anchor, held2] of carriers) {
-    for (const axes of ["xy", "y"])
-      held2[axes] = held2[axes].filter((carrier) => {
-        if (carrier.isConnected && carrier.childElementCount) return true;
-        carrier.remove();
-        return false;
-      });
-    if (!held2.xy.length && !held2.y.length) carriers.delete(anchor);
+  for (const [holder, byAnchor] of carriers) {
+    for (const [anchor, held2] of byAnchor) {
+      for (const axes of ["xy", "y"])
+        held2[axes] = held2[axes].filter((carrier) => {
+          if (carrier.isConnected && carrier.childElementCount) return true;
+          carrier.remove();
+          return false;
+        });
+      if (!held2.xy.length && !held2.y.length) byAnchor.delete(anchor);
+    }
+    if (!byAnchor.size) carriers.delete(holder);
+  }
+  for (const [key, held2] of cutFramesByKey) {
+    const kept = held2.filter((inner) => inner.isConnected && inner.childElementCount);
+    for (const inner of held2)
+      if (!kept.includes(inner)) {
+        outerFrame.get(inner)?.remove();
+        outerFrame.delete(inner);
+        chains.delete(inner);
+      }
+    if (kept.length) cutFramesByKey.set(key, kept);
+    else cutFramesByKey.delete(key);
   }
   for (const [scroller, lane] of layer.lanes)
     if (!byLane.has(lane)) {

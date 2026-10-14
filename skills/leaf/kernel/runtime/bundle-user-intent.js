@@ -29,9 +29,11 @@ import {
   anchoringIsReady,
   chromeForeground,
   chromeRoot,
+  cutFrames,
   datumAimTarget,
   datumLabel,
   followingItsEnd,
+  headerLevels,
   localScrollBy,
   nameAnchor,
   refreshAnchorView,
@@ -1520,6 +1522,34 @@ function copyControl(className, { label = "", success, error }) {
 // runtime/code-copy.js
 var controls = /* @__PURE__ */ new WeakMap();
 var wired = /* @__PURE__ */ new WeakMap();
+var cuts = /* @__PURE__ */ new WeakMap();
+var makeCut = () => {
+  const frame = document.createElement("div");
+  frame.className = "lf-code-copy-cut";
+  return frame;
+};
+var placed = /* @__PURE__ */ new Map();
+var resized = 0;
+addEventListener("resize", () => {
+  resized ||= nextRender(() => {
+    resized = 0;
+    const read = [...placed].map(([copy, pre]) => [copy, pre, headerLevels(pre)]);
+    for (const [copy, pre, levels] of read) standUnderHeaders(copy, pre, levels);
+  });
+});
+function standUnderHeaders(copy, pre, levels) {
+  const frames = cutFrames(levels, cuts.get(copy) ?? [], makeCut);
+  cuts.set(copy, frames);
+  placed.set(copy, pre);
+  if (frames[0] && frames[0].parentNode !== chromeRoot)
+    move(chromeRoot, frames[0], null);
+  const home = frames.at(-1) ?? chromeRoot;
+  if (copy.parentNode !== home) move(home, copy, null);
+}
+var revealed = (pre, copy) => {
+  if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
+  refreshAnchorView(copy);
+};
 var COPY_SCOPE = /* @__PURE__ */ Symbol("code copy");
 var pressedPath = /* @__PURE__ */ new WeakSet();
 addEventListener(
@@ -1532,7 +1562,7 @@ addEventListener(
 onStanding((node) => {
   for (let at = node; at; at = upFrom(at)) {
     const copy = controls.get(at);
-    if (copy) return refreshAnchorView(copy);
+    if (copy) return revealed(at, copy);
   }
 });
 function prepareCodeBlock(pre, source, noun) {
@@ -1557,7 +1587,7 @@ function prepareCodeBlock(pre, source, noun) {
       if (event.pointerType === "touch" && copy.isConnected)
         focusDestination(pre, "move");
     });
-    pre.addEventListener("pointerenter", () => refreshAnchorView(copy));
+    pre.addEventListener("pointerenter", () => revealed(pre, copy));
     controls.set(pre, copy);
   }
   const place2 = () => copy.classList.toggle("lf-code-copy-away", !anchorView(copy, pre, place2));
@@ -1595,20 +1625,21 @@ function watchCodeBlocks() {
     arriveBatch(blocks) {
       const prepared = blocks.filter((pre) => pre.getRootNode() === document).map(
         (pre) => (
-          /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>]} */
+          /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>, any[]]} */
           [
             pre,
             prepareCodeBlock(
               pre,
               () => pre.querySelector(":scope > code").textContent,
               "code"
-            )
+            ),
+            headerLevels(pre)
           ]
         )
       );
-      for (const [pre, pending] of prepared) {
+      for (const [pre, pending, levels] of prepared) {
         const copy = positionCodeBlock(pending);
-        if (copy.parentNode !== chromeRoot) move(chromeRoot, copy, null);
+        standUnderHeaders(copy, pre, levels);
         copy.tabIndex = -1;
         claimReachStop(pre);
         if (!wired.has(pre)) {
@@ -1653,6 +1684,9 @@ function watchCodeBlocks() {
       if (copy?.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
         copy.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
       copy?.remove();
+      cuts.get(copy)?.[0]?.remove();
+      cuts.delete(copy);
+      placed.delete(copy);
       releaseReachStop(pre);
       projectCommandScope(pre, COPY_SCOPE, null);
     }
@@ -1785,21 +1819,21 @@ function placedMarkdownTokens(source) {
       if (child.nesting === 1) {
         if (child.markup && child.markup !== "linkify" && child.markup !== "autolink")
           a = b - child.markup.length;
-        const placed = {
+        const placed2 = {
           token: child,
           from: positions[a],
           to: positions[b],
           contentFrom: positions[b]
         };
-        found.push(placed);
-        stack.push(placed);
+        found.push(placed2);
+        stack.push(placed2);
       } else if (child.nesting === -1) {
-        const placed = stack.pop();
-        if (!placed) continue;
+        const placed2 = stack.pop();
+        if (!placed2) continue;
         if (child.markup && child.markup !== "linkify" && child.markup !== "autolink")
           b = a + child.markup.length;
-        placed.to = positions[b];
-        placed.contentTo = positions[a];
+        placed2.to = positions[b];
+        placed2.contentTo = positions[a];
       } else if (child.type !== "html_inline") {
         found.push({
           token: child,
@@ -1826,10 +1860,10 @@ function markdownSourceOffset(body, node, offset) {
   const shown = fragmentWords(body.cloneNode(true));
   let shownAt = 0;
   let sourceEnd = 0;
-  for (const placed of placedMarkdownTokens(source)) {
-    const { token, from, to } = placed;
+  for (const placed2 of placedMarkdownTokens(source)) {
+    const { token, from, to } = placed2;
     if (token.nesting) continue;
-    const words = placed.words;
+    const words = placed2.words;
     if (!words) continue;
     const start = shown.indexOf(words, shownAt);
     if (start < 0) continue;
@@ -2147,12 +2181,18 @@ function registeredTags(scope, registry3) {
 function widgetImports(scope, registry3) {
   const initializers2 = [];
   const modules2 = [];
-  for (const tag of registeredTags(scope, registry3)) {
+  const tags = registeredTags(scope, registry3);
+  for (const tag of tags) {
     const entry = registry3[tag];
     if (entry?.["x-initial"]) initializers2.push({ tag, path: entry["x-initial"] });
     if (entry?.["x-upgrade"]) modules2.push(tag);
   }
-  return { initializers: initializers2, modules: modules2 };
+  const shadow = tags.some(
+    (tag) => registry3[tag]["x-shadow"] || Object.values(registry3[tag]["x-state"] ?? {}).some(
+      (state) => state.creates && registry3[state.creates.child]["x-shadow"]
+    )
+  );
+  return { initializers: initializers2, modules: modules2, shadow };
 }
 
 // runtime/widget-loader.js
@@ -2206,7 +2246,7 @@ var widgetUrl = (tag) => offlineInteractive ? runtimeModule(`/widgets/${tag}.js`
 async function loadWidgetDependencies(scope) {
   await Promise.all([
     loadDeclaredMarkdown(scope),
-    ...registeredTags(scope, registry).some((tag) => registry[tag]["x-shadow"]) ? [loadShadowRules()] : []
+    ...widgetImports(scope, registry).shadow ? [loadShadowRules()] : []
   ]);
 }
 async function importWidgetModules(scope) {
@@ -2707,11 +2747,11 @@ function captureDraftEditing(input = focused()) {
 var draftEditingStands = (editing) => Boolean(editing) && activeDraftRecord(editing.context)?.attempt === editing.attempt;
 function draftEditingDestination(editing, handoff) {
   const shown = (view) => Boolean(editorInput(view)?.checkVisibility({ visibilityProperty: true }));
-  const placed = (view) => editorInput(view)?.isConnected;
+  const placed2 = (view) => editorInput(view)?.isConnected;
   const roots = [...draftEditors].filter(
-    (view) => view.ctx === editing.context && !view.mirrored && (placed(view) || view.resume)
+    (view) => view.ctx === editing.context && !view.mirrored && (placed2(view) || view.resume)
   );
-  const editor = roots.find(shown) ?? roots.find(placed) ?? roots[0];
+  const editor = roots.find(shown) ?? roots.find(placed2) ?? roots[0];
   if (!editor) return null;
   const open2 = shown(editor) ? null : editor.resume?.()?.open;
   if (open2) handoff(open2);
@@ -4983,7 +5023,12 @@ function difference(was, now, { progressOpen = false } = {}) {
   ];
   if (!settled && counts.every((count) => !news[count])) return null;
   const appendedAtEnd = news.appended && was.messages.every((message, index) => now.messages[index]?.key === message.key);
-  return { news, changed: changed2, folds, appendedAtEnd, footFold };
+  const turn = was.messages.findLastIndex(
+    (message) => message.author === "user" && !message.progress
+  );
+  const asked = new Set(was.messages.slice(0, turn + 1).map(({ key }) => key));
+  const answers = turn >= 0 && was.messages.slice(turn + 1).every((message) => message.progress || message.provisional) && !settled && !news.messages && !news.edits && !news.reactions && !news.summaries && !folds.summaries.length && (!news.appended || appendedAtEnd) && ![...changed2, ...folds.messages].some((key) => asked.has(key));
+  return { news, changed: changed2, folds, appendedAtEnd, footFold, answers };
 }
 function withheld(was, now) {
   const current = new Map(now.msgs.map((message) => [messageKey(message), message]));
@@ -6446,7 +6491,7 @@ var ThreadView = class {
     });
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
     const markers = /* @__PURE__ */ new Map();
-    const placed = (key, summary) => {
+    const placed2 = (key, summary) => {
       const node = messageNodes.get(key);
       keeps(node, "data-lf-summary", summary);
       const kind = boundaries.get(key);
@@ -6461,7 +6506,7 @@ var ThreadView = class {
     const transcriptLists = [[this.#transcript, transcript]];
     for (const range of rangeState) {
       if (range.kind === "message") {
-        transcript.push(...placed(range.message.key, null));
+        transcript.push(...placed2(range.message.key, null));
         continue;
       }
       const id = range.summary.id;
@@ -6471,7 +6516,7 @@ var ThreadView = class {
       transcript.push(checkpoint.node);
       transcriptLists.push([
         checkpoint.originals,
-        range.messages.flatMap((message) => placed(message.key, id))
+        range.messages.flatMap((message) => placed2(message.key, id))
       ]);
     }
     if (model.working) {

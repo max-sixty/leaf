@@ -22,8 +22,7 @@ import {
   threadActions,
   threadSummary,
   threadTurns,
-  watchAsks,
-  watchQueues,
+  watchProjection,
   whileConnected,
 } from "/runtime/widget-api.js";
 
@@ -58,8 +57,7 @@ customElements.define(
           this.presentation.unregister();
         };
       });
-      watchAsks(this, () => this.paintObligations());
-      watchQueues(this, () => this.paintObligations());
+      watchProjection(this, () => this.paintObligations());
     }
     build() {
       this.mode = "Conversation";

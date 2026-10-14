@@ -142,16 +142,13 @@ button.lf-media-open { cursor: zoom-in; }
 .lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
 :is(.lf-thread-reply, .lf-fab-bar, .lf-msg-editor) .lf-compose-field {
           --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px); }
-/* A message's rewrite is a comment box, the field the thread's reply box is, with its
-   frame and padding, as wide as the reply box: in a transcript, which insets its
-   messages, it reaches back over that inset, so its words keep the message's. Its ring
-   is drawn inside its frame, which the transcript's scrolling would otherwise clip.
-   Cancel and Save stand at the message's head (`.lf-msg-edit-actions`). */
+/* A message's rewrite is a comment box, the field the thread's reply box is, as wide as
+   the reply box: in a transcript, which insets its messages, it reaches back over that
+   inset, so its words keep the message's. Cancel and Save stand at the message's head
+   (`.lf-msg-edit-actions`). */
 .lf-msg-editor { display: block; min-width: 0; }
 .lf-thread-transcript .lf-msg-editor {
           margin-inline-start: calc(-1 * var(--lf-thread-text-inset)); }
-.lf-msg-editor > .lf-compose-field:has(> leaf-text[data-lf-focus]) {
-          outline-offset: calc(-1 * var(--focus-ring-w)); }
 /* Its foot stands for its last line, whose height a reveal clears above it. */
 .lf-msg-edit-foot { display: block; block-size: 0; scroll-margin-block-start: 1lh; }
 /* Cancel and Save take the message's head while it is open, where its Edit control stood

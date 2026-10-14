@@ -35,16 +35,13 @@ import {
   semanticNewsNotice,
   semanticNewsReading,
 } from "./semantic-news.js";
-import { renderVersions } from "./version.js";
 
 export function createStateApplication({
   prepareActivation,
   acceptData,
   notifyDataSubscribers,
   isSignoffDeclared,
-  renderStatus,
   stateSignoff,
-  renderOthers,
   accountPending,
 }) {
   let observedSemanticNews = null;
@@ -160,10 +157,7 @@ export function createStateApplication({
       stateApplying = true;
       try {
         settleAcceptedDrafts();
-        renderStatus(state);
-        renderVersions(state);
         stateSignoff(isSignoffDeclared());
-        renderOthers(state);
         // Optional interface preparation joins imports and installation, without
         // pretending to be a semantic renderer. Adoption already claimed every document
         // region for this epoch, and frozen

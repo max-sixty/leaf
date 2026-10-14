@@ -5526,12 +5526,13 @@ def test_floating_thread_chains_scrolling_to_its_page(browser, serve, long):
 @pytest.mark.parametrize("long", [False, True], ids=["fitting", "overflowing"])
 def test_floating_thread_pages_on_to_its_page(browser, serve, long):
     """With a floating thread focused, d/u page its turns, then the document at
-    either edge, as the wheel does."""
+    either edge, as the wheel does, and go on paging it once the thread has
+    scrolled out of view."""
     source = leaf_page(
         "Page through a contextual thread",
         '<div style="height: 80vh"></div>'
         '<p id="open">Review the open questions.</p>'
-        '<div style="height: 180vh"></div>',
+        '<div style="height: 400vh"></div>',
     )
     page = open_page(
         browser, serve(source, events=LONG_THREAD if long else [LONG_THREAD_ROOT])
@@ -5564,6 +5565,19 @@ def test_floating_thread_pages_on_to_its_page(browser, serve, long):
         moved = page.evaluate("scrollY") - page_at
         assert moved > 20 if key == "d" else moved < -20
         expect(card).to_be_visible()
+
+    transcript.evaluate("box => box.scrollTop = box.scrollHeight")
+    for _ in range(8):
+        if not card.evaluate("card => card.getBoundingClientRect().bottom > 0"):
+            break
+        page.keyboard.press("d")
+    expect(card.locator(".lf-page-thread")).to_be_focused()
+    assert not card.evaluate("card => card.getBoundingClientRect().bottom > 0")
+    for key in ("d", "u"):
+        page_at = page.evaluate("scrollY")
+        page.keyboard.press(key)
+        moved = page.evaluate("scrollY") - page_at
+        assert moved > 20 if key == "d" else moved < -20
 
 
 def open_long_thread(browser, serve, height=900):

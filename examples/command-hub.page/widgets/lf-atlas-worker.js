@@ -10,7 +10,8 @@ import {
   readWork,
   render,
   reportSequence,
-  watchReports,
+  reportsPresented,
+  watchProjection,
   widgetController,
   workAncestor,
 } from "/runtime/widget-api.js";
@@ -48,7 +49,11 @@ customElements.define(
         () => this.watching.refresh(),
       );
       this.#controller.subscribe(() => {});
-      this.watching = watchReports(this, () => this.paint());
+      this.watching = watchProjection(
+        this,
+        () => this.paint(),
+        () => reportsPresented(this),
+      );
     }
     renderState(state) {
       keeps(this, "state", state.state.value);

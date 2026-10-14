@@ -5400,10 +5400,10 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
-          window.__proofWatching = api.watchReports(owner, reports => {
+          window.__proofWatching = api.watchProjection(owner, () => {
             clockValue(() => window.__proofClock);
-            window.__proofReads.push(reports.map(report => report.text));
-          });
+            window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
+          }, () => api.reportsPresented(owner));
           window.__proofTick = () => { window.__proofClock += 1; };
           window.__proofPending = () => {
             const proof = readApplicationPresentation();

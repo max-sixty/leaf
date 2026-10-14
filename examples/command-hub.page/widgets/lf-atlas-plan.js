@@ -10,7 +10,7 @@ import {
   readWork,
   render,
   repeat,
-  watchWork,
+  watchProjection,
 } from "/runtime/widget-api.js";
 customElements.define(
   "lf-atlas-plan",
@@ -36,7 +36,7 @@ customElements.define(
         this.watching.refresh();
       });
       this.addEventListener("atlas-reading", () => this.watching.refresh());
-      this.watching = watchWork(this, () => this.paint());
+      this.watching = watchProjection(this, () => this.paint());
     }
     paint() {
       const reading = readWork(this);

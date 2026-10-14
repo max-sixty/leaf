@@ -207,7 +207,7 @@ and its chrome coordinate.
   it only in the count; give that arrival a visible route while preserving the
   current reading.
 - **Fit `rust-sort`'s stage pane.** At 720px it runs 100px past its region, which
-  `page-authoring.md` asks an author to trim or split
+  `page-layout.md` asks an author to trim or split
   ([why a workspace doesn't scroll](notes/chrome-and-covers.md#decided-a-workspace-is-a-screen)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
@@ -319,7 +319,7 @@ that changes size after first paint, with its cause.
 
 ### Queues
 
-A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, "A
+A queue is one `lf-tabs list="side"` beside its open item (`page-layout.md`, "A
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 

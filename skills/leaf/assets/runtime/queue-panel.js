@@ -61,7 +61,7 @@ import {
   drawerIsOpen,
 } from "./drawers.js";
 import { markBannerControl } from "./banner-toolbar.js";
-import { clocked, shortAgo } from "./presence.js";
+import { shortAgo } from "./presence.js";
 import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
 import { standsAt } from "./queue-list.js";
@@ -301,10 +301,6 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     });
   }
 
-  // Clock changes claim the same presenter as publications. Its scheduled paint
-  // captures the new row ages, and owns their commit and retention on failure.
-  const model = clocked(queueList, readModel, () => present());
-
   async function paintQueue(current) {
     const open = drawerIsOpen("queue");
     if (wasOpen && !open) tab = "you";
@@ -317,7 +313,9 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     // an approval is open.
     markBannerControl(queueBtn, waiting ? "items on me" : null);
     repaint();
-    const next = model();
+    // The row ages it reads are followed with its parts, so a clock change claims the
+    // region as a publication does, and its paint owns their commit and retention.
+    const next = readModel();
     try {
       const painted = await queueList.present(next);
       if (!current()) return [];

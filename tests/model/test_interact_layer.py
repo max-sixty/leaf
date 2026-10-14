@@ -1011,6 +1011,9 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/page-checkpoints.md",
         "skills/leaf/references/packages.md",
         "skills/leaf/references/page-authoring.md",
+        "skills/leaf/references/page-behavior.md",
+        "skills/leaf/references/page-layout.md",
+        "skills/leaf/references/live-samples.md",
         "skills/leaf/references/serving-pages.md",
         "skills/leaf/packages/default/registry.json",
         "skills/leaf/packages/diagram/registry.json",
@@ -1149,6 +1152,22 @@ def test_the_payload_is_text():
         except UnicodeDecodeError:
             binary.append(path.relative_to(PLUGIN_ROOT).as_posix())
     assert binary == [], "binary files in the tree: " + ", ".join(binary)
+
+
+def test_every_skill_file_reads_in_one_command():
+    """An agent reads a skill file with `cat` as often as with Read, and Claude Code
+    hands a Bash output over 30,000 characters back as a 2 KB preview with the rest
+    saved to a file the agent rarely opens. page-authoring.md at 48 KB reached
+    authoring sessions that way until it was split, so each skill's files stay
+    under that cap."""
+    oversized = {
+        path.relative_to(ROOT).as_posix(): size
+        for root in (ROOT / "skills", ROOT / ".claude" / "skills")
+        for path in root.rglob("*.md")
+        if path.name == "SKILL.md" or {"references", "instructions"} & set(path.parts)
+        if (size := len(path.read_text())) > 30_000
+    }
+    assert oversized == {}, oversized
 
 
 def test_claude_and_codex_read_the_same_repository_skills():

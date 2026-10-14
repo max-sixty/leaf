@@ -18,7 +18,7 @@
    its corner, the touch form of the same reveal. The control takes no room, since room
    made for it would move the page's content (`../AGENTS.md`, "Nothing Leaf draws moves
    the page's content"). */
-import { offer } from "./widget-elements.js";
+import { copyControl } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
 import {
   anchorReading,
@@ -32,7 +32,6 @@ import { chromeRoot } from "./chrome.js";
 import { move } from "./dom-move.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
-import { notice } from "./notifications.js";
 
 const controls = new WeakMap();
 const wired = new WeakMap();
@@ -66,11 +65,11 @@ onStanding((node) => {
 function prepareCodeBlock(pre, source, noun) {
   let copy = controls.get(pre);
   if (!copy) {
-    copy = offer("wa-copy-button", "lf-code-copy");
-    copy.copyLabel = `Copy ${noun}`;
-    copy.successLabel = `${noun[0].toUpperCase()}${noun.slice(1)} copied`;
-    copy.errorLabel = `Unable to copy ${noun}`;
-    copy.tooltip = "none";
+    copy = copyControl("lf-code-copy", {
+      label: `Copy ${noun}`,
+      success: `${noun[0].toUpperCase()}${noun.slice(1)} copied`,
+      error: `Unable to copy ${noun}`,
+    });
     copy.addEventListener(
       "click",
       (event) => {
@@ -80,13 +79,6 @@ function prepareCodeBlock(pre, source, noun) {
         } else copy.value = source();
       },
       { capture: true },
-    );
-    // Web Awesome announces the result; Leaf puts the same words in its status line.
-    copy.addEventListener("wa-copy", () =>
-      notice(copy.successLabel, { announce: false }),
-    );
-    copy.addEventListener("wa-error", () =>
-      notice(copy.errorLabel, { announce: false }),
     );
     pre.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "touch" && copy.isConnected)

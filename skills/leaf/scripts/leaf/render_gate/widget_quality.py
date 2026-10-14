@@ -36,7 +36,7 @@ Each check has one name in `CHECKS`, which is the code of the finding
   taken after `changedBoxes`, last on the page.
 - `shows-context-keys`: a command that declares context keys, the aliases a widget
   offers for pressing a control from elsewhere, also declares a `bindingBadge`, so the
-  page shows the key it adds (`../../references/module-authoring.md`, "Commands and
+  page shows the key it adds (`../../references/module-input.md`, "Commands and
   keyboard routes"). Its reading is `unshownContextKeys` in `render-checks/widgets.js`,
   which reads the declarations rather than the keys reachable now.
 """

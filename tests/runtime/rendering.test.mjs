@@ -31,6 +31,7 @@ const {
   nextFrame,
   cancelRender,
   afterScript,
+  afterSettling,
   sizeObserver,
   renderingState,
   holdRendering,
@@ -324,4 +325,19 @@ test("a hidden page reads settled while work waits for an update it will not get
   } finally {
     delete document.hidden;
   }
+});
+
+test("work waiting on settling waits for an update after it and every preparation", async () => {
+  await update();
+  assert.equal(Object.values(renderingState()).every(Boolean), true);
+  let settled = 0;
+  afterSettling(() => settled++);
+  assert.equal(settled, 0, "a settled page still owes the update after the ask");
+  const preparing = holdRendering();
+  await update();
+  await update();
+  assert.equal(settled, 0, "a preparation begun meanwhile holds it");
+  preparing();
+  await update();
+  assert.equal(settled, 1);
 });

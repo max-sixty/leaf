@@ -264,6 +264,8 @@ function check() {
   }
   checking = false;
   quiet = true;
+  // A preparation's release unsettles the reading again, so its last check drains.
+  if (preparations) return;
   const settled = settling;
   settling = [];
   for (const callback of settled) callback();
@@ -274,8 +276,10 @@ let settling = [];
 const owed = () => {};
 
 /** Call `settled` once the rendering that work begun now sets going has settled: a
-    counted update runs after this moment, and then one is quiet. A gesture's rendering
-    is the work its input sets going until then, its answers to that input included. */
+    counted update runs after this moment, and then one is quiet with no finite
+    preparation waiting, the whole of `renderingState`. A gesture's rendering is the
+    work its input sets going until then, its answers to that input included, such as a
+    widget preparing what a disclosure the reader opened shows. */
 export function afterSettling(settled) {
   settling.push(settled);
   nextFrame(owed);

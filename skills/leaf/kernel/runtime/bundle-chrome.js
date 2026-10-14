@@ -5022,6 +5022,8 @@ function newsNotice(header = false) {
     "button",
     header ? "lf-thread-notice lf-thread-notice-news lf-thread-header-action lf-thread-news" : "lf-thread-notice lf-thread-notice-news lf-thread-news"
   );
+  const words = document.createElement("span");
+  node.append(words);
   let open2 = () => null;
   const show = () => {
     const standing2 = focused() === node;
@@ -5041,7 +5043,7 @@ function newsNotice(header = false) {
   return {
     node,
     set(news) {
-      keepsText(node, news.label);
+      keepsText(words, news.label);
       keeps(node, "title", news.label);
       node.classList.toggle("lf-reopen", news.reopened);
       open2 = news.open;

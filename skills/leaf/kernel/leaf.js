@@ -1087,7 +1087,8 @@ function createCompositionInputs({ uploadMedia: uploadMedia2, inputHint }) {
       if (ariaLabel) keeps(ta, "aria-label", ariaLabel);
       const action = sendLabel();
       keeps(sendBtn, "aria-label", action);
-      keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})` : action);
+      const newline = sendKeys === spell("Enter") ? ` \xB7 ${spell("Shift+Enter")} new line` : "";
+      keeps(sendBtn, "title", sendKeys ? `${action} (${sendKeys})${newline}` : action);
       keeps(sendBtn, "aria-disabled", !canSend());
       if (altBtn) keeps(altBtn, "aria-disabled", !canSend());
       if (mic) {
@@ -1810,7 +1811,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
 var headingRow = (id, title, hidden = false) => html`
   <tbody ?hidden=${hidden}>
     <tr role="row">
-      <th role="gridcell" colspan="2"><h3 id=${id}>${title}</h3></th>
+      <th role="gridcell" colspan="2"><h3 class="lf-label" id=${id}>${title}</h3></th>
     </tr>
   </tbody>
 `;
@@ -4417,6 +4418,8 @@ pageSearchInput.maxlength = 160;
 var pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
 pageSearchStatus.slot = "end";
+var pageSearchWords = el("span");
+pageSearchStatus.append(pageSearchWords);
 pageSearchInput.append(pageSearchStatus);
 pageSearchSurface.append(pageSearchInput);
 var noMatches = "No matches";
@@ -4557,7 +4560,7 @@ ${searchCount(maximum, maximum)}`
   function presentSearchStatus() {
     const query = pageSearchInput.value.trim();
     const status = !query ? nothing : matches.length ? searchCount(active + 1, matches.length) : noMatches;
-    render(html`${status}`, pageSearchStatus);
+    render(html`${status}`, pageSearchWords);
   }
   function sameMatch(left, right) {
     return left.length === right.length && left.every(
@@ -6015,9 +6018,9 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
   return {
     summary: onAgent.length ? `On ${short}: ${onAgent.length}` : "",
     explanation: [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" "),
-    // The widest the count usually reaches, under ten, which its box keeps; more
-    // widens it once (banner-status-view.js).
-    widest: `On ${short}: 9`
+    // The widest the count usually reaches, under a hundred, which its box holds;
+    // a count past it is cut (banner-status-view.js).
+    widest: `On ${short}: 99`
   };
 }
 var WITHOUT_QUEUES = /* @__PURE__ */ new Set(["broken", "unreachable", "publication"]);
@@ -6371,7 +6374,7 @@ var QueueList = class extends RetainedFace {
         ${queue2.rows.length ? rowsTemplate(queue2.rows, this.#activateRow, this.#finishRow, this.#end) : html`<div class="lf-queue-empty">${queue2.empty}</div>`}
       </div>
       ${done.rows.length ? html`<details class="lf-queue-group lf-queue-done" data-lf-queue="done">
-              <summary class="lf-queue-heading">${done.label}</summary>
+              <summary class="lf-queue-heading lf-label">${done.label}</summary>
               ${rowsTemplate(done.rows, this.#activateRow, this.#finishRow, this.#end)}
             </details>` : nothing}`;
   }
@@ -6407,8 +6410,10 @@ function drawerFurniture(panel2, name2, list, closes) {
 }
 var queueBtn = el("button", "lf-btn lf-queue");
 var queueWords2 = el("span", "", "On me");
-queueWords2.dataset.lfRoom = "On me: 99";
-queueBtn.append(queueWords2);
+var queueRoom = el("span");
+queueRoom.dataset.lfRoom = "On me: 99";
+queueRoom.append(queueWords2);
+queueBtn.append(queueRoom);
 var othersBtn = el("button", "lf-btn lf-others", "");
 othersBtn.title = "Pages live on this machine, and what each is doing";
 var othersPanel = el("nav", "lf-ui lf-drawer-panel lf-others-panel");
@@ -6600,17 +6605,12 @@ var BannerStatusView = class extends HTMLElement {
   #notice = { message: "", visible: false };
   #model = null;
   #queues = el("button", "lf-status-queues");
-  #queuesWidest = "";
-  #queuesRoom = "";
   #presentQueues = () => {
     const model = this.#model;
-    if (model.queuesWidest !== this.#queuesWidest) {
-      this.#queuesWidest = model.queuesWidest;
-      this.#queuesRoom = model.queuesWidest;
-    }
-    if (model.queues.length > this.#queuesRoom.length) this.#queuesRoom = model.queues;
     render(
-      html`<span data-lf-room=${this.#queuesRoom}>${model.queues}</span>`,
+      html`<span data-lf-room=${model.queuesWidest}
+        ><span>${model.queues}</span></span
+      >`,
       this.#queues
     );
     keeps(this.#queues, "title", `Show or hide what's on me and on ${agentName()}`);
@@ -6724,8 +6724,10 @@ var bannerStatus = createBannerStatusView(repaint, INITIAL);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
 var queueCounts = bannerStatus.queues;
 var toggleBtn = el("button", "lf-btn lf-auxiliary-toggle lf-threads-toggle");
-var threadsLabel = el("span", "lf-threads-label", "Threads");
+var threadsLabel = el("span", "lf-threads-label");
 threadsLabel.dataset.lfRoom = "Threads\nThreads: 999";
+var threadsWords = el("span", "", "Threads");
+threadsLabel.append(threadsWords);
 toggleBtn.append(iconElement("comment", "lf-threads-icon"), threadsLabel);
 toggleBtn.title = "Show or hide the thread panel";
 toggleBtn.setAttribute("aria-expanded", "false");
@@ -6734,7 +6736,7 @@ var unreadThreads = 0;
 function paintThreadCounts() {
   const label2 = openThreads === null ? "Threads" : `Threads: ${openThreads}`;
   const accessible = openThreads === null ? "Threads" : `Open threads: ${openThreads}`;
-  keepsText(threadsLabel, label2);
+  keepsText(threadsWords, label2);
   keeps(toggleBtn, "data-lf-count", openThreads === null ? null : String(openThreads));
   toggleBtn.toggleAttribute("data-unread-threads", unreadThreads > 0);
   const unread = unreadThreads ? `${unreadThreads} unread ${unreadThreads === 1 ? "thread" : "threads"}` : null;
@@ -6752,9 +6754,11 @@ function setThreadCounts(open, unread) {
 }
 var approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.id = "lf-approve";
+var approveRoom = el("span");
+approveRoom.dataset.lfRoom = "Approve version\n\u2713 Version approved";
 var approveWords = el("span");
-approveWords.dataset.lfRoom = "Approve version\n\u2713 Version approved";
-approveBtn.append(approveWords);
+approveRoom.append(approveWords);
+approveBtn.append(approveRoom);
 var approvalPresentation = null;
 function registerApprovalPresentation(presentation) {
   approvalPresentation = presentation;
@@ -7291,9 +7295,6 @@ function createFloatingPanel({
   const stage = el("div", "lf-fp-stage");
   opened.append(head, stage);
   const context = el("div", "lf-fp-context");
-  const contextDest = el("span", "lf-fp-dest");
-  const contextKeys = el("span", "lf-fp-keys");
-  context.append(contextDest, contextKeys);
   const row = el("div", "lf-fp-row");
   const menu = el("div", "lf-fp-menu");
   menu.id = "lf-fp-menu";
@@ -7342,10 +7343,6 @@ function createFloatingPanel({
   let writing = false;
   let typing = false;
   let landAtEnd = null;
-  const destination = () => {
-    const top = trail.at(-1);
-    return top?.view === "thread" ? `reply:${threadByKey(top.thread)?.key ?? top.thread}` : PAGE_DRAFT;
-  };
   function fieldReading(key, input) {
     const thread = key ? threadByKey(key) : null;
     if (input === focused() && !thread?.resolved)
@@ -8429,9 +8426,6 @@ function createFloatingPanel({
     keepsHidden(replyOutlet, resting);
     const input = fieldInput();
     if (input) syncInput(input);
-    const holds = Boolean(loadDraft(destination())?.trim());
-    const engaged = Boolean(thread) || writing || holds;
-    keeps(host, "data-engaged", engaged ? "" : null);
     keeps(host, "data-writing", writing ? "" : null);
     typing = writing && Boolean(draftOf(input).trim());
     keeps(host, "data-typing", typing ? "" : null);
@@ -8447,20 +8441,12 @@ function createFloatingPanel({
     const empty = draftOf(input) === "";
     const notice2 = noticeReading();
     const covered = notice2.visible && (!empty || reading.says === "destination");
-    keeps(contextDest, "data-notice", covered ? "" : null);
+    keeps(context, "data-notice", covered ? "" : null);
     keepsText(
-      contextDest,
+      context,
       covered ? notice2.message : empty ? "" : whereTo(replying ? top.thread : null)
     );
-    keepsText(
-      contextKeys,
-      input === focused() && advertisesKeys() ? `${submitLabel()} to send${submitLabel() === "\u23CE" ? " \xB7 \u21E7\u23CE new line" : ""}` : ""
-    );
-    keeps(
-      context,
-      "data-empty",
-      !engaged || !(contextDest.textContent || contextKeys.textContent) ? "" : null
-    );
+    keepsHidden(context, !context.textContent);
     const standing2 = rowNotice();
     keepsHidden(rowNoticeSeat, !standing2);
     render(standing2 ? rowNoticeTemplate(standing2) : nothing, rowNoticeSeat);
@@ -9746,7 +9732,7 @@ var ThreadNarrowingView = class extends HTMLElement {
     >
       ${choice2.amount === null ? choice2.label : html`<span
               data-lf-room=${`${choice2.label} (${"0".repeat(this.#countDigits)})`}
-              >${choice2.label} (${choice2.amount})</span
+              ><span>${choice2.label} (${choice2.amount})</span></span
             >`}
     </button>`;
   }
@@ -9908,7 +9894,7 @@ var AskBannerFace = class extends RetainedFace {
     showNews(control, this.model.offered);
   }
   render() {
-    return html`<span data-lf-room=${this.room}>${this.model.text}</span>`;
+    return html`<span data-lf-room=${this.room}><span>${this.model.text}</span></span>`;
   }
 };
 if (!customElements.get(FACE_TAG2)) customElements.define(FACE_TAG2, AskBannerFace);

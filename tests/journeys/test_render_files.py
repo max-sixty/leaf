@@ -38,7 +38,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     expect(widget.get_by_role("button")).to_have_count(0)
 
     def choose(name, role="menuitem"):
-        conflict.click()
+        widget.locator("[aria-haspopup=menu]").click()
         widget.get_by_role(role, name=name, exact=True).click()
 
     def replace(text):
@@ -295,12 +295,17 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     )
     assert min(halves) > 100, halves
 
-    # A failed Save draft keeps the conflict and every choice, the open comparison
-    # included, with the failure as the control's description: Save draft again is
-    # the retry.
+    # A failed Save draft keeps the conflict's control and every choice, the open
+    # comparison included: the control says the draft is not saved and carries the
+    # failure as its description, and Save draft again is the retry.
     page.route("**/api/files/notes", fail_write)
     choose("Save draft")
-    expect(conflict).to_have_accessible_description("The page's server did not answer.")
+    not_saved = widget.get_by_role("button", name="Not saved", exact=True)
+    expect(not_saved).to_have_accessible_description(
+        "The page's server did not answer."
+    )
+    expect(status).to_have_text("Not saved", use_inner_text=True)
+    assert editor_room()[0] == resting_room[0]
     expect(retry).to_be_hidden()
     expect(comparison).to_be_visible()
     page.unroute("**/api/files/notes", fail_write)

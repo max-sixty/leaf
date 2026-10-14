@@ -30,9 +30,12 @@ export function boundFile(binding) {
       if (error.status === undefined)
         throw new Error("The page's server did not answer.", { cause: error });
       if (error.said === undefined)
-        throw new Error(`The page's server answered HTTP ${error.status}.`, {
-          cause: error,
-        });
+        throw new Error(
+          error.status < 400
+            ? "The page's server answered in a form the page cannot read."
+            : `The page's server answered HTTP ${error.status}.`,
+          { cause: error },
+        );
       throw error;
     }
   }

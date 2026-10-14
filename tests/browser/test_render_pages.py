@@ -1951,6 +1951,80 @@ WATCHED_HOLDERS = """(() => {
 })();"""
 
 
+STEP_DISCS_PAGE = leaf_page(
+    "Step discs",
+    '<h1>Steps</h1><ol class="steps">'
+    "<li><strong>The first line opens bold.</strong> The rest of the step runs on in "
+    "prose long enough to wrap onto a second line of the column it stands in.</li>"
+    "<li>Route new sessions to the old service.</li></ol>"
+    '<div style="font: var(--t-3)/1.6 var(--sans)"><ol class="steps">'
+    "<li><strong>A larger sans rung.</strong> Its own line is taller.</li></ol></div>"
+    '<aside class="sidenote"><ol class="steps"><li>A sidenote step.</li></ol></aside>',
+)
+
+
+def test_a_steps_number_sits_centred_in_its_disc_beside_its_first_line(browser, serve):
+    """Each step's number has its ink centred in its disc, and the disc centres on the
+    cap height of the step's first line, in the serif and sans faces and at each rung
+    a list of steps appears at. The number once stood on the item's line box, 27px of
+    line in a 21px disc, so it sat three pixels low beside every step of body prose."""
+    scale = 2
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900}, device_scale_factor=scale
+    )
+    page = open_page(browser, serve(STEP_DISCS_PAGE), context=context)
+    steps = page.evaluate("""() => {
+      const pen = document.createElement('canvas').getContext('2d');
+      return [...document.querySelectorAll('ol.steps > li')].map((step) => {
+        const probe = document.createElement('i');
+        probe.style.cssText = 'display: inline-block; width: 0; height: 0';
+        step.prepend(probe);
+        const baseline = probe.getBoundingClientRect().bottom;
+        probe.remove();
+        const face = getComputedStyle(step.firstElementChild ?? step);
+        pen.font = `${face.fontWeight} ${face.fontSize} ${face.fontFamily}`;
+        const disc = getComputedStyle(step, '::before');
+        const box = step.getBoundingClientRect();
+        return {text: step.textContent.slice(0, 24), x: box.x, y: box.y,
+          capCentre: baseline - pen.measureText('H').actualBoundingBoxAscent / 2,
+          ground: disc.backgroundColor, ink: disc.color};
+      });
+    }""")
+
+    def rgb(css):
+        return tuple(round(float(n)) for n in re.findall(r"[0-9.]+", css)[:3])
+
+    assert len(steps) == 4, steps
+    for step in steps:
+        clip = {"x": step["x"], "y": step["y"] - 4, "width": 24, "height": 30}
+        shot = Image.open(io.BytesIO(page.screenshot(clip=clip, scale="device")))
+        pixels, (width, height) = shot.convert("RGB").load(), shot.size
+        ground, ink = rgb(step["ground"]), rgb(step["ink"])
+        disc = [
+            (x, y)
+            for y in range(height)
+            for x in range(width)
+            if math.dist(pixels[x, y], ground) < 40
+        ]
+        left, right = min(x for x, _ in disc), max(x for x, _ in disc) + 1
+        top, bottom = min(y for _, y in disc), max(y for _, y in disc) + 1
+        middle, centre = (left + right) / 2, (top + bottom) / 2
+        # The number's ink: the disc's foreground inside the disc, clear of its rim.
+        number = [
+            y
+            for y in range(top, bottom)
+            for x in range(left, right)
+            if math.dist((x, y), (middle, centre)) < (right - left) * 0.4
+            and math.dist(pixels[x, y], ink) < math.dist(ink, ground) / 2
+        ]
+        assert (min(number) + max(number) + 1) / 2 / scale == pytest.approx(
+            centre / scale, abs=1
+        ), step
+        assert clip["y"] + centre / scale == pytest.approx(
+            step["capCentre"], abs=1.5
+        ), step
+
+
 @pytest.mark.parametrize("how", ["class", "style", "insert", "remove", "unhold"])
 def test_a_breakout_moved_in_after_load_re_lands_before_it_paints(browser, serve, how):
     """A breakout whose holder stands further in after load stays on the prose axis

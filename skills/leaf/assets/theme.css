@@ -723,16 +723,16 @@ ol.steps > li::before {
   left: 0;
   top: 0.5lh;
   transform: translateY(-50%);
-  line-height: 1lh;
   width: 21px;
   height: 21px;
   border-radius: 50%;
   background: var(--accent);
   color: var(--card);
-  font-size: 12px;
-  font-weight: 600;
-  display: grid;
-  place-items: center;
+  font: 600 12px var(--sans);
+  line-height: 1lh;
+  text-align: center;
+  align-content: center;
+  text-box: trim-both cap alphabetic;
 }
 svg.drawing {
   display: block;

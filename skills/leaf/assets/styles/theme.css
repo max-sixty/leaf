@@ -1246,13 +1246,22 @@ ol.steps > li { counter-increment: step; position: relative; padding-left: 34px;
                 margin: 10px 0; }
 /* The step's own number, off the ladder for the reason the ladder states: it is set
    against a 21px disc rather than against the prose, so it is a fit and says so here. The
-   apparatus rung would fill the disc; the room is what is scarce, as it is for the pick
-   mark's ✓ and the binding badge's digit. */
+   apparatus rung would fill the disc; the room is what is scarce. It takes the sans face
+   whatever the prose's, since a serif fallback such as Georgia draws old-style figures,
+   and a 3 or a 5 hangs below the line the 1 and 2 stand on.
+
+   Two lines meet here. The disc centres on its step's first line: `line-height: 1lh`
+   takes the step's line (a line-height's lh is its parent's), so `top: 0.5lh` is that
+   line's middle. The number centres on its ink, cap height to baseline (`text-box`),
+   not on that line, which is taller than the disc: centred on its line box, the number
+   sat 3px low beside body prose. */
 ol.steps > li::before { content: counter(step); position: absolute; left: 0;
                         top: 0.5lh; transform: translateY(-50%);
-                        line-height: 1lh; width: 21px; height: 21px; border-radius: 50%;
-                        background: var(--accent); color: var(--card); font-size: 12px;
-                        font-weight: 600; display: grid; place-items: center; }
+                        width: 21px; height: 21px; border-radius: 50%;
+                        background: var(--accent); color: var(--card);
+                        font: 600 12px var(--sans); line-height: 1lh;
+                        text-align: center; align-content: center;
+                        text-box: trim-both cap alphabetic; }
 
 /* A schematic drawing the page makes itself: every mark takes a theme token, so the
    figure follows the palette as the prose does, which an SVG loaded as an image cannot.

@@ -13,10 +13,11 @@ as in a diff.
 
 An agent's message can carry markup that repeats ids on the page. To look up an element
 by an id another element gives, search `authoredScope(element)`: the page's `main`, or
-the body of the message holding the element. `elementById(id, root)` finds an id within `root`, or the whole document,
-including widgets' shadow trees, which `getElementById` misses. `under(node, root)` says
-whether `node` is in `root` across shadow boundaries, and `inChrome(node)` whether it is
-in Leaf's own interface, as a widget in a Thread reply is.
+the body of the message holding the element. `elementById(id, root)` finds an id within
+`root`, or the whole document, including widgets' shadow trees, which `getElementById`
+misses. `under(node, root)` says whether `node` is in `root` across shadow boundaries,
+and `inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread
+reply is.
 
 ### Naming elements
 

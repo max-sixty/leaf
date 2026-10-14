@@ -33,9 +33,10 @@ gate expects to find in the page's file.
 Register the pane's body, and any other box the widget may scroll, with
 `registerReadingRegion({id, host, body})` inside `whileConnected`, returning the
 function it gives back as the cleanup. `body` is the box that may scroll, and `host` the
-pane around it, so focus in the pane's header counts as being in the pane. Leaf then keeps the user's place in the box. Registering an
-id that another live region holds throws. A widget whose parts scroll independently
-registers each, with an id from `compoundReadingRegionId(owner, localName)`.
+pane around it, so focus in the pane's header counts as being in the pane. Leaf then
+keeps the user's place in the box. Registering an id that another live region holds
+throws. A widget whose parts scroll independently registers each, with an id from
+`compoundReadingRegionId(owner, localName)`.
 
 `scrollerFor(element)` returns the box that scrolls an element, its region's or the
 page's (`pageScroller`). `readingPosture(node)` is `"bounded"` while the region's body

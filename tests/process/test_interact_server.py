@@ -54,6 +54,7 @@ from interact_support import (
     response_reference,
     retire_test_services,
     running_http_server,
+    said,
     spawn_probe,
     vendored_at_another_protocol,
     vendored_before_the_ask_rename,
@@ -3080,7 +3081,7 @@ def test_neighbor_discovery_needs_no_native_subscription(
     assert second in [page for page, _record in presence_model.neighbor_candidates()]
 
 
-def test_native_watcher_limit_has_an_actionable_refusal(tmp_path, monkeypatch):
+def test_native_watcher_failure_reaches_its_owner(tmp_path, monkeypatch):
     from leaf import file_changes
     from watchfiles._rust_notify import WatchfilesRustInternalError
 
@@ -3090,7 +3091,7 @@ def test_native_watcher_limit_has_an_actionable_refusal(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr(file_changes, "RustNotify", exhausted)
-    with pytest.raises(Refused, match=r"fs\.inotify\.max_user_instances"):
+    with pytest.raises(WatchfilesRustInternalError, match="Too many open files"):
         file_changes.FileChanges({tmp_path: False}, lambda _path: True)
 
 
@@ -4251,8 +4252,8 @@ def test_a_loopback_serve_says_the_url_opens_only_on_this_machine(
     )
     try:
         assert started.exit_code == 0, started.output
-        assert "access   loopback only" in started.output
-        assert "--host NAME" in started.output
+        assert [note["code"] for note in said(started.stderr)] == ["loopback-only"]
+        assert "--host NAME" in started.stderr
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
@@ -4267,33 +4268,10 @@ def test_a_stated_host_serve_says_nothing_about_loopback(page_dir, monkeypatch):
     )
     try:
         assert started.exit_code == 0, started.output
-        assert "access   loopback" not in started.output
+        assert started.stderr == ""
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
-
-
-def test_the_loopback_line_follows_the_lifetime_line(page_dir):
-    """`interact_support` reads one line of a served subprocess's stderr and
-    expects the lifetime there, so the loopback line lands after it."""
-    cleanup_model.write_json(
-        page_dir / "service.json",
-        {
-            "host": "::1",
-            "bind": "::1",
-            "port": 41234,
-            "enabled": False,
-            "lifetime": "persistent",
-        },
-    )
-
-    lines = hosting_model.startup_note(page_dir).splitlines()
-
-    assert lines[:3] == [
-        "server   persistent",
-        f"stop     leaf server stop {page_dir}",
-        "access   loopback only (re-serve with --host NAME for remote users)",
-    ]
 
 
 def test_server_start_names_the_page_layer_and_running_payload(page_dir):
@@ -4304,15 +4282,20 @@ def test_server_start_names_the_page_layer_and_running_payload(page_dir):
     try:
         assert started.exit_code == 0, started.output
         identity = registry_storage.layer_metadata(page_dir)
-        assert f"page     {page_dir}" in started.output
-        assert f"layer    {identity['fingerprint']}" in started.output
-        assert f"runtime  {schema_model.PLUGIN_ROOT}" in started.output
+        reading = json.loads(started.stdout)
+        assert (reading["page"], reading["lifetime"]) == (str(page_dir), "persistent")
+        assert reading["stop"] == f"leaf server stop {page_dir}"
+        assert reading["layer"] == {
+            "fingerprint": identity["fingerprint"],
+            "leaf": identity["producer"],
+        }
+        assert reading["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
 
         state = runner.invoke(cli_model.cli, ["page", "state", str(page_dir)])
         assert state.exit_code == 0, state.output
         server = json.loads(state.output)["server"]
         assert server["runtime"]["path"] == str(schema_model.PLUGIN_ROOT)
-        assert server["url"] in started.output
+        assert server["url"] == reading["url"]
     finally:
         stopped = runner.invoke(cli_model.cli, ["server", "stop", str(page_dir)])
         assert stopped.exit_code == 0, stopped.output
@@ -4534,15 +4517,7 @@ def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_
         },
     )
 
-    note = hosting_model.startup_note(page_dir)
-
-    # The runtime line is the only one that claims a source, and reading the
-    # whole note for the calling payload's path reads the wrong lines too: the
-    # page and stop lines name the page directory, which may legitimately sit
-    # under the checkout — as it does whenever a run is given a `--basetemp`
-    # there. Equality on that one line says what the absence was reaching for.
-    runtime = next(line for line in note.splitlines() if line.startswith("runtime"))
-    assert runtime == "runtime  unknown payload (unknown source)"
+    assert hosting_model.server_reading(page_dir)["runtime"] is None
 
 
 def test_a_stated_host_binds_every_interface_without_recording_before_serve(

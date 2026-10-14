@@ -1,16 +1,14 @@
 """Command boundary for mutable-source validation.
 
-`page check` prints its findings for a reader, or with `--json` one JSON object on
-stdout: `status`, the exit status; `findings`, every finding as
-`findings.Finding.json` gives it, the markup checks' first; and `browser`,
-the browser gates `asked` for and those that `ran` (failing page code ends the check
-before the render gate reads anything), in which browser or why none could, with the
-render gate's margin widths and saved screens where it passed. `browser` is null where
-no gate needed one.
+`page check` prints one JSON object on stdout: `status`, the exit status; `findings`,
+every finding as `findings.Finding.json` gives it, the markup checks' first; and
+`browser`, the browser gates `asked` for and those that `ran` (failing page code ends
+the check before the render gate reads anything), in which browser or why none could,
+with the render gate's margin widths and saved screens where it passed. `browser` is
+null where no gate needed one.
 """
 
 import json
-import sys
 from pathlib import Path
 
 from leaf.event_log import read_events
@@ -23,10 +21,10 @@ from leaf.registry.storage import layer_metadata
 from .source import check_source
 
 
-def cmd_check(page_dir: Path, render: bool = False, as_json: bool = False) -> int:
+def cmd_check(page_dir: Path, render: bool = False) -> int:
     """Check the mutable source without activating or stamping it."""
     with page_locked(page_dir):
-        return _check(page_dir, render, as_json)
+        return _check(page_dir, render)
 
 
 def leaf_versions(page_dir: Path) -> list[Finding]:
@@ -56,36 +54,15 @@ def leaf_versions(page_dir: Path) -> list[Finding]:
     ]
 
 
-def _check(page_dir: Path, render: bool, as_json: bool) -> int:
+def _check(page_dir: Path, render: bool) -> int:
     from leaf.event_contracts import write_refusal
 
-    # A page this Leaf can neither serve nor write passes no check of its source: the
-    # re-vendor that repairs it comes first (`layer.incompatible_layer`).
-    if refusal := write_refusal(page_dir):
-        if as_json:
-            report = {"status": 1, "findings": [refusal.json()], "browser": None}
-            print(json.dumps(report, ensure_ascii=False))
-        else:
-            print(f"Error: {refusal}", file=sys.stderr)
-        return 1
-    events = read_events(page_dir)
-    result = check_source(page_dir, events)
-    errors = result.errors
-    advice = [*result.advice, *leaf_versions(page_dir)]
-
-    def reported(status, browser=None):
+    def reported(status, findings, browser=None):
         print(
             json.dumps(
                 {
                     "status": status,
-                    "findings": [
-                        f.json()
-                        for f in [
-                            *errors,
-                            *advice,
-                            *(browser.findings() if browser else []),
-                        ]
-                    ],
+                    "findings": [f.json() for f in findings],
                     "browser": browser.json() if browser else None,
                 },
                 ensure_ascii=False,
@@ -93,42 +70,28 @@ def _check(page_dir: Path, render: bool, as_json: bool) -> int:
         )
         return status
 
-    if errors:
-        if as_json:
-            return reported(1)
-        print(
-            f"Error: index.html has {len(errors)} validation issue{'s' if len(errors) != 1 else ''}",
-            file=sys.stderr,
-        )
-        for error in errors:
-            print(f"  - {error}", file=sys.stderr)
-        for line in advice:
-            print(f"  · {line}", file=sys.stderr)
-        return 1
-    if not as_json:
-        print(
-            "✓ index.html: valid",
-            # Ahead of any browser gate's stderr, which a piped reader gets unbuffered.
-            flush=True,
-        )
-        for line in advice:
-            print(f"  · {line}")
+    # A page this Leaf can neither serve nor write passes no check of its source: the
+    # re-vendor that repairs it comes first (`layer.incompatible_layer`).
+    if refusal := write_refusal(page_dir):
+        return reported(1, [refusal])
+    events = read_events(page_dir)
+    result = check_source(page_dir, events)
+    found = [*result.errors, *result.advice, *leaf_versions(page_dir)]
+    if result.errors:
+        return reported(1, found)
     from leaf.render_gate.page_code import needs_browser
 
     runs_code = needs_browser(result.document, result.artifact)
     if not (runs_code or render):
-        return reported(0) if as_json else 0
-    from leaf.render_gate.command import browser_check, print_browser_check
+        return reported(0, found)
+    from leaf.render_gate.command import browser_check
 
-    revision = result.revision.candidate
     browser = browser_check(
         page_dir,
         result.document,
-        revision,
+        result.revision.candidate,
         result.artifact,
         page_code=runs_code,
         render=render,
     )
-    if as_json:
-        return reported(browser.status, browser)
-    return print_browser_check(browser)
+    return reported(browser.status, [*found, *browser.findings()], browser)

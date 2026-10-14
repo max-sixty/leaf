@@ -181,7 +181,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     variable empty rather than inheriting whatever the developer or the job
     exported, since a set one would otherwise turn the channel this arm exists to
     cover into a run of the named one. A runner image really does export
-    CHROME_BIN, so unnaming leaf's alone is not unnaming. The success line has to name
+    CHROME_BIN, so unnaming leaf's alone is not unnaming. A clean result has to name
     the browser that drew the page: a clean gate telling a Chromium host that Chrome
     drew it is the same false claim on the way out that the failure messages stopped
     making."""
@@ -198,15 +198,15 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
         )
 
     ok = gate()
-    assert ok.returncode == 0, ok.stderr
-    assert "render checks passed in Chrome" in ok.stdout
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    assert json.loads(ok.stdout)["browser"]["browser"] == "Chrome"
 
     # A vw width slips the static lint (which counts only px) and overflows only
     # in a layout engine.
     (d / "index.html").write_text(
         LONG_PAGE.replace("</main>", "<div style='width:150vw'>wide</div>\n</main>")
     )
-    broken = gate("--json")
+    broken = gate()
     assert broken.returncode == 1, broken.stderr
     report = json.loads(broken.stdout)
     assert report["status"] == 1
@@ -289,11 +289,11 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
         check=True,
         env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
     )
-    lines = ran.stdout.splitlines()
-    heading = next(line for line in lines if "screens to read" in line)
-    into = Path(heading.split(" in ", 1)[1].rstrip(":"))
-    listed = lines[lines.index(heading) + 1 :]
+    screens = json.loads(ran.stdout)["browser"]["screens"]
+    into = Path(screens["directory"])
+    shows = {screen["file"]: screen["shows"] for screen in screens["files"]}
     names = sorted(path.name for path in into.iterdir())
+    assert set(shows) <= set(names)
     assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
     assert {
         "1200px-ask-1.png",
@@ -301,14 +301,13 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
         "1200px-ask-3.png",
     } <= set(names)
     assert "1200px-ask-4.png" not in names
-    assert any("each press of `m`" in line for line in listed)
-    assert any('"Pre-handover review"' in line for line in listed)
-    stacks = next(line for line in listed if "<main> 1+2 → 1+1+1" in line)
-    assert (into / stacks.split(":")[0].strip()).exists()
-    assert any("<div id=2026-numbers> 4 → " in line for line in listed)
+    assert any("each press of `m`" in label for label in shows.values())
+    assert '"Pre-handover review"' in screens["next"]
+    assert any("<main> 1+2 → 1+1+1" in label for label in shows.values())
+    assert any("<div id=2026-numbers> 4 → " in label for label in shows.values())
     # A page longer than its first screens says so rather than passing for read whole.
     assert "390px-9.png" not in names
-    assert any("phone, the first 8 of the page's" in line for line in listed)
+    assert any("phone, the first 8 of the page's" in label for label in shows.values())
 
 
 def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
@@ -333,11 +332,10 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
         env=named,
     )
     assert checked.returncode == 0, checked.stdout + checked.stderr
-    assert "· render check: not run, no browser launched: " in checked.stderr
-    assert (
-        "LEAF_BROWSER_EXECUTABLE" in checked.stderr and str(missing) in checked.stderr
-    )
-    assert "Chrome did not launch" not in checked.stderr
+    unavailable = json.loads(checked.stdout)["browser"]["unavailable"]
+    assert unavailable.startswith("no browser launched: ")
+    assert "LEAF_BROWSER_EXECUTABLE" in unavailable and str(missing) in unavailable
+    assert "Chrome did not launch" not in unavailable
 
     for variable in ("CHROME_PATH", "CHROME_BIN"):
         answered = subprocess.run(
@@ -348,16 +346,17 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
             env=unnamed_browser() | {variable: str(missing)},
         )
         assert answered.returncode == 0, answered.stdout + answered.stderr
-        assert variable in answered.stderr and str(missing) in answered.stderr
-        assert "LEAF_BROWSER_EXECUTABLE" not in answered.stderr
+        unavailable = json.loads(answered.stdout)["browser"]["unavailable"]
+        assert variable in unavailable and str(missing) in unavailable
+        assert "LEAF_BROWSER_EXECUTABLE" not in unavailable
 
 
 def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_shell):
     """Exercise the copied artifact a harness installs, never an import from this checkout.
 
     Its browser gate runs on a named Chromium, since the install is where a host with
-    a Chromium and no Chrome meets it, and its success line names that executable
-    rather than Chrome; the default channel's Chrome is
+    a Chromium and no Chrome meets it, and its result names that executable rather
+    than Chrome; the default channel's Chrome is
     `test_check_render_refuses_what_only_a_browser_can_see`'s."""
     root = Path(__file__).parents[2]
     installed = install_payload(tmp_path / "host" / "leaf")
@@ -405,8 +404,8 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
         check=False,
         env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
     )
-    assert rendered.returncode == 0, rendered.stderr
-    assert f"render checks passed in {headless_shell}" in rendered.stdout
+    assert rendered.returncode == 0, rendered.stdout + rendered.stderr
+    assert json.loads(rendered.stdout)["browser"]["browser"] == headless_shell
 
 
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
@@ -708,12 +707,14 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         assert run.returncode == 1, run.stdout + run.stderr
         # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
         # The report names the widget and gives the renderer's reason.
-        assert "Error: page code reported 1 error" in run.stderr
-        assert '<lf-diagram id="d-broken"> failed:' in run.stderr
-        assert "No diagram type detected" in run.stderr
-        assert "/widgets/lf-diagram.js:" not in run.stderr
-        assert "leaf-unsupported" not in run.stderr
-        assert "Ada,Review,3" not in run.stderr
+        report = json.loads(run.stdout)
+        assert report["browser"]["ran"] == ["page code"]
+        [error] = [f["text"] for f in report["findings"] if f["severity"] == "error"]
+        assert '<lf-diagram id="d-broken"> failed:' in error
+        assert "No diagram type detected" in error
+        assert "/widgets/lf-diagram.js:" not in error
+        assert "leaf-unsupported" not in error
+        assert "Ada,Review,3" not in error
 
 
 def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
@@ -814,32 +815,34 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     )
     d = serve.page_dir
 
-    def check(**env):
-        return subprocess.run(
+    def check(status, **env):
+        ran = subprocess.run(
             [*LEAF_COMMAND, "page", "check", str(d)],
             capture_output=True,
             text=True,
             check=False,
             env=unnamed_browser() | env,
         )
+        assert ran.returncode == status, ran.stdout + ran.stderr
+        return json.loads(ran.stdout)
 
-    no_browser = check(LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
-    assert no_browser.returncode == 0, no_browser.stdout + no_browser.stderr
-    assert "page code" not in no_browser.stdout + no_browser.stderr
+    no_browser = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
+    assert no_browser["browser"] is None
 
     (d / "index.html").write_text(FILM_PAGE)
-    broken = check(LEAF_BROWSER_EXECUTABLE=headless_shell)
-    assert broken.returncode == 1, broken.stdout + broken.stderr
-    assert "Error: page code reported 2 errors" in broken.stderr
-    assert "map is not a function" in broken.stderr
-    assert "at paint (" in broken.stderr
-    assert "/page/film.js:2:" in broken.stderr
-    assert "Error: the trace never loaded" in broken.stderr
-    assert "/page/widgets/lf-loader.js:3" in broken.stderr
+    broken = check(1, LEAF_BROWSER_EXECUTABLE=headless_shell)
+    errors = [f["text"] for f in broken["findings"] if f["severity"] == "error"]
+    assert len(errors) == 2, broken
+    errors = "\n".join(errors)
+    assert "map is not a function" in errors
+    assert "at paint (" in errors
+    assert "/page/film.js:2:" in errors
+    assert "Error: the trace never loaded" in errors
+    assert "/page/widgets/lf-loader.js:3" in errors
 
-    unrun = check(LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
-    assert unrun.returncode == 0, unrun.stdout + unrun.stderr
-    assert "· page code: not run, no browser launched: " in unrun.stderr
+    unrun = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
+    assert (unrun["browser"]["asked"], unrun["browser"]["ran"]) == (["page code"], [])
+    assert unrun["browser"]["unavailable"].startswith("no browser launched: ")
 
     (d / "page" / "film.js").write_text(
         "export const paint = (el, step) =>\n"
@@ -850,6 +853,6 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
         "  connectedCallback() { this.textContent = 'loaded'; }\n"
         "});\n"
     )
-    clean = check(LEAF_BROWSER_EXECUTABLE=headless_shell)
-    assert clean.returncode == 0, clean.stdout + clean.stderr
-    assert f"✓ page code: no errors in {headless_shell}" in (clean.stdout)
+    clean = check(0, LEAF_BROWSER_EXECUTABLE=headless_shell)
+    assert clean["browser"]["ran"] == ["page code"]
+    assert clean["browser"]["browser"] == headless_shell

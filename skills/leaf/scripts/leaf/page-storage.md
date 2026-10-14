@@ -71,9 +71,8 @@ other page files and the external state listed below.
   chronologically, deduplicates retries, reconstructs complete split records, and
   reports missing sequences and incomplete records before applying time or type
   filters. No final gap can be inferred from an unsent tail. Server requests have
-  no browser session association, so a session filter excludes them. Human output
-  uses the reader's local timezone and shortens long values; `--json` preserves
-  complete reconstructed values. The server appends request method, path without query, status, and
+  no browser session association, so a session filter excludes them. It prints
+  each complete reconstructed record as one JSON line. The server appends request method, path without query, status, and
   duration for every request except a successful `/api/news` look or delivery of a
   resource's bytes (a module, stylesheet, or media file); `/api/interaction` appends browser batches with a session id, scoped
   page address, and server receipt time. All descendant sample activity remains

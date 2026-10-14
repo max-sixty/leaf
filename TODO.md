@@ -85,6 +85,15 @@ has tried; settle that before building it.
   Update rows) and, since the floating card's held-news notice, the agent's progress
   ("1 new update"); the glossary keeps it for the user's input alone. Choose one
   sense, rename the other surfaces, and update the glossary to match.
+- **Find the labels where cutting at the room misleads.** Since 2026-10-14 a label
+  holding a room (`data-lf-room`, `controls.css`) cuts words past it with an ellipsis
+  rather than widening its control, which had shifted the banner (the user's
+  decision). An ellipsis at the end cuts the count or the later news first, so some
+  cuts lose the fact the label exists for: On me at 100 or more reads "On me: 1…",
+  and the user called that count essential; the agent's On count reads the same way,
+  and a held-news notice that first said "1 new reply" cuts "1 new reply · 1 reaction
+  changed" to "1 new re…". Start with On me, then each room's owner, and give each
+  misleading cut a room that holds it or a shorter form, such as "99+".
 
 ### Agent and author experience
 
@@ -95,6 +104,16 @@ has tried; settle that before building it.
   removed in October 2026 have been gone a while; if pages written since still
   carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
   user pages, between 2026-07-22 and 2026-10-11.
+- **Run `leaf` in Codex's sandbox without settings.** Codex's sandbox refuses what a
+  `leaf` command needs and, unlike Claude Code's, leaves a command no route out:
+  with network off it has no proxy, and a direct connection to 127.0.0.1 or a Unix
+  socket is refused (measured at codex-cli 0.160.0), so the bridge Claude Code's
+  sandboxed commands use (`bridge.py`) cannot serve it. A plugin's MCP server runs
+  outside both harnesses' sandboxes (measured on macOS). Ship one whose tool runs
+  `leaf` with the arguments it is given, have a sandboxed refusal name it, and
+  drop the README's Codex rule. Codex asks before each MCP tool call unless the
+  user approves the tool or sets the server's `default_tools_approval_mode =
+  "approve"`; find whether a plugin can declare that itself.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
@@ -435,6 +454,18 @@ on 2026-10-07.
 
 ### Development velocity
 
+- **Format authored browser-framework TypeScript.** Extend Prettier's scope to
+  `build/browser/`, keeping the generated event and protocol declarations under
+  their generator. Rebuild the vendored JavaScript in the same change: the
+  compiler preserves source formatting, and the build gate compares its bytes.
+- **Format authored JSON and YAML.** Expand Prettier's scope while keeping
+  generated corpus files, media pins, pnpm lockfiles, Tend workflows, test
+  snapshots, and frozen captures under their producers. Verify that regeneration
+  leaves the formatted tree unchanged.
+- **Set formatter conventions for authored CSS and Markdown.** Review what
+  Prettier changes in compact CSS rules and Markdown lists and tables, then
+  enable the formats where that layout is useful. Format CSS source entries
+  rather than the distribution sheets `build/styles.mjs` generates.
 - **Check what handing over on chosen tests costs.** Since 2026-10-04 a handover runs
   the tests the agent picks for its change, and the broad selection runs only at
   landing (`tests/AGENTS.md`, "Run what the change needs"). Before that, 25 of the
@@ -482,21 +513,6 @@ on 2026-10-07.
   into a page by hand. It is an experiment: the alternative is for the command to
   print the samples' rows and leave the chart to the agent writing the page. Keep it
   if it gets used for later readings; otherwise reduce it to the rows.
-- **Choose how installs get the compiled kernel before a proper release.** Installs
-  follow `main` and load about 260 source modules; the website, suite, and developer
-  previews prepare a kernel with `leaf_dev.distribution`. On `pr-walkthrough` (2026-10-11, 8
-  paired runs on a loaded Mac), the kernel's 57 JS requests presented about 755 ms
-  after document receipt, against about 940 ms for source modules; `modulepreload`
-  hints for the 222 statically imported modules recovered only about 35 ms. A
-  CI-built `prepared` branch carried the kernel to installs from #1963 until
-  2026-10-11, when it was dropped to keep installs on `main`. Candidates: CI commits
-  the kernel to `main` after each runtime merge, and installs serve source modules
-  while it is stale; CI publishes each `main` commit to npm, which Claude Code, Codex
-  and Pi accept as a plugin source; or the first run builds it, which adds Node to
-  the host's requirements. Committing the kernel in each pull request conflicts too
-  often: of 25 replayed pairs of consecutive runtime commits, the minified chunks
-  conflicted in 20, and one unminified file per entry conflicted in 3 and merged one
-  more cleanly into bytes that differ from a rebuild.
 
 ## Etc
 

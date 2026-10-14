@@ -328,6 +328,15 @@ const versionsOffered = () => versionCount() > 0;
 const versionsToWalk = () => versionCount() > 1;
 const behindCurrent = () =>
   runtime.active !== null && runtime.currentRevision !== null && !runtime.showsActive;
+// Which version a page behind the latest shows, in the few words a notice beside the
+// floating panel's marks has room for: the version and the latest one's number, as in
+// "v2 of 3", or a draft the agent has since revised.
+const shownBehind = () =>
+  runtime.currentStamp === null
+    ? "An older draft"
+    : runtime.active.version === null
+      ? `v${runtime.currentStamp}`
+      : `v${runtime.currentStamp} of ${runtime.active.version}`;
 
 let versionsWalkable = false;
 function menuRows(state, notes) {
@@ -377,7 +386,7 @@ function pickerModel(state) {
   return Object.freeze({
     picker: Object.freeze({
       offered,
-      token: `Showing ${currentVersionToken()}`,
+      token: currentVersionToken(),
       compared: diffOn || diffPendingBase !== null,
       news: behind,
       keyTitle: offered
@@ -402,6 +411,7 @@ function pickerModel(state) {
         failed: sourceFailed,
         activeLabel: behind ? runtime.active.label : null,
       }),
+      shown: behind ? shownBehind() : null,
       news: sourceFailed || behind,
     }),
     rows:

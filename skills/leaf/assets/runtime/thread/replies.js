@@ -305,14 +305,15 @@ function wireReply(key, row, input, send, wireInput, { hint, accessibleName }) {
       remember(composition);
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
-    // sent from, around wherever the send left them standing. A view whose box stays
-    // for the next turn lands the send itself (`sent`).
+    // sent from, read before the send draws, around wherever the send left them
+    // standing. A view whose box stays for the next turn lands the send itself (`sent`).
     send: (_text, raw, owns) => {
       const { actions, landSent, sent } = composition.binding;
+      const land = sendLanding(input);
       if (!sendReply(draftCtx, key, raw, owns, actions)) return;
       if (sent) return sent();
       landSent(closestAcross(input, THREAD));
-      sendLanding(input, focused())();
+      land(focused());
     },
     // ↑ from an empty box reaches back to the user's own last words in the thread, to
     // rewrite them where they stand (`message-edit.js`). A box holding words keeps the

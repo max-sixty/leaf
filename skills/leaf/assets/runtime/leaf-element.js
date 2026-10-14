@@ -47,6 +47,7 @@ import {
 import {
   attachApplicationPresentation,
   attachWidgetPresentation,
+  queueWidgetUpdate,
   readsProof,
   widgetRegions,
 } from "./semantic-state.js";
@@ -91,9 +92,25 @@ export class LeafElement extends LitElement {
   #drawing = null;
   #data = new Map();
   #leaveData = null;
+  #scheduled = null;
 
   createRenderRoot() {
     return this;
+  }
+
+  scheduleUpdate() {
+    return this.#scheduled ?? this.#queueUpdate();
+  }
+
+  #queueUpdate() {
+    if (!this.#descriptor) return super.scheduleUpdate();
+    const scheduled = queueWidgetUpdate(this.#descriptor.id, () => {
+      if (this.#scheduled !== scheduled) return;
+      this.#scheduled = null;
+      return super.scheduleUpdate();
+    });
+    this.#scheduled = scheduled;
+    return scheduled;
   }
 
   connectedCallback() {
@@ -301,7 +318,10 @@ export class LeafElement extends LitElement {
     );
     if (this.#held) return;
     this.requestUpdate();
-    if (now) this.performUpdate();
+    if (now) {
+      this.#scheduled = null;
+      this.performUpdate();
+    } else if (this.#descriptor) this.#queueUpdate();
   }
 
   #refresh() {

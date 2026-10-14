@@ -35,7 +35,10 @@ const turnMetadata = z.catch(
   {},
 );
 const responseEvent = z.catch(
-  z.object({ type: label, item: z.catch(z.optional(z.object({ type: label })), undefined) }),
+  z.object({
+    type: label,
+    item: z.catch(z.optional(z.object({ type: label })), undefined),
+  }),
   {},
 );
 

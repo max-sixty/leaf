@@ -4,5 +4,11 @@ exit: 2
 
 stdout: ''
 
-stderr: |
-  another `leaf wait` is already active for this session
+stderr:
+  - code: wait-active
+    severity: error
+    values:
+      target: >-
+        this session
+    text: >-
+      another `leaf wait` is already active for this session

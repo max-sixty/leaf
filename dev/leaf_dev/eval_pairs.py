@@ -1,13 +1,11 @@
 """Judge two columns' samples of an authored task side by side.
 
-`leaf-dev eval` grades each `arrangement_eval` sample alone, against a rubric strict
-enough that the plain HTML comparison of 2026-10-12 failed almost every version in
-both conditions. This command reads finished runs, pairs each task's samples across
-its two columns in the order they ran, and asks a judge which final version serves
-the request better. A judge favors one position, so each pair is judged in both
-orders and only a winner both orders name counts; a disagreement is recorded as
-such. The judge is a Claude Code child that can use only Read, shown the request,
-the later messages, and each page's screenshots as A and B.
+This command pairs each task's samples across its two columns in the order they
+ran, and lets a judge explore disposable live copies of their final pages. Each
+copy uses its original runtime payload. Both orders are judged; only a winner
+both completed judgments name counts. Incomplete exploration is recorded as
+insufficient evidence, rather than a tie or a quality result. Model judgments
+and their native browser/agent traces are retained separately from execution checks.
 Verdicts go to `pairs.json` in the first run's directory.
 """
 
@@ -18,14 +16,13 @@ from pathlib import Path
 
 import click
 
-from leaf_dev.arms import run_agent, trace_result
 from leaf_dev.arrangement_eval import (
     CASES,
     REACHABLE,
     TASKS,
     WIDTHS,
+    judge_pages,
     later_messages,
-    listing,
     phases,
 )
 from leaf_dev.eval_cases import definition
@@ -63,22 +60,7 @@ def samples(runs: list[Path]) -> dict[str, dict[str, list[dict]]]:
     return found
 
 
-def final_shots(sample: dict, subject: str) -> dict[str, list[str]]:
-    """The final version's screenshots by width, top to bottom."""
-    version = phases(subject)[-1]
-    return {
-        name: [
-            str(path)
-            for path in sorted(
-                sample["shots"].glob(f"p{version}-{name}-*.png"),
-                key=lambda path: int(path.stem.rsplit("-", 1)[1]),
-            )
-        ]
-        for name in WIDTHS
-    }
-
-
-def brief(subject: str, a: dict, b: dict) -> str:
+def brief(subject: str) -> str:
     lines = [
         f"<request>\n{(TASKS / subject / 'request.md').read_text()}</request>",
         "",
@@ -88,30 +70,45 @@ def brief(subject: str, a: dict, b: dict) -> str:
         "",
         DEFINITION["brief_intro"],
     ]
-    for label, sample in (("A", a), ("B", b)):
-        lines += ["", f"Page {label}:", *listing(final_shots(sample, subject))]
     return "\n".join(lines)
 
 
 def judge(subject: str, a: dict, b: dict, evidence: Path) -> dict | None:
     """One judgment of A against B, or None when the judge gives no verdict."""
     evidence.mkdir(parents=True, exist_ok=True)
-    (evidence / "brief.md").write_text(brief(subject, a, b))
-    with tempfile.TemporaryDirectory(prefix="leaf-pairs-") as directory:
-        cwd = Path(directory) / "cwd"
-        cwd.mkdir()
-        trace = run_agent(
-            cwd,
-            JUDGE.format(brief=evidence / "brief.md", reachable=REACHABLE),
-            "--tools",
-            "Read",
-            "--json-schema",
-            json.dumps(VERDICT),
-            out=evidence / "stream.jsonl",
-            err=evidence / "err.txt",
-            dirs=[evidence, a["shots"], b["shots"]],
+    attempt = Path(tempfile.mkdtemp(prefix="judge-", dir=evidence))
+    version = str(phases(subject)[-1])
+    if any(
+        not sample["diagnostics"]["phases"].get(version, {}).get("page")
+        or not sample["diagnostics"].get("payload")
+        for sample in (a, b)
+    ):
+        (evidence / "response.json").write_text(
+            json.dumps(
+                {
+                    "error": "Comparison lacks a saved final page or its original runtime.",
+                    "metadata": {"evidence": str(attempt)},
+                },
+                indent=2,
+            )
         )
-    return trace_result(trace).get("structured_output")
+        return None
+    response = judge_pages(
+        {
+            label: {
+                "page": Path(sample["diagnostics"]["phases"][version]["page"]),
+                "payload": Path(sample["diagnostics"]["payload"]),
+                "condition": sample["diagnostics"]["condition"],
+            }
+            for label, sample in (("A", a), ("B", b))
+        },
+        {name: viewport for name, (viewport, _) in WIDTHS.items()},
+        JUDGE.format(brief=brief(subject), reachable=REACHABLE),
+        VERDICT,
+        attempt,
+    )
+    (evidence / "response.json").write_text(json.dumps(response, indent=2))
+    return response.get("output")
 
 
 def by_column(verdict: dict | None, columns: dict[str, str]) -> dict | None:
@@ -121,6 +118,7 @@ def by_column(verdict: dict | None, columns: dict[str, str]) -> dict | None:
         return None
     named = {**columns, "tie": "tie"}
     return {
+        "status": verdict["status"],
         **{key: named[verdict[key]] for key in (*ASPECTS, "overall")},
         "margin": verdict["margin"],
         "defects": {columns[p]: verdict[f"defects_{p}"] for p in ("A", "B")},
@@ -161,22 +159,33 @@ def eval_pairs(runs: tuple[Path, ...]):
             ):
                 evidence = runs[0] / "pairs" / f"{subject}-{n}-order-{order}"
                 orders.append(by_column(judge(subject, a, b, evidence), names))
+            complete = all(o and o["status"] == "complete" for o in orders)
             winners = {o["overall"] for o in orders if o}
+            status = (
+                "unscored"
+                if not all(orders)
+                else "insufficient_evidence"
+                if not complete
+                else "split"
+                if len(winners) != 1
+                else "tie"
+                if winners == {"tie"}
+                else "complete"
+            )
             pairs.append(
                 {
                     "subject": subject,
                     "pair": n,
                     "samples": {first: x["sample"], second: y["sample"]},
                     "orders": orders,
-                    "winner": winners.pop()
-                    if len(winners) == 1 and all(orders)
-                    else None,
+                    "status": status,
+                    "winner": winners.pop() if status == "complete" else None,
                 }
             )
             click.echo(
                 f"{subject} {n}: "
                 + " / ".join(o["overall"] if o else "no verdict" for o in orders)
-                + f" -> {pairs[-1]['winner'] or 'split'}"
+                + f" -> {pairs[-1]['winner'] or status}"
             )
     (runs[0] / "pairs.json").write_text(json.dumps(pairs, indent=2) + "\n")
     click.echo(f"verdicts: {runs[0] / 'pairs.json'}")

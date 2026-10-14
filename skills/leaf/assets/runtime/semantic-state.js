@@ -40,10 +40,10 @@ export const applicationState = createSemanticApplication({
 });
 export const readApplication = applicationState.read;
 // A reader of one part of the root, through its own selection. A key or button
-// reflection tracks what it reads (keyboard/scopes.js), and a watcher's paint collects
-// it (projection-watch.js), so each reads again only when that part moves. An accessor
-// that reads the whole root would make every reflection read again on every
-// publication, and inside a watcher's paint it throws.
+// reflection tracks what it reads (keyboard/scopes.js), and a watcher's or a region's
+// paint collects it (projection-watch.js, `applicationPresenter`), so each reads again
+// only when that part moves. An accessor that reads the whole root would make every
+// reflection read again on every publication, and inside a paint it throws.
 /**
  * @template T
  * @param {(root: ReturnType<typeof readApplication>) => T} derive

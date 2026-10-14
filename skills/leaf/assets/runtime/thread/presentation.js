@@ -25,7 +25,11 @@ import {
   commitThreadSeats,
   retainThreadSeats,
 } from "./inline.js";
-import { applicationPresenter, PRESENTATION_ORDER, readPart } from "../semantic-state.js";
+import {
+  applicationPresenter,
+  PRESENTATION_ORDER,
+  readPart,
+} from "../semantic-state.js";
 import { runtime } from "../context.js";
 
 const readDocument = readPart((root) => root.document);
@@ -67,11 +71,11 @@ export function createThreadPresentation({
 
   // The parts of the root a thread presentation draws: the fold itself, whose records
   // already carry the receipts and attention the workflows give them, and the document
-  // whose messages, descriptors and revision the cards name. A publication that moves
-  // neither — a widget's own action, say — claims nothing, and the current presentation
-  // carries into the new epoch. The margin this presentation renders once it commits
-  // also draws the Questions and the workflows; its own watcher follows those
-  // (`annotationSelection`).
+  // whose messages, descriptors and revision the cards name. The reading names them
+  // because the paint reads them again after it waits for preparation, where its reads
+  // are not collected (`renderReading`); what it reads before that is. The margin this
+  // presentation renders once it commits also draws the Questions and the workflows; its
+  // own watcher follows those (`annotationSelection`).
   //
   // Before the page has read the log, an epoch with no thread draws the same line about
   // waiting, and repainting the margin and the anchors to say it again is work done
@@ -89,7 +93,11 @@ export function createThreadPresentation({
         ? null
         : runtime.statePhase === "waiting" && !threadState().all.length
           ? "waiting"
-          : { phase: runtime.statePhase, thread: threadState(), document: readDocument() },
+          : {
+              phase: runtime.statePhase,
+              thread: threadState(),
+              document: readDocument(),
+            },
     paint: async (value, current) => {
       const phase = runtime.statePhase;
       // A pass reads the latest root. Clock changes claim another pass through the

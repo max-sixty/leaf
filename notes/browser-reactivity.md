@@ -20,10 +20,14 @@ open questions; each owning module's header states the current contract.
   Preact effect also subscribes the paint to private signals it reads, such as where
   the user stands, which a paint may also write: tracked by an effect, the annotation
   inventory's paint re-ran itself without end and hung the page.
-- **Regions declare their reading.** The four document regions (projection, threads,
-  asks, the Questions panel) are `applicationPresenter`s that name, as a `reading`, the
-  parts they draw (`runtime/semantic-state.js`). A publication that leaves that reading
-  alone carries the region's last commit into the new epoch.
+- **Regions collect what they read before their first `await`.** The four document
+  regions (projection, threads, asks, the Questions panel) are `applicationPresenter`s
+  (`runtime/semantic-state.js`). Each one's `reading` says whether it owes a paint, and
+  the parts its reading and its paint read synchronously are collected, as a watcher's
+  are. A publication that moves none of them carries the region's last commit into the
+  new epoch. A widget a paint mounts connects inside that paint, and its controller
+  reads outside the collection (`untracked`, `snapshot.ts`), since what it draws is
+  its own to follow.
 - **Key and button availability are tracked effects** (`runtime/keyboard/scopes.js`).
   Private state their predicates read, such as where the user stands and the thread
   list's models, is held in signals so the effects see it move.
@@ -31,29 +35,26 @@ open questions; each owning module's header states the current contract.
   appears only in `RetainedFace` (`runtime/retained-face.js`), whose updates wait a
   microtask unless the caller asks for `now`.
 
-## Tracking the regions too
+## Reads after an `await`
 
-A region's `reading` is a hand-written list of its inputs. A read outside the list
-leaves the region showing stale state, silently. So far no review has found such a
-miss in a region: each one was in a widget watcher or a memo key, which is why the
-watchers moved to tracking first.
+A region claims inside a publication and paints on the pass after it, once the regions
+ranked before it have painted, so a paint reads the root, and the document those
+regions wrote, as they stand then. Collection covers that paint only up to its first
+`await`: JavaScript has no way to carry a collection across one (the TC39 AsyncContext
+proposal would, but no browser ships it). The Questions panel, the asks, and the
+projection read everything before they wait. The thread presentation does not: once a
+package's thread reader has prepared, its commit reads the anchors' targets, the
+annotation inventory and the thread list's rows again (`renderReading`,
+`thread/presentation.js`). Those reads fall inside its `reading` (phase, thread
+state, document) or repeat parts its synchronous part already read, which is why the
+region still lists them. The way to cover them is to collect each continuation as it
+resumes, wrapping each callback after a wait in the same collection, and to report a
+part a continuation reads that the synchronous part did not.
 
-Tracking cannot replace the regions' readings as they are written, because a region
-paints across `await`s. The thread presentation reads its threads, waits for frozen
-widgets in thread messages to load and present (`prepareFrozenWidgets`) and for a
-package's thread reader to prepare, then commits. Collecting reads, like a signals
-effect, sees only synchronous reads, and JavaScript has no way to carry a collection
-across an `await`: the TC39 AsyncContext proposal would, but no browser ships it.
-
-The change that would let tracking cover a region is a split into two phases: a
-synchronous read that gathers everything the region draws from the root into one
-immutable model, tracked, and an asynchronous paint that touches only that model and
-the document. The thread presentation already reads its threads before its first
-`await`; its later reads (approval history, frozen widgets' descriptors in
-`thread/thread-list.js`) happen to fall inside its declared reading. Nothing would
-enforce the split: a later edit could read the root after an `await` again, and no
-runtime check can tell a read inside a region's paint from any other, for the same
-reason tracking can't.
+A region checks its parts from one subscription to the publication, made when the
+region is. Subscribing to each part it read, again after every read, put its claim
+after the publication's other subscribers, and a send that waits for the page to be
+presented went on before the thread had claimed its paint.
 
 ## LitElement and microtask updates
 
@@ -118,7 +119,8 @@ and approved state (not every ask). No check finds the rest;
   `PRESENTATION` count it last saw. Readings of the clock, the deferral and the
   presentation that record themselves in the same collection as the publication's
   parts would leave the watcher one rule for every input and retire those records.
-- **Region readings, after the split above,** would go with the hand-written lists.
+- **The thread's `reading`,** once its continuations are collected, would say only
+  whether it owes a paint, as the other regions' do.
 
 ## What reactivity will not fix
 

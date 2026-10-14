@@ -1401,6 +1401,10 @@ export function createFloatingPanel({
     }
 
     const views = [leaving, top].filter(Boolean);
+    // A thread's view stands for that thread (thread/selectors.js, `THREAD`), so the
+    // user standing anywhere in it is in the thread, as in a card in Threads.
+    const shows = (route) =>
+      route.view === "thread" ? (threadByKey(route.thread)?.id ?? null) : null;
     render(
       repeat(
         views,
@@ -1410,6 +1414,8 @@ export function createFloatingPanel({
             class="lf-fp-view"
             tabindex="-1"
             data-view=${route.view}
+            data-thread=${shows(route) ?? nothing}
+            ?data-lf-thread-view=${shows(route) !== null}
             style=${
               rooms.has(routeKey(route))
                 ? `height: ${rooms.get(routeKey(route))}px`

@@ -34,7 +34,7 @@ below owns its own:
 After `pnpm install --frozen-lockfile`, a build reproduces the committed bytes, so a
 diff after rebuilding means the lock, a build script, a runtime module or a registry
 input changed. A change to `skills/leaf/assets/leaf.js`, or to a `.js` module under its
-`runtime/`, `vendor/` or `widgets/`, therefore rebuilds in the same change. Resolve a
+`runtime/`, `vendor/` or `widgets/`, takes a rebuild in the same change. Resolve a
 kernel file that conflicts in a merge by merging `main` and rebuilding, never by hand.
 
 ```sh

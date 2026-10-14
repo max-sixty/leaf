@@ -166,8 +166,8 @@ representative desktop viewport.
 ## Runtime ownership
 
 `leaf.js` only boots the page: each owner is a module that exports its capability, and
-`leaf.js` imports the owners and starts them in the order its header lists.
-Two classic scripts run before any module. `runtime/prepaint.js` runs
+`leaf.js` imports the owners and starts them in the order "Startup and presentation"
+lists below. Two classic scripts run before any module. `runtime/prepaint.js` runs
 inline in every document, served or exported, and sets `data-lf-interactive` so the
 theme gives widgets their upgraded size. When something the page needs doesn't
 arrive, or the page declares a failure, it removes that attribute and names the reason in `data-lf-startup-error`, and every widget shows its
@@ -397,9 +397,7 @@ bottom bar, so mounting the runtime moves nothing. Prose, links and scrolling wo
 widgets upgrade; comments and drawing work from `data-lf-upgraded`, while thread
 history still shows as loading. `../references/module-authoring.md`, "Startup and
 presentation", says how a module keeps work off the presentation path and how held
-keys replay. Code outside the page
-waits on `pageReadiness`, through `wait_until_ready` in Python, rather than combining
-these stamps itself.
+keys replay.
 
 `leaf.js` boots in this order, each step relying on those before it:
 
@@ -427,7 +425,8 @@ geometry before the presented state paints. `renderingState` (rendering.js) adds
 readiness's last stage: `updatesSettled` says the chrome has caught up with queued
 work, and `preparationsSettled` that registered finite preparations have landed.
 Full readiness needs both; a reader inspecting intermediate paint can use the
-first alone.
+first alone. Code outside the page waits on `pageReadiness`, through
+`wait_until_ready` in Python, rather than combining these stamps itself.
 
 ## Authoritative projection
 

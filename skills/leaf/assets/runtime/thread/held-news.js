@@ -53,9 +53,9 @@
    working message's arrival, its departure, and a new step whose words wrap to
    another height change the thread's height, so a seat holds any change of its words
    behind its control-row notice when that growth would move the reader. The notice
-   counts each held progress message as it counts a held reply, "1 new progress
-   message", unless a held reply folds it, and says "Work in progress" or "Work
-   updated" only where the working message changed with none.
+   counts each held progress message as it counts a held reply, "1 new update" (the
+   user's choice, 2026-10-14), unless a held reply folds it, and says "Work in
+   progress" or "Work updated" only where the working message changed with none.
    A run on screen stays open where
    it stood, its group's border drawn around it (components/surfaces.css), so the fold
    moves none of its words; a run off screen folds away. Changes to other existing
@@ -396,7 +396,7 @@ const newsLabel = ({
       Boolean,
     ) && working,
     // A reply arriving with progress before it folds that progress, so it says both.
-    !replies && counted(progress, "new progress message", "new progress messages"),
+    !replies && counted(progress, "new update", "new updates"),
     counted(replies, "new reply", "new replies"),
     counted(messages, "new message", "new messages"),
     counted(edits, "message edited", "messages edited"),

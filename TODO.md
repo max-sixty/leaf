@@ -80,6 +80,11 @@ has tried; settle that before building it.
   On me count, motion) before making it the default or removing the banner,
   bottom bar, and preference. The phone waits until the desktop design is firm, and
   where a passage thread opens from Threads waits until later.
+- **Give "update" one meaning on screen.** It names the user's input ("Undo the
+  latest update", "Stalled update", "1 update to send again", the On panel's
+  Update rows) and, since the floating card's held-news notice, the agent's progress
+  ("1 new update"); the glossary keeps it for the user's input alone. Choose one
+  sense, rename the other surfaces, and update the glossary to match.
 
 ### Agent and author experience
 

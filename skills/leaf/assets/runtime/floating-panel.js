@@ -125,6 +125,7 @@ import { declareOccluder, declareWindowChrome } from "./geometry.js";
 import { agentName } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { renderedUnder } from "./shadow.js";
+import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { closestAcross } from "./passages.js";
 
 const prefs = () => document.documentElement.lfChrome;
@@ -1982,11 +1983,12 @@ export function createFloatingPanel({
     writing = next;
     paint();
   });
-  // A press on the page puts away what stands open above the row.
+  // A press on the page puts away what stands open above the row. A press in a modal
+  // over the panel, such as the image viewer opened from a draft, is not on the page.
   document.addEventListener(
     "pointerdown",
     (event) => {
-      if (event.composedPath().includes(host)) return;
+      if (event.composedPath().includes(host) || !nativeModalAdmits(host)) return;
       if (menuOpen) setMenu(false);
       if (trail.length) close();
     },

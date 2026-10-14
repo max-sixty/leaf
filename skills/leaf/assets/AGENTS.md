@@ -214,12 +214,12 @@ representative desktop viewport.
 ### Motion
 
 - **Animations are restrained and finite, and acknowledge state changes.** An
-  unchanged state does not animate continuously. One sheen is the only continuous
-  animation, and it marks work under way: across “Generating title” on an untitled thread
-  awaiting the agent (`styles/chrome.css`), across a thread's working message while the
-  agent's work on it runs (`styles/components/surfaces.css`), and across the floating
-  panel's empty field while it says the agent is working (`styles/floating-panel.css`).
-  It stops when that state ends, and is static under reduced motion.
+  unchanged state does not animate continuously. One sheen, `@keyframes lf-sheen` in
+  `styles/components/surfaces.css`, is the only continuous animation, and it marks work
+  under way: across “Generating title” on an untitled thread awaiting the agent, across
+  a thread's working message while the agent's work on it runs, and across the floating
+  panel's empty field while it says the agent is working. It stops when that state ends,
+  and is static under reduced motion.
 - **Nothing the user must read, press, or decide waits on a clock.** Motion runs from
   a state that is already true, and motion that must finish before the result can be
   read is a pause. A motion the user waits on stays under 300ms; one that moves

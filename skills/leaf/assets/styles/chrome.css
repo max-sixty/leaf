@@ -156,12 +156,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
 /* Keyframe names are document-global even beside an @scope block. The stable salt
    makes this runtime-private in the one CSS namespace scoping cannot protect. */
 @keyframes lf-runtime-4f3c2a8d-working { to { opacity: .5; } }
-/* The one continuous animation, which marks work under way: a highlight passing across
-   words painted as a background clipped to their glyphs (assets/AGENTS.md, "Motion"). */
-@keyframes lf-runtime-4f3c2a8d-sheen {
-  from { background-position: 100% 0; }
-  to { background-position: 0% 0; }
-}
 @keyframes lf-runtime-4f3c2a8d-flash {
   /* The target owns its resting fill, including transparency and focus paint.
      An omitted endpoint lets the browser interpolate to that underlying value. */
@@ -598,9 +592,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      a link out of it, so it is a button and takes the button's own reset: the kind of
      item in a column of its own, then the item's words over where it stands. */
   .lf-queue-group + .lf-queue-group { margin-top: 8px; }
-  .lf-queue-heading { display: block; padding: 6px 10px 4px; border-radius: 6px;
-    color: var(--muted); font-size: var(--t-6); font-weight: 600;
-    text-transform: uppercase; letter-spacing: .05em; }
+  .lf-queue-heading { display: block; padding: 6px 10px 4px; border-radius: 6px; }
   .lf-queue-done { margin: 8px 0 0; padding: 0; border: 0; border-radius: 0; }
   .lf-queue-done > summary { display: list-item; cursor: pointer; }
   .lf-queue-done > summary:hover { background: var(--chip); }
@@ -840,22 +832,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     outline-offset: calc(-1 * var(--focus-ring-w)); --lf-focus-ring: thread-summary; }
   .lf-thread-topic { grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-  /* A text sheen carries title generation without moving the lettering or
+  /* The sheen (surfaces.css) carries title generation without moving the lettering or
      blanking it between passes. The muted base remains visible in every frame. */
   .lf-thread-topic[data-lf-pending-title] { justify-self: start; font-weight: 500;
-    --lf-pending-title-color: color-mix(in oklab, var(--muted) 80%, var(--paper));
-    color: transparent; background: linear-gradient(110deg,
-      var(--lf-pending-title-color) 42%, var(--ink) 50%, var(--lf-pending-title-color) 58%);
-    background-size: 200% 100%; background-clip: text;
-    animation: lf-runtime-4f3c2a8d-sheen 2s ease-in-out infinite alternate; }
-  @media (prefers-reduced-motion: reduce) {
-    .lf-thread-topic[data-lf-pending-title] { animation: none;
-      background: none; color: var(--lf-pending-title-color); }
-  }
-  @media (forced-colors: active) {
-    .lf-thread-topic[data-lf-pending-title] { animation: none;
-      background: none; color: GrayText; }
-  }
+    color: color-mix(in oklab, var(--muted) 80%, var(--paper));
+    animation: lf-sheen 2s ease-in-out infinite alternate; }
   /* Status shares the title row. Its width may change the title's ellipsis,
      but never the header height or the conversation below it. */
   .lf-thread-meta { grid-column: 2; grid-row: 1; display: flex; align-items: baseline;
@@ -1140,8 +1121,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-command-reference-results { --lf-command-key-column: 104px;
     min-height: 0; overflow-y: auto; }
   .lf-command-reference-empty { padding: 20px 0 8px; color: var(--muted); text-align: center; }
-  .lf-command-reference h3 { margin: 12px 0 4px; font-size: var(--t-6); font-weight: 600;
-    text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .lf-command-reference h3 { margin: 12px 0 4px; }
   .lf-command-reference table { display: table; width: 100%; table-layout: fixed;
     border-collapse: collapse; }
   .lf-command-reference-key-column { width: var(--lf-command-key-column); }

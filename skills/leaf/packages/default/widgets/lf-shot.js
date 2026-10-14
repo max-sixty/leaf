@@ -297,7 +297,7 @@ customElements.define(
       rail.className = "lf-shotrail";
       rail.dataset.lfGen = "1";
       for (const state of ["before", "after"]) {
-        const caption = selectableOffer("button", "lf-shotcap");
+        const caption = selectableOffer("button", "lf-shotcap lf-label");
         caption.dataset.lfState = state;
         relabel(caption, state, { says: true });
         this.#captions.set(state, caption);

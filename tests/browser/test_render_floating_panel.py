@@ -797,7 +797,7 @@ def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve):
     expect(field(page)).to_be_focused()
 
     threads = page.locator(".lf-fp-view[data-view=threads]")
-    for door in (leaf, page.locator(".lf-fp-questions")):
+    for door in (leaf, page.locator(".lf-fp-on-user")):
         door.focus()
         page.keyboard.press("g")
         page.keyboard.press("Shift+T")

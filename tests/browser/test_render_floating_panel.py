@@ -644,6 +644,23 @@ def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
     expect(about.get_by_label("Link", exact=True)).to_have_count(0)
 
 
+def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
+    """A clipboard that refuses the write leaves the user the link all the same: the
+    press opens About on the link, in a field they can select, and the field says the
+    link was not copied."""
+    refuses = (
+        "Clipboard.prototype.writeText = () => Promise.reject(new Error('refused'));"
+    )
+    page = open_page(browser, serve(LONG_PAGE), init_script=f"{FLOATING}\n{refuses}")
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link").click()
+    about = page.locator(".lf-fp-view[data-view=group]")
+    link = about.get_by_label("Link", exact=True)
+    expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
+    expect(page.locator(".lf-fp-head")).to_contain_text("About this page")
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Link not copied"))
+
+
 def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
     """Page search's box stands just over the panel's row, where its Previous, Next and
     Close search stand, rather than at the window's head."""

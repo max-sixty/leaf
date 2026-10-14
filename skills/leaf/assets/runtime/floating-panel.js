@@ -165,8 +165,11 @@ const HELD_ELSEWHERE = Object.freeze([
 // gesture, which stands in the counts' place instead.
 const listed = (entry) => !entry.gesture && !HELD_ELSEWHERE.includes(entry.key);
 // A browser offers the clipboard only to a secure context (https or localhost), so a
-// page read over plain http from another machine has none to copy with.
-const canCopy = () => Boolean(navigator.clipboard?.writeText);
+// page read over plain http from another machine has none to copy with; and one that
+// offers it may still refuse a write, after which the page copies nothing more by a
+// press (`copyItem`).
+let copyRefused = false;
+const canCopy = () => !copyRefused && Boolean(navigator.clipboard?.writeText);
 // Where a row stands in the menu: in its group; a keyboard's convenience (`keys`) under
 // Navigate only where no keyboard is there to reach it, so a finger still can; and a row
 // that copies a text, such as the page's link, under About where no clipboard is there to
@@ -779,18 +782,21 @@ export function createFloatingPanel({
   // field says whether the copy took, as it says any passing notice. What the text is,
   // which a field to select it would say beneath it, is the row's hover name. Where no
   // clipboard is offered, the row stands in About instead, its text there to select
-  // (`groupOf`).
+  // (`groupOf`); where the clipboard refuses the copy, the row moves there for good and
+  // About opens on the text, so the user can still take it.
   const copyItems = new Map();
   function copyItem(entry) {
     let copy = copyItems.get(entry.key);
     if (!copy) {
       copy = copyControl("lf-fp-copy-item", {
         success: `${entry.label} copied`,
-        error: `${entry.label} not copied`,
+        error: `${entry.label} not copied · select it to copy`,
       });
-      const done = () => putAwayThen(() => {});
-      copy.addEventListener("wa-copy", done);
-      copy.addEventListener("wa-error", done);
+      copy.addEventListener("wa-copy", () => putAwayThen(() => {}));
+      copy.addEventListener("wa-error", () => {
+        copyRefused = true;
+        putAwayThen(() => open({ view: "group", group: "about" }));
+      });
       copyItems.set(entry.key, copy);
     }
     copy.value = entry.copies;

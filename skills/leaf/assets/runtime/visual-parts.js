@@ -87,7 +87,7 @@ export function visualPartProblems(source, declaration) {
   }
 }
 
-export function registeredVisualParts(source) {
+function registeredVisualParts(source) {
   const read = registrations.get(source)?.read;
   if (!read) return [];
   const seenIds = new Set();

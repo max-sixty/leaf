@@ -347,8 +347,8 @@
   /* The ladder, body at --t-4. Measured on Charter at 17px: 7.9px a character, so
      the column below holds about 74 of them. The numbered rungs are the prose's hierarchy;
      --t-working-label is the shared compact heading between its two smallest rungs. A size
-     that has to fit something states its own number where it is set — a code block
-     against the characters it takes across, a step badge against its disc. */
+     that has to fit something states its own number where it is set, as a code block
+     does against the characters it takes across. */
   --t-6: 11.5px; --t-working-label: 13px; --t-5: 14px; --t-4: 17px;
   --t-3: 20px; --t-2: 24px; --t-1: 31px;
   --code-size: 12.5px; --code-line: 19px;
@@ -1241,22 +1241,13 @@ aside.sidenote { font-size: var(--t-5); line-height: 1.45; color: var(--muted);
    declare: "60" and "60 sessions" are one shape and two different things, and a
    pass that read the text would be guessing at the difference. */
 th.num, td.num { text-align: right; }
-ol.steps { list-style: none; counter-reset: step; padding-inline-start: 0; }
-/* A step's number, in a disc sized from the step's own text: the number at 0.7 of it,
-   the disc one of the number's lines across (`1lh`), which centres the number in it.
-   Both round to whole pixels, since a fractional line draws the number up to a pixel
-   off its centre. The disc centres on the step's first line, which reaches the number as a length
-   (--lf-step-line), since `lh` written on the number is the number's own line. The
-   sans face because a serif fallback such as Georgia draws old-style figures, and a 3
-   hangs below a 2. */
-@property --lf-step-line { syntax: "<length>"; inherits: true; initial-value: 0px; }
-ol.steps > li { counter-increment: step; position: relative; padding-inline-start: 2em;
-                margin: 10px 0; --lf-step-line: 1lh; }
-ol.steps > li::before { content: counter(step); position: absolute; inset-inline-start: 0;
-                        top: calc((var(--lf-step-line) - 1lh) / 2); width: 1lh;
-                        border-radius: 50%; background: var(--accent); color: var(--card);
-                        font: 600 round(0.7em, 1px)/round(1.75em, 1px) var(--sans);
-                        text-align: center; }
+/* A list of steps keeps the browser's own numbers, which sit on each step's first line
+   in any direction and at any size, and dresses them in the accent. A disc behind the
+   number is out of reach: `::marker` takes no background, and a box placed by hand has
+   to recompute the first line the marker already stands on. */
+ol.steps > li { margin: 10px 0; }
+ol.steps > li::marker { color: var(--accent); font-weight: 700;
+                        font-variant-numeric: tabular-nums; }
 
 /* A schematic drawing the page makes itself: every mark takes a theme token, so the
    figure follows the palette as the prose does, which an SVG loaded as an image cannot.

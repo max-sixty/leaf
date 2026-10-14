@@ -706,30 +706,13 @@ th.num,
 td.num {
   text-align: right;
 }
-ol.steps {
-  list-style: none;
-  counter-reset: step;
-  padding-inline-start: 0;
-}
-@property --lf-step-line { syntax: "<length>"; inherits: true; initial-value: 0px; }
 ol.steps > li {
-  counter-increment: step;
-  position: relative;
-  padding-inline-start: 2em;
   margin: 10px 0;
-  --lf-step-line: 1lh;
 }
-ol.steps > li::before {
-  content: counter(step);
-  position: absolute;
-  inset-inline-start: 0;
-  top: calc((var(--lf-step-line) - 1lh) / 2);
-  width: 1lh;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--card);
-  font: 600 round(0.7em, 1px)/round(1.75em, 1px) var(--sans);
-  text-align: center;
+ol.steps > li::marker {
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 svg.drawing {
   display: block;

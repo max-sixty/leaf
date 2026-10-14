@@ -3,23 +3,18 @@
 from pathlib import Path
 
 from .asks import quoted_in
-from .files import latest_revision, list_revisions
+from .files import latest_revision
 from .findings import Finding
 from .passages import page_passages
 from .projection import (
     PageReading,
+    frozen_thread_reading,
     retirement_outcomes,
     rewritten_bodies,
 )
 from .registry.storage import require_registry
 from .revision_artifact import read_revision
-from .thread_context import (
-    effective_thread_events,
-    id_subject,
-    thread_names,
-    thread_structure,
-    thread_widgets,
-)
+from .thread_context import id_subject
 
 
 def widget_seat_error(
@@ -28,7 +23,7 @@ def widget_seat_error(
     """Why `widget` cannot seat a to-do on `page`, or None.
 
     A to-do on a widget stands beside that widget at the page edge, so the widget must
-    be live on the page: present under the page's standing outcomes and not quoted
+    be live on the page: present under the page's outcomes in force and not quoted
     exhibit content. And it must be a seat for work: its tag declares `x-work`, or it
     holds an unsettled action, among `workflows` (`workflows.canonical_workflows`)."""
     named = {"widget": widget}
@@ -71,7 +66,6 @@ def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
     if revision is None:
         return id_subject(events, set(), {}, {}, name)
     registry = require_registry(page_dir)
-    events = effective_thread_events(events, list_revisions(page_dir))
     return id_subject(
         events,
         {
@@ -79,7 +73,7 @@ def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
             for element, rec in read_revision(page_dir, revision).document.by_id.items()
             if rec["tag"] in registry
         },
-        thread_widgets(thread_structure(events), thread_names(events)),
+        frozen_thread_reading(events, registry).thread_by_widget,
         read_revision(page_dir, revision).enclosing,
         name,
     )

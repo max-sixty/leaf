@@ -224,8 +224,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     bottom at the desktop viewport and on a phone, and one screen at each width where
     the page's own arrangement is at its tightest before it changes. A sidebar page with
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
-    Each open Ask, a suggestion as much as an lf-ask, gets the window `q` brings it
-    into, as the user working the page meets it, including those `q` reaches past a
+    Each open Ask, a suggestion as much as an lf-ask, gets the window `m` brings it
+    into, as the user working the page meets it, including those `m` reaches past a
     page widget move handed back to the user, which is a stop of its own and no Ask."""
     tiles = "".join(
         f"<dl id='m{i}'><dt>metric {i}</dt><dd>{i}</dd></dl>" for i in range(4)
@@ -279,8 +279,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             "turn": "turn-1",
         },
     )
-    questions = state_json(serve.page_dir)["queues"]["questions"]
-    assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in questions]
+    on_user = state_json(serve.page_dir)["queues"]["on_user"]
+    assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in on_user]
 
     ran = subprocess.run(
         [*LEAF_COMMAND, "page", "check", str(serve.page_dir), "--render"],
@@ -301,7 +301,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
         "1200px-ask-3.png",
     } <= set(names)
     assert "1200px-ask-4.png" not in names
-    assert any("each press of `q`" in line for line in listed)
+    assert any("each press of `m`" in line for line in listed)
     assert any('"Pre-handover review"' in line for line in listed)
     stacks = next(line for line in listed if "<main> 1+2 → 1+1+1" in line)
     assert (into / stacks.split(":")[0].strip()).exists()
@@ -726,15 +726,13 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
             "film.js": 'import { label } from "./helper.js";\n'
             "export const paint = el => (el.textContent = label);\n",
             "helper.js": 'export const label = "loaded";\n',
-            "widgets/lf-film.js": """import { paint } from "../film.js";
-export default class extends HTMLElement {
-  connectedCallback() { paint(this); }
-};
-""",
-            "widgets/lf-loader.js": """export default class extends HTMLElement {
-  connectedCallback() { this.textContent = 'loaded'; }
-};
-""",
+            "widgets/lf-film.js": 'import { paint } from "../film.js";\n'
+            "customElements.define('lf-film', class extends HTMLElement {\n"
+            "  connectedCallback() { paint(this); }\n"
+            "});\n",
+            "widgets/lf-loader.js": "customElements.define('lf-loader', class extends HTMLElement {\n"
+            "  connectedCallback() { this.textContent = 'loaded'; }\n"
+            "});\n",
         },
         media={"page/missing-image.png": solid_png(1, 1, (0, 0, 0))},
     )
@@ -804,16 +802,14 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
             "registry.json": json.dumps(FILM_DECLARATION),
             "film.js": "export const paint = (el, step) =>\n"
             "  (el.textContent = (step.cmp ?? []).map(String).join());\n",
-            "widgets/lf-film.js": """import { paint } from "../film.js";
-export default class extends HTMLElement {
-  connectedCallback() { paint(this, { cmp: 3 }); }
-};
-""",
-            "widgets/lf-loader.js": """export default class extends HTMLElement {
-  connectedCallback() { this.load(); }
-  async load() { await null; throw new Error('the trace never loaded'); }
-};
-""",
+            "widgets/lf-film.js": 'import { paint } from "../film.js";\n'
+            "customElements.define('lf-film', class extends HTMLElement {\n"
+            "  connectedCallback() { paint(this, { cmp: 3 }); }\n"
+            "});\n",
+            "widgets/lf-loader.js": "customElements.define('lf-loader', class extends HTMLElement {\n"
+            "  connectedCallback() { this.load(); }\n"
+            "  async load() { await null; throw new Error('the trace never loaded'); }\n"
+            "});\n",
         },
     )
     d = serve.page_dir
@@ -850,10 +846,9 @@ export default class extends HTMLElement {
         "  (el.textContent = [step.cmp].flat().map(String).join());\n"
     )
     (d / "page" / "widgets" / "lf-loader.js").write_text(
-        """export default class extends HTMLElement {
-  connectedCallback() { this.textContent = 'loaded'; }
-};
-"""
+        "customElements.define('lf-loader', class extends HTMLElement {\n"
+        "  connectedCallback() { this.textContent = 'loaded'; }\n"
+        "});\n"
     )
     clean = check(LEAF_BROWSER_EXECUTABLE=headless_shell)
     assert clean.returncode == 0, clean.stdout + clean.stderr

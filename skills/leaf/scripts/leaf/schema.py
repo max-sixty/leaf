@@ -7,7 +7,7 @@ from .state import EVENTS_FILE
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
-# source; a standing lifetime ignores it and remains enabled until `server stop`.
+# source; a persistent lifetime ignores it and remains enabled until `server stop`.
 ORPHAN_GRACE_SECS = 1
 # The harness-neutral name of an agent nothing names: a page's when no claimant
 # supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
@@ -100,10 +100,10 @@ AWAITING_CONDITION = {
 }
 
 # When a local ask is answered: a map from each answering x-state verb to the
-# condition its standing state meets. An empty condition means the verb's state stands
-# (a non-empty attribute or value record, otherwise a standing action). `when` narrows
+# condition its current state meets. An empty condition means the verb's state stands
+# (a non-empty attribute or value record, otherwise an action in force). `when` narrows
 # the verb to instances whose attributes match; `empty` holds when the one member
-# container it names inside the widget is left with no members by the standing
+# container it names inside the widget is left with no members by the current
 # positions. One map, so every answer is a reading of state the fold already keeps.
 ANSWERED_SCHEMA = {
     "type": "object",
@@ -338,8 +338,6 @@ EXTENSION_SCHEMA = {
                     "type": "object",
                     "properties": {
                         "parts": _ATTRIBUTE_NAME,
-                        "all": {"type": "string", "pattern": "^\\S+$"},
-                        "complete": {"const": True},
                     },
                     "required": ["parts"],
                     "additionalProperties": False,
@@ -364,19 +362,6 @@ EXTENSION_SCHEMA = {
         # A default height in CSS pixels, or `true` for a widget that has none and
         # reserves only what an occurrence's data-height states.
         "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
-        # Child selectors, each matched inside the element, for the painted boxes that
-        # draw its own face: a margin pin whose target is the element may stand on them.
-        # Only a light-DOM child by tag and classes, so a malformed selector is refused
-        # here rather than throwing in the browser's layout pass.
-        "x-face": {
-            "type": "array",
-            "items": {
-                "type": "string",
-                "pattern": r"^:scope > (?:[a-z][a-z0-9-]*(?:\.[A-Za-z_][\w-]*)*|(?:\.[A-Za-z_][\w-]*)+)$",
-            },
-            "minItems": 1,
-            "uniqueItems": True,
-        },
         "x-history": {"const": True},
         # A captured classic bundle registering one synchronous DOM producer. Delivery
         # runs it after each occurrence closes; the module adopts its existing nodes.
@@ -618,14 +603,7 @@ PLUGIN_ROOT = SKILL_ROOT.parent.parent
 ASSETS = SKILL_ROOT / "assets"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
-VENDORED_FILES = (
-    "leaf.js",
-    "theme.css",
-    "widget-theme.css",
-    "shadow.css",
-    "registry.json",
-    "icon.svg",
-)
+VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg")
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 INSTRUCTIONS_DIR = "instructions"
 PACKAGE_DIRS = (*BROWSER_DIRS, INSTRUCTIONS_DIR)

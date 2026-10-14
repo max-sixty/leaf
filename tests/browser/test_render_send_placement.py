@@ -48,6 +48,7 @@ from render_harness import (
     compositor_trace,
     frame_image,
     judge_watches,
+    margins_laid_out,
     marked_tops,
     open_page,
     pane_posture,
@@ -334,7 +335,7 @@ def sent(browser, serve, name, shots):
     if name == "phone-touch-passage":
         phone_room = page.evaluate("""async () => {
           const {commentBoundary, COMMENT_GAP} =
-            await window.__lfRuntimeImport('/runtime/annotation-overlay/comment-placement.js');
+            await window.__lfOverlayApi();
           const {top, bottom, height} = commentBoundary();
           return {top, bottom, height, gap: COMMENT_GAP};
         }""")
@@ -517,7 +518,7 @@ def test_a_right_edge_passage_reopens_a_usable_card_without_moving_typing(
     card = page.evaluate(RECT, ".lf-margin-preview")
     boundary, minimum = page.evaluate("""async () => {
       const {commentBoundary, cardMinimum} =
-        await window.__lfRuntimeImport('/runtime/annotation-overlay/comment-placement.js');
+        await window.__lfOverlayApi();
       const {left, right, width} = commentBoundary();
       return [{left, right, width}, cardMinimum()];
     }""")
@@ -998,11 +999,7 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
           };
           sample();
         }""")
-        page.evaluate("""async () => {
-          const {layoutMarginRows} = await window.__lfRuntimeImport(
-            '/runtime/annotation-overlay/margin-layout.js');
-          layoutMarginRows();
-        }""")
+        margins_laid_out(page)
         rendered(page)
         frames = page.evaluate("() => {recordAttachment=false;return attachmentFrames}")
         assert len(frames) > 1
@@ -1313,7 +1310,7 @@ def test_send_grows_thread_around_the_words(
             rendered(page)
             opening = card.evaluate("""async card => {
               const {commentBoundary, COMMENT_GAP} =
-                await window.__lfRuntimeImport('/runtime/annotation-overlay/comment-placement.js');
+                await window.__lfOverlayApi();
               const box = card.getBoundingClientRect();
               return {top:box.top, bottom:box.bottom,
                 boundary:commentBoundary().top, gap:COMMENT_GAP};
@@ -1339,8 +1336,7 @@ def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, s
     page = open_page(browser, serve(source))
     reading = page.evaluate(
         """async () => {
-          const {makeRoom} = await window.__lfRuntimeImport(
-            '/runtime/annotation-overlay/comment-placement.js');
+          const {makeRoom} = await window.__lfOverlayApi();
           const scroller = document.querySelector('#scroller');
           const target = document.querySelector('#target');
           const boundary = scroller.getBoundingClientRect();
@@ -1362,7 +1358,7 @@ def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, s
 @pytest.mark.parametrize(
     "source,read,existing",
     # Each point the wheel can land in the solve, each scroller, and a placement
-    # already standing, each at least once.
+    # already in place, each at least once.
     [
         ("inner", "before-discovery", False),
         ("document", "before-scroll", True),
@@ -1391,7 +1387,7 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
     page.evaluate(
         """async ([read, source, existing]) => {
           const {floatingPlacement, floatingUi} =
-            await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
+            await window.__lfOverlayApi();
           const ui = await floatingUi();
           const paragraph = document.querySelector('#quote');
           const node = paragraph.childNodes[4];

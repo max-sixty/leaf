@@ -28,7 +28,7 @@ import {
   dismissPopoversOutside,
 } from "./layer-stack.js";
 import { scrollIntoView } from "../landing-scroll.js";
-import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
 
 import {
   bindings,
@@ -213,6 +213,7 @@ const EMPTY_CATALOG = Object.freeze({
   entries: Object.freeze([]),
   sections: Object.freeze([]),
 });
+/** @type {ReturnType<typeof captureCommandReferenceCatalog>} */
 let commandReferenceCatalog = EMPTY_CATALOG;
 let commandReferenceState = {
   query: "",
@@ -846,7 +847,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   if (fresh) {
     commandReferenceInvoke = invokeCommand;
     dismissPopoversOutside(commandReferenceDialog);
-    // The origin is read off the scene the reference leaves standing: hiding a popover
+    // The origin is read off the scene the reference leaves behind: hiding a popover
     // hands focus back to where the user stood when it opened, and that is the place
     // the reference owes them. A control, or nothing: a user working from the page
     // stands on `body`, which is not a place to be given back — focusing it resets the
@@ -866,6 +867,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
       metaOverride: null,
     };
     presentCommandReference();
+    /** @type {HTMLInputElement} */
     const search = commandReferenceDialog.querySelector(".lf-command-reference-search");
     const results = commandReferenceDialog.querySelector(
       ".lf-command-reference-results",
@@ -897,7 +899,8 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
     closeLayer(
       () => {
         if (commandReferenceDialog.open) closeNativeLayer(commandReferenceDialog);
-        if (standingIn(commandReferenceDialog)) deepFocus()?.blur();
+        if (standingIn(commandReferenceDialog))
+          /** @type {HTMLElement | null} */ (deepFocus())?.blur();
         repaint();
       },
       handingBack && (() => handBack(restore)),
@@ -918,9 +921,11 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
 }
 
 const commandButton = (id) =>
-  [...commandReferenceDialog.querySelectorAll(".lf-command-reference-command")].find(
-    (button) => button.dataset.lfCommand === id,
-  ) ?? null;
+  [
+    .../** @type {NodeListOf<HTMLElement>} */ (
+      commandReferenceDialog.querySelectorAll(".lf-command-reference-command")
+    ),
+  ].find((button) => button.dataset.lfCommand === id) ?? null;
 
 const focusedCommandId = () =>
   focused()?.matches?.(".lf-command-reference-command")
@@ -1004,7 +1009,7 @@ pageScope("command reference", {
       repeat: true,
       runFromCommandReference: false,
       // The list is built before search receives focus, so physical liveness is false at
-      // that instant even though this is one of the reference's standing instructions.
+      // that instant even though the reference always lists this instruction.
       commandReferenceWhen: () => true,
       when: () => commandReferenceCommandActive(),
       run: () => moveCommandReferenceSelection(1),

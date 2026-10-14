@@ -11,7 +11,6 @@
    install returns only its immutable document capture and a mechanical landing. After
    adoption, optional interface installation and the canonical document proof both
    finish before that landing; declining stale focus never retracts accepted truth. */
-import { requireVocabulary } from "./widget-vocabularies.js";
 import {
   applicationState,
   whenDocumentPresented,
@@ -36,18 +35,14 @@ import {
   semanticNewsNotice,
   semanticNewsReading,
 } from "./semantic-news.js";
-import { renderVersions } from "./version.js";
 
 export function createStateApplication({
   prepareActivation,
   acceptData,
   notifyDataSubscribers,
   isSignoffDeclared,
-  renderStatus,
   stateSignoff,
-  renderOthers,
   accountPending,
-  paintKeys,
 }) {
   let observedSemanticNews = null;
   let presentedNewsReading = null;
@@ -57,6 +52,7 @@ export function createStateApplication({
 
   async function runSerialized(operation) {
     const prior = admission;
+    /** @type {PromiseWithResolvers<void>} */
     const { promise, resolve: release } = Promise.withResolvers();
     admission = promise;
     await prior;
@@ -90,11 +86,7 @@ export function createStateApplication({
     for (const thread of threads)
       for (const message of thread.msgs) {
         if (!message.markup) continue;
-        const context = await requireVocabulary(
-          message.revision,
-          state.vocabularies[String(message.revision)],
-        );
-        const authored = prepareAuthoredMessage(message, thread.id, context);
+        const authored = prepareAuthoredMessage(message, thread.id);
         frozenDocuments.push(authored);
         if (markupRead.has(message.id)) continue;
         preparations.push(
@@ -165,10 +157,7 @@ export function createStateApplication({
       stateApplying = true;
       try {
         settleAcceptedDrafts();
-        renderStatus(state);
-        renderVersions(state);
         stateSignoff(isSignoffDeclared());
-        renderOthers(state);
         // Optional interface preparation joins imports and installation, without
         // pretending to be a semantic renderer. Adoption already claimed every document
         // region for this epoch, and frozen
@@ -208,7 +197,6 @@ export function createStateApplication({
         throw error;
       } finally {
         stateApplying = false;
-        paintKeys();
       }
     });
   }

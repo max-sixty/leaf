@@ -11,7 +11,6 @@ from playwright.sync_api import expect
 from render_harness import (
     INPUT_WORK_WATCH_SOURCE,
     WATCH_PLATFORM_SOURCE,
-    _frame_owners_drawn,
     consume_browser_errors,
     holding,
     is_problem,
@@ -215,46 +214,6 @@ def test_hidden_opaque_frames_drain_without_waiting_for_suppressed_paint(
     frame.locator("#reading").evaluate(PAINTED)
     judge_watches()
 
-    if nested:
-        # Both frame owners have visible boxes in their own documents, but the
-        # top viewport clips the child completely through the outer frame.
-        outer = page.locator("iframe")
-        inner = page.frame_locator("iframe").locator("iframe")
-
-        def place(owner, top):
-            control = owner.evaluate_handle(
-                """(element, top) => {
-              const button = document.createElement('button');
-              button.textContent = 'Place frame';
-              button.style.cssText = 'position:fixed;top:0;left:0;z-index:1';
-              button.addEventListener('click', () => {
-                element.style.position = top ? 'fixed' : '';
-                element.style.top = top;
-              });
-              document.body.append(button);
-              return button;
-            }""",
-                top,
-            )
-            try:
-                control.as_element().click()
-            finally:
-                control.evaluate("button => button.remove()")
-                control.dispose()
-
-        place(inner, "60px")
-        place(outer, "calc(100vh - 40px)")
-        assert inner.evaluate("element => element.checkVisibility()")
-        reading = frame.locator("#reading").element_handle()
-        child_frame = reading.owner_frame()
-        reading.dispose()
-        assert _frame_owners_drawn(child_frame) is False
-        judge_watches()
-        place(outer, "")
-        place(inner, "")
-        frame.locator("#reading").evaluate(PAINTED)
-        judge_watches()
-
     # Hide an ancestor after the driver starts a drain whose native paint is held.
     # Completion must use refreshed visibility rather than the initial true value.
     page.evaluate("""() => {
@@ -299,7 +258,7 @@ def test_hidden_returns_protect_only_the_resumed_reading(browser, serve):
     held = []
     page.route("**/api/news", lambda route: held.append(route))
     page.evaluate("""async () => {
-      window.returnBoundary = await window.__lfRuntimeImport('/runtime/reading-continuity.js');
+      window.returnBoundary = await window.__lfCheckApi();
       window.returnVisibility = 'visible';
       Object.defineProperty(document, 'visibilityState', {
         configurable: true, get: () => window.returnVisibility,
@@ -1220,7 +1179,7 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
     )
     page.evaluate(
         """async work => {
-      const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+      const {nextFrame} = await window.__lfWidgetApi();
       const above = document.querySelector('#above');
       document.querySelector('#press').addEventListener('click', () => {
         let turn = 0;
@@ -1341,7 +1300,7 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
     )
     page.evaluate(
         """async retiredAt => {
-          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfWidgetApi();
           const widget = document.querySelector('#choice');
           const gate = Promise.withResolvers();
           window.release = gate.resolve;
@@ -1403,7 +1362,7 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
         ),
     )
     page.evaluate("""async () => {
-      const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {widgetController} = await window.__lfWidgetApi();
       const widget = document.querySelector('#choice');
       const first = Promise.withResolvers();
       const second = Promise.withResolvers();
@@ -1474,7 +1433,7 @@ def test_a_preparation_no_input_began_lands_passive(browser, serve, input_at):
     page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
     page.evaluate(
         """async inputAt => {
-      const {nextFrame} = await window.__lfRuntimeImport('/runtime/rendering.js');
+      const {nextFrame} = await window.__lfWidgetApi();
       const root = document.querySelector('#patch').shadowRoot;
       const details = root.querySelector('details');
       const opens = () => {
@@ -2867,6 +2826,50 @@ def test_owned_animation_retains_local_motion_through_next_gesture(browser, faul
         assert not errors, errors
 
 
+@pytest.mark.parametrize("begun", ["press", "script"])
+@pytest.mark.parametrize(
+    ("property", "moved"),
+    [
+        ("transform", "translateX(-600px)"),
+        ("translate", "-600px 0"),
+        ("translate", "-300% 0%"),
+    ],
+)
+def test_a_pressed_transition_owns_its_travel_whichever_property_carries_it(
+    browser, property, moved, begun
+):
+    """A press beginning a transition of a box's translation owns the travel it
+    samples, by the transform or by the individual `translate` property, in pixels
+    or in percentages of the box, as the floating panel's menu slides in. A later
+    press moving the layout has that travel judged with its own rendering: credited
+    where the press began it, and a move without input where a script did."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<!doctype html><body style="margin:0">
+<button id="slide">Slide</button><button id="grow">Grow</button>
+<div id="menu" style="margin-left:650px;width:200px;transition:{property} 3s linear"><button>Row</button><p>Menu reading</p></div>
+<div id="room"></div><p>Below</p>
+<script>function slideIn(){{window.from=menu.getBoundingClientRect().left;menu.style.{property}='{moved}'}}
+slide.addEventListener('click',slideIn);
+grow.addEventListener('click',()=>room.style.height='40px')</script>""")
+    )
+    paint(page)
+    if begun == "press":
+        page.locator("#slide").click()
+    else:
+        page.evaluate("slideIn()")
+    page.wait_for_function("from - menu.getBoundingClientRect().left > 20")
+    page.locator("#grow").click()
+    page.evaluate(PAINTED)
+    assert page.evaluate("menu.getAnimations()[0].playState") == "running"
+    judge_watches()
+    if begun == "press":
+        assert take_browser_errors(page) == []
+    else:
+        consume_browser_errors(page, moved_within("div#menu"))
+
+
 @pytest.mark.parametrize("mode", ["static", "fallback"])
 def test_unused_anchor_cannot_bank_an_earlier_scroll(browser, mode):
     page = browser.new_page()
@@ -3085,7 +3088,7 @@ def test_native_clipping_preserves_only_painted_carry(browser, serve):
         field = page.locator(f"#field-{name}")
         state = field.evaluate("""async field=>{
           const box=field.getBoundingClientRect();
-          const geometry=await window.__lfRuntimeImport('/runtime/geometry.js');
+          const geometry=await window.__lfCheckApi();
           return {hit:document.elementFromPoint(box.x+3,box.y+3)===field,
             shown:!!geometry.shownRect(field,new Map()),
             opacity:field.checkVisibility({checkOpacity:true})};
@@ -3172,7 +3175,7 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
     page = open_page(browser, serve(source))
     initial = page.locator("#holder").bounding_box()
     state = page.evaluate("""async()=>{
-      const module=await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js'); const ui=await module.floatingUi();const holder=document.querySelector('#holder'),subject=document.querySelector('#subject'),host=document.querySelector('#host'); let plane='page';
+      const module=await window.__lfOverlayApi(); const ui=await module.floatingUi();const holder=document.querySelector('#holder'),subject=document.querySelector('#subject'),host=document.querySelector('#host'); let plane='page';
       const selected=()=>module.floatingSelections().find(s=>s.floating===holder);
       const owner=module.floatingPlacement({floating:holder,update:()=>void place()});
       async function place(){owner.begin();const answer=await owner.position(ui.computePosition,subject,{placement:'right-start',middleware:[]},()=>plane,subject);if(answer)owner.stand(answer);}

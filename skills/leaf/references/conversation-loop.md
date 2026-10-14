@@ -11,8 +11,8 @@ The user follows your work on the page:
 | Surface | What it shows | Written by |
 | --- | --- | --- |
 | Banner | one sentence for the whole page: the line of the item you have in hand, or what you want back | `leaf task start`, `leaf status <page> waiting "<detail>"` |
-| Beside a thread or widget | **Working** and your line, above the message or on the control the work answers | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
-| Thread | what you will do, your progress, and your answer to the user's message | the response operation named by delivered `handling` |
+| Beside a thread or widget | **Working** and your line: the thread's working message above its reply box, or on the control the work answers | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
+| Thread | your answer to the user's message, with the progress before it folded behind it | the response operation named by delivered `handling` |
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
 Leaf itself marks each update **Sent**, **Queued**, and **Picked up**, including
@@ -65,8 +65,8 @@ leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a lin
 ```
 
 The user reads it at once, and it takes the update in hand: the update reads
-**Working** with that line beside its thread and in the banner, and the
-progress line folds into the progress disclosure when your answer arrives
+**Working** with that line as its thread's working message and in the banner, and
+it folds into the progress disclosure when your answer arrives
 ([progress messages](threads.md#progress-messages)). Take any other item in hand,
 such as a to-do or an action on a page widget, which has no thread, with a start:
 
@@ -76,9 +76,9 @@ leaf task start <page> <id> "reading the reconnect traces" && <command>
 
 Take the item in hand again whenever the user would describe what you are doing
 differently: a new phase such as reading, editing, testing, or waiting on a result.
-Another progress message in the thread says it to the user there; a start changes
-only the line, and folding it into the command that begins the step costs no extra
-tool call. Name the operation and its subject in one sentence; "Working on it"
+Another progress message replaces the thread's working message and keeps the step
+behind it; a start changes the line without one, and folding it into the command
+that begins the step costs no extra tool call. Name the operation and its subject in one sentence; "Working on it"
 tells the user nothing the banner's dot does not already say.
 
 Work requested in chat or begun by you gets an item too. After initializing a
@@ -115,7 +115,8 @@ check the main skill's "Check the page" step asks before a reply.
 
 ## Status and handoff
 
-Before a handoff, reconcile Questions and Tasks as described below, then run:
+Before a handoff, reconcile the user's On me list and your own as described below,
+then run:
 
 ```bash
 leaf status <page> waiting "<what you want back>"
@@ -145,8 +146,8 @@ leaf page stamp <page> --text "…" --completes <widget-id>
 `--completes` names a widget with an open to-do, and ends each to-do on it `done`,
 citing the version. `leaf task open` takes a page widget that declares `x-work` or
 holds an unsettled action, any other element of the page, or `page`; work in a thread
-is opened by the reply that promises it (`--todo`). A to-do on a widget survives unrelated versions, and a
-version cannot drop that widget while the to-do stands.
+is opened by the reply that promises it (`--todo`). A to-do on a widget survives
+unrelated versions and removal of its widget.
 
 ## Long-running work
 
@@ -189,26 +190,37 @@ wait on CI, or a change you promise for the next version, answer with
 the reply answers the user's message and opens the to-do on that thread under the
 reply's id, which keeps the thread on you, and named in the banner, through the user
 resolving it and the end of your session. A turn-written reply carries no to-do, so
-answer such a promise with this command. Wherever
+answer such a promise with this command. Handing the work to another session, a
+background job, or a later turn is such a promise, even where the tool you hand it with
+counts the launch as the end of your part: the thread that asked still waits for the
+result, and a reply declared `--done` tells the user nothing is owed. Wherever
 the result lands, the to-do ends there: `leaf task end <page> <todo> done "<where the
 result is>"`, or `failed` or `dropped` with the reason, so work that won't come back
-to you takes the page and the to-do's id in its brief. While you work on it, start it,
-so the banner and the thread show your line.
+to you takes the page and the to-do's id in its brief. Start it in the session
+continuing the work: the start transfers completion authority to that session
+and gives the banner and thread its line. That session can finish on a later
+turn; another session takes over by starting the same to-do.
 Work on an update that finishes inside the turn needs no to-do.
 
-## Questions and Tasks
+## The On lists
 
-Everything you need from the user belongs in **Questions**, whether an answer,
-decision, permission, review, or action elsewhere. Ask a direct question and register
-it by one of the routes below. Prose in the page, a status line, and a question in
-chat alone do not register it. A recommendation leaves its decision open. An
-optional invitation to comment creates no obligation; if you need feedback before
-continuing, make it an ask.
+Everything waiting on the user belongs in their **On me** list: each decision your
+work leaves to them, and each answer, permission, review, or action elsewhere you
+need from them. A decision is theirs whether or not your next step depends on it:
+each proposal or candidate you present for their judgment, including the ones you
+rank after the one you recommend, and each product choice you surface. Ask a direct
+question and register it by one of the routes below, grouped as `authoring-asks.md`
+says, and keep it there until the user decides it or you withdraw it. Prose, a
+heading or a column on the page, a status line, and a question or open item in chat
+repeat an On me item; on their own they register nothing. Information the user may
+comment on but need not decide creates no item.
 
-The banner's Questions count and the Questions panel show everything waiting on the
+The banner's On me count and the On panel show everything waiting on the
 user: these requests, and any update whose send failed and needs sending again.
-**Tasks** shows what waits on you. Done holds ended items. The user presses `q` to
-step through Questions in page order. Each press lands where the next item is
+Your list, which the user sees as **On <your name>**, shows what waits on you. Under
+each list, its Done holds what left it: the asks the user answered or you withdrew
+and the to-dos they ended under On me, and the replies you sent and the to-dos you
+ended under yours. The user presses `m` to step through On me in page order. Each press lands where the next item is
 answered, such as an ask's answering widget or the thread holding a prose ask, and
 an ask's displayed `1`–`9` actions answer it there.
 
@@ -222,8 +234,7 @@ an ask's displayed `1`–`9` actions answer it there.
 A widget ask has id `widget:<widget-id>`, a prose ask has `reply:<message-id>`,
 and an approval ask for a stamped version's sign-off has `approval:v<version>`.
 A to-do on the user keeps the id printed by `task open`. A thread takes no to-do
-on the user; ask there with `--ask`.
-Keep independently answerable decisions in separate widgets or threads. A thread
+on the user; ask there with `--ask`. A thread
 can retain several prose asks; its latest unanswered one is the current request,
 and the next user reply settles preceding unanswered prose asks there. Publish
 a dependent question once its prerequisite is answered. The user's Done on a to-do
@@ -237,7 +248,7 @@ leaf page state <page> | jq '{source, asks, todos, queues}'
 ```
 
 Page state contains separate canonical `asks` and `todos`; its
-`queues.questions` and `queues.tasks` select those records with response obligations
+`queues.on_user` and `queues.on_agent` select those records with response obligations
 and delivery retries for the panel. `jq` only selects these fields; do not reconstruct
 membership from events or widget state. Each queue item names its `id`, `kind`,
 `subject`, and `thread`. An ask contains its prompt, typed answer and lifecycle;
@@ -249,14 +260,14 @@ covers the active document and admitted log, not unsent browser drafts or a tab
 pinned to an older version. Check `source` for an invalid or missing draft before
 treating an empty list as a successful handoff.
 
-Reconcile the lists with what you still need and owe. Zero Questions says that
-you need nothing from the user **now**; Tasks may still contain your work or a wait
+Reconcile the lists with what you still need and owe. An empty On me says
+that you need nothing from the user **now**; your list may still hold your work or a wait
 on an external result. Complete authorized work without asking for permission
 again. A paused project needs an ask only when its disposition or resumption
 needs the user's decision; after they choose to keep it paused, that decision is
 settled. A blocked action belongs on the user only when they can take the step
-that unblocks it. Work owned by another session stays there; ask here only for the
-decision this page needs.
+that unblocks it. A question about work another session owns stays with that session;
+ask here only for the decision this page needs.
 
 An answer in chat or another surface still settles the real question. Incorporate
 it and retire its page ask in a revision (`authoring-revisions.md`), or end
@@ -264,5 +275,5 @@ the user's to-do with `leaf task end`. Retire a prose ask the user answered ther
 with `leaf task end <page> reply:<message-id> done "<where the answer is>"`, which
 records it answered elsewhere, and one that no longer applies with `dropped
 "<why>"`, which records it withdrawn; neither invents the user's answer. Keep
-finished requests off the user's Questions; answered and withdrawn ask records
+finished requests off the user's On me list; answered and withdrawn ask records
 remain available in the complete reading.

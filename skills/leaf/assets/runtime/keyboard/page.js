@@ -83,7 +83,7 @@ standingOn("disclosure", "On a disclosure", DISCLOSURE_SELECTOR, [
     description: "Open or close it",
     // Read where it is painted rather than named once for both branches, the way a diff's
     // own file rows read theirs: what the press does is whichever way the disclosure is
-    // standing, and a word fixed at declaration could only ever say one of them.
+    // set, and a word fixed at declaration could only ever say one of them.
     title: () => (disclosed(focused()) ? "close" : "open"),
     // Through the element's own click, so keyboard and pointer are one behaviour: a
     // <summary>'s click is the toggle the browser was already making, and a widget's
@@ -139,7 +139,7 @@ export function declareStanding({ pageState }) {
       {
         id: "navigation.release",
         keys: ["Escape"],
-        description: "Let go of what I'm standing on",
+        description: "Let go of the current item",
         title: "let go",
         when: () => Boolean(standingFloor()),
         run: release,

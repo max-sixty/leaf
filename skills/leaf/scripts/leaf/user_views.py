@@ -11,7 +11,7 @@ Their first server receipt is preserved when later context reports repeat them;
 a fresh context can therefore carry older checks. These observations are neither
 events nor obligations and cannot affect semantic state or document activation.
 The replaceable record is independently locked, pruned on writes after one day,
-and ignored when its format does not belong to this implementation.
+and ignored when another protocol wrote it (`registry.kernel.record_format`).
 """
 
 import copy
@@ -19,13 +19,14 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from leaf.files import read_json
+from leaf.registry.kernel import record_format
 from leaf.registry.schema import aware_instant, schema_error
 from leaf.schema import USER_VIEWS_FILE, USER_VIEWS_LOCK
 from leaf.state import flocked, write_json
 
 FRESH_FOR_S = 45
 RETAIN_FOR = timedelta(days=1)
-FORMAT = "leaf-user-views-v1"
+FORMAT = record_format("user-views")
 
 
 def _object(properties: dict) -> dict:

@@ -4,7 +4,7 @@
    page targets, and the target picker's map of addressable elements. Arming reads a
    scene, gives each member an opaque prefix-free code, and paints a chip on it. Typed
    letters narrow the map, Tab walks it aloud, Enter takes the one just heard, and
-   Escape gives a letter back. A letter that names nothing is reported and the standing
+   Escape gives a letter back. A letter that names nothing is reported and the current
    map is left alone, because a mistyped route should not cost the user the letters
    they had right. A scroll holds the map as it stands, each chip riding with what it
    names, and the map is read and seated again once the scroll settles, so a target
@@ -24,7 +24,7 @@
    than removed. Geometry belongs to each caller and is passed in so this module
    introduces no ownership cycle through the shortcut bar. */
 import { bindingEnabled, spell } from "./bindings.js";
-import { html, render } from "../../vendor/browser-runtime.js";
+import { html, render } from "/vendor/browser-runtime.js";
 import { keySequenceModel, keySequenceTemplate } from "./key-sequence.js";
 import { clamp, overlaps, overlapsAcross } from "../rect.js";
 import { chipSeats } from "./chip-seats.js";
@@ -58,6 +58,7 @@ export function renderKeys() {
   };
 }
 
+/** @returns {{left: number, right: number, top: number, bottom: number, width: number, height: number, held?: boolean}} */
 const movedTo = (box, left, top) => ({
   left,
   right: left + box.width,
@@ -71,6 +72,7 @@ const movedTo = (box, left, top) => ({
 // the seat stands clear of, or nothing where the preferred top is open.
 function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
   const last = Math.max(top, bottom - box.height);
+  /** @type {{at: number, by: null | "edge" | {held?: boolean}}[]} */
   const seats = [
     { at: preferred, by: null },
     { at: top, by: "edge" },
@@ -101,6 +103,8 @@ function nearestOpenTop(box, preferred, barriers, top, bottom, gap) {
 // each seat stands (chip-seats.js), its `box` a barrier for a following pass.
 // `placement` chooses the corner, below, before, or above the target;
 // outside seats keep the target clear.
+/** @param {any} seats @param {any} hints
+ * @param {{barriers?: object[], lineBox?: DOMRect, viewportTop?: number}} [options] */
 function spreadHints(seats, hints, { barriers = [], lineBox, viewportTop = 0 } = {}) {
   const band =
     parseFloat(
@@ -274,14 +278,14 @@ export function seatHints(
    taken. `read` answers which members the map holds and what codes name them, each
    member already carrying its `code` because a scene can be a subset of a wider reading
    whose codes it keeps; that answer is held until something invalidates it. `layout`
-   answers where those members are, and runs every paint over the whole standing set from
+   answers where those members are, and runs every paint over the whole current set from
    one `scene` reading, because a chip's place among its neighbours and its own box are
    the same measurement: derived from different readings they put the chip where neither
    reading said. `identity` names the element a walk and a re-read recognize a member by.
 
    `extras` are chips the caller keeps outside the coded map, such as named destinations
    on fixed chrome; they are seated first and become barriers for the coded ones.
-   `chrome` reads the standing furniture the placement pass must keep clear.
+   `chrome` reads the fixed furniture the placement pass must keep clear.
    A map stands through a scroll once it has stood still long enough to be read: its
    chips ride with the things they name (chip-seats.js), so the codes the user is
    reading stay where they were read and stay pressable, while membership and seats
@@ -383,7 +387,13 @@ export function createHintSession({
   function walk(direction) {
     const targets = hinted();
     if (!targets.length) return;
-    at = (at + direction + targets.length) % targets.length;
+    // Nothing heard yet, the walk starts at whichever end it walks from.
+    at =
+      at < 0
+        ? direction > 0
+          ? 0
+          : targets.length - 1
+        : (at + direction + targets.length) % targets.length;
     const target = targets[at];
     beginWalk(walkKey, "Target", () =>
       listWalkPosition(hinted(), hinted()[at], { identity }),
@@ -454,7 +464,7 @@ export function createHintSession({
       };
     });
     // Fixed chips stay where the caller put them and reserve their own pixels; the
-    // coded map is spread around them, the standing chrome, and the key line.
+    // coded map is spread around them, the fixed chrome, and the key line.
     const reserved = spreadHints(seats, drawn.slice(0, extraPlans.length));
     const coded = codedPlans.length
       ? spreadHints(seats, drawn.slice(extraPlans.length), {
@@ -479,7 +489,7 @@ export function createHintSession({
         ...layout(hinted(), { current: hinted()[at], reading: scene() }).filter(shown),
       ];
       for (const plan of plans) {
-        const seat = seats.standing(plan.model.key);
+        const seat = seats.seated(plan.model.key);
         if (seat) render(face(plan), seat);
       }
       seats.keepOnly(new Set(plans.map(({ model }) => model.key)));

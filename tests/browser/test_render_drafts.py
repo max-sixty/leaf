@@ -147,7 +147,7 @@ def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls
     def in_view():
         return field.evaluate(
             """async (node, tall) => {
-          const {seenRect, shownBox} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const {seenRect, shownBox} = await window.__lfCheckApi();
           const seen = seenRect(node, new Map()), rect = shownBox(node);
           return Boolean(seen && (tall
             ? seen.bottom - seen.top > 10
@@ -223,7 +223,7 @@ def test_a_page_keeps_its_place_below_the_banner_as_the_window_changes_width(
     resized(page, 1280, 800)
     rendered(page)
     reading = """async (id) => {
-      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const {landingBand} = await window.__lfCheckApi();
       let node = document.getElementById(id) ?? document.activeElement;
       while (!id && node.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
       return {band: landingBand(document.scrollingElement).top,
@@ -295,7 +295,7 @@ def test_a_heading_above_a_flowing_pane_keeps_its_place_as_the_window_changes_wi
     resized(page, 1280, 800)
     rendered(page)
     below = """async () => {
-      const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+      const {landingBand} = await window.__lfCheckApi();
       const pane = document.querySelector('#reading').getBoundingClientRect();
       return {heading: document.getElementById('section').getBoundingClientRect().top
                 - landingBand(document.scrollingElement).top,
@@ -502,7 +502,7 @@ def test_a_bounded_box_holds_its_place_while_its_layout_settles(browser, serve):
     resized(page, 1200, 800)
     rendered(page)
     page.evaluate("""async () => {
-      const {registerReadingRegion} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {registerReadingRegion} = await window.__lfWidgetApi();
       const body = document.getElementById('log');
       registerReadingRegion({id: body.id, host: body, body});
     }""")
@@ -1439,7 +1439,7 @@ def test_page_round_trip(browser, serve):
     # element, so there is no selector for it.
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     # Put the new comment's card away before reaching for the board. A sent comment
-    # leaves its thread standing in the page margin, and the board is a wide widget
+    # leaves its thread shown in the page margin, and the board is a wide widget
     # whose columns run out into that same band, so the card lands over the column this
     # drag is aimed at and takes the pointer. A user sees the card and dismisses it;
     # a test that skipped the dismissal would be dragging under a sheet, which is a
@@ -1553,7 +1553,7 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     expect(
         page.locator(
             '[data-lf-margin-for="draft-ops"] '
-            '[data-lf-margin-entry-owner="standing-reactions"]'
+            '[data-lf-margin-entry-owner="reactions"]'
             '[data-lf-margin-entry-key^="reaction:"]:visible'
         )
     ).to_have_count(1)
@@ -1859,7 +1859,7 @@ def test_a_draft_in_an_ask_takes_no_digits_and_answers_from_its_controls(
     editor = page.locator("#note leaf-text")
     edit = draft_control(page, "edit", "note")
 
-    page.keyboard.press("q")
+    page.keyboard.press("m")
     expect(question).to_be_focused()
     expect(edit).not_to_have_attribute("aria-keyshortcuts", re.compile(r"\d"))
     page.keyboard.press("1")
@@ -2498,7 +2498,7 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
 def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
     held_events, serve
 ):
-    """A refusal leaves nothing standing and the words back where they were written.
+    """A refusal leaves nothing behind and the words back where they were written.
 
     The user has moved on to the pending thread in Threads by the time the refusal
     lands, so the card's box does not take their keys back: the words wait in it, and
@@ -2553,7 +2553,7 @@ def test_a_refused_comment_takes_its_message_back_and_returns_the_words(
 def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
     """A send whose result the user cannot see still reaches them.
 
-    The message standing in the thread is the whole acknowledgement for a user
+    The message shown in the thread is the whole acknowledgement for a user
     looking at it, which is why no box writes a success notice for it. But neither the
     seat nor the Threads list is a live region, so for a user listening to the page
     that send would pass in silence. `post` says it once, where a gesture is first known
@@ -2582,7 +2582,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
 
     A send empties the box it was written in and masks that generation, so this
     document stops showing words it is now showing in the thread. The answer lifts that
-    mask — and lifting whichever mask happens to be standing, rather than the one this
+    mask — and lifting whichever mask happens to be current, rather than the one this
     send put there, lifts a later send's: words the user is already watching as a
     pending reply go back on offer while that reply is still in flight. The outbox
     delivers in order, so the first answer always lands while the second send is
@@ -2629,14 +2629,14 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     # What a widget asks of a draft box, through the public helper surface. The boxes
     # alone would not say this: nothing repaints one when a mask is lifted, so the
     # offer stands unseen until some view of this thread is next built and reads it.
-    standing = page.evaluate(
+    offered = page.evaluate(
         """async (ctx) => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const api = await window.__lfWidgetApi();
           return api.loadDraft(ctx);
         }""",
         f"reply:{root['id']}",
     )
-    assert standing is None, "the second send's words were offered back while in flight"
+    assert offered is None, "the second send's words were offered back while in flight"
     expect(reply).to_have_js_property("value", "")
     expect(page.locator("#jobs .lf-page-thread leaf-text")).to_have_js_property(
         "value", ""
@@ -2981,7 +2981,7 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
 
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the comment send")
-    # Every machine reaches the next gesture with the card standing, as a user would.
+    # Every machine reaches the next gesture with the card open, as a user would.
     expect(page.locator(".lf-margin-preview[data-lf-thread-placement]")).to_be_visible()
 
     # The user picks out their next passage while the first send is still in the wire.
@@ -3693,7 +3693,7 @@ def test_poll_settlement_cannot_tombstone_a_newer_durable_generation(
         },
     )
     # Settlement reconciles before it claims, so this poll adopts the newer generation
-    # and leaves it standing. `held_stale`'s refusal is lifted here rather than earlier,
+    # and leaves it in place. `held_stale`'s refusal is lifted here rather than earlier,
     # with the older attempt in the log and the older generation still cached, which is
     # the only arrangement that asks anything.
     accepted_words = {
@@ -3758,7 +3758,7 @@ def test_a_remove_failure_cannot_resurrect_an_accepted_draft(browser, serve, one
     until_draft_settled(first, "say:jobs")
 
     again = open_page(browser, url, context=one_user)
-    # The composer is still standing — a seat that can hold keeps it — so the claim is
+    # The composer is still open — a seat that can hold keeps it — so the claim is
     # about what it opens with: a settled draft is words the next tab must not be handed.
     expect(
         again.locator("#jobs > .lf-thread-seat > .lf-say leaf-text")
@@ -3824,7 +3824,7 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     lost, whatever localStorage still holds.
 
     So the moment says what became of them and names the address that answers — and the
-    address is offered only while there is a draft standing to go to, which is the half
+    address is offered only while there is a draft still there to go to, which is the half
     that keeps the sentence honest."""
     page = open_page(browser, serve(LONG_PAGE))
     kept = "Half a sentence, and then the banner."
@@ -5060,8 +5060,8 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
     ]
     aligned, by_sentence, inline = page.evaluate(
         """async (pairs) => {
-          const {alignInlineText, alignText, sentenceUnits} =
-            await window.__lfRuntimeImport('/runtime/text-alignment.js');
+          const {alignInlineText, sentenceUnits} = await window.__lfCheckApi();
+          const {alignText} = await window.__lfWidgetApi();
           return [
             pairs.map(([before, after]) => alignText(before, after)),
             pairs.map(([before, after]) => alignText(before, after, sentenceUnits)),
@@ -5092,7 +5092,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
 
     local = page.evaluate(
         """async () => {
-          const {alignInlineText} = await window.__lfRuntimeImport('/runtime/text-alignment.js');
+          const {alignInlineText} = await window.__lfCheckApi();
           return alignInlineText(
             'Each section names a feature and provides a live example.',
             'Each section names a feature and provides a live example, including focused replays of its motion.'
@@ -5126,7 +5126,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
 
     sequence = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfWidgetApi();
           const widget = document.getElementById('draft-ops');
           const controller = widgetController(widget);
           const first = controller.read().actions.edit.history;
@@ -5165,7 +5165,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "First recorded body."
     )
     old_sequence = old.evaluate(
-        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+        """async () => (await window.__lfWidgetApi())
           .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
           .map(event => event.revision)"""
     )
@@ -5176,7 +5176,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "Second recorded body."
     )
     latest_sequence = latest.evaluate(
-        """async () => (await window.__lfRuntimeImport('/runtime/widget-api.js'))
+        """async () => (await window.__lfWidgetApi())
           .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
           .map(event => event.revision)"""
     )
@@ -5755,7 +5755,7 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
 
     # Into the panel, standing on its open thread's title rather than in a box — `g T`'s
     # landing, which travels nothing, so the baseline below is the one the control left.
-    # The address toggles the panel it names, so from the standing one the first
+    # The address toggles the panel it names, so from the open one the first
     # completion closes it and the second is the arrival.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -5952,7 +5952,7 @@ def test_the_draft_box_is_its_own_door(browser, serve):
 def editing_revision_source(mode, body=None):
     body = (
         body
-        or '<h1 id="subject">Editor continuity</h1><p id="passage">A stable passage stays exact across the revision.</p><textarea id="authored-draft" aria-label="Authored draft" style="height:80px"></textarea><lf-draft id="draft-root"><pre>Standing editable text.</pre></lf-draft><lf-ask id="choice-root"><h2>Which choice?</h2><lf-options id="options-root" choose><lf-option id="initial">Initial choice</lf-option></lf-options></lf-ask><lf-test-plan id="command-root" label="Tasks"><lf-test-task id="seat-root" status="active" talk>What should we do?</lf-test-task></lf-test-plan>'
+        or '<h1 id="subject">Editor continuity</h1><p id="passage">A stable passage stays exact across the revision.</p><textarea id="authored-draft" aria-label="Authored draft" style="height:80px"></textarea><lf-draft id="draft-root"><pre>Current editable text.</pre></lf-draft><lf-ask id="choice-root"><h2>Which choice?</h2><lf-options id="options-root" choose><lf-option id="initial">Initial choice</lf-option></lf-options></lf-ask><lf-test-plan id="command-root" label="Tasks"><lf-test-task id="seat-root" status="active" talk>What should we do?</lf-test-task></lf-test-plan>'
     )
     module = """<script type="module">
 window.__rendererLifetime={birth:performance.timeOrigin,hits:0,version:'MODE'};
@@ -6088,15 +6088,13 @@ def test_executable_revision_preserves_non_editor_thread_standing(browser, serve
     page = editing_reply_page(browser, serve)
     page.keyboard.press("Escape")
     captured = page.evaluate(
-        "async()=> (await window.__lfRuntimeImport('/runtime/drafts.js')).captureDraftEditing()"
+        "async()=> (await window.__lfCheckApi()).captureDraftEditing()"
     )
     assert captured is None
     replace_editing_document(page, serve)
     expect(page.locator(".lf-composer leaf-text")).not_to_be_visible()
     assert (
-        page.evaluate(
-            "async()=> (await window.__lfRuntimeImport('/runtime/drafts.js')).captureDraftEditing()"
-        )
+        page.evaluate("async()=> (await window.__lfCheckApi()).captureDraftEditing()")
         is None
     )
 
@@ -6125,7 +6123,7 @@ def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, ser
     expect(editor).to_be_focused()
     before = editing_read(editor)
     context = page.evaluate(
-        "async()=> (await window.__lfRuntimeImport('/runtime/drafts.js')).captureDraftEditing().context"
+        "async()=> (await window.__lfCheckApi()).captureDraftEditing().context"
     )
     replace_editing_document(page, serve)
     expect(editor).to_be_focused()
@@ -6146,7 +6144,7 @@ def test_in_place_revision_restores_the_current_generated_editor(browser, serve,
         page.locator("#draft-root .lf-draft-body").click()
         editor = page.locator("#draft-root leaf-text")
         revised = original.replace(
-            "Standing editable text.", "A revised authored draft body."
+            "Current editable text.", "A revised authored draft body."
         )
     elif kind == "first-message":
         editor = page.locator("#seat-root > .lf-thread-seat > .lf-say leaf-text")
@@ -6196,7 +6194,7 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
     )
     stamp_page(
         serve.page_dir,
-        original.replace("Standing editable text.", "New authored body."),
+        original.replace("Current editable text.", "New authored body."),
         "Install while generated editor has a failing caret",
     )
     told(page)
@@ -6237,13 +6235,13 @@ def test_a_mechanical_revision_failure_leaves_accepted_publication_ready(
     expect(editor).to_have_js_property("value", before["value"])
     expect(page.locator("body")).to_have_attribute("data-lf-reading", first_reading)
     page.wait_for_function(
-        "async()=> (await window.__lfRuntimeImport('/runtime/semantic-state.js')).applicationPresented()"
+        "async()=> (await window.__lfCheckApi()).applicationPresented()"
     )
     errors = consume_browser_errors(page, "mechanical caret fixture failed")
     assert len(errors) == 1, errors
     assert "Revision continuity failed" in errors[0].values["text"], errors
     page.wait_for_function(
-        "async()=> (await window.__lfRuntimeImport('/runtime/semantic-state.js')).readApplication().document.revision===2"
+        "async()=> (await window.__lfCheckApi()).readApplication().document.revision===2"
     )
     reported = [
         event
@@ -6370,7 +6368,7 @@ def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, 
 
 def test_an_open_edit_back_to_the_authored_text_survives_reload(browser, serve):
     """An open editor's words come back on reload whenever they differ from the
-    standing text, words that walk a saved edit back to the authored text included."""
+    current text, words that walk a saved edit back to the authored text included."""
     url = serve(
         leaf_page(
             "Walk back",
@@ -6490,7 +6488,7 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
             one_frame(page)
             expect(page.locator("#writing-view")).to_be_visible()
             first_view = page.locator("#editable").evaluate("""async draft => {
-              const {landingBand} = await window.__lfRuntimeImport('/runtime/geometry.js');
+              const {landingBand} = await window.__lfCheckApi();
               const rect = draft.getBoundingClientRect();
               const band = landingBand(document.scrollingElement);
               return {top: rect.top, bottom: rect.bottom, low: band.top, high: band.bottom};
@@ -6615,7 +6613,7 @@ def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
     assert [e["detail"]["value"] for e in edits] == [exact]
 
 
-def test_draft_comparison_detects_format_changes_but_not_the_same_standing_edit(
+def test_draft_comparison_detects_format_changes_but_not_the_same_current_edit(
     browser, serve
 ):
     first = leaf_page(
@@ -6639,7 +6637,7 @@ def test_draft_comparison_detects_format_changes_but_not_the_same_standing_edit(
             "revision": 2,
             "widget": "source",
             "action": "edit",
-            "detail": {"value": "Standing **edit**."},
+            "detail": {"value": "Current **edit**."},
         },
     )
     _publish(
@@ -6752,7 +6750,7 @@ def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):
     expect(page.locator("#local leaf-text")).to_be_focused()
     rendered(page)
     page.evaluate("""async()=>{
-      const {observeQueuedWork}=await window.__lfRuntimeImport('/runtime/queued-work.js');
+      const {observeQueuedWork}=await window.__lfCheckApi();
       window.closeJobs=new Set();window.captureClose=true;
       window.stopCloseObserver=observeQueuedWork((phase,job)=>{
         if(phase==='enqueue'&&captureClose)closeJobs.add(job);
@@ -6950,14 +6948,12 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
     assert comments[0]["anchor"]["quote"] == "The words first shown."
 
 
-@pytest.mark.parametrize("surface", ["questions", "threads"])
+@pytest.mark.parametrize("surface", ["on", "threads"])
 def test_covering_surface_retains_the_open_passage_editor(browser, serve, surface):
     """Every covering auxiliary surface lends room back to the same native editor."""
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 900, 844)
-    page.locator(
-        ".lf-queue" if surface == "questions" else ".lf-threads-toggle"
-    ).click()
+    page.locator(".lf-queue" if surface == "on" else ".lf-threads-toggle").click()
     rendered(page)
     select_words(page, "#h")
     page.keyboard.press("c")
@@ -6968,15 +6964,13 @@ def test_covering_surface_retains_the_open_passage_editor(browser, serve, surfac
     field.press("ArrowRight")
     field.evaluate("el => { window.heldDraftEditor = el; }")
     resized(page, 390, 844)
-    panel = page.locator(
-        ".lf-queue-panel" if surface == "questions" else ".lf-thread-panel"
-    )
+    panel = page.locator(".lf-queue-panel" if surface == "on" else ".lf-thread-panel")
     expect(panel).to_be_visible()
     expect(page.locator(".lf-fab-bar")).to_have_attribute("data-lf-withheld", "")
     expect(field).not_to_be_focused()
     landing = panel.locator(
         ".lf-drawer-list button, .lf-drawer-list a[href]"
-        if surface == "questions"
+        if surface == "on"
         else ".lf-threads"
     ).first
     expect(landing).to_be_focused()
@@ -7066,14 +7060,14 @@ def datum_draft_url(serve, *, identified=False):
     """Serve a projected subject whose rendering can change independently of its identity."""
     module = """
 import {projectData, html, render} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-draft-subject', class extends HTMLElement {
   connectedCallback() { this.show('Original datum words.'); }
   show(words, key='datum') {
     render(html`<p>${words}</p><p>Other words in the same widget.</p>`, this);
     projectData(this, [{key, IDENTITY node: this.querySelector('p'), label: 'Datum',
       origin: {derived: [{widget: 'subject'}]}}]);
   }
-}
+});
 """
     module = module.replace("IDENTITY", "identity: 'subject'," if identified else "")
     return serve(

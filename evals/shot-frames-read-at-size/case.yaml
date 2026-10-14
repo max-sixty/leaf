@@ -1,0 +1,43 @@
+# From session aa9e996c. Fixing the gaps between an lf-diff's file rows, the agent
+# probed a bare fixture whose diff spanned a 1440px window, cropped full-width
+# strips before reading the lf-shot guidance, and the page drew them at half size; the
+# user asked why the diff read so small. The captures are that session's. Against the
+# earlier wording, 7 of 9 base runs kept their frames near the column (6 of 9 on their
+# first crop) and 12 of 12 candidate runs did; a variant handing over the session's
+# full-width crops passed on both arms (3 of 3 each).
+description: shot-frames-read-at-size
+metadata:
+  purpose:
+    "Source files and media: a pair's frames stay near the column's width, so a small
+    change reads near the size it was captured at."
+  authoring: true
+  tags:
+    - evidence
+vars:
+  prompt: |
+    You are writing a Leaf page for the user about a fix to `lf-diff` on branch
+    diff-file-gaps-expand-all. Your notes:
+
+    Gaps. Once any file in a diff had opened, the 8px gaps between the collapsed file
+    rows below it turned white, the code's background. They now show the page's
+    off-white paper, as they did before any file opened. Pierre's stylesheets paint
+    `:host` as one file's box, and lf-diff adopts them into a shadow root where `:host`
+    is the whole diff; its shadow styles now restate the host's background.
+
+    While debugging, you probed a fixture page, a bare `<main>` holding the diff, at
+    1440x900 and device scale 1, on main and on the branch, with the first file open
+    and scrolled to the collapsed rows. The gaps sit between the rows at y 622 to 800,
+    across the diff's full width. The captures are:
+
+        evals/shot-frames-read-at-size/captures/before.png  (main)
+        evals/shot-frames-read-at-size/captures/after.png   (the branch)
+
+    Write the Leaf page's section on the gaps, with its before/after pair.
+assert:
+  - type: javascript
+    metric: frames-read-at-size
+    value: file://capture-pair.cjs:readablePair
+  - type: agent-rubric
+    metric: captures-in-order
+    transform: "JSON.stringify({html: output, captures: context.metadata.capture_evidence})"
+    value: file://capture-order.txt

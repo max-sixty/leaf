@@ -1,16 +1,12 @@
 /* Display wording for an ask's canonical answer. This is presentation only:
    membership, typed values and completion come from the application publication.
    A widget family formats answerWords(value, element); prose uses its typed text or token. */
-import { vocabularyFor } from "../widget-contexts.js";
-import { widgetElement } from "../widget-descriptors.js";
-import { elementById } from "../passages.js";
-import { registryFor } from "../registry.js";
-import { upFrom } from "../shadow.js";
+import { closestAcross, elementById } from "../passages.js";
+import { tagsDeclaring } from "../registry.js";
 
 export function ownedAskControl(source, commandSource) {
-  for (let at = commandSource; at; at = upFrom(at))
-    if (registryFor(at)[at.localName]?.["x-awaits"]) return at === source;
-  return true;
+  const selector = tagsDeclaring((entry) => entry["x-awaits"]).join(",");
+  return !selector || closestAcross(commandSource, selector) === source;
 }
 
 export function askWords(ask) {
@@ -19,9 +15,10 @@ export function askWords(ask) {
   if (ask.source.kind === "reply")
     return ask.answer.value.text ?? ask.answer.value.token ?? "";
   const source = elementById(ask.source.id);
-  const formatter = vocabularyFor(widgetElement(ask.source.id))?.registry.get(
-    ask.source.tag,
-  )?.answerWords;
+  const formatter =
+    /** @type {{answerWords?: (value: unknown, element: Element) => unknown}} */ (
+      customElements.get(ask.source.tag)
+    )?.answerWords;
   return String(source && formatter ? formatter(ask.answer.value, source) : "")
     .replace(/\s+/g, " ")
     .trim();

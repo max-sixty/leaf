@@ -1,9 +1,9 @@
 /* This module owns page-seated first-message boxes: the thread a widget declares
  * through `x-thread-seat`, built by `threadBox`. */
-import { registryFor, matchesWhen } from "../registry.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { loadDraft, saveDraft, sendMessage, watchDraft } from "../drafts.js";
 import { inChrome } from "../passages.js";
+import { matchesWhen, registry } from "../registry.js";
 import { offer } from "../widget-elements.js";
 import { quoted } from "../widget-descriptors.js";
 import { notice } from "../notifications.js";
@@ -12,7 +12,7 @@ import { sendLanding } from "./reply-landing.js";
 
 export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }) => {
   if (inChrome(el) || quoted(el)) return null;
-  const declaration = registryFor(el)[el.localName]?.["x-thread-seat"];
+  const declaration = registry[el.localName]?.["x-thread-seat"];
   if (!declaration || !matchesWhen(el, declaration.when))
     throw new TypeError(
       `<${el.localName}> placed a thread outside its x-thread-seat predicate`,

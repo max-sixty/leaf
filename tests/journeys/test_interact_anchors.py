@@ -29,10 +29,7 @@ from leaf import structure as structure_model
 from leaf.events import build_threads
 from leaf.registry import storage as registry_storage
 from model.test_interact_anchors import (
-    PARTED,
     declare_part_prefixes,
-    drop_node_a,
-    parted,
 )
 
 
@@ -90,7 +87,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     v1 = FLOW_PAGE.replace(
         '<lf-diagram id="flow">',
         '<p id="old-wording">The retry starts here.</p>'
-        '<lf-diagram id="flow" parts="node:A node:B">',
+        '<lf-diagram id="flow" parts="all">',
     )
     (page_dir / "index.html").write_text(v1)
     published(page_dir)
@@ -477,25 +474,6 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
     assert files_model.latest_revision(page_dir) == 1
     checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert checked.exit_code == 0, checked.output
-
-
-def test_a_removed_visual_part_moves_its_thread_to_the_surviving_section(page_dir):
-    assert drop_node_a(parted(page_dir)).exit_code == 0
-    (page_dir / "index.html").write_text(PARTED)
-    root = json.loads(
-        comment(
-            page_dir, "--section", "flow", "--part", "node:A", "--text", "Why this one?"
-        ).output
-    )
-    assert root["anchor"] == {"section": "flow", "visual": "node:A"}
-    result = drop_node_a(page_dir)
-    assert result.exit_code == 0, result.output
-    assert stamp(page_dir, "Removed the node").exit_code == 0
-    events = events_model.read_events(page_dir)
-    thread = build_threads(events, {})[root["id"]]
-    assert thread["anchor"] == {"section": "flow"}
-    assert thread["rewritten_from"] == root["anchor"]
-    assert next(e for e in events if e["id"] == root["id"])["anchor"] == root["anchor"]
 
 
 def test_withdrawing_a_decision_does_not_veto_an_authored_replacement(page_dir):

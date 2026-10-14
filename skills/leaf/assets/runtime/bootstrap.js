@@ -16,7 +16,7 @@
     for (const mark of marks) arrived.searchParams.delete(mark);
     history.replaceState(history.state, "", arrived);
   }
-  const script = document.currentScript;
+  const script = /** @type {HTMLScriptElement} */ (document.currentScript);
   const root = document.documentElement;
   // runtime/ids.js's randomId, which this classic script cannot import: a sample
   // child served by `leaf --host` over plain HTTP has no crypto.randomUUID, nor does a
@@ -35,10 +35,12 @@
     } else {
       let port;
       let settings;
+      /** @type {PromiseWithResolvers<void>} */
       const { promise: ready, resolve: readyResolve } = Promise.withResolvers();
       const queued = [];
       const listeners = new Set();
       const send = (value) => (port ? port.postMessage(value) : queued.push(value));
+      /** @type {LeafSampleBridge} */
       const bridge = {
         ready,
         get settings() {
@@ -119,18 +121,19 @@
       window.parent.postMessage({ type: "leaf-sample-connect", sample, nonce }, "*");
       window.addEventListener("pagehide", () => send({ type: "departed" }));
     }
-    window.addEventListener("lf-startup-failed", () =>
+    window.addEventListener("lf-startup-failed", () => {
+      if (!root.lfDocumentLifetime.active) return;
       root.lfSample.send({
         type: "error",
         detail: root.lfStartupException ?? {
           message:
             document.documentElement.dataset.lfStartupError || "Sample could not start",
         },
-      }),
-    );
+      });
+    });
   }
-  // A served page draws the live chrome, the banner and the bottom bar, so the theme
-  // reserves their room from the first paint (`html[data-lf-live]`). An export runs the
+  // A served page draws the live chrome, the floating panel or the banner and the bottom
+  // bar, so the theme reserves its room from the first paint (`html[data-lf-live]`). An export runs the
   // runtime without them (prepaint.js).
   root.toggleAttribute("data-lf-live", true);
   const incarnation = script.dataset.lfServer;
@@ -141,6 +144,7 @@
   // reading nobody here can reproduce, so the record has to name the thing that did not
   // load. A fault the page recovers from is worth the name too, so the outcome that
   // eventually wins carries it rather than a separate record standing for it.
+  /** @type {(reason: string) => void} */
   let recordStartupFault = () => {};
   let stopHoldingKeys = () => {};
 
@@ -343,7 +347,9 @@
       observer.disconnect();
       readStateResponses(resources.takeRecords());
       resources.disconnect();
-      const navigation = performance.getEntriesByType("navigation")[0];
+      const navigation = /** @type {PerformanceNavigationTiming | undefined} */ (
+        performance.getEntriesByType("navigation")[0]
+      );
       const paint = performance
         .getEntriesByName("first-contentful-paint", "paint")
         .at(0);
@@ -353,7 +359,6 @@
         credentials: "same-origin",
         keepalive: true,
         body: JSON.stringify({
-          version: 2,
           loadId: randomId(),
           release,
           layer,

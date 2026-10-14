@@ -18,6 +18,7 @@ const NAMEABLE = /^\S+$/;
 /* Mermaid's parser databases are shared between diagrams. Keep parsing, drawing
  * and reading the inventory in one serialized operation, so a neighboring widget
  * cannot replace the identities behind the SVG we have just received. */
+/** @type {Promise<unknown>} */
 let drawing = Promise.resolve();
 const draw = (source, id) => {
   const next = drawing.then(async () => {
@@ -128,54 +129,57 @@ const draw = (source, id) => {
 };
 
 let seq = 0;
-export default class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    this.visualParts = new Map();
-    this.visualPartRegistration = registerVisualParts(this, () =>
-      [...this.visualParts].map(([id, part]) => ({ id, ...part })),
-    );
-    widgetController(this).present(this.render());
-  }
-
-  async render() {
-    const source = bodyText(this);
-    const renderId = `lf-diagram-${++seq}`;
-    try {
-      const { svg, parts } = await draw(source, renderId);
-      this.innerHTML = svg;
-      const drawn = this.querySelector("svg");
-      const natural = drawn.viewBox.baseVal.width;
-      if (natural) {
-        keeps(drawn, "width", natural);
-        drawn.style.maxWidth = "";
-      }
-      this.visualParts.clear();
-      for (const part of parts) {
-        if (!NAMEABLE.test(part.id)) continue;
-        const element = part.dataId
-          ? drawn.querySelector(`g[data-id="${CSS.escape(part.dataId)}"]`)
-          : drawn.querySelector(`[id="${CSS.escape(part.domId)}"]`);
-        if (!element)
-          throw new Error(`Mermaid did not draw the declared node ${part.id}`);
-        // The visual part's source identity is stable even when Mermaid changes
-        // its generated SVG ids and classes.
-        keeps(element, "data-id", part.id);
-        const label =
-          part.label || element.textContent.replace(/\s+/g, " ").trim() || part.id;
-        this.visualParts.set(`node:${part.id}`, { element, label });
-      }
-      this.classList.add("lf-rendered");
-      this.visualPartRegistration.update();
-    } catch (err) {
-      // Mermaid's unknown-family error embeds the complete authored source.
-      // The fallback shows that source in the page; the agent's error report
-      // needs the reason without copying the authored body into the log.
-      const reportError =
-        err?.name === "UnknownDiagramError"
-          ? "No diagram type detected matching given configuration"
-          : err;
-      failSoft(this, reportError, source);
+customElements.define(
+  "lf-diagram",
+  class extends HTMLElement {
+    connectedCallback() {
+      if (!once(this)) return;
+      this.visualParts = new Map();
+      this.visualPartRegistration = registerVisualParts(this, () =>
+        [...this.visualParts].map(([id, part]) => ({ id, ...part })),
+      );
+      widgetController(this).present(this.render());
     }
-  }
-}
+
+    async render() {
+      const source = bodyText(this);
+      const renderId = `lf-diagram-${++seq}`;
+      try {
+        const { svg, parts } = await draw(source, renderId);
+        this.innerHTML = svg;
+        const drawn = this.querySelector("svg");
+        const natural = drawn.viewBox.baseVal.width;
+        if (natural) {
+          keeps(drawn, "width", natural);
+          drawn.style.maxWidth = "";
+        }
+        this.visualParts.clear();
+        for (const part of parts) {
+          if (!NAMEABLE.test(part.id)) continue;
+          const element = part.dataId
+            ? drawn.querySelector(`g[data-id="${CSS.escape(part.dataId)}"]`)
+            : drawn.querySelector(`[id="${CSS.escape(part.domId)}"]`);
+          if (!element)
+            throw new Error(`Mermaid did not draw the declared node ${part.id}`);
+          // The visual part's source identity is stable even when Mermaid changes
+          // its generated SVG ids and classes.
+          keeps(element, "data-id", part.id);
+          const label =
+            part.label || element.textContent.replace(/\s+/g, " ").trim() || part.id;
+          this.visualParts.set(`node:${part.id}`, { element, label });
+        }
+        this.classList.add("lf-rendered");
+        this.visualPartRegistration.update();
+      } catch (err) {
+        // Mermaid's unknown-family error embeds the complete authored source.
+        // The fallback shows that source in the page; the agent's error report
+        // needs the reason without copying the authored body into the log.
+        const reportError =
+          err?.name === "UnknownDiagramError"
+            ? "No diagram type detected matching given configuration"
+            : err;
+        failSoft(this, reportError, source);
+      }
+    }
+  },
+);

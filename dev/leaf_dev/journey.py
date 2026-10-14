@@ -109,7 +109,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, PageClient, extract_payload, run_directory, run_leaf
-from leaf_dev.browser import DESKTOP, chrome
+from leaf_dev.browser import DESKTOP, headless_shell
 from leaf_dev.review_scenario import COMMENTS, post
 from leaf_dev.startup import startup_reading
 from leaf_dev.verify_site import (
@@ -1433,7 +1433,7 @@ def journey(
             "a website's journey is its page in a browser, so it has no --http"
         )
     with ExitStack() as stack:
-        chromium = stack.enter_context(chrome()) if website or browser else None
+        chromium = stack.enter_context(headless_shell()) if website or browser else None
         user, named, run = stack.enter_context(
             target_session(
                 chromium, target, release, hooks_module=hooks_module, preview=preview

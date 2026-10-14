@@ -1,7 +1,7 @@
 """Shared event admission; the contract is events.md, "Admission".
 
 `admitted_event` validates and derives a record from `page_view.PageView`, the
-standing log, and a command. `append_admitted` performs that reading and write
+current log, and a command. `append_admitted` performs that reading and write
 under `service.PageTransaction`'s lease.
 
 This module selects each kind's gates. Their implementations stay with their
@@ -17,8 +17,14 @@ from leaf.asks import (
 )
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
 from leaf.event_meaning import AdmissionReadings, admit_widget_event
-from leaf.events import build_threads, spoken_turns, taken_back, undo_error
-from leaf.files import version_descriptors, version_revisions
+from leaf.events import (
+    build_threads,
+    note_settlements,
+    spoken_turns,
+    taken_back,
+    undo_error,
+)
+from leaf.files import version_revisions
 from leaf.findings import Finding
 from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.page_view import CandidatePageView, PageView
@@ -46,12 +52,8 @@ from leaf.registry.schema import schema_complaint
 from leaf.registry.storage import load_registry
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
-from leaf.thread_context import (
-    effective_thread_events,
-    thread_structure,
-    widget_messages,
-)
 from leaf.todos import todo_error
+from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
 from leaf.work_reading import WorkReading
 from leaf.workflows import obligation_reading
@@ -237,6 +239,11 @@ def position_record_error(
         return Finding("outside-destination", values=named)
     if target["tag"] not in (registry.get(unit["tag"]) or {}).get("x-owners", []):
         return Finding("unowned-placement", values={**named, "unit_tag": unit["tag"]})
+    affected = (node for node in by_id.values() if inside(node, unit))
+    if collisions := attribute_slot_errors(
+        affected, by_id, registry, holders={**projected_holders, unit_id: target}
+    ):
+        return collisions[0]
     return None
 
 
@@ -275,7 +282,6 @@ def visual_anchor_error(event: dict, page_by_id: dict, registry: dict):
                 "visual": visual,
                 "section": section,
                 "declared": {
-                    "tokens": list(available.tokens),
                     "prefixes": list(available.prefixes),
                     "all": available.all,
                 },
@@ -317,7 +323,7 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     """Why a fresh action violates its declaration or current applicability.
 
     Validity is derived inside the append transaction from the action's authored
-    document and the standing log; a browser's possibly stale reading never
+    document and the current log; a browser's possibly stale reading never
     authorizes this boundary.
     """
     registry = readings.registry
@@ -331,18 +337,6 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     thread_by_id = thread.by_id
     if error := declared_action_error(event, document.by_id, thread_by_id, registry):
         return error
-    if event["widget"] in thread_by_id:
-        message = widget_messages(thread.structure)[event["widget"]]
-        publication = thread.message_revisions[message]
-        if revision != publication:
-            return Finding(
-                "thread-widget-publication",
-                values={
-                    "widget": event["widget"],
-                    "publication": publication,
-                    "revision": revision,
-                },
-            )
     page_rec = document.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
@@ -472,7 +466,7 @@ def admitting_registry(view, event: dict, events: list) -> dict:
 
     An event names the revision it was made against, and that revision's artifact
     holds the registry its page was rendered from — so a re-vendor, which replaces
-    the layer without touching a standing revision, cannot reinterpret a command
+    the layer without touching an existing revision, cannot reinterpret a command
     the user made against the document in front of them. Admission records that
     semantic definition in the event. A sign-off names its version
     instead, and admits under the revision that version stamped. An event naming
@@ -484,9 +478,6 @@ def admitting_registry(view, event: dict, events: list) -> dict:
     page's layer alone (`write_refusal`), so the bookkeeping a re-vendored page
     takes before its source saves again, such as a pickup, still goes through.
 
-    Frozen widgets use their containing message's publication, independently of
-    the page beside the conversation. A command must name that same revision.
-
     Read through `PageView.registry`, which opens the one captured file rather
     than materializing the whole bundle: this runs on every append."""
     revisions = view.revisions
@@ -496,14 +487,6 @@ def admitting_registry(view, event: dict, events: list) -> dict:
         if event.get("kind") == "done"
         else event.get("revision")
     )
-    if event.get("kind") == "action" and isinstance(event.get("widget"), str):
-        owner = widget_messages(
-            thread_structure(effective_thread_events(events, revisions))
-        ).get(event["widget"])
-        if owner is not None:
-            revision = next(
-                logged["revision"] for logged in events if logged["id"] == owner
-            )
     named = type(revision) is int and revision in set(revisions)
     if not named:
         revision = revisions[-1] if revisions else None
@@ -553,27 +536,14 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     if event["kind"] != "done":
         return None
     version = {"version": event["version"]}
-    revision = next(
-        (
-            stamp["revision"]
-            for stamp in version_descriptors(events, view.revisions)
-            if stamp["version"] == event["version"]
-        ),
-        None,
-    )
+    revision = version_revisions(events).get(event["version"])
     if revision is None:
         return Finding("unstamped-version", values=version)
     document = view.document(revision)
     if review_mode(document) != "sign-off":
         return Finding("not-sign-off", values=version)
     page = AdmissionReadings(view, events, registry).page(revision)
-    work = WorkReading(
-        events,
-        registry,
-        page,
-        registry_for_revision=view.registry,
-        available_revisions=view.revisions,
-    )
+    work = WorkReading(events, registry, page)
     unanswered = approval_blocking(
         [*work.document.asks["all"], *work.widget_asks["all"]]
     )
@@ -645,7 +615,7 @@ def _parent_error(event: dict, events: list) -> Finding | None:
     """A parent is a message the log holds and no undo took back. Every thread fold
     drops a withdrawn message (`build_threads`), so an event naming one would stand
     on a message no reading shows; with `UndoReading` refusing to withdraw a message
-    another stands on, every standing message's parent stands too."""
+    another stands on, every message in force keeps its parent in force."""
     if "parent" not in event:
         return None
     parent = event["parent"]
@@ -769,7 +739,8 @@ def admission_error(
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
     """A to-do stands on an open thread, a widget that seats work or an element, or the
-    page. A `todo_end` also admits an agent withdrawal of a prose ask; a
+    page. A completing note and `todo_end` share completion authority.
+    A `todo_end` also admits an agent withdrawal of a prose ask; a
     start names explicit agent work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
@@ -778,9 +749,12 @@ def _todo_error(view, event: dict, readings) -> Finding | None:
     )
     if start := start_reading(event):
         event = start
+    elif event["kind"] == "note":
+        if not note_settlements(event, "todo"):
+            return None
     elif event["kind"] not in {"todo", "todo_end"}:
         return None
-    workflows = readings.work.workflows if event["kind"] != "todo_end" else []
+    workflows = readings.work.workflows if event["kind"] in {"todo", "start"} else []
     if progress_parent is not None and not any(
         item["input"] == event["item"]
         and item["next_actor"] == "agent"
@@ -888,7 +862,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
     it does not.
 
     All of admission but the write. The page as the door may read it, the
-    standing log, and the event decide this between them, so a caller holding a
+    current log, and the event decide this between them, so a caller holding a
     page's markup as literal text can put an event to the same rules the server
     applies without a page directory, a server, or a browser under it.
     """
@@ -956,7 +930,7 @@ def append_admitted(page, event: dict, *, view=None) -> tuple[dict, bool]:
     record, and whether this call appended it.
 
     The one door. `page` is an open `service.PageTransaction`, whose lease makes
-    every decision here one transaction: the standing log the gates read, the
+    every decision here one transaction: the current log the gates read, the
     meaning derived from it, and the write. A refusal raises `EventRefused` on the
     finding that says what to do about it, which the CLI presents as an error and the browser
     endpoint answers as a final 400. An `attempt` the log already holds returns that record unappended,

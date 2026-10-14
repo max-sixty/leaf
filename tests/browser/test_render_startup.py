@@ -26,7 +26,6 @@ from leaf import event_log as events_model
 from leaf import files as files_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import user_views as user_views_model
@@ -115,10 +114,7 @@ from render_harness import (
     write,
 )
 
-DRAG_HELD = (
-    "async () => (await window.__lfRuntimeImport("
-    "'/runtime/widget-elements.js')).dragHeld()"
-)
+DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -354,7 +350,6 @@ def test_public_startup_reports_upgrade_separately_from_held_state(
     page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
     assert len(reports) == 1
     reading = reports[0]
-    assert reading["version"] == 2
     assert reading["outcome"] == (
         "presented" if outcome in {"offline", "slow"} else outcome
     )
@@ -883,7 +878,7 @@ def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, s
     )
     assert (
         page.evaluate(
-            "async () => (await window.__lfRuntimeImport('/runtime/semantic-state.js')).readApplication().phase"
+            "async () => (await window.__lfCheckApi()).readApplication().phase"
         )
         == "waiting"
     )
@@ -1098,7 +1093,7 @@ def test_a_key_that_is_not_printed_ends_the_held_run(browser, serve, ending):
     replay cannot reproduce and which must not act ahead of the keys before it, so after
     `c h i` it drops the run rather than waiting behind it: no comment box opens and
     nothing is sent. `test_held_keys_after_one_that_opens_a_box_are_typed_into_it` is
-    the same run without the ending key; Shift alone leaves the run standing."""
+    the same run without the ending key; Shift alone leaves the run in place."""
     url = serve(HELD_KEYS_PAGE)
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
@@ -1160,7 +1155,7 @@ RESTORED_PROSE = "".join(
 @pytest.mark.parametrize(
     ("saved", "wide", "window", "contained"),
     [
-        # Questions stands on the Threads panel's edge, at the width the user drew it.
+        # The On panel stands on the Threads panel's edge, at the width the user drew it.
         (
             {"lf-auxiliary-surface": "queue", "lf-thread-panel-width": "380"},
             False,
@@ -1175,7 +1170,7 @@ RESTORED_PROSE = "".join(
         ),
         # Where it would leave less than a usable page it covers the page instead.
         ({"lf-auxiliary-surface": "threads"}, True, 700, False),
-        # The Questions panel by the same rule: 420 of a 600px window leaves 180.
+        # The On panel by the same rule: 420 of a 600px window leaves 180.
         ({"lf-auxiliary-surface": "queue"}, False, 600, False),
         # A sample's child page starts without its host's saved chrome. Isolation is
         # one rule whatever the surface and window, so one case asks it.
@@ -1214,7 +1209,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
     priming.goto(url, wait_until="load")
     priming.evaluate(
         """async saved => {
-            const {userStore} = await window.__lfRuntimeImport('/runtime/storage.js');
+            const {userStore} = document.documentElement.lfStorage;
             for (const [key, value] of Object.entries(saved)) userStore.set(key, value);
         }""",
         saved,
@@ -1410,7 +1405,7 @@ button.chosen { background-color: rgb(40, 50, 60); }
         )
         modules[f"{tag}.js"] = f"""
 import {{ once, shadowStage }} from '/runtime/widget-api.js';
-export default class extends HTMLElement {{
+customElements.define('{tag}', class extends HTMLElement {{
   connectedCallback() {{
     if (!once(this)) return;
     const pulse = document.createElement('span'); pulse.className = 'pulse';
@@ -1423,7 +1418,7 @@ export default class extends HTMLElement {{
     const nodes = [pulse, button];
     {stage};
   }}
-}};
+}});
 """
     url = serve(
         leaf_page(
@@ -1517,7 +1512,7 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
             layer_widgets={
                 "lf-settled-link.js": """
 import {once, widgetController} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-settled-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     widgetController(this).present(new Promise(resolve => setTimeout(() => {
@@ -1529,11 +1524,11 @@ export default class extends HTMLElement {
       resolve();
     }, 25)));
   }
-};
+});
 """,
                 "lf-shadow-link.js": """
 import {once, shadowStage} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-shadow-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const button = document.createElement('button');
@@ -1547,7 +1542,7 @@ export default class extends HTMLElement {
     };
     shadowStage(this, [button]);
   }
-};
+});
 """,
             },
         )
@@ -1587,7 +1582,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
     page = open_page(browser, serve(SHORT_SUGGESTION))
     readings = page.evaluate(
         """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const leaf = await Promise.all([window.__lfWidgetApi(),window.__lfCheckApi()]).then(parts=>Object.assign({},...parts));
           const frames = () => new Promise(resolve =>
             requestAnimationFrame(() => requestAnimationFrame(resolve)));
           const main = document.querySelector('main');
@@ -1656,7 +1651,7 @@ def test_reading_regions_read_posture_from_the_stylesheet_and_announce_a_shift(
 
           // Hidden until it is removed below.
           previewHost.hidden = true;
-          const { shownRegionBounds } = await window.__lfRuntimeImport('/runtime/check-api.js');
+          const { shownRegionBounds } = await window.__lfCheckApi();
           const hiddenBounds = shownRegionBounds(previewId);
 
           let refused;
@@ -1749,7 +1744,7 @@ def test_a_pane_registers_the_body_it_holds_across_moves_and_revisions(browser, 
     )
     result = page.evaluate(
         """async () => {
-          const leaf = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const leaf = await Promise.all([window.__lfWidgetApi(),window.__lfCheckApi()]).then(parts=>Object.assign({},...parts));
           const main = document.querySelector('main');
           const pane = document.querySelector('#moving-pane');
           const first = leaf.readingRegion('moving-pane')?.body.id;
@@ -1805,7 +1800,7 @@ def test_refusing_the_storage_objects_does_not_block_startup(browser, serve):
     expect(page.locator("main")).to_be_visible()
     tab_store = page.evaluate(
         """async () => {
-          const { tabStore } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const { tabStore } = await window.__lfWidgetApi();
           return {
             read: tabStore.read('refused'),
             wrote: tabStore.set('refused', '1'),
@@ -1830,7 +1825,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
     The authored document is useful while the first state response is held: its text,
     link, structure, and generated interface in light and shadow DOM all paint after
     upgrade. A durable choice based on that not-yet-reconciled document cannot mutate or
-    post. Releasing the response applies the standing decision and opens semantic
+    post. Releasing the response applies the decision in force and opens semantic
     interaction once."""
     url = serve(
         SHORT_SUGGESTION.replace(
@@ -2014,6 +2009,346 @@ def test_a_broken_optional_page_interface_does_not_withhold_presentation(
     assert len(errors) == 1, errors
 
 
+SAMPLE_DOCUMENT = re.compile(r"/api/samples/([^/]+)/$")
+# A page that does not start Leaf, answered for a sample document to make it fail.
+NOT_LEAF = {"status": 200, "content_type": "text/html", "body": "<p>Unavailable</p>"}
+
+
+def held_sample_page(
+    browser, serve, body, *, head="", hold_first=True, documents=1, **options
+):
+    """A page whose live sample documents wait until `release()`: every sample's when
+    `hold_first`, otherwise all but the first sample a page allocates, so an outer
+    sample presents while the one inside it waits. `documents` is how many are held
+    before this returns. `release(failing)` answers the documents of the samples whose
+    element ids `failing` names with a page that does not start Leaf, and lets the
+    rest through. `options` go to `new_page`. Returns the page and `release`."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900}, **options)
+    watched(page)
+    held = []
+    passing = []
+    # Each sample's allocation: its template, posted, and its document, answered.
+    allocations = []
+    page.on(
+        "response",
+        lambda response: (
+            response.request.method == "POST"
+            and response.url.endswith("/api/samples")
+            and allocations.append(response)
+        ),
+    )
+
+    def route(request_route):
+        sample = SAMPLE_DOCUMENT.search(request_route.request.url).group(1)
+        if not hold_first and (not passing or sample in passing):
+            passing.append(sample)
+            request_route.continue_()
+        else:
+            held.append(request_route)
+
+    page.route(SAMPLE_DOCUMENT, route)
+    page.goto(serve(leaf_page("Sample arrival", body, head=head)), wait_until="commit")
+    holding(page, held, documents, "the samples' documents")
+
+    def release(failing=()):
+        templates = {f"{sample}-source" for sample in failing}
+        broken = {
+            SAMPLE_DOCUMENT.search(allocation.json()["url"]).group(1)
+            for allocation in allocations
+            if allocation.request.post_data_json["template"] in templates
+        }
+        page.unroute(SAMPLE_DOCUMENT)
+        for each in held:
+            if SAMPLE_DOCUMENT.search(each.request.url).group(1) in broken:
+                each.fulfill(**NOT_LEAF)
+            else:
+                each.continue_()
+
+    return page, release
+
+
+def readiness(frame):
+    return frame.evaluate(
+        "document.querySelector('script[data-lf-entry]').lfReadiness(null)"
+    )
+
+
+def live_sample(sample_id, attributes="", content="<p>Practice</p>"):
+    return (
+        f'<lf-sample id="{sample_id}"{attributes}><template id="{sample_id}-source"'
+        f" data-sample>{content}</template></lf-sample>"
+    )
+
+
+# A window sample whose child holds a sample below its own window, so the child
+# presents while the inner sample's document can wait, and a link out of Leaf.
+NESTED = (
+    '<h1>Containing page</h1><lf-sample id="outer" window>'
+    '<template id="outer-source" data-sample><h1>Outer</h1>'
+    '<a href="about:blank" id="leave">Leave</a><div style="height: 300vh"></div>'
+    '<lf-sample id="inner"><template id="inner-source" data-sample>'
+    "<p>Inner</p></template></lf-sample></template></lf-sample>"
+)
+
+
+def test_a_sample_the_reader_would_see_arrive_holds_presentation(browser, serve):
+    """A block sample whose growth the reader would see presents with the page, so
+    the page's first presented frame already holds it at its child's height. A sample
+    whose arrival would not be seen does not hold it
+    (`test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause`)."""
+    page, release = held_sample_page(
+        browser, serve, "<h1>Containing page</h1>" + live_sample("practice")
+    )
+    page.evaluate("""() => {
+        window.presentedAtSampleReady = document.querySelector('#practice').ready.then(
+            () => document.body.hasAttribute('data-lf-presented'));
+    }""")
+    release()
+    wait_until_ready(page)
+    assert page.evaluate("presentedAtSampleReady") is False
+
+
+def test_a_sample_reached_while_loading_holds_growth_the_reader_did_not_cause(
+    browser, serve
+):
+    """A block sample below the window starts loading at once, but the page presents
+    and takes keys without it, reading as arriving until it has. A reader who scrolls
+    to it while it loads sees its frame keep its loading height as the child arrives,
+    so what follows stays put. Growth their own gesture in the child causes, such as a
+    disclosure they open, applies at once. Growth the child makes of its own accord
+    while still arriving waits until they press inside it, the frame leaves their
+    sight, or the tab is hidden.
+
+    The inner window sample's document is held throughout, so the child is still
+    arriving at every step."""
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    watched(page)
+    held = []
+    passing = set()
+
+    def hold(request_route):
+        if SAMPLE_DOCUMENT.search(request_route.request.url).group(1) in passing:
+            request_route.continue_()
+        else:
+            held.append(request_route)
+
+    page.route(SAMPLE_DOCUMENT, hold)
+    page.goto(
+        serve(
+            leaf_page(
+                "Sample gesture",
+                '<h1>Containing page</h1><div style="height: 300vh"></div>'
+                + live_sample(
+                    "practice",
+                    content='<p id="top">Practice</p><details id="more">'
+                    '<summary>More</summary><div style="height: 400px"></div>'
+                    '</details><div id="room" style="height: 1200px"></div>'
+                    + live_sample("inner", " window", "<p>Inner</p>"),
+                )
+                + "<p><button id=after>After the sample</button></p>"
+                '<div style="height: 300vh"></div>',
+            )
+        ),
+        wait_until="commit",
+    )
+    holding(page, held, 1, "the sample's document")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    assert readiness(page) == "arrived"
+    frame = page.locator("#practice iframe")
+    frame.scroll_into_view_if_needed()
+    loading = frame.bounding_box()["height"]
+    after = page.locator("#after").bounding_box()
+    # The sample's document goes on; the inner sample's, once asked for, waits.
+    first = held.pop(0)
+    passing.add(SAMPLE_DOCUMENT.search(first.request.url).group(1))
+    first.continue_()
+    expect(page.locator("#practice .lf-sample-status")).to_have_text("")
+    holding(page, held, 1, "the inner sample's document")
+    assert frame.bounding_box()["height"] == loading
+    assert page.locator("#after").bounding_box() == after
+
+    child = frame.content_frame
+    child_document = frame.element_handle().content_frame()
+    height = "frame => frame.clientHeight"
+    body = "body => Math.ceil(body.getBoundingClientRect().height)"
+
+    def grows_to(expected):
+        page.wait_for_function(
+            "h => document.querySelector('#practice iframe').clientHeight === h",
+            arg=expected,
+        )
+
+    def child_grows_by_itself(room):
+        # Once the last gesture's rendering has settled, growth comes of nothing the
+        # reader did, and the frame keeps its height.
+        rendered(child_document)
+        before = frame.evaluate(height)
+        child.locator("#room").evaluate(
+            f"room => {{ room.style.height = '{room}px'; }}"
+        )
+        rendered(child_document)
+        rendered(page)
+        assert frame.evaluate(height) == before
+        return before
+
+    child.locator("#more > summary").click()
+    expect(child.locator("#more")).to_have_attribute("open", "")
+    opened = child.locator("body").evaluate(body)
+    grows_to(opened)
+
+    child_grows_by_itself(1400)
+    child.locator("#top").click()
+    grows_to(opened + 200)
+
+    child_grows_by_itself(1600)
+    # Off the frame, so the wheel is the containing page's alone.
+    assert page.evaluate("!document.elementFromPoint(5, 450).closest('lf-sample')")
+    page.mouse.move(5, 450)
+    page.mouse.wheel(0, -20000)
+    grows_to(opened + 400)
+
+    frame.scroll_into_view_if_needed()
+    child_grows_by_itself(1800)
+    page.evaluate("""() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true, get: () => 'hidden',
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    grows_to(opened + 600)
+
+
+def test_a_narrow_window_samples_status_keeps_its_row_as_it_arrives_or_fails(
+    browser, serve
+):
+    """A narrow window sample's status row keeps its size whatever it says, so
+    neither the frame nor what follows moves when "Loading sample…" clears or a
+    failure too long for the row replaces it, open or shut. The reader opens the
+    failure to read it whole by Tab and Enter or by a press. At a mouse the row is a
+    line high, so any growth of it shows."""
+    page, release = held_sample_page(
+        browser,
+        serve,
+        "<h1>Containing page</h1>"
+        + live_sample("broken", " window")
+        + live_sample("practice", " window")
+        + "<p><button id=after>After the samples</button></p>",
+        head="<style>#broken, #practice { width: 180px }</style>",
+        documents=2,
+    )
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-sample-status")).to_have_text(["Loading sample…"] * 2)
+    places = """() => ['#broken iframe', '#practice iframe', '#after'].map(selector => {
+        const box = document.querySelector(selector).getBoundingClientRect();
+        return [box.left, box.top + scrollY, box.width, box.height];
+    })"""
+    before = page.evaluate(places)
+    release(failing={"broken"})
+    status = page.locator("#broken .lf-sample-status")
+    summary = status.locator("details > summary")
+    expect(summary).to_have_text("The sample document did not start Leaf")
+    wait_until_ready(page)
+    expect(page.locator("#practice .lf-sample-status")).to_have_text("")
+    assert page.evaluate(places) == before
+    clipped = "summary => summary.scrollWidth > summary.clientWidth"
+    assert summary.evaluate(clipped)
+
+    page.locator("#broken").get_by_role("button", name="Full view").focus()
+    page.keyboard.press("Tab")
+    expect(summary).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(status.locator("details")).to_have_attribute("open", "")
+    assert not summary.evaluate(clipped)
+    assert page.evaluate(places) == before
+
+    summary.click()
+    expect(status.locator("details")).not_to_have_attribute("open", "")
+    summary.click()
+    expect(status.locator("details")).to_have_attribute("open", "")
+    assert not summary.evaluate(clipped)
+    assert page.evaluate(places) == before
+
+
+def test_a_sample_counts_each_document_its_frame_loads(browser, serve):
+    """A sample's child counts as arrived only once its own samples have, so the page
+    holding it reads as arriving until then. A departure to a page that is not Leaf's
+    ends the count of the document that left, whose inner sample never comes. Reset,
+    and a Reset inside the sample's child, each begin a document the page counts as
+    arriving until it, and the samples inside it, have arrived."""
+    page, _ = held_sample_page(browser, serve, NESTED, hold_first=False)
+    page.locator("#outer").evaluate("sample => sample.ready")
+    child = page.locator("#outer iframe").content_frame
+    expect(child.locator("body")).to_have_attribute("data-lf-presented", "1")
+    assert readiness(page) == "arrived"
+    child.locator("#leave").click()
+    wait_until_ready(page)
+
+    # The departed document's inner sample is never answered; from here every sample
+    # document waits until its step releases it. Each new document starts with its
+    # admission: the outer one Reset allocates, or the inner one the inner Reset does.
+    page.unroute(SAMPLE_DOCUMENT)
+    admissions = []
+    page.on(
+        "request",
+        lambda request: request.method == "HEAD" and admissions.append(request),
+    )
+
+    def counts_until_released(reset):
+        held = []
+        page.route(SAMPLE_DOCUMENT, lambda route: held.append(route))
+        admitted = len(admissions)
+        reset.click()
+        holding(page, admissions, admitted + 1, "the new document's sample admission")
+        assert readiness(page) == "arrived"
+        page.unroute(SAMPLE_DOCUMENT)
+        for each in held:
+            each.continue_()
+        wait_until_ready(page)
+
+    counts_until_released(page.locator("#outer").get_by_role("button", name="Reset"))
+    counts_until_released(child.locator("#inner").get_by_role("button", name="Reset"))
+
+
+def test_a_sample_arriving_again_holds_growth_the_reader_did_not_cause(browser, serve):
+    """A Reset inside an arrived sample's child begins its arrival again, and while
+    the new document waits the frame holds growth that came of nothing the reader
+    did, as it did on the first arrival, so what follows the frame stays put."""
+    page, release = held_sample_page(
+        browser,
+        serve,
+        "<h1>Containing page</h1>"
+        + live_sample(
+            "outer",
+            content='<div id="room" style="height: 400px"></div>'
+            + live_sample("inner", " window", "<p>Inner</p>"),
+        )
+        + "<p><button id=after>After the sample</button></p>",
+        hold_first=False,
+    )
+    release()
+    wait_until_ready(page)
+    frame = page.locator("#outer iframe")
+    child = frame.content_frame
+    child_document = frame.element_handle().content_frame()
+    held = []
+    page.route(SAMPLE_DOCUMENT, lambda route: held.append(route))
+    child.locator("#inner").get_by_role("button", name="Reset").click()
+    holding(page, held, 1, "the inner sample's new document")
+    assert readiness(page) == "arrived"
+    rendered(child_document)
+    before = frame.evaluate("frame => frame.clientHeight")
+    after = page.locator("#after").bounding_box()
+    child.locator("#room").evaluate("room => { room.style.height = '700px'; }")
+    rendered(child_document)
+    rendered(page)
+    assert frame.evaluate("frame => frame.clientHeight") == before
+    assert page.locator("#after").bounding_box() == after
+    page.unroute(SAMPLE_DOCUMENT)
+    for each in held:
+        each.continue_()
+    wait_until_ready(page)
+
+
 def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     browser, serve
 ):
@@ -2023,7 +2358,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     suggestion. Holding the first replay makes the dangerous interval deterministic:
     discussion stays available, but the stale count, row, and bulk action stay withheld.
     Opening Threads during that interval replaces the remembered drawer. Replay leaves
-    that Thread panel standing while it paints the accepted state and exposes the completed
+    that Thread panel open while it paints the accepted state and exposes the completed
     Ask as a closed route for review.
     """
     url = serve(SHORT_SUGGESTION)
@@ -2055,17 +2390,15 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     body = page.locator("body")
     expect(body).to_have_attribute("data-lf-auxiliary-surface", "queue")
     # The door stands on every page, and claims no count before the log has answered.
-    expect(page.locator(".lf-queue")).to_have_text("Questions")
+    expect(page.locator(".lf-queue")).to_have_text("On me")
+
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
-    # Which blanket answers exist is the ask inventory's to say, each ask under its own
-    # widget publication, so before the first state answer none is built to offer.
-    expect(page.locator(".lf-answer-all")).to_have_count(0)
+    # The stable blanket control claims no action before the first state answer.
+    expect(page.locator(".lf-answer-all:visible")).to_have_count(0)
     # Opened by hand, the panel counts nothing yet either.
     page.locator(".lf-queue").click()
-    expect(page.locator(".lf-queue-panel")).to_contain_text(
-        "Loading current questions…"
-    )
-    expect(page.locator(".lf-queue-panel")).not_to_contain_text("Questions · 0")
+    expect(page.locator(".lf-queue-panel")).to_contain_text("Loading…")
+    expect(page.locator(".lf-queue-panel")).not_to_contain_text("On me · 0")
 
     comments = page.locator(".lf-threads-toggle")
     expect(comments).to_be_enabled()
@@ -2080,7 +2413,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     decisions = page.locator(".lf-queue")
-    expect(decisions).to_have_text("Questions: 0")
+    expect(decisions).to_have_text("On me: 0")
     expect_asks_answered(page, "1/1")
     expect(decisions).to_have_attribute("aria-expanded", "false")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
@@ -2203,10 +2536,10 @@ def test_visual_comments_arrive_with_the_initialized_document(browser, serve):
 
 
 @pytest.mark.parametrize("phase", ["initial", "history", "ready", "anchored"])
-def test_failed_anchor_presentation_keeps_visual_actions_withheld(
+def test_malformed_visual_inventory_withholds_its_actions_at_each_presentation_phase(
     browser, serve, phase
 ):
-    """A malformed visual reading cannot leave comment controls on a partial page."""
+    """A malformed visual cannot offer comment controls at any startup phase."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     state_ready = phase in {"ready", "anchored"}
     held = []
@@ -2263,9 +2596,7 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(
     else:
         held.pop(0).continue_()
 
-    expect(page.locator(".lf-status-detail")).to_contain_text("reload")
-    if not state_ready:
-        expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-visual-actions")).to_have_count(0)
     if phase == "initial":
         assert page.evaluate("() => window.__lfVisualActionInsertions") == []
@@ -2279,7 +2610,8 @@ def test_failed_anchor_presentation_keeps_visual_actions_withheld(
         )
         expect(page.locator(".lf-visual-actions")).to_have_count(1)
         expect(page.locator(".lf-visual-action")).to_have_count(4)
-    consume_browser_errors(page, "registered part outer twice")
+    if phase == "anchored":
+        consume_browser_errors(page, "registered part outer twice")
 
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
@@ -2338,6 +2670,37 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
     # As above: the malformed answer is given to every read, and the page keeps
     # asking, so the list is settled by the page ending rather than by a wait.
     consume_browser_errors(page, "read failed: Unexpected token")
+
+
+def test_a_layer_mismatch_signals_startup_failure_on_window(browser, serve):
+    """Bootstrap listeners hear a document/runtime generation mismatch."""
+    url = serve(leaf_page("Mismatched layer", "<h1>Readable authored content</h1>"))
+    page = browser.new_page()
+    page.add_init_script(
+        """
+        window.__leafStartupFailures = 0;
+        window.addEventListener(
+          "lf-startup-failed",
+          () => window.__leafStartupFailures++,
+        );
+        """
+    )
+
+    # Generation is deliberately a native module in the compiled distribution.
+    # Replace its declared value, without depending on its source serialization.
+    page.route(
+        "**/runtime/layer-generation.js",
+        lambda route: route.fulfill(
+            body='export const layerGeneration = "mismatched-runtime";',
+            content_type="application/javascript",
+        ),
+    )
+    page.goto(url, wait_until="domcontentloaded")
+    expect(page.get_by_role("status")).to_have_text(
+        "Leaf couldn't start. Waiting for the server to update."
+    )
+    assert page.evaluate("() => window.__leafStartupFailures") == 1
+    consume_browser_errors(page, "belong to different layers")
 
 
 def test_a_root_module_failure_leaves_authored_document_readable(browser, serve):
@@ -2460,7 +2823,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     # and the target keeps the local quiet word.
     expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     rewritten = page.get_by_role(
         "button", name=re.compile(r"^Open rewritten: Rewritten")
     )
@@ -2470,7 +2833,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
         page.locator("#draft-ops").evaluate("el => getComputedStyle(el).outlineStyle")
         == "none"
     )
-    assert "rewritten since I decided" in page.locator("#draft-ops").aria_snapshot()
+    assert "rewritten since the decision" in page.locator("#draft-ops").aria_snapshot()
 
 
 def test_user_overrides_identify_state_that_differs_from_authored_inputs(
@@ -2660,9 +3023,9 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
 
     Then the same rule read the other way: `z` takes the reject back, the accept it
     superseded is the widget's answer once more, and the thread closes under it. The
-    two ways an answer stops standing compose, and nothing is written down to say so:
+    two ways an answer stops being in force compose, and nothing is written down to say so:
     an `unresolve` posted where the thread reopened would be a second record of the
-    same fact, and taking the reject back would leave it standing against the accept."""
+    same fact, and taking the reject back would leave it in force against the accept."""
     url = serve(
         JOURNEY_V1.replace('<h2 id="notes">', SUGGEST_BLOCK + '<h2 id="notes">'),
         events=(
@@ -2682,7 +3045,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
 
     # What the other tab's press leaves in the log, made against the same version:
-    # its own accept and reject controls are still standing, because it has not
+    # its own accept and reject controls are still shown, because it has not
     # heard about this one's decision yet.
     append_command(
         d,
@@ -2780,20 +3143,6 @@ Two classic models.</pre></lf-code>
     expect(page.locator(".lf-threads-toggle")).to_be_enabled()
     expect(page.locator("#gate-code .lf-code-line")).to_have_count(0)
     expect(page.locator("#draft-ops .lf-draft-body")).to_have_count(0)
-    assert (
-        page.evaluate(
-            """async () => {
-          const { stateSpecs } = await window.__lfRuntimeImport('/runtime/registry.js');
-          try {
-            stateSpecs();
-          } catch (error) {
-            return error.message;
-          }
-          return null;
-        }"""
-        )
-        == "leaf: state vocabulary requested before registry loaded"
-    )
 
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
@@ -3128,8 +3477,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.evaluate(
-        "() => { window.__lfRuntimeImport('/runtime/markdown.js')"
-        ".then((markdown) => markdown.loadMarkdown()); }"
+        "() => { window.__lfWidgetApi().then((markdown) => markdown.loadMarkdown()); }"
     )
     holding(page, marked, 1, "the Markdown module")
     assert len(marked) == 1
@@ -3294,8 +3642,8 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
     with take_lease(lease_path) as lease:
         page = open_page(browser, url)
         runtime = page.evaluate_handle("""async () =>
-          (await window.__lfRuntimeImport('/runtime/context.js')).runtime""")
-        assert runtime.evaluate("root => root.state.listening") is True
+          (await window.__lfCheckApi()).readApplication""")
+        assert runtime.evaluate("read => read().authoritative.listening") is True
         # Let the freshness reader observe the original held lease too.
         page.wait_for_timeout(700)
         crossed = []
@@ -3312,7 +3660,9 @@ def test_a_presence_read_crossing_freshness_returns_to_the_current_lease(
 
         page.route("**/api/state*", crossing)
         release_lease(lease)
-        page.wait_for_function("root => root.state.listening === false", arg=runtime)
+        page.wait_for_function(
+            "read => read().authoritative.listening === false", arg=runtime
+        )
         assert crossed, "the state read did not cross the temporary lease"
         told(page)
         page.unroute_all(behavior="wait")
@@ -3346,7 +3696,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     second = first.fetch().json()
     with page.expect_request("**/api/state*"):
         first.fulfill(json=second)
-    expect(text).to_have_text(re.compile(r"^\s*Agent is working — second"))
+    expect(text).to_have_text(re.compile(r"^\s*Claude is working — second"))
     assert len(held) == 2
 
     trailing = held[1]
@@ -3356,7 +3706,7 @@ def test_status_changes_coalesce_behind_one_state_read(browser, serve):
     third = trailing.fetch().json()
     trailing.fulfill(json=third)
     told(page)
-    expect(text).to_have_text(re.compile(r"^\s*Agent is working — third"))
+    expect(text).to_have_text(re.compile(r"^\s*Claude is working — third"))
 
 
 def test_a_state_read_timing_out_during_its_body_is_offline(browser, serve):
@@ -3393,7 +3743,7 @@ def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, ser
     """Two reads, two deadlines, because they are answerable to different things.
 
     `publish-site` deployed release `5b6be522…`, ran a hosted agent turn on it, and
-    then read the reloaded page standing on the revision from before the turn. A
+    then read the reloaded page still on the revision from before the turn. A
     container that has just run a turn answers its next state read in seconds rather
     than milliseconds — measured against a live deployment at 123 ms before a turn and
     2252-3918 ms after one. A bound inside that spread does not delay such a read, it
@@ -3439,7 +3789,7 @@ def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {clocked, clockValue} = await window.__lfRuntimeImport('/runtime/presence.js');
+          const {clocked, clockValue} = await window.__lfWidgetApi();
           window.probeVersion = 0;
           window.probePaints = 0;
           const paint = clocked(document.body, () => {
@@ -3606,7 +3956,7 @@ def test_the_help_overlay_answers_to_one_owner(browser, serve):
     page = open_page(browser, serve(html))
     page.evaluate(
         """async () => {
-          const { commands } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const { commands } = await window.__lfWidgetApi();
           commands(document.body, 'On a draft',
                [{ id: 'test.project-widget', keys: ['F2'],
                   title: 'a project widget using the same heading' }]);
@@ -3681,8 +4031,8 @@ def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
 def test_a_thread_says_what_the_agent_is_doing_about_it(
     browser, serve, tmp_path, dead_pid
 ):
-    """The banner says what the agent is doing; an exact message workflow says
-    which user question it is doing it about. A start updates both readings.
+    """An exact message workflow says which user question the agent is working on,
+    beside the banner's account of the page as a whole.
 
     A user with three questions open and no replies under any of them cannot tell a
     question being worked from a question nobody has looked at, and the page holds the
@@ -3738,14 +4088,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(other_workflow).to_have_text("Sent")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up my comment and hasn't said what it's doing yet"
-        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 to-do"
-        " (Work on the page)."
-    )
-    expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-        "Working · 1 response owed on updates awaiting delivery"
-    )
 
     # The agent finishes the earlier task and waits on the user.
     end_work(d)
@@ -3755,10 +4097,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert latent_waiting.exit_code == 0, latent_waiting.output
     told(page)
     expect(held_workflow).to_have_text("Picked up")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up my comment and hasn't said what it's doing yet"
-        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies."
-    )
 
     cleanup_model.close_session_turn("s")
     told(page)
@@ -3767,13 +4105,6 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
         "data-lf-agent-workflow", re.compile(".+")
     )
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
-    # The turn ended with both updates still the agent's to answer, so they are overdue
-    # and the remedy is the user's.
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude last checked in just now. Updates are saved. "
-        "Nothing is answering them, so nudge it in the terminal."
-        " Waiting on Claude: 2 replies."
-    )
     cleanup_model.open_session_turn("s")
 
     def start(item, line):
@@ -3847,12 +4178,9 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     assert held_thread.evaluate("node => getComputedStyle(node).boxShadow") == "none"
 
     # A later start on the page's own task is not an answer to the thread, so the
-    # thread's line stands while the banner takes the newer one.
+    # thread's line stands.
     working(d, "drafting v2")
     told(page)
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^\s*Claude is working — drafting v2")
-    )
     expect(held_workflow).to_have_count(1)
     expect(held_workflow).to_have_attribute(
         "title", "Working · reading the reconnect traces"
@@ -3926,98 +4254,29 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(workflows).to_have_count(1)
     record_claim(d, id="s", pid=dead_pid)
     told(page)
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^\s*No session holds this page\.")
-    )
     expect(held_thread.locator(".lf-thread-status")).to_have_text("To-do open")
     expect(workflows).to_have_count(1)
 
 
-def test_a_workflow_and_the_banner_share_agent_activity(browser, serve):
-    """Exact delivery keeps its workflow while page work retains the independently
-    declared overall state, then falls back to generic work when that declaration
-    waits. The page's open Ask ends the banner's disclosure, after the activity it
-    shares."""
-    source = LONG_PAGE.replace(
-        "</main>",
-        "<lf-ask id='ship-ask'><h2>Ship now?</h2><lf-options id='ship' choose>"
-        "<lf-option id='ship-now'>Now</lf-option>"
-        "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-ask></main>",
-    )
-    page = open_page(browser, serve(source))
-    page_dir = serve.page_dir
-    comment = append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "Does the banner agree with this workflow?",
-        },
-    )
-    record_claim(page_dir, id="workflow", pid=os.getpid(), agent="Claude")
-    declare_work(page_dir, "Writing the page")
-    with service_model.PageTransaction(page_dir) as transaction:
-        delivery_model.record_pickup(transaction, [comment])
+def test_the_banner_and_the_leaves_row_say_the_served_activity(browser, serve):
+    """The served activity reaches the banner's row, its disclosure and dot, and this
+    page's row in the leaves drawer. What each says for every reading is
+    `tests/runtime/activity-words.test.mjs`'s, and which reading a log and claim come
+    to is `tests/model/test_activity.py`'s."""
+    page = open_page(browser, serve(LONG_PAGE))
+    record_claim(serve.page_dir, id="s", pid=os.getpid(), agent="Claude")
+    declare_work(serve.page_dir, "Writing the page")
     told(page)
-
-    page.keyboard.press("c")
-    workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] .lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
+    expect(page.locator(".lf-status-text")).to_have_text(
+        "Claude working — Writing the page"
     )
-    expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(
-            r"^\s*Claude is working — Writing the page \(just now\)\. Waiting on me"
-        )
+        re.compile(r"^\s*Claude is working — Writing the page \(just now\)\.")
     )
-
-    end_work(page_dir)
-    session_model.cmd_waiting(page_dir, "review the page")
-    told(page)
-    expect(workflow).to_have_text("Picked up")
-    expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(
-            r"^\s*Claude picked up my comment and hasn't said what it's doing yet"
-            r" \(just now\)\. Waiting on me"
-        )
+    expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"\bworking\b"))
+    expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
+        "Working — Writing the page"
     )
-
-
-def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
-    browser, serve
-):
-    page = open_page(browser, serve(LONG_PAGE, comments=1))
-    page_dir = serve.page_dir
-    [comment] = [
-        event
-        for event in events_model.read_events(page_dir)
-        if event["kind"] == "comment"
-    ]
-    claim = record_claim(page_dir, id="s", pid=os.getpid(), agent="Claude")
-
-    with live_watcher(page_dir, page):
-        with service_model.PageTransaction(page_dir) as transaction:
-            delivery_model.record_pickup(transaction, [comment])
-            cleanup_model.close_session_turn(claim["id"])
-        result = CliRunner().invoke(
-            cli_model.cli,
-            ["status", str(page_dir), "waiting", "pick a storage engine"],
-        )
-        assert result.exit_code == 0, result.output
-        told(page)
-
-        # The picked-up comment still owes its reply, which the row counts.
-        expect(page.locator(".lf-status-text")).to_have_text(
-            "Claude awaits — pick a storage engine"
-        )
-        expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
-        expect(page.locator(".lf-status-detail")).to_have_text(
-            "Claude awaits — pick a storage engine. Waiting on Claude: 1 reply."
-        )
-        expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-            "Awaits — pick a storage engine"
-        )
 
 
 def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serve):
@@ -4197,7 +4456,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     # The page's own line is as fresh as it was, which is the whole case: this is one
     # claim going quiet beside a live one, not a page that has gone quiet all over.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        re.compile(r"^\s*Agent is working — rerunning the failing shard")
+        re.compile(r"^\s*Claude is working — rerunning the failing shard")
     )
     expect(work_line).to_have_text("Update stale")
     expect(work_line).to_have_attribute(
@@ -4384,7 +4643,7 @@ def test_a_comment_on_external_data_stays_with_the_revision_the_user_saw(
     url = data_projection_page(serve)
     page = open_page(browser, url)
 
-    readings = page.evaluate("""() => window.__lfRuntimeImport('/runtime/widget-api.js').then(leaf => {
+    readings = page.evaluate("""() => window.__lfWidgetApi().then(leaf => {
       const lede = document.querySelector('#lede');
       const datum = document.querySelector('[data-lf-datum="api"]');
       return {
@@ -4504,7 +4763,7 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
     }
     module = """
 import {projectData, watchData, setChildren} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-feed', class extends HTMLElement {
   connectedCallback() {
     this.stopWatching ??= watchData(this, 'rows', snapshot => {
       const datums = (snapshot?.value?.rows ?? []).map(row => {
@@ -4517,7 +4776,7 @@ export default class extends HTMLElement {
     });
   }
   disconnectedCallback() { this.stopWatching?.(); this.stopWatching = null; }
-};
+});
 """
     url = serve(
         authored,
@@ -4688,7 +4947,7 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     }
     module = """
 import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-test-surface', class extends HTMLElement {
   connectedCallback() {
     const datums = ['first', 'second'].map(key => {
       const row = document.createElement('section');
@@ -4733,7 +4992,7 @@ export default class extends HTMLElement {
     }
     else threadSurface(this).update();
   }
-};
+});
 """
     roots = [f"{index:032x}" for index in range(1, 4)]
     page = open_page(
@@ -4788,7 +5047,7 @@ export default class extends HTMLElement {
     input = broken.locator(".lf-page-thread leaf-text").first
     write(input, "Keep this unsent reply.")
     editing = """async key => {
-      const replies = await window.__lfRuntimeImport('/runtime/thread/replies.js');
+      const replies = await window.__lfCheckApi();
       return replies.replyIsEditing(key);
     }"""
     assert page.evaluate(editing, roots[0])
@@ -4935,7 +5194,7 @@ def test_a_declared_external_projection_must_receive_its_snapshot(browser, serve
     page = open_page(browser, data_projection_page(serve))
     failure = page.evaluate(
         """async () => {
-          const {projectData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {projectData} = await window.__lfWidgetApi();
           try {
             projectData(
               document.querySelector('#deployments'), []
@@ -4976,7 +5235,7 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     }
     module = """
 import {offer, projectData, setChildren} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-derived', class extends HTMLElement {
   connectedCallback() {
     window.lfDerived = this;
     this.show([{key: 'api', value: 'Ready'}, {key: 'worker', value: 'Ready'}]);
@@ -4990,7 +5249,7 @@ export default class extends HTMLElement {
     setChildren(this, datums.map(({node}) => node));
     projectData(this, datums);
   }
-};
+});
 """
     page = open_page(
         browser,
@@ -5339,14 +5598,25 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     stale = page.evaluate("async () => (await fetch('/api/state')).json()")
     stale["taken"] = 0
     stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
-    page.route("**/api/state*", lambda route: route.fulfill(json=stale))
-    page.evaluate(
-        """async () => {
-          const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
-          await readAndApply();
-        }"""
-    )
+    crossed = []
+
+    def crossed_state(route):
+        crossed.append(route.request.url)
+        route.fulfill(json=stale)
+
+    # One transient freshness observation asks for the crossed read. Then the
+    # origin again advertises the reading the page holds, so the heartbeat ages
+    # the accepted state rather than repeatedly repairing a freshness mismatch.
+    page.route("**/api/state*", crossed_state)
+    with page.expect_response("**/api/state*"):
+        page.route(
+            "**/api/news*",
+            lambda route: route.fulfill(
+                body=stale["reading"] if crossed else "crossed-state-reading"
+            ),
+        )
     ticked(page)
+    assert len(crossed) == 1
     expect(timestamp).to_have_text("1h ago")
 
 
@@ -5358,22 +5628,23 @@ def test_data_subscribers_receive_each_publication_and_recover(browser, serve):
     """
     page = open_page(browser, data_projection_page(serve))
     page.evaluate("""async () => {
-      const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const {watchData} = await window.__lfWidgetApi();
       window.publications = [];
       window.stopPublications = watchData(document.querySelector('lf-feed'), 'rows',
         snapshot => window.publications.push(snapshot));
     }""")
-    read = """async () => {
-      const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
-      await readAndApply();
-      return window.publications;
-    }"""
+
+    def read():
+        nudge(serve.page_dir)
+        told(page)
+        return page.evaluate("window.publications")
+
     publication_file = data_model.source_file(serve.page_dir, "deployments")
     original = json.loads(publication_file.read_text())
     first = page.evaluate("window.publications")[0]
 
     data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
-    deliveries = page.evaluate(read)
+    deliveries = read()
     assert len(deliveries) == 2, deliveries
     for snapshot, publication in zip(
         deliveries, [original, json.loads(publication_file.read_text())], strict=True
@@ -5385,27 +5656,27 @@ def test_data_subscribers_receive_each_publication_and_recover(browser, serve):
     assert second["revision"] == first["revision"]
     assert second["run"] != first["run"]
     assert second["origin"] == first["origin"]
-    assert len(page.evaluate(read)) == 2
+    assert len(read()) == 2
 
     publication_file.write_text("{}")
-    deliveries = page.evaluate(read)
+    deliveries = read()
     assert len(deliveries) == 3 and deliveries[-1] is None, deliveries
-    assert len(page.evaluate(read)) == 3
+    assert len(read()) == 3
 
     data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
-    deliveries = page.evaluate(read)
+    deliveries = read()
     assert len(deliveries) == 4, deliveries
     recovered = deliveries[-1]
     assert recovered["revision"] == first["revision"]
     assert recovered["run"] not in {first["run"], second["run"]}
 
     data_model.cmd_data_clear(serve.page_dir, "deployments")
-    deliveries = page.evaluate(read)
+    deliveries = read()
     assert len(deliveries) == 5 and deliveries[-1] is None, deliveries
-    assert len(page.evaluate(read)) == 5
+    assert len(read()) == 5
 
     data_model.cmd_data_set(serve.page_dir, "deployments", original["value"])
-    deliveries = page.evaluate(read)
+    deliveries = read()
     assert len(deliveries) == 6, deliveries
     assert deliveries[-1]["revision"] == first["revision"]
     assert deliveries[-1]["run"] not in {first["run"], second["run"], recovered["run"]}
@@ -5437,9 +5708,9 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
             "x-example": f'<{tag} id="example-{contract}" source="shared"></{tag}>',
         }
 
-    def module():
+    def module(tag):
         return """import {watchData} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define(TAG, class extends HTMLElement {
   connectedCallback() {
     if (this.started) return;
     this.started = true;
@@ -5451,7 +5722,7 @@ export default class extends HTMLElement {
     });
   }
   disconnectedCallback() { this.stop?.(); }
-};"""
+});""".replace("TAG", json.dumps(tag))
 
     authored = leaf_page(
         "Different contracts",
@@ -5474,8 +5745,8 @@ export default class extends HTMLElement {
             },
         },
         layer_widgets={
-            "lf-array-feed.js": module(),
-            "lf-object-feed.js": module(),
+            "lf-array-feed.js": module("lf-array-feed"),
+            "lf-object-feed.js": module("lf-object-feed"),
         },
     )
     append_carried_log_record(
@@ -5500,10 +5771,11 @@ export default class extends HTMLElement {
     expect(page.locator("#page-feed")).to_have_text('["same bytes"]')
     expect(page.locator("#thread-feed")).to_have_text("null")
     consume_browser_errors(page, "watchData(lf-object-feed, data) requires other-rows")
-    read = """async () => {
-      const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
-      await readAndApply();
-    }"""
+
+    def read():
+        nudge(serve.page_dir)
+        told(page)
+
     wire = "async () => (await (await fetch('/api/state')).json()).data"
 
     def rebind(contract, value):
@@ -5513,7 +5785,7 @@ export default class extends HTMLElement {
             else authored.replace("lf-array-feed", "lf-object-feed")
         )
         data_model.cmd_data_set(serve.page_dir, "shared", value)
-        page.evaluate(read)
+        read()
         return page.evaluate(wire)
 
     original = page.evaluate(wire)
@@ -5528,8 +5800,8 @@ export default class extends HTMLElement {
     consume_browser_errors(page, "watchData(lf-array-feed, data) requires rows")
 
     calls = page.evaluate("window.dataDeliveries.length")
-    page.evaluate(read)
-    page.evaluate(read)
+    read()
+    read()
     assert page.evaluate("window.dataDeliveries.length") == calls
     assert page.lf_errors == []
 
@@ -5553,7 +5825,7 @@ def test_a_returning_subscriber_is_repainted_only_where_its_departure_cut_the_pa
     page = open_page(browser, data_projection_page(serve))
     result = page.evaluate(
         """async () => {
-          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {watchData} = await window.__lfWidgetApi();
           const widget = document.querySelector('lf-feed');
           const leaveAndReturn = async () => {
             const parent = widget.parentNode;
@@ -5583,176 +5855,6 @@ def test_a_returning_subscriber_is_repainted_only_where_its_departure_cut_the_pa
     assert result == {"interrupted": 2, "kept": 2}
 
 
-def test_a_subscriber_that_failed_on_return_draws_the_next_reading(browser, serve):
-    """A source that changed while its widget was away is drawn on the return; a
-    callback that throws there is reported once and keeps its subscription, so the
-    next reading draws."""
-    page = open_page(browser, data_projection_page(serve))
-    result = page.evaluate(
-        """async () => {
-          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
-          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-          const widget = document.querySelector('lf-feed');
-          const at = (revision) => {
-            const next = structuredClone(runtime.data);
-            next.version = revision;
-            next.sources.deployments.revision = revision;
-            return next;
-          };
-          const drawn = [];
-          let refuse = false;
-          const stop = watchData(widget, 'rows', (snapshot) => {
-            drawn.push(snapshot.revision);
-            if (refuse) throw new Error('return refused');
-          });
-          const parent = widget.parentNode;
-          const next = widget.nextSibling;
-          widget.remove();
-          await new Promise((resolve) => setTimeout(resolve));
-          acceptData(at('changed-away'), runtime.state.taken);
-          refuse = true;
-          parent.insertBefore(widget, next);
-          await new Promise((resolve) => setTimeout(resolve));
-          refuse = false;
-          acceptData(at('after-return'), runtime.state.taken);
-          await notifyDataSubscribers();
-          stop();
-          return drawn.slice(1);
-        }"""
-    )
-    assert result == ["changed-away", "after-return"]
-    assert len(consume_browser_errors(page, "return refused")) == 1
-
-
-def test_data_subscriptions_use_own_keys(browser, serve):
-    """Source names are data, including names inherited by a plain JS object."""
-    page = open_page(browser, data_projection_page(serve))
-    result = page.evaluate(
-        """async () => {
-          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {acceptData} = await window.__lfRuntimeImport('/runtime/data.js');
-          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-          const widget = document.querySelector('lf-feed');
-          let currentRevision = null;
-          const stopCurrent = watchData(widget, 'rows', snapshot => {
-            currentRevision = snapshot?.revision ?? null;
-          });
-          stopCurrent();
-          widget.setAttribute('source', 'constructor');
-          let absent = 'not-called';
-          const stop = watchData(widget, 'rows', snapshot => { absent = snapshot; });
-          stop();
-
-          const captured = [];
-          const stopCaptured = watchData(widget, 'rows', snapshot => { captured.push(snapshot); });
-          widget.setAttribute('source', 'deployments');
-          const next = structuredClone(runtime.data);
-          next.version = 'next-version';
-          next.sources.deployments.revision = 'next-revision';
-          acceptData(next, runtime.state.taken);
-          stopCaptured();
-          widget.removeAttribute('source');
-          let unbound = 'not-called';
-          const stopUnbound = watchData(widget, 'rows', snapshot => { unbound = snapshot; });
-          stopUnbound();
-          return {currentRevision, unbound, absent, captured};
-        }"""
-    )
-    assert result == {
-        "currentRevision": source_revision(serve.page_dir, "deployments"),
-        "unbound": None,
-        "absent": None,
-        "captured": [None],
-    }
-
-
-def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
-    browser, serve
-):
-    """Refresh acquires clock work; a return reads nothing unchanged, though its time
-    readings tick again; retiring a read cannot revive that subscription."""
-    page = open_page(browser, serve(SUGGESTION_PAGE))
-    result = page.evaluate(
-        """async () => {
-          const {watchProjection} = await window.__lfRuntimeImport('/runtime/projection-watch.js');
-          const {clockValue, tickClock} = await window.__lfRuntimeImport('/runtime/presence.js');
-          const owner = document.createElement('div');
-          document.body.append(owner);
-          const changed = action => new Promise(resolve => {
-            const observer = new MutationObserver(() => {
-              observer.disconnect();
-              resolve();
-            });
-            observer.observe(document.body, {childList: true, subtree: true});
-            action();
-          });
-          let clock = 0;
-          let cancelled = 0;
-          const cancel = watchProjection(owner, () => {
-            cancelled += 1;
-            clockValue(() => clock);
-          });
-          cancel();
-          await Promise.resolve();
-          clock += 1;
-          await tickClock(message => { throw new Error(message); });
-          let calls = 0;
-          let trackClock = false;
-          const stop = watchProjection(owner, () => {
-            calls += 1;
-            if (trackClock) clockValue(() => clock);
-          });
-          await Promise.resolve();
-          const initial = calls;
-          clock += 1;
-          await tickClock(message => { throw new Error(message); });
-          const untracked = calls;
-          trackClock = true;
-          stop.refresh();
-          const subscribed = calls;
-          clock += 1;
-          await tickClock(message => { throw new Error(message); });
-          const clocked = calls;
-          await changed(() => { owner.remove(); document.body.append(owner); });
-          const moved = calls;
-          await changed(() => owner.remove());
-          clock += 1;
-          await tickClock(message => { throw new Error(message); });
-          const detached = calls;
-          await changed(() => document.body.append(owner));
-          await Promise.resolve();
-          const resumed = calls;
-          await tickClock(message => { throw new Error(message); });
-          const ticked = calls;
-          stop.refresh();
-          const refreshed = calls;
-          stop();
-          stop.refresh();
-          await changed(() => owner.remove());
-          await changed(() => document.body.append(owner));
-          clock += 1;
-          await tickClock(message => { throw new Error(message); });
-          owner.remove();
-          return {cancelled, initial, untracked, subscribed, clocked,
-            moved, detached, resumed, ticked, refreshed, stopped: calls};
-        }"""
-    )
-    assert result == {
-        "cancelled": 0,
-        "initial": 1,
-        "untracked": 1,
-        "subscribed": 2,
-        "clocked": 3,
-        "moved": 3,
-        "detached": 3,
-        "resumed": 3,
-        "ticked": 4,
-        "refreshed": 5,
-        "stopped": 5,
-    }
-
-
 def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_cut_the_paint(
     browser, serve
 ):
@@ -5762,7 +5864,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
     page = open_page(browser, serve(SUGGESTION_PAGE))
     result = page.evaluate(
         """async () => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const api = await window.__lfWidgetApi();
           const settle = () => new Promise((resolve) => setTimeout(resolve));
           const owned = (id) => {
             const owner = document.createElement('div');
@@ -5778,13 +5880,14 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
           };
           const failed = {};
           const stops = [];
-          for (const name of ['watchAsks', 'watchReports', 'watchHistory']) {
+          for (const name of ['throwing', 'rejecting']) {
             const owner = owned(`failing-${name}`);
             failed[name] = 0;
-            stops.push(api[name](owner, () => {
+            stops.push(api.watchProjection(owner, () => {
               failed[name] += 1;
+              api.readAsks();
               // A paint that fails later is told the same way as one that throws.
-              if (name === 'watchHistory')
+              if (name === 'rejecting')
                 return Promise.reject(new Error(`${name} paint failed`));
               throw new Error(`${name} paint failed`);
             }));
@@ -5795,8 +5898,9 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
           let paints = 0;
           let finish;
           const finished = new Promise((resolve) => { finish = resolve; });
-          stops.push(api.watchAsks(owner, () => {
+          stops.push(api.watchProjection(owner, () => {
             paints += 1;
+            api.readAsks();
             return finished;
           }));
           await settle();
@@ -5811,7 +5915,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
         }"""
     )
     assert result == {
-        "failed": {"watchAsks": 1, "watchReports": 1, "watchHistory": 1},
+        "failed": {"throwing": 1, "rejecting": 1},
         "interrupted": 2,
         "kept": 2,
     }
@@ -5819,7 +5923,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
     reported = sorted(said(error) for error in errors)
     assert reported == sorted(
         f"leaf: paint failed for div#failing-{name}: {name} paint failed"
-        for name in ["watchAsks", "watchReports", "watchHistory"]
+        for name in ["throwing", "rejecting"]
     )
 
 
@@ -5829,7 +5933,7 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
     page = open_page(browser, serve(SUGGESTION_PAGE))
     result = page.evaluate(
         """async () => {
-          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const api = await window.__lfWidgetApi();
           const settle = () => new Promise((resolve) => setTimeout(resolve));
           const owner = document.createElement('div');
           const region = document.createElement('p');
@@ -5840,7 +5944,7 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
           let shown = null;
           let watching;
           const held = new api.HeldReading(owner, () => [region], () => watching.refresh());
-          watching = api.watchAsks(owner, () => { shown = held.hold(current); });
+          watching = api.watchProjection(owner, () => { shown = held.hold(current); });
           await settle();
           current = 'second';
           watching.refresh();
@@ -5860,123 +5964,7 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
     assert result == {"waiting": "first", "shown": "second"}
 
 
-def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, serve):
-    """Detachment releases data/clock work; reattachment keeps a finished paint, whose
-    time readings tick again, and delivers a reading that changed while away.
-
-    Refresh can acquire a clock dependency absent from the initial paint.
-    A move in one mutation batch retains the original subscription. Removing an owner
-    with an in-flight render also releases its presentation, so readiness can settle
-    without waiting for a renderer whose owner is absent.
-    """
-    page = open_page(browser, data_projection_page(serve))
-    result = page.evaluate(
-        """async () => {
-          const {watchData, clockValue} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
-          const {tickClock} = await window.__lfRuntimeImport('/runtime/presence.js');
-          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-          const widget = document.querySelector('lf-feed');
-          const home = widget.parentElement;
-          const changed = action => new Promise(resolve => {
-            const observer = new MutationObserver(() => {
-              observer.disconnect();
-              resolve();
-            });
-            observer.observe(document.body, {childList: true, subtree: true});
-            action();
-          });
-          const deliveries = [];
-          let clock = 0;
-          let trackClock = false;
-          let release;
-          const stop = watchData(widget, 'rows', snapshot => {
-            if (trackClock) clockValue(() => clock);
-            deliveries.push(snapshot?.revision ?? null);
-            if (snapshot?.revision === 'held-owner')
-              return new Promise(resolve => { release = resolve; });
-          });
-          const initial = deliveries.length;
-          clock += 1;
-          await tickClock(message => { throw new Error(message); });
-          const untracked = deliveries.length;
-          trackClock = true;
-          stop.refresh();
-          const subscribed = deliveries.length;
-          clock += 1;
-          await tickClock(message => { throw new Error(message); });
-          const clocked = deliveries.length;
-          await changed(() => document.body.append(widget));
-          const moved = deliveries.length;
-          await changed(() => widget.remove());
-          clock += 1;
-          await tickClock(message => { throw new Error(message); });
-          const detached = deliveries.length;
-          await changed(() => home.append(widget));
-          const resumed = deliveries.length;
-          await tickClock(message => { throw new Error(message); });
-          const ticked = deliveries.length;
-          const next = structuredClone(runtime.data);
-          next.version = 'held-owner-version';
-          next.sources.deployments.revision = 'held-owner';
-          const beforeStaging = deliveries.at(-1);
-          acceptData(next, runtime.state.taken);
-          stop.refresh();
-          const stagingKept = deliveries.at(-1) === beforeStaging;
-          const pending = notifyDataSubscribers();
-          const held = deliveries.at(-1);
-          await changed(() => widget.remove());
-          await pending;
-          release();
-          const newest = structuredClone(runtime.data);
-          newest.version = 'newest-owner-version';
-          newest.sources.deployments.revision = 'newest-owner';
-          acceptData(newest, runtime.state.taken);
-          await notifyDataSubscribers();
-          const absent = deliveries.length;
-          await changed(() => home.append(widget));
-          const restored = deliveries.at(-1);
-          stop.refresh();
-          const refreshed = deliveries.at(-1);
-          stop();
-          stop.refresh();
-          await changed(() => widget.remove());
-          await changed(() => home.append(widget));
-          clock += 1;
-          await tickClock(message => { throw new Error(message); });
-          return {initial, untracked, subscribed, clocked,
-            moved, detached, resumed, ticked, held, absent, restored, refreshed, stagingKept,
-            stopped: deliveries.length};
-        }"""
-    )
-    assert result == {
-        "initial": 1,
-        "untracked": 1,
-        "subscribed": 2,
-        "clocked": 3,
-        "moved": 3,
-        "detached": 3,
-        "resumed": 3,
-        "ticked": 4,
-        "held": "held-owner",
-        "absent": 6,
-        "restored": "newest-owner",
-        "refreshed": "newest-owner",
-        "stagingKept": True,
-        "stopped": 8,
-    }
-
-
-def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
-    browser, serve
-):
-    """Data acceptance can advance while a mounted source awaits syntax rendering.
-
-    The captured publisher selection registers its replacement synchronously, while
-    subscriber notification begins its paint. Compare the old rendering, replacement,
-    and a pinned source nothing rewrites to prove each completed projection retains its
-    own provenance.
-    """
+def test_a_text_document_projects_its_current_source_provenance(browser, serve):
     authored = leaf_page(
         "source provenance",
         '<h1 id="title">Source</h1>'
@@ -5989,128 +5977,19 @@ def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
     page = open_page(browser, url)
     expect(page.locator("#live code")).to_have_text('route = "old"')
     expect(page.locator("#pinned code")).to_have_text('route = "old"')
-    result = page.evaluate(
-        """async () => {
-          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
-          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-          const source = document.querySelector('#live');
-          const mounted = source.cloneNode(false);
-          mounted.id = 'mounted-source';
-          mounted.classList.remove('lf-rendered');
-          const read = element => {
-            const datum = element.querySelector('[data-lf-datum]');
-            return {
-              text: datum.querySelector('code').textContent,
-              source: datum.dataset.lfSource,
-              revision: datum.dataset.lfSourceRevision,
-            };
-          };
-          let observer;
-          const firstProjection = new Promise(resolve => {
-            observer = new MutationObserver(() => {
-              if (!mounted.querySelector('[data-lf-datum]')) return;
-              observer.disconnect();
-              resolve();
-            });
-            observer.observe(mounted, {childList: true, subtree: true});
-          });
-          const original = runtime.data;
-          const taken = runtime.state.taken;
-          try {
-            // Mount starts watchData's delivery before acceptance advances. The
-            // publisher selection captures the replacement in this turn, but the real
-            // syntax await keeps the old projectData paint behind acceptance.
-            source.after(mounted);
-            const newer = structuredClone(original);
-            newer.version = 'newer-version';
-            newer.sources.document.revision = 'newer-revision';
-            newer.sources.document.value = 'route = "new"';
-            acceptData(newer, taken);
-            await firstProjection;
-            const beforeNotification = read(mounted);
-            await notifyDataSubscribers();
-            return {
-              beforeNotification,
-              mounted: read(mounted),
-              live: read(source),
-              pinned: read(document.querySelector('#pinned')),
-            };
-          } finally {
-            observer.disconnect();
-            mounted.remove();
-            acceptData(original, taken);
-            await notifyDataSubscribers();
-          }
-        }"""
-    )
-    revision = source_revision(serve.page_dir, "document")
-    old = {"text": 'route = "old"', "source": "document", "revision": revision}
-    new = {"text": 'route = "new"', "source": "document", "revision": "newer-revision"}
-    assert result == {
-        "beforeNotification": old,
-        "mounted": new,
-        "live": new,
-        "pinned": {**old, "source": "pinned"},
-    }
-
-
-def test_a_superseded_async_data_render_cannot_stamp_the_newer_version(browser, serve):
-    """Each data notification owns the version it dispatched.
-
-    Two async subscriber deliveries overlap. Releasing the older one after newer data
-    was accepted must not stamp that newer version while its own delivery is still held;
-    render checks and presentation use the stamp as proof that every subscriber is done.
-    """
-    page = open_page(browser, data_projection_page(serve))
-    result = page.evaluate(
-        """async () => {
-          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
-          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-          const widget = document.querySelector('lf-feed');
-          const taken = runtime.state.taken;
-          const releases = new Map();
-          const stop = watchData(widget, 'rows', snapshot => {
-            const value = snapshot?.value?.[0]?.value;
-            if (!value?.startsWith('Held')) return;
-            return new Promise(resolve => releases.set(value, resolve));
-          });
-          const waitFor = async value => {
-            while (!releases.has(value))
-              await new Promise(resolve => setTimeout(resolve, 0));
-          };
-          const dataAt = (version, value) => ({
-            ...structuredClone(runtime.data),
-            version,
-            sources: {
-              ...structuredClone(runtime.data.sources),
-              deployments: {
-                ...structuredClone(runtime.data.sources.deployments),
-                revision: version,
-                value: [{key: 'api', value}],
-              },
-            },
-          });
-          const before = document.body.getAttribute('data-lf-data-version');
-          acceptData(dataAt('older', 'Held older'), taken);
-          const older = notifyDataSubscribers();
-          await waitFor('Held older');
-          acceptData(dataAt('newer', 'Held newer'), taken);
-          const newer = notifyDataSubscribers();
-          await waitFor('Held newer');
-
-          releases.get('Held older')();
-          await older;
-          const afterOlder = document.body.getAttribute('data-lf-data-version');
-          releases.get('Held newer')();
-          await newer;
-          const afterNewer = document.body.getAttribute('data-lf-data-version');
-          stop();
-          return {before, afterOlder, afterNewer};
-        }"""
-    )
-    assert result["afterOlder"] == result["before"], result
-    assert result["afterNewer"] == "newer", result
+    data_model.cmd_data_set(serve.page_dir, "document", 'route = "new"')
+    told(page)
+    expect(page.locator("#live code")).to_have_text('route = "new"')
+    for selector, source, text in (
+        ("#live", "document", 'route = "new"'),
+        ("#pinned", "pinned", 'route = "old"'),
+    ):
+        projection = page.locator(f"{selector} [data-lf-datum]")
+        expect(projection).to_have_attribute("data-lf-source", source)
+        expect(projection).to_have_attribute(
+            "data-lf-source-revision", source_revision(serve.page_dir, source)
+        )
+        expect(projection.locator("code")).to_have_text(text)
 
 
 def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
@@ -6121,54 +6000,49 @@ def test_data_readiness_settles_and_reports_failed_subscribers(browser, serve):
     read failure or prevents the accepted revision becoming ready.
     """
     page = open_page(browser, data_projection_page(serve))
-    result = page.evaluate(
-        """async () => {
-          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
-          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-          const widget = document.querySelector('lf-feed');
-          const before = document.body.getAttribute('data-lf-data-version');
-          let mountDeliveries = 0;
-          const stopMount = watchData(widget, 'rows', () => {
-            mountDeliveries += 1;
-            return Promise.reject(new Error('mount projection failed'));
-          });
-          await notifyDataSubscribers();
-          await notifyDataSubscribers();
-          stopMount();
-          const afterMount = document.body.getAttribute('data-lf-data-version');
-
-          let deliveries = 0;
-          const stopUpdate = watchData(widget, 'rows', () => {
-            deliveries += 1;
-            if (deliveries > 1)
-              return Promise.reject(new Error('update projection failed'));
-          });
-          let throwingDeliveries = 0;
-          const stopThrowing = watchData(widget, 'rows', () => {
-            throwingDeliveries += 1;
-            if (throwingDeliveries > 1)
-              throw new Error('synchronous update projection failed');
-          });
-          const version = 'next-version';
-          const next = structuredClone(runtime.data);
-          next.version = version;
-          next.sources.deployments.revision = 'next-revision';
-          acceptData(next, runtime.state.taken);
-          await notifyDataSubscribers();
-          await notifyDataSubscribers();
-          stopUpdate();
-          stopThrowing();
-          return {
-            before,
-            mountDeliveries,
-            throwingDeliveries,
-            afterMount,
-            afterUpdate: document.body.getAttribute('data-lf-data-version'),
-            version,
-          };
-        }"""
+    page.evaluate("""async () => {
+      const {watchData} = await window.__lfWidgetApi();
+      const widget = document.querySelector('lf-feed');
+      window.beforeDataVersion = document.body.dataset.lfDataVersion;
+      window.mountDeliveries = 0;
+      window.stopMount = watchData(widget, 'rows', () => {
+        mountDeliveries += 1;
+        return Promise.reject(new Error('mount projection failed'));
+      });
+    }""")
+    for _ in range(2):
+        nudge(serve.page_dir)
+        told(page)
+    page.evaluate("""async () => {
+      stopMount();
+      window.afterMountDataVersion = document.body.dataset.lfDataVersion;
+      const {watchData} = await window.__lfWidgetApi();
+      const widget = document.querySelector('lf-feed');
+      window.updateDeliveries = 0;
+      window.throwingDeliveries = 0;
+      window.stopUpdate = watchData(widget, 'rows', () => {
+        if (++updateDeliveries > 1)
+          return Promise.reject(new Error('update projection failed'));
+      });
+      window.stopThrowing = watchData(widget, 'rows', () => {
+        if (++throwingDeliveries > 1)
+          throw new Error('synchronous update projection failed');
+      });
+    }""")
+    data_model.cmd_data_set(
+        serve.page_dir, "deployments", [{"key": "api", "value": "Updated"}]
     )
+    told(page)
+    nudge(serve.page_dir)
+    told(page)
+    result = page.evaluate("""() => {
+      stopUpdate(); stopThrowing();
+      return {before: beforeDataVersion, mountDeliveries, throwingDeliveries,
+        afterMount: afterMountDataVersion, afterUpdate: document.body.dataset.lfDataVersion};
+    }""")
+    result["version"] = page.request.get(urljoin(page.url, "/api/state")).json()[
+        "data"
+    ]["version"]
     assert result["mountDeliveries"] == 1, result
     assert result["throwingDeliveries"] == 2, result
     assert result["afterMount"] == result["before"], result
@@ -6194,8 +6068,8 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
     page = open_page(browser, data_projection_page(serve))
     page.evaluate(
         """async () => {
-          const {failSoft} = await window.__lfRuntimeImport('/runtime/widget-upgrade.js');
-          const {html, render} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {failSoft} = await window.__lfWidgetApi();
+          const {html, render} = await window.__lfWidgetApi();
           const widget = document.querySelector('lf-feed');
           window.paintRecoveredWidget = text => render(html`<p>${text}</p>`, widget);
           window.paintRecoveredWidget('Before failure');
@@ -6229,92 +6103,13 @@ def test_widget_errors_keep_exception_evidence(browser, serve):
     expect(page.locator("lf-feed .lf-error")).to_have_count(0)
 
 
-def test_unchanged_source_waits_for_its_inflight_render(browser, serve):
-    """Another state read cannot stamp data ready while its first render is held."""
-    page = open_page(browser, data_projection_page(serve))
-    result = page.evaluate(
-        """async () => {
-          const {watchData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
-          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
-          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
-          const {readApplicationPresentation} =
-            await window.__lfRuntimeImport('/runtime/semantic-state.js');
-          let release;
-          let calls = 0;
-          const stop = watchData(document.querySelector('lf-feed'), 'rows', () => {
-            if (++calls > 1) return new Promise(resolve => { release = resolve; });
-          });
-          const initial = runtime.data.version;
-          const next = structuredClone(runtime.data);
-          next.version = 'next-version';
-          next.sources.deployments.revision = 'next-revision';
-          acceptData(next, runtime.state.taken);
-          const selectedBeforeNotify = {
-            calls,
-            pending: readApplicationPresentation().pending.some(region =>
-              region.startsWith('data:deployments:rows:'),
-            ),
-          };
-          const first = notifyDataSubscribers();
-          while (!release) await new Promise(resolve => setTimeout(resolve, 0));
-          let complete = false;
-          const again = notifyDataSubscribers().then(() => { complete = true; });
-          await new Promise(resolve => setTimeout(resolve, 0));
-          const before = {complete, calls, ready: document.body.dataset.lfDataVersion};
-          release();
-          await Promise.all([first, again]);
-          stop();
-          return {
-            selectedBeforeNotify,
-            before,
-            after: document.body.dataset.lfDataVersion,
-            version: next.version,
-            initial,
-          };
-        }"""
-    )
-    assert result["selectedBeforeNotify"] == {"calls": 1, "pending": True}
-    assert result["before"] == {
-        "complete": False,
-        "calls": 2,
-        "ready": result["initial"],
-    }
-    assert result["after"] == result["version"]
-
-
-def test_data_readiness_does_not_wait_for_an_unrelated_widget_region(browser, serve):
-    """The data stamp waits for data subscribers, not every deferred page paint."""
-    page = open_page(browser, data_projection_page(serve))
-    result = page.evaluate(
-        """async () => {
-          const {notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
-          const {attachApplicationPresentation} =
-            await window.__lfRuntimeImport('/runtime/semantic-state.js');
-          const unrelated = attachApplicationPresentation(
-            'widget:unrelated:render', document.body,
-          );
-          const held = unrelated.present('held');
-          let ready = false;
-          const data = notifyDataSubscribers().then(() => { ready = true; });
-          await Promise.resolve();
-          await new Promise(resolve => setTimeout(resolve, 0));
-          const beforeRelease = ready;
-          held.resolve();
-          await Promise.all([held.ready, data]);
-          unrelated.disconnect();
-          return beforeRelease;
-        }"""
-    )
-    assert result is True
-
-
 def test_data_written_during_fresh_revision_startup_waits_for_activation(
     browser, serve
 ):
     """A source update cannot paint until the new revision document has activated.
 
     The revision published below changes the page's own code, which is the one thing
-    the standing document cannot take on, so it is followed into a fresh document and
+    the current document cannot take on, so it is followed into a fresh document and
     there is a startup to write data during.
     """
     activation_probe = """
@@ -6385,7 +6180,7 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
         "**/leaf.js",
         lambda route: route.fulfill(
             content_type="text/javascript",
-            body="await window.__lfRuntimeImport('/runtime/widget-api.js');\n"
+            body="await window.__lfWidgetApi();\n"
             "window.apiImportedBeforeBoot = true;\n"
             "await import('./leaf-boot.js');",
         ),
@@ -6405,8 +6200,8 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
 
-def test_page_annotation_view_seats_questions_and_contributed_controls(browser, serve):
-    """A page that owns its annotations shows Questions and contributed actions in its
+def test_page_annotation_view_seats_asks_and_contributed_controls(browser, serve):
+    """A page that owns its annotations shows its asks and contributed actions in its
     own box: Leaf hands the consumer each entry's items and native controls, and the
     page only arranges them. Activating an item reaches its ask, and a seated
     control still runs its contribution's action. The view follows the log: an answered
@@ -6428,12 +6223,12 @@ def test_page_annotation_view_seats_questions_and_contributed_controls(browser, 
     page = open_page(browser, url)
     page.evaluate("""async () => {
       const {contributionEntry, registerContribution} =
-        await __lfRuntimeImport('/runtime/widget-api.js');
+        await window.__lfWidgetApi();
       registerContribution({key: 'review', target: document.getElementById('subject'),
         read: () => ({entries: [contributionEntry({key: 'reviewed', behavior: 'action',
           icon: 'dot', label: 'Mark reviewed'})]}),
         activate: (key) => { window.activated = key; }});
-      const {consumeAnnotations} = await __lfRuntimeImport('/runtime/widget-api.js');
+      const {consumeAnnotations} = await window.__lfWidgetApi();
       const box = document.querySelector('#review');
       consumeAnnotations(box, (entries, view) => {
         box.replaceChildren();
@@ -6492,7 +6287,7 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
     )
     page = open_page(browser, url)
     page.evaluate("""async () => {
-      const {placePageThreads} = await __lfRuntimeImport('/runtime/widget-api.js');
+      const {placePageThreads} = await window.__lfWidgetApi();
       const rail = document.querySelector('#review');
       const outlets = new Map();
       window.pageSurface = placePageThreads(rail, (targets) => {
@@ -6510,7 +6305,7 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
     expect(thread).to_have_count(1)
     expect(thread).to_contain_text("About this bit.")
     assert page.evaluate("""async () => {
-      const {claimed} = await __lfRuntimeImport('/runtime/thread/surfaces.js');
+      const {claimed} = await __lfCheckApi();
       return claimed(document.querySelector('#review .lf-page-thread').dataset.thread);
     }""")
     reply = thread.get_by_role("textbox", name="Reply", exact=True)
@@ -6521,33 +6316,37 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
     expect(thread).to_have_count(0)
 
 
-def _hold_required_thread_panel(page):
-    """Hold actual panel preparation without changing the semantic epoch."""
-    page.evaluate("""async()=>{
-      const [{createThreadPanelElements},{createThreadListController},
-        {createThreadNarrowing},{threadList},app]=await Promise.all([
-        __lfRuntimeImport('/runtime/thread/panel-elements.js'),
-        __lfRuntimeImport('/runtime/thread/thread-list.js'),
-        __lfRuntimeImport('/runtime/thread/narrowing.js'),
-        __lfRuntimeImport('/runtime/thread/state.js'),
-        __lfRuntimeImport('/runtime/application.js')]);
-      const elements=createThreadPanelElements();
-      elements.panel.style.cssText='position:relative;inset:auto;width:400px;height:400px;margin:0';
-      document.body.append(elements.panel);elements.panel.classList.add('open');
-      const controller=createThreadListController(elements);
-      const original=controller.renderThreads.bind(controller);
-      controller.renderThreads=async(...args)=>{
-        const candidate=await original(...args);
-        if(window.holdPanel){window.holdPanel=false;await new Promise(resolve=>window.releasePanel=resolve);}
-        return candidate;
+def _hold_required_thread_reader(page):
+    """Hold a real required presentation through the public package contract."""
+    page.evaluate("""async () => {
+      const {registerThreadPresentation} = await window.__lfWidgetApi();
+      const owner = document.createElement('aside');
+      owner.dataset.lfGen = '1';
+      document.body.append(owner);
+      window.requiredReader = registerThreadPresentation(owner, {
+        render: async () => {
+          if (window.holdPanel) {
+            window.holdPanel = false;
+            await new Promise(resolve => { window.releasePanel = resolve; });
+          }
+        },
+        reveal: () => false,
+      });
+      await requiredReader.update();
+    }""")
+
+
+def _prepare_surface_refresh(page):
+    page.evaluate("""() => {
+      window.refreshSurface = async handle => {
+        handle.update();
+        // update enqueues its document invalidation in this turn.
+        await Promise.resolve();
+        const {whenDocumentPresented} = await window.__lfCheckApi();
+        // These fixtures deliberately fail a required renderer and inspect its
+        // pending proof after the owner has reported the failed pass.
+        await whenDocumentPresented().catch(() => undefined);
       };
-      let handle;
-      const narrowing=createThreadNarrowing({view:elements.narrowingView,listRoot:elements.threadsBox,
-        readThreads:threadList,ready:()=>true,repaint:()=>handle.update()});narrowing.mount();
-      handle=app.registerThreadPanel({controller,threadsBox:elements.threadsBox,view:{
-        narrowing,panelIsOpen:()=>true,scrollToElement:()=>{},setThreadCounts:()=>{},onListChanged:()=>{},
-        refreshAnchorHover:()=>{},travel:{showThread:()=>{},retainPanelLanding:()=>{},retainNarrowing:()=>{}}}});
-      await app.refreshThread();
     }""")
 
 
@@ -6567,7 +6366,7 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
     }
     module = """
 import {projectData, setChildren, threadSurface} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-test-seat', class extends HTMLElement {
   connectedCallback() {
     const datums = ['row'].map(key => {
       const row = document.createElement('section');
@@ -6586,7 +6385,7 @@ export default class extends HTMLElement {
     this.started = true;
     threadSurface(this).update();
   }
-};
+});
 """
     events = [
         {
@@ -6622,9 +6421,10 @@ export default class extends HTMLElement {
             events=events,
         ),
     )
+    _prepare_surface_refresh(page)
     page.evaluate("""async () => {
-      const app = await __lfRuntimeImport('/runtime/application.js');
-      window.refreshProof = app.refreshThread;
+      const app = await window.__lfWidgetApi();
+      window.refreshProof = () => refreshSurface(pageSurface);
       document.querySelector("#fail-widget").addEventListener("click", () => {
         document.querySelector("#seat").fail = true; void refreshProof();
       });
@@ -6655,14 +6455,14 @@ export default class extends HTMLElement {
     reply.click()
     assert (
         page.evaluate("""async () => {
-      const {placeOf} = await __lfRuntimeImport('/runtime/standing-target.js');
+      const {placeOf} = await __lfCheckApi();
       return placeOf(document.activeElement)?.id;
     }""")
         == "subject"
     )
     # A widget outlet can disappear while a required sibling prepares. The page's
     # existing fallback nomination receives its Thread on this same cohort commit.
-    _hold_required_thread_panel(page)
+    _hold_required_thread_reader(page)
     page.evaluate("()=>{window.holdPanel=true;void refreshProof();}")
     page.wait_for_function('typeof releasePanel === "function"')
     page.locator("#retire-outlet").click()
@@ -6685,7 +6485,7 @@ export default class extends HTMLElement {
     proof = page.evaluate("""async () => {
       await refreshProof();
       const {readApplicationPresentation, applicationPresented} =
-        await __lfRuntimeImport('/runtime/semantic-state.js');
+        await window.__lfCheckApi();
       return {pending: readApplicationPresentation().pending, presented: applicationPresented()};
     }""")
     assert "thread" in proof["pending"]
@@ -6713,7 +6513,7 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
     }
     module = """
 import {projectData,setChildren} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-test-seat',class extends HTMLElement{
   connectedCallback(){
     this.style.cssText='display:block;height:360px;overflow:auto';
     const datums=['row'].map(key=>{
@@ -6728,7 +6528,7 @@ export default class extends HTMLElement {
   threadOutlets(targets){
     return targets.map(target=>this.side?target.placement.datumElement[this.side]:null);
   }
-};
+});
 """
     events = [
         {
@@ -6744,8 +6544,22 @@ export default class extends HTMLElement {
             (2, "Source thread", {"section": "subject"}),
         ]
     ]
+    # This journey changes presentation seats, not admitted state. Keep the
+    # origin's freshness at the initial reading so a background state admission
+    # cannot acquire the intentionally held presentation proof.
+    state_readings = []
+
+    def steady_state_origin(page):
+        def state(route):
+            response = route.fetch()
+            state_readings.append(response.json()["reading"])
+            route.fulfill(response=response)
+
+        page.route("**/api/state*", state)
+        page.route("**/api/news*", lambda route: route.fulfill(body=state_readings[0]))
+
     page = open_page(
-        browser,
+        primed(browser, steady_state_origin),
         serve(
             leaf_page(
                 "Cohort ownership",
@@ -6760,18 +6574,23 @@ export default class extends HTMLElement {
             events=events,
         ),
     )
+    _prepare_surface_refresh(page)
     page.evaluate("""async()=>{
-      const app=await __lfRuntimeImport('/runtime/application.js');window.refresh=app.refreshThread;
+      const app=await window.__lfWidgetApi();window.refresh=()=>refreshSurface(pageSurface);
       const rail=document.querySelector('#rail'); const outlet=document.createElement('div');outlet.dataset.lfGen='1';rail.append(outlet);
-      window.pageSurface=app.placePageThreads(rail,async(targets)=>{
-        if(window.holdNext){window.holdNext=false;await new Promise(resolve=>window.releasePage=resolve);}
+      window.pageSurface=app.placePageThreads(rail,async(targets,{signal})=>{
+        if(window.holdNext){
+          window.holdNext=false;
+          window.heldPageSignal=signal;
+          await new Promise(resolve=>window.releasePage=resolve);
+        }
         return targets.map(()=>window.invalid?document.querySelector('#foreign'):outlet);
       });
     }""")
     expect(page.locator("#rail .lf-page-thread")).to_have_count(1)
     expect(page.locator("[data-seat=a] .lf-page-thread")).to_have_count(1)
     page.evaluate("""async () => {
-      const {threadSurface}=await __lfRuntimeImport('/runtime/widget-api.js');
+      const {threadSurface}=await window.__lfWidgetApi();
       const seat=document.querySelector('#seat');
       threadSurface(seat).open(seat.querySelector('[data-lf-datum]'));
     }""")
@@ -6792,7 +6611,7 @@ export default class extends HTMLElement {
     assert (
         page.evaluate("""async()=>{
       document.querySelector('#seat').side='b';window.invalid=true;await refresh();
-      const {applicationPresented}=await __lfRuntimeImport('/runtime/semantic-state.js');return applicationPresented();
+      const {applicationPresented}=await window.__lfCheckApi();return applicationPresented();
     }""")
         is False
     )
@@ -6862,6 +6681,7 @@ export default class extends HTMLElement {
     page.wait_for_function(
         "document.querySelector('.lf-fab-bar').parentElement.dataset.seat === 'a'"
     )
+    assert page.evaluate("() => heldPageSignal.aborted") is True
     current = editor.evaluate(
         "(field)=>({value:field.value,caret:[field.selectionStart,field.selectionEnd,field.selectionDirection]})"
     )
@@ -6905,14 +6725,15 @@ export default class extends HTMLElement {
     )
     # The widget stops offering its seat, so the page presents both threads.
     page.evaluate("""async()=>{
-      const {threadSurface}=await __lfRuntimeImport('/runtime/widget-api.js');
+      const {threadSurface}=await window.__lfWidgetApi();
       const seat=document.querySelector('#seat');seat.side=null;threadSurface(seat).update();
     }""")
     news.click()
     expect(page.locator("#rail .lf-page-thread")).to_have_count(2)
+    assert len(state_readings) == 1
 
 
-def test_source_retired_during_required_panel_prepare_is_not_claimed(browser, serve):
+def test_source_retired_during_required_reader_prepare_is_not_claimed(browser, serve):
     """A source nomination expires before placement if required preparation retires it."""
     page = open_page(
         browser,
@@ -6928,18 +6749,19 @@ def test_source_retired_during_required_panel_prepare_is_not_claimed(browser, se
             anchored=[("subject", None)],
         ),
     )
+    _prepare_surface_refresh(page)
     page.evaluate("""async()=>{
-      const app=await __lfRuntimeImport('/runtime/application.js');
+      const app=await window.__lfWidgetApi();
       const rail=document.querySelector('#rail');const outlet=document.createElement('div');outlet.dataset.lfGen='1';rail.append(outlet);
       window.surface=app.placePageThreads(rail,targets=>{
         window.offered=targets.map(({thread})=>thread.id);
         return targets.map(()=>outlet);
       });
       document.querySelector('#retire').onclick=()=>{document.querySelector('#subject').id='retired';};
-      await app.refreshThread();
-      window.refresh=app.refreshThread;
+      window.refresh=()=>refreshSurface(surface);
+      await refresh();
     }""")
-    _hold_required_thread_panel(page)
+    _hold_required_thread_reader(page)
     expect(page.locator("#rail .lf-page-thread")).to_have_count(1)
     page.evaluate("()=>{window.holdPanel=true;void refresh();}")
     page.wait_for_function('typeof releasePanel === "function"')
@@ -6947,18 +6769,18 @@ def test_source_retired_during_required_panel_prepare_is_not_claimed(browser, se
     assert page.locator("#subject").count() == 0
     page.evaluate("()=>releasePanel()")
     page.wait_for_function("""async()=>{
-      const {applicationPresented}=await __lfRuntimeImport('/runtime/semantic-state.js');return applicationPresented();
+      const {applicationPresented}=await window.__lfCheckApi();return applicationPresented();
     }""")
     expect(page.locator("#rail .lf-page-thread")).to_have_count(0)
 
 
-def test_an_unavailable_user_view_observer_creates_no_agent_work(browser, serve):
-    """Optional view context cannot turn a failed module request into page debt."""
+def test_unavailable_optional_user_view_checks_create_no_agent_work(browser, serve):
+    """Optional view checks cannot turn a failed module request into page debt."""
     page = browser.new_page()
-    page.route("**/runtime/user-view.js", refuse)
+    page.route("**/checks/view.js", refuse)
     with page.expect_event(
         "requestfailed",
-        predicate=lambda request: request.url.endswith("/runtime/user-view.js"),
+        predicate=lambda request: request.url.endswith("/checks/view.js"),
     ):
         page.goto(serve(SUGGESTION_PAGE), wait_until="load")
     wait_until_ready(page)

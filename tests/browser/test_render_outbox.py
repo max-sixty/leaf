@@ -73,10 +73,7 @@ from render_harness import (
     write,
 )
 
-DRAG_HELD = (
-    "async () => (await window.__lfRuntimeImport("
-    "'/runtime/widget-elements.js')).dragHeld()"
-)
+DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -99,11 +96,11 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     # Observe the instant after the immutable rejection publishes and seals, before
     # its queued imperative application. A later settled read cannot see an overclaim.
     page.evaluate("""async () => {
-      const {applicationState, readApplicationPresentation} =
-        await window.__lfRuntimeImport('/runtime/semantic-state.js');
-      let previous = applicationState.read().effective.thread.all.length;
-      applicationState.select(root => root.effective.thread.all.length)
-        .subscribe(count => {
+      const {watchSemantic, readApplication, readApplicationPresentation} =
+        await window.__lfCheckApi();
+      let previous = readApplication().effective.thread.all.length;
+      watchSemantic(root => {
+          const count = root.effective.thread.all.length;
           if (previous > 0 && count === 0) queueMicrotask(() => {
             const {semanticEpoch, presentedEpoch, pending} = readApplicationPresentation();
             window.rejectionPresentation = {semanticEpoch, presentedEpoch, pending};
@@ -407,7 +404,7 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
     page = open_page(browser, serve(BOARD_PAGE))
     outcome = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {widgetController} = await window.__lfWidgetApi();
           const board = document.querySelector('#sprint');
           const controller = widgetController(board);
           const attempt = 'one-attempt-two-actions';
@@ -938,7 +935,7 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
+            """() => { void window.__lfWidgetApi().then(({widgetController}) => {
               const widget = document.querySelector('#sprint');
               const detail = {unit: 'card-baffle', value: 'col-todo', rank: 's'};
               document.getElementById(detail.value).append(document.getElementById(detail.unit));
@@ -1008,7 +1005,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
         """import { once, widgetController } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
+customElements.define("lf-outer-board", class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
   connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
@@ -1019,7 +1016,7 @@ export default class extends HTMLElement {
       for (const card of order) column.append(document.getElementById(card));
     }
   }
-};
+});
 """
     )
     nested = leaf_page(
@@ -1041,7 +1038,7 @@ export default class extends HTMLElement {
 
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
+            """() => { void window.__lfWidgetApi().then(({widgetController}) => {
               const widget = document.querySelector('#outer');
               const detail = {unit: 'outer-card', value: 'outer-done', rank: '0i'};
               document.getElementById(detail.value).append(document.getElementById(detail.unit));
@@ -1050,7 +1047,7 @@ export default class extends HTMLElement {
         )
     holding(page, held, 1, "the outer-board move")
     page.evaluate(
-        """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
+        """() => { void window.__lfWidgetApi().then(({widgetController}) => {
           const widget = document.querySelector('#inner');
           const detail = {unit: 'inner-card', value: 'inner-done', rank: '0i'};
           document.getElementById(detail.value).append(document.getElementById(detail.unit));
@@ -1303,71 +1300,63 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
     page.unroute("**/api/event")
 
 
-def test_a_first_complete_read_restores_its_own_already_undone_action(browser, serve):
-    """Offline presentation has not replayed the log, but a recorded local action is
-    still optimistic DOM. If the first successful read contains both that action and an
-    undo from another tab, the startup guard must not mistake the painted action for one
-    this page never saw."""
+@pytest.mark.parametrize(
+    "source,control",
+    [
+        (BOARD_PAGE, "#card-heater .lf-grip"),
+        (
+            SUGGESTION_PAGE,
+            (
+                '[data-lf-margin-entry-owner="suggestion:sug-refill"]'
+                '[data-lf-margin-entry-key="accept"]:visible'
+            ),
+        ),
+    ],
+)
+def test_widget_actions_wait_for_the_first_complete_read(
+    browser, serve, source, control
+):
+    """A widget cannot decide from authored state alone while history is unavailable."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
     cut = CutOff().hold(page)
-    page.goto(serve(BOARD_PAGE), wait_until="load")
+    page.goto(serve(source), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     page.wait_for_function(
         "() => document.body.getAttribute('data-lf-presented') === '1'"
     )
-
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    heater = page.locator("#card-heater .lf-grip")
-    with page.expect_request("**/api/event"):
-        heater.focus()
-        for key in ["Enter", "ArrowRight", "Enter"]:
-            page.keyboard.press(key)
-    holding(page, held, 1, "the first-read action")
-    assert len(held) == 1
-    accepted_answer = held[0].fetch()
-    attempt = held[0].request.post_data_json["attempt"]
-    accepted = next(
-        event
-        for event in accepted_answer.json()["state"]["events"]
-        if event.get("attempt") == attempt
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "undo", "author": "user", "undoes": accepted["id"]},
-    )
+    action = page.locator(control)
+    expect(action).to_have_attribute("aria-disabled", "true")
 
     cut.restore()
     told(page)
-    cut.cut()
-    expect(page.locator("#col-todo #card-heater")).to_have_count(1)
-    expect(page.locator("#col-done #card-heater")).to_have_count(0)
-    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
-    held[0].fulfill(response=accepted_answer)
-    page.unroute("**/api/event")
+    expect(action).not_to_have_attribute("aria-disabled", "true")
 
 
-def test_a_first_complete_read_does_not_repaint_an_already_undone_settlement(
-    browser, serve
-):
-    """An optimistic record-less decision still yields to the first complete read.
+def test_a_complete_read_does_not_repaint_an_already_undone_settlement(browser, serve):
+    """An optimistic record-less decision still yields to the next complete read.
     If that read contains both the decision and its undo, replay leaves authored markup
-    standing. The send continuation must not repaint the withdrawn decision after that
-    authoritative read has released it."""
+    in place. The send continuation must not repaint the withdrawn decision after that
+    authoritative read has released it.
+
+    A decision waits for the page's first complete read (module-authoring.md,
+    "Decision commands queue while saved state is loading"), so that read is let
+    through and every later one is held until the undo is in the log."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     page.lf_traffic = Traffic(page)
-    cut = CutOff().hold(page)
+    cut = CutOff(lets_through=1).hold(page)
     page.goto(serve(SUGGESTION_PAGE), wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     page.wait_for_function(
         "() => document.body.getAttribute('data-lf-presented') === '1'"
     )
+    accept = suggestion_control(page, "sug-refill", "accept")
+    expect(accept).not_to_have_attribute("aria-disabled", "true")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
-        suggestion_control(page, "sug-refill", "accept").click()
+        accept.click()
     holding(page, held, 1, "the suggestion settlement")
     accepted_answer = held[0].fetch()
     attempt = held[0].request.post_data_json["attempt"]
@@ -1809,16 +1798,16 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
         cut.cut()
         assert (
             page.evaluate("""async () => {
-          const {readApplication} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          const {readApplication} = await window.__lfCheckApi();
           return readApplication().authoritative.taken;
         }""")
             > refusal["state"]["taken"]
         )
     page.evaluate("""async () => {
-      const {applicationState} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+      const {watchSemantic} = await window.__lfCheckApi();
       const widget = document.querySelector('#opt-a').closest('lf-options').id;
       window.refusalValues = [];
-      applicationState.select(root => root).subscribe(root => {
+      watchSemantic(root => {
         window.refusalValues.push(root.effective.widgets.get(widget).state.choose.value);
       });
     }""")
@@ -2319,7 +2308,7 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
     page.wait_for_selector(".lf-fab-input", state="visible")
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
-    standing = page.evaluate("""() => {
+    placed = page.evaluate("""() => {
         const box = document.querySelector('.lf-fab-bar').getBoundingClientRect();
         const touching = [...document.querySelectorAll('main p, main h1')]
             .filter(el => el.checkVisibility())
@@ -2337,8 +2326,8 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
             .map(el => el.id || el.tagName);
         return { touching };
     }""")
-    assert standing["touching"] == [], (
-        f"the box stands on the page's own text: {standing['touching']}"
+    assert placed["touching"] == [], (
+        f"the box stands on the page's own text: {placed['touching']}"
     )
 
 
@@ -2350,7 +2339,7 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
     the passage's draft and return when the user selects that passage again."""
     page = open_page(browser, serve(LONG_PAGE))
     # Start with enough room for the field beside the passage; opening the panel then
-    # changes the body's available right edge around that standing float.
+    # changes the body's available right edge around that float.
     resized(page, 1600, 900)
     page.locator("#p30").scroll_into_view_if_needed()
     page.locator("#p30").click(click_count=3)
@@ -2534,14 +2523,14 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
         layer_widgets={
             "lf-preparation.js": """
 import {once, widgetController} from '/runtime/widget-api.js';
-export default class extends HTMLElement {
+customElements.define('lf-preparation', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     widgetController(this).present(fetch('/preparation-content').then(() => {
       this.dataset.ready = 'yes';
     }));
   }
-};
+});
 """
         },
     )
@@ -2804,8 +2793,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     prior_reading = page.locator("body").get_attribute("data-lf-reading")
     page.evaluate(
         """async () => {
-          const {dragging} = await window.__lfRuntimeImport(
-            '/runtime/widget-elements.js');
+          const {dragging} = await window.__lfWidgetApi();
           dragging(document.body, true);
         }"""
     )
@@ -2816,12 +2804,11 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
     )
     accepted_reading = page.locator("body").get_attribute("data-lf-reading")
     page.wait_for_function(
-        "async () => (await window.__lfRuntimeImport("
-        "'/runtime/semantic-state.js')).readApplicationPresentation()"
+        "async () => (await window.__lfCheckApi()).readApplicationPresentation()"
         ".pending.includes('projection:chrome')"
     )
     assert page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).hasPending()"
+        "async () => (await window.__lfCheckApi()).readApplication().unresolved.length > 0"
     ), "the action left before projection chrome committed its surviving reading"
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("undo")
@@ -2862,14 +2849,13 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
 
     page.evaluate(
         """async () => {
-          const {dragging} = await window.__lfRuntimeImport(
-            '/runtime/widget-elements.js');
+          const {dragging} = await window.__lfWidgetApi();
           dragging(document.body, false);
         }"""
     )
     page.title()  # cross the drag observer and projection retry checkpoints
     assert page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).hasPending()"
+        "async () => (await window.__lfCheckApi()).readApplication().unresolved.length > 0"
     ), "an external wake released pending state from the uncommitted candidate"
     expect(page.locator("body")).to_have_attribute("data-lf-reading", accepted_reading)
 
@@ -2894,7 +2880,7 @@ def test_an_async_projection_wake_cannot_commit_a_fallible_candidate(browser, se
 
     expect(page.locator("body")).to_have_attribute("data-lf-reading", accepted_reading)
     page.wait_for_function(
-        "async () => !(await window.__lfRuntimeImport('/runtime/application.js')).hasPending()",
+        "async () => (await window.__lfCheckApi()).readApplication().unresolved.length === 0",
     )
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
     # The user's comment after the accept is their newest gesture, and a comment is not

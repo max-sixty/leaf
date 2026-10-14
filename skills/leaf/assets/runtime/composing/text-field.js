@@ -42,6 +42,8 @@
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
  * a box wants more than one run of text there, such as a label and the key that sends.
+ * It is drawn in the theme's muted ink; a box that wants another face for it styles
+ * `::part(placeholder)`, which a slotted child inherits.
  *
  * The editor lives while the element is in a document. A field removed and not put
  * back in the same task keeps its state and destroys its view, which releases the
@@ -318,6 +320,7 @@ const lastLineRoom = EditorView.decorations.compute(["doc"], (state) => {
   return last ? Decoration.set([lastLine.range(last.from)]) : Decoration.none;
 });
 
+/** @typedef {LeafText} LeafTextElement For its tag (`runtime-globals.d.ts`). */
 class LeafText extends HTMLElement {
   // The field's one model. Until the element first connects it is a bare EditorState,
   // which holds the value, selection and configuration without a DOM; connecting hands
@@ -406,6 +409,7 @@ class LeafText extends HTMLElement {
     this.#frame.className = "lf-field";
     this.#placeholderLayer.className = "lf-field-placeholder";
     this.#placeholderLayer.setAttribute("aria-hidden", "true");
+    this.#placeholderLayer.setAttribute("part", "placeholder");
     const hint = document.createElement("slot");
     hint.name = "placeholder";
     hint.append(this.#placeholderText);
@@ -557,7 +561,7 @@ class LeafText extends HTMLElement {
   #describe() {
     const content = this.#view?.contentDOM;
     if (!content || !("ariaDescribedByElements" in content)) return;
-    const root = this.getRootNode();
+    const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
     content.ariaDescribedByElements = (this.getAttribute("aria-describedby") ?? "")
       .split(/\s+/)
       .filter(Boolean)

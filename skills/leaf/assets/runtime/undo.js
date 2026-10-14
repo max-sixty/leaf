@@ -19,6 +19,7 @@ import {
   readApplication,
   whenDocumentPresented,
 } from "./semantic-state.js";
+import { runtime } from "./context.js";
 import { pageCommand } from "./keyboard/register.js";
 import { savedReadingSettled } from "./keyboard/bindings.js";
 import { undoSentence } from "./reactions.js";
@@ -45,19 +46,19 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
     const { effective, unresolved } = readApplication();
     // Between versions the page holds no undo list to prune against.
     if (effective.view) {
-      const standing = new Set([
+      const liveAttempts = new Set([
         ...effective.view.undo.map(({ event }) => event.attempt),
         ...unresolved.map((entry) => entry.event.attempt),
       ]);
       for (const kept of reversals.keys())
-        if (!standing.has(kept)) reversals.delete(kept);
+        if (!liveAttempts.has(kept)) reversals.delete(kept);
     }
     reversals.set(attempt, reverse);
   }
 
   function undoable() {
     if (stateApplying()) return null;
-    const head = readApplication().effective.view?.undo[0];
+    const head = runtime.undo[0];
     return head?.newest ? head.event : null;
   }
 
@@ -138,7 +139,7 @@ export function createUndo({ post, stateApplying, unaccountedGesture }) {
     // included. The line drops the chip for as long as that is true rather than
     // promising a press that would undo the wrong thing.
     when: () => !unaccountedGesture() && Boolean(undoable()),
-    run: (...args) => undoLast(...args),
+    run: (/** @type {Parameters<typeof undoLast>} */ ...args) => undoLast(...args),
   });
 
   return {

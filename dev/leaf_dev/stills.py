@@ -51,7 +51,7 @@ from playwright.sync_api import Page, expect
 
 from leaf_dev import ROOT
 from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
-from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
+from leaf_dev.browser import BESIDE, DESKTOP, headless_shell, load, settle, tab
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -164,6 +164,29 @@ def banner_more(page: Page) -> None:
     """The banner's More icon with its keyboard focus paint."""
     page.keyboard.press("Tab")
     page.locator(".lf-banner-more").focus()
+
+
+def floating_thread(page: Page) -> None:
+    """The floating panel (`lf-chrome`) with a thread opened from Threads: its head
+    names the way back, the thread's title and where it stands among the open ones,
+    beside On the page, Resolve and Close."""
+    page.evaluate("localStorage.setItem('lf-chrome', 'floating')")
+    load(page, page.url)
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    page.locator(".lf-fp-thread", has_text="One reconnect in forty").click()
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+
+
+def floating_thread_retitled(page: Page) -> None:
+    """The same head once the thread's opening message is rewritten short, so its
+    title is far narrower than the head."""
+    floating_thread(page)
+    page.locator(".lf-fp-view[data-view=thread] .lf-msg-body").first.dblclick()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Ship it?")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text("Ship it?")
 
 
 def playground_choice(page: Page) -> None:
@@ -479,13 +502,13 @@ def options_in_pane(page: Page) -> None:
 
 
 def tally_after_an_answer(page: Page) -> None:
-    """A queue's tally after Next question and one answer: the count down by one, the
-    answered row's check above the open marks, and Next question's second ask open."""
-    next_question = page.locator("#ar-left .lf-tally-next")
-    next_question.click()
+    """A queue's tally after Next on me and one answer: the count down by one, the
+    answered row's check above the open marks, and Next on me's second ask open."""
+    next_on_me = page.locator("#ar-left .lf-tally-next")
+    next_on_me.click()
     page.locator("#ar-canary-consecutive").click()
     expect(page.locator("#ar-left .lf-tally-words")).to_have_text("8 of 9 to answer")
-    next_question.click()
+    next_on_me.click()
     expect(page.locator("#ar-latency-decision")).to_be_focused()
     settle(page)
 
@@ -650,6 +673,27 @@ def diff_file_reply(page: Page) -> None:
     )
 
 
+def diff_file_resolved_closed(page: Page) -> None:
+    """Both conversations under a diff file resolved, their outlet as it folds them."""
+    diff = page.frame_locator("#dfg-sample iframe").locator("#dfg-patch")
+    resolve = diff.get_by_role("button", name="Resolve thread", exact=True)
+    expect(resolve).to_have_count(2)
+    for remaining in (1, 0):
+        resolve.first.click()
+        expect(resolve).to_have_count(remaining)
+    page.mouse.move(0, 0)
+
+
+def diff_file_resolved(page: Page) -> None:
+    """Both conversations under a diff file resolved, and every resolved disclosure the
+    outlet draws opened."""
+    diff_file_resolved_closed(page)
+    diff = page.frame_locator("#dfg-sample iframe").locator("#dfg-patch")
+    folded = diff.locator(".lf-diff-thread-outlet details:not([open]) > summary")
+    while folded.count():
+        folded.first.click()
+
+
 def diff_line_composer(page: Page) -> None:
     """A line's thread control, number and shared composer in one reading."""
     diff = page.locator("#pr-exact-patch")
@@ -737,8 +781,8 @@ def versions_menu(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open Ask, reached with `q`: its ring and its marker in view."""
-    page.keyboard.press("q")
+    """The next open Ask, reached with `m`: its ring and its marker in view."""
+    page.keyboard.press("m")
     page.locator("lf-ask").first.wait_for()
 
 
@@ -863,6 +907,13 @@ STATES = (
         touch=True,
         region=".lf-banner-more",
     ),
+    State("floating-thread", "ship-review", floating_thread, region=".lf-fp-head"),
+    State(
+        "floating-thread-retitled",
+        "ship-review",
+        floating_thread_retitled,
+        region=".lf-fp-head",
+    ),
     State(
         "playground-choice",
         "notification-playground",
@@ -964,6 +1015,12 @@ STATES = (
     State("visual-review-menu", "developer/visual-review-gallery", visual_review_menu),
     State("diff-file-threads", "developer/diff-thread-gallery", at_rest),
     State("diff-file-reply", "developer/diff-thread-gallery", diff_file_reply),
+    State(
+        "diff-file-resolved-closed",
+        "developer/diff-thread-gallery",
+        diff_file_resolved_closed,
+    ),
+    State("diff-file-resolved", "developer/diff-thread-gallery", diff_file_resolved),
     State(
         "diff-file-reply-dark-touch",
         "developer/diff-thread-gallery",
@@ -1131,6 +1188,13 @@ STATES = (
     ),
     State("plan-card-keyboard", "review-a-plan", card_by_keyboard),
     State("plan-card-keyboard-dark", "review-a-plan", card_by_keyboard, scheme="dark"),
+    State(
+        "thread-choice-hints",
+        "../tests/fixtures/pages/thread-choice-hints",
+        card_by_keyboard,
+        viewport=(741, 838),
+        region=".lf-margin-preview",
+    ),
     State("plan-card-reply", "review-a-plan", card_reply),
     State(
         "plan-card-reply-large", "review-a-plan", card_reply_large, viewport=(1440, 600)
@@ -1530,9 +1594,11 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                 source_roots[arm] = scratch / f"{arm}-source"
                 source_roots[arm].mkdir()
                 copy_committed(
-                    ("examples", "leaf-assets.json"), source_roots[arm], commit
+                    ("examples", "tests/fixtures/pages", "leaf-assets.json"),
+                    source_roots[arm],
+                    commit,
                 )
-        with chrome() as browser, differences(browser, out) as compare:
+        with headless_shell() as browser, differences(browser, out) as compare:
             for state in states:
                 folder = out / state.name
                 folder.mkdir()

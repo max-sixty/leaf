@@ -75,7 +75,7 @@ from leaf_dev.arms import (
     trace_result,
     trace_summary,
 )
-from leaf_dev.browser import chrome, load, settle, tab
+from leaf_dev.browser import headless_shell, load, settle, tab
 from leaf_dev.eval_cases import definition
 from leaf_dev.eval_user import comment_on_passage, decide, reveal
 
@@ -578,7 +578,7 @@ def capture_phase(
             rendered(view)
             settle(view)
 
-    with server as url, chrome() as browser:
+    with server as url, headless_shell() as browser:
         for name, (viewport, _) in WIDTHS.items():
             with tab(browser, viewport=viewport, touch=name == "phone") as view:
                 (arrangement_plain.load if html else load)(view, url)
@@ -736,7 +736,7 @@ def listing(captures: dict[str, list[str]]) -> list[str]:
 def later_messages(subject: str, first: str = "version 1") -> list[str]:
     """The user's messages after the first version, as both judges read them."""
     scenario = CASES[subject]
-    lines = [f'After {first}, the user added a standing preference: "{PREFERENCE}"']
+    lines = [f'After {first}, the user added a lasting preference: "{PREFERENCE}"']
     if comment := scenario.comment:
         lines += ["", f'Then the user commented: "{comment_message(comment)}"']
     if decision := scenario.decision:

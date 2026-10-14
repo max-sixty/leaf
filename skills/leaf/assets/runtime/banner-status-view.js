@@ -7,13 +7,13 @@
  * keeps and announces whether it is open. A publication has no explanation to open,
  * so its layout renders neither, and removing an open explanation closes it.
  *
- * The agent's Tasks count (`queues`) is the view's second box, which the banner places
+ * The agent's On count (`queues`) is the view's second box, which the banner places
  * beside the status rather than inside it, so the banner can give it whichever row
  * leaves the sentence its room (chrome.css). The box is reserved for the count it
  * usually reaches (`queuesWidest`), so the sentence changing never carries it and its
  * changing moves nothing. A count past that widens the box once, and it keeps the width
- * while the page is open. The count is a press, one of the Questions panel's doors
- * (drawers.js wires it), so the panel listing those tasks is one press from where they
+ * while the page is open. The count is a press, one of the On panel's doors
+ * (drawers.js wires it), so the panel listing what it counts is one press from where they
  * are counted.
  *
  * A passing notice shares the words' box (`presentNotice`), and on a phone stands over
@@ -27,15 +27,17 @@ import {
   classMap,
   createRef,
   ref,
-} from "../vendor/browser-runtime.js";
+} from "/vendor/browser-runtime.js";
 import { el, reserve } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { keeps, keepsHidden } from "./keeps.js";
 import { focusDestination, focused } from "./focus.js";
 import { agentName } from "./semantic-state.js";
+import { afterScript } from "./rendering.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
 
+/** @typedef {BannerStatusView} BannerStatusViewElement For its tag (`runtime-globals.d.ts`). */
 class BannerStatusView extends HTMLElement {
   #button = createRef();
   #detail = createRef();
@@ -46,6 +48,29 @@ class BannerStatusView extends HTMLElement {
   #queues = el("button", "lf-status-queues");
   #queuesWidest = "";
   #queuesReserved = "";
+  #presentQueues = () => {
+    const model = this.#model;
+    render(model.queues, this.#queues);
+    keeps(this.#queues, "title", `Show or hide what's on me and on ${agentName()}`);
+    keepsHidden(this.#queues, !model.queues);
+    // The reservation only grows: its digits are tabular, so the longest counts yet
+    // shown are the widest, and a box that shrank back would move them on the next.
+    if (model.queues) {
+      const kept =
+        model.queuesWidest === this.#queuesWidest
+          ? this.#queuesReserved
+          : model.queuesWidest;
+      const reserved = model.queues.length > kept.length ? model.queues : kept;
+      if (
+        model.queuesWidest !== this.#queuesWidest ||
+        reserved !== this.#queuesReserved
+      ) {
+        this.#queuesWidest = model.queuesWidest;
+        this.#queuesReserved = reserved;
+        reserve(this.#queues, [reserved]);
+      }
+    }
+  };
 
   constructor() {
     super();
@@ -83,30 +108,9 @@ class BannerStatusView extends HTMLElement {
   present(model) {
     this.#model = model;
     this.#paint();
-    render(model.queues, this.#queues);
-    keeps(
-      this.#queues,
-      "title",
-      `Show or hide my questions and ${agentName()}'s tasks`,
-    );
-    this.#queues.toggleAttribute("hidden", !model.queues);
-    // The reservation only grows: its digits are tabular, so the longest counts yet
-    // shown are the widest, and a box that shrank back would move them on the next.
-    if (model.queues) {
-      const kept =
-        model.queuesWidest === this.#queuesWidest
-          ? this.#queuesReserved
-          : model.queuesWidest;
-      const reserved = model.queues.length > kept.length ? model.queues : kept;
-      if (
-        model.queuesWidest !== this.#queuesWidest ||
-        reserved !== this.#queuesReserved
-      ) {
-        this.#queuesWidest = model.queuesWidest;
-        this.#queuesReserved = reserved;
-        reserve(this.#queues, [reserved]);
-      }
-    }
+    // Several readings can arrive before this script ends. Paint only its final count;
+    // an intermediate count would be withdrawn before a frame could show it.
+    afterScript(this.#presentQueues);
   }
 
   #paint() {

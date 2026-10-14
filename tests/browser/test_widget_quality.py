@@ -31,7 +31,7 @@ def test_package_render_check_refuses_a_failed_async_paint(tmp_path, headless_sh
     assert made.exit_code == 0, made.output
     (package / "widgets/lf-async-panel.js").write_text("""\
 import { once, readingPaint, whileConnected } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
+customElements.define("lf-async-panel", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
     const paint = readingPaint(this, async () => {
@@ -40,7 +40,7 @@ export default class extends HTMLElement {
     });
     whileConnected(this, () => { paint("instrument"); });
   }
-}
+});
 """)
     ran = subprocess.run(
         [*LEAF_COMMAND, "package", "check", str(package), "--render", "--json"],
@@ -61,11 +61,14 @@ def grows_at_upgrade(tag: str, style: str) -> str:
     return f"""\
 import {{ once }} from "/runtime/widget-api.js";
 
-export default class extends HTMLElement {{
+customElements.define(
+  "{tag}",
+  class extends HTMLElement {{
     connectedCallback() {{
       if (once(this)) this.style.cssText = "{style}";
     }}
-}};
+  }},
+);
 """
 
 
@@ -75,7 +78,9 @@ def keyed(tag: str, badge: str) -> str:
     return f"""\
 import {{ commands, once }} from "/runtime/widget-api.js";
 
-export default class extends HTMLElement {{
+customElements.define(
+  "{tag}",
+  class extends HTMLElement {{
     connectedCallback() {{
       if (!once(this)) return;
       commands(this, "Keyed", [
@@ -83,7 +88,8 @@ export default class extends HTMLElement {{
           title: "Go", run: () => {{}}{badge} }},
       ]);
     }}
-}}
+  }},
+);
 """
 
 

@@ -13,6 +13,7 @@
    rendering readiness until completion or removal; queued updates can independently
    settle while it waits. Local editing defers the render
    region at its newest unpublished reading, without painting a detached owner. */
+import { untracked } from "/vendor/browser-runtime.js";
 import {
   applicationState,
   attachWidgetPresentation,
@@ -26,6 +27,7 @@ import { dragHeld, watchDragRelease } from "./widget-elements.js";
 import { watchOwner } from "./arrivals.js";
 import { readingPaint } from "./presence.js";
 import { holdRendering } from "./rendering.js";
+import { paintKeysWithin } from "./keyboard/scopes.js";
 
 const controllers = new WeakMap();
 const lifecycles = new WeakMap();
@@ -98,7 +100,7 @@ function createWidgetController(owner) {
   let deferredReading = null;
   let stopSelection = null;
   let renderHandle = null;
-  // Whether the standing reading's total render and every subscriber completed.
+  // Whether the current reading's total render and every subscriber completed.
   let drawn = false;
   let preparationHandle = null;
   const pendingPreparations = new Map();
@@ -189,6 +191,8 @@ function createWidgetController(owner) {
       }
       failed(notify(reading));
       drawn = true;
+      // The render may have changed what this widget's commands read from its nodes.
+      paintKeysWithin(owner);
     },
     () => refresh(),
   );
@@ -216,17 +220,21 @@ function createWidgetController(owner) {
     presentRender(latest);
   };
 
-  const publish = () => {
-    const reading = read();
-    if (deferred || dragHeld()) {
-      holdRender(reading);
-      if (dragHeld()) gestureDeferred.add(resumeGestureRender);
-      return;
-    }
-    presentRender(reading);
-  };
+  // The controller is an owner of its own: a paint that mounts its widget connects it,
+  // and what it reads to draw is its selection's to follow, never that paint's.
+  const publish = () =>
+    untracked(() => {
+      const reading = read();
+      if (deferred || dragHeld()) {
+        holdRender(reading);
+        if (dragHeld()) gestureDeferred.add(resumeGestureRender);
+        return;
+      }
+      presentRender(reading);
+    });
 
-  const connect = () => {
+  const connect = () => untracked(connectOwner);
+  const connectOwner = () => {
     if (!owner.isConnected) return;
     for (const promise of pendingPreparations.keys()) holdPreparation(promise);
     if (subscriptions.size && !stopSelection) {
@@ -316,6 +324,8 @@ function createWidgetController(owner) {
         const latest = deferredReading ?? read();
         deferredReading = null;
         if (subscriptions.size) presentRender(latest);
+        // The gesture rewrote this widget's nodes, which its commands may read.
+        paintKeysWithin(owner);
         invalidateDom();
         return latest;
       };

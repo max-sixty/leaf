@@ -216,7 +216,7 @@ def _screen_lines(screens) -> list[str]:
             (
                 "  before handover, have a subagent with only the user's request and "
                 "these screens read the page as the user would "
-                '(page-authoring.md, "Pre-handover review")'
+                '(page-checkpoints.md, "Pre-handover review")'
             )
         ]
     )

@@ -1,7 +1,6 @@
 /* Leaf runtime boot and application composition root. */
-import "./vendor/scoped-registry.js";
 import { registerSampleCommand, onSampleNotice } from "./runtime/sample-child.js";
-import "./vendor/browser-runtime.js";
+import "/vendor/browser-runtime.js";
 import "./runtime/interaction-log.js";
 // Restored panels and the first keyboard gesture share the ordinary synchronous
 // control routes, so their controls must be upgraded before those routes mount.
@@ -29,7 +28,6 @@ import { pagePresented } from "./runtime/page-paint.js";
 import { nextFrame, renderingState, observePreparations } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
-import { approvalBlockingAsks } from "./runtime/asks/model.js";
 import { beginRead } from "./runtime/state-feed.js";
 import {
   applicationState,
@@ -117,7 +115,6 @@ import {
   mountBanner,
   paintApproval,
   queueCounts,
-  renderStatus,
   setThreadCounts,
   stateSignoff,
   toggleBtn,
@@ -130,7 +127,6 @@ import { overflowMenu } from "./runtime/banner-toolbar.js";
 import {
   leavesOffered,
   presentLeaves,
-  renderOthers,
   declareLeavesKeys,
 } from "./runtime/live-leaves.js";
 import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
@@ -138,7 +134,7 @@ import {
   createGoToSequence,
   goToHintLayer,
 } from "./runtime/keyboard/go-to-sequence.js";
-import { bannerFoot } from "./runtime/geometry.js";
+import { bannerFoot, windowChromeBoxes } from "./runtime/geometry.js";
 // The page's own keyboard parts join the register as this module evaluates; every other
 // owner contributes its own as it is constructed below.
 import { declareStanding } from "./runtime/keyboard/page.js";
@@ -151,7 +147,6 @@ import {
   mountShortcutBar,
   renderShortcutBar,
   shortcutBarEl,
-  standingStatusBoxes,
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
 import {
@@ -194,7 +189,9 @@ holdArrivingBounds();
 // settled (`renderingState`), and which native layers expose reading and controls.
 // Job lifecycle tracing binds at enqueue without replacing any rendering callback, and
 // widget preparation tracing at each declaration and its settlement.
-const validationEntry = document.querySelector("script[data-lf-entry]");
+const validationEntry = /** @type {HTMLScriptElement | null} */ (
+  document.querySelector("script[data-lf-entry]")
+);
 if (validationEntry) {
   validationEntry.lfReadiness = pageReadiness;
   validationEntry.lfRenderingState = renderingState;
@@ -230,7 +227,6 @@ const narrowing = createThreadNarrowing({
   readThreads: threadList,
   repaint: () => app.presentThread(),
 });
-const paintVersionApproval = () => paintApproval(approvalBlockingAsks());
 let threadPanelController;
 let drawers;
 let layout;
@@ -286,18 +282,19 @@ const navigation = createNavigation({
   coveringAuxiliaryScroller: auxiliarySurfaces.coveringScroller,
   threadDestinations: {
     openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
-    scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
+    scrollToThread: (id, options) => anchorTravel.scrollToThread(id, options),
     threadHere: () => app.threadDestinations.threadHere(),
     threadAtStanding: () => app.threadDestinations.threadAtStanding(),
     threadPlace: (...args) => app.threadDestinations.threadPlace(...args),
   },
 });
 
-// The standing furniture every generated-hint map is spread around. Both maps read the
-// same three boxes, and they are passed rather than imported so the hint machine keeps
-// no ownership edge back to the shortcut bar it is placed against.
+// The fixed furniture every generated-hint map is spread around: the window's
+// declared chrome (geometry.js), the key line and the banner's foot. Both maps read the
+// same boxes, and they are passed rather than imported so the hint machine keeps no
+// ownership edge back to the shortcut bar it is placed against.
 const hintChrome = {
-  barriers: standingStatusBoxes,
+  barriers: windowChromeBoxes,
   lineBox: () => shortcutBarEl.getBoundingClientRect(),
   viewportTop: bannerFoot,
 };
@@ -309,7 +306,9 @@ const anchorPaint = annotationRenderer?.createAnchorPaint({
   standingThreadId,
   hoveredPanelThreadId: () => {
     const { x, y } = pointerAt();
-    const thread = document.elementFromPoint(x, y)?.closest(".lf-thread");
+    const thread = /** @type {HTMLElement | null | undefined} */ (
+      document.elementFromPoint(x, y)?.closest(".lf-thread")
+    );
     return thread?.parentElement === threadsBox ? thread.dataset.id : null;
   },
   panelThreadForId: (id) =>
@@ -431,7 +430,7 @@ app = mountApplication({
   firstUnreadBtn: panelElements.firstUnreadBtn,
   accompaniedThread: (...args) => landing.accompaniedThread(...args),
   accompanyThread: (...args) => landing.accompanyThread(...args),
-  reportPageError,
+  threadAvailable: !offlineInteractive,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
   wireInput: inputs.wireInput,
@@ -483,9 +482,7 @@ app = mountApplication({
     acceptData,
     notifyDataSubscribers,
     isSignoffDeclared,
-    renderStatus,
-    stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
-    renderOthers: offlineInteractive ? () => undefined : renderOthers,
+    stateSignoff: (next) => stateSignoff(next, layout.syncLayout),
   },
 });
 app.registerThreadPanel({
@@ -516,7 +513,7 @@ declareReading(landingPlace);
 // And where it goes instead while a surface covers the page: the page is inert under one,
 // so the reading above cannot take the user and a step that let go would leave them
 // wherever the closing layer happened to drop them. The modality that covers already
-// answers both halves for whichever surface is standing — the panel, either drawer — and
+// answers both halves for whichever surface is open — the panel, either drawer — and
 // the keyboard register carries the same pair to the dispatcher.
 declareCovering({
   surface: auxiliarySurfaces.coveringSurface,
@@ -567,6 +564,7 @@ const queue = createQueuePanel({
   actions: app.queueActions,
   next: queueWalk.next,
   announce,
+  agentDoor: queueCounts,
 });
 
 const commandHints = createCommandHints({
@@ -594,14 +592,14 @@ pageComment = createPageComment({
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
-// The floating panel stands in for the banner and bottom bar where the user chose it
+// The floating panel stands in for the banner and bottom bar where the reader chose it
 // (prepaint.js, `lfChrome`); a choice made later reloads the page.
 const floatingPanel =
   document.documentElement.lfChrome?.mode === "floating"
     ? createFloatingPanel({
         wireInput: inputs.wireInput,
         threadActions: app.threadActions,
-        registerThreadPresentation: app.registerThreadPresentation,
+        registerChromeThreadPresentation: app.registerChromeThreadPresentation,
         asks: {
           choicesOf: asks.choicesOf,
           open: (id) => app.openAsk(id),
@@ -657,9 +655,7 @@ responseSurface = createResponseSurface({
 reactions = createReactionController({
   marginEntryChoices: app.overlay?.marginEntryChoices,
   marginEntryContextContains: app.overlay?.marginEntryContextContains,
-  foldMarginEntryOptions: app.overlay?.foldMarginEntryOptions,
   openMarginEntryOptions: app.overlay?.openMarginEntryOptions,
-  unfoldedMarginEntries: app.overlay?.unfoldedMarginEntries,
   designModeActive: designMode.active,
   hideComposer: responseSurface.hideComposer,
   syncResponseOptions: responseSurface.syncResponseOptions,
@@ -783,6 +779,7 @@ if (document.documentElement.lfSample) {
 
 drawers = createDrawers({
   doors: { queue: [queueCounts] },
+  views: { queue: queue.views },
   auxiliarySurfaces,
   closePreview: app.overlay?.closePreview,
   leavesOffered,
@@ -886,7 +883,6 @@ if (!offlineInteractive) {
   version.mount();
   mountBanner({
     approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
-    paintApproval: paintVersionApproval,
   });
   auxiliarySurfaces.mount();
   // Connect the search field before mount awaits its rendered input: Lit does not
@@ -1011,7 +1007,7 @@ async function presentPage() {
   auxiliarySurfaces.present();
   presentLeaves();
   paintKeys();
-  paintVersionApproval();
+  paintApproval();
   repaint();
   app.overlay?.flushLayout();
   landFragment();
@@ -1075,10 +1071,11 @@ async function startPage() {
 }
 
 startPage().catch((error) => {
+  if (!document.documentElement.lfDocumentLifetime.active) return;
   const reason = `page failed to start: ${error?.message ?? error}`;
   window.dispatchEvent(
     new CustomEvent("lf-startup-failed", { detail: { reason, error } }),
   );
   reportPageError(error, "page failed to start");
-  renderStatus(error);
+  applicationState.setReach("broken");
 });

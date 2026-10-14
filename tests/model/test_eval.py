@@ -2,6 +2,8 @@
 
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import click
@@ -243,6 +245,59 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
     assert brief["vars"]["prompt"].startswith("Use the Leaf skill")
     assert [assertion["metric"] for assertion in brief["assert"]] == ["judgment"]
 
+    # Exercise Promptfoo's actual Python prompt loader and provider selection
+    # without a model. Echo retains the native input exactly as rendered.
+    config["providers"] = [{"id": "echo", "label": label} for label in labels]
+    config.pop("defaultTest")
+    for test in config["tests"]:
+        test["assert"] = [{"type": "javascript", "value": "true"}]
+    config_path = tmp_path / "promptfoo.json"
+    config_path.write_text(json.dumps(config))
+    results = tmp_path / "results.json"
+    root = Path(__file__).parents[2]
+    subprocess.run(
+        [
+            str(root / "node_modules/.bin/promptfoo"),
+            "eval",
+            "-c",
+            str(config_path),
+            "--no-cache",
+            "--no-share",
+            "-o",
+            str(results),
+        ],
+        env={
+            **os.environ,
+            "PROMPTFOO_PYTHON": sys.executable,
+            "PROMPTFOO_DISABLE_TELEMETRY": "1",
+            "PROMPTFOO_DISABLE_UPDATE_CHECK": "1",
+        },
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    rows = json.loads(results.read_text())["results"]["results"]
+    assert len(rows) == len(labels) * len(config["tests"])
+    for row in rows:
+        label = row["provider"]["label"]
+        output = row["response"]["output"]
+        address = row["testCase"]["metadata"]["case"]
+        task = catalog()[address]["vars"]["prompt"]
+        if label.startswith("codex/"):
+            skill, text = json.loads(output)
+            assert skill == {
+                "type": "skill",
+                "name": "leaf",
+                "path": config["prompts"][0]["config"]["leaf_skills"][label],
+            }
+            assert (
+                Path(skill["path"]).read_text() == f"{label.split('/')[1]} instructions"
+            )
+            assert text == {"type": "text", "text": task}
+        else:
+            assert output.endswith(task)
+            assert output.startswith("Use the Leaf skill")
+
 
 @pytest.mark.usefixtures("codex_cli")
 def test_authoring_columns_keep_case_assertions_and_create_no_shared_workspace(
@@ -351,6 +406,7 @@ def test_internal_instruction_cases_receive_their_arms_source(
         assert injected.endswith(f"{arm} maintainer instructions")
     assert [check["type"] for check in config["tests"][0]["assert"]] == ["llm-rubric"]
     assert config["tests"][0]["vars"]["prompt"] == catalog()[address]["vars"]["prompt"]
+    assert config["prompts"][0]["config"]["leaf_skills"] == {}
 
 
 def test_instruction_cases_selected_together_each_receive_their_own_source(tmp_path):
@@ -392,7 +448,7 @@ def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
     payloads = arms(tmp_path, "candidate")
     work = tmp_path / "work"
     work.mkdir()
-    provider = native_provider("codex", payloads["candidate"], work)
+    provider, installed_skill = native_provider("codex", payloads["candidate"], work)
     settings = provider["config"]
     home = Path(settings["cli_env"]["CODEX_HOME"])
     registry = next(home.rglob("registry.json"), None)
@@ -400,6 +456,7 @@ def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
     assert json.loads(registry.read_text()) == {"arm": "candidate"}
     skill = registry.parent.parent
     assert (skill / "SKILL.md").read_text() == "candidate instructions"
+    assert installed_skill == skill / "SKILL.md"
     assert (skill / "../../bin/leaf").read_text() == "candidate launcher"
 
 

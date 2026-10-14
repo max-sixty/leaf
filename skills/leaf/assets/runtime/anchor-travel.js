@@ -58,7 +58,7 @@ import { threadNames } from "./thread/model.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
 import { closestAcross, rangeOf, selectEnds } from "./passages.js";
-import { standingPoint } from "./pointed-place.js";
+import { livePoint } from "./pointed-place.js";
 import { PRESSES } from "./control-selectors.js";
 import { typesText } from "./focus.js";
 import { openingPassage, passageBlock } from "./reading-place.js";
@@ -74,6 +74,15 @@ export function scrollToFragment(element) {
   scrollIntoView(element, { behavior: "auto", block: "start" });
 }
 
+/** @param {{
+ *   anchors: any,
+ *   surfaces: any,
+ *   currentThreads: typeof import("./thread/state.js").allThreads,
+ *   refreshThread: () => unknown,
+ *   focusForNavigation: any,
+ *   threadFocusTarget: any,
+ *   announce: any,
+ * }} travel */
 export function createAnchorTravel({
   anchors,
   surfaces,
@@ -93,8 +102,8 @@ export function createAnchorTravel({
   // arrival commits it only once its final destination exists (history.js).
   // A destination already readable where the user stands is no departure. A trip that
   // names its `landing` while any of the last trip's landing still shows continues that
-  // journey, whether it goes to threads or Questions: it replaces the journey's entry, which
-  // already holds where the journey began. Choosing a different authored passage by
+  // journey, whether it goes to threads or the On panel: it replaces the journey's entry,
+  // which already holds where the journey began. Choosing a different authored passage by
   // pointer or Tab ends the journey, as does moving off its landing. The next successful
   // trip then saves the newly chosen working place. A journey is not a walk (the glossary's ordered movement
   // among one category of destination): steps of the thread walk and of the queue
@@ -266,6 +275,7 @@ export function createAnchorTravel({
   // own (an ask's arrival region), built on the reading it is handed. Clearing a surface
   // can take the focus out of it, so the caller's retained `intent` hands the gesture
   // over to where that leaves the user rather than reading the move as a newer one.
+  /** @param {{landing?: () => unknown, url?: URL, keep?: boolean, intent: any}} trip */
   function prepareTrip({ landing = null, url, keep = false, intent }) {
     const write = prepareEntry();
     const continuing = landing && stillLanded();
@@ -418,6 +428,7 @@ export function createAnchorTravel({
   // not move with that region, so a fixed boundary ends the scrollers that move it
   // (`scrollersOf`); a scroller inside that boundary still owns its ordinary descendants.
 
+  /** @param {{at: any, align?: any, block?: string, behavior?: string, when?: () => boolean}} place */
   function placeScroll(
     { at, align = at, block = "center", behavior = scrollBehavior(), when },
     replacedView,
@@ -432,7 +443,7 @@ export function createAnchorTravel({
       });
   }
 
-  // Synchronous: the move is the caller's gesture, so its intent is the one standing now.
+  // Synchronous: the move is the caller's gesture, so its intent is the current one.
   function scrollToElement(element, behavior = scrollBehavior(), block = "center") {
     const { replacedView } = reveal(element, retainUserIntent());
     placeScroll({ at: element, behavior, block }, replacedView);
@@ -445,10 +456,10 @@ export function createAnchorTravel({
     const holder = placeHolder(where);
     if (!holder) return null;
     const destination = placeBox(where);
-    const standing = surfaces.selectedSurface();
+    const selected = surfaces.selectedSurface();
     const seen = clippedPlace(
       where,
-      standing ? clipsPast([standing]) : new Map(),
+      selected ? clipsPast([selected]) : new Map(),
       destination,
     );
     return seen && { holder, destination, seen };
@@ -497,13 +508,13 @@ export function createAnchorTravel({
       ? rangeOf([segment])
       : (targetElement(placement) ?? targetPlace(placement));
     return (
-      standingPoint(
-        targetElement(placement) ?? targetPlace(placement),
-        placement?.point,
-      ) ?? where
+      livePoint(targetElement(placement) ?? targetPlace(placement), placement?.point) ??
+      where
     );
   };
 
+  /** @param {string} id
+   * @param {{part?: any, focus?: boolean, keep?: boolean, presented?: any, intent?: any}} [options] */
   async function scrollToThread(
     id,
     { part = null, focus = true, keep = false, presented = null, intent } = {},
@@ -513,12 +524,12 @@ export function createAnchorTravel({
     const anchor = thread?.anchor;
     const status = anchors.placedAt(id)?.status;
     const hydrating = (anchor?.datum && status !== "outdated") || anchor?.visual;
-    const standing = threadDestination(id);
+    const destination = threadDestination(id);
     // Decided before the trip awaits anything: a destination that is not readable now,
     // or one a widget has yet to hydrate, is somewhere else.
     const landing = () => threadDestination(id);
     const departure = prepareTrip({ landing, keep, intent: mayArrive });
-    if (standing || hydrating) departure.plan(standing);
+    if (destination || hydrating) departure.plan(destination);
     if (hydrating) {
       const source = sectionOf(anchor);
       // A visual settles on its part, including cancelling a pending replacement of

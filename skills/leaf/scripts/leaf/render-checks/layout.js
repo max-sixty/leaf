@@ -2,6 +2,7 @@ import { pageScroller, readingPosture, TEXT_BOX } from "/runtime/widget-api.js";
 import {
   pageDocument,
   readingRegions,
+  renderedParent,
   shownBand,
   shownRegionBounds,
   uiInside,
@@ -18,6 +19,28 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // A block the theme grows past the column (layouts.css). A block allocated `column`
 // keeps the measure as text does, so these checks read it as ordinary flow.
 const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+
+// The box a block's width and margins resolve against: its nearest ancestor that
+// generates a block, inside that ancestor's border, padding and any scrollbar gutter,
+// at the place its scroll puts it. An inline holder, such as a link around a chart, is
+// passed as prepaint.js's `holderOf` passes it, since the browser sets a block inside
+// an inline in its holder's flow; read from the link, a linked breakout was named for
+// standing off the axis of a room 0px wide.
+function contentBox(el) {
+  let s = getComputedStyle(el);
+  while (s.display === "contents" || s.display === "inline")
+    s = getComputedStyle((el = renderedParent(el)));
+  const left =
+    el.getBoundingClientRect().left +
+    el.clientLeft +
+    parseFloat(s.paddingLeft) -
+    el.scrollLeft;
+  return {
+    left,
+    right:
+      left + el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight),
+  };
+}
 
 // The page's own margin residents, without Leaf's rail: that holds only markers and
 // never moves the column. Both a sweep sample and its breakpoint refinement read the
@@ -129,7 +152,7 @@ export function heldPanes() {
 const AUTHORED_PANE = '[data-lf-reading-role="pane"]:not([data-lf-generated])';
 
 // Each region of a screen that runs past its room. A full-height workspace is a screen
-// rather than a page to scroll (page-authoring.md, A workspace), so each region of it the
+// rather than a page to scroll (page-layout.md, A workspace), so each region of it the
 // page wrote is meant to show what it holds: a pane the page wrote, and the body itself,
 // which the Layout marks (`--lf-reading-region: layout`, layouts.css). A bounded block
 // declares that it scrolls, and a widget's own regions are its to hold, so neither is
@@ -333,6 +356,26 @@ export function misplacedBoxes() {
       if (draws(a)) return a;
     return null;
   };
+  // A box holding a breakout of its own may grow round it, as an Ask allocated the
+  // column does so its ring goes round the block (the default package's ask.css): its
+  // margins carry its edges out and equal padding keeps its content box on the column.
+  // So its content box is held to the column, where its own words stand, and its border
+  // box is asked what a wide widget's is. Holding the border box to the column named
+  // every such Ask as standing in the margin; excusing a box no wider than its block
+  // still named an Ask round a two-column table, which reaches further than the table
+  // does, and passed a box pulled into the margin with its words. A breakout the page
+  // arranged keeps to its holder (prepaint.js), so its holder does not grow, and nor
+  // does an inline box, whose words stand where its own box does.
+  const holdsBreakout = (el) =>
+    [...el.children].some(
+      (child) =>
+        child.matches(BREAKOUT) &&
+        !child.hasAttribute("data-lf-arranged") &&
+        child.checkVisibility(),
+    );
+  // How far a box stands past the band from `start` to `end`.
+  const outside = (box, start, end) =>
+    Math.round(Math.max(box.right - end, start - box.left));
   const over = new Map();
   for (const el of main.querySelectorAll("*")) {
     const wide = el.matches(BREAKOUT);
@@ -346,19 +389,17 @@ export function misplacedBoxes() {
     if (!pageBox(el) || !el.checkVisibility() || (!wide && answeredFor(el))) continue;
     const b = el.getBoundingClientRect();
     if (b.width < 1) continue;
-    const frame = wide ? framing(el) : null;
     const host = wide ? null : insideWide(el);
-    const bound = (frame || host)?.getBoundingClientRect() ?? null;
-    const past =
-      wide || host
-        ? Math.round(
-            Math.max(
-              b.right - (bound ? bound.right : roomRight),
-              (bound ? bound.left : roomLeft) - b.left,
-            ),
-          )
-        : Math.round(Math.max(b.right - right, left - b.left));
-    if (past > 1) over.set(el, [past, wide, frame, host]);
+    if (!wide && !host) {
+      const grown = getComputedStyle(el).display !== "inline" && holdsBreakout(el);
+      const past = outside(grown ? contentBox(el) : b, left, right);
+      if (past > 1) over.set(el, [past, false, null, null]);
+      if (past > 1 || !grown) continue;
+    }
+    const frame = host ? null : framing(el);
+    const bound = (frame || host)?.getBoundingClientRect();
+    const past = outside(b, bound?.left ?? roomLeft, bound?.right ?? roomRight);
+    if (past > 1) over.set(el, [past, !host, frame, host]);
   }
   // Each finding is a record (findings.py) carrying its element's place
   // (locate.js) beside its code, so a reader that takes this pass at several widths
@@ -406,6 +447,34 @@ export function misplacedBoxes() {
       );
     });
     if (hit) report(el, "over-margin", { resident: at(hit) });
+    // The theme grows a breakout past its holder by its margins and gives it the
+    // room's width (layouts.css), so it spans exactly the room its margins open. A
+    // width of the box's own, such as a page rule sizing an iframe, overrides the
+    // width and keeps the margins, so the box starts where the room does and ends
+    // somewhere else, off the prose axis, while every bound above still holds. The
+    // computed margins are the ones the theme set, however the box's own width
+    // over-constrains them. Only growth the margins made counts: a positioned box is
+    // not grown (prepaint.js, `indents`), and a table is placed by its translation
+    // (layouts.css), so its margins do not say where its room is. Only a box the user
+    // can see is read.
+    if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
+      continue;
+    const s = getComputedStyle(el);
+    const grownL = -parseFloat(s.marginLeft);
+    const grownR = -parseFloat(s.marginRight);
+    if ((grownL > 1 || grownR > 1) && s.translate === "none") {
+      const h = contentBox(el.parentElement);
+      const left = h.left - grownL;
+      const right = h.right + grownR;
+      const off = Math.round(
+        Math.max(Math.abs(b.left - left), Math.abs(b.right - right)),
+      );
+      if (off > 1)
+        report(el, "off-axis", {
+          drawn: Math.round(b.width),
+          granted: Math.round(right - left),
+        });
+    }
   }
   // The other half of excusing a resident: an excuse is only good if the user can
   // see the thing. Both readings above hand a box to something else to answer for —

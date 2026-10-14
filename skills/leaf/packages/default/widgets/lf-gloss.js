@@ -25,148 +25,151 @@ import {
 
 let nextId = 0;
 
-export default class extends HTMLElement {
-  #bubble = null;
-  #dismissed = false;
-  #focused = false;
-  #hovered = false;
-  #mark = null;
-  #pinned = false;
-  #shown = false;
+customElements.define(
+  "lf-gloss",
+  class extends HTMLElement {
+    #bubble = null;
+    #dismissed = false;
+    #focused = false;
+    #hovered = false;
+    #mark = null;
+    #pinned = false;
+    #shown = false;
 
-  connectedCallback() {
-    if (!once(this)) return;
-    this.#build();
-    whileConnected(this, (signal) => {
-      this.#listen(signal);
-      this.#sync();
-      return () => {
-        this.#hovered = false;
-        this.#focused = false;
-        this.#pinned = false;
-        this.#shown = false;
-      };
-    });
-  }
-
-  #build() {
-    const phrase = this.textContent.replace(/\s+/g, " ").trim();
-    this.#mark = offer("button", "lf-gloss-mark");
-    this.#mark.setAttribute("aria-label", `Explain “${phrase}”`);
-    this.#mark.setAttribute("aria-expanded", "false");
-
-    this.#bubble = document.createElement("span");
-    do this.#bubble.id = `lf-gloss-tip-${++nextId}`;
-    while (document.getElementById(this.#bubble.id));
-    this.#bubble.className = "lf-gloss-popover";
-    this.#bubble.dataset.lfGen = "1";
-    this.#bubble.dataset.lfSaid = "tip";
-    this.#bubble.setAttribute("popover", "auto");
-    this.#bubble.setAttribute("role", "note");
-    this.#bubble.textContent = this.getAttribute("tip");
-    const anchor = `--lf-gloss-${nextId}`;
-    this.style.anchorName = anchor;
-    this.#bubble.style.positionAnchor = anchor;
-    this.#mark.setAttribute("aria-controls", this.#bubble.id);
-    this.#mark.setAttribute("aria-describedby", this.#bubble.id);
-    // x-says="after" puts the tip directly after the authored body and before any
-    // trailing generated chrome. Writing that declared span here lets this module
-    // also make it the popover; renderSaid sees the same marker and adds no duplicate.
-    this.append(this.#bubble, this.#mark);
-    this.#bubble.addEventListener("toggle", (event) => {
-      if (event.newState !== "closed" || !this.#shown || isNativeLayer(this.#bubble))
-        return;
-      this.#shown = false;
-      this.#pinned = false;
-      this.#dismissed = true;
-      this.#mark.setAttribute("aria-expanded", "false");
-      paintKeys();
-    });
-  }
-
-  #listen(signal) {
-    this.addEventListener(
-      "pointerenter",
-      (event) => {
-        // A tap synthesizes pointerenter too. Treating that as hover leaves a card
-        // permanently open after its click unpins it, so only a hovering mouse takes
-        // this route; touch reaches the same state through click.
-        if (event.pointerType !== "mouse") return;
-        this.#hovered = true;
-        this.#dismissed = false;
+    connectedCallback() {
+      if (!once(this)) return;
+      this.#build();
+      whileConnected(this, (signal) => {
+        this.#listen(signal);
         this.#sync();
-      },
-      { signal },
-    );
-    this.addEventListener(
-      "pointerleave",
-      (event) => {
-        if (event.pointerType !== "mouse") return;
-        this.#hovered = false;
-        this.#dismissed = false;
-        this.#sync();
-      },
-      { signal },
-    );
-    this.addEventListener(
-      "focusin",
-      () => {
-        this.#focused = true;
-        this.#dismissed = false;
-        this.#sync();
-      },
-      { signal },
-    );
-    this.addEventListener(
-      "focusout",
-      (event) => {
-        if (this.contains(event.relatedTarget)) return;
-        this.#focused = false;
-        this.#dismissed = false;
-        this.#sync();
-      },
-      { signal },
-    );
-    this.addEventListener(
-      "lf-reveal",
-      (event) => {
-        // A comment can rest on the x-says tip itself. Following it asks every
-        // ancestor to reveal the target before scrolling; open only for that hidden
-        // span, not for an ordinary comment on the phrase beside it.
-        const target = event.detail?.target;
-        if (target !== this.#bubble && !this.#bubble.contains(target)) return;
-        this.#dismissed = false;
-        this.#pinned = true;
-        this.#sync();
-      },
-      { signal },
-    );
-    this.addEventListener("click", (event) => this.#click(event), { signal });
-  }
-
-  #click(event) {
-    if (event.defaultPrevented || reachedForWords(this)) return;
-    const nested = worksInside(event.target, this);
-    if (nested && nested !== this.#mark) return;
-    if (event.target.closest(".lf-gloss-popover")) return;
-    this.#dismissed = false;
-    this.#pinned = !this.#pinned;
-    this.#sync();
-  }
-
-  #sync() {
-    if (!this.#bubble?.isConnected) return;
-    const show = !this.#dismissed && (this.#hovered || this.#focused || this.#pinned);
-    const open = isNativeLayer(this.#bubble);
-    if (show === this.#shown && show === open) return;
-    this.#shown = show;
-    keeps(this.#mark, "aria-expanded", show);
-    paintKeys();
-
-    if (show) {
-      showNativeLayer(this.#bubble);
-    } else {
-      if (isNativeLayer(this.#bubble)) closeNativeLayer(this.#bubble);
+        return () => {
+          this.#hovered = false;
+          this.#focused = false;
+          this.#pinned = false;
+          this.#shown = false;
+        };
+      });
     }
-  }
-}
+
+    #build() {
+      const phrase = this.textContent.replace(/\s+/g, " ").trim();
+      this.#mark = offer("button", "lf-gloss-mark");
+      this.#mark.setAttribute("aria-label", `Explain “${phrase}”`);
+      this.#mark.setAttribute("aria-expanded", "false");
+
+      this.#bubble = document.createElement("span");
+      do this.#bubble.id = `lf-gloss-tip-${++nextId}`;
+      while (document.getElementById(this.#bubble.id));
+      this.#bubble.className = "lf-gloss-popover";
+      this.#bubble.dataset.lfGen = "1";
+      this.#bubble.dataset.lfSaid = "tip";
+      this.#bubble.setAttribute("popover", "auto");
+      this.#bubble.setAttribute("role", "note");
+      this.#bubble.textContent = this.getAttribute("tip");
+      const anchor = `--lf-gloss-${nextId}`;
+      this.style.anchorName = anchor;
+      this.#bubble.style.positionAnchor = anchor;
+      this.#mark.setAttribute("aria-controls", this.#bubble.id);
+      this.#mark.setAttribute("aria-describedby", this.#bubble.id);
+      // x-says="after" puts the tip directly after the authored body and before any
+      // trailing generated chrome. Writing that declared span here lets this module
+      // also make it the popover; renderSaid sees the same marker and adds no duplicate.
+      this.append(this.#bubble, this.#mark);
+      this.#bubble.addEventListener("toggle", (event) => {
+        if (event.newState !== "closed" || !this.#shown || isNativeLayer(this.#bubble))
+          return;
+        this.#shown = false;
+        this.#pinned = false;
+        this.#dismissed = true;
+        this.#mark.setAttribute("aria-expanded", "false");
+        paintKeys();
+      });
+    }
+
+    #listen(signal) {
+      this.addEventListener(
+        "pointerenter",
+        (event) => {
+          // A tap synthesizes pointerenter too. Treating that as hover leaves a card
+          // permanently open after its click unpins it, so only a hovering mouse takes
+          // this route; touch reaches the same state through click.
+          if (event.pointerType !== "mouse") return;
+          this.#hovered = true;
+          this.#dismissed = false;
+          this.#sync();
+        },
+        { signal },
+      );
+      this.addEventListener(
+        "pointerleave",
+        (event) => {
+          if (event.pointerType !== "mouse") return;
+          this.#hovered = false;
+          this.#dismissed = false;
+          this.#sync();
+        },
+        { signal },
+      );
+      this.addEventListener(
+        "focusin",
+        () => {
+          this.#focused = true;
+          this.#dismissed = false;
+          this.#sync();
+        },
+        { signal },
+      );
+      this.addEventListener(
+        "focusout",
+        (event) => {
+          if (this.contains(/** @type {Node | null} */ (event.relatedTarget))) return;
+          this.#focused = false;
+          this.#dismissed = false;
+          this.#sync();
+        },
+        { signal },
+      );
+      this.addEventListener(
+        "lf-reveal",
+        (event) => {
+          // A comment can rest on the x-says tip itself. Following it asks every
+          // ancestor to reveal the target before scrolling; open only for that hidden
+          // span, not for an ordinary comment on the phrase beside it.
+          const target = event.detail?.target;
+          if (target !== this.#bubble && !this.#bubble.contains(target)) return;
+          this.#dismissed = false;
+          this.#pinned = true;
+          this.#sync();
+        },
+        { signal },
+      );
+      this.addEventListener("click", (event) => this.#click(event), { signal });
+    }
+
+    #click(event) {
+      if (event.defaultPrevented || reachedForWords(this)) return;
+      const nested = worksInside(event.target, this);
+      if (nested && nested !== this.#mark) return;
+      if (event.target.closest(".lf-gloss-popover")) return;
+      this.#dismissed = false;
+      this.#pinned = !this.#pinned;
+      this.#sync();
+    }
+
+    #sync() {
+      if (!this.#bubble?.isConnected) return;
+      const show = !this.#dismissed && (this.#hovered || this.#focused || this.#pinned);
+      const open = isNativeLayer(this.#bubble);
+      if (show === this.#shown && show === open) return;
+      this.#shown = show;
+      keeps(this.#mark, "aria-expanded", show);
+      paintKeys();
+
+      if (show) {
+        showNativeLayer(this.#bubble);
+      } else {
+        if (isNativeLayer(this.#bubble)) closeNativeLayer(this.#bubble);
+      }
+    }
+  },
+);

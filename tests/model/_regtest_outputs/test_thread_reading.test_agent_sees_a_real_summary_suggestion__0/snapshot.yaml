@@ -1,7 +1,7 @@
 # The summary hint from real thread events and the delivery an explicit wait prints.
 
 delivery:
-  format: leaf-delivery-v5
+  format: leaf-delivery/6
   id: <delivery>
   created_at: <time>
   acknowledge: >-

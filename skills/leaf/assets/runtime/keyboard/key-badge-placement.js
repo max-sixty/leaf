@@ -21,10 +21,10 @@
    because what it measures is drawn where it stands rather than moved somewhere legible. */
 import { closestAcross, elementFromPointAcross, inChrome } from "../passages.js";
 import { PRESSES } from "../control-selectors.js";
-import { bottomChromeBoxes } from "./shortcut-bar.js";
 import {
   bannerFoot,
   layoutWindow,
+  windowChromeBoxes,
   shownParts,
   shownRect,
   startsAt,
@@ -53,7 +53,7 @@ export function keyBadgePlacement() {
   const clips = new Map();
   const covered = bannerFoot();
   const room = { ...layoutWindow(), top: covered };
-  const chrome = bottomChromeBoxes();
+  const chrome = windowChromeBoxes();
   const kept = [...chrome];
 
   // What the user can see of a box: the window, less the banner standing over its top.
@@ -175,7 +175,7 @@ export function keyBadgePlacement() {
       !box ||
       box.right <= box.left ||
       box.bottom <= box.top ||
-      kept.some((standing) => overlaps(box, standing))
+      kept.some((other) => overlaps(box, other))
     )
       return false;
     kept.push(box);
@@ -217,7 +217,7 @@ export function keyBadgePlacement() {
     const free = (box) =>
       box.right > box.left &&
       box.bottom > box.top &&
-      !kept.some((standing) => overlaps(box, standing));
+      !kept.some((other) => overlaps(box, other));
     const seated = [];
     for (const { chip, seat, owner, corner, start } of measured) {
       const places = [
@@ -228,6 +228,7 @@ export function keyBadgePlacement() {
       ].map(([x, y]) => {
         const left = start.left + x - corner.left;
         const top = start.top + y - corner.top;
+        /** @type {DOMRect & {held?: boolean}} */
         const place = new DOMRect(
           clamp(left, 0, right - start.width),
           clamp(top, covered, bottom - start.height),

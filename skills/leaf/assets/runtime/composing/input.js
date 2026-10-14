@@ -29,7 +29,7 @@
 // What the box holds changes in the turn that changes it: the words and attached images
 // (the field's own value, which its caret and every reader after the writer depend on),
 // and whether a send or upload is under way. What that looks like is painted once per
-// frame, in the runtime's one standing paint (repaint.js): the send button's name, its
+// frame, in the runtime's one repaint frame (repaint.js): the send button's name, its
 // disabled state and the placeholder in `paintInputs`, and the floating composer's
 // placement in chrome layout's pass, which runs first. A change marks its box stale and
 // asks for that paint, so a keystroke, an open that loads a draft twice, and a send that
@@ -37,7 +37,7 @@
 // interleaving a forced style recalculation with each. That paint runs in the frame the
 // change first shows in, so the button and placeholder never trail the words.
 import { rememberWriting } from "../drafts.js";
-import { keys, paintKeys } from "../keyboard/scopes.js";
+import { keys, paintKeysWithin } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
 import {
   advertisesKeys,
@@ -49,7 +49,7 @@ import { readAttachedMedia, scopedMediaUrl, writeAttachedMedia } from "../media.
 import { announce, notice } from "../notifications.js";
 import { iconElement, iconTemplate } from "../icons.js";
 import { drawingThumbnail } from "./drawing-context.js";
-import { LitElement, html } from "../../vendor/browser-runtime.js";
+import { LitElement, html } from "/vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused } from "../focus.js";
@@ -66,6 +66,7 @@ const MEDIA_SHELF_TAG = "leaf-attached-media-shelf";
 // control, so nothing rides along with a comment unseen or beyond the user's reach. The
 // drawing also takes back its last stroke here: the route a pointer or a finger has to
 // that, wherever the composer stands.
+/** @typedef {AttachedMediaShelf} AttachedMediaShelfElement For its tag (`runtime-globals.d.ts`). */
 class AttachedMediaShelf extends LitElement {
   static properties = {
     model: { attribute: false },
@@ -78,7 +79,7 @@ class AttachedMediaShelf extends LitElement {
     this.undoIcon = iconElement("undo", "lf-action-icon");
     this.removeIcon = iconElement("cross", "lf-action-icon");
     // The picture is rebuilt only when the drawing changes, so a repaint that changes
-    // nothing about it leaves its node standing.
+    // nothing about it leaves its node in place.
     this.pictured = { drawing: null, node: null };
   }
 
@@ -169,11 +170,14 @@ if (!customElements.get(MEDIA_SHELF_TAG))
 // this module ask through this seam for the complete draft; an unwired box keeps
 // its ordinary value.
 export const draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
+// Ask a wired field to paint again, as its own `sync()` does, where what its hint or
+// name reads has changed and the caller holds the field rather than its wiring.
+export const syncInput = (ta) => inputDrafts.get(ta)?.();
 // Boot binds one input owner to the app's upload command and contextual-hint
 // reading. Fields keep those capabilities for their lifetime; importing this module
 // never installs or replaces application callbacks.
 export function createCompositionInputs({ uploadMedia, inputHint }) {
-  // The standing paint paints every box whose own state changed since it last ran, and
+  // The repaint frame paints every box whose own state changed since it last ran, and
   // the previous and current box for focus and for the contextual-entry hint, since
   // either may need to lose or gain its hint. The repaint owner asks for that paint on
   // every focus move (repaint.js).
@@ -465,7 +469,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         if (shown && focused() === sendBtn) focusDestination(ta, "return");
         if (!shown && focused() === mic) focusDestination(ta, "return");
       }
-      paintKeys();
+      // Which of its controls the box shows moves its own keys, not the page's.
+      paintKeysWithin(field);
+      if (submitIn) paintKeysWithin(submitIn);
     };
     const refresh = () => {
       if (dictationPhase() === "idle") {
@@ -490,7 +496,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // sync() asks for the paint of what the box holds. It is not how a draft gets in:
     // what the user would miss is the words and the attached images together, and the
     // images show only in the shelf, so a caller writing .value states half a draft.
-    // Emptying a box that way left an image standing in a box the runtime then read as
+    // Emptying a box that way left an image in a box the runtime then read as
     // still holding something — the box said "draft kept" over a comment it had just
     // sent, and the picture rode into the next passage's draft.
     const sync = () => refresh();
@@ -518,7 +524,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     };
     inputDrafts.set(ta, sync);
     // The box's first paint names its send button and placeholder, and keeps the focus
-    // bookkeeping if a caller wires one that is already standing.
+    // bookkeeping if a caller wires one the user already stands in.
     refresh();
     const submit = async (sender) => {
       if (sending || uploading || busy()) return;
@@ -696,7 +702,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         id: "text.send",
         keys: submitBindings,
         label: submitLabel,
-        description: "Submit what I've typed",
+        description: "Submit the text",
         title: sends,
         lineWhen: () =>
           hasContent(draftValue()) || !rows.some((row) => row.when?.() ?? true),

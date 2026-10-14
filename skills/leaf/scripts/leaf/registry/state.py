@@ -232,7 +232,7 @@ def validate_deciding_verb(tag: str, entry: dict, path) -> None:
 def validate_answered_conditions(declarations: dict, path) -> None:
     # Asked only after the record and retirement gates above have reported their
     # more fundamental structural errors. Each answering verb's condition reads state
-    # the verb itself keeps: a whole-widget value, a standing action, or, for a verb
+    # the verb itself keeps: a whole-widget value, an action in force, or, for a verb
     # recording positions, the emptiness of one member container inside the widget.
     for tag, entry in declarations.items():
         for verb, condition in (

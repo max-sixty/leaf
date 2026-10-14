@@ -197,7 +197,7 @@
 .lf-diff-file-actions:empty {
   display: none;
 }
-.lf-diff-comment {
+:is(.lf-diff-comment, .lf-diff-fold-all) {
   border-color: transparent;
   background: transparent;
   color: var(--muted);
@@ -205,9 +205,19 @@
 .lf-diff-file-comment {
   --lf-icon-action-hit: var(--lf-diff-action-h);
 }
-.lf-diff-file-comment:is(:hover, [data-lf-focus]) {
+:is(.lf-diff-file-comment, .lf-diff-fold-all):is(:hover, [data-lf-focus]) {
   background: var(--chip);
   color: var(--ink);
+}
+.lf-diff-fold-all {
+  --lf-icon-action-hit: max(24px, var(--aim-floor));
+  margin-inline-end: -3px;
+}
+.lf-diff-fold-all[data-lf-focus] {
+  outline: none;
+}
+.lf-diff-fold-all[inert] {
+  visibility: hidden;
 }
 [data-gutter] > :has(> .lf-diff-line-comment) {
   position: relative;
@@ -317,6 +327,8 @@
   white-space: nowrap;
 }
 :scope:host(.lf-rendered) {
+  background: none;
+  color: inherit;
   color-scheme: inherit;
   --diffs-font-family: var(--mono);
   --diffs-font-size: var(--code-size);
@@ -379,12 +391,11 @@
   border: 1px solid var(--rule);
   border-radius: var(--r);
 }
-.lf-diff-thread-outlet > .lf-page-thread {
+.lf-diff-thread-outlet > :is(.lf-page-thread, .lf-resolved-threads) {
   max-width: 760px;
-  padding: var(--sp-2) 0;
 }
-.lf-diff-thread-outlet > details.lf-page-thread:not([open]) {
-  padding: 0;
+.lf-diff-thread-outlet .lf-page-thread {
+  padding: var(--sp-2) 0;
 }
 @media print {
   .lf-diff-tools,

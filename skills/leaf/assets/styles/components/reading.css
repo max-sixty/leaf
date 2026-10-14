@@ -163,6 +163,9 @@
           margin-bottom: 6px; position: sticky; inset-inline-start: 0; max-inline-size: 100cqi; }
 :where(:root, .lf-thread-transcript) :is(th, td) { text-align: left; padding: 8px 14px; border-bottom: 1px solid var(--rule);
          vertical-align: top; --lf-block-frame: 1; }
+@media screen and (max-width: 640px) {
+  :where(:root, .lf-thread-transcript) :is(th, td) { padding-inline: 8px; }
+}
 /* The padding is a gutter, and the columns at the two ends have no neighbour to
    keep away from: 10px of it there set every table's first word 10px right of
    the prose above it, and stopped the last column short of the same edge. */
@@ -187,9 +190,21 @@
      color: var(--muted); font-weight: 600;
      border-bottom-color: var(--border-2); }
 :where(:root, .lf-thread-transcript) th[scope="row"] { font-weight: 600; }
+/* A table of captures (authoring-evidence.md, "Source files and media") labels each
+   axis once, so its heads are the only words saying which capture is which: a column's
+   stands centred over its captures in the row names' ink, and a row's name stands level
+   with its capture's middle rather than at its top edge. A head's longest word still
+   sets its column's least width, so a long head draws its captures a little larger
+   than their neighbours ("Documentation reviewed" over one of three equal captures, 11%
+   wider at 1440px); breaking heads anywhere evened the scale but split "Documentation"
+   mid-word on a phone. A table is one of captures where a cell of its own rows holds
+   nothing but an image, linked or not, so a table nested in a cell is read for itself. */
+:where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > :is(th, td) { vertical-align: middle; }
+:where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > th:not([scope="row"]) {
+     text-align: center; color: var(--ink); }
 :where(:root, .lf-thread-transcript) :is(ul, ol) { margin: 10px 0; padding-inline-start: 24px; }
 :where(:root, .lf-thread-transcript) li { margin: 6px 0; }
-:where(:root, .lf-thread-transcript) hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
+:where(:root, .lf-thread-transcript) hr { border: none; border-top: 1px solid var(--rule); margin: var(--hr-margin-block) 0; }
 
 /* One owner for message type and spacing on every surface, including widget shadow
    trees. The editor and messages share the theme's entry-size floor. A contextual
@@ -200,9 +215,11 @@
   :is(.lf-thread-transcript, .lf-thread-reply, .lf-general) { --quote-inset: 10px; --pre-inset: 10px; }
   leaf-text.lf-fab-input, .lf-msg-body {
           font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--ink); }
-  .lf-msg-body { min-width: 0; margin: var(--lf-msg-body-gap) 0 0; overflow-wrap: anywhere; }
-  /* A message's words, or its rewrite standing where they stood (message-edit.js). */
-  :is(.lf-msg-text, .lf-msg-editor) { display: block;
+  /* A message keeps the column's measure on any page, as a Layout's text does
+     (`--lf-measure`, theme.css), however wide its panel is dragged. */
+  .lf-msg-body { min-width: 0; margin: var(--lf-msg-body-gap) 0 0; overflow-wrap: anywhere;
+          --lf-measure: var(--col); }
+  .lf-msg-text { display: block;
           padding-block: var(--lf-thread-text-pad-block, 0px); }
   .lf-msg-text > :first-child { margin-top: 0; }
   .lf-msg-body > :last-child, .lf-msg-text > :last-child { margin-bottom: 0; }

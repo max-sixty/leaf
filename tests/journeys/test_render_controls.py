@@ -1095,10 +1095,10 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
     """A held replacement navigation cannot keep a released child alive."""
     page = open_page(browser, serve(LIVE_SAMPLE_PAGE))
     page.evaluate("""async () => {
-        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+        const {mountSample} = await window.__lfWidgetApi();
         window.practiceFrame = document.createElement('iframe');
         document.body.append(practiceFrame);
-        window.practiceHost = mountSample(practiceFrame, {template: 'first-source'});
+        window.practiceHost = await mountSample(practiceFrame, {template: 'first-source'});
         await practiceHost.ready;
     }""")
     previous = page.evaluate(
@@ -1143,8 +1143,8 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
     page.route(re.compile(r"/api/samples/[^/]+/$"), fail_sample_startup)
     assert (
         page.evaluate("""async () => {
-        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
-        window.practiceHost = mountSample(practiceFrame, {template: 'first-source'});
+        const {mountSample} = await window.__lfWidgetApi();
+        window.practiceHost = await mountSample(practiceFrame, {template: 'first-source'});
         return practiceHost.ready.catch(error => error.message);
     }""")
         == "Practice could not start"
@@ -1185,10 +1185,10 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
     held = []
     page.route("**/api/samples", lambda route: held.append(route))
     page.evaluate("""async () => {
-        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+        const {mountSample} = await window.__lfWidgetApi();
         window.pendingFrame = document.createElement('iframe');
         document.body.append(pendingFrame);
-        window.pendingHost = mountSample(pendingFrame, {template: 'first-source'});
+        window.pendingHost = await mountSample(pendingFrame, {template: 'first-source'});
         window.pendingResult = pendingHost.ready.catch(error => error.name);
     }""")
     holding(page, held, 1, "the child allocation")
@@ -1205,8 +1205,8 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
     held.clear()
     page.route(re.compile(r"/api/samples/[^/]+/$"), lambda route: held.append(route))
     page.evaluate("""async () => {
-        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
-        window.pendingHost = mountSample(pendingFrame, {template: 'first-source'});
+        const {mountSample} = await window.__lfWidgetApi();
+        window.pendingHost = await mountSample(pendingFrame, {template: 'first-source'});
         window.pendingResult = pendingHost.ready.catch(error => error.name);
     }""")
     holding(page, held, 1, "a child detached before its document arrives")
@@ -1226,17 +1226,17 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
     # removed without consuming the next slot a surviving queued child needs.
     held.clear()
     page.evaluate("""async () => {
-        const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+        const {mountSample} = await window.__lfWidgetApi();
         window.pendingResults = [];
-        window.pendingHosts = Array.from({length: 5}, (_, index) => {
+        window.pendingHosts = await Promise.all(Array.from({length: 5}, async (_, index) => {
             const frame = document.createElement('iframe');
             document.body.append(frame);
-            const host = mountSample(frame, {template: 'first-source'});
+            const host = await mountSample(frame, {template: 'first-source'});
             host.ready.then(
                 () => { pendingResults[index] = 'ready'; },
                 error => { pendingResults[index] = error.name; });
             return host;
-        });
+        }));
     }""")
     holding(page, held, 3, "three occupied sample admission slots")
     page.evaluate("""() => {
@@ -1268,12 +1268,12 @@ def test_slow_sample_state_does_not_hold_up_other_child_loads(browser, serve):
         lambda route: held.append(route),
     )
     page.evaluate("""async () => {
-      const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
-      window.practiceHosts = Array.from({length: 4}, () => {
+      const {mountSample} = await window.__lfWidgetApi();
+      window.practiceHosts = await Promise.all(Array.from({length: 4}, () => {
         const frame = document.createElement('iframe');
         document.body.append(frame);
         return mountSample(frame, {template: 'first-source'});
-      });
+      }));
     }""")
     holding(page, held, 4, "four sample state reads")
     for route in held:
@@ -1436,7 +1436,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     # internal contribution boundary, just as asynchronous Ask and Page Map owners do.
     page.evaluate(
         """async () => {
-          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          const toolbar = await window.__lfCheckApi();
           for (let i = 0; i < 7; i++) {
             const button = document.createElement('button');
             button.className = 'lf-ui lf-btn lf-secondary-destination';
@@ -1464,7 +1464,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     # not its identity or connection to the document.
     page.evaluate(
         """async () => {
-          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          const toolbar = await window.__lfCheckApi();
           for (const control of document.querySelectorAll('.lf-secondary-destination'))
             toolbar.showBannerControl(control, false);
         }"""
@@ -1554,7 +1554,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     )
     positions = pinned.evaluate(
         """async () => {
-          const toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+          const toolbar = await window.__lfCheckApi();
           const chip = document.querySelector('.lf-latest-chip');
           const threads = document.querySelector('.lf-threads-toggle');
           const door = document.querySelector('.lf-banner-more');
@@ -1607,7 +1607,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     # The complete real action set, wherever the fold has put each of them: what this is
     # about is the pressure that set puts on the sentence beside it.
     on_the_row = page.evaluate(BANNER_ORDER)
-    for wanted in ("All pages", "Questions", "Accept all", "v1", "Approve version"):
+    for wanted in ("All pages", "On me", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in on_the_row), (
             f"{wanted} was not on the row, so the fixture is short of the crowding this "
             f"test is about: {on_the_row}"
@@ -1785,7 +1785,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     page.close()
 
     # A control that settles its own decisions disappears while it still owns focus. Hand
-    # the user to the next standing control instead of silently dropping them on body.
+    # the user to the next remaining control instead of silently dropping them on body.
     page = open_page(browser, url.replace("/v1.html", "/v2.html"), pin=True)
     resized(page, 1200, 900)
     stamp_page(serve.page_dir, html, "three")
@@ -2172,7 +2172,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
 
     # At the product's 320px floor the comment sheet has no possible width to move
     # through, so it offers no inert separator. A user standing on the grip lands on
-    # its surviving close control before it disappears. The Questions panel stands on
+    # its surviving close control before it disappears. The On panel stands on
     # the same edge at the same floor, so its grip is gone there too.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -2326,7 +2326,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
 def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
     """Each row mechanism holds its other controls still across its causal transition."""
     # The synthetic page composes every mechanism a page can author, and carries the
-    # standing comment the margin entry's row is made of. An archetype naming another
+    # existing comment the margin entry's row is made of. An archetype naming another
     # source is one whose causal state cannot coexist with that composed page, or whose
     # mechanism lives only in a shipped gallery or under a page-wide opt-in.
     source = archetype.get("source")
@@ -2414,7 +2414,7 @@ def test_a_phone_shows_a_notice_in_the_banner_s_status_words(browser, serve):
     # Once the gesture's acknowledgement has faded, background news owns its own
     # rendering. A shorter successor keeps the same first-line seat and press.
     page.evaluate("""async () => {
-      window.noticeOwner = await window.__lfRuntimeImport('/runtime/notifications.js');
+      window.noticeOwner = await window.__lfWidgetApi();
       noticeOwner.notice('A shared draft sent to the agent', {background: true});
     }""")
     expect(notice).to_have_text("A shared draft sent to the agent")
@@ -2497,7 +2497,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     marked, unlinked row, each neighbour is a link named by its title and saying what
     that page is doing — the same judgment its own banner would show, from the same facts — and a
     link opens that page in a tab of its own, leaving this one where it was, panel
-    standing. Esc is the panel's rung on the ladder. On a machine serving nothing
+    open. Esc is the panel's rung on the ladder. On a machine serving nothing
     else the button never appears, which every other test here shows for free."""
     other_url, _ = other_leaf
     url = serve(LONG_PAGE)
@@ -2550,7 +2550,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # The arrival leaves the key in the cookie and the bare address in the tab.
     expect(tab).to_have_url(f"{other_url}/")
     tab.close()
-    # The press left this tab alone, drawer still standing.
+    # The press left this tab alone, drawer still open.
     expect(others_panel).to_be_visible()
     page.keyboard.press("Escape")
     expect(others_panel).not_to_be_visible()
@@ -2576,9 +2576,7 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
     before = page.evaluate(
         """async () => {
           const face = document.querySelector('lf-leaves-banner-face');
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          const presentation = await window.__lfCheckApi();
           const schedule = face.scheduleUpdate.bind(face);
           let release;
           const held = new Promise(resolve => { release = resolve; });
@@ -2735,7 +2733,7 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
     (other_dir / SERVICE_FILE).unlink()
     with socket.create_server(("127.0.0.1", urlsplit(old_url).port)):
         new_url = hosting_model.start_server(
-            other_dir, standing=True, harness=None
+            other_dir, persistent=True, harness=None
         ).url.split("?")[0]
     assert urlsplit(new_url).port != urlsplit(old_url).port
     wait_for(
@@ -2788,9 +2786,7 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
     )
     page.wait_for_function(
         """async () => {
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          const presentation = await window.__lfCheckApi();
           return presentation.readApplicationPresentation().pending.includes('leaves');
         }"""
     )
@@ -2805,9 +2801,7 @@ def test_a_failed_leaves_restore_keeps_application_presentation_pending(
     told(page)
     page.wait_for_function(
         """async () => {
-          const presentation = await window.__lfRuntimeImport(
-            '/runtime/semantic-state.js'
-          );
+          const presentation = await window.__lfCheckApi();
           return !presentation.readApplicationPresentation().pending.includes('leaves');
         }"""
     )
@@ -3199,7 +3193,7 @@ def test_covering_threads_keeps_the_user_inside(browser, serve):
 
 
 def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, serve):
-    """The Questions panel gets the covering auxiliary surface contract rather than a drawer-specific
+    """The On panel gets the covering auxiliary surface contract rather than a drawer-specific
     focus trap. Its exact Ask and reading place survive both responsive crossings, its
     reading keys move its own list, and closing returns to its door without moving the
     document behind it."""
@@ -3224,9 +3218,12 @@ def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, se
 
     for _ in range(rows.count() + 3):
         page.keyboard.press("Tab")
-        assert drawer.evaluate("el => el.contains(document.activeElement)"), (
-            "Tab reached a control behind the covering Questions panel"
-        )
+        # Chromium may rest focus on body at the modal's tab wrap; no control
+        # behind the modal becomes reachable there.
+        assert drawer.evaluate(
+            "el => document.activeElement === document.body "
+            "|| el.closest('dialog').contains(document.activeElement)"
+        ), "Tab reached a control behind the covering On panel"
 
     list_box.evaluate("el => el.scrollTop = 0")
     rows.first.focus()
@@ -3265,7 +3262,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     Pointer entry starts in the list rather than on its dismissal furniture. The banner
     controls are inert while a drawer covers the document, so they cannot be the only
     pointer route out. Closing either drawer returns focus to the control that opened it,
-    ready to reopen the same drawer: the Questions door on the banner's row, and More for
+    ready to reopen the same drawer: the On me door on the banner's row, and More for
     Leaves, folded behind it.
     """
     page = open_page(browser, serve(MANY_ASKS_PAGE))
@@ -3276,7 +3273,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     ), "the fixture did not fold Pages behind the banner menu"
 
     for selector, panel, name, first_destination, door_back in (
-        (".lf-queue", ".lf-queue-panel", "questions", ".lf-queue-row", ".lf-queue"),
+        (".lf-queue", ".lf-queue-panel", "the On panel", ".lf-queue-row", ".lf-queue"),
         (
             ".lf-others",
             ".lf-others-panel",
@@ -3301,7 +3298,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
 
 def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     """Auxiliary placement does not retire a live return; closing its surface does. The
-    Questions panel is the surface that crosses between covering and beside."""
+    On panel is the surface that crosses between covering and beside."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 500, 640)
     origin = page.locator("main .lf-pick").first
@@ -3310,7 +3307,7 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     opened = re.compile(r"\bopen\b")
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(drawer).to_have_class(opened)
     assert bool(page.locator("dialog:modal").count())
 
@@ -3325,8 +3322,8 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
-    page.get_by_role("button", name="Close questions").click()
+    page.keyboard.press("Shift+m")
+    page.get_by_role("button", name="Close the On panel").click()
     expect(drawer).not_to_have_class(opened)
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body"), (
@@ -3380,7 +3377,7 @@ def test_a_walk_down_the_drawer_stops_clear_of_the_shortcut_bar_text(
 
 
 def test_a_walk_down_the_queue_stops_clear_of_the_shortcut_bar_text(browser, serve):
-    """A covering Questions panel keeps the last row above the shortcut bar.
+    """A covering On panel keeps the last row above the shortcut bar.
 
     Beside a live page the bar ends at the panel's edge, so only the covering
     posture exercises the clearance shared with the Pages drawer."""
@@ -3468,13 +3465,13 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     through it, green every time.
 
     One page because the chrome is the same on every document. What varies here is which
-    of the chrome's own surfaces is standing — and the scheme and the
+    of the chrome's own surfaces is open — and the scheme and the
     width, which are the two axes that sweep carries and this one has to carry too. Dropped,
     they cost this test the dark palette entirely: the token these very sweeps caught was
     left failing on the dark half, because nothing here ever rendered it.
 
     Each surface is opened by its own key, which is also the assertion that it can be, and
-    each is proved standing before axe reads it — a sweep over a surface that never opened
+    each is proved open before axe reads it — a sweep over a surface that never opened
     is a green that means nothing, which is the shape `tests/AGENTS.md` names."""
     url = serve(ADDRESSED_PAGE, comments=1)
     stamp_page(serve.page_dir, ADDRESSED_PAGE, "two")
@@ -3745,9 +3742,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             )
             page.evaluate(
                 """async () => {
-                  const { reachScrollers } = await window.__lfRuntimeImport(
-                    '/runtime/reach.js'
-                  );
+                  const { reachScrollers } = await window.__lfCheckApi();
                   reachScrollers(document.body);
                 }"""
             )
@@ -3797,7 +3792,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                         source.locator(":scope > summary").click()
             page.evaluate(RING_FOCUS_START)
             # Threads and a target's own Thread card are one surface offered two ways:
-            # with the panel standing, a thread margin entry sends the user there instead of
+            # with the panel open, a thread margin entry sends the user there instead of
             # building the card. The scopes listed above need the panel shut either to expose
             # their own page surface or to exercise the panel's entry route itself.
             if scope in RING_SCOPES_STARTING_WITHOUT_PANEL:
@@ -3875,9 +3870,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     # intent it hands over is the one that always holds.
                     target.evaluate(
                         """async node => {
-                          const elements = await window.__lfRuntimeImport(
-                            '/runtime/widget-elements.js'
-                          );
+                          const elements = await window.__lfCheckApi();
                           await elements.reveal(node, () => true);
                         }"""
                     )
@@ -3915,7 +3908,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 lit = [ring for ring in drawn if ring["here"]]
                 unnamed.update(ring["who"] for ring in lit if not ring["ring"])
                 found = expected & {ring["ring"] for ring in lit if ring["sample"]}
-                # One standing defect is one finding, not one per stop: a ring worn by
+                # One lasting defect is one finding, not one per stop: a ring worn by
                 # something the sample is not moving — a decision's mark, a thread's element
                 # mark — is read again at every stop it survives.
                 for fault in ring_faults(drawn, where):

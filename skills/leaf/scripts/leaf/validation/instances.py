@@ -2,17 +2,29 @@
 
 from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.findings import Finding, element_at
-from leaf.projection import enclosing_widgets
+from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
     is_element_name,
     registry_path,
     retirement_slots,
-    visual_parts,
+    state_specs,
 )
 from leaf.registry.schema import json_validator, schema_reading
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
 
 from .markup import found_at, structure_errors
+
+
+def member_holders(rec: dict, registry: dict):
+    """An element's enclosing widgets within its quotation, innermost first.
+
+    A quotation cannot supply members to an owner outside it. An owner quoted as
+    a whole still holds its own members, since they reach it before the boundary.
+    """
+    for node in enclosing_widgets(rec):
+        if registry.get(node["tag"], {}).get("x-exhibit"):
+            break
+        yield node
 
 
 def thread_markup_contract_errors(parser, registry: dict) -> list[Finding]:
@@ -67,7 +79,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
         nearest = next(
             (
                 node["tag"]
-                for node in enclosing_widgets(rec)
+                for node in member_holders(rec, registry)
                 if node["tag"] in within or node["tag"] in want_owners
             ),
             None,
@@ -103,6 +115,48 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 )
             if rec["text"]:
                 errors.append(found_at("loose-text", rec))
+    byid = {rec["attrs"]["id"]: rec for rec in lf_elements if rec["attrs"].get("id")}
+    return errors + attribute_slot_errors(lf_elements, byid, registry)
+
+
+def attribute_slot_errors(
+    elements, byid: dict, registry: dict, *, holders: dict | None = None
+) -> list[Finding]:
+    """Scalar records cannot share their node's attribute with a parent's selection.
+
+    Declarations remain reusable in unrelated compositions. Ownership follows the
+    canonical physical-slot reading, including holder overrides for a proposed move.
+    Callers select the elements whose composition they are validating.
+    """
+    errors = []
+    for rec in elements:
+        identity = rec["attrs"].get("id")
+        if identity is None:
+            continue
+        for verb, spec in state_specs(registry.get(rec["tag"], {})):
+            record = spec.get("record") or {}
+            if record.get("kind") != "value":
+                continue
+            attribute = {"kind": "attribute", "attr": record["attr"]}
+            owner = recorded_owner(identity, attribute, byid, registry, holders=holders)
+            if owner is None:
+                continue
+            owner_verb = next(
+                verb
+                for verb, spec in state_specs(registry[byid[owner]["tag"]])
+                if spec.get("record") == attribute
+            )
+            errors.append(
+                found_at(
+                    "member-record-slot",
+                    rec,
+                    id=identity,
+                    attr=record["attr"],
+                    value_verb=verb,
+                    owner=owner,
+                    owner_verb=owner_verb,
+                )
+            )
     return errors
 
 
@@ -126,17 +180,6 @@ def layout_errors(lf_elements: list, registry: dict) -> list[Finding]:
         body = [child for child in direct if child not in {"header", "footer"}]
         if len(body) != 1 or body[0] == "#text":
             errors.append(found_at("pane-body", rec, role=role, body=body))
-    return errors
-
-
-def visual_part_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """A visual's authored part tokens each name one stable generated target."""
-    errors = []
-    for rec in lf_elements:
-        parts = visual_parts(rec, registry).tokens
-        duplicates = sorted({part for part in parts if parts.count(part) > 1})
-        if duplicates:
-            errors.append(found_at("repeated-parts", rec, parts=duplicates))
     return errors
 
 
@@ -251,9 +294,11 @@ def relation_mismatch(
     }
 
 
-def enclosing(rec: dict, tag: str) -> dict | None:
-    """The nearest Leaf element of `tag` standing around `rec`, if any."""
-    return next((node for node in enclosing_widgets(rec) if node["tag"] == tag), None)
+def enclosing(rec: dict, tag: str, registry: dict) -> dict | None:
+    """The nearest member owner of `tag` within `rec`'s quotation, if any."""
+    return next(
+        (node for node in member_holders(rec, registry) if node["tag"] == tag), None
+    )
 
 
 def keyed_members(lf_elements: list, registry: dict) -> dict:
@@ -265,7 +310,7 @@ def keyed_members(lf_elements: list, registry: dict) -> dict:
     for rec in lf_elements:
         for key, scope_tag in registry.get(rec["tag"], {}).get("x-unique", {}).items():
             value = rec["attrs"].get(key)
-            scope = enclosing(rec, scope_tag)
+            scope = enclosing(rec, scope_tag, registry)
             if value is not None and scope is not None:
                 members.setdefault((id(scope), rec["tag"], key, value), []).append(rec)
     return members
@@ -327,7 +372,7 @@ def reference_errors(
                     keyed = keyed_members(lf_elements, registry)
                 key = reference["key"]
                 scope_tag = registry[member]["x-unique"][key]
-                scope = enclosing(rec, scope_tag)
+                scope = enclosing(rec, scope_tag, registry)
                 if (id(scope), member, key, target) not in keyed:
                     errors.append(
                         found_at(
@@ -483,7 +528,6 @@ def instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
     return (
         widget_errors(lf_elements, registry)
         + layout_errors(lf_elements, registry)
-        + visual_part_errors(lf_elements, registry)
         + addressable_instance_errors(lf_elements, registry)
         + ask_context_errors(lf_elements, registry)
         + declared_word_errors(lf_elements, registry)

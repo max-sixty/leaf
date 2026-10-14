@@ -4,7 +4,7 @@ from collections.abc import Callable, Iterable
 from typing import NamedTuple
 
 from leaf.events import (
-    Standing,
+    InForce,
     event_coordinate,
     report_settlements,
     retractions,
@@ -31,7 +31,6 @@ from leaf.schema import agent_name
 from leaf.structure import SourceDocument
 from leaf.thread_context import (
     ThreadStructure,
-    effective_thread_events,
     thread_names,
     thread_structure,
     thread_widgets,
@@ -162,7 +161,7 @@ class StateProjection(NamedTuple):
     wrote the unit where the move put it. An absorbed move still stands, as a
     written-back pick does, but no longer places its unit: the markup does.
 
-    `standing` holds every action that survives, neither taken back nor retracted;
+    `in_force` holds every action that survives, neither taken back nor retracted;
     `actions` is the newest of them at each coordinate. A browser withdrawing the one
     on top locally falls back to the next of these rather than judging survival
     again."""
@@ -173,7 +172,7 @@ class StateProjection(NamedTuple):
     report_settlements: dict
     classified: dict
     absorbed: frozenset
-    standing: frozenset
+    in_force: frozenset
 
 
 class PageReading(NamedTuple):
@@ -202,16 +201,6 @@ class PageReading(NamedTuple):
         return self.reading.within
 
 
-class FrozenPublication(NamedTuple):
-    """Frozen fragments sharing one immutable authored vocabulary."""
-
-    revision: int
-    registry: dict
-    structure: ThreadStructure
-    spoken: dict
-    projection: StateProjection
-
-
 class FrozenThreadReading(NamedTuple):
     """The panel's frozen markup and durable state as one document.
 
@@ -224,11 +213,6 @@ class FrozenThreadReading(NamedTuple):
     thread_by_name: dict
     thread_by_widget: dict
     projection: StateProjection
-    publications: dict[int, FrozenPublication]
-    message_revisions: dict[str, int]
-
-    def registry_for_message(self, message: str) -> dict:
-        return self.publications[self.message_revisions[message]].registry
 
     @property
     def by_id(self) -> dict:
@@ -289,8 +273,8 @@ def state_projection(
     settlement_versions = {}
     classified = {}
     # Where each id sits is all the retraction test asks of a page, taken once for
-    # the walk rather than per event; `Standing` decides each coordinate's winner.
-    standing = Standing(enclosing_of(spk), floors, withdrawn)
+    # the walk rather than per event; `InForce` decides each coordinate's winner.
+    in_force = InForce(enclosing_of(spk), floors, withdrawn)
     specs = {}
     for event in events:
         if event["kind"] not in WRITERS:
@@ -317,7 +301,7 @@ def state_projection(
         entry = (event, spec)
         classified[event["id"]] = (coordinate, entry)
         if event["kind"] == "action":
-            if standing.admit(event):
+            if in_force.admit(event):
                 specs[event["id"]] = spec
         elif settled_at := settled.get(event["id"]):
             settlement_versions[coordinate] = max(
@@ -328,7 +312,7 @@ def state_projection(
 
     actions = {
         coordinate: (winner, specs[winner["id"]])
-        for coordinate, winner in standing.winners().items()
+        for coordinate, winner in in_force.winners().items()
     }
     desired = {coordinate: entries[-1] for coordinate, entries in reports.items()}
     desired.update(actions)
@@ -346,14 +330,14 @@ def state_projection(
         settlement_versions,
         classified,
         absorbed,
-        standing.ids(),
+        in_force.ids(),
     )
 
 
 def with_action(
     projection: StateProjection, event: dict, spec: dict
 ) -> StateProjection:
-    """The projection with one newer action standing at its admitted coordinate.
+    """The projection with one newer action in force at its admitted coordinate.
 
     An action made against the window this projection folds is the latest at its
     coordinate and no floor of that window can have retracted it, so admission
@@ -363,93 +347,35 @@ def with_action(
     return projection._replace(
         actions={**projection.actions, coordinate: entry},
         desired={**projection.desired, coordinate: entry},
-        standing=projection.standing | {event["id"]},
+        in_force=projection.in_force | {event["id"]},
     )
 
 
 def frozen_thread_reading(
-    events: list,
-    registry_for_revision: Callable[[int], dict],
-    *,
-    available_revisions: Iterable[int],
-    withdrawn: set | None = None,
+    events: list, registry: dict, *, withdrawn: set | None = None
 ) -> FrozenThreadReading:
-    """Read each immutable fragment under the vocabulary that admitted it.
-
-    Page documents and messages share a publication identity: the existing revision.
-    A message does not follow later vocabulary changes, even while its surrounding
-    conversation is live. Each publication uses the canonical state fold over the
-    whole thread window; only its authored widget universe differs.
-    """
-    effective_events = effective_thread_events(events, available_revisions)
-    message_revisions = {
-        event["id"]: event["revision"]
-        for event in effective_events
-        if event.get("markup")
-    }
-    # A frozen island exists only while its captured publication exists in the
-    # current inventory. Keep the log event and its prose; only its unavailable
-    # authored markup loses meaning.
-    structure = thread_structure(effective_events)
+    """Project every frozen message fragment through one shared reading."""
+    structure = thread_structure(events)
     by_name = thread_names(events)
-    publications = {}
-    for revision in dict.fromkeys(message_revisions.values()):
-        fragments = {
-            message: fragment
-            for message, fragment in structure.fragments.items()
-            if message_revisions[message] == revision
-        }
-        registry = registry_for_revision(revision)
-        by_id = {
-            key: record
-            for fragment in fragments.values()
-            for key, record in fragment.by_id.items()
-        }
-        owned = ThreadStructure(set(by_id), by_id, fragments)
-        spoken = {
-            key: words
-            for fragment in fragments.values()
-            for key, words in SourceReading(fragment, registry).spoken.items()
-        }
-        publications[revision] = FrozenPublication(
-            revision,
-            registry,
-            owned,
-            spoken,
-            state_projection(
-                events, by_id, spoken, registry, None, floors={}, withdrawn=withdrawn
-            ),
-        )
-    fields = {}
-    for field in StateProjection._fields:
-        values = [
-            getattr(publication.projection, field)
-            for publication in publications.values()
-        ]
-        fields[field] = (
-            frozenset(item for value in values for item in value)
-            if field in {"absorbed", "standing"}
-            else {key: item for value in values for key, item in value.items()}
-        )
+    spk = {}
+    for fragment in structure.fragments.values():
+        spk.update(SourceReading(fragment, registry).spoken)
+    by_widget = thread_widgets(structure, by_name)
     return FrozenThreadReading(
         structure,
-        {
-            key: words
-            for publication in publications.values()
-            for key, words in publication.spoken.items()
-        },
+        spk,
         by_name,
-        thread_widgets(structure, by_name),
-        StateProjection(**fields),
-        publications,
-        message_revisions,
+        by_widget,
+        state_projection(
+            events, structure.by_id, spk, registry, None, floors={}, withdrawn=withdrawn
+        ),
     )
 
 
 def projected_action_holders(
     projection: StateProjection, byid: dict, registry: dict
 ) -> dict[str, dict]:
-    """Unit id → its enclosing vocabulary widget after standing position records
+    """Unit id → its enclosing vocabulary widget after position records in force
     no later revision has absorbed; an absorbed move leaves its unit where the
     markup has it."""
     holders = {}
@@ -475,7 +401,7 @@ def recorded_owner(
     Attribute sets own one attribute; positions own one place. Other attributes
     and record kinds coexist, including scalar state on a member or container.
     A member's own records never claim its membership from its parent. Optional
-    holder overrides read current membership after standing position records.
+    holder overrides read current membership after position records in force.
     """
     holders = holders or {}
     node = byid.get(unit)
@@ -572,7 +498,7 @@ def folded_positions(
 ) -> dict[str, list[str]]:
     """Container id → its units in the order the fold leaves on this markup.
 
-    Authored units rank by authored index; each standing move this markup has not
+    Authored units rank by authored index; each move in force this markup has not
     absorbed (`move_absorbed`) puts its unit in its container at the rank it names,
     and a container lists its units by rank, ties by id. `projection/model.js`'s
     `foldWidgetStates` is the browser's reading of the same rule."""
@@ -582,9 +508,9 @@ def folded_positions(
         for units in order.values()
         for index, unit in enumerate(units)
     }
-    standing = sorted(projection.desired.items(), key=lambda item: item[1][0]["seq"])
+    in_force = sorted(projection.desired.items(), key=lambda item: item[1][0]["seq"])
     orders = {owner: authored_positions(owner, record, byid, spk, registry)}
-    for (widget, unit, action), (event, spec) in standing:
+    for (widget, unit, action), (event, spec) in in_force:
         if (
             widget != owner
             or action != verb
@@ -630,7 +556,7 @@ def recorded_state(
     registry: dict,
     projection: StateProjection,
 ):
-    """What one version's markup shows at a standing coordinate, beside the state
+    """What one version's markup shows at a coordinate in force, beside the state
     the fold leaves there: a pair the caller compares, or NO_RECORD for a verb with
     no record form. `markup` and `folded` are each a document's `(byid, spk)`; the
     fold is `projection` read on `folded`.
@@ -674,8 +600,8 @@ def ask_value(owner, verb, spec, byid, spk, registry, projection, *, answered=Fa
 
     Widget units use their declared record or custom action detail. Member units
     form one mapping; positions retain every container, including empty ones.
-    Empty authored values need completion to count as an answer; a standing value
-    action counts even while completion is outstanding. Null never holds a value.
+    Empty authored values need completion to count as an answer; a value
+    action in force counts even while completion is outstanding. Null never holds a value.
     """
     actions = {
         coordinate: held
@@ -748,7 +674,7 @@ def page_reading(
 
 
 def rewritten_bodies(actions: dict) -> dict:
-    """id → (verb, text): the user's standing rewrite of each element whose
+    """id → (verb, text): the user's current rewrite of each element whose
     element declaration records a verb as the body (x-state record kind "body"), as
     replay leaves it. The action projection is read here for the one record kind
     whose state is words rather than markup, so the passage reading can hold
@@ -761,10 +687,10 @@ def rewritten_bodies(actions: dict) -> dict:
 
 
 def generated_children(desired: dict, authored_ids: set) -> dict:
-    """Owner id → the children standing creating actions supply, in log order.
+    """Owner id → the children that creating actions in force supply, in log order.
 
     Each created child is its action's fold unit, so it stands on a coordinate of its
-    own: a later action of another verb leaves it standing, and only an undo or a
+    own: a later action of another verb leaves it in force, and only an undo or a
     retraction of that action takes it away. An authored element with the same id
     already supplies that construction and keeps its authored content.
     """
@@ -793,7 +719,7 @@ def record_members(
 ) -> set:
     """The current members an attribute record may name, including created children.
 
-    Standing positions determine membership, so moving a member changes the
+    Position records in force determine membership, so moving a member changes the
     container that can select it in the same authoritative reading.
     """
     holders = projected_action_holders(projection, byid, registry)
@@ -807,7 +733,7 @@ def record_members(
 
 
 def retirement_outcomes(actions: dict) -> dict:
-    """widget id → the outcome its standing deciding action names.
+    """widget id → the outcome its deciding action in force names.
 
     Which verb decides is the registry's word: the one whose detail declares the
     reserved `outcome` (`decides`), whose value `x-retired-when` and

@@ -96,7 +96,7 @@ with ordinary HTML/CSS/JS and no Leaf payload. Nine pairs at a2cf7a001 with Opus
 on Claude Code: three each of `document` (a review the team decides from), `queue`
 (eight escalations, list beside detail) and `configuration` (six alert thresholds to
 tune). The first configuration pair ran at 51ef3d615, whose prompts are the same.
-Each sample authors the page, revises it for the 900px standing preference, then
+Each sample authors the page, revises it for the 900px lasting preference, then
 handles a comment that adds a fact to one passage. Leaf gets the comment anchored on
 the passage, or on the page whole where no candidate quote appears exactly once
 (5 of 9, including every configuration, whose alert text the author's script
@@ -182,7 +182,7 @@ conditions repaired about equally often.
   pairwise judge runs the authors' model, Opus 5.5, and Leaf's viewer chrome in the
   screenshots shows it which page is Leaf's.
   - Documents: on the two documents Leaf won, it won on decisions in both orders,
-    since it put both decisions on the page as Questions where HTML offered a reply
+    since it put both decisions on the page as asks where HTML offered a reply
     to copy. HTML's sticky contents ran out of the short 900px window on all three;
     both conditions' comparison tables lost a column at 390px.
   - Configurations: every Leaf author used `lf-playground`, whose control panel sits

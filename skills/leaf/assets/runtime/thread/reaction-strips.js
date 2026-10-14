@@ -1,6 +1,6 @@
 /* Thread reaction projection and its synchronous Lit owner. The controller
    registers template-owned controls and owns only disclosure, keyboard and focus. */
-import { html, render, repeat } from "../../vendor/browser-runtime.js";
+import { html, render, repeat } from "/vendor/browser-runtime.js";
 import { iconTemplate } from "../icons.js";
 import { HOLDS_WORD } from "../held-word.js";
 
@@ -58,8 +58,8 @@ export class ReactionStripView {
                 data-token=${choice.name}
                 title=${choice.label}
                 aria-label=${choice.label}
-                aria-pressed=${String(Boolean(choice.standing))}
-                aria-busy=${String(Boolean(choice.standing?.pending))}
+                aria-pressed=${String(Boolean(choice.inForce))}
+                aria-busy=${String(Boolean(choice.inForce?.pending))}
                 @click=${() => this.#press(choice.name)}
               >
                 <span class="lf-react-glyph">${choice.glyph}</span>
@@ -82,7 +82,7 @@ export class ReactionStripView {
       model.thread,
       model.message,
       name,
-      !model.choices.find((choice) => choice.name === name).standing,
+      !model.choices.find((choice) => choice.name === name).inForce,
     );
     this.#registration.close();
     this.#commands.pressed();

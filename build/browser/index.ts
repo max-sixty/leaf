@@ -10,7 +10,15 @@ export { createRef, ref } from "lit/directives/ref.js";
 export { repeat } from "lit/directives/repeat.js";
 export { styleMap } from "lit/directives/style-map.js";
 export { unsafeHTML } from "lit/directives/unsafe-html.js";
+export { effect, signal } from "@preact/signals-core";
 export { createSemanticApplication } from "./application.js";
+export {
+  collectOutside,
+  collectReads,
+  outsideReading,
+  share,
+  untracked,
+} from "./snapshot.js";
 export {
   createPresentationCoordinator,
   createPresentationSchedule,

@@ -10,7 +10,7 @@
  */
 import { closeNativeLayer } from "./keyboard/layer-stack.js";
 import { isNativeLayer } from "./shadow-tree.js";
-import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
+import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
 
 import { dismissBannerControls } from "./banner-toolbar.js";
 import { el } from "./widget-elements.js";
@@ -152,12 +152,10 @@ class VersionPickerView {
       }));
   }
 
-  // The picker's reading and commands for another presentation of the same versions,
-  // the floating panel's Versions view, which draws its own rows from them.
+  // The picker's commands, and word of each reading it presents, for another
+  // presentation of the same versions, the floating panel's Versions view, which draws
+  // its own rows from `versionsReading` (version.js).
   #listeners = new Set();
-  get model() {
-    return this.#model;
-  }
   watch(listener) {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);

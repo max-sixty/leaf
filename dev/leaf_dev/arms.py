@@ -46,10 +46,12 @@ from leaf.codex import APP_SERVER_ENV
 from leaf.delivery import opened_input_ids
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.hook_transport import DELIVERY_FIELD
+from leaf.render_gate import browser as browser_model
 from leaf.thread import successful_replies
 from leaf.todos import start_reading
 
 from leaf_dev import ROOT
+from leaf_dev.browser import shell_executable
 from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 # The uv project names this package's `pyproject.toml` as a workspace member, so uv
@@ -104,13 +106,21 @@ def environment(**extra: str) -> dict[str, str]:
     identity: its id, job directory, effort level and App Server endpoint. A `leaf`
     command would sign events as that session, and a child would use its transport
     and settings. An inherited LEAF_HOST_LAUNCHER would override the arm's launcher.
-    `CLAUDE_CONFIG_DIR` stays, since it names where the login lives."""
+    `CLAUDE_CONFIG_DIR` stays, since it names where the login lives.
+
+    A child names the pinned headless shell as its browser through
+    LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
+    set. It outranks CHROME_PATH and CHROME_BIN, which hosts set for other tools
+    (GitHub's runner image sets CHROME_BIN to its Chrome), so leaf-dev's children
+    draw with the build `headless_shell` drives, as the suite's fixture arranges."""
     env = {
         key: value
         for key, value in os.environ.items()
         if key not in (*IDENTITY_VARIABLES, APP_SERVER_ENV, "LEAF_HOST_LAUNCHER")
         and not (key.startswith("CLAUDE") and key != "CLAUDE_CONFIG_DIR")
     }
+    if browser_model.VARIABLE not in env:
+        env[browser_model.VARIABLE] = shell_executable()
     return {**env, **extra}
 
 
@@ -159,23 +169,30 @@ def serving(arm: Path, state: Path, page: Path):
         server.wait()
 
 
-def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
+def build_source(
+    arm: Path, state: Path, source: Path, page: Path, *, compiled: bool = True
+) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
     launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
-    its working tree."""
+    its working tree. Developer pages use the same compiled kernel as the website;
+    `compiled=False` supplies an explicit source baseline for startup comparisons.
+    """
+    from leaf_dev.distribution import cached_installation
+
+    payload = cached_installation(arm) if compiled else arm
     prepare_page(
         page,
         read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
-        partial(run_leaf, arm, state, check=True),
+        partial(run_leaf, payload, state, check=True),
     )
 
 
 @contextmanager
-def serving_source(arm: Path, source: Path, scratch: Path):
+def serving_source(arm: Path, source: Path, scratch: Path, *, compiled: bool = True):
     """Build `source` into a page under `scratch` (`build_source`), serve it
     (`serving`), and yield the address."""
     state, page = scratch / "state", scratch / "page"
-    build_source(arm, state, source, page)
+    build_source(arm, state, source, page, compiled=compiled)
     with serving(arm, state, page) as address:
         yield address
 
@@ -290,25 +307,31 @@ def install_codex_plugin(
     cwd: Path,
     env: dict[str, str],
     output: IO[str] | None = None,
-) -> None:
+) -> Path:
     """Install a complete Leaf payload through Codex's native marketplace commands.
 
-    Callers supply the isolated task's environment and its CLI. Output is captured
-    on subprocess failures, or streamed whole to `output` when the caller keeps a
-    log; native installer JSON documents are separate from task JSON-lines logs.
+    Return the install directory reported by the CLI. Callers supply the isolated
+    task's environment and its CLI. Installer output is captured on failures and
+    copied whole to `output` when the caller keeps a log.
     """
-    streams = (
-        {"stdout": output, "stderr": subprocess.STDOUT}
-        if output is not None
-        else {"capture_output": True, "text": True}
-    )
     for arguments in (
         ("plugin", "marketplace", "add", str(payload), "--json"),
         ("plugin", "add", "leaf@leaf", "--json"),
     ):
-        subprocess.run(
-            [str(codex), *arguments], cwd=cwd, env=env, check=True, **streams
+        result = subprocess.run(
+            [str(codex), *arguments],
+            cwd=cwd,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
         )
+        if output is not None:
+            output.write(result.stdout)
+            output.write(result.stderr)
+            output.flush()
+        result.check_returncode()
+    return Path(json.loads(result.stdout)["installedPath"])
 
 
 def codex_home(path: Path, config: str = "") -> Path:

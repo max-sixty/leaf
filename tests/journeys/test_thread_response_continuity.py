@@ -228,29 +228,29 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
             page.evaluate("window.mirroredReplyEdits = []")
         else:
             other.bring_to_front()
-        standing = reply_editing_pose(editor)
-        other.evaluate(
+        resting = reply_editing_pose(editor)
+        if edit == "mirrored-composing":
+            expect(editor).to_be_focused()
+        assert other.evaluate(
             """async parent => {
-              const {saveDraft, tellDraft} = await window.__lfRuntimeImport('/runtime/drafts.js');
-              saveDraft('reply:' + parent, 'First line');
-              tellDraft('reply:' + parent, 'First line');
+              const {saveDraft} = await window.__lfWidgetApi();
+              return saveDraft('reply:' + parent, 'First line');
             }""",
             parent,
         )
-        expect(other.locator(selector).locator("leaf-text")).to_have_js_property(
-            "value", "First line"
-        )
         expect(editor).to_have_js_property("value", "First line")
+        if edit == "mirrored-composing":
+            expect(editor).to_be_focused()
         page.bring_to_front()
         editor.focus()
         rendered(page)
         assert page.evaluate("window.mirroredReplyEdits") == []
         mirrored = reply_editing_pose(editor)
-        for coordinate in standing:
+        for coordinate in resting:
             assert mirrored[coordinate] == pytest.approx(
-                standing[coordinate], abs=0.5
+                resting[coordinate], abs=0.5
             ), (
-                standing,
+                resting,
                 mirrored,
             )
         before = editor.bounding_box()
@@ -313,7 +313,7 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
     )
     told(page)
     rendered(page)
-    standing = reply_editing_pose(editor)
+    resting = reply_editing_pose(editor)
     other = open_page(browser, url, context=context)
     replacement = "\n".join(
         [
@@ -327,20 +327,19 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
             "Wrap this passage naturally at the editor's inline measure. " * 5,
         ]
     )
-    other.evaluate(
+    assert other.evaluate(
         """async ({parent, value}) => {
-          const {saveDraft, tellDraft} = await window.__lfRuntimeImport('/runtime/drafts.js');
-          saveDraft('reply:' + parent, value);
-          tellDraft('reply:' + parent, value);
+          const {saveDraft} = await window.__lfWidgetApi();
+          return saveDraft('reply:' + parent, value);
         }""",
         {"parent": parent, "value": replacement},
     )
     expect(editor).to_have_js_property("value", replacement)
     rendered(page)
     mirrored = reply_editing_pose(editor)
-    for coordinate in standing:
-        assert mirrored[coordinate] == pytest.approx(standing[coordinate], abs=0.5), (
-            standing,
+    for coordinate in resting:
+        assert mirrored[coordinate] == pytest.approx(resting[coordinate], abs=0.5), (
+            resting,
             mirrored,
         )
     assert stored_draft_text(page, "reply:" + parent) == replacement
@@ -362,19 +361,19 @@ def test_passive_reply_room_ends_at_native_edit_and_new_inline_measure(browser, 
     expect(editor).to_have_js_property("value", replacement)
     rendered(page)
     canceled = reply_editing_pose(editor)
-    for coordinate in standing:
-        assert canceled[coordinate] == pytest.approx(standing[coordinate], abs=0.5), (
-            standing,
+    for coordinate in resting:
+        assert canceled[coordinate] == pytest.approx(resting[coordinate], abs=0.5), (
+            resting,
             canceled,
         )
     page.keyboard.insert_text("!")
     expect(editor).to_have_js_property("value", replacement + "!")
     rendered(page)
     edited = reply_editing_pose(editor)
-    assert edited["height"] > standing["height"] + 50, (standing, edited)
+    assert edited["height"] > resting["height"] + 50, (resting, edited)
     for coordinate in ("top", "firstLine"):
-        assert edited[coordinate] == pytest.approx(standing[coordinate], abs=0.5), (
-            standing,
+        assert edited[coordinate] == pytest.approx(resting[coordinate], abs=0.5), (
+            resting,
             edited,
         )
     page.set_viewport_size({"width": 1600, "height": 1100})
@@ -468,7 +467,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     if place == "nested-end":
         page.evaluate("""async () => {
           const body = document.querySelector('#continuity-scroll');
-          const {registerReadingRegion} = await window.__lfRuntimeImport('/runtime/reading-regions.js');
+          const {registerReadingRegion} = await window.__lfWidgetApi();
           registerReadingRegion({id: 'continuity-scroll', host: body, body});
         }""")
     held = []

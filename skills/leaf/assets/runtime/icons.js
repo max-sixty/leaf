@@ -2,7 +2,7 @@
    module: composing/selection.js builds its response button with an icon as it
    evaluates. */
 
-import { html, render } from "../vendor/browser-runtime.js";
+import { html, render } from "/vendor/browser-runtime.js";
 
 // Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
 // are authored content and may supply emoji; structural Leaf faces keep their line
@@ -22,6 +22,7 @@ const ICONS = {
   edit: '<path d="m3.25 10.75-.5 2.5 2.5-.5 6.9-6.9-2-2zM9.25 4.75l2 2"/>',
   expand: '<path d="M9.5 3H13v3.5M13 3 9.25 6.75M6.5 13H3V9.5M3 13l3.75-3.75"/>',
   fit: '<path d="M6 3H3v3M10 3h3v3M3 10v3h3M13 10v3h-3"/>',
+  fold: '<path d="M3 8h10M5.5 2.75 8 5.25l2.5-2.5M5.5 13.25 8 10.75l2.5 2.5"/>',
   more: '<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>',
   microphone:
     '<rect x="6" y="2" width="4" height="7" rx="2"/><path d="M4 7.5v.75a4 4 0 0 0 8 0V7.5M8 12.25V14M6 14h4"/><path class="lf-mic-slash" d="M2.5 2.5l11 11"/>',
@@ -41,6 +42,7 @@ const ICONS = {
   sent: SEND,
   start: '<path d="M3.5 3v10M12.5 3.5 6 8l6.5 4.5z"/>',
   subtract: '<path d="M3 8h10"/>',
+  unfold: '<path d="M3 8h10M5.5 5.25 8 2.75l2.5 2.5M5.5 10.75 8 13.25l2.5-2.5"/>',
   undo: '<path d="M5.25 4.25 2.75 6.5 5.25 8.75M3 6.5h5.5a4 4 0 0 1 4 4v1"/>',
   waiting: '<circle cx="8" cy="8" r="5"/><path d="M8 5v3.25l2 1.25"/>',
 };

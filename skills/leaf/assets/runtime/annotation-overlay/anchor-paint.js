@@ -72,6 +72,7 @@ export function createAnchorPaint({
     const focus = new Set(
       [...elements].filter((element) => element.matches("[data-lf-focus]")),
     );
+    /** @type {[string, Set<Element>][]} */
     const sources = [
       ["pending", pending],
       ["action", action],

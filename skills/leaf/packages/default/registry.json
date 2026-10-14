@@ -28,7 +28,7 @@
     "x-content": "markup",
     "x-ask-context": true,
     "x-upgrade": false,
-    "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><small class=\"tag\">editing: continues</small><small class=\"tag ok\">recommended</small><strong>Drop the oldest documents</strong> Editing continues. <em>My take: this keeps work moving without losing server data.</em></lf-option>\n      <lf-option id=\"store-stop\"><small class=\"tag\">editing: paused</small><strong>Pause offline editing</strong> Nothing leaves.</lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
+    "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees; each option draws its document list once the store fills.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><small class=\"tag\">editing: continues</small><small class=\"tag ok\">recommended</small><strong>Drop the oldest documents</strong> Editing continues. <em>My take: this keeps work moving without losing server data.</em>\n        <figure id=\"store-evict-fig\">\n          <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"store-evict-t\">\n            <title id=\"store-evict-t\">The oldest document leaves the device; the rest stay editable</title>\n            <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n            <rect class=\"line\" x=\"12\" y=\"12\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"25\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"ghost\" x=\"12\" y=\"38\" width=\"130\" height=\"6\" rx=\"3\"/>\n            <text class=\"small\" x=\"228\" y=\"44\" text-anchor=\"end\">server only</text>\n          </svg>\n        </figure>\n      </lf-option>\n      <lf-option id=\"store-stop\"><small class=\"tag\">editing: paused</small><strong>Pause offline editing</strong> Nothing leaves.\n        <figure id=\"store-stop-fig\">\n          <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"store-stop-t\">\n            <title id=\"store-stop-t\">Every document stays on the device, read-only until it reconnects</title>\n            <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n            <rect class=\"line\" x=\"12\" y=\"12\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"25\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"38\" width=\"130\" height=\"6\" rx=\"3\"/>\n            <circle class=\"warn\" cx=\"224\" cy=\"28\" r=\"5\"/><text class=\"small\" x=\"212\" y=\"31\" text-anchor=\"end\">read-only</text>\n          </svg>\n        </figure>\n      </lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
   },
   "lf-gloss": {
     "description": "A short explanation the reader can open beside a phrase without leaving its sentence.",
@@ -265,8 +265,8 @@
     "x-example": "<lf-ask id=\"run-status-decision\">\n  <h2>Where should run status appear?</h2>\n  <p>Both choices preserve the existing run detail.</p>\n  <lf-options id=\"run-status\" choose>\n    <lf-option id=\"rs-column\">\n      <small class=\"tag\">effort: low</small><small class=\"tag warn\">risk: med</small><small class=\"tag ok\">recommended</small>\n      <strong>Status on the run list</strong> One join; failures are visible without a click.\n      <figure id=\"rs-column-fig\">\n        <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"rs-column-t\">\n          <title id=\"rs-column-t\">Each run row ends in its status</title>\n          <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n          <rect class=\"line\" x=\"12\" y=\"14\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ok\" cx=\"222\" cy=\"17\" r=\"5\"/>\n          <rect class=\"line\" x=\"12\" y=\"36\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"danger\" cx=\"222\" cy=\"39\" r=\"5\"/>\n        </svg>\n      </figure>\n    </lf-option>\n    <lf-option id=\"rs-leave\">\n      <small class=\"tag\">effort: none</small><small class=\"tag ok\">risk: low</small>\n      <strong>Leave the list alone</strong> No work; failures stay one click away.\n      <figure id=\"rs-leave-fig\">\n        <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-labelledby=\"rs-leave-t\">\n          <title id=\"rs-leave-t\">Run rows carry no status</title>\n          <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n          <rect class=\"line\" x=\"12\" y=\"14\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ghost\" cx=\"222\" cy=\"17\" r=\"5\"/>\n          <rect class=\"line\" x=\"12\" y=\"36\" width=\"150\" height=\"6\" rx=\"3\"/><circle class=\"ghost\" cx=\"222\" cy=\"39\" r=\"5\"/>\n        </svg>\n      </figure>\n    </lf-option>\n  </lf-options>\n</lf-ask>"
   },
   "lf-option": {
-    "description": "One alternative in a decision, shown as a compact label or a card with supporting evidence.",
-    "x-instructions": "Lead a card with matching small.tag comparison labels naming the facts that distinguish the alternatives, then a `<strong>` title and a sentence naming its consequence. Mark the option you recommend with `<small class=\"tag ok\">recommended</small>` after its comparison labels, and give the reason in prose. chosen records the user's pick. Where alternatives differ in arrangement, structure, or mechanism, draw each with an svg.drawing thumbnail in the same frame, alike except where they differ. Add paragraphs or a fact rail when the face alone cannot support the choice. A bare label suits an alternative needing no further case. Direct text uses inline Markdown; use HTML children for block content. A for target must remain useful independently of the decision and does not supply the option's words. Rewriting a picked option needs restated; read $restated for when to rewrite instead of correcting beside the ask.",
+    "description": "One alternative in a decision: a compact label, or a card showing what choosing it gives the user.",
+    "x-instructions": "Lead a card with matching small.tag comparison labels naming the facts that distinguish the alternatives, then a `<strong>` title and a sentence naming its consequence. Mark the option you recommend with `<small class=\"tag ok\">recommended</small>` after its comparison labels, and give the reason in prose. chosen records the user's pick. Under them, show what choosing it gives the user (references/authoring-asks.md): where alternatives differ in arrangement, structure, or mechanism, an svg.drawing thumbnail of each in the same frame, alike except where they differ; where they differ in how an existing interface looks, a capture of each; where they differ in how something behaves, that behavior working inside each option; where they differ in wording, the words as they would appear. Add paragraphs or a fact rail when the face alone cannot support the choice. A bare label suits an alternative needing no further case. Direct text uses inline Markdown; use HTML children for block content. A for target must remain useful independently of the decision and does not supply the option's words. Rewriting a picked option needs restated; read $restated for when to rewrite instead of correcting beside the ask.",
     "type": "object",
     "properties": {
       "id": {
@@ -362,7 +362,7 @@
   },
   "lf-shot": {
     "description": "A before-and-after screenshot pair with an operable divider, optional change outlines and changed-pixel view, and component-owned comparison, overlay, scaling and focus-crop presentation.",
-    "x-instructions": "Use served image paths printed by leaf page media for before and after, and describe the pair in alt. Read authoring-evidence.md, Source files and media, for captures and when to use outlines or pixels. Write explanations in surrounding prose rather than element content. When a decision turns on the change, put the pair inside the proposing option, or with the group of an accept-or-reject ask, where it compares both answers.",
+    "x-instructions": "Use for two versions of an interface, current and proposed. Use served image paths printed by leaf page media for before and after, and describe the pair in alt. Read authoring-evidence.md, Source files and media, for captures, the table that sets captures varying along other axes, and when to use outlines or pixels. Write explanations in surrounding prose rather than element content. When a decision turns on the change, put the pair inside the proposing option, or with the group of an accept-or-reject ask, where it compares both answers.",
     "type": "object",
     "properties": {
       "id": {
@@ -390,7 +390,6 @@
     "required": ["id", "before", "after", "alt"],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-face": [":scope > .lf-shotrail"],
     "x-upgrade": true,
     "x-visual": "whole",
     "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" outlines alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"
@@ -470,7 +469,7 @@
   },
   "lf-tabs": {
     "description": "Several views of one artifact, as page navigation, a local tabbed section, or a side-list queue.",
-    "x-instructions": "Place the first set directly in main for page navigation; other placements make a framed local tabbed section. Put the shared title and lede before page tabs and the primary current view first. Each lf-tab is a self-contained view, while history, Threads, Questions, versions, and sign-off belong to the whole page. Retire obsolete views once current work no longer depends on them, preserving needed context and passages anchoring open threads or standing decisions in details within the relevant tab. Use list=\"side\" for a queue beside its selected item; it remains framed and its list does not stick.",
+    "x-instructions": "Place the first set directly in main for page navigation; other placements make a framed local tabbed section. Put the shared title and lede before page tabs and the primary current view first. Each lf-tab is a self-contained view, while history, Threads, the On panel, versions, and sign-off belong to the whole page. Retire obsolete views once current work no longer depends on them, preserving needed context and passages anchoring open threads or decisions in force in details within the relevant tab. Use list=\"side\" for a queue beside its selected item; it remains framed and its list does not stick.",
     "type": "object",
     "properties": {
       "id": {
@@ -492,7 +491,7 @@
   },
   "lf-tally": {
     "description": "A count of the asks a region still holds open, such as a queue's decisions left to make, with an optional control to the next one.",
-    "x-instructions": "Name the region whose asks it counts with for, such as a side-list lf-tabs queue, and place it where the reader looks for the queue's state, such as a workspace header beside its .tag chips. Add next for a Next question control that steps through the region's asks waiting on the user. Write it empty with a stable id; it counts asks the page already poses, so state no count of them in prose or chips.",
+    "x-instructions": "Name the region whose asks it counts with for, such as a side-list lf-tabs queue, and place it where the reader looks for the queue's state, such as a workspace header beside its .tag chips. Add next for a Next on me control that steps through the region's asks waiting on the user. Write it empty with a stable id; it counts asks the page already poses, so state no count of them in prose or chips.",
     "type": "object",
     "properties": {
       "id": {
@@ -514,7 +513,7 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-inline": true,
-    "x-prepaint": "<span class=\"lf-tally-face\"><span class=\"lf-tally-count\"><span class=\"lf-tally-room\">00 of 00 to answer</span><span class=\"lf-tally-room\">Nothing to answer</span><span class=\"lf-tally-words\"></span></span><button class=\"lf-btn lf-tally-next lf-ui lf-ui-face\" type=\"button\">Next question</button></span>",
+    "x-prepaint": "<span class=\"lf-tally-face\"><span class=\"lf-tally-count\"><span class=\"lf-tally-room\">00 of 00 to answer</span><span class=\"lf-tally-room\">Nothing to answer</span><span class=\"lf-tally-words\"></span></span><button class=\"lf-btn lf-tally-next lf-ui lf-ui-face\" type=\"button\">Next on me</button></span>",
     "x-refers": {
       "for": {}
     },
@@ -591,7 +590,7 @@
   },
   "lf-sample": {
     "description": "A quotation of page content, either static or an operable child Leaf page.",
-    "x-instructions": "For a live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome; chrome=\"floating\" or chrome=\"classic\" shows it in that chrome rather than the reader's own. Keep invented content visibly fictional. Read page-authoring.md, Live samples, for child-page interaction, reset, and isolation.",
+    "x-instructions": "For a live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome; chrome=\"floating\" or chrome=\"classic\" shows it in that chrome rather than the reader's own. Keep invented content visibly fictional. Read live-samples.md for child-page interaction, reset, and isolation.",
     "x-name": "label",
     "type": "object",
     "properties": {

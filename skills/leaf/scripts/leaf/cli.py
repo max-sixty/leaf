@@ -11,13 +11,29 @@ from leaf.schema import SKILL_ROOT, WAIT_BATCH_OUTPUT_INSTRUCTION
 from leaf.state import EVENTS_FILE
 
 
-def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
-    page_dir = Path(dir_arg).expanduser().resolve()
-    if must_exist and not (page_dir / EVENTS_FILE).is_file():
+def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) -> Path:
+    """The page a command names. An initialized one this Leaf cannot serve, as a
+    plugin update that bumps the page protocol leaves it, is re-vendored first for
+    the session running the command (`vendoring.renew_layer`), which says on stderr
+    what still holds it back; `renew` is off for a command that would undo the
+    re-vendor's restart."""
+    from leaf.locations import canonical_path
+
+    page_dir = canonical_path(Path(dir_arg).expanduser())
+    if not must_exist:
+        return page_dir
+    if not (page_dir / EVENTS_FILE).is_file():
         raise click.ClickException(
             f"{page_dir} is not an initialized page; "
             f"run `leaf page init {shlex.quote(str(page_dir))}`"
         )
+    if not renew:
+        return page_dir
+    from leaf.harness import session_harness
+    from leaf.vendoring import renew_layer
+
+    if unready := renew_layer(page_dir, session_harness()):
+        print(unready, file=sys.stderr)
     return page_dir
 
 
@@ -409,8 +425,8 @@ def instructions(
 )
 def state(dir: str, target: str | None, after: int | None, limit: int | None) -> None:
     """Print the page as it is now, as one JSON object: the active revision's
-    file, the current widget actions and workers' reports, the Questions and Tasks
-    lists, thread summaries, versions, presence, and bound data. Read the active
+    file, the current widget actions and workers' reports, the user's On me list and
+    yours, thread summaries, versions, presence, and bound data. Read the active
     revision's HTML beside it for the document.
 
     ID narrows the output to what it names. A message, or a widget frozen into
@@ -730,11 +746,13 @@ def file() -> None:
 @click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
 def file_bind(dir: str, binding: str, path: Path) -> None:
     """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH."""
-    from leaf.file_bindings import bind_file
+    from leaf.file_bindings import bind_file, bound_paths
 
-    snapshot = bind_file(resolve_dir(dir), binding, path)
+    page_dir = resolve_dir(dir)
+    snapshot = bind_file(page_dir, binding, path)
     click.echo(
-        f"Bound {binding} to {path.expanduser().resolve()} ({snapshot['bytes']} bytes)."
+        f"Bound {binding} to {bound_paths(page_dir)[binding]} "
+        f"({snapshot['bytes']} bytes)."
     )
 
 
@@ -787,7 +805,7 @@ def serve_flags(command):
     it spawns, so one spelling is what keeps the pair from drifting."""
     for option in (
         click.option(
-            "--standing",
+            "--persistent",
             is_flag=True,
             help="decline the session claim, so the server outlives this session "
             "and only `leaf server stop` ends it — for a page kept up across "
@@ -807,18 +825,18 @@ def serve_flags(command):
 @server.command(short_help="Start a page's server and print its URL.")
 @click.argument("dir", metavar="PAGE")
 @serve_flags
-def start(dir: str, host: str | None, standing: bool) -> None:
+def start(dir: str, host: str | None, persistent: bool) -> None:
     """Start a page's server and print its URL.
 
     Returns once the server and this harness's watcher are ready; the server
     itself keeps running in a session of its own. `leaf server stop` takes one
     down, and a session server goes down with the session that claimed it
     besides. A page already served reconnects delivery and prints that server's
-    URL. `--standing` claims no page and prepares no agent delivery.
+    URL. `--persistent` claims no page and prepares no agent delivery.
     """
     from leaf.hosting import claim_and_start
 
-    with claim_and_start(resolve_dir(dir), host, standing) as started:
+    with claim_and_start(resolve_dir(dir), host, persistent) as started:
         pass
     print(json.dumps({"url": started.url}))
     print(started.note, file=sys.stderr)
@@ -832,7 +850,7 @@ def start(dir: str, host: str | None, standing: bool) -> None:
     is_flag=True,
     help="serve on loopback for this command only, without claiming the page",
 )
-def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
+def run(dir: str, host: str | None, persistent: bool, temporary: bool) -> None:
     """Serve a page in the foreground, printing its URL and running until stopped.
 
     Run this in a terminal of your own to hold a page up where you can watch it.
@@ -847,13 +865,13 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
     release_on_termination()
     page_dir = resolve_dir(dir)
     if temporary:
-        if standing:
-            raise click.UsageError("choose --temporary or --standing")
+        if persistent:
+            raise click.UsageError("choose --temporary or --persistent")
         if host:
             raise click.UsageError("--temporary is loopback-only; omit --host")
         cmd_serve_temporary(page_dir)
         return
-    cmd_serve(page_dir, host, standing, harness=session_harness(), acquire=True)
+    cmd_serve(page_dir, host, persistent, harness=session_harness(), acquire=True)
 
 
 @server.command("_serve", hidden=True)
@@ -867,7 +885,7 @@ def run(dir: str, host: str | None, standing: bool, temporary: bool) -> None:
 def _serve(
     dir: str,
     host: str | None,
-    standing: bool,
+    persistent: bool,
     revive: bool,
     acquire: bool,
     claim: str | None,
@@ -886,9 +904,10 @@ def _serve(
     release_on_termination()
     with Handshake(handshake) as answer:
         cmd_serve(
-            resolve_dir(dir),
+            # A re-vendor here would restart the server this process is becoming.
+            resolve_dir(dir, renew=False),
             host,
-            standing,
+            persistent,
             revive,
             harness=harness_from_argument(harness),
             handshake=answer,
@@ -903,7 +922,7 @@ def stop(dir: str) -> None:
     """Stop a page's server."""
     from leaf.hosting import cmd_stop
 
-    print(json.dumps({"stopped": cmd_stop(resolve_dir(dir))}))
+    print(json.dumps({"stopped": cmd_stop(resolve_dir(dir, renew=False))}))
 
 
 @cli.command(short_help="Say the page waits on its user, or is done.")
@@ -1169,20 +1188,20 @@ def thread_resolve(dir: str, thread: str) -> None:
 
 
 @cli.group(
-    cls=RecordsGroup, short_help="Open or end to-dos, and start work on your Tasks."
+    cls=RecordsGroup, short_help="Open or end to-dos, and start work on your list."
 )
 def task() -> None:
-    """Open and end to-dos, and say which of your Tasks you are working on.
+    """Open and end to-dos, and say which item on your list you are working on.
 
-    Your Tasks hold each user update you owe an answer, named by the update's event
-    id, and each to-do you opened. Before working on one, run `leaf task start`
-    with a line saying what you are doing: the item reads Working with that line,
-    beside it and in the banner. A to-do stays on your Tasks through replies,
-    resolutions, versions and the end of the session that opened it, until
-    `leaf task end` or a stamp that `--completes` its widget ends it. A to-do you
-    open `--on user` goes on the user's Questions instead, until they press its
-    Done or you end it. Every write prints the record it appended, one JSON line,
-    as `page events` prints it.
+    Your list, which the user sees as On <your name>, holds each user update you owe
+    an answer, named by the update's event id, and each to-do you opened. Before
+    working on one, run `leaf task start` with a line saying what you are doing:
+    the item reads Working with that line, beside it and in the banner. A to-do
+    stays on your list through replies, resolutions, versions and the end of the
+    session that opened it, until `leaf task end` or a stamp that `--completes` its
+    widget ends it. A to-do you open `--on user` goes on the user's On me list
+    instead, until they press its Done or you end it. Every write prints the record
+    it appended, one JSON line, as `page events` prints it.
     """
 
 
@@ -1196,7 +1215,7 @@ def task() -> None:
     type=click.Choice(["agent", "user"]),
     default="agent",
     show_default=True,
-    help="Whose list the to-do is on: your Tasks, or the user's Questions.",
+    help="Whose list the to-do is on: yours, or the user's On me.",
 )
 def task_open(dir: str, subject: str, title: str, owner: str) -> None:
     """Open a to-do titled TITLE on SUBJECT: a page widget, which for your own to-do

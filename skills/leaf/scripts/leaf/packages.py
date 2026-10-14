@@ -105,8 +105,8 @@ def rollback_package_files(created: list) -> None:
     """Remove only members that are still the exact files this transaction created."""
     for path, device, inode in reversed(created):
         try:
-            standing = path.stat(follow_symlinks=False)
-            if (standing.st_dev, standing.st_ino) == (device, inode):
+            current = path.stat(follow_symlinks=False)
+            if (current.st_dev, current.st_ino) == (device, inode):
                 path.unlink()
         except FileNotFoundError:
             pass
@@ -143,20 +143,23 @@ def starter_element_declaration(tag: str) -> dict:
     }
 
 
-def starter_widget_module() -> bytes:
-    """The default constructor and one-shot upgrade shared by behavioral widgets.
+def starter_widget_module(tag: str) -> bytes:
+    """The registration and one-shot upgrade shared by behavioral widgets.
 
     The layer paints what the declaration alone determines, settlement included, with
     no help from the module. A module that adds a `renderState` subscribes to its
     `widgetController`, which is what calls it."""
     return (
-        b'import { once } from "/runtime/widget-api.js";\n\n'
-        b"export default class extends HTMLElement {\n"
-        b"  connectedCallback() {\n"
-        b"    if (!once(this)) return;\n"
-        b"  }\n"
-        b"}\n"
-    )
+        'import { once } from "/runtime/widget-api.js";\n\n'
+        "customElements.define(\n"
+        f'  "{tag}",\n'
+        "  class extends HTMLElement {\n"
+        "    connectedCallback() {\n"
+        "      if (!once(this)) return;\n"
+        "    }\n"
+        "  },\n"
+        ");\n"
+    ).encode()
 
 
 def protected_package_paths(package: Path) -> list:
@@ -373,7 +376,7 @@ def init_starter_widget(
     registry[widget] = starter_element_declaration(widget)
     files = {
         "registry.json": json_bytes(registry, indent=2),
-        f"widgets/{module_name}": starter_widget_module(),
+        f"widgets/{module_name}": starter_widget_module(widget),
     }
     validate_starter_candidate(package, files)
     refuse_package_overlap(

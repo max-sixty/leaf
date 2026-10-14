@@ -278,58 +278,56 @@
           output.hidden = false;
         });
 
-      void afterPresentation(() => {
-        const titleSample = document.querySelector("#bg-title-sheen-sample");
-        let titleRequested = false;
-        let shownTitleRevision = null;
-        const showPendingTitle = () => {
-          const ready = titleSample.ready;
-          if (!titleRequested || !ready || shownTitleRevision === ready) return;
-          shownTitleRevision = ready;
-          void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
-        };
-        document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
-          titleRequested = true;
-          shownTitleRevision = null;
-          showPendingTitle();
-        });
-        titleSample.addEventListener("lf-sample-ready", showPendingTitle);
-        void titleSample.ready.then(showPendingTitle);
+      await customElements.whenDefined("lf-sample");
 
-        const sample = document.querySelector("#bg-panel-sample");
-        let selected = null;
-        function selectPanelView(view) {
-          selected = view;
-          for (const button of document.querySelectorAll("#bg-panel-presets button")) {
-            const pressed = String(button.dataset.view === view);
-            if (button.getAttribute("aria-pressed") !== pressed)
-              button.setAttribute("aria-pressed", pressed);
-          }
-          const thread = {
-            overview: "72e031c5bf0d485ba9054628e09869d4",
-            you: "2be2443f0bb6cc49fc86b52f340e6073",
-            resolved: "bab3cdfcfb8c02aacbb27da731de947a",
-            summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
-            progress: "bg-progress-question",
-          }[view];
-          void sample.showThread(thread, {
-            surface: "panel",
-            status: view === "resolved" ? "resolved" : "open",
-            waiting: view === "you" ? "user" : "all",
-          });
-        }
+      const titleSample = document.querySelector("#bg-title-sheen-sample");
+      let titleRequested = false;
+      let shownTitleRevision = null;
+      const showPendingTitle = () => {
+        const ready = titleSample.ready;
+        if (!titleRequested || !ready || shownTitleRevision === ready) return;
+        shownTitleRevision = ready;
+        void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
+      };
+      document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
+        titleRequested = true;
+        shownTitleRevision = null;
+        showPendingTitle();
+      });
+      titleSample.addEventListener("lf-sample-ready", showPendingTitle);
+      void titleSample.ready.then(showPendingTitle);
 
+      const sample = document.querySelector("#bg-panel-sample");
+      let selected = null;
+      function selectPanelView(view) {
+        selected = view;
         for (const button of document.querySelectorAll("#bg-panel-presets button")) {
-          button.addEventListener("click", () => selectPanelView(button.dataset.view));
+          const pressed = String(button.dataset.view === view);
+          if (button.getAttribute("aria-pressed") !== pressed)
+            button.setAttribute("aria-pressed", pressed);
         }
-        document
-          .querySelector("#bg-panel-width")
-          .addEventListener("change", (event) => {
-            sample.style.maxWidth = event.target.value;
-          });
-        sample.addEventListener("lf-sample-ready", () => {
-          if (selected) selectPanelView(selected);
+        const thread = {
+          overview: "72e031c5bf0d485ba9054628e09869d4",
+          you: "2be2443f0bb6cc49fc86b52f340e6073",
+          resolved: "bab3cdfcfb8c02aacbb27da731de947a",
+          summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
+          progress: "bg-progress-question",
+        }[view];
+        void sample.showThread(thread, {
+          surface: "panel",
+          status: view === "resolved" ? "resolved" : "open",
+          waiting: view === "you" ? "user" : "all",
         });
+      }
+
+      for (const button of document.querySelectorAll("#bg-panel-presets button")) {
+        button.addEventListener("click", () => selectPanelView(button.dataset.view));
+      }
+      document.querySelector("#bg-panel-width").addEventListener("change", (event) => {
+        sample.style.maxWidth = event.target.value;
+      });
+      sample.addEventListener("lf-sample-ready", () => {
+        if (selected) selectPanelView(selected);
       });
     </script>
   </head>
@@ -359,33 +357,34 @@
           <section id="bg-core-surfaces">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
             <h2>
-              <strong>Questions</strong
+              <strong>On me</strong
               ><span class="bg-feature-detail">: decisions and answers</span>
             </h2>
             <p id="bg-core-surfaces-guide">
               An <code>lf-ask</code> puts a heading and context around the choice below.
-              Your questions are everything waiting on you: open asks, threads whose
-              question is yours to answer (such as the gallery thread about a pasted
-              image), to-dos the agent put on you, and updates whose reply failed and
-              need sending again.
+              <strong>On me</strong> lists everything waiting on you: open asks, threads
+              whose question is yours to answer (such as the gallery thread about a
+              pasted image), to-dos the agent put on you, and updates whose reply failed
+              and need sending again.
             </p>
             <ul id="bg-core-surfaces-steps">
               <li>
-                Press <kbd>q</kbd>: the page moves to your next question in page order,
-                and <kbd>Shift+Q</kbd> walks back. Where that question is in another
+                Press <kbd>m</kbd>: the page moves to the next item on you in page
+                order, and <kbd>Shift+M</kbd> walks back. Where that item is in another
                 view, it appears at once and the view's tab name briefly highlights;
                 with reduced motion, there is no glide or highlight.
               </li>
               <li>
-                Look at the banner: the <strong>Questions</strong> control beside
-                Threads counts your questions, and the agent's Tasks count follows its
-                status.
+                Look at the banner: the <strong>On me</strong> control beside Threads
+                counts what is on you, and the agent's count, such as
+                <strong>On Claude: 1</strong>, follows its status.
               </li>
               <li>
-                Press either, or <kbd>g</kbd> then <kbd>Shift+Q</kbd>: the experimental
-                Questions panel opens where Threads opens, with both lists and with
-                answered asks and ended to-dos folded under Done. Press Enter on a row:
-                it goes where <kbd>q</kbd> would.
+                Press either, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the experimental
+                On panel opens where Threads opens, on the list you pressed, with a tab
+                for the other. What left each list is folded under it as Done: answered
+                asks under On me, sent replies and ended to-dos under the agent's. Press
+                Enter on a row: it goes where <kbd>m</kbd> would.
               </li>
               <li>
                 On a stamped page that asks for sign-off, find the version approval
@@ -393,7 +392,7 @@
                 answers it, and Undo reopens it.
               </li>
               <li>
-                Comment on the map question, then press <kbd>q</kbd> until it lands
+                Comment on the map question, then press <kbd>m</kbd> until it lands
                 there: the discussion stays closed while you read and choose, even when
                 Tab enters the controls. Press <kbd>c</kbd> to reply in that discussion,
                 <kbd>t</kbd> to read it, or, under a finger, its Thread marker to open
@@ -430,14 +429,14 @@
               </p>
               <ul>
                 <li>
-                  Open the Questions panel: the to-do waits under Questions, and its row
-                  has a Done button.
+                  Open the On panel: the to-do waits under On me, and its row has a Done
+                  button.
                 </li>
                 <li>
-                  Press <kbd>q</kbd> until it lands on the to-do, after the ask above,
+                  Press <kbd>m</kbd> until it lands on the to-do, after the ask above,
                   then press <kbd>x</kbd>, or under a finger the banner's
-                  <strong>Done</strong>: the to-do moves to the panel's Done fold, and
-                  the agent is told.
+                  <strong>Done</strong>: the to-do moves to On me's Done fold, and the
+                  agent is told.
                 </li>
               </ul>
             </section>
@@ -506,7 +505,7 @@
             <p id="bg-core-controls-guide">
               The banner also shows <strong>Threads</strong>, the
               <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
-              then <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd>
+              then <kbd>Shift+P</kbd>), <strong>Command reference</strong> (<kbd>?</kbd>
               twice), and <strong>All pages</strong> when another Leaf page is live. A
               quiet status line at the bottom right reports the current keyboard walk or
               a useful command result. It moves above the bottom-left shortcuts when
@@ -1151,7 +1150,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   Start a conversation and mark the proofreading to-do Done: the
-                  package's lists and Leaf's Questions panel show the same outcomes.
+                  package's lists and Leaf's On panel show the same outcomes.
                 </li>
                 <li>
                   Use first-unread and question navigation: each lands in this reader.
@@ -1508,7 +1507,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Choose “Progress messages” in the practice page, then use “Show 2
                 progress messages” beside the answer’s timestamp with a press or Enter.
                 Expanded progress runs have an inset border and ordinary message headers
-                on the page’s normal background. User replies separate the groups.
+                on the page’s normal background. User replies separate the groups. The
+                later room check has no answer yet, so it stands as a dim working
+                message above the reply box rather than as a reply, and counts nothing
+                unread.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread,
@@ -1683,8 +1685,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Walk the list with the up and down arrows: they pass the headings by.
               </li>
               <li>
-                Press Next question in the tally: it opens the first item's ask, whose
-                row carries an open mark.
+                Press Next on me in the tally: it opens the first item's ask, whose row
+                carries an open mark.
               </li>
               <li>
                 Answer the ask: its row shows a check and the option you picked, and the
@@ -2674,13 +2676,15 @@ gallery/
                 stays at the top of the view until the pair ends, below any page tabs.
                 This pair carries
                 <code>outlines</code>, so outlines mark each region where the two images
-                differ, on both sides of the divider. Press “Changes” to hide and
-                restore every outline. Hover or focus it to read the changed and moved
-                counts, or hold it on a phone. Slide off before releasing to leave the
-                outlines as they were. “Pixels” opens the after image greyed with every
-                changed pixel painted over it. Press Pixels again, or click the picture,
-                to return to the comparison with its divider and outline setting
-                preserved.
+                differ, on both sides of the divider. The rail offers three views:
+                Plain, Outlines, and Pixels. Outlines starts selected; Plain hides the
+                outlines, while Pixels shows the after image greyed with every changed
+                pixel painted over it: red where only Before drew something, blue where
+                only After did, and amber where both did. Use the arrow keys to select a
+                view, or choose it directly. Hover or focus Outlines to read the changed
+                and moved counts, or hold it on a phone. Slide off before releasing to
+                leave the current view selected. Clicking the pixel picture returns to
+                the previous comparison view with its divider preserved.
               </p>
               <lf-shot
                 id="bg-shot"
@@ -2691,11 +2695,10 @@ gallery/
                 after="/media/a99a1b63048502d0.png"
               ></lf-shot>
               <p id="bg-shot-plain-guide">
-                The same pair without <code>outlines</code>: nothing is marked, and the
-                rail offers no Changes control. This one carries <code>pixels</code>
-                instead: press “Pixels” with Enter to inspect the changed pixels. Choose
-                Before or After to leave it, or click the picture to return to the
-                comparison as it stood.
+                The same pair without <code>outlines</code> offers Plain and Pixels,
+                starting in Pixels, which shows what each image draws differently in one
+                picture. Selecting Pixels again keeps that view open. Choose Plain,
+                Before or After, or click the pixel picture, to see the comparison.
               </p>
               <lf-shot
                 id="bg-shot-plain"
@@ -2714,6 +2717,54 @@ gallery/
                 before="/media/051bee487bfb5d13.png"
                 after="/media/051bee487bfb5d13.png"
               ></lf-shot>
+              <p id="bg-capture-table-guide">
+                Captures that differ by something other than a version, such as the
+                moments of one journey, share a table whose heads name each column's and
+                each row's value once. Open a capture: Image preview names it by its
+                column and its row.
+              </p>
+              <table id="bg-capture-table" data-width="wide">
+                <thead>
+                  <tr>
+                    <td></td>
+                    <th scope="col">Opened</th>
+                    <th scope="col">Documentation reviewed</th>
+                    <th scope="col">API changes reviewed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Release review</th>
+                    <td>
+                      <a href="/media/c9f9c30f168dd264.png"
+                        ><img
+                          src="/media/c9f9c30f168dd264.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with both sections pending"
+                      /></a>
+                    </td>
+                    <td>
+                      <a href="/media/298268218fde4619.png"
+                        ><img
+                          src="/media/298268218fde4619.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with documentation reviewed and API changes pending"
+                      /></a>
+                    </td>
+                    <td>
+                      <a href="/media/006a318b091c6d1d.png"
+                        ><img
+                          src="/media/006a318b091c6d1d.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with both sections reviewed"
+                      /></a>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </section>
           </section>
 

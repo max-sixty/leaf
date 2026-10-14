@@ -13,7 +13,6 @@ from interact_support import (
     append_command,
     asks_on_user,
     before_choice,
-    check,
     check_findings,
     command_refusal,
     comment,
@@ -514,12 +513,12 @@ def test_a_widgets_data_body_is_not_quotable_but_the_widget_is(page_dir):
     assert json.loads(element.output)["anchor"] == {"section": "flow"}
 
 
-def test_a_comment_may_name_a_declared_visual_part(page_dir):
-    parted = FLOW_PAGE.replace(
-        '<lf-diagram id="flow">',
-        '<lf-diagram id="flow" parts="node:A node:B">',
+def test_a_comment_may_name_a_visual_inventory_part(page_dir):
+    (page_dir / "index.html").write_text(
+        FLOW_PAGE.replace(
+            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="all">'
+        )
     )
-    (page_dir / "index.html").write_text(parted)
     published(page_dir)
 
     result = comment(
@@ -536,18 +535,6 @@ def test_a_comment_may_name_a_declared_visual_part(page_dir):
         "section": "flow",
         "visual": "node:A",
     }
-
-    unknown = comment(
-        page_dir,
-        "--section",
-        "flow",
-        "--part",
-        "node:Missing",
-        "--text",
-        "x",
-    )
-    assert unknown.exit_code != 0
-    assert 'known: ["node:A", "node:B"]' in unknown.output
 
     unseated = comment(page_dir, "--part", "node:A", "--text", "x")
     assert unseated.exit_code != 0
@@ -762,9 +749,8 @@ def test_an_interrupted_stamp_recovers_the_exact_journaled_revision(
     assert events_model.read_events(page_dir) == recovered
 
 
-@pytest.mark.parametrize("obsolete_capture", [False, True])
 def test_an_explicit_replacement_is_durable_before_its_revision_appears(
-    page_dir, monkeypatch, obsolete_capture
+    page_dir, monkeypatch
 ):
     from leaf import revisioning
     from leaf.service import PageTransaction
@@ -772,12 +758,6 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
     original = PAGE.replace("</main>", "<p>Alpha</p></main>")
     (page_dir / "index.html").write_text(original)
     publish(page_dir)
-    if obsolete_capture:
-        obsolete = page_dir / "revisions/r9-0123456789abcdef"
-        obsolete.mkdir()
-        (obsolete / "manifest.json").write_text("{}")
-        obsolete.with_suffix(".html").write_text(original)
-    candidate = 10 if obsolete_capture else 2
     root = json.loads(
         comment(page_dir, "--quote", "Alpha", "--text", "Keep this").output
     )
@@ -814,8 +794,8 @@ def test_an_explicit_replacement_is_durable_before_its_revision_appears(
     assert pending[-1]["kind"] == "reply" and pending[-1]["anchor"]["quote"] == "Beta"
     (page_dir / "index.html").write_text(original.replace("Alpha", "Gamma"))
     with PageTransaction(page_dir) as page:
-        assert files_model.latest_revision(page_dir) == candidate
-        assert files_model.revision_path(page_dir, candidate).read_text() == revised
+        assert files_model.latest_revision(page_dir) == 2
+        assert files_model.revision_path(page_dir, 2).read_text() == revised
         assert page.events == pending
 
 
@@ -998,25 +978,6 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     )
     assert detached.exit_code != 0
     assert refused_on(detached.stdout).code == "held-anchor"
-
-
-PARTED = FLOW_PAGE.replace(
-    '<lf-diagram id="flow">',
-    '<lf-diagram id="flow" parts="node:A node:B">',
-)
-
-
-def parted(page_dir):
-    """A published v1 whose diagram declares two addressable visual parts."""
-    (page_dir / "index.html").write_text(PARTED)
-    return published(page_dir)
-
-
-def drop_node_a(page_dir):
-    (page_dir / "index.html").write_text(
-        PARTED.replace(' parts="node:A node:B"', ' parts="node:B"')
-    )
-    return check(page_dir)
 
 
 def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
@@ -1271,8 +1232,8 @@ def test_a_decision_retires_its_losing_slot_from_comments_reach(page_dir):
     """The user's accept removes lf-old from the page (the browser's anchor pass
     skips it), so a quote into it is refused naming the decision — posted, it would
     detach in front of them. The surviving slot quotes as ever, and a re-decision
-    moves the line: the reading follows the log the way replay does, last word
-    standing."""
+    moves the line: the reading follows the log the way replay does, the last word
+    in force."""
     suggested(page_dir)
     decide(page_dir, "accept")
     gone = comment(
@@ -1383,7 +1344,7 @@ def test_a_restated_suggestion_hands_its_slot_back(page_dir):
 
 
 def test_a_decision_the_user_took_back_hands_its_slot_back(page_dir):
-    """Withdrawing is the second way a decision stops standing, and the file's
+    """Withdrawing is the second way a decision stops being in force, and the file's
     reading owes it the same answer as `restated`: the retired half is on the page
     again, so a quote reaches it while the authored suggestion still exists."""
     suggested(page_dir)

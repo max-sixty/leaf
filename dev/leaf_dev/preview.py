@@ -26,14 +26,19 @@ A product document is served as builders read it, with the parts other sources o
 composed in (`page_fixtures.authored_markup`), and an edit to one of those owners
 refreshes it like an edit to the document.
 
+The preview vendors from a cached compiled installation, shared with the suite and
+developer probes. Runtime and compiler edits prepare a new kernel; authored-page edits
+reuse it. The source checkout remains the owner of its watched inputs and provenance.
+
 While it runs, `watchfiles` reports edits. Initialization decides whether the layer
 actually changed; identical saves leave the browser and server alone. A source or
 `.page/` companion edit is stamped into the live page at the same URL; a layer edit
 (a vendored file, the runtime's Python, its lock)
 re-vendors through `page init`, which mints a new layer generation the browser follows
 into a fresh document. A refused update is printed and retried after the next edit.
-User previews install fixture history and data only when their slot is created;
-choose another slot to try a different fictional seed.
+Fixture history, data and earlier versions initialize a fresh slot. Live updates
+follow current markup, page-owned files, media and the runtime; restarting a user
+preview preserves the history and data its page already holds.
 
     uv run leaf-dev preview [EXAMPLE] [--source FILE] [--runtime CHECKOUT]
         [--slot NAME] [--user] [--export]
@@ -61,19 +66,20 @@ from typing import NamedTuple
 
 import click
 from leaf.file_changes import FileChanges
+from leaf.locations import canonical_path
 from leaf.publishing import authored_digest, authored_files, write_authored_files
 from leaf.refusals import Refused
 from leaf.schema import BROWSER_DIRS, VENDORED_FILES
 
 from leaf_dev import ROOT
-from leaf_dev.example_data import named_source, page_files, prior_version_files
+from leaf_dev.distribution import COMPILER_INPUTS, cached_installation
+from leaf_dev.example_data import named_source, page_files
 from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
 from leaf_dev.leaf_assets import assets_lock
 from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
     authored_markup,
     composition_inputs,
-    fixture_history,
     import_referenced_media,
     media_source,
     package_selection_args,
@@ -130,7 +136,7 @@ def slot_name(_ctx, _param, value: str | None) -> str | None:
 
 
 def checkout(value: Path) -> tuple[Path, Path]:
-    runtime = value.expanduser().resolve()
+    runtime = canonical_path(value.expanduser())
     launcher = runtime / "bin" / "leaf"
     if not launcher.is_file():
         raise click.UsageError(f"{runtime} has no bin/leaf launcher")
@@ -139,7 +145,7 @@ def checkout(value: Path) -> tuple[Path, Path]:
 
 def authored_source(example: str | None, source: Path | None) -> Path:
     if source:
-        selected = source.expanduser().resolve()
+        selected = canonical_path(source.expanduser())
         if not selected.is_file():
             raise click.UsageError(f"no authored source at {selected}")
         return selected
@@ -178,22 +184,14 @@ def mark_preview(
     """
     from leaf.state import write_json
 
-    layer = json.loads((page / "registry.json").read_text(encoding="utf-8"))["$layer"]
-    producer = layer.get("producer", {})
     write_json(
         page / "preview.json",
         {
-            "kind": "example",
             "example": source.stem,
             "checkout": runtime.name,
             "interaction": "user" if user else "author",
             "started": datetime.now(UTC).isoformat(),
             "input": {"source": fixture_identity(source), "authored": authored},
-            **{
-                key: producer[key]
-                for key in ("commit", "dirty", "committed", "installed")
-                if key in producer
-            },
         },
     )
 
@@ -257,15 +255,6 @@ def refresh_media(source: Path, page: Path, run_leaf) -> None:
         run_leaf,
         source=source,
     )
-
-
-def digest(path: Path) -> str | None:
-    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
-
-
-def fixture_seed(source: Path) -> dict:
-    """Seed history is installed once, never replayed over user feedback."""
-    return {str(path): digest(path) for path in fixture_history(source)}
 
 
 def refused(reason) -> bool:
@@ -405,12 +394,12 @@ class PreviewService:
         A `--user` service still enabled but down is not ended. That is a server
         that died, or one `page init` re-vendored but could not start again (the
         recorded port was taken), and the watcher tries it again."""
-        from leaf.files import read_json
+        from leaf.server import read_service
         from leaf.service import claim_is_active, page_claim, same_claim
 
         if not self.user:
             return not self.running
-        service = read_json(self.page / "service.json")
+        service = read_service(self.page)
         if not service or not service["enabled"]:
             return True
         claim = page_claim(self.page)
@@ -433,16 +422,13 @@ def refresh_preview(
     retry also adopts layer edits a previous refusal held back. Only a changed
     layer takes a process-owned server down. A
     source edit replaces the authored HTML and companion files and stamps them,
-    the way an agent revises a page, so it arrives in the tab the user is standing
+    the way an agent revises a page, so it arrives in the tab the user is reading
     in. An agent's own revision of a `--user` preview survives a runtime edit; a
     source edit over competing authored inputs is refused rather than replacing
     them. A refused stamp restores the previous mutable inputs as well.
     """
-    if not service.user and fixture_seed(source) != state["seed"]:
-        return refused(
-            "seeded history changed; restart this claimless preview to rebuild its fixture"
-        )
     try:
+        launcher = cached_installation(runtime) / "bin/leaf"
         incoming = incoming_files(source)
         incoming_digest = authored_digest(incoming)
         source_changed = incoming_digest != state["authored"]
@@ -510,7 +496,14 @@ def refresh_preview(
             refresh_media(source, page, partial(leaf, launcher, runtime))
         state["authored"] = incoming_digest
         mark_preview(source, page, runtime, service.user, state["authored"])
-    except (LeafFailed, Refused, ValueError, OSError) as error:
+    except (
+        LeafFailed,
+        Refused,
+        ValueError,
+        OSError,
+        RuntimeError,
+        subprocess.CalledProcessError,
+    ) as error:
         return refused(error)
     return True
 
@@ -535,7 +528,7 @@ class Watched(NamedTuple):
         return not self.trees.isdisjoint((candidate, *candidate.parents))
 
 
-def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> Watched:
+def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     """The inputs one preview follows (`paths`).
 
     Every path is resolved: `input_paths` answers in resolved paths, so a package
@@ -556,6 +549,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
     layer = {
         *(str(path) for path in package),
         *(str(path) for path in payload_server_inputs(runtime)),
+        *(str(ROOT / path) for path in COMPILER_INPUTS),
     }
     manifest = source_manifest(source)
     companions = page_files(source)
@@ -570,8 +564,6 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
             *companions.rglob("*"),
             *source_manifest_candidates(source),
             manifest or DEFAULT_PACKAGES,
-            *(Path(path) for path in seed),
-            *prior_version_files(source),
             # A pinned copy's bytes change only with its pin, which is followed
             # instead, and it sits under `.tmp`, which no subscription may cover.
             *(() if media.is_relative_to(ASSETS_CACHE) else media.rglob("*")),
@@ -584,7 +576,6 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
     }
     discovering = {
         companions,
-        source.parent / "versions",
         source.parent / "media",
         *([manifest.parent / "media"] if manifest is not None else []),
     }
@@ -714,7 +705,6 @@ def serve_preview(
     # Fixture progress is distinct from the page's own authored inputs: an agent
     # may have revised those while this watcher was absent.
     state = {
-        "seed": fixture_seed(source),
         "authored": authored_digest(incoming_files(source)),
     }
     resumed = user and page.exists()
@@ -734,6 +724,7 @@ def serve_preview(
     service = None
     changes = None
     try:
+        launcher = cached_installation(runtime) / "bin/leaf"
         prepared_page = None
         if resumed:
             service = PreviewService(page, user, prepared_claim)
@@ -760,7 +751,7 @@ def serve_preview(
         roots = layer_inputs(
             tuple(read_json(page / "registry.json")["$layer"]["packages"])
         )
-        watched = watch_paths(source, runtime, roots, state["seed"])
+        watched = watch_paths(source, runtime, roots)
         changes = watch_changes(watched)
         if handshake is not None and not handshake.announce({"url": url}):
             return
@@ -796,7 +787,7 @@ def serve_preview(
                 # An added input is only in the reading taken after it arrived, and a
                 # deleted one only in the reading taken while it was still there.
                 if not reported & watched.paths:
-                    current = watch_paths(source, runtime, roots, state["seed"])
+                    current = watch_paths(source, runtime, roots)
                     if not reported & current.paths:
                         continue
             refreshed = refresh_preview(source, page, launcher, runtime, state, service)
@@ -806,7 +797,7 @@ def serve_preview(
             roots = layer_inputs(
                 tuple(read_json(page / "registry.json")["$layer"]["packages"])
             )
-            rebuilt = watch_paths(source, runtime, roots, state["seed"])
+            rebuilt = watch_paths(source, runtime, roots)
             if not changes.matches(watch_roots(rebuilt)):
                 # A refresh can change which packages the page vendors, and a
                 # subscription is fixed for its lifetime. Holding the old one
@@ -969,6 +960,9 @@ def preview(
         raise click.UsageError("choose an example name or --source, not both")
     if user and export:
         raise click.UsageError("--user serves a page; omit --export")
+    # An explicitly selected runtime owns its launcher, including in the worker
+    # and the page commands it starts. A host override would redirect those calls.
+    os.environ.pop("LEAF_HOST_LAUNCHER", None)
     try:
         if worker:
             from leaf.detached import Handshake
@@ -1019,6 +1013,7 @@ def export_preview(
     from leaf_dev.arms import run_directory
 
     out_dir = run_directory(TMP / "exports")
+    launcher = cached_installation(runtime) / "bin/leaf"
     with tempfile.TemporaryDirectory(prefix="preview-export-", dir=TMP) as staging:
         page = Path(staging) / "page"
         prepared = prepare_page(

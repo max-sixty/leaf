@@ -17,7 +17,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def reading(page, scope):
     return page.evaluate(
         """async id => {
-          const {readWork} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {readWork} = await window.__lfWidgetApi();
           const view = readWork(document.getElementById(id));
           return {done: view.done, leaves: view.leaves.map(row => row.element.id),
             stopped: view.stopped.map(row => row.element.id),
@@ -110,11 +110,11 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
         },
     }
     module = """import {keeps, once, widgetController} from "/runtime/widget-api.js";
-export default class extends HTMLElement {
+customElements.define("lf-project-milestone", class extends HTMLElement {
   #controller = widgetController(this);
   connectedCallback() { if (once(this)) this.#controller.subscribe(() => {}); }
   renderState(state) { keeps(this, "phase", state.phase.value); }
-};"""
+});"""
     source = leaf_page(
         "local work role",
         '<lf-test-plan id="plan"><lf-project-milestone id="local" phase="blocked"><strong>Local milestone</strong></lf-project-milestone></lf-test-plan>',

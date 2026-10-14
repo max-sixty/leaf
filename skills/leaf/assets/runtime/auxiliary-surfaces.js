@@ -24,7 +24,7 @@
    The selected surface is seated in one native dialog, nonmodal beside the page and
    modal where it covers. Its actual nodes and the chrome foreground permitted above
    the scrim have permanent homes in that dialog: changing posture never disconnects
-   editors, disclosures, embedded documents or standing native layers. The browser excludes
+   editors, disclosures, embedded documents or open native layers. The browser excludes
    every background subtree, including one a page revision adds. The retained visual
    scrim stays inside the dialog so page and chrome targeting keep their paint planes.
 
@@ -102,7 +102,7 @@ export function createAuxiliarySurfaces({
   envelope.setAttribute("role", "presentation");
   envelope.append(scrim);
   let active = null;
-  let standing = null;
+  let seated = null;
   let mounted = false;
   let arriving = null;
   let arrivalIntent = null;
@@ -111,7 +111,7 @@ export function createAuxiliarySurfaces({
   const landingIn = (controller) => controller.landing() ?? controller.surface;
   function seat(selected) {
     const next = selected?.covers() ? selected : null;
-    if (standing === selected && active === next) return;
+    if (seated === selected && active === next) return;
     const previous = active;
     const changedPosture = Boolean(active) !== Boolean(next);
     if (next) dismissPopoversOutside(next.surface);
@@ -120,7 +120,7 @@ export function createAuxiliarySurfaces({
       () => {
         if (previous) previous.surface.removeAttribute("data-lf-covered");
         active = next;
-        standing = selected;
+        seated = selected;
         keeps(band, "inert", next && !next.underBand ? "" : null);
         if (next) keeps(next.surface, "data-lf-covered", "");
         if (changedPosture || !envelope.open) {
@@ -229,6 +229,8 @@ export function createAuxiliarySurfaces({
   // opens it again (`handBack`, which lets go where none takes them), or wherever the
   // closer's `land` puts them instead, as the Escape step's `letGo` does. A surface's own
   // `hide` moves no focus, so the close places the user once (focus.js, `closeLayer`).
+  /** @param {string | null} key
+   * @param {{remember?: boolean, focus?: boolean, phase?: string, land?: () => unknown}} [options] */
   function select(
     key,
     { remember = true, focus = false, phase = "gesture", land } = {},
@@ -253,7 +255,7 @@ export function createAuxiliarySurfaces({
     // The native boundary lifts before the previous surface hides, so the focus it
     // hands back lands on a live page. The selected surface takes the boundary at sync.
     if (!selected || arriving || Boolean(active) !== selected.covers()) seat(null);
-    // Two surfaces on one edge, as Threads and Questions share the right, are two views
+    // Two surfaces on one edge, as Threads and the On panel share the right, are two views
     // of one side panel: selecting one in the other's place swaps them where they stand,
     // with no slide for either (`swap`).
     const swap = Boolean(previous && selected && previous.edge === selected.edge);

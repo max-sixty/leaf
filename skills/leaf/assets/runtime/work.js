@@ -2,7 +2,7 @@
  * Pages own their task and worker vocabulary through $work.widgets; this reader
  * owns progress, assignments, report age and stopped-work meaning independently
  * of how a dashboard composes those facts. */
-import { declarationFor, registryFor } from "./registry.js";
+import { declarationFor, layerFact, registry } from "./registry.js";
 import { readAsks } from "./asks/model.js";
 import { asksIn } from "./asks/place.js";
 import { elementById } from "./passages.js";
@@ -12,17 +12,24 @@ import { saidAt, reportSequence } from "./reports.js";
 import { widgetController } from "./widget-controller.js";
 import { addressableName } from "./addressable-names.js";
 
+const widgets = () => layerFact("$work")?.widgets ?? {};
+
+function specs(role) {
+  return Object.entries(widgets()).filter(([, spec]) => spec?.role === role);
+}
+
 export function workRole(element, role = null) {
-  const spec = registryFor(element).$work?.widgets?.[element?.localName];
+  const spec = widgets()[element?.localName];
   return spec && (!role || spec.role === role) ? spec : null;
 }
 
 export function workElements(root, role, { direct = false } = {}) {
+  const tags = new Set(specs(role).map(([tag]) => tag));
   const candidates = [...root.querySelectorAll("*")];
   const boundary = workAncestor(root, "scope");
   return candidates.filter(
     (element) =>
-      workRole(element, role) &&
+      tags.has(element.localName) &&
       workAncestor(element, "scope") === boundary &&
       (!direct || workAncestor(element.parentElement) === root),
   );
@@ -40,7 +47,7 @@ export function workAncestor(element, role) {
 function stateReport(element, role) {
   const verb = stateVerb(element, role);
   const spec = declarationFor(element, "x-state")[verb];
-  return registryFor(element).$states[element.localName][verb].writer === "agent"
+  return registry.$states[element.localName][verb].writer === "agent"
     ? [verb, spec]
     : [null, null];
 }
@@ -111,16 +118,19 @@ const done = (goal, read) => {
 // itself: in its scope, under no nearer goal, and not a goal.
 function interventions(goal, open) {
   const scope = workAncestor(goal, "scope");
-  return asksIn(goal, open)
-    .map((ask) => elementById(ask.source.id))
-    .filter(
-      (item) =>
-        item !== goal &&
-        !workRole(item, "goal") &&
-        workAncestor(item, "scope") === scope &&
-        workAncestor(item.parentElement, "goal") === goal &&
-        !quoted(item),
-    );
+  return (
+    asksIn(goal, open)
+      // `asksIn` holds widgets' asks, which each name their widget.
+      .map((ask) => elementById(/** @type {{id: string}} */ (ask.source).id))
+      .filter(
+        (item) =>
+          item !== goal &&
+          !workRole(item, "goal") &&
+          workAncestor(item, "scope") === scope &&
+          workAncestor(item.parentElement, "goal") === goal &&
+          !quoted(item),
+      )
+  );
 }
 
 function stopped(goal, open, nested, read) {

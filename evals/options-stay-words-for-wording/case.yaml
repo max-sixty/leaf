@@ -7,6 +7,9 @@
 # Putting the marker obligation first instead lost comparison labels (0/2);
 # these bounded results do not establish general instruction reliability.
 # Matching the source's high effort reproduced base 0/2, candidate 2/2.
+# Once SKILL.md asked every page for pictures, the section drew the 68px shift above
+# the options (2/2) while the options stayed words; options-draw-nothing alone judges
+# the drawing, so comparison-labels no longer forbids a figure outside the options.
 description: options-stay-words-for-wording
 metadata:
   purpose: 'Asks: when the alternatives differ only in wording, each lf-option stays a title and a sentence,
@@ -50,5 +53,4 @@ assert:
     order (for example actionable detail versus concise reporting), rather than
     duplicating the titles or labeling every option identically. Only the detailed,
     actionable wording has a recommended small.tag; its reason remains available in
-    prose. Neither option has chosen, since the user has not picked. No drawing is
-    needed for this wording choice.
+    prose. Neither option has chosen, since the user has not picked.

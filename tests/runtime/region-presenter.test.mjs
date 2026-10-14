@@ -56,3 +56,19 @@ test("a paint that moves a part it read paints again with the part as it stands"
   assert.deepEqual(paints, ["waiting", "offline"]);
   region.disconnect();
 });
+
+test("a reading that moves a part it read is refused", () => {
+  applicationState.setPhase("waiting");
+  assert.throws(
+    () =>
+      applicationPresenter({
+        region: "probe-reading",
+        reading: () => {
+          if (phase() === "waiting") applicationState.setPhase("offline");
+          return true;
+        },
+        paint: () => true,
+      }),
+    /reading moved a part it read/,
+  );
+});

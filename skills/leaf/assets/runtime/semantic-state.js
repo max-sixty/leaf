@@ -145,6 +145,10 @@ export const applicationPresenter = ({
     const outcome = collectReads(reading);
     readingReads = outcome.reads;
     if ("error" in outcome) throw outcome.error;
+    // A reading decides; the paint is what may publish. A value read before the reading
+    // itself published would be claimed as current.
+    if (moved(readingReads))
+      throw new Error(`the ${region} region's reading moved a part it read`);
     return outcome.value;
   };
   const claim = (value) => {

@@ -77,6 +77,7 @@ from leaf_dev.page_fixtures import (
     example_media,
     prepare_page,
     read_fixture,
+    record_run_context,
 )
 from leaf_dev.thread_snapshot_plugin import (
     image_snapshot,  # noqa: F401 — fixture for comparisons and explicit captures
@@ -489,7 +490,7 @@ TOKEN = "test-page-key"
 
 
 @pytest.fixture
-def serve(tmp_path, monkeypatch, initialized_page):
+def serve(tmp_path, monkeypatch, initialized_page, request):
     """Publish HTML as the newest version of a fresh page directory and serve it,
     as the real server does — vendoring included, so the assets under test are this
     repo's. Markup is one version; an example is every version it ships, stamped
@@ -608,6 +609,13 @@ def serve(tmp_path, monkeypatch, initialized_page):
                 if fixture_media.is_file():
                     (d / "media").mkdir(exist_ok=True)
                     shutil.copy2(fixture_media, d / "media" / fixture_media.name)
+        record_run_context(
+            d,
+            purpose="test",
+            run=tmp_path,
+            authored_source=example,
+            test=request.node.nodeid,
+        )
         for name, content in (page_files or {}).items():
             path = d / "page" / name
             path.parent.mkdir(parents=True, exist_ok=True)

@@ -122,6 +122,7 @@ from leaf_dev.commands.verify_site import (
     start_direct_agent,
     startup_profile,
 )
+from leaf_dev.page_fixtures import record_run_context
 from leaf_dev.review_scenario import COMMENTS, post
 from leaf_dev.startup import startup_reading
 
@@ -927,8 +928,9 @@ def isolated(
         passed = True
     finally:
         run_leaf(ROOT, place.state, "server", "stop", str(place.page))
-        if (place.page / "events.jsonl").exists():
-            shutil.copy(place.page / "events.jsonl", evidence / "events.jsonl")
+        for name in ("events.jsonl", "observations.jsonl"):
+            if (place.page / name).exists():
+                shutil.copy(place.page / name, evidence / name)
         os.environ.clear()
         os.environ.update(inherited)
         if passed:
@@ -948,6 +950,7 @@ def user_at(
     them: in Chrome where there is one (`BrowserEnd`), else posting as the page's tab
     does (`HttpEnd`). Records the setup step, begun at `started`, and keeps the
     session's trace as evidence however the journey ends."""
+    record_run_context(place.page, purpose="automated", run=place.evidence)
     url = running_server(place.page)["url"]
     end = (
         HttpEnd(url, place.page, terminal.hear)

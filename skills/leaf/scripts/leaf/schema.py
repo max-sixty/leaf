@@ -648,7 +648,7 @@ DATA_FILE = "data.json"
 FILE_BINDINGS_FILE = "files.json"
 DATA_DIR = "data"
 # The diagnostic request and interaction trace (`interaction_log.py`).
-INTERACTIONS_FILE = "interactions.jsonl"
+INTERACTIONS_FILE = "observations.jsonl"
 PREVIEW_FILE = "preview.json"
 VIEWED_FILE = "viewed.json"
 USER_VIEWS_FILE = "user-views.json"

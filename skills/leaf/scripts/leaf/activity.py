@@ -503,7 +503,12 @@ def canonical_activity(
     `reservations` reserve automatic replies from the claimant's exact App Server
     turn (`reply_reservation_stands`). Their workflows keep the `reply` answer kind
     and add `writer: "turn"` and the reservation's attempt. An explicit addressed
-    answer may commit first; the automatic final then yields to it."""
+    answer may commit first; the automatic final then yields to it.
+
+    `detail_source` preserves the selected start's event and item identity when
+    its authored words supply the banner detail. Harness observations and general
+    status declarations have no exact input source. Consumers never recover one
+    by matching the displayed words."""
     from .todos import TodoReading
 
     log = todo_reading or TodoReading(events)
@@ -645,6 +650,7 @@ def canonical_activity(
     taking_input = takes_input(present, turn)
     kind = "away"
     detail = ""
+    detail_source = None
     ts = status.get("ts")
     dropped = status_dropped
     if status["state"] == "idle":
@@ -659,6 +665,7 @@ def canonical_activity(
         # happens to be newest. So it stands beside the line as `observed`.
         start, (_, dropped) = max(in_hand_now, key=lambda pair: pair[0]["seq"])
         kind, detail, ts = "working", start["text"], start["ts"]
+        detail_source = {"event_id": start["id"], "item": start["item"]}
     elif observed is not None:
         kind, detail, dropped = "working", observed.get("detail", ""), False
         ts = observed["ts"]
@@ -674,6 +681,7 @@ def canonical_activity(
         # the newest one's line, or is away when nothing takes input.
         start, (_, dropped) = max(in_hand, key=lambda pair: pair[0]["seq"])
         detail, ts = start["text"], start["ts"]
+        detail_source = {"event_id": start["id"], "item": start["item"]}
         kind = "stalled" if taking_input else "away"
     elif taking_input:
         kind, detail, dropped = "listening", status.get("detail", ""), False
@@ -688,6 +696,7 @@ def canonical_activity(
         "held": held,
         "dropped": dropped,
         "detail": detail,
+        "detail_source": detail_source,
         # The step behind a working reading, reported whether or not it is also the
         # sentence, so a consumer can show both without asking which harness this is. Only
         # under `working`: a step standing beside "last checked in 30m ago" would argue

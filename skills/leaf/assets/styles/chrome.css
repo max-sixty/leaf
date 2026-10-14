@@ -427,12 +427,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
       margin-inline-start: var(--lf-status-inset-left); }
   }
   /* Reading targets keep the room of their words. Approval takes the remaining room,
-     down to the shared aim floor, and truncates its label when a larger face needs
-     more than the window can hold. Its complete text remains the accessible name. */
+     down to the shared aim floor, and its room cuts its label when a larger face needs
+     more than the window can hold (controls.css). Its complete text remains the
+     accessible name. */
   .lf-banner-actions > .lf-btn { flex: none; }
   .lf-banner-actions > .lf-signoff { flex-shrink: 1; overflow: hidden; }
-  .lf-signoff > [data-lf-room] { overflow: hidden; text-overflow: ellipsis;
-    vertical-align: top; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)) { border-color: transparent;
     border-radius: 0; background: transparent; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
@@ -501,8 +500,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   }
   /* The agent's On count is a page fact, like the Threads count, so it stands apart
      from the sentence: on one row between the status's room and the run, in a box
-     with room for the count it usually reaches (banner-status-view.js), which only
-     grows. Its words
+     holding the room of the count it usually reaches (banner-status-view.js). Its words
      start at its fixed leading edge in tabular digits, so a count changing moves none of
      them, and a sentence changing reaches them only as the press's ellipsis. It is a
      press of its own, opening the On panel, in the status press's face and ring. */

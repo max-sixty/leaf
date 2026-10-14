@@ -353,13 +353,13 @@ now when the element has a box and otherwise the first time it does.
 
 A label whose words change, such as a count, keeps one width for all of them, so a
 change moves nothing beside it. Put the words it can show, one per line, in
-`data-lf-room` on the element holding only its words, and write the words into that
-element. The theme draws that element as an inline block at least as wide as its widest
-room line in its own face, and no wider than its container; the room is invisible and
-stays out of its text and accessible name. The element keeps its own `::before` free for
-the room. Words longer than every room line widen it, so list the longest words the
-label will show. Where the label may meet a narrower box, the widget's CSS decides
-whether it truncates.
+`data-lf-room` on an element whose one child holds the words, and write the words into
+that child. The theme draws the element as an inline block as wide as its widest room
+line in its own face, and no wider than its container; the room is invisible and stays
+out of its text and accessible name. The element keeps its own `::before` free for the
+room. Words wider than the room are cut with an ellipsis rather than widening it, so
+list the longest words the label will show; cut words stay whole in the accessible
+name.
 
 After a view swap that rearranges descendants without resizing the widget's outer box,
 call `layoutChanged(element)` and await its promise before restoring scroll. It

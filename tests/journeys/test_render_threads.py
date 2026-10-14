@@ -149,7 +149,12 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
         if notice_box is None:
             notice_box = news.bounding_box()
         else:
+            # The notice holds the room of the words it first showed, so longer news
+            # is cut there rather than widening it; its title keeps the words whole.
             assert news.bounding_box() == notice_box
+            expect(news).to_have_attribute("title", "2 new replies")
+            assert news.evaluate("n => { const w = n.querySelector('span');"
+                                 " return w.scrollWidth > w.clientWidth; }")
 
     resized(page, 360, 900)
     rendered(page)

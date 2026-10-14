@@ -85,6 +85,13 @@ has tried; settle that before building it.
   Update rows) and, since the floating card's held-news notice, the agent's progress
   ("1 new update"); the glossary keeps it for the user's input alone. Choose one
   sense, rename the other surfaces, and update the glossary to match.
+- **Find the labels where cutting at the room misleads.** Since 2026-10-14 a label
+  holding a room (`data-lf-room`, `controls.css`) cuts words past it with an ellipsis
+  rather than widening its control, which had shifted the banner (the user's
+  decision). Some cuts lose the fact the label exists for: On me at 100 or more reads
+  "On me: 1…", and the user called that count essential. Survey each room's owner for
+  words it can reach past its room, starting with On me, and give each case where the
+  cut misleads a room that holds it or a shorter form, such as "99+".
 
 ### Agent and author experience
 

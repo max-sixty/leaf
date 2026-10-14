@@ -156,7 +156,7 @@ representative desktop viewport.
 - **Generated interface first appears in its settled position.** Reserve space before
   a generated control appears. Transient feedback may repaint a control or briefly
   replace its label but never changes its geometry (`data-lf-room`, `controls.css`,
-  sizes a label for all its words). An action awaiting confirmation dims its
+  holds a label at the room of its words and cuts words past it). An action awaiting confirmation dims its
   existing control after the shared delay. The parent laying out adjacent actions gives
   them disjoint hit boxes.
 - **An unlikely event fits into what is already there.** Reserve no room for a state
@@ -366,7 +366,7 @@ it, and shape the markup and CSS so the runtime uses its answer:
 
 | Question | The browser feature that answers it |
 | --- | --- |
-| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, a label's room drawn invisibly beside its words (`data-lf-room`) |
+| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, a label's room drawn invisibly over its words, which fill it and are cut past it (`data-lf-room`) |
 | Where a box stands against another box or the scroller holding it | the containing block, sticky positioning, anchor positioning, scroll timelines |
 | Which of Leaf's surfaces paints over which, and that the page paints beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0 |
 | Whether a box is rendered at all | `checkVisibility` |

@@ -308,9 +308,9 @@ function queueWords({ on_user: onUser, on_agent: onAgent }, agent) {
   return {
     summary: onAgent.length ? `On ${short}: ${onAgent.length}` : "",
     explanation: [named(onUser, "me"), named(onAgent, agent)].filter(Boolean).join(" "),
-    // The widest the count usually reaches, under ten, which its box keeps; more
-    // widens it once (banner-status-view.js).
-    widest: `On ${short}: 9`,
+    // The widest the count usually reaches, under a hundred, which its box holds;
+    // a count past it is cut (banner-status-view.js).
+    widest: `On ${short}: 99`,
   };
 }
 const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);

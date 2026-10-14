@@ -202,7 +202,7 @@ test("the disclosure names what waits on each side, and the row counts the agent
   const long = statusModel(status, queues, "Codex Research Agent");
   assert.deepEqual(
     [long.queues, long.queuesWidest],
-    ["On Codex Resea…: 2", "On Codex Resea…: 9"],
+    ["On Codex Resea…: 2", "On Codex Resea…: 99"],
   );
   assert.match(long.explanation, /Waiting on Codex Research Agent: 1 reply/);
   assert.equal(

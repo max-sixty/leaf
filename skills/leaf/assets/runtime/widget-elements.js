@@ -5,8 +5,8 @@
    writers through element directives built by `elementDirective`. A behavior module
    reads a box from inside `measure`: a widget upgrades wherever the runtime connects
    it, and a shut panel is `display: none`, where every word measures zero. A label
-   whose words change holds the room of all of them with `data-lf-room`, which the
-   theme sizes without script (controls.css). A module calls
+   whose words change holds one room for all of them with `data-lf-room`, which the
+   theme sizes without script and which cuts words past it (controls.css). A module calls
    `layoutChanged(el)` after view state rearranges descendants without resizing its
    outer box — `ResizeObserver` already covers size changes, and geometry consumers
    listen to this signal instead of watching every DOM mutation.

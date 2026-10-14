@@ -494,13 +494,9 @@ export function mountApplication(dependencies) {
   // chrome's `yielded`, asked before its reader goes, returns how to hand the reader
   // taking its place the conversation it shows, which runs once the package holds its
   // registration, as that reader may ask it to present.
-  const attachPresentation = (owner, { render, reveal, replyBox = null }) => {
-    const reader = createPrimaryReader(
-      owner,
-      render,
-      inlineView,
-      () => threadPresenter.present(),
-      replyBox,
+  const attachPresentation = (owner, { render, reveal }) => {
+    const reader = createPrimaryReader(owner, render, inlineView, () =>
+      threadPresenter.present(),
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;

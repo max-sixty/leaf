@@ -66,8 +66,9 @@ ACCEPTED, STDOUT, STDERR, EXIT = b"a", b"o", b"e", b"x"
 HEADER = struct.Struct(">cI")
 
 # The stdin frames, of up to 64 KiB each, a bridge holds for a command that has
-# not read them.
+# not read them, and the most a request may carry: its arguments and environment.
 STDIN_FRAMES = 256
+REQUEST_BYTES = 1 << 22
 
 # Claude Code's proxy keeps the bridge's side of a tunnel open after the client on
 # the other side has gone, so the bridge knows the client by its heartbeat
@@ -84,12 +85,15 @@ def send(stream, channel: bytes, data: bytes) -> None:
     stream.flush()
 
 
-def receive(stream) -> tuple[bytes, bytes] | None:
-    """The next frame, or None where the other side has closed."""
+def receive(stream, limit: int | None = None) -> tuple[bytes, bytes] | None:
+    """The next frame, or None where the other side has closed or announces more
+    than `limit` bytes."""
     header = stream.read(HEADER.size)
     if len(header) < HEADER.size:
         return None
     channel, length = HEADER.unpack(header)
+    if limit is not None and length > limit:
+        return None
     data = stream.read(length)
     return (channel, data) if len(data) == length else None
 
@@ -145,7 +149,13 @@ def serve(lock: int) -> None:
 
     class Handler(socketserver.StreamRequestHandler):
         def handle(self) -> None:
-            frame = receive(self.rfile)
+            # Anything on the machine can connect, so a request that is not the
+            # client's ends the handler within the silence a client may keep.
+            self.connection.settimeout(SILENCE_SECONDS)
+            try:
+                frame = receive(self.rfile, REQUEST_BYTES)
+            except OSError:
+                return
             if frame is None or frame[0] != REQUEST:
                 return
             request = json.loads(frame[1])
@@ -185,7 +195,6 @@ def serve(lock: int) -> None:
             """Queue the client's stdin for the command, and end the command's
             process group if the client falls silent before its exit status, as
             when Claude Code times the command out."""
-            self.connection.settimeout(SILENCE_SECONDS)
             with contextlib.suppress(OSError):
                 while frame := receive(self.rfile):
                     if frame[0] == STDIN:

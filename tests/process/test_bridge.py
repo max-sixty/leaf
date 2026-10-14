@@ -25,6 +25,9 @@ def bridged(monkeypatch):
         },
     )
     monkeypatch.setenv("SANDBOX_RUNTIME", "1")
+    # The bridge is reached directly here, not through a proxy the host may name.
+    for name in ("HTTP_PROXY", "http_proxy"):
+        monkeypatch.delenv(name, raising=False)
 
 
 @pytest.mark.skipif(not shutil.which("sandbox-exec"), reason="macOS's sandbox")

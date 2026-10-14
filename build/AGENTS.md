@@ -16,7 +16,7 @@ without a build.
 `browser/build.mjs` is the one builder: `pnpm run build:browser` writes every
 output below, and `pnpm run check:browser`, part of `pnpm run check`, compares a
 fresh build with the committed bytes without writing. Both first type-check the
-framework and the runtime's JavaScript (`browser/tsconfig.json` and
+framework and the browser's JavaScript (`browser/tsconfig.json` and
 `browser/tsconfig.runtime.json`; the `typecheck` header in `browser/build.mjs`).
 
 - `browser/` is the TypeScript browser framework, its Node tests, and `build.mjs`,

@@ -405,6 +405,8 @@ customElements.define(
     // which waits for the next document as it waits for the first. A newer
     // selection, Reset or removal supersedes it. The outer control remains the
     // keyboard stop while the child draws its view.
+    /** @param {string} id
+     * @param {{surface?: string, status?: string, waiting?: string}} [view] */
     async showThread(id, { surface = "page", status, waiting } = {}) {
       this.#viewOperation?.abort();
       const operation = new AbortController();

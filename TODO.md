@@ -672,9 +672,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
   holding it through a Web Lock, relaying over a BroadcastChannel, with samples
   relayed through their parent) adds about 115 lines more than it deletes; a
   WebSocket per document avoids the leader and the relay. Either way, first give
-  the server one subscribable change detector per page, whose watched files and
-  stat token derive from one declaration of page inputs (today `page_reading` and
-  `file_changes.page_targets` disagree on bound files and `viewed.json`). Trigger:
+  the server one subscribable change detector per page: the stat token and the
+  watched files already derive from one declaration of page inputs
+  (`served_state/reading.py`), but `api/news` stats on every look while the row
+  publisher and lifetime supervisor wake on the shared subscription
+  (`file_changes.page_changes`), which runs only in a serving process. Trigger:
   hosted replies visibly lag.
 - **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.

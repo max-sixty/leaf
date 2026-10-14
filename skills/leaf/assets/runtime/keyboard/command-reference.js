@@ -28,7 +28,7 @@ import {
   dismissPopoversOutside,
 } from "./layer-stack.js";
 import { scrollIntoView } from "../landing-scroll.js";
-import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { html, nothing, render, repeat } from "/vendor/browser-runtime.js";
 
 import {
   bindings,

@@ -31,7 +31,6 @@ test("closing the choices hands the user to a trigger the close itself shows", (
       opener.style.display = "none";
       trigger.style.display = "";
     },
-    foldMarginEntryOptions: () => {},
   });
   const list = reactions.registerReactSurface(surface, { palette, trigger });
   focusDestination(opener, "move");

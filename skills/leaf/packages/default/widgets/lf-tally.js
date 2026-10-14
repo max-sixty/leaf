@@ -51,7 +51,7 @@ customElements.define(
       if (!once(this)) return;
       const drawing = document.createElement("template");
       drawing.innerHTML = declarationFor(this, "x-prepaint");
-      const face = drawing.content.firstElementChild;
+      const face = /** @type {HTMLElement} */ (drawing.content.firstElementChild);
       face.dataset.lfGen = "1";
       this.#room = face.querySelector(".lf-tally-room");
       this.#words = face.querySelector(".lf-tally-words");

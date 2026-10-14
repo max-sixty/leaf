@@ -221,14 +221,17 @@ def compiled_pages(request, monkeypatch, isolated_session):
     """Browser-tier page producers vendor the same kernel the website ships.
 
     In-process commands retain their normal Python contracts and package resolution.
-    Only their kernel input comes from the prepared installation, whose manifest also
-    preserves the private-path protection after the source modules disappear.
-    Model and process tests of source installation keep that build-free boundary.
+    Only their kernel input comes from the prepared installation, whose kernel is
+    current for its modules. In-process model and process tests vendor the source
+    modules whether or not this checkout's committed kernel is current, so their
+    readings of a page's runtime do not depend on when it was last rebuilt.
     """
     if request.path.parent.name not in {"smoke", "browser", "journeys"}:
+        monkeypatch.setattr(layer_model, "KERNEL", request.path.parent / "no-kernel")
         return
     installation = request.getfixturevalue("compiled_installation")
     monkeypatch.setattr(layer_model, "ASSETS", installation / "skills/leaf/assets")
+    monkeypatch.setattr(layer_model, "KERNEL", installation / "skills/leaf/kernel")
     monkeypatch.setattr(layer_model, "PLUGIN_ROOT", installation)
     monkeypatch.setenv("LEAF_HOST_LAUNCHER", str(installation / "bin/leaf"))
     original_command = LEAF_COMMAND[:]

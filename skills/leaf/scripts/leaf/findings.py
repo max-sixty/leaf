@@ -165,8 +165,6 @@ def _visual_problem(problem: dict) -> str:
     kind = problem["kind"]
     if kind == "unregistered":
         return "did not call registerVisualParts"
-    if kind == "unreadable":
-        return f"could not read visual parts: {problem['error']}"
     return f"registered parts its prefixes do not admit {', '.join(problem['parts'])}"
 
 
@@ -749,6 +747,10 @@ _TEXT = {
         f"{_line(at, v)}: unknown widget — not in the vendored registry.json"
     ),
     "attribute-schema": lambda at, v: f"{_line(at, v)}: {v['reason']}",
+    "member-record-slot": lambda at, v: (
+        f"{_line(at, v)}: scalar verb `{v['value_verb']}` and `{v['owner']}`'s "
+        f"selection verb `{v['owner_verb']}` both write attribute `{v['attr']}`"
+    ),
     "not-member": lambda at, v: (
         f"{_line(at, v)}: must be a direct member of "
         + " or ".join(f"<{owner}>" for owner in v["owners"])
@@ -1273,6 +1275,13 @@ _TEXT = {
             v, "whose required id must use the canonical element-id schema"
         )
     ),
+    "creates-semantic-owner": _declared(
+        lambda v: _created(
+            v,
+            "which must be a parent-owned member without independent owner capabilities: "
+            + ", ".join(v["keys"]),
+        )
+    ),
     "shared-slot": _declared(
         lambda v: (
             f"x-state verbs `{v['verbs'][0]}` and `{v['verbs'][1]}` claim the"
@@ -1619,7 +1628,7 @@ _TEXT = {
     ),
     # A to-do, a start and an ending (`tasks.task_error`, `work.widget_seat_error`).
     "progress-parent": lambda at, v: (
-        "progress must take in hand the reply input addressed by its parent"
+        "progress must start the reply input its parent addresses"
     ),
     "not-a-widget": lambda at, v: f"{v['widget']!r} is not a widget on this page",
     "not-an-element": lambda at, v: f"{v['element']!r} is not an element on this page",
@@ -1665,7 +1674,7 @@ _TEXT = {
             if v["session"] is not None
             else "a sessionless command"
         )
-        + f" (start {v['start']!r}); take it in hand with `leaf task start`"
+        + f" (start {v['start']!r}); start it with `leaf task start`"
         " before ending it from another session"
     ),
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",

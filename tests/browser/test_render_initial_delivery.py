@@ -45,12 +45,14 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(
             return {frame};
         });
     """
+    # The kernel's modules over the source ones, as a vendored page has them.
     resources = {
         **{
-            "/" + path.relative_to(assets).as_posix(): Resource(
+            "/" + path.relative_to(root).as_posix(): Resource(
                 path.read_bytes(), "application/javascript"
             )
-            for path in assets.rglob("*.js")
+            for root in (assets, compiled_installation / "skills/leaf/kernel")
+            for path in root.rglob("*.js")
         },
         "/leaf.js": Resource(
             b"""

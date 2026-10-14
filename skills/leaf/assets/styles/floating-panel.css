@@ -54,6 +54,11 @@
        field's first line of words are each this tall, and the row stands them all on
        its foot, so every one of them is centred on the line the words are written on. */
     --lf-fp-line: 32px;
+    /* The line over the field (`.lf-fp-context`) is this tall. Over an open view it
+       lies across the seam, 6px of it in the row's padding and the rest in the room the
+       view keeps at its foot, so at the view's end it covers none of the view's words. */
+    --lf-fp-say: 18px;
+    --lf-fp-foot-room: calc(var(--lf-fp-say) - 6px);
     --lf-fp-width: min(
       540px,
       calc(100vw - 24px - var(--lf-safe-left) - var(--lf-safe-right))
@@ -407,15 +412,18 @@
      It is one line tall whatever it says. With no view open it stands above the row,
      with nothing above it to move. While a view is open it lies over the view's foot,
      on the panel's ground, rather than taking room of its own, so its coming, changing
-     or going moves nothing at the view's head, and no empty band stands under the view
+     or going moves nothing at the view's head, and no blank line stands under the view
      while it has nothing to say. It stands there across the seam between the view and
-     the row, in the room their paddings already leave between the view's last words and
-     the field's, so it covers little of the view beyond the view's own padding. */
+     the row, in the room their paddings leave between the view's last words and the
+     field's, which the view's padding keeps for it (`.lf-fp-view`), so at the view's end
+     it covers none of its words; scrolled back, the words pass under it, fading out
+     just above it so it reads as a layer over them. */
   .lf-fp-context {
     position: relative;
     z-index: 1;
     box-sizing: content-box;
-    height: 1lh;
+    height: var(--lf-fp-say);
+    line-height: var(--lf-fp-say);
     padding: 8px 14px 0;
     color: var(--lf-fp-muted);
     font-size: 12px;
@@ -425,7 +433,7 @@
   }
   .lf-floating-panel[data-open] .lf-fp-context {
     padding-top: 0;
-    margin: calc(6px - 1lh) 0 -6px;
+    margin: calc(6px - var(--lf-fp-say)) 0 -6px;
     background: var(--lf-fp-surface);
     /* What it covers fades out just above it rather than being cut at its edge. */
     box-shadow: 0 -3px 4px var(--lf-fp-surface);
@@ -676,13 +684,16 @@
   .lf-fp-stage:empty {
     display: none;
   }
+  /* Its padding at the foot is the room the line over the field lies in
+     (`--lf-fp-foot-room`), kept whether or not the line shows, so the view's last words
+     always scroll clear of it and its coming moves nothing. */
   .lf-fp-view {
     grid-area: 1 / 1;
     min-height: 0;
     max-height: var(--lf-fp-view-height);
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding: 4px 6px 6px;
+    padding: 4px 6px var(--lf-fp-foot-room);
     box-sizing: border-box;
     scrollbar-width: thin;
   }
@@ -703,6 +714,37 @@
   .lf-fp-view[data-view="thread"] {
     padding-top: 8px;
     mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
+  }
+  /* An answer waiting below the fold (floating-panel.js, `fitAnswer`): a press at the
+     view's foot, where the answer begins, standing on the panel's ground, which fades
+     in above it so what passes under reads as under a layer. The ground runs down
+     through the room the line over the field lies in, so the two stand as one foot;
+     that room is the view's own padding, which the foot's margin gives back, so at the
+     view's end the foot stands where it stuck and the room it takes is the press's
+     alone. */
+  .lf-fp-foot {
+    position: sticky;
+    bottom: 0;
+    margin: 0 -6px calc(-1 * var(--lf-fp-foot-room));
+    padding: 10px 0 calc(var(--lf-fp-foot-room) + 4px);
+    background: linear-gradient(transparent, var(--lf-fp-surface) 10px);
+  }
+  .lf-fp-new-reply {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 auto;
+    padding: 0 12px 0 8px;
+    border-radius: 14px;
+    background: var(--lf-fp-surface);
+    box-shadow:
+      0 0 0 1px var(--lf-fp-ring),
+      0 4px 10px -6px var(--shade);
+    color: var(--ink);
+    font-size: 12px;
+  }
+  :where(.lf-floating-panel) .lf-fp-new-reply:hover {
+    background: color-mix(in srgb, var(--ink) 5%, var(--lf-fp-surface));
   }
 
   /* Rows of a list, one line each. */

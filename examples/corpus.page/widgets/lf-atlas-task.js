@@ -5,15 +5,13 @@ import {
   threadBox,
   keeps,
   keepsText,
-  once,
-  widgetController,
+  LeafElement,
+  nothing,
 } from "/runtime/widget-api.js";
 customElements.define(
   "lf-atlas-task",
-  class extends HTMLElement {
-    #controller = widgetController(this);
-    connectedCallback() {
-      if (!once(this)) return;
+  class extends LeafElement {
+    setup() {
       keeps(this, "role", "group");
       this.ariaLabelledByElements = [this.querySelector(":scope > strong")];
       const status =
@@ -29,12 +27,12 @@ customElements.define(
         const thread = threadBox(this, "Say something here");
         if (thread) this.append(thread);
       }
-      this.#controller.subscribe(() => {});
     }
-    renderState(state) {
-      const status = state.status.value;
+    render() {
+      const status = this.state.status.value;
       keeps(this, "status", status);
       keepsText(this.statusLine, status);
+      return nothing;
     }
   },
 );

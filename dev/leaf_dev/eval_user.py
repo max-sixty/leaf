@@ -15,8 +15,6 @@ here knows the page's structure. Two moves cover what the user does there:
   page offered to copy. The tab records every clipboard write and copy, so what a
   copy button put on the clipboard is read exactly rather than from the agent.
 
-`reveal` is shared with the screenshots, which open the commented item before the
-judge sees the final version.
 The simulated user's prompt lives in `evals/workflows/eval_user.yaml`.
 """
 

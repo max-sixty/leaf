@@ -300,6 +300,9 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
   display: none;
 }
 @layer {
+  [hidden]:not([hidden=until-found]) {
+    display: none !important;
+  }
   @media screen {
     html[data-lf-interactive] body:not([data-lf-presented]),
     html[data-lf-interactive] body:not([data-lf-presented]) > main,
@@ -524,6 +527,12 @@ img {
 img {
   box-shadow: 0 0 0 1px var(--border-2), 0 2px 8px var(--shade);
 }
+img,
+svg,
+video,
+canvas {
+  vertical-align: middle;
+}
 details {
   border: var(--details-border) solid var(--rule);
   border-radius: var(--r);
@@ -624,6 +633,10 @@ section.panel {
 }
 section.panel > :is(h2, h3):first-child {
   margin: 0 0 10px;
+}
+.lf-label,
+section.panel > :is(h2, h3):first-child,
+:where([data-lf-reading-role=pane]) > header > :is(h2, h3, h4, h5, h6) {
   font: 600 var(--t-6)/1.3 var(--sans);
   letter-spacing: .06em;
   text-transform: uppercase;
@@ -809,10 +822,10 @@ svg.drawing .danger {
 }
 @media screen {
   html:root {
-    .lf-thread-seat:not([hidden]) {
+    .lf-thread-seat {
       display: block;
     }
-    .lf-say:not([hidden]) {
+    .lf-say {
       display: flex;
     }
   }
@@ -879,9 +892,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   font: 600 var(--t-6)/1 var(--sans);
   white-space: nowrap;
   scroll-margin-block: var(--focus-ring-room);
-}
-.lf-margin-entry[hidden] {
-  display: none;
 }
 .lf-margin-entry[data-lf-behavior=action] {
   border-width: 2px;
@@ -1093,10 +1103,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 }
 :where([data-lf-reading-role=pane]) > header > :is(h2, h3, h4, h5, h6) {
   margin: 0;
-  font: 600 var(--t-6)/1.3 var(--sans);
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 :where([data-lf-reading-role=pane]) > footer {
   padding: var(--pane-bar-pad);

@@ -166,7 +166,7 @@ class QueueList extends RetainedFace {
       ${
         done.rows.length
           ? html`<details class="lf-queue-group lf-queue-done" data-lf-queue="done">
-              <summary class="lf-queue-heading">${done.label}</summary>
+              <summary class="lf-queue-heading lf-label">${done.label}</summary>
               ${rowsTemplate(done.rows, this.#activateRow, this.#finishRow, this.#end)}
             </details>`
           : nothing

@@ -29,7 +29,6 @@ test("locked source reproduces the complete committed output", async () => {
     "AsyncDirective",
     "Directive",
     "LitElement",
-    "PRESENTATION_HELD",
     "PartType",
     "classMap",
     "collectOutside",

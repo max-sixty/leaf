@@ -332,9 +332,6 @@ summary {
 .lf-thread-checkpoint {
   margin-block: 16px;
 }
-.lf-thread-checkpoint[hidden] {
-  display: none;
-}
 .lf-thread-checkpoint[data-expanded=true] {
   position: relative;
 }
@@ -407,36 +404,34 @@ summary {
 .lf-summary-originals {
   min-width: 0;
 }
-.lf-summary-originals[hidden] {
-  display: none;
-}
 .lf-summary-originals > .lf-msg {
   margin-block: 8px;
 }
 .lf-thread-working {
   margin-top: 16px;
-  --lf-working-dim: color-mix(in oklab, var(--muted) 80%, var(--paper));
 }
 .lf-thread-working-words {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
   max-inline-size: 100%;
   font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
-  color: var(--lf-working-dim);
+  color: color-mix(in oklab, var(--muted) 80%, var(--paper));
 }
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
-  color: transparent;
-  background:
-    linear-gradient(
-      110deg,
-      var(--lf-working-dim) 42%,
-      var(--ink) 50%,
-      var(--lf-working-dim) 58%);
-  background-size: 200% 100%;
-  background-clip: text;
-  animation: lf-working-sheen 2s ease-in-out infinite alternate;
+  animation: lf-sheen 2s ease-in-out infinite alternate;
 }
-@keyframes lf-working-sheen {
+@keyframes lf-sheen {
+  from, to {
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-image:
+      linear-gradient(
+        110deg,
+        currentColor 42%,
+        var(--ink) 50%,
+        currentColor 58%);
+    background-size: 200% 100%;
+  }
   from {
     background-position: 100% 0;
   }
@@ -444,19 +439,11 @@ summary {
     background-position: 0% 0;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .lf-thread-working[data-lf-live] .lf-thread-working-words {
-    animation: none;
-    background: none;
-    color: var(--lf-working-dim);
-  }
-}
 @media (forced-colors: active) {
-  .lf-thread-working-words,
-  .lf-thread-working[data-lf-live] .lf-thread-working-words {
-    animation: none;
-    background: none;
-    color: GrayText;
+  @keyframes lf-sheen {
+    from, to {
+      -webkit-text-fill-color: currentColor;
+    }
   }
 }
 .lf-thread-disclosure[data-lf-focus] {
@@ -1164,7 +1151,8 @@ svg[data-lf-icon] {
   }
 }
 @media print {
-  details:not([open])::details-content {
+  details:not([open])::details-content,
+  [hidden=until-found] {
     content-visibility: visible;
   }
   details > summary {
@@ -1184,10 +1172,7 @@ svg[data-lf-icon] {
   color: var(--ink);
   display: inline-block;
 }
-:is(.lf-btn, .button)[hidden]:not([hidden=until-found]) {
-  display: none;
-}
-:where([data-lf-room]:not([hidden])) {
+:where([data-lf-room]) {
   display: inline-block;
   max-inline-size: 100%;
 }
@@ -1198,6 +1183,14 @@ svg[data-lf-icon] {
   overflow: hidden;
   visibility: hidden;
   white-space: pre-line;
+}
+[data-lf-room] > * {
+  display: block;
+  inline-size: 0;
+  min-inline-size: 100%;
+  overflow: clip;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 :is(.lf-btn, .button):not(:disabled, [aria-disabled=true]):hover {
   background: var(--chip);
@@ -1290,9 +1283,6 @@ svg[data-lf-icon] {
   display: grid;
   place-items: center;
   border-radius: var(--r);
-}
-.lf-icon-action[hidden] {
-  display: none;
 }
 .lf-action-icon {
   position: relative;
@@ -1400,9 +1390,6 @@ svg[data-lf-icon] {
   overflow-x: auto;
   padding: 2px;
   box-sizing: border-box;
-}
-.lf-composer-media[hidden] {
-  display: none !important;
 }
 .lf-composer-media-item {
   flex: none;
@@ -1619,9 +1606,6 @@ leaf-text.lf-fab-input {
   gap: 0;
   white-space: nowrap;
   cursor: pointer;
-}
-.lf-response-action[hidden] {
-  display: none;
 }
 .lf-response-action:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--card));

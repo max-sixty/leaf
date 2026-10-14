@@ -33,7 +33,6 @@
           height: var(--lf-icon-action-hit); min-width: var(--lf-icon-action-hit);
           min-height: var(--lf-icon-action-hit); padding: 0; display: grid;
           place-items: center; border-radius: var(--r); }
-.lf-icon-action[hidden] { display: none; }
 .lf-action-icon { position: relative; z-index: 1; inline-size: 16px; block-size: 16px;
           pointer-events: none; }
 /* Closing changes the view; resolving changes durable thread state. */
@@ -85,7 +84,6 @@
 .lf-composer-media {
   display: flex; flex: 1 0 100%; gap: 6px; min-width: 0; overflow-x: auto;
   padding: 2px; box-sizing: border-box; }
-.lf-composer-media[hidden] { display: none !important; }
 .lf-composer-media-item { flex: none; display: flex; align-items: stretch;
   box-sizing: border-box; border: 1px solid var(--border-2);
   border-radius: var(--r); background: var(--paper); overflow: hidden; }
@@ -203,7 +201,6 @@ button.lf-media-open { cursor: zoom-in; }
   .lf-response-action { min-width: max(30px, var(--aim-floor)); padding-inline: 9px;
     display: inline-flex; align-items: center; justify-content: center; gap: 0;
     white-space: nowrap; cursor: pointer; }
-  .lf-response-action[hidden] { display: none; }
   .lf-response-action:hover {
     border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
     background: var(--card); }

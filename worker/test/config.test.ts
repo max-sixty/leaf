@@ -44,10 +44,7 @@ const dockerfile = readFileSync(
 const codexConfig = parse(
   readFileSync(new URL("../codex-config.toml", import.meta.url), "utf8"),
 ) as Record<string, unknown>;
-const workerSource = readFileSync(
-  new URL("../src/index.ts", import.meta.url),
-  "utf8",
-);
+const workerSource = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8");
 const packageManifest = JSON.parse(
   readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
 ) as { dependencies: Record<string, string> };

@@ -78,16 +78,45 @@ told. A check that fires mostly on pages that already work, because delivery or 
 page's own CSS handles what it looks for, costs more than it catches. Prefer widening a
 general reading to adding a narrow one beside it.
 
-## Be a helpful linter, not a nanny nor a complicated partial checker
+The same bar holds for a note a command prints about what the agent should do next.
+Before adding a check or a note, weigh two rates: its precision, the share of its
+firings that land where one was needed, and its recall, the share of the failure's
+occurrences it reaches. Attempt to measure them on real pages and sessions, not on the
+failure that prompted it, and where the data isn't there, estimate them and say so. Low precision spams the agent. Low recall hides the wider
+problem: the cases its predicate sees get fixed, and the failure goes on everywhere
+else, now looking handled. The rates inform the call rather than gate it: weigh what a
+missed failure costs as well as how often it happens, and whether agents improve the
+page after receiving the message.
 
-Root `AGENTS.md`, "Leaf's role", says what a check is worth. A nanny refuses or
-explains input the agent's next attempt would fix anyway. A partial checker judges an
-input that a component in its path already judges, such as a parser, a widget or uv:
-the second judgment disagrees with the first at the edges, and each disagreement found
-becomes another check.
-Leave the judging to that component and make sure its refusal reaches the agent:
-`patch_manifest.py` stores a patch as given, and `lf-diff` refuses a file it cannot
-draw and reports it with `reportFailure`.
+## When to pass guidance back to the authoring agent
+
+Pass guidance back when it helps the author improve the user's result. Weigh that
+benefit against the interruption and the cost of maintaining another rule. Root
+`AGENTS.md`, "Leaf's role", sets that tradeoff.
+
+First ask whether Leaf should provide the behavior itself. Layout and runtime code
+should carry out the author's intent without making the author work around incidental
+markup restrictions. Keep editorial choices with the author and preserve the user's
+state.
+
+Refuse input when proceeding would break a necessary guarantee. A check fails when it
+establishes that the guarantee does not hold. Explain the failure where the author can
+correct it. Use the owning parser, reader, or validator rather than repeating its rules,
+and let its diagnostic reach the author: `patch_manifest.py` stores a patch as given,
+and `lf-diff` refuses a file it cannot draw and reports it with `reportFailure`. A
+reader's current limitations do not by themselves justify a restriction.
+
+When Leaf has useful evidence but the author must judge its significance, report the
+observation without turning it into a requirement. Put page findings in check results
+and consequences of a command in that command's output. Say what was checked and what
+was not.
+
+Put reusable knowledge in the instructions the author reads when making the relevant
+choice. Explain the capability or goal and why it matters. Add no message when it would
+only repeat known information or request a change the page does not need.
+
+When a markup contract changes, update its reader, validation, dependent layout rules,
+and instructions together.
 
 What one Leaf module writes for another, over a channel only Leaf code writes, is not
 input: the browser reading the server's answer, the Worker reading the manifest its

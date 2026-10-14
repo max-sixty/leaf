@@ -343,9 +343,10 @@ def test_server_start_hands_the_page_to_a_process_of_its_own(page_dir):
     costing the watcher alone."""
     started = start_server_command(page_dir)
     assert started.returncode == 0, started.stderr
-    url = json.loads(started.stdout)["url"]
+    reading = json.loads(started.stdout)
+    url = reading["url"]
     assert url.startswith("http://127.0.0.1:")
-    assert "server   session" in started.stderr
+    assert reading["lifetime"] == "session"
     info = server_model.running_server(page_dir)
     assert info and info["url"] == url
     # The child claims only after its refusal and bind checks, which is what lets
@@ -376,7 +377,7 @@ def test_server_start_forwards_flags_and_returns_service_output(page_dir):
     process's own words, carried out with its exit status."""
     persistent = start_server_command(page_dir, "--persistent")
     assert persistent.returncode == 0, persistent.stderr
-    assert "server   persistent" in persistent.stderr
+    assert json.loads(persistent.stdout)["lifetime"] == "persistent"
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "persistent"
     assert service_model.page_claim(page_dir) is None
 
@@ -534,8 +535,9 @@ def test_server_run_persistent_declines_the_claim_a_harness_session_offers(
         stderr=subprocess.PIPE,
         text=True,
     )
-    assert json.loads(process.stdout.readline())["url"].startswith("http://127.0.0.1:")
-    assert process.stderr.readline().strip() == "server   persistent"
+    reading = json.loads(process.stdout.readline())
+    assert reading["url"].startswith("http://127.0.0.1:")
+    assert reading["lifetime"] == "persistent"
     assert files_model.read_json(page_dir / "service.json")["lifetime"] == "persistent"
     assert service_model.page_claim(page_dir) is None
 
@@ -552,11 +554,10 @@ def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn)
         stderr=subprocess.PIPE,
         text=True,
     )
-    url = json.loads(process.stdout.readline())["url"]
+    reading = json.loads(process.stdout.readline())
+    url = reading["url"]
     assert url.startswith("http://127.0.0.1:")
-    assert process.stderr.readline().strip() == (
-        "server   temporary (stops with this command)"
-    )
+    assert reading["lifetime"] == "temporary"
     state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
     assert urllib.request.urlopen(state).status == 200
     assert not (page_dir / "service.json").exists()
@@ -565,7 +566,7 @@ def test_server_run_temporary_uses_the_browser_harness_boundary(page_dir, spawn)
     process.send_signal(signal.SIGINT)
     _, error = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, error
-    assert error.endswith("Aborted!\n")
+    assert json.loads(error)["error"] == "interrupted"
 
 
 def test_server_run_persistent_refuses_to_adopt_a_session_server(page_dir):
@@ -661,9 +662,8 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
     # A `server run` of its own finds this one up and reports the lifetime the
     # running server has, not the one this claiming launch would have given it.
     hosting_model.cmd_serve(page_dir, harness=harness_model.session_harness())
-    served = capsys.readouterr()
-    assert json.loads(served.out) == {"url": launched["url"]}
-    assert "server   persistent" in served.err
+    served = json.loads(capsys.readouterr().out)
+    assert (served["url"], served["lifetime"]) == (launched["url"], "persistent")
 
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "SessionEnd", "session_id": "later"}

@@ -29,6 +29,7 @@ from interact_support import (
     publish,
     receive_through,
     record_claim,
+    said,
     serving,
     vendored_at_another_protocol,
     working,
@@ -696,7 +697,11 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
 
     def idle():
         result = CliRunner().invoke(cli_model.cli, ["status", str(page), "idle"])
-        return {"exit": result.exit_code, "output": result.output}
+        return {
+            "exit": result.exit_code,
+            "stdout": result.stdout,
+            "stderr": said(result.stderr),
+        }
 
     # The turn ends over the page, and its Stop hook watches from here.
     assert hook("Stop") is None

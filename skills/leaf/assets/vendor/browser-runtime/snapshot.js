@@ -119,8 +119,8 @@ export function collectOutside   (
 
 /**
  * A reading of a value outside the publication, which a collection records as it
- * records a part: the clock's answer to a paint's question, whether a drag holds the
- * projection, how many times the page has presented. `read` computes the value now, and
+ * records a part: the clock's answer to a paint's question, how many times the page
+ * has presented. `read` computes the value now, and
  * `heard` registers a callback for each moment it may have moved, returning the way to
  * stop; the source passes the callback one object per round of notifications, such as
  * a clock tick, so a follower of several readings answers a round once. A watcher or a

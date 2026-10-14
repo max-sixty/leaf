@@ -1,10 +1,13 @@
-# Pairwise reader judgement; the runner supplies the blinded brief and reachability contract.
+# Pairwise live-page judgment; the runner supplies blinded copies and task scope.
 prompt: |-
-  You are judging two web pages built for the same user request. Read the
-  brief at {brief}, then open every screenshot it lists with the Read tool before
-  judging. Open no other file.
+  You are judging two web pages built for the same user request. Explore both
+  live pages at the provided window sizes before comparing them.
 
-  Judge as the user who made the request would, from what the screenshots show.
+  {brief}
+
+  Judge as the user who made the request would, from the rendered pages and
+  the behavior you actually operate. Your inspection choices are not changes
+  the author made to the user's recorded final decisions.
   {reachable} Ignore which tool or framework made a page and any fixed viewer chrome
   outside the page's content; judge the content, its arrangement and its legibility.
 
@@ -15,10 +18,17 @@ prompt: |-
   - phone: the page is usable at 390px
   - comment: the final page carries the change the comment asked for where a reader
     of that passage would find it
-  - applied: the final page records the decisions the user made, as they made them
+  - applied: after the later decision message, the author's final revision preserves
+    the user's recorded decisions
+
+  Apply the requirements established by the request and later messages. An aspect
+  that does not apply to this task is a tie, rather than missing evidence.
 
   Name the better page on each, and overall with its margin; list each page's
   defects; give your reason in two or three sentences.
+  Use status complete only when exploration supports the comparison. Otherwise
+  return insufficient_evidence and explain what remains unverified; do not turn
+  missing observation into a tie or an omission.
 aspects:
 - evidence
 - decisions
@@ -29,6 +39,11 @@ aspects:
 output_schema:
   type: object
   properties:
+    status:
+      type: string
+      enum:
+      - complete
+      - insufficient_evidence
     evidence: &id001
       type: string
       enum:
@@ -55,6 +70,7 @@ output_schema:
     reason:
       type: string
   required:
+  - status
   - evidence
   - decisions
   - width
@@ -68,4 +84,4 @@ output_schema:
   - reason
   additionalProperties: false
 brief_intro: Pages A and B were each built for this request, then revised for each later message.
-  Below are screenshots of each final page at four window sizes, top to bottom with overlap.
+  The live copies show their final versions before your inspection actions.

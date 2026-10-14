@@ -1956,18 +1956,20 @@ STEP_DISCS_PAGE = leaf_page(
     '<h1>Steps</h1><ol class="steps">'
     "<li><strong>The first line opens bold.</strong> The rest of the step runs on in "
     "prose long enough to wrap onto a second line of the column it stands in.</li>"
-    "<li>Route new sessions to the old service.</li></ol>"
-    '<div style="font: var(--t-3)/1.6 var(--sans)"><ol class="steps">'
+    "<li>Route new sessions to the old service.</li>"
+    '</ol><div style="font: var(--t-3)/1.6 var(--sans)"><ol class="steps">'
     "<li><strong>A larger sans rung.</strong> Its own line is taller.</li></ol></div>"
-    '<aside class="sidenote"><ol class="steps"><li>A sidenote step.</li></ol></aside>',
+    '<aside class="sidenote"><ol class="steps"><li>A sidenote step.</li></ol></aside>'
+    '<ol class="steps" dir="rtl"><li>خطوة تبدأ من اليمين.</li></ol>',
 )
 
 
 def test_a_steps_number_sits_centred_in_its_disc_beside_its_first_line(browser, serve):
     """Each step's number has its ink centred in its disc, and the disc centres on the
-    cap height of the step's first line, in the serif and sans faces and at each rung
-    a list of steps appears at. The number once stood on the item's line box, 27px of
-    line in a 21px disc, so it sat three pixels low beside every step of body prose."""
+    capitals of the step's first line, in the serif and sans faces, at each rung a
+    list of steps appears at, and at the start of a right-to-left step. The number once
+    stood on the step's line inside a smaller disc, three pixels low beside every step
+    of body prose, and the disc stood at the left edge whatever the direction."""
     scale = 2
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, device_scale_factor=scale
@@ -1981,12 +1983,12 @@ def test_a_steps_number_sits_centred_in_its_disc_beside_its_first_line(browser, 
         step.prepend(probe);
         const baseline = probe.getBoundingClientRect().bottom;
         probe.remove();
-        const face = getComputedStyle(
-          step.firstChild.nodeType === Node.ELEMENT_NODE ? step.firstChild : step);
+        const face = getComputedStyle(step);
         pen.font = `${face.fontWeight} ${face.fontSize} ${face.fontFamily}`;
         const disc = getComputedStyle(step, '::before');
         const box = step.getBoundingClientRect();
-        return {text: step.textContent.slice(0, 24), x: box.x, y: box.y,
+        return {text: step.textContent.slice(0, 24),
+          x: face.direction === 'rtl' ? box.right - 24 : box.x, y: box.y,
           capCentre: baseline - pen.measureText('H').actualBoundingBoxAscent / 2,
           ground: disc.backgroundColor, ink: disc.color};
       });
@@ -1995,9 +1997,9 @@ def test_a_steps_number_sits_centred_in_its_disc_beside_its_first_line(browser, 
     def rgb(css):
         return tuple(round(float(n)) for n in re.findall(r"[0-9.]+", css)[:3])
 
-    assert len(steps) == 4, steps
+    assert len(steps) == 5, steps
     for step in steps:
-        clip = {"x": step["x"], "y": step["y"] - 4, "width": 24, "height": 30}
+        clip = {"x": step["x"], "y": step["y"] - 2, "width": 24, "height": 40}
         shot = Image.open(io.BytesIO(page.screenshot(clip=clip, scale="device")))
         pixels, (width, height) = shot.convert("RGB").load(), shot.size
         ground, ink = rgb(step["ground"]), rgb(step["ink"])
@@ -2007,6 +2009,7 @@ def test_a_steps_number_sits_centred_in_its_disc_beside_its_first_line(browser, 
             for x in range(width)
             if math.dist(pixels[x, y], ground) < 40
         ]
+        assert disc, f"no disc at the start of the step's first line: {step}"
         left, right = min(x for x, _ in disc), max(x for x, _ in disc) + 1
         top, bottom = min(y for _, y in disc), max(y for _, y in disc) + 1
         middle, centre = (left + right) / 2, (top + bottom) / 2

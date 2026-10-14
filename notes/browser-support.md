@@ -98,22 +98,6 @@ what fails and what still works.
   and runs the pseudo-element's transition, so nothing visible differs.
 - **Disposition:** adopted without a fallback.
 
-### Glyph centring by its ink
-
-- **Owner:** `styles/theme.css`, `ol.steps > li::before`. A step's number centres
-  in its disc on its cap height and baseline (`text-box: trim-both cap alphabetic`),
-  not on its line box, which is the step's own line and taller than the disc.
-- **Compatibility checked 2026-10-13:** the `text-box` shorthand supports
-  Chrome/Edge 133+, Safari 18.2+ and Firefox 154+, according to
-  [web.dev's August 2026 platform notes](https://web.dev/blog/web-platform-08-2026).
-- **Observed:** in Playwright's Chromium 153, Firefox 155 and WebKit 26.6 the
-  number's ink stands within 0.75px of its disc's centre, and the disc within
-  1.1px of its first line's cap centre, in serif, sans and sidenote steps
-  (`test_a_steps_number_sits_centred_in_its_disc_beside_its_first_line`, run in
-  Chromium). An engine without `text-box` centres the number on the step's line,
-  3px low beside body prose.
-- **Disposition:** adopted without a fallback.
-
 ## Known gaps
 
 ### Browser dictation in comment boxes

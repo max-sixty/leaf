@@ -18,7 +18,6 @@ import { applicationState, attachWidgetPresentation } from "./semantic-state.js"
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
 import { failSoftUnreported } from "./widget-upgrade.js";
-import { dragHeld, watchDragRelease } from "./widget-elements.js";
 import { watchOwner } from "./arrivals.js";
 import { readingPaint } from "./presence.js";
 import { holdRendering } from "./rendering.js";
@@ -28,13 +27,24 @@ const controllers = new WeakMap();
 const lifecycles = new WeakMap();
 const ancestorRefreshes = new Set();
 let ancestorRefreshQueued = false;
-const gestureDeferred = new Set();
+// Owners that draw themselves (`LeafElement`, leaf-element.js), each with the hold its
+// gestures defer: such an owner subscribes to nothing here, and `defer` holds its paint.
+// An ancestor's remount refreshes it as it refreshes a subscribed controller.
+const selfDrawn = new WeakMap();
+export const drawsItself = (owner, drawing) => selfDrawn.set(owner, drawing);
 
-watchDragRelease(() => {
-  const pending = [...gestureDeferred];
-  gestureDeferred.clear();
-  for (const resume of pending) resume();
-});
+// A widget connected to draw its reading. A data renderer may remount a nested widget
+// without changing its semantic reading. Its own owner restores its state; an ancestor
+// may own its placement, so refresh each mounted ancestor once for the new parent. The
+// caller remembers the parent, which keeps the ancestor's corrective move from looping.
+// A widget can also first appear when thread presentation mounts frozen markup after the
+// global projection pass, so coordinate and provenance work runs again now that it and
+// its units exist; state application coalesces the request.
+export function widgetMounted(owner, descriptor, parentChanged) {
+  if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
+    refreshAncestorControllers(owner);
+  invalidateDom();
+}
 
 function refreshAncestorControllers(owner) {
   for (
@@ -203,25 +213,13 @@ function createWidgetController(owner) {
     render()?.present(reading);
   };
 
-  const resumeGestureRender = () => {
-    gestureDeferred.delete(resumeGestureRender);
-    if (deferred || !deferredReading || !subscriptions.size) return;
-    const latest = deferredReading;
-    deferredReading = null;
-    presentRender(latest);
-  };
-
   // The controller is an owner of its own: a paint that mounts its widget connects it,
   // and what it reads to draw is its selection's to follow, never that paint's.
   const publish = () =>
     untracked(() => {
       const reading = read();
-      if (deferred || dragHeld()) {
-        holdRender(reading);
-        if (dragHeld()) gestureDeferred.add(resumeGestureRender);
-        return;
-      }
-      presentRender(reading);
+      if (deferred) holdRender(reading);
+      else presentRender(reading);
     });
 
   const connect = () => untracked(connectOwner);
@@ -233,16 +231,7 @@ function createWidgetController(owner) {
       connectedParent = owner.parentElement;
       render();
       stopSelection = selected.subscribe(publish);
-      // A data renderer may remount a nested widget without changing its semantic
-      // reading. Its own controller restores its state; a parent controller may own
-      // its placement, so refresh each mounted ancestor once for the new parent. The
-      // remembered parent prevents the parent's corrective reparenting from looping.
-      if (parentChanged && applicationState.read().document.authored.has(descriptor.id))
-        refreshAncestorControllers(owner);
-      // A controller can first appear when thread presentation mounts frozen
-      // markup after the global projection pass. Re-run coordinate/provenance work now
-      // that this owner and its units exist; state application coalesces the request.
-      invalidateDom();
+      widgetMounted(owner, descriptor, parentChanged);
     }
     if (preparation && !preparationHandle) {
       const handle = prepared();
@@ -251,7 +240,6 @@ function createWidgetController(owner) {
   };
 
   const disconnect = () => {
-    gestureDeferred.delete(resumeGestureRender);
     stopSelection?.();
     stopSelection = null;
     renderHandle?.disconnect();
@@ -271,7 +259,11 @@ function createWidgetController(owner) {
     publish();
   };
 
-  watchLifetime(owner, { connect, disconnect, refresh });
+  watchLifetime(owner, {
+    connect,
+    disconnect,
+    refresh: () => (selfDrawn.get(owner)?.refresh ?? refresh)(),
+  });
 
   return Object.freeze({
     read,
@@ -284,7 +276,6 @@ function createWidgetController(owner) {
       return () => {
         subscriptions.delete(callback);
         if (!subscriptions.size) {
-          gestureDeferred.delete(resumeGestureRender);
           stopSelection?.();
           stopSelection = null;
           renderHandle?.disconnect();
@@ -303,6 +294,19 @@ function createWidgetController(owner) {
     defer() {
       if (deferred) throw new Error("Widget presentation is already deferred");
       deferred = true;
+      const drawing = selfDrawn.get(owner);
+      if (drawing) {
+        const release = drawing.hold();
+        let released = false;
+        return () => {
+          if (released) return read();
+          released = true;
+          deferred = false;
+          release();
+          invalidateDom();
+          return read();
+        };
+      }
       // The gesture may mutate the live DOM without changing semantic identity. Resume
       // must therefore run the total renderer even when the publisher reading is the
       // same object that preceded the gesture.

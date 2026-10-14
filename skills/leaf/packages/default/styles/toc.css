@@ -21,9 +21,7 @@
 :scope:is(lf-toc) .lf-toc-nav { position: relative; border-left: 1px solid var(--border-2);
                      padding-left: var(--sp-3); color: var(--muted);
                      font: var(--t-5)/1.3 var(--sans); }
-:scope:is(lf-toc) .lf-toc-heading { margin: 0 0 7px; color: var(--ink-2);
-                         font-size: var(--t-6); font-weight: 650;
-                         letter-spacing: .08em; text-transform: uppercase; }
+:scope:is(lf-toc) .lf-toc-heading { margin: 0 0 7px; }
 :scope:is(lf-toc) .lf-toc-start, :scope:is(lf-toc) .lf-toc-window { display: none; }
 @media print { :scope:is(lf-toc) .lf-toc-start { display: block; } }
 :scope:is(lf-toc) ol { list-style: none; margin: 0; padding: 0; }

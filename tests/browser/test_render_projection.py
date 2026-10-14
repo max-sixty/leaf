@@ -5344,65 +5344,6 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     expect(page.locator("#ag-wren .lf-doing")).to_have_count(0)
 
 
-def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
-    """The page-wide drag gate withholds widget views and projection coverage."""
-    page = open_page(browser, serve(ROSTER_PAGE))
-    d = serve.page_dir
-    row = page.locator("#ag-wren")
-
-    first = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "report",
-            str(d),
-            "ag-wren",
-            "state",
-            "value=working",
-            "text=checking the first mount",
-        ],
-    )
-    assert first.exit_code == 0, first.output
-    told(page)
-    expect(row).to_have_attribute("state", "working")
-    expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
-
-    page.evaluate(
-        """async () => {
-          const {dragging} = await window.__lfWidgetApi();
-          dragging(document.body, true);
-        }"""
-    )
-    second = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "report",
-            str(d),
-            "ag-wren",
-            "state",
-            "value=idle",
-            "text=checking the second mount",
-        ],
-    )
-    assert second.exit_code == 0, second.output
-    told(page)
-    expect(row).to_have_attribute("state", "working")
-    expect(row.locator(".lf-doing")).to_have_text("checking the first mount")
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
-
-    page.evaluate(
-        """async () => {
-          const {dragging} = await window.__lfWidgetApi();
-          dragging(document.body, false);
-        }"""
-    )
-    expect(row).to_have_attribute("state", "idle")
-    expect(row.locator(".lf-doing")).to_have_text("checking the second mount")
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
-
-
 @pytest.mark.parametrize("holding", ["defer", "preparation"])
 def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     browser, serve, holding
@@ -5739,12 +5680,62 @@ customElements.define("lf-tally", class extends HTMLElement {
     assert original.evaluate("node => node === document.getElementById('tally-seen')")
 
 
+LEGACY_OWNER = """\
+import { once, widgetController } from "/runtime/widget-api.js";
+customElements.define("lf-owner", class extends HTMLElement {
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
+  renderState(state) {
+    for (const [id, order] of Object.entries(state.move.value)) {
+      const zone = document.getElementById(id);
+      for (const child of order) zone.append(document.getElementById(child));
+    }
+  }
+});
+"""
+LEGACY_PIECE = """\
+import { keeps, once, widgetController } from "/runtime/widget-api.js";
+customElements.define("lf-piece", class extends HTMLElement {
+  #controller = widgetController(this);
+  #stop;
+  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
+  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
+  renderState(state) { keeps(this, "pinned", state.move.value); }
+});
+"""
+LEAF_OWNER = """\
+import { LeafElement, nothing } from "/runtime/widget-api.js";
+customElements.define("lf-owner", class extends LeafElement {
+  render() {
+    for (const [id, order] of Object.entries(this.state.move.value)) {
+      const zone = document.getElementById(id);
+      for (const child of order) zone.append(document.getElementById(child));
+    }
+    return nothing;
+  }
+});
+"""
+LEAF_PIECE = """\
+import { keeps, LeafElement, nothing } from "/runtime/widget-api.js";
+customElements.define("lf-piece", class extends LeafElement {
+  render() {
+    keeps(this, "pinned", this.state.move.value);
+    return nothing;
+  }
+});
+"""
+
+
+@pytest.mark.parametrize("contract", ["controller", "leaf-element"])
 def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
-    browser, serve, tmp_path, monkeypatch
+    browser, serve, tmp_path, monkeypatch, contract
 ):
     """Verbs are local to their owning widget contract. A container's `move` of part
     `piece` and that element's own `move` therefore coexist even though unit and verb
-    text are identical; both owners reconcile."""
+    text are identical; both owners reconcile, whether they draw through a controller
+    subscription or as a `LeafElement`, and a remounted part has its owner place it."""
     monkeypatch.chdir(tmp_path)
     for tag, upgrade in (
         ("lf-owner", True),
@@ -5790,35 +5781,13 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     }
     piece.pop("x-example", None)
     registry_path.write_text(json.dumps(declarations, indent=2))
-    (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(
-        """\
-import { once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-owner", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) {
-    for (const [id, order] of Object.entries(state.move.value)) {
-      const zone = document.getElementById(id);
-      for (const child of order) zone.append(document.getElementById(child));
-    }
-  }
-});
-"""
+    owner, piece = (
+        (LEGACY_OWNER, LEGACY_PIECE)
+        if contract == "controller"
+        else (LEAF_OWNER, LEAF_PIECE)
     )
-    (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(
-        """\
-import { keeps, once, widgetController } from "/runtime/widget-api.js";
-customElements.define("lf-piece", class extends HTMLElement {
-  #controller = widgetController(this);
-  #stop;
-  connectedCallback() { once(this); this.#stop ??= this.#controller.subscribe(() => {}); }
-  disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { keeps(this, "pinned", state.move.value); }
-});
-"""
-    )
+    (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(owner)
+    (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(piece)
     html = leaf_page(
         "owned coordinates",
         """<h1>Owned coordinates</h1><lf-owner id="owner">

@@ -74,8 +74,7 @@
   }
 }
 :scope:is(lf-shot) .lf-shotcap { display: flex; align-items: center; align-self: stretch;
-    font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
-    letter-spacing: .04em; padding: 0 5px; color: var(--muted); }
+    padding: 0 5px; }
 /* BEFORE ⤢ · delta · ⤢ AFTER: each endpoint fills its outer edge, with the same
  * small text inset on both sides. Its expand link meets the target on the inner side. */
 :scope:is(lf-shot) .lf-shotcap[data-lf-state="before"] { grid-column: 1;

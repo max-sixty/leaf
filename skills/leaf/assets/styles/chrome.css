@@ -539,10 +539,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      the horizontal edge that identifies its door. */
   :is(.lf-banner-menu, .lf-version-menu, .lf-status-detail) {
     top: calc(var(--lf-banner-h) + var(--lf-banner-panel-gap, 6px)); }
-  /* The row's own .lf-btn rule states a display, and an author's display outranks the
-     UA's for [hidden], so a door with nothing behind it stays there. Said
-     here for the same reason the Page Map says it: hidden is a display of its own. */
-  .lf-banner-more[hidden] { display: none; }
   /* The open auxiliary surface wears the same accent face, from the state it already
      publishes: setOpenDrawer and the Threads toggle keep aria-expanded true on exactly
      the one surface open, so the tint is that fact painted rather than a
@@ -773,7 +769,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-auxiliary-envelope > :is(.lf-drawer-panel, .lf-thread-panel, [popover], dialog) { pointer-events: auto; }
   .lf-auxiliary-scrim { position: fixed; inset: 0;
     z-index: var(--lf-z-scrim); background: color-mix(in srgb, var(--ink) 24%, transparent); pointer-events: auto; }
-  .lf-auxiliary-scrim[hidden] { display: none; }
   :is(.lf-drawer-panel, .lf-thread-panel)[data-lf-covered] { z-index: var(--lf-z-covering-surface); }
   /* The rows scroll in a box of their own rather than in the drawer, which is the comment
      panel's shape (.lf-threads) reflected, and here it is what lets the edge exist at
@@ -961,7 +956,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     padding-top: 8px; border-bottom: 1px solid var(--rule); }
   .lf-thread-view-summary { flex: 1; min-width: 0; }
   /* A selected box applies one refinement; pressing it again removes it. */
-  .lf-thread-filters[hidden] { display: none; }
   .lf-thread-filters { display: flex; flex: none; flex-direction: column;
     gap: 6px; padding: 0 var(--lf-panel-inset) 12px; }
   .lf-thread-filter-group { display: grid; width: 100%; min-width: 0;
@@ -1199,7 +1193,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     inset-inline: 0; inset-block-start: 100%;
     block-size: calc(2 * var(--focus-ring-room));
     background: var(--lf-thread-surface); }
-  .lf-thread-compact[open]:not([hidden]):has(> .lf-thread-reply) { display: flex;
+  .lf-thread-compact[open]:has(> .lf-thread-reply) { display: flex;
     flex-direction: column; box-sizing: border-box; overflow-y: clip;
     padding-block-end: calc(var(--focus-ring-room) - var(--lf-thread-border) - 1px); }
   .lf-thread-compact[open]:has(> .lf-thread-reply)
@@ -1268,7 +1262,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     color: var(--muted-2); cursor: default; }
   .lf-thread .lf-quote[data-expanded="true"] { display: block; overflow: visible; }
   .lf-quote-expand { display: flex; align-items: center; gap: 5px; }
-  .lf-quote-expand[hidden] { display: none; }
   .lf-quote-expand::before { content: "▸"; inline-size: 1em; text-align: center; }
   .lf-quote-expand[aria-expanded="true"]::before { content: "▾"; }
   /* Out of the picture, still in the accessibility tree — see the composer's quote in
@@ -1541,10 +1534,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      chrome on every write inside it. */
   @media screen {
     :scope:is([data-lf-rail-covered], [data-lf-pins])
-      .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
+      .lf-page-map-toggle { display: inline-flex; }
   }
   @supports not (anchor-name: --lf-page) {
-    .lf-page-map-toggle:not([hidden]) { display: inline-flex; }
+    .lf-page-map-toggle { display: inline-flex; }
   }
   @media (forced-colors: active) {
     .lf-page-map-dialog { border: 1px solid CanvasText; box-shadow: none; }
@@ -1641,7 +1634,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      resting line is muted, on the same card ground and hairline: status text, which
      takes no press. A filled accent pill read as a primary button. */
   .lf-bottom-status:has(> .lf-walk-position[data-lf-boundary]) { color: var(--ink); }
-  .lf-walk-position[hidden] { display: none; }
   .lf-notice { display: none; color: inherit; font-size: inherit; line-height: inherit;
     white-space: normal; min-width: 0; }
   .lf-bottom-status:has(> .lf-go-to-status:not([hidden])) > .lf-walk-position {
@@ -1680,7 +1672,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* A row off the line keeps its width, out of flow and unseen, so the trim reads every
      row where it stands rather than showing one to see whether it wraps
      (shortcut-bar.js). */
-  .lf-shortcut-bar .lf-shortcut[hidden] { position: absolute; inset-block-start: 0;
+  .lf-shortcut-bar .lf-shortcut[data-lf-off-line] { position: absolute; inset-block-start: 0;
     inset-inline-start: 0; visibility: hidden; }
   .lf-shortcut-bar .lf-sequence-command { margin-inline-start: 4px;
     padding-inline-start: 12px; border-inline-start: 1px solid var(--rule); }
@@ -1691,7 +1683,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-shortcut-more { display: inline-flex; gap: 5px; align-items: baseline; flex: none;
     pointer-events: auto; margin: -3px -4px; padding: 3px 4px; border: 0;
     border-radius: 4px; background: none; color: inherit; font: inherit; cursor: pointer; }
-  .lf-shortcut-more[hidden] { display: none; }
   .lf-shortcut-more:hover { color: var(--ink-2); }
   /* Inside, because the line clips: the button pulls itself out of the row by 3px so
      its own padding does not grow the line, and a ring drawn a further pixel out lands
@@ -1757,7 +1748,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     width: min(390px, calc(100vw - 28px)); box-sizing: border-box;
     border-radius: var(--r);
     box-shadow: 0 8px 24px var(--shade); }
-  .lf-page-search[hidden] { display: none; }
   .lf-page-search-status { min-width: 0; min-height: 1lh; color: var(--muted);
     font-size: var(--t-6); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
   .lf-legend-box { position: absolute; pointer-events: none;
@@ -1798,11 +1788,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     .lf-banner-actions {
       padding: 4px calc(3px + var(--lf-safe-right)) 4px
         calc(3px + var(--lf-safe-left)); gap: 3px; }
-    /* A row-wide display states the box of every control it reaches, including the
-       ones the page has taken away: hidden is a display of its own, and a rule that
-       states display without excluding it puts an absent control back on the row.
-       Centring is for the controls that are there. */
-    .lf-banner-actions > .lf-btn:not([hidden]):not(.lf-signoff) { display: inline-flex;
+    .lf-banner-actions > .lf-btn:not(.lf-signoff) { display: inline-flex;
       align-items: center; justify-content: center; }
     /* Forty on the narrow row, or the aim floor where a finger raises that past
        forty: this rule's padding outranks .lf-btn's, which carries the floor

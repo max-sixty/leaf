@@ -960,9 +960,6 @@
      * not collapsed at all. */
   :scope:is(lf-options)[settled] > lf-option[hidden] { display: block; padding: 0; border: 0;
     box-shadow: none; margin: 0; }
-    /* The boolean-hidden fallback (no until-found support) hides here, because the
-     * display:block above outranks the UA's [hidden] rule. */
-  :scope:is(lf-options)[settled] > lf-option[hidden]:not([hidden="until-found"]) { display: none; }
 
 }
 /* Paper cannot edit the document, so collapsed cards keep their hidden attribute and the

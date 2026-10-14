@@ -129,8 +129,9 @@ export const inUi = (node) =>
 // rather than written here so a project override travels with the widget, and fetched
 // during upgrade so the stage below stays synchronous for its callers.
 export let shadowRules = "";
-// Every legitimate page shadow tree is built here, so repeat the generated-interface
-// boundary and transition suppression inside it. The shadow's ordinary contents paint
+// Every legitimate page shadow tree is built here, so repeat the theme's leading layer
+// inside it: `hidden` hiding whatever display a rule states (theme.css), the
+// generated-interface boundary, and transition suppression. The shadow's ordinary contents paint
 // immediately and its generated interface paints after upgrade, on the same boundaries
 // as authored and generated light DOM. A selector in the tree cannot see body's stamps,
 // so the theme states each boundary as an inherited property these rules query with
@@ -138,8 +139,11 @@ export let shadowRules = "";
 // which reads the stamps directly, has no Firefox or Safari support. The anonymous
 // layer leads the tree's sheets, so these important declarations outrank every later
 // layer.
-export const SHADOW_STARTUP_CSS = `
+export const SHADOW_LEADING_CSS = `
 @layer {
+  [hidden]:not([hidden="until-found"]) {
+    display: none !important;
+  }
   @media screen {
     @container style(--lf-before-presentation: 1) {
       *,

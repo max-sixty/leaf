@@ -1278,9 +1278,6 @@
     box-shadow: none;
     margin: 0;
   }
-  :scope:is(lf-options)[settled] > lf-option[hidden]:not([hidden=until-found]) {
-    display: none;
-  }
 }
 @media print {
   :scope:is(lf-options)[settled] > lf-option {
@@ -1620,9 +1617,6 @@
   }
   :scope:is(lf-tabs).lf-rendered > lf-tab[hidden] {
     margin: 0;
-  }
-  :scope:is(lf-tabs).lf-rendered > lf-tab[hidden]:not([hidden=until-found]) {
-    display: none;
   }
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=box] > lf-tab {
     container-type: inline-size;

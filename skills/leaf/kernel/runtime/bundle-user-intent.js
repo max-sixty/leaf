@@ -2147,12 +2147,18 @@ function registeredTags(scope, registry3) {
 function widgetImports(scope, registry3) {
   const initializers2 = [];
   const modules2 = [];
-  for (const tag of registeredTags(scope, registry3)) {
+  const tags = registeredTags(scope, registry3);
+  for (const tag of tags) {
     const entry = registry3[tag];
     if (entry?.["x-initial"]) initializers2.push({ tag, path: entry["x-initial"] });
     if (entry?.["x-upgrade"]) modules2.push(tag);
   }
-  return { initializers: initializers2, modules: modules2 };
+  const shadow = tags.some(
+    (tag) => registry3[tag]["x-shadow"] || Object.values(registry3[tag]["x-state"] ?? {}).some(
+      (state) => state.creates && registry3[state.creates.child]["x-shadow"]
+    )
+  );
+  return { initializers: initializers2, modules: modules2, shadow };
 }
 
 // runtime/widget-loader.js
@@ -2206,7 +2212,7 @@ var widgetUrl = (tag) => offlineInteractive ? runtimeModule(`/widgets/${tag}.js`
 async function loadWidgetDependencies(scope) {
   await Promise.all([
     loadDeclaredMarkdown(scope),
-    ...registeredTags(scope, registry).some((tag) => registry[tag]["x-shadow"]) ? [loadShadowRules()] : []
+    ...widgetImports(scope, registry).shadow ? [loadShadowRules()] : []
   ]);
 }
 async function importWidgetModules(scope) {

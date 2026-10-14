@@ -149,10 +149,18 @@
    The grid is an anonymous box inside the scrolling block, so CSS cannot size it
    directly. An empty caption as wide as the scrollport (100cqi) supplies its minimum;
    automatic table layout distributes that width among the columns. Wider content
-   still scrolls. The claim stays on each table, so a nested table asks its own frame. */
+   still scrolls. The claim stays on each table, so a nested table asks its own frame.
+
+   Which room a table stands in is its nearest allocation's: `--lf-granted` inherits
+   from the nearest box allocated `wide` or `available` (1) or the column (0), so an
+   Ask inside a granted figure gives its table the column, as it would anywhere. */
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-:where(:root, .lf-thread-transcript) table:where(:is([data-lf-space="wide"], [data-lf-space="available"]) *) {
-  --lf-fills-frame: 1; }
+@property --lf-granted { syntax: "<integer>"; inherits: true; initial-value: 0; }
+:where([data-lf-space="wide"], [data-lf-space="available"]) { --lf-granted: 1; }
+:where([data-lf-space="column"]) { --lf-granted: 0; }
+@container style(--lf-granted: 1) {
+  :where(:root, .lf-thread-transcript) table { --lf-fills-frame: 1; }
+}
 /* A table granted room of its own (`data-width`) fills only a drawn frame: elsewhere it
    keeps its columns' natural width within that room rather than spreading the room
    between them, and layouts.css sizes its box to them. */

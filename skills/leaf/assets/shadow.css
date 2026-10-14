@@ -665,8 +665,17 @@ button.lf-thread-notice[data-lf-focus] {
   font-variant-numeric: tabular-nums;
 }
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-:where(:root, .lf-thread-transcript) table:where(:is([data-lf-space=wide], [data-lf-space=available]) *) {
-  --lf-fills-frame: 1;
+@property --lf-granted { syntax: "<integer>"; inherits: true; initial-value: 0; }
+:where([data-lf-space=wide], [data-lf-space=available]) {
+  --lf-granted: 1;
+}
+:where([data-lf-space=column]) {
+  --lf-granted: 0;
+}
+@container style(--lf-granted: 1) {
+  :where(:root, .lf-thread-transcript) table {
+    --lf-fills-frame: 1;
+  }
 }
 :where(:root, .lf-thread-transcript) table:where([data-lf-space=wide], [data-lf-space=available]) {
   --lf-fills-frame: 0;

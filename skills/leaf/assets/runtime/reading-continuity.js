@@ -24,8 +24,8 @@ const changed = () =>
 
 /** Call `interrupted` each time the reading breaks; returns the step that stops. */
 export function onReadingInterrupted(interrupted) {
-  const listener = ({ detail }) => {
-    if (!detail.continuous) interrupted();
+  const listener = () => {
+    if (!readingIsContinuous()) interrupted();
   };
   document.addEventListener(CONTINUITY, listener);
   return () => document.removeEventListener(CONTINUITY, listener);

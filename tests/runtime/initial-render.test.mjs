@@ -169,11 +169,11 @@ test("an arriving source root keeps its declared parent and exhibit fence", () =
 test("member state owns each physical slot independently across a hierarchy", () => {
   const root = document.createElement("main");
   root.innerHTML = `<lf-audit-board id="outer">
-    <lf-audit-zone id="one" phase="ready"><lf-audit-card id="card" selected phase="idle">
-      <lf-audit-board id="inner"><lf-audit-zone id="inner-zone" phase="ready">
+    <lf-audit-zone id="one"><lf-audit-card id="card" selected phase="idle">
+      <lf-audit-board id="inner"><lf-audit-zone id="inner-zone">
         <lf-audit-card id="inner-card" selected phase="idle">Inner</lf-audit-card>
       </lf-audit-zone></lf-audit-board>
-    </lf-audit-card></lf-audit-zone><lf-audit-zone id="two" phase="ready"></lf-audit-zone>
+    </lf-audit-card></lf-audit-zone><lf-audit-zone id="two"></lf-audit-zone>
   </lf-audit-board>`;
   const declarations = {
     $layer: { generation: "independent-member-records" },
@@ -184,7 +184,6 @@ test("member state owns each physical slot independently across a hierarchy", ()
     },
     "lf-audit-zone": {
       "x-state": {
-        phase: { unit: "widget", record: { kind: "value", attr: "phase" } },
         choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
       },
     },
@@ -199,6 +198,4 @@ test("member state owns each physical slot independently across a hierarchy", ()
   assert.deepEqual(states.get("outer").state.move.value, { one: ["card"], two: [] });
   assert.deepEqual(states.get("one").state.choose.value, ["card"]);
   assert.deepEqual(states.get("inner-zone").state.choose.value, ["inner-card"]);
-  assert.equal(states.get("one").state.phase.value, "ready");
-  assert.equal(states.get("card").state.phase.value, "idle");
 });

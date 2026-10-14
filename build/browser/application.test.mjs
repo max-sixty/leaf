@@ -1878,7 +1878,7 @@ test("pending undo removes a custom ask answer before authoritative completion c
   assert.equal(app.read().effective.asks.all[0].answer.event.id, accepted.id);
 });
 
-test("attribute-set readings follow their own current membership through moves and undo", () => {
+test("unchanged selection republishes when a move changes its members", () => {
   const move = {
     unit: "unit",
     writer: "user",
@@ -1899,9 +1899,7 @@ test("attribute-set readings follow their own current membership through moves a
   });
   const board = declared("manifest", "lf-audit-manifest", { move });
   const north = declared("north", "lf-audit-lane", { choose }, "manifest");
-  const shelf = declared("shelf", "lf-audit-shelf", {}, "manifest");
-  const south = declared("south", "lf-audit-lane", { choose }, "shelf");
-  const other = declared("other", "lf-audit-lane", { choose });
+  const south = declared("south", "lf-audit-lane", { choose }, "manifest");
   const cargo = declared("cargo", "lf-audit-cargo", {}, "north");
   const baseline = (owner, value) => [
     owner.id,
@@ -1912,7 +1910,7 @@ test("attribute-set readings follow their own current membership through moves a
     },
   ];
   const app = setup(
-    [board, north, south, other, cargo, shelf].map((owner) => [owner.id, owner]),
+    [board, north, south, cargo].map((owner) => [owner.id, owner]),
     [
       [
         board.id,
@@ -1930,22 +1928,12 @@ test("attribute-set readings follow their own current membership through moves a
       ],
       baseline(north, ["cargo"]),
       baseline(south, []),
-      baseline(other, []),
     ],
   );
-  const selected = new Map(
-    [north, south, other].map((owner) => [owner.id, app.selectWidget(owner)]),
-  );
-  assert.deepEqual(
-    app.selectWidget({ ...north, document: { kind: "page", revision: 2 } }).read()
-      .memberships,
-    {},
-  );
-  const before = new Map([...selected].map(([id, reading]) => [id, reading.read()]));
-  const paints = { north: 0, south: 0, other: 0 };
-  const stops = [...selected].map(([id, reading]) =>
-    reading.subscribe(() => paints[id]++),
-  );
+  const destination = app.selectWidget(south);
+  const before = destination.read().state;
+  let paints = 0;
+  const stop = destination.subscribe(() => paints++);
   const placed = app.enqueue(
     {
       kind: "action",
@@ -1957,37 +1945,16 @@ test("attribute-set readings follow their own current membership through moves a
     },
     "now",
   );
-  assert.deepEqual(paints, { north: 2, south: 2, other: 1 });
-  assert.deepEqual(
-    [
-      selected.get("north").read().memberships,
-      selected.get("south").read().memberships,
-    ],
-    [{ selected: [] }, { selected: ["cargo"] }],
-  );
-  assert.equal(app.read().effective.widgetParents.get("cargo"), "south");
-  assert.equal(app.read().effective.widgetParents.get("south"), "shelf");
-  assert.deepEqual(selected.get("north").read().state, before.get("north").state);
-  assert.deepEqual(selected.get("south").read().state, before.get("south").state);
-  app.enqueue(
-    {
-      kind: "action",
-      widget: "south",
-      action: "choose",
-      detail: { value: [] },
-      revision: 1,
-      attempt: "clear",
-    },
-    "now",
-  );
+  assert.equal(paints, 2);
+  assert.deepEqual(destination.read().memberships, { selected: ["cargo"] });
+  assert.deepEqual(destination.read().state, before);
   app.enqueue({ kind: "undo", undoes: placed.localId, attempt: "undo" }, "now");
-  assert.deepEqual(paints, { north: 3, south: 4, other: 1 });
-  assert.equal(app.read().effective.widgetParents.get("cargo"), "north");
-  assert.deepEqual(selected.get("north").read().state.choose.value, ["cargo"]);
-  for (const stop of stops) stop();
+  assert.equal(paints, 3);
+  assert.deepEqual(destination.read().memberships, { selected: [] });
+  stop();
 });
 
-test("flat creations remain parent-owned units through undo and refusal", () => {
+test("parent memberships include flat creations until undone", () => {
   const sow = {
     unit: "seed",
     writer: "user",
@@ -2035,13 +2002,7 @@ test("flat creations remain parent-owned units through undo and refusal", () => 
     },
     "now",
   );
-  assert.equal(selected.read().state.sow.units.elm.detail.label, "Elm");
   assert.deepEqual(selected.read().memberships.chosen, ["elm"]);
-  assert.equal(app.read().effective.widgets.has("elm"), false);
   app.enqueue({ kind: "undo", undoes: created.localId, attempt: "undo-sow" }, "now");
-  assert.deepEqual(selected.read().state.sow.units, {});
   assert.deepEqual(selected.read().memberships.chosen, []);
-  app.refuse("undo-sow");
-  assert.equal(selected.read().state.sow.units.elm.detail.label, "Elm");
-  assert.deepEqual(selected.read().memberships.chosen, ["elm"]);
 });

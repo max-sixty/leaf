@@ -4,24 +4,22 @@ the first box a widget keeps where the report's served examples do not reach: a 
 opening on a later panel, and an export."""
 
 import json
-import os
 import re
-import subprocess
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
 from interact_support import SKILL_ROOT
 from leaf import cli as cli_model
 from leaf import exporting as exporting_model
 from leaf.render_checks import wait_until_ready
+from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
 from leaf.revision_delivery import json_script
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import ROOT, consume_browser_errors, displayed
 
 
-def test_package_render_check_refuses_a_failed_async_paint(tmp_path, headless_shell):
+def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
     """A settled example whose public reading paint rejected was not drawn."""
     package = tmp_path / "package"
     made = CliRunner().invoke(
@@ -42,18 +40,8 @@ customElements.define("lf-async-panel", class extends HTMLElement {
   }
 });
 """)
-    ran = subprocess.run(
-        [*LEAF_COMMAND, "package", "check", str(package), "--render", "--json"],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=os.environ | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
-    )
-    report = json.loads(ran.stdout)
-    assert ran.returncode == report["status"] == 1, report
-    (finding,) = report["findings"]
-    assert finding["code"] == "unreadable-examples", report
-    assert "The instrument paint failed" in finding["values"]["error"], report
+    with pytest.raises(UnreadablePage, match="The instrument paint failed"):
+        widget_findings(browser.unwatched, package)
 
 
 def grows_at_upgrade(tag: str, style: str) -> str:

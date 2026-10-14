@@ -661,9 +661,18 @@ export function createFloatingPanel({
       (node) => node.dataset.message,
     );
     const before = drawnThread?.key === top.thread ? drawnThread : null;
-    drawnThread = { key: top.thread, keys, extent: view.scrollHeight };
     const msgs = threadByKey(top.thread)?.msgs ?? [];
     const message = (key) => msgs.find((each) => each.key === key);
+    // Which messages were still coming as drawn, work under way or a reply streaming,
+    // judged then: an answer completing its stream is no longer one.
+    drawnThread = {
+      key: top.thread,
+      keys,
+      coming: keys.filter(
+        (key) => message(key)?.ephemeral || message(key)?.provisional,
+      ),
+      extent: view.scrollHeight,
+    };
     const lastTurn = (drawn) =>
       drawn.map(message).findLast((each) => each && !each.ephemeral);
     // What follows the user's last turn in what is drawn: the answer, as far as it has
@@ -682,7 +691,7 @@ export function createFloatingPanel({
     if (
       answer?.keys.length &&
       asked?.turn === answer.turn &&
-      asked.keys.every((key) => message(key)?.ephemeral || message(key)?.provisional) &&
+      asked.keys.every((key) => before.coming.includes(key)) &&
       answer.keys.every((key) => message(key)?.author === "agent") &&
       view.scrollHeight > before.extent + 0.5 &&
       !waiting &&

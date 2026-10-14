@@ -12,6 +12,8 @@ import re
 import pytest
 from interact_support import append_carried_log_record, declare_idle, working
 from leaf import event_log as events_model
+from leaf import service as service_model
+from leaf import thread as thread_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
@@ -899,7 +901,8 @@ def test_a_streaming_answer_follows_into_sight_until_it_outgrows_the_view(
 ):
     """An answer the user waits for that streams in grows inside the view: while what
     each step adds fits, the view's end follows it, and nothing at the head moves; a
-    step that would not fit leaves New reply at the view's foot."""
+    step that would not fit, such as the durable answer completing it with longer words,
+    leaves New reply at the view's foot."""
     # The threads suite imports this one, so its stream helpers come in at run time.
     from browser.test_render_threads import claim_for_codex, stream_reply
 
@@ -935,8 +938,24 @@ def test_a_streaming_answer_follows_into_sight_until_it_outgrows_the_view(
     assert shown["y"] + shown["height"] <= box["y"] + box["height"] + 0.5
     expect(view.locator(".lf-fp-new-reply")).to_have_count(0)
 
-    streamed("I'll record it on the board now. " + "Then I check the totals. " * 40)
+    # The durable answer completes the streamed message with longer words.
+    thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Recorded the release on the board. " + "Then I checked the totals. " * 40,
+        attempt="leaf-response-explicit",
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.clear_stream_reply("codex-thread", "leaf-turn")
+    told(page)
+    expect(messages.last.locator(".lf-msg-text")).to_contain_text(
+        "Recorded the release"
+    )
     expect(view.locator(".lf-fp-new-reply")).to_have_text("New reply")
+    settled(page)
+    assert page.evaluate(HEAD_SEATS) == seats
+    assert view.bounding_box() == stands
 
 
 def test_an_open_view_covers_the_page_beneath_it(browser, serve):

@@ -29,7 +29,7 @@
    `watchQueues`, `watchThreads`, `watchReports`, `watchHistory` and `watchWork` are this
    watcher around a reader of their own, so none of them states these rules again. */
 import { collectReads } from "../vendor/browser-runtime.js";
-import { watchPresentation } from "./semantic-state.js";
+import { followReads, watchPresentation } from "./semantic-state.js";
 import { projectionDeferred, watchProjectionDeferral } from "./projection/state.js";
 import { PRESENTATION } from "./presentation.js";
 import { watchOwner } from "./arrivals.js";
@@ -53,7 +53,7 @@ export function watchProjection(owner, paint, ready = null) {
   // `readingPaint` draws a key it has not drawn; the key advances when an input moves.
   let key = 0;
   let queued = false;
-  let subscribed = [];
+  let unfollow = () => {};
   let unsubscribe = null;
   const update = () => {
     if (queued) return;
@@ -65,17 +65,10 @@ export function watchProjection(owner, paint, ready = null) {
       draw(key);
     });
   };
-  // Subscribe to the parts the last paint read, while the owner is here. A part's
-  // subscriber hears its value at once, which differs from the value read only where
-  // the paint itself published after reading it.
+  // Subscribe to the parts the last paint read, while the owner is here.
   const follow = () => {
-    for (const stop of subscribed) stop();
-    subscribed =
-      unsubscribe && read
-        ? [...read].map(([part, value]) =>
-            part.subscribe((now) => now !== value && update()),
-          )
-        : [];
+    unfollow();
+    unfollow = unsubscribe && read ? followReads(read, update) : () => {};
   };
   // Every route, including the shared clock, checks this synchronous proof.
   const draw = readingPaint(owner, () => {

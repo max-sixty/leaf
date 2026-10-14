@@ -80,6 +80,22 @@ export function collectReads<T>(
   }
 }
 
+/**
+ * Run `run` outside any collection. An owner nested in a collected run, such as a widget
+ * a paint mounts, which connects and reads its own reading inside that paint, follows
+ * what it reads itself; collecting those reads would have the paint repaint for every
+ * nested owner's state, and throw where the owner reads the root whole.
+ */
+export function untracked<T>(run: () => T): T {
+  const outer = collecting;
+  collecting = null;
+  try {
+    return run();
+  } finally {
+    collecting = outer;
+  }
+}
+
 // Object.freeze says nothing about descendants or Map/Set entries. Only values this
 // owner has secured can skip traversal when a publication reuses an existing subtree.
 const secured = new WeakSet<object>();

@@ -2,6 +2,7 @@
    immutable reading synchronously; renderer nodes and transport promises stay in
    their adapters. Importing this module does not mount any view or start delivery. */
 import {
+  collectReads,
   createPresentationCoordinator,
   createPresentationSchedule,
   createSemanticApplication,
@@ -11,6 +12,10 @@ import {
 import { bindQueuedWork } from "./queued-work.js";
 
 const documentToken = Object.freeze({});
+// The semantic epoch the application last began presenting, which is the epoch of the
+// root it publishes next. Presentation proof compares against it; a paint that waits on
+// proof reads no part of the root for it, so the wait subscribes the paint to nothing.
+let begunEpoch;
 let reportPresentationFailure = (reason) =>
   console.error("leaf: presentation failed", reason);
 const presentation = createPresentationCoordinator({
@@ -24,7 +29,8 @@ const schedule = createPresentationSchedule(bindQueuedWork);
 /** @type {ReturnType<typeof import("../../../../build/browser/application.ts").createSemanticApplication>} */
 export const applicationState = createSemanticApplication({
   presentation: {
-    begin: (semanticEpoch) => presentation.begin(documentToken, semanticEpoch),
+    begin: (semanticEpoch) =>
+      presentation.begin(documentToken, (begunEpoch = semanticEpoch)),
     seal: (publication) => presentation.seal(publication),
   },
 });
@@ -74,21 +80,37 @@ export const PRESENTATION_ORDER = Object.freeze({
 // no business knowing which those are.
 const documentPresenters = [];
 
-// One region's epoch presenter. `reading` selects, from the semantic root, everything
-// the region's paint draws from it, and returns null where the region owes nothing:
-// before the page has read the log, or where this renderer was never mounted. The
-// region claims a presentation inside each publication that changes that selection,
-// and the paint runs on the pass that follows; a publication that leaves it unchanged
-// is no claim, so the region carries its last commit into the new epoch
-// (presentation.ts, `begin`). A selection shares unchanged parts across publications
-// (snapshot.ts), so a reading that names the parts it draws claims only when one of
-// them moves. What the paint reads beyond the root — the clock, a draft, the document's
-// own nodes — is a mechanical change, and its owner claims through `present`, which
-// selects the root as it stands. `reading` is the region's one decision of whether it
-// owes anything, for a publication's claim and `present` alike, and a claim always
-// paints, so a reading that stands still is still painted when asked for. A renderer
-// withholds a reading it does owe by returning `PRESENTATION_HELD`, which keeps its
-// region pending until a later claim supersedes it.
+// Subscribe to each part a collected run read (`collectReads`), calling `moved` when one
+// no longer holds the value the run read. A part's subscriber hears its value at once,
+// which is the value read unless the run itself published after reading it.
+export const followReads = (reads, moved) => {
+  const stops = [...reads].map(([part, seen]) =>
+    part.subscribe((now) => now !== seen && moved()),
+  );
+  return () => {
+    for (const stop of stops) stop();
+  };
+};
+
+// One region's epoch presenter. `reading` decides, synchronously, whether the region
+// owes a paint and with what value: it returns null where the region owes nothing,
+// before the page has read the log or where this renderer was never mounted, and
+// otherwise the value `paint` receives. The paint runs on the pass after the claim,
+// once every region ranked before it has painted, and reads the root as it stands then.
+// Each of them reads through readers that select their parts (`readPart`): the reading's
+// reads and those the paint makes before its first `await` are collected
+// (`collectReads`), and the region follows them, so nobody lists what a region depends
+// on. A publication that moves a part either read claims a presentation inside that
+// publication, with the value the reading gives then; one that moves none of them is no
+// claim, so the region carries its last commit into the new epoch (presentation.ts,
+// `begin`). A move of the reading's own parts that leaves its value as it was claimed
+// is no claim either, so a region that reads one unchanging value through a phase keeps
+// it. A read of the whole root in either throws, since every publication moves it. What
+// the paint takes from beyond the root — the clock, a draft, the document's own nodes —
+// is a mechanical change, and its owner claims through `present`, which claims whatever
+// the reading gives, so a reading that stands still is still painted when asked for. A
+// renderer withholds a value it does owe by returning `PRESENTATION_HELD`, which keeps
+// its region pending until a later claim supersedes it.
 export const applicationPresenter = ({
   region,
   renderer = document,
@@ -97,25 +119,57 @@ export const applicationPresenter = ({
   paint,
   failSoft,
 }) => {
+  let unfollowReading = () => {};
+  let unfollowPaint = () => {};
+  // The value last claimed, and whether its paint has yet to start.
+  let claimed;
+  let owed = false;
   const presenter = schedule.presenter({
     attach: () => presentation.attach(region, renderer),
     order,
-    paint,
+    paint: (value, current) => {
+      owed = false;
+      const outcome = collectReads(() => paint(value, current));
+      unfollowPaint();
+      unfollowPaint = followReads(outcome.reads, () => moved(true));
+      if ("error" in outcome) throw outcome.error;
+      return outcome.value;
+    },
     failSoft,
   });
-  const claim = (value) => (value === null ? schedule.passed() : presenter.sync(value));
-  const present = () => claim(reading(readApplication()));
+  const read = () => {
+    const outcome = collectReads(reading);
+    unfollowReading();
+    unfollowReading = followReads(outcome.reads, () => moved(false));
+    if ("error" in outcome) throw outcome.error;
+    return outcome.value;
+  };
+  const claim = (value) => {
+    claimed = value;
+    if (value === null) return schedule.passed();
+    owed = true;
+    return presenter.sync(value);
+  };
+  // A paint's part moved, which owes a paint unless one is already owed for this value,
+  // or the reading's part moved, which owes one only where the value changed.
+  function moved(painted) {
+    const value = read();
+    if (value === null) claimed = null;
+    else if (value !== claimed || (painted && !owed)) void claim(value);
+  }
+  const present = () => claim(read());
   documentPresenters.push(present);
+  // A region claims on the publications after this first reading; a renderer that owes
+  // its first value earlier asks with `present`.
+  claimed = read();
   // A document-wide region lives as long as the page; `disconnect` releases its renderer,
   // and a region that may mount again reads null while it is not mounted.
-  // A selection's subscriber hears its value at once; a region claims on the changes
-  // after it, and a renderer that owes its first reading earlier asks with `present`.
-  let subscribed = false;
-  applicationState.select(reading).subscribe((value) => {
-    if (subscribed) void claim(value);
-    subscribed = true;
-  });
-  return Object.freeze({ present, disconnect: presenter.disconnect });
+  const disconnect = () => {
+    unfollowPaint();
+    unfollowPaint = () => {};
+    presenter.disconnect();
+  };
+  return Object.freeze({ present, disconnect });
 };
 
 // How many times a caller has said the document changed under every region. A reading
@@ -145,7 +199,7 @@ export const failSoftAfterRetention = (proof) => (reason) => {
 };
 const currentApplicationPresentation = () => ({
   document: documentToken,
-  semanticEpoch: readApplication().semanticEpoch,
+  semanticEpoch: begunEpoch,
 });
 export const whenApplicationPresented = () =>
   presentation.whenCurrentPresented(currentApplicationPresentation);
@@ -155,7 +209,7 @@ export const whenWidgetsPresented = (widgets) =>
   presentation.whenCurrentRegionsPresented(
     () => ({
       document: documentToken,
-      semanticEpoch: readApplication().semanticEpoch,
+      semanticEpoch: begunEpoch,
     }),
     widgets.flatMap(widgetRegions),
   );
@@ -165,7 +219,7 @@ export const whenApplicationRegionsPresented = (regions, current) =>
       current()
         ? {
             document: documentToken,
-            semanticEpoch: readApplication().semanticEpoch,
+            semanticEpoch: begunEpoch,
           }
         : null,
     regions,

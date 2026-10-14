@@ -1473,7 +1473,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         f"live Go to commands missing from the complete reference: "
         f"{sorted(live_commands - reference_commands)}"
     )
-    visible_sequence = line.locator(".lf-shortcut:not([hidden])")
+    visible_sequence = line.locator(".lf-shortcut:not([data-lf-off-line])")
     visible_commands = set(
         visible_sequence.evaluate_all(
             """hints => hints.flatMap(hint =>
@@ -1529,7 +1529,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         ),
     ]:
         hint = line.locator(
-            f'.lf-shortcut:not([hidden])[data-lf-command-ids~="{command}"]'
+            f'.lf-shortcut:not([data-lf-off-line])[data-lf-command-ids~="{command}"]'
         )
         expect(hint).to_have_count(1)
         sequence = hint.locator(".lf-binding-sequence")
@@ -1563,7 +1563,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
               pressed: document.querySelectorAll(
                 '.lf-shortcut-bar kbd[data-lf-sequence-step-state="pressed"]'
               ).length,
-              commands: [...document.querySelectorAll('.lf-shortcut-bar .lf-shortcut:not([hidden])')]
+              commands: [...document.querySelectorAll('.lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])')]
                 .flatMap(hint => (hint.dataset.lfCommandIds || '').split(' ').filter(Boolean)),
             })"""
         )

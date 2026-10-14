@@ -15,7 +15,15 @@ from leaf import event_log as events_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
-from render_harness import LONG_PAGE, open_page, sending, stamp_page, told, write
+from render_harness import (
+    LONG_PAGE,
+    consume_browser_errors,
+    open_page,
+    sending,
+    stamp_page,
+    told,
+    write,
+)
 
 from browser.test_render_controls import leaf_page as titled_page
 
@@ -982,6 +990,46 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     sheen(False)
 
 
+def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
+    """A status that only reports reads in the dim face, and one that asks the user to
+    act, here to open Leaf's link once the server refuses this tab's key, reads at full
+    strength (`pageStatus`, `asks`). Pointing at the field says the status in full,
+    where its room would cut it short."""
+    url = serve(LONG_PAGE)
+    working(serve.page_dir, "Drafting the rollout")
+    page = floating(browser, url)
+    words = page.locator(".lf-fp-field .lf-compose-placeholder > span")
+    panel = page.locator(".lf-floating-panel")
+
+    def alpha():
+        color = words.evaluate("node => getComputedStyle(node).color")
+        found = re.search(r"/\s*([\d.]+)\)$", color)
+        return float(found.group(1)) if found else 1.0
+
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Claude working"))
+    expect(panel).not_to_have_attribute("data-asks", "")
+    expect(page.locator(".lf-fp-field")).to_have_attribute(
+        "title", re.compile("^Claude is working — Drafting the rollout")
+    )
+
+    page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
+    declare_idle(serve.page_dir)
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Key refused"))
+    expect(panel).to_have_attribute("data-asks", "")
+    assert alpha() == 1.0, "the status asking the user to act reads dimmed"
+    expect(page.locator(".lf-fp-field")).to_have_attribute(
+        "title", re.compile("^The server no longer accepts this tab's key")
+    )
+    # Once the caret is in, the field says where words go, and the status's tooltip
+    # goes with it.
+    field(page).click()
+    expect(page.locator(".lf-fp-field")).not_to_have_attribute("title", re.compile("."))
+    assert alpha() < 0.5
+    # The refused reads recur on the page's clock until it closes.
+    page.close()
+    consume_browser_errors(page, {"code": "failed-load", "status": 401})
+
+
 def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):
     """A passing notice is said in the empty field's place, and once the caret is in the
     field, whose placeholder then says where the words go, or once words hide that, on
@@ -1120,6 +1168,9 @@ def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
     page = floating(browser, serve(ASK_PAGE))
     chip = page.locator(".lf-fp-on-user")
     expect(chip).to_contain_text("2")
+    # Its mark is its own: the question mark is help's, as `?` and the menu's
+    # Keyboard shortcuts row say.
+    expect(chip.locator("svg")).not_to_have_attribute("data-lf-icon", "question")
     chip.click()
     view = page.locator(".lf-fp-view[data-view=on]")
     cards = view.locator(".lf-fp-on-item")

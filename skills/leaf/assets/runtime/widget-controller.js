@@ -21,6 +21,7 @@ import { dragHeld, watchDragRelease } from "./widget-elements.js";
 import { watchOwner } from "./arrivals.js";
 import { readingPaint } from "./presence.js";
 import { holdRendering } from "./rendering.js";
+import { paintKeysWithin } from "./keyboard/scopes.js";
 
 const controllers = new WeakMap();
 const lifecycles = new WeakMap();
@@ -178,6 +179,8 @@ function createWidgetController(owner) {
       }
       failed(notify(reading));
       drawn = true;
+      // The render may have changed what this widget's commands read from its nodes.
+      paintKeysWithin(owner);
     },
     () => refresh(),
   );
@@ -307,6 +310,8 @@ function createWidgetController(owner) {
         const latest = deferredReading ?? read();
         deferredReading = null;
         if (subscriptions.size) presentRender(latest);
+        // The gesture rewrote this widget's nodes, which its commands may read.
+        paintKeysWithin(owner);
         invalidateDom();
         return latest;
       };

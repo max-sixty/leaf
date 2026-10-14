@@ -320,6 +320,7 @@ const lastLineRoom = EditorView.decorations.compute(["doc"], (state) => {
   return last ? Decoration.set([lastLine.range(last.from)]) : Decoration.none;
 });
 
+/** @typedef {LeafText} LeafTextElement For its tag (`runtime-globals.d.ts`). */
 class LeafText extends HTMLElement {
   // The field's one model. Until the element first connects it is a bare EditorState,
   // which holds the value, selection and configuration without a DOM; connecting hands
@@ -560,7 +561,7 @@ class LeafText extends HTMLElement {
   #describe() {
     const content = this.#view?.contentDOM;
     if (!content || !("ariaDescribedByElements" in content)) return;
-    const root = this.getRootNode();
+    const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
     content.ariaDescribedByElements = (this.getAttribute("aria-describedby") ?? "")
       .split(/\s+/)
       .filter(Boolean)

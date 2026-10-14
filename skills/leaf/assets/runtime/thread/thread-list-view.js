@@ -81,6 +81,7 @@ const turnOnItsWay = (thread) =>
 const rowStop = (row) =>
   row.kind === "thread" ? threadFocusStop(row.node) : row.node.querySelector("button");
 
+/** @typedef {ThreadListView} ThreadListViewElement For its tag (`runtime-globals.d.ts`). */
 class ThreadListView extends RetainedFace {
   #commands = null;
   #views = new Map();
@@ -443,7 +444,10 @@ class ThreadListView extends RetainedFace {
         });
       }
       if (viewChanged) view.releaseNews();
-      view.present(row.descriptor, { retaining: this.#retaining, viewChanged });
+      // A card whose reading and outside inputs are what it last drew keeps its drawing;
+      // only the cards a pass changed draw again.
+      if (viewChanged || this.#retaining || !view.shows(row.descriptor))
+        view.present(row.descriptor, { retaining: this.#retaining, viewChanged });
       rows.push({ kind: "thread", key: row.key, node: view.node });
     }
     for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();

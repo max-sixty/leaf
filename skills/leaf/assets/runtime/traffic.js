@@ -43,15 +43,15 @@ export function countTraffic(key) {
 }
 
 /** Paint `pending` from the published sending attempts, the ledger's only writer of it.
-    The first reading, before any send, paints nothing, and a publication that leaves
-    the attempts unchanged does not repaint.
+    A selection calls its listener at once and then whenever the attempts change; the
+    first reading, before any send, paints nothing.
     @param {{subscribe: (listener: (attempts: readonly string[]) => void) => () => void}} sending */
 export function watchPendingTraffic(sending) {
-  let painted = JSON.stringify(ledger.pending);
+  let first = true;
   return sending.subscribe((attempts) => {
-    const key = JSON.stringify(attempts);
-    if (key === painted) return;
-    painted = key;
+    const initial = first;
+    first = false;
+    if (initial && !attempts.length) return;
     ledger.pending = [...attempts];
     paint();
   });

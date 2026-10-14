@@ -106,7 +106,8 @@ import { rowWalk } from "./walk-position.js";
 import { sizeObserver } from "./rendering.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
-import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
+import { agentName, applicationState } from "./semantic-state.js";
+import { runtime } from "./context.js";
 import { renderedUnder } from "./shadow.js";
 import { closestAcross } from "./passages.js";
 
@@ -976,7 +977,7 @@ export function createFloatingPanel({
   const answerGesture = (ask) => {
     const id = ask?.answer?.event?.id ?? ask?.answer?.event;
     if (!id) return null;
-    const entry = readApplication().effective.view?.undo.find(
+    const entry = runtime.undo.find(
       ({ event }) => event.id === id || event.attempt === id,
     );
     return entry?.event ?? null;
@@ -1216,6 +1217,7 @@ export function createFloatingPanel({
   function headTemplate(top) {
     const parent = trail.at(-2);
     const thread = top.view === "thread" ? threadByKey(top.thread) : null;
+    /** @type {unknown} */
     let aux = nothing;
     if (top.view === "threads") {
       const news = newCount();
@@ -1664,32 +1666,32 @@ export function createFloatingPanel({
   keys(
     host,
     "In the floating panel",
-    rowWalk({
-      id: "panel.floating.menu",
-      noun: "Row",
-      plural: "rows of the page menu",
-      rows: menuRows,
-      // A menu names its rows' places to a screen reader itself, so the walk shows none.
-      position: () => null,
-      landed: (row) => rove(menuRows(), row),
-    })
-      .map((row) => ({ ...row, when: () => menuOpen }))
-      .concat(
-        // Tab leaves the menu as it leaves a menu button's menu: the menu goes, and the
-        // browser moves the user on from the leaf that opened it, either way.
-        ["Tab", "Shift+Tab"].map((key) => ({
-          id: `panel.floating.menu.leave-${key === "Tab" ? "forward" : "backward"}`,
-          keys: [key],
-          description: `Leave the page menu ${key === "Tab" ? "forward" : "backward"}`,
-          title: key === "Tab" ? "leave forward" : "leave backward",
-          native: true,
-          when: () => menuOpen && renderedUnder(focused(), menu),
-          run: () => {
-            focusDestination(leaf, "move");
-            setMenu(false);
-          },
-        })),
-      ),
+    /** @type {object[]} */ (
+      rowWalk({
+        id: "panel.floating.menu",
+        noun: "Row",
+        plural: "rows of the page menu",
+        rows: menuRows,
+        // A menu names its rows' places to a screen reader itself, so the walk shows none.
+        position: () => null,
+        landed: (row) => rove(menuRows(), row),
+      }).map((row) => ({ ...row, when: () => menuOpen }))
+    ).concat(
+      // Tab leaves the menu as it leaves a menu button's menu: the menu goes, and the
+      // browser moves the user on from the leaf that opened it, either way.
+      ["Tab", "Shift+Tab"].map((key) => ({
+        id: `panel.floating.menu.leave-${key === "Tab" ? "forward" : "backward"}`,
+        keys: [key],
+        description: `Leave the page menu ${key === "Tab" ? "forward" : "backward"}`,
+        title: key === "Tab" ? "leave forward" : "leave backward",
+        native: true,
+        when: () => menuOpen && renderedUnder(focused(), menu),
+        run: () => {
+          focusDestination(leaf, "move");
+          setMenu(false);
+        },
+      })),
+    ),
   );
   // The caret in the field is the innermost thing open, so while a view is open
   // Escape leaves the field first and leaves the rest standing, the draft included
@@ -1832,7 +1834,17 @@ export function createFloatingPanel({
     watchBannerRows(() => paint());
     watchThreads(host, () => paint());
     watchQueues(host, () => paint());
-    watchSemantic(() => paint());
+    // Beyond the threads and queues: the undo list, approval's asks and stamp, and
+    // the agent's name.
+    applicationState
+      .select((root) => ({
+        undo: root.effective.view?.undo ?? null,
+        asks: root.effective.asks,
+        document: root.document,
+        active: root.authoritative?.active ?? null,
+        agent: root.authoritative?.agent ?? null,
+      }))
+      .subscribe(() => paint());
     versionPicker.watch(() => paint());
     document.addEventListener("lf-chrome-preference", () => paint());
     paint();

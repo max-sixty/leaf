@@ -37,8 +37,9 @@ import {
 } from "./anchor-resolution.js";
 import { registerContribution } from "./contributions.js";
 import { commandScope } from "./keyboard/scopes.js";
-import { elementById, inChrome, pageQueryAll } from "./passages.js";
+import { elementById, inChrome, pageQueryAll, pageReadingVersion } from "./passages.js";
 import { pageUpgraded } from "./page-paint.js";
+import { documentChanged, readPart } from "./semantic-state.js";
 import { registry } from "./registry.js";
 import { shadowHost, upFrom } from "./shadow.js";
 import { targetElement, targetParts, targetSegments } from "./resolved-target.js";
@@ -47,6 +48,7 @@ import { keeps, keepsText } from "./keeps.js";
 import { retainUserIntent } from "./user-intent.js";
 import { bareReaction } from "./thread/model.js";
 
+const shownDocument = readPart((root) => root.document);
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 
 export function createAnchorControls({
@@ -168,6 +170,7 @@ export function createAnchorControls({
     commentOnTarget({ anchor: control.lfAnchor });
   }
 
+  /** @param {{anchor: object, label: string, key?: string}} target */
   const visualActionTemplate = ({ anchor, label }) => html`
     <button
       type="button"
@@ -216,12 +219,27 @@ export function createAnchorControls({
     reconcileVisualActions(groups);
   }
 
+  // The plan is a reading of the page's own pictures, their labels and the parts their
+  // widgets register, none of which a thread changes. It is planned again when the page
+  // might have: its words moved (passages.js, `pageReadingVersion`), a caller said the
+  // document changed (`presentDocument`), the shown document was replaced, or a visual
+  // signalled new parts (`onLayoutInvalidated`). A thread pass over an unchanged page keeps
+  // the responses it published.
+  let plannedFor = null;
   function prepareVisualActions() {
+    const key = [pageReadingVersion(), documentChanged(), shownDocument()];
+    if (
+      plannedFor?.every((part, index) => part === key[index]) &&
+      !pendingVisualActions.size
+    )
+      return;
+    plannedFor = key;
     pendingVisualActions = visualActionPlan();
     if (pageUpgraded()) publishVisualActions();
   }
 
   function withholdVisualActions() {
+    plannedFor = null;
     pendingVisualActions = new Map();
     reconcileVisualActions(pendingVisualActions);
   }
@@ -414,7 +432,10 @@ export function createAnchorControls({
     });
   }
 
-  const onLayoutInvalidated = () => {
+  const onLayoutInvalidated = (event) => {
+    // A page visual's parts can move without its nodes moving, and their registration
+    // says so with this signal (visual-parts.js, `update`).
+    if (!inChrome(event.target)) plannedFor = null;
     invalidatePageGeometry();
     queueInvalidation();
   };

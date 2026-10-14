@@ -130,7 +130,9 @@
   // addresses. "" where that root is the origin's own, so a server serving one page
   // keeps every key unprefixed; an export, which has no server and no link, is its own
   // address. The runtime's stores read it from here (storage.js).
-  const canonical = document.querySelector('link[rel="canonical"][data-lf-runtime]');
+  const canonical = /** @type {HTMLLinkElement | null} */ (
+    document.querySelector('link[rel="canonical"][data-lf-runtime]')
+  );
   const rootPath = canonical ? new URL(canonical.href).pathname : location.pathname;
   const scope = rootPath === "/" ? "" : rootPath;
   root.dataset.lfPageScope = scope;
@@ -430,7 +432,14 @@
   const failedPlacements = new WeakMap();
   const authoredSheets = () =>
     [...document.styleSheets]
-      .filter((sheet) => !sheet.ownerNode?.hasAttribute("data-lf-runtime"))
+      .filter(
+        (sheet) =>
+          !(
+            /** @type {Element | null} */ (sheet.ownerNode)?.hasAttribute(
+              "data-lf-runtime",
+            )
+          ),
+      )
       .flatMap((sheet) => {
         let rules;
         try {
@@ -821,7 +830,7 @@
     const own = laid.filter((item) => !item.track);
     const readings = tracks.map((track) => {
       const line = laid.find((item) => item.element === track);
-      return [
+      return /** @type {[Element, boolean]} */ ([
         track,
         line !== undefined &&
           own.some(
@@ -831,7 +840,7 @@
               box.bottom > line.top + 0.5 &&
               (box.right <= line.left + 0.5 || box.left >= line.right - 0.5),
           ),
-      ];
+      ]);
     });
     let changed = false;
     for (const [track, beside] of readings) {
@@ -890,7 +899,8 @@
       for (const node of [host, ...host.querySelectorAll("*")])
         if (!parents.has(node)) parents.set(node, node.parentElement);
       rememberSource(authoredCopy(host));
-      for (let node = host; node; node = node.parentNode) sourceScopes.add(node);
+      for (let node = /** @type {Node} */ (host); node; node = node.parentNode)
+        sourceScopes.add(node);
       const drawing = render(host, {
         tabStore,
         offer,
@@ -911,11 +921,12 @@
       // no frame can show an unfinished or uninitialized instance.
       template.replaceWith(host);
       for (const node of [host, ...host.querySelectorAll("*")].reverse())
-        if (producers.has(node.localName)) this.paint(node);
+        if (producers.has(node.localName))
+          this.paint(/** @type {HTMLElement} */ (node));
     },
     restoreSource(root) {
       for (const template of root.querySelectorAll("template[data-lf-initial-source]"))
-        template.replaceWith(template.content);
+        template.replaceWith(/** @type {HTMLTemplateElement} */ (template).content);
       for (const delivery of root.querySelectorAll("script[data-lf-initial]"))
         delivery.remove();
       for (const placeholder of root.querySelectorAll("[data-lf-prepaint]"))
@@ -942,7 +953,10 @@
   // last shown first, because the address need not have followed what was shown: a set
   // below the page's own tab strip changes its member and leaves the fragment.
   const OPEN_KEY = "lf-open:";
-  const reloaded = performance.getEntriesByType("navigation")[0]?.type === "reload";
+  const reloaded =
+    /** @type {PerformanceNavigationTiming | undefined} */ (
+      performance.getEntriesByType("navigation")[0]
+    )?.type === "reload";
   const named = (members) => {
     if (!location.hash) return null;
     const target = document.getElementById(fragmentId(location.hash));

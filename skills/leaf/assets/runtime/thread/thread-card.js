@@ -38,7 +38,14 @@ import {
   standsOn,
   standingIn,
 } from "../focus.js";
-import { html, render, nothing, ref } from "../../vendor/browser-runtime.js";
+import {
+  html,
+  render,
+  nothing,
+  ref,
+  share,
+  signal,
+} from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
@@ -165,6 +172,7 @@ function workingMessage(thread, attention, messages) {
   });
 }
 
+/** @param {ReturnType<typeof import("./model.js").readThreadRecords>[number]} thread */
 export function threadReading(thread, surface, commands, options) {
   const { visible = true, kept = null, grow = false, search = null } = options;
   const panel = surface === "panel";
@@ -201,9 +209,15 @@ export function threadReading(thread, surface, commands, options) {
       leaves: leaves(message),
     }),
   );
+  const summary = threadSummary(thread);
   return Object.freeze({
     key: threadKey(thread),
-    summary: threadSummary(thread),
+    summary,
+    // How long ago the thread last moved, read here with the rest of the reading, so a
+    // card whose reading did not change shows the same age and need not draw again.
+    recency: summary.latest
+      ? Object.freeze({ short: shortAgo(summary.latest), long: ago(summary.latest) })
+      : null,
     // A title comes from the agent's answer or beside it, so an untitled thread
     // waits for one only while the agent's work on it is under way. A turn that
     // ended, stalled or was never picked up sends none, and the thread reads its
@@ -243,7 +257,7 @@ export function threadReading(thread, surface, commands, options) {
     // said only where it was the agent.
     resolvedBy:
       thread.resolved?.author === "agent"
-        ? `✓ Resolved by ${thread.resolved.agent}`
+        ? `✓ Resolved by ${/** @type {{agent?: string}} */ (thread.resolved).agent}`
         : "",
     settlement: Object.freeze({
       kind,
@@ -352,8 +366,8 @@ function navigationSummary(model, control) {
               class="lf-thread-recency"
               datetime=${latest}
               title=${`Last message activity ${new Date(latest).toLocaleString()}`}
-              aria-label=${`Last message activity ${ago(latest)}`}
-              >${shortAgo(latest)}</time
+              aria-label=${`Last message activity ${model.recency.long}`}
+              >${model.recency.short}</time
             >`
           : nothing
       }
@@ -407,7 +421,15 @@ export class ThreadView {
   #commands;
   #messageCommands;
   #rewrites;
-  #model = null;
+  // The model this card shows. A signal, because its commands' liveness reads it, and
+  // key and button reflection follow what they read (keyboard/scopes.js).
+  #shown = signal(null);
+  get #model() {
+    return this.#shown.value;
+  }
+  set #model(model) {
+    this.#shown.value = model;
+  }
   #messages = new Map();
   #reply = null;
   #replyShown = false;
@@ -492,6 +514,8 @@ export class ThreadView {
       reaction: { ...commands.reaction, pressed: () => this.#showNews() },
       edit: this.#rewrites.edit,
     };
+    // A panel's card is a disclosure; any other is a plain box, with no `open`.
+    /** @type {HTMLElement & Partial<HTMLDetailsElement>} */
     this.node = document.createElement(surface === "panel" ? "details" : "div");
     this.#continuity = new ReplyContinuity(this.node);
     // A card draws what its hold releases at once, so an arrival lands on the thread
@@ -533,6 +557,7 @@ export class ThreadView {
       this.node.classList.toggle("grow", false);
     });
     this.node.addEventListener("lf-reveal", (event) => {
+      /** @type {HTMLElement | undefined} */
       const message = event.detail?.target?.closest?.(".lf-msg[data-lf-summary]");
       const id = message?.dataset.lfSummary;
       if (!id || this.#expandedSummaries.has(id)) return;
@@ -543,8 +568,8 @@ export class ThreadView {
       // A press on the title chooses at its click, which lands it; focus arriving on the
       // title any other way chooses at once (thread-list-view.js).
       this.node.addEventListener("click", (event) => {
-        if (event.target.closest(".lf-thread-summary")?.parentElement !== this.node)
-          return;
+        const target = /** @type {Element} */ (event.target);
+        if (target.closest(".lf-thread-summary")?.parentElement !== this.node) return;
         event.preventDefault();
         this.#commands.choose();
       });
@@ -703,8 +728,50 @@ export class ThreadView {
     );
   }
 
+  // What a card draws from beyond its reading: whether a reply to it is being written
+  // and whether it holds a draft, and whether it stands open.
+  #outside(model) {
+    return [
+      replyIsEditing(model.key),
+      threadHoldsDraft(
+        model.key,
+        model.messages.map(({ id }) => id),
+      ),
+      this.node.open,
+    ];
+  }
+
+  // Whether `model` is the reading this card last drew, outside inputs included, so a
+  // list pass that hands it over again need not draw it (thread-list-view.js). The
+  // reading is rebuilt on every pass, so it is compared by content; its `reread` is a
+  // fresh closure over the same reading each time.
+  shows(model) {
+    const prior = this.#received;
+    if (!prior || !this.#drawnWith) return false;
+    // A card mid-fold, holding news or owing a release draws on every pass: what it
+    // shows then moves with time and the reader, not with its reading.
+    if (
+      prior.folding ||
+      this.#model?.folding ||
+      this.#model?.news ||
+      isFolding(this.node) ||
+      !(this.#heldNews?.settled ?? true)
+    )
+      return false;
+    const { reread: _priorReread, ...was } = prior;
+    const { reread: _reread, ...now } = model;
+    const outside = this.#outside(model);
+    return (
+      share(was, now) === was &&
+      outside.every((part, index) => part === this.#drawnWith[index])
+    );
+  }
+
+  #drawnWith = null;
+
   present(model, { retaining = false, viewChanged = false, writing = null } = {}) {
     this.#received = model;
+    this.#drawnWith = this.#outside(model);
     const prior = this.#model;
     // The list chooses membership. The complete thread owns its outgoing paint and
     // retirement, keeping the last shown reading until its root gives back its room.
@@ -889,6 +956,7 @@ export class ThreadView {
         .filter((range) => range.summary?.pending)
         .map((range) => [range.summary.id, range.summary.covers]),
     );
+    /** @type {HTMLElement | null} */
     const standingToggle = this.node.querySelector(".lf-summary-expand:focus");
     const rangeState = describedRanges.map((range) => {
       if (range.kind === "message") return range;
@@ -1080,6 +1148,7 @@ export class ThreadView {
     // Handing it on is the card's own act, which the list holding the card defers to.
     // A progress disclosure the user stood on that this render replaced, as the
     // answer's head takes it over from the working message, hands them to its successor.
+    /** @type {(id: string) => HTMLElement | null} */
     const toggleFor = (id) =>
       this.node.querySelector(
         `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`,
@@ -1143,10 +1212,12 @@ export class ThreadView {
       return;
     }
     const content = this.node.querySelector(":scope > .lf-thread-content");
+    /** @type {HTMLElement | null} */
     const controls = content?.querySelector(":scope > .lf-thread-controls");
     const first = content?.querySelector(
       ":scope > .lf-thread-transcript > :nth-child(1 of .lf-msg, .lf-thread-checkpoint)",
     );
+    /** @type {HTMLElement | null} */
     const header =
       first?.querySelector(":scope > .lf-summary-checkpoint > .lf-summary-header") ??
       first?.querySelector(":scope > .lf-msg-head");
@@ -1172,7 +1243,7 @@ export class ThreadView {
       const resizing = allocates && this.#headerSlot?.header === header;
       let reading = header;
       if (resizing) {
-        reading = header.cloneNode(true);
+        reading = /** @type {HTMLElement} */ (header.cloneNode(true));
         Object.assign(reading.style, {
           position: "absolute",
           visibility: "hidden",
@@ -1180,7 +1251,9 @@ export class ThreadView {
           margin: "0",
           anchorName: "none",
         });
-        for (const node of reading.children) {
+        for (const node of /** @type {HTMLCollectionOf<HTMLElement>} */ (
+          reading.children
+        )) {
           node.classList.toggle("lf-held-header-item", false);
           node.style.removeProperty("--lf-held-header-width");
         }
@@ -1190,7 +1263,9 @@ export class ThreadView {
         (node) => node.getBoundingClientRect().width,
       );
       if (resizing) reading.remove();
-      const items = [...header.children].map((node, index) => ({
+      const items = [
+        .../** @type {HTMLCollectionOf<HTMLElement>} */ (header.children),
+      ].map((node, index) => ({
         node,
         width: widths[index],
       }));

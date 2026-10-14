@@ -294,7 +294,9 @@ export function mountSample(
     const pair = new MessageChannel();
     const port = pair.port1;
     // Publish this private document endpoint at the existing diagnostic seam.
-    document.querySelector("script[data-lf-entry]").lfDocumentPort = port;
+    /** @type {HTMLScriptElement} */ (
+      document.querySelector("script[data-lf-entry]")
+    ).lfDocumentPort = port;
     candidates.add(port);
     port.onmessage = ({ data }) => {
       if (data.type === "connected") {

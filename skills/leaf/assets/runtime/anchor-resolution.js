@@ -119,7 +119,8 @@ function suppliedDatum(source, key) {
   const supplied = source?.lfDataDatum?.(key);
   return supplied instanceof Element &&
     under(supplied, source) &&
-    supplied.dataset.lfProjection === source.id
+    /** @type {HTMLElement | SVGElement} */ (supplied).dataset.lfProjection ===
+      source.id
     ? supplied
     : null;
 }
@@ -359,7 +360,9 @@ export function datumAimTarget(datum) {
   return {
     anchor,
     element: datum,
-    label: datum.dataset.lfDatumLabel?.trim() || aimLabel(datum),
+    label:
+      /** @type {HTMLElement | SVGElement} */ (datum).dataset.lfDatumLabel?.trim() ||
+      aimLabel(datum),
   };
 }
 
@@ -369,8 +372,22 @@ export function datumAimTarget(datum) {
 // or the real boundary is exhausted. An unresolved passage remains unresolved.
 // `anchorForPassage` captures segments already taken from the page reading, under
 // `node`, without walking the reading again to find them.
+/**
+ * @typedef {{
+ *   section: string,
+ *   quote?: string,
+ *   prefix?: string,
+ *   suffix?: string,
+ *   detached?: boolean,
+ *   datum?: string,
+ *   source?: string,
+ *   source_revision?: string,
+ *   identity?: string,
+ * }} CapturedAnchor
+ */
 export const anchorForRange = (range) =>
   anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
+/** @returns {CapturedAnchor} */
 export function anchorForPassage(segments, node) {
   const holder = node.nodeType === Node.ELEMENT_NODE ? node : upFrom(node);
   // The neighbours come from the same indexed reading the search uses and stop at
@@ -632,6 +649,7 @@ function designTargetAt(
 
 // The returned element is the coordinate's durable owner. A named control part also
 // supplies its own hint seat, so several controls in one owner keep separate identities.
+/** @param {Node} node @param {{design?: boolean, marginTargetAt?: any}} [options] */
 export function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
   if (design) {
     const target = designTargetAt(node, marginTargetAt);

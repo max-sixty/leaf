@@ -13,6 +13,7 @@ import { keeps } from "../keeps.js";
 
 const FACE_TAG = "lf-ask-banner-face";
 
+/** @typedef {AskBannerFace} AskBannerFaceElement For its tag (`runtime-globals.d.ts`). */
 class AskBannerFace extends RetainedFace {
   updated() {
     const control = this.parentElement;

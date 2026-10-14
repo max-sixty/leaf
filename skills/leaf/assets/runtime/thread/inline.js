@@ -278,8 +278,8 @@ export function mountFirstMessage(host, editor) {
 }
 
 export function renderSeats(threads, commands) {
-  for (const host of document.querySelectorAll(
-    ".lf-thread-seat[data-lf-thread-seat]",
+  for (const host of /** @type {NodeListOf<HTMLElement>} */ (
+    document.querySelectorAll(".lf-thread-seat[data-lf-thread-seat]")
   )) {
     const owner = elementById(host.dataset.lfThreadSeat);
     const owned = threads.filter((thread) => seatRoot(thread) === owner.id);

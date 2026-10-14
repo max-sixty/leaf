@@ -583,9 +583,19 @@ container ownership and how placements keep the user's place. Paints whose contr
 turn use `render`; `LitElement` schedules updates on a microtask and belongs only to
 runtime faces that permit that delay.
 
+A watcher's paint subscribes to every selection it reads (`projection-watch.js`), so a
+reader a paint can call derives what it returns inside its own selection (`readPart`)
+rather than selecting a broader part and narrowing it afterwards: the paint then runs
+again only when that answer moves. Reading the whole root inside a paint throws.
+
 `build/browser/build.mjs` compiles the TypeScript foundation into
 `vendor/browser-runtime.js` and the modules beside it in `vendor/browser-runtime/`,
 which import the runtime's own modules, and writes `vendor/lit.js`, the page's one copy of Lit
 (`build/AGENTS.md` owns the commands). What a module decides on its own is
 tested under `tests/runtime/` (`pnpm run test:runtime`; `tests/AGENTS.md` says
-which readings may go there).
+which readings may go there). `pnpm run check:browser` type-checks every runtime
+module, the framework's types reaching it through `vendor/browser-runtime.d.ts`; a
+module marked `// @ts-check` is held to strict mode, and the rest are checked without
+it. What the classic scripts hang on `<html>` and `window`, the events the runtime
+dispatches with a detail, and the runtime's own elements by tag are declared once in
+`build/browser/runtime-globals.d.ts` (`build/browser/build.mjs`, `typecheck`).

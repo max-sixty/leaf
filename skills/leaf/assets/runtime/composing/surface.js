@@ -1019,7 +1019,11 @@ export function createResponseSurface({
         actionPress =
           (selectionOffered && inChrome(target)) ||
           target === selectionComment ||
-          Boolean(target.closest?.(".lf-react-surface, .lf-composer"));
+          Boolean(
+            /** @type {Partial<Element>} */ (target).closest?.(
+              ".lf-react-surface, .lf-composer",
+            ),
+          );
       },
       true,
     );
@@ -1344,7 +1348,6 @@ export function createResponseSurface({
     keys: ["c"],
     // The surfaces name the destination in front of the user rather than the capability:
     // "Comment" covered all four and so promised none of them.
-    description: () => commentDestination().description,
     title: () => commentDestination().title,
     // A selection made before the anchor pass has run can't be quoted yet, and commenting
     // on the page instead is not what the user asked for — so the press waits, and the

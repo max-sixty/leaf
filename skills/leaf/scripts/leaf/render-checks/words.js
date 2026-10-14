@@ -169,7 +169,12 @@ export function coveredWords({
     return box;
   };
   const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+  // A text walk visits text nodes.
+  for (
+    let node = /** @type {Text} */ (walk.nextNode());
+    node;
+    node = /** @type {Text} */ (walk.nextNode())
+  ) {
     const el = node.parentElement;
     if (
       !node.data.trim() ||
@@ -381,13 +386,18 @@ function shrunkLabels(floor) {
     let svg = text.ownerSVGElement;
     while (svg.ownerSVGElement) svg = svg.ownerSVGElement;
     const walk = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
-    for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+    for (
+      let node = /** @type {Text} */ (walk.nextNode());
+      node;
+      node = /** @type {Text} */ (walk.nextNode())
+    ) {
       const words = node.data.trim();
-      const holder = node.parentElement;
+      // Inside an SVG `text`, so an SVG element.
+      const holder = /** @type {Element} */ (node.parentElement);
       if (!words || !holder.getClientRects().length) continue;
       if (!holder.checkVisibility({ visibilityProperty: true, opacityProperty: true }))
         continue;
-      const ctm = holder.getScreenCTM();
+      const ctm = /** @type {SVGGraphicsElement} */ (holder).getScreenCTM();
       const set = parseFloat(getComputedStyle(holder).fontSize);
       const drawn = set * Math.hypot(ctm.c, ctm.d);
       if (drawn >= floor || drawn >= set - 0.05) continue;

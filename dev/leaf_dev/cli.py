@@ -1,43 +1,15 @@
 """`leaf-dev`: developer commands loaded only when selected.
 
-Each command's module owns its options and detailed help. Root help lists their
-names without loading Leaf, browser tooling, or the website adapter.
+Root help discovers names from the commands package without importing its modules.
+Each command owns its options and detailed help.
 """
 
 from importlib import import_module
+from pkgutil import iter_modules
 
 import click
 
-COMMANDS = {
-    "distribution": "distribution",
-    "bench-check": "bench_check",
-    "bench-latency": "bench_latency",
-    "bugback": "bugback",
-    "compare": "compare",
-    "corpus": "corpus",
-    "fetch-assets": "leaf_assets",
-    "journey": "journey",
-    "journey-chart": "journey",
-    "flake": "flake",
-    "eval": "eval",
-    "eval-pairs": "eval_pairs",
-    "eval-report": "eval_report",
-    "eval-ui-review": "review_detection_eval",
-    "preview": "preview",
-    "pins": "pins",
-    "probe": "probe",
-    "profile": "profile",
-    "publish-media": "page_fixtures",
-    "record-demo": "record_demo",
-    "refresh-previews": "example_previews",
-    "setup": "setup",
-    "site": "site",
-    "stills": "stills",
-    "suite-profile": "suite_profile",
-    "thread-snapshots": "thread_snapshots",
-    "trace-server": "trace_server",
-    "verify-site": "verify_site",
-}
+from leaf_dev import commands
 
 
 class DeveloperCommands(click.Group):
@@ -51,13 +23,16 @@ class DeveloperCommands(click.Group):
             raise click.ClickException(str(error)) from error
 
     def list_commands(self, ctx):
-        return sorted(COMMANDS)
+        return sorted(
+            module.name.replace("_", "-") for module in iter_modules(commands.__path__)
+        )
 
     def get_command(self, ctx, cmd_name):
-        if cmd_name not in COMMANDS:
+        if cmd_name not in self.list_commands(ctx):
             return None
-        module = import_module(f"leaf_dev.{COMMANDS[cmd_name]}")
-        return getattr(module, cmd_name.replace("-", "_"))
+        name = cmd_name.replace("-", "_")
+        module = import_module(f"{commands.__name__}.{name}")
+        return getattr(module, name)
 
     def format_commands(self, ctx, formatter):
         with formatter.section("Commands"):

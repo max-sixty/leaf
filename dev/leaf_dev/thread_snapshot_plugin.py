@@ -74,6 +74,6 @@ def thread_expected_store(pytestconfig):
         raise pytest.UsageError(
             "Use leaf-dev thread-snapshots capture before accepting reviewed images"
         )
-    from leaf_dev.thread_snapshots import expected_store
+    from leaf_dev.commands.thread_snapshots import expected_store
 
     return expected_store()

@@ -1,6 +1,6 @@
 """Hosted response evals require successful exact-input answers and closed turns."""
 
-from leaf_dev.eval import catalog, prepare
+from leaf_dev.commands.eval import catalog, prepare
 from leaf_dev.website_eval import CASES, expected_checks, grade
 
 

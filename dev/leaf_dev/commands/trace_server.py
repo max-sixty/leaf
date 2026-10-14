@@ -13,7 +13,7 @@ import click
 from playwright._impl._driver import compute_driver_executable
 
 
-@click.command("trace-server")
+@click.command()
 @click.argument("trace", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.option("--host", default="127.0.0.1", show_default=True)
 @click.option("--port", default=0, type=click.IntRange(0, 65535), show_default=True)

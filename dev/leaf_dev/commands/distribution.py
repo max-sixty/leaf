@@ -8,7 +8,7 @@ suite's browser tiers, and developer previews run a prepared installation instea
 the payload with its kernel compiled again by the same build
 (`build/runtime-bundle.mjs`), so each vendors the kernel an install of that tree
 will serve once it is rebuilt. The website's container installs that same payload
-(`leaf_dev.site`). Nothing compiles during installation, page init, export, or
+(`leaf_dev.commands.site`). Nothing compiles during installation, page init, export, or
 custom-package authoring. Package widgets remain native ESM and import the same
 widget-api entry as the compiled kernel, so their state has one owner.
 
@@ -36,7 +36,7 @@ COMPILER_INPUTS = (
     "build/browser/build.mjs",
     "package.json",
     "pnpm-lock.yaml",
-    "dev/leaf_dev/distribution.py",
+    "dev/leaf_dev/commands/distribution.py",
     "dev/leaf_dev/arms.py",
 )
 
@@ -199,7 +199,7 @@ def cached_installation(runtime: Path = ROOT) -> Path:
             return output
 
 
-@click.command("distribution")
+@click.command()
 @click.option(
     "--output",
     type=click.Path(path_type=Path),

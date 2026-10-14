@@ -27,8 +27,8 @@ from leaf.render_gate.scheme import collect_page_exceptions
 from PIL import Image
 from playwright.sync_api import Page
 
-from leaf_dev import site as site_build
 from leaf_dev.browser import headless_shell, load, tab
+from leaf_dev.commands import site as site_build
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.leaf_assets import pinned_assets, publish, stage
 
@@ -109,7 +109,7 @@ def bootstrap_assets(target: Path) -> Path:
     return target
 
 
-@click.command("refresh-previews")
+@click.command()
 def refresh_previews() -> None:
     """Recapture, publish and repin the catalog previews."""
     captures: dict[str, bytes] = {}

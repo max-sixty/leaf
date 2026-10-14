@@ -7844,12 +7844,13 @@ pageScope("text entry", {
   ]
 });
 function standOnThread(thread) {
-  if (!fitsWhole(thread) && alreadyShown(thread)) {
+  const shown = alreadyShown(thread);
+  if (!fitsWhole(thread) && shown) {
     focusThread(thread, "return");
     return;
   }
   focusThread(thread, "move");
-  scrollIntoView(threadFocusStop(thread), { block: "nearest" });
+  if (!shown) scrollIntoView(threadFocusStop(thread), { block: "nearest" });
 }
 var cardThread = () => {
   const thread = focusedThreadTarget();

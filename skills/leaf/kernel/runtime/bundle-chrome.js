@@ -2881,19 +2881,32 @@ function scrollThreadIntoView(held, control, behavior = scrollBehavior(), block 
   landings.set(held, { control, block, mayLand });
   landThread(held, control, behavior, block);
 }
-function sendLanding(input, standing2 = input.closest(SAYS_IN)) {
+function sendLanding(input) {
   const held = input.closest(SAYS_IN);
   if (!held) return () => {
   };
-  const mayLand = retainUserIntent({
-    source: standing2,
-    available: () => held.isConnected
+  const reply = replyRowOf(held, input);
+  const read = () => ({
+    foot: standingAt(reply, "bottom"),
+    within: reply.getBoundingClientRect().bottom - held.getBoundingClientRect().top
   });
-  return () => void whenDocumentPresented().then(() => {
-    if (mayLand() && input.isConnected)
-      scrollThreadIntoView(held, input, "instant");
-  }).catch(() => {
-  });
+  const stood = reply && !replyPinned(reply) && !separateTranscript(held) && alreadyShown(reply) ? read() : null;
+  return (standing2 = held) => {
+    const mayLand = retainUserIntent({
+      source: standing2,
+      available: () => held.isConnected
+    });
+    void whenDocumentPresented().then(() => {
+      if (!mayLand() || !input.isConnected) return;
+      if (stood === null || !held.contains(reply))
+        return scrollThreadIntoView(held, input, "instant");
+      returnTo(reply, "bottom", stood.foot + read().within - stood.within);
+      revealWritingArea(held, input, reply);
+      if (standingAt(reply, "bottom") < stood.foot)
+        returnTo(reply, "bottom", stood.foot);
+    }).catch(() => {
+    });
+  };
 }
 var rowHeights = /* @__PURE__ */ new WeakMap();
 var transcriptPlaces = /* @__PURE__ */ new WeakMap();
@@ -2950,19 +2963,27 @@ function readBoxPlace(input) {
       atTail: atScrollEnd(transcript)
     });
 }
+var standingAt = (node, edge) => {
+  let at = node.getBoundingClientRect()[edge];
+  for (const box of scrollersOf(node)) at += box.scrollTop - aimedTop(box);
+  return at;
+};
+function returnTo(node, edge, at) {
+  for (const box of scrollersOf(node)) {
+    const moved2 = standingAt(node, edge) - at;
+    if (Math.abs(moved2) < 0.5) return;
+    moveScrollerBy(box, moved2);
+  }
+}
 function holdBox(control) {
   const held = control?.closest?.(SAYS_IN);
   if (!held || control !== focusedInView()) return () => {
   };
-  const top = control.getBoundingClientRect().top;
+  const top = standingAt(control, "top");
   return () => {
     if (focused() !== control || !control.isConnected || !held.contains(control))
       return;
-    for (const box of scrollersOf(control)) {
-      const moved2 = control.getBoundingClientRect().top - top;
-      if (Math.abs(moved2) < 1) return;
-      box.scrollBy({ top: moved2, behavior: "instant" });
-    }
+    returnTo(control, "top", top);
   };
 }
 
@@ -4561,14 +4582,15 @@ function wireReply(key, row2, input, send, wireInput, { hint, accessibleName }) 
       remember(composition);
     },
     // The new turn is drawn above the box; the landing shows it with the box the user
-    // sent from, around wherever the send left them standing. A view whose box stays
-    // for the next turn lands the send itself (`sent`).
+    // sent from, read before the send draws, around wherever the send left them
+    // standing. A view whose box stays for the next turn lands the send itself (`sent`).
     send: (_text, raw, owns) => {
       const { actions, landSent, sent } = composition.binding;
+      const land2 = sendLanding(input);
       if (!sendReply(draftCtx, key, raw, owns, actions)) return;
       if (sent) return sent();
       landSent(closestAcross(input, THREAD));
-      sendLanding(input, focused())();
+      land2(focused());
     },
     // ↑ from an empty box reaches back to the user's own last words in the thread, to
     // rewrite them where they stand (`message-edit.js`). A box holding words keeps the

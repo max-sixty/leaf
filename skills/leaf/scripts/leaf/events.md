@@ -244,8 +244,8 @@ lands. A reader drops a field or kind it does not recognise rather than refusing
 record. `seq` is the resume cursor: a reader that restarts with `--after` the last
 seq it printed misses nothing and repeats nothing. SIGINT, SIGTERM, and a closed
 stdout end it with exit 0. A log that is removed, replaced by another file, or
-shorter than what the feed has read ends it with exit 1 and `<log> is gone` on
-stderr, since its positions no longer name that log's lines. The feed wakes on the
+shorter than what the feed has read ends it with exit 1, refusing with
+`<log> is gone`, since its positions no longer name that log's lines. The feed wakes on the
 log's file stamp at `LOOK_S` cadence, so an event any
 process appends reaches it the same way.
 

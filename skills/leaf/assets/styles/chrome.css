@@ -180,14 +180,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      with the design name standing in its stand, under the response bar within it. */
   :is(.lf-page-paint, .lf-target-paint) { z-index: var(--lf-z-page-paint); }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: var(--lf-z-chrome-paint); }
-  /* A paint box stands in the frames that cut what it is drawn over, each carried by the
-     scrolls around the box that holds it: anchored to that box where anchors reach, else
-     in its motion layers, where the boxes stand in a carrier at the innermost's corner
-     (target-paint-geometry.js, `paintStand`). */
+  /* A paint box stands in the frames that cut what it is drawn over, each fixed and
+     anchored to the box whose band it cuts, with the boxes in a carrier at the innermost
+     frame's corner (target-paint-geometry.js, `paintStand`). */
   .lf-paint-stand { left: 0; top: 0; pointer-events: none; }
-  .lf-paint-frame { position: absolute; }
-  :is(.lf-paint-motion, .lf-paint-carrier) { position: absolute; left: 0; top: 0; }
-  .lf-paint-carrier { width: 0; height: 0; }
+  .lf-paint-carrier { position: absolute; left: 0; top: 0; width: 0; height: 0; }
   /* Every margin-projection control traces the content it concerns through one quiet
      overlay. Painting above the target keeps a package-owned frame from covering the
      contour; the stronger accent ring remains a separate focus fact. */

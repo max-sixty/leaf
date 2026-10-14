@@ -144,7 +144,7 @@ class PagePlan:
     watched: bool
     preview: bool
     unwritable: Finding | None
-    unready: str | None
+    unready: Finding | None
 
 
 def read_plans(session_id: str) -> list[PagePlan]:
@@ -274,7 +274,7 @@ def remedies(
     reasons = []
     for plan in plans:
         if plan.unready or plan.unwritable:
-            reasons.append((plan.unready or str(plan.unwritable), None))
+            reasons.append((str(plan.unready or plan.unwritable), None))
         if plan.owed:
             reasons.append(
                 (

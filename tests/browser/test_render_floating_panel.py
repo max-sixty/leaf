@@ -97,7 +97,7 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
     )
 
     write(field(page), "And the mobile cohort too.")
-    expect(page.locator(".lf-fp-dest")).to_have_text("Reply in this thread")
+    expect(page.locator(".lf-fp-context")).to_have_text("Reply in this thread")
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
     reply = events_model.read_events(serve.page_dir)[-1]
@@ -481,37 +481,44 @@ def test_on_shows_an_ask_as_its_message_and_reply_comes_back(browser, serve):
 
 
 def test_clicking_into_the_field_moves_nothing_at_an_open_view_s_head(browser, serve):
-    """The line over the field keeps its room while a view is open, one line whatever
-    it says, so clicking into the field or typing there leaves the view's tabs and Close
-    where the pointer may be about to press them. The room is blank while the caret is
-    elsewhere: the keys that send show only while it is in the field."""
+    """An open view stands right on the row, with no empty band between them. Clicking
+    into the field shows nothing over it, since the keys that send are Send's hover
+    name, and once words arrive, the line saying where they go lies over the view's foot
+    rather than lifting the view, so its tabs and Close stay where the pointer may be
+    about to press them."""
     page = floating(browser, serve(LONG_PAGE, comments=3))
     page.locator(".lf-fp-threads").click()
-    expect(page.locator(".lf-fp-view[data-view=threads]")).to_be_visible()
+    view = page.locator(".lf-fp-view[data-view=threads]")
+    expect(view).to_be_visible()
     settled(page)
+    row = page.locator(".lf-fp-row")
+    stands = view.bounding_box()
+    band = row.bounding_box()["y"] - (stands["y"] + stands["height"])
+    assert abs(band) < 0.5, f"{band:.0f}px stand between the view and the row"
     close = page.locator(".lf-fp-close").bounding_box()
     tab = page.locator(".lf-fp-filters button", has_text="Resolved").bounding_box()
     line = page.locator(".lf-fp-context")
     field(page).click()
-    expect(line).to_be_visible()
-    expect(line).to_contain_text("to send")
+    expect(line).to_be_hidden()
     settled(page)
     assert page.locator(".lf-fp-close").bounding_box() == close
     assert (
         page.locator(".lf-fp-filters button", has_text="Resolved").bounding_box() == tab
     )
-    # Stepping from the field into the view takes the keys away, and the room stays.
-    page.locator(".lf-fp-filters button", has_text="Open").click()
-    expect(line).to_be_hidden()
-    settled(page)
-    assert page.locator(".lf-fp-close").bounding_box() == close
-    field(page).click()
-    expect(line).to_contain_text("to send")
-    # Words arriving give the line where they go, in the same one line's room.
+    # Words arriving give the line where they go, over the view's foot.
     page.keyboard.type("Could")
-    expect(page.locator(".lf-fp-dest")).to_have_text("Comment on the page")
+    expect(line).to_have_text("Comment on the page")
+    # Each platform spells Shift its own way (keyboard/bindings.js, `spell`).
+    expect(page.locator(".lf-fp-send")).to_have_attribute(
+        "title", re.compile(r"^Send \(⏎\) · (⇧|Shift\+)⏎ new line$")
+    )
     settled(page)
     assert page.locator(".lf-fp-close").bounding_box() == close
+    assert view.bounding_box() == stands
+    # It stands across the seam, over the view's foot and clear of the field's box.
+    said = line.bounding_box()
+    assert said["y"] >= stands["y"]
+    assert said["y"] + said["height"] <= field(page).bounding_box()["y"] + 0.5
 
 
 HEAD_SEATS = """() => {
@@ -966,10 +973,10 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     """At rest the empty field says what the agent is doing, in the banner's words and
     dimmer than anything written there, and while the work runs it carries the one sheen
     that marks work under way, standing still under reduced motion and once the work
-    ends, and never hiding the words under forced colours. Clicking in gives the placeholder to where the words go and opens the line
-    above with the keys that send; once words hide the placeholder, that line says where
-    they go. It never names who reads them, since every word here goes to the one agent.
-    """
+    ends, and never hiding the words under forced colours. Clicking in gives the
+    placeholder to where the words go; once words hide the placeholder, a line above the
+    field says where they go. It never names who reads them, since every word here goes
+    to the one agent."""
     url = serve(LONG_PAGE)
     # No session holds the page, so it names its agent by the voice that started the
     # work, the suite's Claude Code session (`presence.page_agent`).
@@ -1016,16 +1023,13 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
         "placeholder", re.compile("^Comment on the page")
     )
     sheen(False)
-    destination = page.locator(".lf-fp-dest")
     line = page.locator(".lf-fp-context")
-    expect(line).to_have_text(re.compile("^⏎ to send"))
-    expect(destination).to_have_text("")
+    expect(line).to_be_hidden()
     page.keyboard.type("Could")
-    expect(destination).to_have_text("Comment on the page")
-    expect(line).not_to_contain_text(agent)
+    expect(line).to_have_text("Comment on the page")
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.press("Backspace")
-    expect(destination).to_have_text("")
+    expect(line).to_be_hidden()
 
     page.mouse.click(5, 5)
     expect(field(page)).to_have_attribute("placeholder", status)
@@ -1094,10 +1098,10 @@ def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile(r"^Comment on the page")
     )
-    expect(page.locator(".lf-fp-dest")).to_have_text("Saved for later")
+    expect(page.locator(".lf-fp-context")).to_have_text("Saved for later")
     write(field(page), "Could the rollback cover the weekend?")
     page.evaluate(say, "Not sent: the page is offline")
-    expect(page.locator(".lf-fp-dest")).to_have_text("Not sent: the page is offline")
+    expect(page.locator(".lf-fp-context")).to_have_text("Not sent: the page is offline")
 
     # In a thread the focused field still says its words go there, not the notice.
     page.locator("body").focus()
@@ -1108,7 +1112,7 @@ def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile(r"^Reply in this thread")
     )
-    expect(page.locator(".lf-fp-dest")).to_have_text("2 agent messages in 2 threads")
+    expect(page.locator(".lf-fp-context")).to_have_text("2 agent messages in 2 threads")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
 

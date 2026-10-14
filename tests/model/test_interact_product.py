@@ -33,6 +33,7 @@ from interact_support import (
     response_reference,
     served_thread,
     state_json,
+    words,
 )
 from leaf import cli as cli_model
 from leaf import event_log as events_model
@@ -916,7 +917,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
 
     swapped = reply('<lf-test-plan id="quoted" readings="goal"></lf-test-plan>')
     assert swapped.exit_code != 0
-    assert 'where role="readings"' in swapped.output
+    assert 'where role="readings"' in words(swapped.output)
 
     borrowed = reply('<lf-test-plan id="quoted" readings="seat"></lf-test-plan>')
     assert borrowed.exit_code != 0
@@ -1067,7 +1068,9 @@ def test_agent_messages_preserve_a_single_space(page_dir):
         cli_model.cli, ["thread", "open", str(page_dir), "--text", ""]
     )
     assert empty.exit_code != 0
-    assert empty.output == "Error: empty text (pass --text or pipe via stdin)\n"
+    assert json.loads(empty.stderr)["error"] == (
+        "empty text (pass --text or pipe via stdin)"
+    )
 
     opened = comment(page_dir, "--text", " ")
     assert opened.exit_code == 0, opened.output
@@ -1315,7 +1318,6 @@ def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
                 "</lf-options></lf-ask>"
             ),
             "--ask",
-            "--json",
         ],
     )
     aggregate = CliRunner().invoke(
@@ -1338,7 +1340,7 @@ def test_an_agent_reply_records_only_an_ask_it_leaves_with_the_user(page_dir):
     assert answered.exit_code == 0, answered.output
     assert asking.exit_code == 0, asking.output
     assert duplicate.exit_code == 1
-    assert refused_on(duplicate.stdout).values["tags"] == ["lf-options"]
+    assert refused_on(duplicate.stderr).values["tags"] == ["lf-options"]
     assert aggregate.exit_code == 0, aggregate.output
     replies = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
     assert "ask" not in replies[0]

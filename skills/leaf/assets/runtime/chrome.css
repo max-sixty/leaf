@@ -324,32 +324,25 @@
     padding-inline: 10px;
   }
   .lf-fp-context {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
+    position: relative;
+    z-index: 1;
     box-sizing: content-box;
-    min-height: 1lh;
+    height: 1lh;
     padding: 8px 14px 0;
     color: var(--lf-fp-muted);
     font-size: 12px;
     white-space: nowrap;
-  }
-  .lf-fp-context[data-empty] {
-    visibility: hidden;
-  }
-  .lf-floating-panel:not([data-open]) .lf-fp-context[data-empty] {
-    display: none;
-  }
-  .lf-fp-dest {
-    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .lf-fp-dest[data-notice] {
-    color: var(--ink);
+  .lf-floating-panel[data-open] .lf-fp-context {
+    padding-top: 0;
+    margin: calc(6px - 1lh) 0 -6px;
+    background: var(--lf-fp-surface);
+    box-shadow: 0 -3px 4px var(--lf-fp-surface);
   }
-  .lf-fp-keys {
-    flex: none;
+  .lf-fp-context[data-notice] {
+    color: var(--ink);
   }
   .lf-floating-panel[data-rest=mark] {
     width: var(--lf-fp-folded);
@@ -1178,15 +1171,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     top: 0;
     pointer-events: none;
   }
-  .lf-paint-frame {
-    position: absolute;
-  }
-  :is(.lf-paint-motion, .lf-paint-carrier) {
+  .lf-paint-carrier {
     position: absolute;
     left: 0;
     top: 0;
-  }
-  .lf-paint-carrier {
     width: 0;
     height: 0;
   }

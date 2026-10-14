@@ -36,6 +36,7 @@ vars:
     Finish the playground for handoff using the installed leaf:leaf skill.
     Read the playground package's instructions
     at packages/playground/instructions/author.md, references/page-authoring.md,
+    references/live-samples.md,
     and the assets/registry.json idiom catalog inside the leaf skill's base
     directory. Reply with the HTML and page module; the page directory is not
     reachable here. You can use placeholders for the live sample bodies.

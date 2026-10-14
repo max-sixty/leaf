@@ -76,7 +76,7 @@ Separate the configuration the user is choosing from the cases used to inspect i
 Configuration controls and presets describe what to build. Give preview cases and
 inspection settings their own labeled controls and page-local state, outside the
 playground's submitted values. Style these controls with the layer's control idioms
-(`references/page-authoring.md`, "Theme and vocabulary"). Changing a case preserves
+(`references/page-layout.md`, "Page CSS and Leaf's controls"). Changing a case preserves
 the configuration; applying a preset preserves the case; all compared candidates use
 the same case. When editing the data is the task, that data belongs in the configuration.
 
@@ -161,7 +161,7 @@ host controls outside the samples.
 
 Start fictional threads or decisions with `data-sample-events`, naming one inert JSON
 history in the parent; samples can share it without sharing subsequent gestures.
-`references/page-authoring.md`, "Live samples", owns this declaration and its event
+`references/live-samples.md` owns this declaration and its event
 commands. Keep fixture anchors in the child template. Do not copy fictional history
 into the outer page's log or post it with a setup script.
 

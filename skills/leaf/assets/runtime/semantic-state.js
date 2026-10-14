@@ -92,15 +92,19 @@ const publications = applicationState.select((root) => root);
 // nobody lists what a region depends on. Collection sees only what runs synchronously,
 // so a paint that waits wraps each continuation in the `resume` it is handed, as a
 // `.then` callback or a function it calls after an `await`, and what the continuation
-// reads is collected too; a read in a continuation it does not wrap goes unfollowed. A publication that moves a part either read claims a presentation inside that
+// reads is collected too; a read in a continuation it does not wrap goes unfollowed. A
+// publication that moves a part either read claims a presentation inside that
 // publication, with the value the reading gives then; one that moves none of them is no
 // claim, so the region carries its last commit into the new epoch (presentation.ts,
 // `begin`). A move of the reading's own parts that leaves its value as it was claimed
 // is no claim either, so a region that reads one unchanging value through a phase keeps
-// it. A read of the whole root in either throws, since every publication moves it. What
-// the paint takes from beyond the root — the clock, a draft, the document's own nodes —
-// is a mechanical change, and its owner claims through `present`, which claims whatever
-// the reading gives, so a reading that stands still is still painted when asked for. A
+// it. A read of the whole root in either throws, since every publication moves it. The
+// paint's readings of what stands outside the root, such as the time it shows
+// (`clockValue`), are collected with its parts (`outsideReading`), and one that moves
+// claims the region as a moved part does. What else the paint takes from beyond the
+// root — a draft, the document's own nodes — is a mechanical change, and its owner
+// claims through `present`, which claims whatever the reading gives, so a reading that
+// stands still is still painted when asked for. A
 // renderer withholds a value it does owe by returning `PRESENTATION_HELD`, which keeps
 // its region pending until a later claim supersedes it.
 /** @param {{
@@ -125,6 +129,21 @@ export const applicationPresenter = ({
   // The value last claimed, and whether its paint has yet to start.
   let claimed;
   let owed = false;
+  // The paint's outside readings, followed while it is current: one that moves owes a
+  // paint, as a moved part does on a publication.
+  let following = [];
+  const follow = () => {
+    for (const stop of following) stop();
+    following = [...paintReads]
+      .filter(([reading]) => reading.outside)
+      .map(([reading, seen]) =>
+        reading.subscribe((now) => {
+          if (owed || now === seen) return;
+          const next = read();
+          if (next !== null) void claim(next);
+        }),
+      );
+  };
   const presenter = schedule.presenter({
     attach: () => presentation.attach(region, renderer),
     order,
@@ -142,6 +161,7 @@ export const applicationPresenter = ({
         if (current()) {
           for (const [part, seen] of outcome.reads)
             if (!reads.has(part)) reads.set(part, seen);
+          if (paintReads === reads) follow();
           if (moved(outcome.reads)) {
             const next = read();
             if (next !== null) void claim(next);
@@ -196,6 +216,7 @@ export const applicationPresenter = ({
   // and a region that may mount again reads null while it is not mounted.
   const disconnect = () => {
     paintReads = new Map();
+    follow();
     presenter.disconnect();
   };
   return Object.freeze({ present, disconnect });

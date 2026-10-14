@@ -131,8 +131,7 @@ the user's question and the baseline and candidate views, and ask first whether
 those views are enough to make that choice; ask for a preference only once they
 are. Operate an interactive comparison's baseline and candidates through the
 same journey before handoff. For a live Leaf interface, embed them as
-`lf-sample window` children (`skills/leaf/references/page-authoring.md`, "Live
-samples"). The outer page carries the configuration and feedback, and each child
+`lf-sample window` children (`skills/leaf/references/live-samples.md`). The outer page carries the configuration and feedback, and each child
 carries practice interactions, which its Full view lets the user try at viewport
 size. Start their fictional histories with `data-sample-events`, sharing one
 parent-local JSON fixture when the candidates need the same conversation.
@@ -357,8 +356,7 @@ To make an existing page exercise the current checkout, re-vendor it with the
 checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
 report a compatibility refusal rather than falling back to the installed plugin.
 A page that explains how a Leaf widget, verb, or event flow behaves lets the user
-operate it in a live sample (`<root>/skills/leaf/references/page-authoring.md`,
-"Live samples"). The sample's template holds only the demonstrated page and an
+operate it in a live sample (`<root>/skills/leaf/references/live-samples.md`). The sample's template holds only the demonstrated page and an
 `lf-activity` feed of the sample's own log, so each gesture shows the event it
 writes; nothing in it mentions the sample. The parent's prose directly above the
 sample lists the gestures to try, in an order that exercises each verb the page

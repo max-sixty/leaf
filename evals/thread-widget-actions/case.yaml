@@ -19,7 +19,8 @@ assert:
 - type: llm-rubric
   metric: judgment
   value: |
-    Pass only if the JavaScript uses `watchThreads` for the shared Thread collection,
+    Pass only if the JavaScript reads the shared Thread collection with `readThreads()`
+    in a `watchProjection` paint,
     keeps its own selected Thread by `thread.key`, calls `threadActions.reply` for Send
     and `threadActions.resolve` or `threadActions.reopen` for settlement, and stops its
     subscription on disconnect. It must not post raw events, use a private runtime

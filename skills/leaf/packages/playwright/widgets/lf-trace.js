@@ -25,7 +25,10 @@
  * capture taken from that checkpoint on. An input still to come shows only in the Input
  * lane: marking its target through the call's wait for actionability read as a
  * click that had already happened (2026-10-13, replacing a mark across the whole
- * call). It never implies a held key. During
+ * call). It never implies a held key. At rest the badge also says whether the
+ * shown capture comes just before, during or after the input's call; during
+ * playback it names the input alone, since that relation changes faster than it
+ * can be read at recorded pace. During
  * playback a plain image shows each capture in time over the Viewer, which takes
  * over again when playback stops; the clock waits only when the image on screen
  * would trail it by more than MAX_LAG.
@@ -1588,11 +1591,17 @@ customElements.define(
       const span = action
         ? `${this.#time(action.startTime, action.stream)}–${this.#time(action.endTime ?? action.startTime, action.stream)}`
         : "";
+      // At rest the badge says when the image was captured and whether the input
+      // was next, under way or done. Playing, the readout names the time and those
+      // words would change within a few hundred milliseconds of each input, so the
+      // badge names the input alone.
       keepsText(
         this.#inputBadge,
-        relation
-          ? `${this.#time(image.timestamp, image.stream)} · ${relation === "next" ? "next:" : relation} ${this.#inputLabel(action)}`
-          : "",
+        !relation
+          ? ""
+          : this.#playing
+            ? this.#inputLabel(action)
+            : `${this.#time(image.timestamp, image.stream)} · ${relation === "next" ? "next:" : relation} ${this.#inputLabel(action)}`,
       );
       keeps(
         this.#inputBadge,
@@ -1601,8 +1610,7 @@ customElements.define(
           ? `This image was captured ${relation === "next" ? "at the Action checkpoint, just before the input is sent" : `${relation} the input call`}. ${this.#inputLabel(action)}${action.input.selector ? ` · ${action.input.selector}` : ""} · call ${span}. Key-down and hold times are not recorded.`
           : null,
       );
-      // The badge says whether the input is next, under way or done; the point
-      // marks where it lands in the shown capture's viewport.
+      // The point marks where the input lands in the shown capture's viewport.
       const coordinate = action?.input.point;
       const viewport = action?.input.viewport;
       const visible =

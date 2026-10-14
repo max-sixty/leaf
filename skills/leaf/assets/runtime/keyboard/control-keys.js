@@ -21,8 +21,10 @@ import { buttonCommand } from "./scopes.js";
 import { keeps } from "../keeps.js";
 
 const stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ?? [];
-const shortcutIn = (scope, row) =>
-  [...stepsBefore(scope), labelOf(row)].filter(Boolean).join(" ");
+// The presses that reach a row, each spelled as a key chip spells it: a step is one
+// press, so a label's own words never split into steps.
+const stepsIn = (scope, row) => [...stepsBefore(scope), labelOf(row)].filter(Boolean);
+const shortcutIn = (scope, row) => stepsIn(scope, row).join(" ");
 
 /** The complete shortcut one command advertises, for a control whose own shortcut spans
  * more than one row and so cannot be painted by the pass below. Resolved by command id rather
@@ -58,13 +60,14 @@ function controlRows() {
   return controls;
 }
 
-/** The complete shortcut that reaches each visible control now, by control, for a
- * presentation that draws a control as words rather than the control itself, as a menu
- * built from the banner's rows does (banner-toolbar.js, `bannerRows`). */
+/** The steps of the complete shortcut that reaches each visible control now, by
+ * control, for a presentation that draws a control as words rather than the control
+ * itself, as a menu built from the banner's rows does (banner-toolbar.js, `bannerRows`),
+ * and draws each step as a key (key-sequence.js). */
 export function controlShortcuts() {
   const shortcuts = new Map();
   for (const [control, { scope, row, active }] of controlRows())
-    if (active) shortcuts.set(control, shortcutIn(scope, row));
+    if (active) shortcuts.set(control, stepsIn(scope, row));
   return shortcuts;
 }
 

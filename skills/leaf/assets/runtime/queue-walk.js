@@ -70,7 +70,7 @@ import { readAsks } from "./asks/model.js";
 import { asksIn, askPlace } from "./asks/place.js";
 import { readQueues, queueItemKey } from "./queue-api.js";
 import { itemNoun } from "./queues.js";
-import { applicationState } from "./semantic-state.js";
+import { watchProjection } from "./projection-watch.js";
 import { retainUserIntent } from "./user-intent.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 import { approvalTarget, presentedApproval } from "./banner.js";
@@ -331,18 +331,16 @@ export function createQueueWalk({
       .join(" ");
   let wasOffered = false;
   let wasDoneable = "";
-  let stopWatching = null;
+  let watching = null;
   // The m/M row stands on On me, and Done on the to-dos it holds, so the surfaces
   // reading them are repainted where the list empties or fills or those to-dos change.
   function mount() {
-    stopWatching ??= applicationState
-      .select((root) => root.effective.queues.on_user)
-      .subscribe(() => {
-        if (offered() === wasOffered && doneable() === wasDoneable) return;
-        wasOffered = offered();
-        wasDoneable = doneable();
-        paintKeys();
-      });
+    watching ??= watchProjection(document.body, () => {
+      if (offered() === wasOffered && doneable() === wasDoneable) return;
+      wasOffered = offered();
+      wasDoneable = doneable();
+      paintKeys();
+    });
   }
 
   pageCommand({

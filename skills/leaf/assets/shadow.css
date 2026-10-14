@@ -726,6 +726,13 @@ button.lf-thread-notice[data-lf-focus] {
 :where(:root, .lf-thread-transcript) th[scope=row] {
   font-weight: 600;
 }
+:where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > :is(th, td) {
+  vertical-align: middle;
+}
+:where(:root, .lf-thread-transcript) table:has(> * > tr > td > img:only-child, > * > tr > td > a:only-child > img:only-child) > * > tr > th:not([scope=row]) {
+  text-align: center;
+  color: var(--ink);
+}
 :where(:root, .lf-thread-transcript) :is(ul, ol) {
   margin: 10px 0;
   padding-inline-start: 24px;
@@ -1523,9 +1530,6 @@ button.lf-media-open {
 }
 .lf-thread-transcript .lf-msg-editor {
   margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
-}
-.lf-msg-editor > .lf-compose-field:has(> leaf-text[data-lf-focus]) {
-  outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-msg-edit-foot {
   display: block;

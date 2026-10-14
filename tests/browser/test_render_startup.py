@@ -5880,13 +5880,14 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
           };
           const failed = {};
           const stops = [];
-          for (const name of ['watchAsks', 'watchReports', 'watchHistory']) {
+          for (const name of ['throwing', 'rejecting']) {
             const owner = owned(`failing-${name}`);
             failed[name] = 0;
-            stops.push(api[name](owner, () => {
+            stops.push(api.watchProjection(owner, () => {
               failed[name] += 1;
+              api.readAsks();
               // A paint that fails later is told the same way as one that throws.
-              if (name === 'watchHistory')
+              if (name === 'rejecting')
                 return Promise.reject(new Error(`${name} paint failed`));
               throw new Error(`${name} paint failed`);
             }));
@@ -5897,8 +5898,9 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
           let paints = 0;
           let finish;
           const finished = new Promise((resolve) => { finish = resolve; });
-          stops.push(api.watchAsks(owner, () => {
+          stops.push(api.watchProjection(owner, () => {
             paints += 1;
+            api.readAsks();
             return finished;
           }));
           await settle();
@@ -5913,7 +5915,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
         }"""
     )
     assert result == {
-        "failed": {"watchAsks": 1, "watchReports": 1, "watchHistory": 1},
+        "failed": {"throwing": 1, "rejecting": 1},
         "interrupted": 2,
         "kept": 2,
     }
@@ -5921,7 +5923,7 @@ def test_a_returning_projection_subscriber_reads_again_only_where_its_departure_
     reported = sorted(said(error) for error in errors)
     assert reported == sorted(
         f"leaf: paint failed for div#failing-{name}: {name} paint failed"
-        for name in ["watchAsks", "watchReports", "watchHistory"]
+        for name in ["throwing", "rejecting"]
     )
 
 
@@ -5942,7 +5944,7 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
           let shown = null;
           let watching;
           const held = new api.HeldReading(owner, () => [region], () => watching.refresh());
-          watching = api.watchAsks(owner, () => { shown = held.hold(current); });
+          watching = api.watchProjection(owner, () => { shown = held.hold(current); });
           await settle();
           current = 'second';
           watching.refresh();

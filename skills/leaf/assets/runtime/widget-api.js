@@ -72,21 +72,20 @@ export {
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
-export { readAsks, watchAsks } from "./asks/model.js";
+export { readAsks } from "./asks/model.js";
 // The asks a region of the page holds, by the rule every count and walk of them reads.
 export { asksIn } from "./asks/place.js";
 export { comparisonChanges, watchComparison } from "./version.js";
 export { askWords } from "./asks/answer.js";
 export {
   readWork,
-  watchWork,
   workRole,
   workElements,
   directWorkElements,
   workAncestor,
 } from "./work.js";
 export { askActions } from "./application.js";
-export { readQueues, watchQueues, queueItemKey } from "./queue-api.js";
+export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
@@ -100,7 +99,6 @@ export {
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
 export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
-export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (assets/AGENTS.md, "Stability").
@@ -230,7 +228,9 @@ export {
   tokenLines,
 } from "./syntax.js";
 export { bodyText, dataBody, failSoft, once, reportFailure } from "./widget-upgrade.js";
-export { saidAt, reportSequence, watchHistory, watchReports } from "./reports.js";
+export { saidAt, readHistory, reportSequence, reportsPresented } from "./reports.js";
+// The one watcher of the page's readings ("Page readings").
+export { watchProjection } from "./projection-watch.js";
 export {
   HIDDEN,
   LAYOUT,

@@ -5,9 +5,11 @@
    the window, moving only far enough to remain inside the window otherwise. The editor
    takes the room beneath the banner, and the card scrolls if its minimum controls
    exhaust it. The control, `c` with nothing to comment on, and Resume writing all open
-   it, and it holds the page's one general box, with its draft (`general`). Threads has
-   no box of its own: it is where a thread lives once started, not where one starts, and
-   the card hangs over it when it is open. In Design mode the box comments on the design.
+   it, and it holds the page's one general box, with its draft (`PAGE_DRAFT`), which
+   Resume writing also brings words to whose own box the page no longer holds
+   (drafts.js). Threads has no box of its own: it is where a thread lives once started,
+   not where one starts, and the card hangs over it when it is open. In Design mode the
+   box comments on the design.
 
    The card starts page threads; their conversations live in Threads. Sending closes
    the card, returns focus to its banner door and flashes Threads without opening the
@@ -37,7 +39,13 @@ import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
 import { closeLayer, focusDestination, focused } from "../focus.js";
 import { retainUserIntent } from "../user-intent.js";
-import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
+import {
+  PAGE_DRAFT,
+  loadDraft,
+  mirrorDraft,
+  saveDraft,
+  sendMessage,
+} from "../drafts.js";
 import { flashDuration, backgroundFlash } from "../motion.js";
 import { keys } from "../keyboard/scopes.js";
 import { commandShortcut } from "../keyboard/control-keys.js";
@@ -83,7 +91,7 @@ export function createPageComment({
   composer.append(input, send);
 
   const hint = () => (designModeActive() ? "Comment on the design" : NAME);
-  const holds = () => Boolean(loadDraft("general")?.trim());
+  const holds = () => Boolean(loadDraft(PAGE_DRAFT)?.trim());
   const cardIsOpen = () => isNativeLayer(card);
   keys(card, "In the page comment card", [
     {
@@ -150,17 +158,17 @@ export function createPageComment({
     // Not a `control` on the `c` row: that row answers for every destination, and a
     // control it named would make it wait on this one.
     control.title = `${NAME} (${commandShortcut("comment.create")})`;
-    input.value = loadDraft("general") ?? "";
+    input.value = loadDraft(PAGE_DRAFT) ?? "";
     sync = wireInput(input, {
       hint,
       accessibleName: hint,
       sends: "send",
       sendBtn: send,
       mediaBelow: true,
-      save: (text) => saveDraft("general", text),
+      save: (text) => saveDraft(PAGE_DRAFT, text),
       send: (_text, raw, owns) => {
         let flight = null;
-        const handle = sendMessage("general", owns, (attempt) => {
+        const handle = sendMessage(PAGE_DRAFT, owns, (attempt) => {
           const event = { attempt, text: raw };
           if (designModeActive()) event.about = "design";
           return (flight = createPageComment(event));
@@ -192,7 +200,7 @@ export function createPageComment({
     });
     stops.push(
       // Retained: the box mirrors other tabs' words before its card first opens.
-      mirrorDraft(input, sync, "general", {
+      mirrorDraft(input, sync, PAGE_DRAFT, {
         retained: true,
         resume: () => ({ where: input, input: () => input, open }),
       }),

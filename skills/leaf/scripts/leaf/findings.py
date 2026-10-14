@@ -783,15 +783,9 @@ _TEXT = {
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
     "empty-ask-context": _ask_context,
-    "ask-context-headings": lambda at, v: (
-        f"{_line(at, v)}: an ask context must have exactly one direct heading,"
-        f" found {_json(v['headings']) if v['headings'] else 'none'}"
-    ),
-    "ask-context-heading-first": lambda at, v: (
-        f"{_line(at, v)}: an ask context's direct heading must be its first"
-        " content, found "
-        + ("text" if v["first"] == "#text" else f"<{v['first']}>")
-        + " first"
+    "ask-context-title": lambda at, v: (
+        f"{_line(at, v)}: an ask context needs a heading to title its ask, leading"
+        " its content alone or in an <hgroup> or <header>"
     ),
     "unknown-word": lambda at, v: (
         f"{_bearing(at, v, _quoted(v['value']))}: not {_HONORED[v['declares']]} —"
@@ -1051,7 +1045,7 @@ _TEXT = {
             " must declare a string `id` attribute"
         )
     ),
-    "ask-context-id": _declared(lambda v: "x-ask-context does not require an id"),
+    "ask-context-id": _declared(lambda v: "x-ask-context must require an id"),
     "ask-context-prose": _declared(
         lambda v: "x-ask-context must admit prose around the ask it frames"
     ),

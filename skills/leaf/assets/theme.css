@@ -527,6 +527,12 @@ img {
 img {
   box-shadow: 0 0 0 1px var(--border-2), 0 2px 8px var(--shade);
 }
+img,
+svg,
+video,
+canvas {
+  vertical-align: middle;
+}
 details {
   border: var(--details-border) solid var(--rule);
   border-radius: var(--r);

@@ -40,31 +40,29 @@ delivered at prompt:
             actions: []
         handling:
           h1: >-
-            This event's thread has no title yet: name it by adding `--title "<a
-            few words>"` to the reply that answers it, so the thread panel lists
-            its subject rather than its opening words. If Leaf has named it from
-            its opening message by then, that name stands.
+            The thread has no title yet. Name it with `--title "<a few words>"`
+            on your reply, so the Threads panel lists its subject instead of its
+            opening words. If Leaf has already named it from its first message,
+            that name stays.
           h2: >-
-            When the event asks for work, say in its thread what you will do before
-            any other command, including reading the source it concerns: `leaf response
-            reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
-            The user reads it in the thread at once, and it starts the update: the
-            update reads Working, and the line stands in the banner until you answer.
-            Do the work and put its result on the page, with whatever shows it (captures,
-            a figure, the numbers), then answer with `leaf response reply <answer.ref>
-            --done < reply.md`: what changed, in a sentence or two, linking the
-            section that shows it. When the event asks for no work, as a question
-            may not, answer it with that reply at once. The page carries the work,
-            and the thread only the conversation about it. `leaf response reply`
-            checks any saved page edit and makes it live before posting. If a revision
-            removes what the thread is anchored on, move the thread in the reply
-            that reports it with `--section <id>` (narrowed by `--quote` or `--part`
-            if needed), or `--detach` it if its subject has left the page. Every
-            answer says what it leaves: `--done` when it delivers what was asked,
-            `--ask` when its prose asks the user something back, or `--todo "<what
-            you owe>"` when it promises work that outlasts this turn, which then
-            stays on you, under the reply's id, until `leaf task end` (`references/conversation-loop.md`,
-            "Long-running work").
+            If the event asks for work, first post one line in its thread saying
+            what you will do, before any other command, even reading the source:
+            `leaf response reply <answer.ref> --ephemeral --text "<what you will
+            do, in a line>"`. It shows at once and starts the update, which reads
+            Working until you answer. Do the work and put the result on the page,
+            with what shows it (captures, a figure, the numbers). Then answer with
+            `leaf response reply <answer.ref> --done < reply.md`: what changed,
+            in a sentence or two, linking the section that shows it. If the event
+            asks for no work, answer at once. The page holds the work; the thread
+            holds only the conversation about it. `leaf response reply` checks any
+            saved page edit and makes it live before posting. If the revision removes
+            the thread's anchor, move the thread in the same reply with `--section
+            <id>` (narrowed by `--quote` or `--part`), or `--detach` it if its subject
+            left the page. Each answer takes `--done` when it delivers what was
+            asked, `--ask` when it asks the user something back, or `--todo "<what
+            you owe>"` when it promises work beyond this turn, which stays on you
+            until `leaf task end` (`references/conversation-loop.md`, "Long-running
+            work").
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,

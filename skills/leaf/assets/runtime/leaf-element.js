@@ -35,13 +35,20 @@
    controller's `defer()` holds it, its claim stays open; the release draws the newest
    reading at once, changed or not, since the gesture may have rewritten its nodes. An
    element whose tag declares `x-data` holds the page's data version while it stands,
-   until it has drawn what was delivered. `setup()` runs once, on the first connection,
-   before the first render. */
-import { LitElement, collectReads, untracked } from "/vendor/browser-runtime.js";
+   until it has drawn what was delivered and any preparation that draw started
+   (`controller.present()`), such as highlighting or a loading frame, has landed.
+   `setup()` runs once, on the first connection, before the first render. */
+import {
+  LitElement,
+  collectReads,
+  render,
+  untracked,
+} from "/vendor/browser-runtime.js";
 import {
   attachApplicationPresentation,
   attachWidgetPresentation,
   readsProof,
+  widgetRegions,
 } from "./semantic-state.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
 import { drawsItself, widgetController, widgetMounted } from "./widget-controller.js";
@@ -226,6 +233,15 @@ export class LeafElement extends LitElement {
     }
   }
 
+  /** The reading drawn again at once, outside any claim and Lit's own schedule, with a
+   *  failure thrown rather than shown: the render check's replay
+   *  (render-checks/replay.js), which holds a draw of the same reading to change
+   *  nothing. An update Lit has queued stays queued, with its claim. */
+  redraw() {
+    render(this.render(), this.renderRoot, this.renderOptions);
+    this.updated(new Map());
+  }
+
   updated(changed) {
     super.updated(changed);
     // The render may have changed what this widget's commands read from its nodes.
@@ -301,7 +317,7 @@ export class LeafElement extends LitElement {
     this.#connectedParent = this.parentElement;
     if (registry[this.localName]?.["x-data"])
       this.#leaveData = joinDataDelivery(
-        this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName,
+        this.#descriptor ? widgetRegions(this.#descriptor.id) : [this.#regionName],
       );
     this.#follow();
     const moved = untracked(() =>

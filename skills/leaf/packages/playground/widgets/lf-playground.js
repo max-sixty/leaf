@@ -23,19 +23,18 @@ import {
   commands,
   compoundReadingRegionId,
   dressSamples,
-  failSoft,
   focusDestination,
   layoutChanged,
   notice,
-  once,
   initialRender,
+  LeafElement,
+  nothing,
   paintKeys,
   registerReadingRegion,
   says,
   tabStore,
   wear,
   whileConnected,
-  widgetController,
   focused,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
@@ -81,13 +80,12 @@ function jsonSnapshot(value, path = "configuration") {
 
 customElements.define(
   "lf-playground",
-  class extends HTMLElement {
+  class extends LeafElement {
     // What the ask was answered with: the instruction the chosen configuration sent.
     static answerWords(value) {
       return value.instruction;
     }
 
-    #controller = widgetController(this);
     #initial = null;
     #controls = [];
     #controlByName = new Map();
@@ -111,17 +109,10 @@ customElements.define(
     #interactive = false;
     #regions = [];
 
-    connectedCallback() {
-      if (!once(this)) return;
-      try {
-        this.#build();
-        this.#ready = true;
-        if (this.#interactive)
-          this.#controller.subscribe(() => this.#paintAvailability());
-      } catch (error) {
-        failSoft(this, error);
-        return;
-      }
+    // A build that throws leaves the playground showing its failure (LeafElement).
+    setup() {
+      this.#build();
+      this.#ready = true;
       whileConnected(this, () => {
         const stops = this.#regions.map((region) => registerReadingRegion(region));
         this.#paintAvailability();
@@ -441,7 +432,7 @@ customElements.define(
       this.#paintAvailability();
       this.#submit.setAttribute("aria-busy", "true");
       try {
-        const event = await this.#controller.dispatch({
+        const event = await this.controller.dispatch({
           kind: "action",
           verb: "choose",
           detail: { values: this.values, instruction: this.#instruction() },
@@ -460,23 +451,25 @@ customElements.define(
     }
 
     #available() {
-      return this.#controller.read().actions.choose?.available ?? false;
+      return this.reading.actions.choose?.available ?? false;
     }
 
-    renderState(state) {
-      if (!this.#ready) return true;
-      const configuration = state.choose;
+    // A repeated projection keeps local edits; a new choice or its undo replaces them.
+    // A change to the reading's availability draws again too, and paints the keys.
+    render() {
+      const configuration = this.state.choose;
       const projected =
         configuration?.action === "choose"
           ? JSON.stringify(configuration.detail.values)
           : null;
-      if (this.#projected === projected) return true;
-      const firstProjection = this.#projected === undefined;
-      this.#projected = projected;
-      if (projected !== null) this.#apply(configuration.detail.values);
-      else if (!firstProjection) this.#apply(this.#defaults);
+      if (this.#projected !== projected) {
+        const firstProjection = this.#projected === undefined;
+        this.#projected = projected;
+        if (projected !== null) this.#apply(configuration.detail.values);
+        else if (!firstProjection) this.#apply(this.#defaults);
+      }
       this.#paintAvailability();
-      return true;
+      return nothing;
     }
   },
 );

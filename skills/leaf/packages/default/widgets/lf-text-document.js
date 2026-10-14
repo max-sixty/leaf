@@ -11,8 +11,8 @@ import {
   projectData,
   synNodes,
   syntax,
-  watchData,
-  once,
+  LeafElement,
+  nothing,
   whileConnected,
   keepsText,
   setRenderedChildren,
@@ -23,18 +23,28 @@ import {
 
 customElements.define(
   "lf-text-document",
-  class extends HTMLElement {
-    connectedCallback() {
-      if (!once(this)) return;
+  class extends LeafElement {
+    setup() {
       // A departure abandons the rendering in flight and its frame's wait.
       whileConnected(this, () => () => {
         this.rendering = (this.rendering ?? 0) + 1;
         this.finishFrame?.();
       });
-      watchData(this, "document", (snapshot) => this.render(snapshot));
     }
 
-    async render(snapshot) {
+    render() {
+      this.snapshot = this.data("document");
+      return nothing;
+    }
+
+    // Highlighting and the preview load before the document shows, so its drawing
+    // holds the widget's presentation until it lands.
+    updated(changed) {
+      super.updated(changed);
+      this.controller.present(this.show(this.snapshot));
+    }
+
+    async show(snapshot) {
       const rendering = (this.rendering ?? 0) + 1;
       this.rendering = rendering;
       const source = snapshot?.value ?? "";

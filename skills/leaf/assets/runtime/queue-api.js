@@ -22,16 +22,14 @@ export function createQueueActions({ post, arrive }) {
   return Object.freeze({
     open(key) {
       const reading = readQueues();
-      const item = [...reading.questions, ...reading.tasks, ...reading.done].find(
+      const item = [...reading.on_user, ...reading.on_agent, ...reading.done].find(
         (candidate) => queueItemKey(candidate) === key,
       );
       return item?.offers.open ? arrive(item) : Promise.resolve(false);
     },
     done(key) {
       const reading = readQueues();
-      const item = reading.questions.find(
-        (candidate) => queueItemKey(candidate) === key,
-      );
+      const item = reading.on_user.find((candidate) => queueItemKey(candidate) === key);
       if (!item?.offers.done) return null;
       const delivery = post({ kind: "todo_end", todo: item.id, outcome: "done" });
       announce("Done");

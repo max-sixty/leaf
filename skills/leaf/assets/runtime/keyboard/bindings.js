@@ -590,7 +590,7 @@ export const ariaShortcuts = (rows, current = true, where, includes = () => true
 //
 // A letter matches on its lowercase with Shift asked for separately, because caps lock
 // writes an uppercase key out of an unshifted press and reads an unshifted one out of a
-// shifted press. Read off the glyph, `Q` would match the shifted queue walk from a
+// shifted press. Read off the glyph, `M` would match the shifted On me walk from a
 // bare letter under caps lock, and could no longer be reached with the Shift the chip
 // names. Asking
 // for the modifier is what makes the chip true in both directions.
@@ -755,7 +755,7 @@ export const clampedRow = (
   return rows[Math.max(0, Math.min(rows.length - 1, next))];
 };
 
-// The page walks' policy (`t`, `q`, `n`): a step past either end comes round to the
+// The page walks' policy (`t`, `m`, `n`): a step past either end comes round to the
 // other. `wrapped` says it came round, which the landing's ordinal alone does not, so
 // the walk can mark it (walk-position.js, `beginWalk`). Entry from off the list takes
 // the end the step faces and comes round nothing.

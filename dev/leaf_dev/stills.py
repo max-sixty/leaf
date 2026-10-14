@@ -51,7 +51,7 @@ from playwright.sync_api import Page, expect
 
 from leaf_dev import ROOT
 from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
-from leaf_dev.browser import BESIDE, DESKTOP, chrome, load, settle, tab
+from leaf_dev.browser import BESIDE, DESKTOP, headless_shell, load, settle, tab
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
@@ -758,8 +758,8 @@ def versions_menu(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open Ask, reached with `q`: its ring and its marker in view."""
-    page.keyboard.press("q")
+    """The next open Ask, reached with `m`: its ring and its marker in view."""
+    page.keyboard.press("m")
     page.locator("lf-ask").first.wait_for()
 
 
@@ -1568,7 +1568,7 @@ def stills(base_ref: str | None, names: tuple[str, ...], authored: bool) -> None
                     source_roots[arm],
                     commit,
                 )
-        with chrome() as browser, differences(browser, out) as compare:
+        with headless_shell() as browser, differences(browser, out) as compare:
             for state in states:
                 folder = out / state.name
                 folder.mkdir()

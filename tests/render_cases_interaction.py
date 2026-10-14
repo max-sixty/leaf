@@ -667,7 +667,7 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
-# main because the Questions panel's row mirrors the same fact in the chrome.
+# main because the On panel's row mirrors the same fact in the chrome.
 STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
 # The shipped board measures its grip from a live box. Author it into the page and
 # send it in a reply with the same words, so the two readings can be compared.
@@ -698,7 +698,7 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-# What each Questions panel row says, with the list it stands in ("you", "agent" or "done").
+# What each On panel row says, with the list it stands in ("you", "agent" or "done").
 # Rows under a closed Done fold are in the document and measure as nothing.
 QUEUE_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-queue-row')].map((r) => ({
   at: r.getAttribute('data-lf-at'),

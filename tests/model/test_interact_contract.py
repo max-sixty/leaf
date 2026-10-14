@@ -4729,6 +4729,20 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     [sample] = parser.samples
     assert "nested-options" in sample["document"].by_id
     assert sample["document"].main_elements == [(1, True)]
+    assert structure_model.page_layout(sample["document"]) == "column"
+
+
+def test_a_sample_template_names_its_children_layout():
+    """A sample is a column page unless its template's class names another Layout, so a
+    workspace can be shown as one."""
+    parser = structure_model.SourceDocument(
+        '<main><template id="desk" data-sample class="layout-workspace density-working">'
+        "<header><h1>Desk</h1></header><div>Body</div></template></main>"
+    )
+    [sample] = parser.samples
+    assert structure_model.page_layout(sample["document"]) == "workspace"
+    main = sample["document"].tree.select_one("body > main")
+    assert main.attrs["class"] == ["layout-workspace", "density-working"]
 
 
 @pytest.mark.parametrize(

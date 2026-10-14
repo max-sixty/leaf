@@ -313,8 +313,8 @@ An open structural ask in an unresolved thread keeps it awaiting the user until
 the user writes after it: their later prose hands the ask to the agent, still open
 and unanswered, until the agent answers that turn. A thread anchored on a page ask
 does the same while the agent owes it a reply (`asks.sections_with_agent`), so
-an ask the user has commented on leaves their Questions while the reply it is owed
-stands on the agent's Tasks. Without an ask, the latest unanswered
+an ask the user has commented on leaves their On me list while the reply it is owed
+stands on the agent's. Without an ask, the latest unanswered
 prose ask determines the obligation. Later agent messages leave it open.
 A user turn answers every ask before it; a reaction whose token declares
 `settles` answers only the ask it names, so an older unanswered ask may
@@ -327,7 +327,7 @@ neither outcome is a user answer.
 `work_reading.WorkReading.all_asks` combines page widgets, frozen widgets and
 prose into one canonical inventory. Every record carries stable `id`, `source`,
 `thread`, `message`, `prompt`, `answer`, `status`, `end` and `next_actor`;
-`questions` owns the statuses, and `end` holds the agent `todo_end` that retired a
+`asks` owns the statuses, and `end` holds the agent `todo_end` that retired a
 prose ask, its detail and event reference, or `null`. A frozen widget's
 `message` names the exact message whose markup owns it, independently of the thread's
 root; a prose ask names its source message. Page widgets and approval have no

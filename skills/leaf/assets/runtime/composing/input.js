@@ -698,7 +698,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         id: "text.send",
         keys: submitBindings,
         label: submitLabel,
-        description: "Submit what I've typed",
+        description: "Submit the text",
         title: sends,
         lineWhen: () =>
           hasContent(draftValue()) || !rows.some((row) => row.when?.() ?? true),

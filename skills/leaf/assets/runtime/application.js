@@ -620,7 +620,7 @@ export function mountApplication(dependencies) {
       }
       return dependencies.annotationCommands.goToAsk(ask, readAsks().all);
     },
-    // The Questions walk within one region (queue-walk.js), the walk an `lf-tally` steps.
+    // The On me walk within one region (queue-walk.js), the walk an `lf-tally` steps.
     nextAsk: (options) => dependencies.nextAskWithin(options),
     startFeed: feed.startFeed,
     wireInput: dependencies.wireInput,

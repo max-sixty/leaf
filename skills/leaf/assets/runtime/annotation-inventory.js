@@ -1,6 +1,6 @@
 /* The current annotation inventory, independent of its page presentation.
 
-   This owner projects the application's published Threads, Questions, provenance and
+   This owner projects the application's published Threads, On lists, provenance and
    workflows together with producer-declared contributions. Frozen readings contain
    no browser capability. Current target/point nodes and generated action capabilities
    stay in this directory; contributed actions resolve through their registration.
@@ -429,7 +429,7 @@ export function createAnnotationInventory({
     // A to-do the agent opened on a page widget or element stands beside it, as Working
     // with the line of the start running on it, or as an open to-do under its title.
     // A thread's to-do is its thread's attention (above); the page's is the banner's. A
-    // to-do on the user is on their Questions instead.
+    // to-do on the user is on their list, On me, instead.
     for (const todo of runtime.todos) {
       if (
         todo.owner !== "agent" ||

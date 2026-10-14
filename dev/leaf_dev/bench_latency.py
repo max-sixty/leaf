@@ -8,7 +8,7 @@ commit (`leaf_dev.arms.build_pair`), so commit what you want measured. `--tree` 
 only the working tree as it stands, and with one page and transition it takes under
 a minute, cheap enough to run during a change; the full A/B takes many. Each arm
 builds and serves the triage board and the corpus from this checkout's examples, and
-both arms' tabs stay open in one headless Chrome, taking turns within each run. Each
+both arms' tabs stay open in one headless shell, taking turns within each run. Each
 run reloads the page, opens the Threads panel, and times five transitions
 (`TRANSITIONS`): a passage comment and a card move, each ended by a key, and an agent
 reply, status, and revision, each by the arm's `leaf`. The agent conversation has
@@ -58,7 +58,7 @@ from leaf_dev.arms import (
     run_leaf,
     serving,
 )
-from leaf_dev.browser import DESKTOP, chrome
+from leaf_dev.browser import DESKTOP, headless_shell
 
 OUT = ROOT / ".tmp" / "bench-latency"
 RUNS = 5
@@ -486,7 +486,7 @@ def bench_latency(
             arms, commits = {"tree": ROOT}, {}
         else:
             arms, commits = build_pair(base_ref, scratch)
-        with chrome() as browser:
+        with headless_shell() as browser:
             for source in pages:
                 with ExitStack() as stack:
                     sessions = [

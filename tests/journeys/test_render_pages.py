@@ -789,14 +789,15 @@ lf-roomy > section { min-height: 300px; border: 1px solid currentColor; }
     assert root_overflow(page) == 0, at
 
 
-def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
-    """`wide` is the shared capped evidence width wherever a block stands. A sidebar
-    page's body and a workspace pane are wider than `--wide` at a large window, so the
-    breakout's growth alone left a named-wide block at the holder's width there: 1442px
-    in a pane at 1726px. The cap holds an authored
-    occurrence and a package default (a board) alike, at the page's own `--wide`, while
-    a block that names no width still fills its holder and `available` takes it all. A
-    narrow window's pane still bounds the wide block."""
+def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
+    """`wide` is the shared capped evidence width wherever a block stands on a document
+    page. A sidebar page's body is wider than `--wide` at a large window, so the
+    breakout's growth alone left a named-wide block at the holder's width there. The
+    cap holds an authored occurrence and a package default (a board) alike, at the
+    page's own `--wide`, while a block that names no width still fills its holder and
+    `available` takes it all. A workspace states no evidence width, so there both fill
+    their pane as a block that names none does. A narrow window's holder still bounds
+    the wide block."""
     blocks = """
 <div id="named" data-width="wide">Named wide.</div>
 <lf-board id="board">
@@ -827,16 +828,17 @@ def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
       }))"""
     for source, cap in (
         (sidebar_page, 1080),
-        (workspace_page, 1080),
+        (workspace_page, None),
         (configured, 900),
     ):
         page = open_page(browser, serve(source))
         resized(page, 1726, 900)
         at = page.evaluate(measure)
-        assert at["plain"]["width"] > cap + 200, at
+        assert at["plain"]["width"] > 1080 + 200, at
         assert at["available"]["width"] == at["plain"]["width"], at
         for capped in ("named", "board"):
-            assert at[capped]["width"] == pytest.approx(cap, abs=1), (capped, at)
+            width = cap or at["plain"]["width"]
+            assert at[capped]["width"] == pytest.approx(width, abs=1), (capped, at)
             assert at[capped]["left"] == at["plain"]["left"], (capped, at)
         assert root_overflow(page) == 0
 
@@ -906,7 +908,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     takes, so the release-notes shot, the wide exhibit in the control, grows left only
     to stop short of it.
 
-    The Questions panel stands over the page from the right and moves nothing in the left
+    The On panel stands over the page from the right and moves nothing in the left
     margin. A narrow viewport returns the aside to the flow, and print proves paper
     reserves no blank margin for a posture it cannot use.
 
@@ -1026,7 +1028,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # The Questions panel stands over the page from the right and moves nothing in the left
+    # The On panel stands over the page from the right and moves nothing in the left
     # margin: the fixed ToC and the sidebar stay where the page put them while it stands.
     resized(page, 1700, 900)
     margin = """() => {

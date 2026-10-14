@@ -69,27 +69,22 @@ has tried; settle that before building it.
   [the comparison finding](notes/comparisons.md#phone-annotation-placement-2026-10-05).
 - **Make the next move and its result apparent.** Play through `review-a-plan`,
   `triage-board`, `pr-walkthrough`, and `ship-review`; fix dead ends and moves whose
-  result is hidden. Decide whether a page needs one progress reading across Questions,
+  result is hidden. Decide whether a page needs one progress reading across On me,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
 - **#28 — Finish the floating panel.** The opt-in floating panel
   (`?lf-chrome=floating`, off by default) was rebuilt on 12 October to the sketch the
   user configured ([its goal](notes/floating-panel/GOAL.md), "The overhaul"). Work
   through its remaining list (status in the field, opened sizes, the menu's rows, the
-  Questions count, motion) before making it the default or removing the banner,
+  On me count, motion) before making it the default or removing the banner,
   bottom bar, and preference. The phone waits until the desktop design is firm, and
   where a passage thread opens from Threads waits until later.
-- **Consider renaming Questions to On me.** Questions is the one category of
-  everything on the user: asks, to-dos on the user, version approval, and sends to
-  retry. Keep the name Questions until the rename is decided, and keep it one
-  category through any rename. Done may later sit under each of On me and On Agent
-  rather than beside them.
 
 ### Agent and author experience
 
 - **Decide whether `page check` should still refuse an `lf-ask` without a leading
-  heading.** The heading is the ask's title in the Questions panel, the banner
-  and the `q` announcement, which all show an empty title without one, and the
+  heading.** The heading is the ask's title in the On panel, the banner
+  and the `m` announcement, which all show an empty title without one, and the
   `lf-ask` instructions already ask for it. Wait until the other narrow checks
   removed in October 2026 have been gone a while; if pages written since still
   carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
@@ -185,7 +180,7 @@ has tried; settle that before building it.
   redesign also settles how focus stays off page content a panel covers (Max,
   2026-10-10). His rule (2026-10-06): the panels dominate focus, so moving focus never
   closes or changes an open panel, and focus never lands on content a panel covers.
-  Tab walked onto page content under Threads, or under the Questions panel that shares
+  Tab walked onto page content under Threads, or under the On panel that shares
   its right edge, at 1440×900 on an example since retired; no surviving page has been
   checked for it. Making covered content inert
   was built and withdrawn: the visible part of a partly covered element went dead to
@@ -327,7 +322,14 @@ A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, 
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Start `q` from the open item's ask.** From a row, `q` goes to the queue's first
+- **Give On me and On Claude each their own Done, and title the panel by its open
+  tab.** The panel is titled "On" for now and keeps one Done shared by both lists. An
+  item should land in the Done of the list it left: asks the user answered, to-dos
+  they ended and asks the agent withdrew under On me; replies the agent sent and its
+  ended to-dos under On Claude. Sent replies appear in no Done today
+  (`served_state/queues.py`). With each list complete, the panel needs no name of its
+  own: both panels show two tabs, and the title reads the open one.
+- **Start `m` from the open item's ask.** From a row, `m` goes to the queue's first
   open ask, and `1` then picks for an item the user isn't looking at. The walk
   measures from focus (`queue-walk.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
@@ -340,14 +342,14 @@ height and where a switch lands wait on the workspace decision under Layout.
   bring a tab in clear of a label whose width changes once it sticks.
 - **Close the tally's small gaps.** On a phone the workspace header, tally
   included, scrolls away after Next; Undo's announcement doesn't name what it
-  undid; the `q` help text is ambiguous; and a row's ○ mark has no legend.
-- **Call an ask one thing in the interface.** The Questions panel, "Next question"
-  and "In this question" say question, while a queue row's kind label, the walk
-  announcement ("Ask 2 of 3"), the `q` binding's description and the approval refusal
+  undid; the `m` help text is ambiguous; and a row's ○ mark has no legend.
+- **Call an ask one thing in the interface.** "Next question" and "In this question"
+  say question, while a queue row's kind label, the walk
+  announcement ("Ask 2 of 3"), the `m` binding's description and the approval refusal
   ("Answer every ask before approving") say ask (`queue-panel.js`, `queue-walk.js`,
   `asks/view.js`, `banner.js`, `contribution-model.js`). The glossary defines the ask
-  record but not the user's word for it; choose one, likely question, as the list is
-  Questions.
+  record but not the user's word for it; choose one. The list is now On me, so its
+  name no longer favours question.
 
 ### Recorded interaction review
 
@@ -539,7 +541,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
   instructions don't yet say when that is. Trigger: an agent ends a to-do as done that
   the user wanted to see first.
-- **Let the user edit items in the Questions panel.** The user's only edit today is Done
+- **Let the user edit items in the On panel.** The user's only edit today is Done
   on a to-do the agent put on them, so dropping a to-do, renaming it or ending one of the
   agent's means asking in a thread. Editing the row directly in the panel would record the user's change as
   their own move. Trigger: a user writes a comment only to close or adjust an item.
@@ -551,7 +553,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   building a feed or presence on it.
 - **Show which pane has focus, and move between panes by key.** A terminal marks
   its active pane and one key moves to the next. In a workspace today the arrow keys
-  walk a side list, `q` reaches the next item on Questions, and a pane body that scrolls is a
+  walk a side list, `m` reaches the next item on On me, and a pane body that scrolls is a
   Tab stop, but nothing marks the active pane and no key moves from one pane to the
   next. The runtime already tracks it: `userReadingRegion` (`reading-regions.js`) is the
   pane holding focus, or else the last one pressed, wheeled or touched, and `j`/`k`/`d`/`u`

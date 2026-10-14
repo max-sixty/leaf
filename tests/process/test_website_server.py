@@ -1835,7 +1835,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
 
     monkeypatch.setattr(journey, "local_adapter", local)
     monkeypatch.setattr(journey, "local_worker", worker)
-    monkeypatch.setattr(journey, "chrome", browser)
+    monkeypatch.setattr(journey, "headless_shell", browser)
     monkeypatch.setattr(journey, "website_session", session)
     monkeypatch.setattr(
         journey,

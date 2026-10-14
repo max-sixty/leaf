@@ -11,7 +11,7 @@
    Adding a context wrapper changes neither the ask nor its answer.
 
    Focus, through standing-target.js, determines which ask wears the location
-   ring. The q/Q work walk visits the user's current queue; an answered ask can
+   ring. The m/M work walk visits the user's current queue; an answered ask can
    still receive an explicit review arrival and the same contextual editing routes.
    The selected destination has a lent tab stop at its opening, preserving document
    order so its controls are the next Tab stops. A boxless destination lands on its
@@ -225,7 +225,7 @@ export function createAskView({
     return presenter.present();
   }
 
-  // An answered ask normally keeps semantic focus on its own element after a Questions
+  // An answered ask normally keeps semantic focus on its own element after an On
   // panel row's arrival. A boxless answered widget cannot: its visible revision control
   // is the only focus target. Remember that exact target for this arrival, and only while
   // it still owns focus, so returning to the same control ordinarily does not promote it
@@ -252,7 +252,7 @@ export function createAskView({
   // their focus rested on — a second thread on the child rather than the next line of their
   // own. The agent's reply put both back. Nothing the user did moved either. An
   // answered ask leaves both worklists but stays in the active inventory: the
-  // Questions panel's Done rows can return the user to it, and standing there restores
+  // On panel's Done rows can return the user to it, and standing there restores
   // the same numeric action route so they can revise the recorded answer.
   function standingAsk(held = focused()) {
     if (!held || held === document.body) return null;
@@ -260,8 +260,8 @@ export function createAskView({
     if (!record) return null;
     if (readAsks().unanswered.some((ask) => ask.id === record.id)) return record;
     // An answered ask is standing only on an explicit review route: the ask element,
-    // or chrome whose owner declares it stands at that element (`sideOf`), as a Queue
-    // row does. A widget host can be the document's retargeted focus without being the
+    // or chrome whose owner declares it stands at that element (`sideOf`), as an On
+    // panel row does. A widget host can be the document's retargeted focus without being the
     // ask itself; treating that as an arrival would make an ordinary click on a chosen
     // option steal the option's own semantics.
     const answered = record;
@@ -288,7 +288,7 @@ export function createAskView({
     return source ? actionsFor(source) : [];
   };
   // The answers an ask offers, for a surface that answers it away from where it stands,
-  // as the floating panel's Questions view does: each Decision control's own words and
+  // as the floating panel's On view does: each Decision control's own words and
   // its own press, so the answer is the widget's, recorded as a press there would be.
   // Null while the ask's source has no node, as in a thread turn not yet drawn; the
   // caller then offers the arrival instead.
@@ -337,7 +337,7 @@ export function createAskView({
   // same place was marked or not by how the user had reached it.
   //
   // Pointer and keyboard arrivals share this location reading, as they share the
-  // focused control's ring. A Questions panel row's press lands the focus by script
+  // focused control's ring. A On panel row's press lands the focus by script
   // after a click, and the ask it brought the user to must show where they are.
   //
   // The ask wears it, and so does every box it shows through (shownParts): the ask is
@@ -349,7 +349,7 @@ export function createAskView({
   // ask itself, and the fallback answers the wrapper any page can still style boxless
   // in a line, the same way the thread's mark does (paintAnchors).
   //
-  // The Questions panel's row for the ask is a second surface showing this one fact, so it
+  // The On panel's row for the ask is a second surface showing this one fact, so it
   // is painted from this one reading rather than from a mark the panel keeps for itself —
   // and the ring is the chrome's as much as the page's (the [data-lf-ask] rule in the
   // stylesheet is written against the attribute, not against the page), so wearing the
@@ -390,7 +390,7 @@ export function createAskView({
 
   // The user's standing on an ask, said in terms a replaced document can still answer.
   // Focus by shape does not cross a document replacement — version.js says why — but an
-  // ask is not a shape. Its id is a declared identity that the inventory, the Questions
+  // ask is not a shape. Its id is a declared identity that the inventory, the On
   // panel's rows, and the walk already resolve against whichever document is current,
   // so a user working an ask when a revision lands is put back on the same ask rather
   // than dropped to `body`.
@@ -404,7 +404,7 @@ export function createAskView({
   // place that cannot misfire, because it holds a lent tab stop rather than a decision:
   // the widget's context routes are live there and Space decides nothing.
   //
-  // Chrome is excluded because it has nothing to restore: a Questions panel row and a
+  // Chrome is excluded because it has nothing to restore: a On panel row and a
   // margin entry for the same ask are keyed by that id already, so a patch hands each of
   // them back as the same element, still holding the focus the user put on it.
   function captureStanding() {
@@ -551,8 +551,8 @@ export function createAskView({
     );
   }
 
-  // Standing on one ask: what q and Shift+q do once the queue walk has decided on an ask
-  // (queue-walk.js), what a Questions panel row does, and what a Page Map entry does having
+  // Standing on one ask: what m and Shift+m do once the queue walk has decided on an ask
+  // (queue-walk.js), what a On panel row does, and what a Page Map entry does having
   // been told outright. One
   // function because it is one act — a second would be a second answer to "how do I put
   // the user on an ask", and the two would drift the first time either the reveal or the

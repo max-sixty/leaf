@@ -289,7 +289,7 @@ interface WireTodo {
   outcome: { id?: string; ts: string | null; detail?: string | null } | null;
 }
 
-/** One item on Questions or Tasks, as `served_state.queues` serves it. An ask item
+/** One item on On me or On <agent>, as `served_state.queues` serves it. An ask item
  * keeps its record; a to-do item the fields a row draws. */
 interface QueueItem {
   kind: "ask" | "todo" | "resend" | "answer" | "work";
@@ -311,8 +311,8 @@ type DoneItem = QueueItem & {
 };
 
 interface WireQueues {
-  questions: QueueItem[];
-  tasks: QueueItem[];
+  on_user: QueueItem[];
+  on_agent: QueueItem[];
   done: DoneItem[];
 }
 
@@ -542,9 +542,9 @@ function localTodos(
   };
 }
 
-const NO_QUEUES: WireQueues = { questions: [], tasks: [], done: [] };
+const NO_QUEUES: WireQueues = { on_user: [], on_agent: [], done: [] };
 
-/* What is on the user (Questions), what is on the agent (Tasks), and what is done:
+/* What is on the user (On me), what is on the agent (On <agent>), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
  * placed against them. A send moves an item the server listed only where the item is
  * its own subject: a Done or its undo moves a to-do between its list and done, and an
@@ -628,7 +628,7 @@ function localQueues(
     detail: null,
   });
   const listed = new Set(
-    [...served.questions, ...served.tasks].map((item) => `${item.kind}:${item.id}`),
+    [...served.on_user, ...served.on_agent].map((item) => `${item.kind}:${item.id}`),
   );
   const resend = (id: string, subject: QueueItem["subject"], thread: string | null) =>
     listed.has(`resend:${id}`)
@@ -637,8 +637,8 @@ function localQueues(
   const reopenedFor = (owner: "user" | "agent") =>
     served.done.filter((item) => (item.owner ?? "user") === owner && reopened(item));
   return {
-    questions: [
-      ...served.questions.filter(standsOpen).map(current),
+    on_user: [
+      ...served.on_user.filter(standsOpen).map(current),
       ...reopenedFor("user").map(asOpen),
       ...threads.flatMap((thread) =>
         retrying(thread.id)
@@ -652,11 +652,11 @@ function localQueues(
       ),
     ].toSorted(
       (a, b) =>
-        questionsRank(a) - questionsRank(b) ||
+        onUserRank(a) - onUserRank(b) ||
         (a.kind === "ask" && b.kind === "ask" ? asked.get(a.id)! - asked.get(b.id)! : 0),
     ),
-    tasks: [
-      ...served.tasks.filter((item) => item.kind !== "todo" && standsOpen(item)),
+    on_agent: [
+      ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)),
       // One answer per thread, as the server lists one for the newest turn owed.
       ...sending
         .filter((workflow, at) =>
@@ -671,19 +671,19 @@ function localQueues(
           answer: workflow.answer,
           stage: workflow.stage,
         })),
-      ...served.tasks.filter((item) => item.kind === "todo" && standsOpen(item)),
+      ...served.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)),
       ...reopenedFor("agent").map(asOpen),
     ],
     done: [
       ...served.done.filter((item) => !reopened(item)).map(current),
-      ...[...served.questions, ...served.tasks].filter(endedHere).map(asDone),
+      ...[...served.on_user, ...served.on_agent].filter(endedHere).map(asDone),
     ].toSorted((a, b) => Number(a.kind === "todo") - Number(b.kind === "todo")),
   };
 }
 
-// The order the server lists Questions in: asks, to-dos, then resends; asks among
+// The order the server lists On me in: asks, to-dos, then resends; asks among
 // themselves in the order the view's ask inventory holds them.
-const questionsRank = (item: QueueItem) =>
+const onUserRank = (item: QueueItem) =>
   item.kind === "ask" ? 0 : item.kind === "todo" ? 1 : 2;
 
 type SemanticRoot = ReturnType<ReturnType<typeof createSemanticApplication>["read"]>;
@@ -917,8 +917,8 @@ export function createSemanticApplication({
     });
     // A local comment belongs to the shown document even before saved history arrives.
     // Fold it through the same ledger and receipt path in every phase; collection.phase
-    // still says whether this is a complete reading. Questions need the log to say which
-    // authored asks the page still holds, so their inventory waits for that reading.
+    // still says whether this is a complete reading. The asks need the log to say which
+    // of them the page still holds, so their inventory waits for that reading.
     const ready = phase === "ready";
     // The ledger's thread gestures, in the order the user made them.
     const gestures = local.flatMap(({ event, thread, namedParent }): ThreadGesture[] =>
@@ -1113,12 +1113,12 @@ export function createSemanticApplication({
         gestured: [...new Set(unresolved.flatMap(threadsOfEntry))],
       },
       asks: { phase, ...asks },
-      // Questions (on the user), Tasks (on the agent), and done: the served lists
+      // On me (on the user), On <agent> (on the agent), and done: the served lists
       // with this tab's sends placed against them (`localQueues`).
       queues: {
         phase,
-        questions: contextual(selectedQueues.questions, true),
-        tasks: contextual(selectedQueues.tasks),
+        on_user: contextual(selectedQueues.on_user, true),
+        on_agent: contextual(selectedQueues.on_agent),
         done: contextual(selectedQueues.done),
       },
       // Part of the effective reading, so a read that changes only the view's

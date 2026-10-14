@@ -415,48 +415,34 @@ summary {
 }
 .lf-thread-working {
   margin-top: 16px;
-  --lf-working-dim: color-mix(in oklab, var(--muted) 80%, var(--paper));
 }
 .lf-thread-working-words {
   margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content;
   max-inline-size: 100%;
   font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
-  color: var(--lf-working-dim);
+  color: color-mix(in oklab, var(--muted) 80%, var(--paper));
 }
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
-  color: transparent;
-  background:
-    linear-gradient(
-      110deg,
-      var(--lf-working-dim) 42%,
-      var(--ink) 50%,
-      var(--lf-working-dim) 58%);
-  background-size: 200% 100%;
-  background-clip: text;
-  animation: lf-working-sheen 2s ease-in-out infinite alternate;
+  animation: lf-sheen 2s ease-in-out infinite alternate;
 }
-@keyframes lf-working-sheen {
+@keyframes lf-sheen {
+  from, to {
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    background-image:
+      linear-gradient(
+        110deg,
+        currentColor 42%,
+        var(--ink) 50%,
+        currentColor 58%);
+    background-size: 200% 100%;
+  }
   from {
     background-position: 100% 0;
   }
   to {
     background-position: 0% 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .lf-thread-working[data-lf-live] .lf-thread-working-words {
-    animation: none;
-    background: none;
-    color: var(--lf-working-dim);
-  }
-}
-@media (forced-colors: active) {
-  .lf-thread-working-words,
-  .lf-thread-working[data-lf-live] .lf-thread-working-words {
-    animation: none;
-    background: none;
-    color: GrayText;
   }
 }
 .lf-thread-disclosure[data-lf-focus] {

@@ -182,17 +182,10 @@
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
-  .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-field leaf-text::part(placeholder) {
-    color: transparent;
-    background:
-      linear-gradient(
-        110deg,
-        var(--lf-fp-quiet) 42%,
-        var(--ink) 50%,
-        var(--lf-fp-quiet) 58%);
-    background-size: 200% 100%;
-    background-clip: text;
-    animation: lf-runtime-4f3c2a8d-sheen 2s ease-in-out infinite alternate;
+  @media (prefers-reduced-motion: no-preference) {
+    .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-field leaf-text::part(placeholder) {
+      animation: lf-sheen 2s ease-in-out infinite alternate;
+    }
   }
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
@@ -883,11 +876,6 @@
     .lf-floating-panel[data-rest=mark] :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
       animation: none;
     }
-    .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-field leaf-text::part(placeholder) {
-      animation: none;
-      background: none;
-      color: var(--lf-fp-quiet);
-    }
     .lf-fp-peek,
     .lf-floating-panel[data-menu] .lf-fp-menu {
       transition: none;
@@ -903,11 +891,6 @@
     .lf-fp-menu,
     .lf-fp-peek {
       border: 1px solid CanvasText;
-    }
-    .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-field leaf-text::part(placeholder) {
-      animation: none;
-      background: none;
-      color: GrayText;
     }
   }
 }
@@ -1049,14 +1032,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
 @keyframes lf-runtime-4f3c2a8d-working {
   to {
     opacity: .5;
-  }
-}
-@keyframes lf-runtime-4f3c2a8d-sheen {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: 0% 0;
   }
 }
 @keyframes lf-runtime-4f3c2a8d-flash {
@@ -1822,11 +1797,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     display: block;
     padding: 6px 10px 4px;
     border-radius: 6px;
-    color: var(--muted);
-    font-size: var(--t-6);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .05em;
   }
   .lf-queue-done {
     margin: 8px 0 0;
@@ -2287,31 +2257,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-thread-topic[data-lf-pending-title] {
     justify-self: start;
     font-weight: 500;
-    --lf-pending-title-color: color-mix(in oklab, var(--muted) 80%, var(--paper));
-    color: transparent;
-    background:
-      linear-gradient(
-        110deg,
-        var(--lf-pending-title-color) 42%,
-        var(--ink) 50%,
-        var(--lf-pending-title-color) 58%);
-    background-size: 200% 100%;
-    background-clip: text;
-    animation: lf-runtime-4f3c2a8d-sheen 2s ease-in-out infinite alternate;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .lf-thread-topic[data-lf-pending-title] {
-      animation: none;
-      background: none;
-      color: var(--lf-pending-title-color);
-    }
-  }
-  @media (forced-colors: active) {
-    .lf-thread-topic[data-lf-pending-title] {
-      animation: none;
-      background: none;
-      color: GrayText;
-    }
+    color: color-mix(in oklab, var(--muted) 80%, var(--paper));
+    animation: lf-sheen 2s ease-in-out infinite alternate;
   }
   .lf-thread-meta {
     grid-column: 2;
@@ -2851,11 +2798,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-command-reference h3 {
     margin: 12px 0 4px;
-    font-size: var(--t-6);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    color: var(--muted);
   }
   .lf-command-reference table {
     display: table;

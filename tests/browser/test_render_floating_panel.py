@@ -937,7 +937,7 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     def sheen(running):
         page.wait_for_function(
             """running => (getComputedStyle(document.querySelector(
-              '.lf-fp-field .lf-compose-placeholder > span')).color
+              '.lf-fp-field .lf-compose-placeholder > span')).webkitTextFillColor
               === 'rgba(0, 0, 0, 0)') === running""",
             arg=running,
         )

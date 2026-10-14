@@ -1399,16 +1399,15 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
     expect(topic).to_have_text("Generating title")
     paint = """element => {
       const style = getComputedStyle(element);
-      return [style.animationName, style.backgroundClip, style.color];
+      return [style.animationName, style.backgroundClip, style.webkitTextFillColor];
     }"""
     sweep, clip, fill = topic.evaluate(paint)
-    assert sweep.endswith("-sheen") and clip == "text"
+    assert (sweep, clip, fill) == ("lf-sheen", "text", "rgba(0, 0, 0, 0)")
     assert topic.evaluate("el => getComputedStyle(el).backgroundImage") != "none"
     # Reduced motion paints ordinary text instead of an animated clipped gradient.
     page.emulate_media(reduced_motion="reduce")
-    sweep, clip, fill = topic.evaluate(paint)
-    assert sweep == "none" and clip != "text"
-    assert fill != "rgba(0, 0, 0, 0)"
+    expect(topic).not_to_have_css("background-clip", "text")
+    assert topic.evaluate(paint)[2] != "rgba(0, 0, 0, 0)"
     page.emulate_media(reduced_motion="no-preference")
     focus_panel_thread(thread)
     editor = thread.locator("leaf-text")

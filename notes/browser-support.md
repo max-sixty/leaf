@@ -76,6 +76,28 @@ what fails and what still works.
   `test_the_lens_follows_the_scroll_without_a_scroll_timeline` holds the fallback
   against the native timeline in Chromium with the API removed.
 
+### Shadow-tree startup and draw-mode rules
+
+- **Owner:** `runtime/shadow.js` (`SHADOW_STARTUP_CSS`) and
+  `styles/components/integration.css`. A declared shadow tree hides its generated
+  interface until upgrade, holds transitions until presentation, and shows draw
+  mode's crosshair under `main`. Its selectors cannot see the document's stamps, so
+  the document states each condition as an inherited custom property
+  (`--lf-before-upgrade`, `--lf-before-presentation`, `--lf-draw-mode`) and the
+  tree's rules query it with `@container style()`. `:host-context()`, which these
+  rules used before, has no Firefox or Safari support.
+- **Compatibility checked 2026-10-13:** container style queries on custom
+  properties support Chrome/Edge 111+, Firefox 151+, and Safari 18+, according to
+  [web.dev's May 2026 platform notes](https://web.dev/blog/web-platform-05-2026).
+- **Observed:** Playwright's Chromium 153, Firefox 155 and WebKit 26.6 each hide a
+  shadow `.lf-ui` until the upgrade stamp, report `transition-duration: 0s` until
+  the presentation stamp, and give a shadow tree under `main` the crosshair in draw
+  mode while a tree outside `main` and `[data-lf-runtime]` apparatus keep their own
+  cursors. WebKit's `getComputedStyle` keeps reporting the held `0s` for a
+  `::before` until its element next restyles; that restyle reads the new duration
+  and runs the pseudo-element's transition, so nothing visible differs.
+- **Disposition:** adopted without a fallback.
+
 ## Known gaps
 
 ### Browser dictation in comment boxes

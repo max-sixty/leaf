@@ -11285,10 +11285,12 @@ def test_a_zoomed_floating_draft_and_sent_comment_fit_a_narrow_window(
     assert text.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
 
 
-def test_a_rewrite_of_a_comment_just_sent_stands_where_its_words_did(browser, serve):
+def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     """The card holding a comment just sent keeps its words in the room the draft had,
-    clear of Send (`data-lf-comment-frame`); a rewrite opened there stands in that same
-    room, so the message keeps its place and its words their lines."""
+    clear of Send (`data-lf-comment-frame`). A rewrite opened there kept that narrow
+    room too, a box shorter and narrower than the reply box under it; it is now the
+    reply box's own field, its words at their inset, its ring whole inside the
+    transcript that scrolls it."""
     touch = False
     context = browser.new_context(has_touch=touch, is_mobile=touch)
     page = open_page(browser, serve(LONG_PAGE), context=context)
@@ -11312,19 +11314,33 @@ def test_a_rewrite_of_a_comment_just_sent_stands_where_its_words_did(browser, se
     words = message.locator(".lf-msg-text")
     rendered(page)
     before = message.bounding_box(), words.bounding_box()
+    first_line = words.evaluate(FIRST_LINE)
     message.locator(".lf-msg-edit").click()
     editor = message.locator(".lf-msg-editor")
     expect(editor.locator("leaf-text")).to_be_focused()
     rendered(page)
-    assert message.bounding_box() == before[0]
-    box = editor.bounding_box()
-    assert (box["x"], box["y"], box["height"]) == (
-        before[1]["x"],
-        before[1]["y"],
-        before[1]["height"],
-    ), (box, before[1])
-    # The rewrite's frame and focus ring reach past its box, so nothing clips it.
-    assert editor.evaluate("el => getComputedStyle(el).overflow") == "visible"
+    assert message.bounding_box()["y"] == before[0]["y"]
+    field = editor.locator(".lf-compose-field")
+    reply = card.locator(".lf-thread-reply .lf-compose-field")
+    box, reply_box = field.bounding_box(), reply.bounding_box()
+    for side in ("x", "width"):
+        assert abs(box[side] - reply_box[side]) < 0.5, (side, box, reply_box)
+    # Its words take the reply box's padding, over the lines the comment wrapped to.
+    frame = """el => {
+      const field = getComputedStyle(el), text = getComputedStyle(el.querySelector(":scope > leaf-text"));
+      return [field.borderTopWidth, text.paddingTop, text.paddingBottom, text.paddingLeft];
+    }"""
+    assert field.evaluate(frame) == reply.evaluate(frame)
+    assert (
+        abs(editor.locator("leaf-text").evaluate(FIRST_LINE)[0] - first_line[0]) < 0.5
+    )
+    # The transcript scrolls, so it would clip a ring drawn outside the field.
+    assert field.evaluate(
+        """el => {
+          const style = getComputedStyle(el);
+          return parseFloat(style.outlineOffset) <= -parseFloat(style.outlineWidth);
+        }"""
+    )
 
 
 def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
@@ -11662,12 +11678,15 @@ FIRST_LINE = """n => {
 
 
 @pytest.mark.parametrize("surface", ["panel", "seat", "card", "feed"])
-def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, surface):
+def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surface):
     """Opening a rewrite with ↑ swapped the message for a bordered box with Cancel on a
     row of its own, pushing every turn and the reply box below it down 55px, and Escape
     left that room behind and the user standing on the thread rather than in the box
-    they pressed ↑ from. The box now surrounds the words where they stood, Cancel and
-    Save take the message's head, and every way out steps back up to the reply box.
+    they pressed ↑ from. A later box painted around the words, with no padding of its
+    own, moved nothing but read as a thinner, narrower field than the reply box beside
+    it. The rewrite is now the reply box's own field, at its width and height, with the
+    words at their inset under the message's head; Cancel and Save take that head, and
+    every way out steps back up to the reply box, leaving the thread as it was.
 
     In the margin card each keystroke in the rewrite also threw, from the reply box's
     growth-following reading a reply row the rewrite has none of; the browser fixture
@@ -11696,11 +11715,18 @@ def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, su
     editor = message.locator(".lf-msg-editor leaf-text")
     expect(editor).to_be_focused()
     rendered(page)
-    unmoved()
-    # The words stand where they stood.
-    editing_line = editor.evaluate(FIRST_LINE)
-    assert abs(editing_line[0] - first_line[0]) < 0.5, (editing_line, first_line)
-    assert abs(editing_line[1] - first_line[1]) < 0.5, (editing_line, first_line)
+    # The message keeps its head's place, and its words their inset, in a box the
+    # reply box's size.
+    assert abs(message.bounding_box()["y"] - rest["message"]["y"]) < 0.5
+    field = message.locator(".lf-msg-editor > .lf-compose-field").bounding_box()
+    reply_field = thread.locator(".lf-thread-reply .lf-compose-field").bounding_box()
+    for side in ("x", "width", "height"):
+        assert abs(field[side] - reply_field[side]) < 0.5, (side, field, reply_field)
+    # Feed mode draws its messages at the reply box's edge, not inset in a transcript,
+    # so there the words take the reply box's inset instead.
+    if surface != "feed":
+        editing_line = editor.evaluate(FIRST_LINE)
+        assert abs(editing_line[0] - first_line[0]) < 0.5, (editing_line, first_line)
     head = message.locator(".lf-msg-head").bounding_box()
     for name in ("Cancel", "Save"):
         box = message.get_by_role("button", name=name, exact=True).bounding_box()
@@ -12442,12 +12468,18 @@ def test_saving_one_of_two_open_rewrites_leaves_no_gap(browser, serve):
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.type("Short.")
     rendered(page)
-    typed = reply.bounding_box()["y"]
+    typed = reply.bounding_box()["y"], latest.bounding_box()["height"]
     page.keyboard.press("Enter")
     expect(latest.locator(".lf-msg-text")).to_have_text("Short.")
     round_trip(page)
     rendered(page)
-    assert abs(reply.bounding_box()["y"] - typed) < 0.5, (typed, reply.bounding_box())
+    # The reply box moves by what the message gave back as its box closed, and no more.
+    given_back = latest.bounding_box()["height"] - typed[1]
+    assert abs(reply.bounding_box()["y"] - (typed[0] + given_back)) < 0.5, (
+        typed,
+        given_back,
+        reply.bounding_box(),
+    )
     expect(earlier.locator(".lf-msg-editor leaf-text")).to_have_js_property(
         "value", "Fit the north bracket. And the east."
     )

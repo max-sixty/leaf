@@ -546,6 +546,7 @@ class SourceDocument:
                 "text": False,
                 "body": "",
                 "holder": holder,
+                "node": None,
             }
             self.lf_elements.append(record)
             if identity:
@@ -701,6 +702,8 @@ class SourceDocument:
             output.append(node)
             self.nodes.append(node)
             child_output = node["content"]
+            if record is not None:
+                record["node"] = node
 
             if element.tag in POINTABLE_TAGS | PROSE_TAGS and not attrs.get("id"):
                 under = next(

@@ -375,5 +375,5 @@ with its longest value in `data-lf-room`.
 A widget folds content it may show again by setting its `hidden` to `HIDDEN`. Where the
 browser supports `hidden="until-found"`, find-in-page and fragment links still reach the
 content and fire `beforematch` on it, and the widget opens it there; elsewhere the
-content is plainly hidden. A folded element that is itself a Tab stop stays one, so the
+content is plainly hidden. Paper prints until-found content open. A folded element that is itself a Tab stop stays one, so the
 widget withdraws it.

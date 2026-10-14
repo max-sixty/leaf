@@ -190,10 +190,6 @@
     margin: 0;
     box-shadow: none;
   }
-  .lf-fp-reply[hidden],
-  .lf-fp-reply > .lf-primary-part[hidden] {
-    display: none;
-  }
   .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
     outline: none;
   }
@@ -235,7 +231,7 @@
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
-  .lf-floating-panel[data-says="status"][data-tone="working"]
+  .lf-floating-panel[data-says="status"][data-tone="working"]:not([data-asks])
     .lf-fp-field
     leaf-text::part(placeholder) {
     color: transparent;
@@ -248,6 +244,29 @@
     background-size: 200% 100%;
     background-clip: text;
     animation: lf-runtime-4f3c2a8d-sheen 2s ease-in-out infinite alternate;
+  }
+  /* A status that asks the user to act reads in its tone's ink at full strength, the
+     leaf's colour made legible as words, so a request stands apart from a report. */
+  .lf-floating-panel[data-says="status"][data-asks]
+    .lf-fp-field
+    leaf-text::part(placeholder) {
+    color: var(--lf-fp-asks);
+    font-weight: 500;
+  }
+  .lf-floating-panel[data-asks] {
+    --lf-fp-asks: var(--ink);
+  }
+  .lf-floating-panel[data-asks][data-tone="working"] {
+    --lf-fp-asks: var(--accent);
+  }
+  .lf-floating-panel[data-asks][data-tone="listening"] {
+    --lf-fp-asks: var(--ok-ink);
+  }
+  .lf-floating-panel[data-asks][data-tone="away"] {
+    --lf-fp-asks: var(--warn-ink);
+  }
+  .lf-floating-panel[data-asks][data-tone="offline"] {
+    --lf-fp-asks: var(--danger-ink);
   }
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
@@ -283,7 +302,7 @@
   .lf-floating-panel[data-typing] .lf-fp-quick:not([data-steps]) {
     display: none;
   }
-  .lf-fp-field .lf-compose-dictate:not([hidden]) {
+  .lf-fp-field .lf-compose-dictate {
     display: grid;
   }
   /* Dictation is offered while the user writes in the panel, not at rest. Writing lasts
@@ -339,9 +358,6 @@
     background: var(--accent);
     box-shadow: 0 0 0 1.5px var(--lf-fp-surface);
   }
-  .lf-fp-news[hidden] {
-    display: none;
-  }
   /* A gesture's next step, in the counts' place while the gesture holds it. */
   .lf-fp-step {
     color: var(--ink);
@@ -369,9 +385,6 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .lf-fp-context[hidden] {
-    display: none;
   }
   .lf-floating-panel[data-open] .lf-fp-context {
     padding-top: 0;
@@ -758,9 +771,6 @@
     font-size: 0;
     line-height: 0;
   }
-  .lf-fp-copy-press[hidden] {
-    display: none;
-  }
   .lf-fp-copy-press::part(button) {
     display: grid;
     place-items: center;
@@ -1047,7 +1057,7 @@
       :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
       animation: none;
     }
-    .lf-floating-panel[data-says="status"][data-tone="working"]
+    .lf-floating-panel[data-says="status"][data-tone="working"]:not([data-asks])
       .lf-fp-field
       leaf-text::part(placeholder) {
       animation: none;
@@ -1070,7 +1080,7 @@
     .lf-fp-peek {
       border: 1px solid CanvasText;
     }
-    .lf-floating-panel[data-says="status"][data-tone="working"]
+    .lf-floating-panel[data-says="status"][data-tone="working"]:not([data-asks])
       .lf-fp-field
       leaf-text::part(placeholder) {
       animation: none;

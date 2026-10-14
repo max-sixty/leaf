@@ -810,8 +810,15 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { disp
  * The anonymous layer is first in the merged theme, so these important declarations
  * outrank every later layer and unlayered stylesheet declaration without reserving a
  * named layer custom CSS could append to. Inline importance ranks higher still, so the
- * version gate refuses it for the display and visibility properties this boundary owns. */
+ * version gate refuses it for the display and visibility properties this boundary owns.
+ *
+ * The same rank makes `hidden` hide whatever display another rule states for the
+ * element, which the UA's own rule loses to, so no rule restores it per selector. A box
+ * shown without its contents takes another state than `hidden`; `until-found` keeps its
+ * box for find-in-page, and the owner of that box states it. Shadow trees repeat this
+ * (runtime/shadow.js, `SHADOW_LEADING_CSS`). */
 @layer {
+  [hidden]:not([hidden="until-found"]) { display: none !important; }
   @media screen {
     html[data-lf-interactive] body:not([data-lf-presented]),
     html[data-lf-interactive] body:not([data-lf-presented]) > main,
@@ -824,7 +831,7 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { disp
     }
     /* A declared shadow tree cannot see body's stamps, so the same two boundaries
      * reach it as inherited properties its startup rules query
-     * (runtime/shadow.js, `SHADOW_STARTUP_CSS`). */
+     * (runtime/shadow.js, `SHADOW_LEADING_CSS`). */
     html[data-lf-interactive] body:not([data-lf-presented]) { --lf-before-presentation: 1; }
     html[data-lf-interactive] body:not([data-lf-upgraded]) { --lf-before-upgrade: 1; }
     /* A sample document paints once its containing page has said what it wears
@@ -1089,6 +1096,10 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * hides them. A page drops them for art with no edge of its own, such as a
  * transparent logo, with `box-shadow: none`. */
 img { box-shadow: 0 0 0 1px var(--border-2), 0 2px 8px var(--shade); }
+/* Media sits in a line box, and on the baseline it leaves the line's descender room
+ * under itself, about 7px between a capture or a drawing and its caption or the next
+ * figure. Centring it on the line ends its box at its own bottom edge. */
+img, svg, video, canvas { vertical-align: middle; }
 /* Supporting detail stays unfilled whether closed or open. Its chevron and hairline
    offer inspection; the stronger fill belongs to the callout's emphasis. */
 details { border: var(--details-border) solid var(--rule);
@@ -1301,11 +1312,8 @@ svg.drawing .danger { fill: var(--danger); }
 
 @media screen {
   html:root {
-    /* :not([hidden]), because a caller may take the box behind a collapse (a settled
-       group takes it with its options) — the display here would outrank the
-       attribute's own hiding. */
-    .lf-thread-seat:not([hidden]) { display: block; }
-    .lf-say:not([hidden]) { display: flex; }
+    .lf-thread-seat { display: block; }
+    .lf-say { display: flex; }
   }
 }
 
@@ -1459,7 +1467,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   font: 600 var(--t-6)/1 var(--sans); white-space: nowrap;
   scroll-margin-block: var(--focus-ring-room);
 }
-.lf-margin-entry[hidden] { display: none; }
 /* A margin entry carries one of three promises on the same paper surface.
    An action's heavier ring and lower shadow say this press acts now; a disclosure's
    firmer single ring says it opens context; read-only status keeps only the page's

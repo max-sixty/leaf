@@ -106,7 +106,10 @@ def environment(**extra: str) -> dict[str, str]:
     identity: its id, job directory, effort level and App Server endpoint. A `leaf`
     command would sign events as that session, and a child would use its transport
     and settings. An inherited LEAF_HOST_LAUNCHER would override the arm's launcher.
-    `CLAUDE_CONFIG_DIR` stays, since it names where the login lives.
+    `CLAUDE_CONFIG_DIR` stays, since it names where the login lives. Nor does PATH
+    keep `uv run`'s environment or the bin directory of a Leaf tree, such as the
+    one the session's harness added for its own Leaf plugin: the `leaf` in either
+    would shadow the launcher a child harness puts on PATH for the arm's plugin.
 
     A child names the pinned headless shell as its browser through
     LEAF_BROWSER_EXECUTABLE (`shell_executable`), unless that variable is already
@@ -121,6 +124,13 @@ def environment(**extra: str) -> dict[str, str]:
     }
     if browser_model.VARIABLE not in env:
         env[browser_model.VARIABLE] = shell_executable()
+    venv = os.environ.get("VIRTUAL_ENV")
+    env["PATH"] = os.pathsep.join(
+        entry
+        for entry in env["PATH"].split(os.pathsep)
+        if not (venv and entry == str(Path(venv) / "bin"))
+        and not (Path(entry).parent / "skills" / "leaf").is_dir()
+    )
     return {**env, **extra}
 
 
@@ -169,30 +179,26 @@ def serving(arm: Path, state: Path, page: Path):
         server.wait()
 
 
-def build_source(
-    arm: Path, state: Path, source: Path, page: Path, *, compiled: bool = True
-) -> None:
+def build_source(arm: Path, state: Path, source: Path, page: Path) -> None:
     """Build the authored `source` into the page directory `page` with the arm's own
     launcher under the state home `state`. The checkout is an arm too: `ROOT` runs
-    its working tree. Developer pages use the same compiled kernel as the website;
-    `compiled=False` supplies an explicit source baseline for startup comparisons.
+    its working tree. Developer pages use the same compiled kernel as the website.
     """
     from leaf_dev.distribution import cached_installation
 
-    payload = cached_installation(arm) if compiled else arm
     prepare_page(
         page,
         read_fixture(source, runtime=arm, env=environment(XDG_STATE_HOME=str(state))),
-        partial(run_leaf, payload, state, check=True),
+        partial(run_leaf, cached_installation(arm), state, check=True),
     )
 
 
 @contextmanager
-def serving_source(arm: Path, source: Path, scratch: Path, *, compiled: bool = True):
+def serving_source(arm: Path, source: Path, scratch: Path):
     """Build `source` into a page under `scratch` (`build_source`), serve it
     (`serving`), and yield the address."""
     state, page = scratch / "state", scratch / "page"
-    build_source(arm, state, source, page, compiled=compiled)
+    build_source(arm, state, source, page)
     with serving(arm, state, page) as address:
         yield address
 

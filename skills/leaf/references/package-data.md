@@ -40,6 +40,11 @@ card's position inside a column. Decisions in force supply the current state;
 baseline without a historical-state veto. The `$keys`
 entries in `assets/registry.json` define each key exactly.
 
+Each physical attribute has one recording owner. A member's scalar value record
+cannot share its attribute with an enclosing attribute-set record. Leaf checks that
+composition in authored markup and when a move would place the member under a new
+owner; records on different attributes compose independently.
+
 Recorded payloads are closed objects: all listed fields are required and extra fields
 are refused. Their fields come from the effect:
 
@@ -56,8 +61,9 @@ determines the complete payload; a recorded verb cannot add contextual fields or
 independent schema refinements.
 
 A verb with no record declares its own closed `detail` JSON Schema. Its `unit` is
-`"widget"` or a required detail field naming the element it changes. This supports
-custom actions, such as a playground's submitted settings, and generated children.
+`"widget"` or a required string detail field identifying the subject of that verb's
+state, by element id or data key. This supports custom actions, such as a playground's
+submitted settings, and generated children.
 
 `x-awaits` registers an ask automatically for each matching widget. Its
 required `value` names one `x-state` verb: recorded state supplies that verb's
@@ -116,9 +122,17 @@ Its fold unit names the detail field carrying the new child's canonical element 
 two required fields with no record form. Each added child therefore stands on its own
 coordinate: a later action of another verb leaves it in place, and undoing the `add`
 removes it. The child tag admits the sender through `x-owners`, requires only its
-canonical `id`, and has `x-content: markup`. The append door refuses an id the sending
-document already holds, and `page check` enforces the declared tag and
+canonical `id`, and has `x-content: markup`. The append door refuses an id already
+held by page or frozen markup, including created members in force. `page check` enforces the declared tag and
 direct-ownership relation once an author writes the child into the markup.
+The child is a parent-owned member. Its declaration has no state, asks, work,
+history, or independent data, visual-part, or thread bindings; `package check`
+refuses those capabilities on a `creates` target. It may have a presentation
+module and shadow root. Its parent's controller owns its recorded behavior and
+presentation readiness; it does not get its own widget controller.
+Removing the member does not withdraw a separate parent action: a parent selection
+still in force can select the same id when it returns. Use authored page or message
+markup for a widget that needs its own declared actions or services.
 
 A verb whose state the agent writes rather than the user declares `"writer": "agent"`
 beside its `unit` and `record`. A worker posts it with

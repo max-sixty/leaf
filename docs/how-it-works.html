@@ -1923,9 +1923,9 @@ flowchart TD
                       <span class="tier"><code>lf-base</code></span>
                       <span class="by">Leaf and widget packages</span>
                       <span class="what"
-                        >Leaf's theme, then each widget package's <code>theme.css</code>
-                        in the page's package order. A widget package's rules reach only
-                        its own widgets.</span
+                        >Leaf's theme, then each widget package's
+                        <code>theme.css</code> in the page's package order. A widget
+                        package's rules reach only its own widgets.</span
                       >
                     </li>
                     <li class="leaf">
@@ -2013,11 +2013,12 @@ flowchart TD
               <code>lf-theme</code> above the Layouts, so the same rules in its
               <code>theme.css</code> change every page. Where the Layout reads a token
               for the value, setting the token is simpler, since the Layout goes on
-              working out the rest from it: <code>--col</code> and <code>--wide</code>
-              for the column's widths, <code>--sidebar</code> for the sidebar's width,
-              and <code>--page-pad-start</code> and <code>--page-pad-end</code> for the
-              room above and below the page. A package that declares widgets reaches
-              only inside them, so page-wide rules go in a theme package.
+              working out the rest from it: <code>--col</code> and
+              <code>--wide</code> for the column's widths, <code>--sidebar</code> for
+              the sidebar's width, and <code>--page-pad-start</code> and
+              <code>--page-pad-end</code> for the room above and below the page. A
+              package that declares widgets reaches only inside them, so page-wide rules
+              go in a theme package.
             </p>
             <pre
               id="override-layout-example"
@@ -2035,10 +2036,10 @@ body.site-page {
               and ordinary selectors name what it contains.
             </p>
             <p>
-              A theme package restyles any package's widget on every page, as the
-              page's <code>&lt;style&gt;</code> does on one: its tier sits above the
-              widget packages', so a plain rule naming the widget wins. Like the page's
-              rules, a theme package's rule for <code>button</code> or
+              A theme package restyles any package's widget on every page, as the page's
+              <code>&lt;style&gt;</code> does on one: its tier sits above the widget
+              packages', so a plain rule naming the widget wins. Like the page's rules,
+              a theme package's rule for <code>button</code> or
               <code>input</code> leaves the controls Leaf and its widgets build alone
               unless the selector names the widget or Leaf's class.
             </p>

@@ -581,7 +581,14 @@ function renderPreview(state) {
       control: previewMarginEntryCopy,
       focusTarget: previewMarginEntry,
       rank: BANNER_CONTROL_RANK.preview,
-      row: { label: () => previewLabel, group: "about" },
+      // What the press copies is the diagnostics, which a presentation shows to select
+      // as well; the line naming the preview says what they describe.
+      row: {
+        label: "Preview diagnostics",
+        value: () => previewLabel,
+        copies: () => previewDiagnostics,
+        group: "about",
+      },
     });
   }
   previewMarginEntryCopy.value = previewDiagnostics;
@@ -602,7 +609,7 @@ function renderPreview(state) {
 // whoever meets a problem can tell how far apart the two are (AGENTS.md, "Pages
 // across Leaf updates").
 let layerReferenceElement = null;
-let layerIdentity = "";
+let layerNamed = "";
 let layerReferenceElementCopy = null;
 let layerDiagnostics = "";
 function renderLayerReference(state) {
@@ -614,7 +621,6 @@ function renderLayerReference(state) {
     : fingerprint && `sha256:${fingerprint.replace(/^sha256:/, "").slice(0, 12)}`;
   if (!fullIdentity) return;
   const identity = producer.commit ? shortCommit(producer) : fullIdentity;
-  layerIdentity = identity;
   const age = payloadAge(producer);
   const dateLines = payloadDateLines(producer);
   // Present only where the serving Leaf is another than the page's (`http.page_state`).
@@ -650,7 +656,8 @@ function renderLayerReference(state) {
       rank: BANNER_CONTROL_RANK.layer,
       row: {
         label: "Leaf version",
-        value: () => layerIdentity,
+        value: () => layerNamed,
+        copies: () => layerDiagnostics,
         group: "about",
       },
     });
@@ -660,6 +667,7 @@ function renderLayerReference(state) {
     ? ` · served by ${serverIdentity}${serverAge ? ` · ${serverAge}` : ""}`
     : "";
   const named = `Leaf ${identity}${age ? ` · ${age}` : ""}${servedBy}`;
+  layerNamed = named;
   layerReferenceElementCopy.copyLabel = `${named} · copy version`;
   render(
     served
@@ -816,7 +824,11 @@ function renderSessionReference() {
       control: sessionReferenceElementCopy,
       focusTarget: sessionReferenceElement,
       rank: BANNER_CONTROL_RANK.session,
-      row: { label: () => sessionReferenceLabel, group: "about" },
+      row: {
+        label: "Session reference",
+        copies: () => runtime.sessionReference,
+        group: "about",
+      },
     });
   }
   sessionReferenceElementCopy.value = runtime.sessionReference;

@@ -3531,7 +3531,7 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
         told(page)
         page.wait_for_function(
             "(words) => document.querySelector('.lf-status-text').textContent === words",
-            arg=f"Agent working — {detail}",
+            arg=f"Claude working — {detail}",
         )
         page_at_rest(page)
         return page.evaluate(STATUS_PRESS)
@@ -3545,15 +3545,16 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     # The page's three suggestions and required approval wait on the user in
     # On me. The page task waits on the agent, so the agent's count stands beside status.
     expect(page.locator(".lf-queue")).to_have_text("On me: 4")
-    expect(page.locator(".lf-status-queues")).to_have_text("On Agent: 1")
+    expect(page.locator(".lf-status-queues")).to_have_text("On Claude: 1")
     page.evaluate(DEFINE_BOXES)
     beside = page.evaluate(
         BANNER_WATCH, f":is({NEIGHBOUR}, .lf-status-queues):not(.lf-status-button)"
     )
     assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
 
-    # Longer, and still inside a phone's room beside Threads and More.
-    longer = say("running tests")
+    # Longer, and still inside a phone's room beside Threads and More, with room to
+    # spare for Linux's wider sans and the agent's name.
+    longer = say("tests again")
     assert longer["shown"] >= longer["needed"], longer
     assert (longer["left"], longer["top"]) == (short["left"], short["top"])
     assert longer["right"] > short["right"], (short, longer)
@@ -3602,7 +3603,7 @@ def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve
     # A comment the agent owes a reply, so there is an agent's count to stand there.
     panel_comment(serve.page_dir, "Is the feeder sized right?")
     page = open_page(browser, url, context=context)
-    expect(page.locator(".lf-status-queues")).to_have_text("On Agent: 1")
+    expect(page.locator(".lf-status-queues")).to_have_text("On Claude: 1")
     page_at_rest(page)
     resting = page.evaluate(STATUS_COUNTS)
     assert resting["drawn"] and resting["inBanner"] and not resting["inert"], resting
@@ -3618,7 +3619,7 @@ def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve
     ).to_be_visible()
     page_at_rest(page)
     searching = page.evaluate(STATUS_COUNTS)
-    # Whether "On Agent: 1" fits beside the steps is the font's to say: macOS's leaves it
+    # Whether "On Claude: 1" fits beside the steps is the font's to say: macOS's leaves it
     # room at this width and Linux's does not. Either way it is drawn whole and live, or
     # gone and out of reach.
     assert searching["drawn"] != searching["inert"], searching

@@ -27,6 +27,13 @@
       left: 50%;
       translate: -50% 0;
     }
+    /* Page search's box stands over the panel's row, centred on it as the row is,
+       where Previous, Next and Close search stand while it is open, rather than at the
+       head of the window, where the banner it hung under was. */
+    .lf-page-search {
+      top: auto;
+      bottom: calc(var(--lf-bottom-bar-h) - var(--lf-floating-gap) + 8px);
+    }
   }
   :is(.lf-floating-panel, .lf-fp-ground) {
     --lf-fp-surface: light-dark(
@@ -99,7 +106,7 @@
     display: flex;
     flex-direction: column;
   }
-  :where(.lf-floating-panel) :is(button, input) {
+  :where(.lf-floating-panel) :is(button, input, textarea) {
     font: inherit;
     color: inherit;
   }
@@ -120,7 +127,7 @@
     cursor: default;
     background: none;
   }
-  :where(.lf-floating-panel) :is(button, input):focus-visible {
+  :where(.lf-floating-panel) :is(button, input, textarea):focus-visible {
     outline: var(--focus-ring);
     outline-offset: -2px;
     --lf-focus-ring: floating-panel;
@@ -310,7 +317,9 @@
     padding-inline: 10px;
   }
 
-  /* Clicking in names where the words go, on one quiet line above the field. */
+  /* Clicking in names where the words go, on one quiet line above the field. While a
+     view is open its room stands empty until then, so the line arriving moves nothing
+     at the view's head and cuts nothing off the view's foot. */
   .lf-fp-context {
     display: flex;
     justify-content: space-between;
@@ -322,6 +331,10 @@
   }
   .lf-fp-context[hidden] {
     display: none;
+  }
+  .lf-floating-panel[data-open] .lf-fp-context[hidden] {
+    display: flex;
+    visibility: hidden;
   }
   .lf-fp-dest {
     min-width: 0;
@@ -567,14 +580,6 @@
     inset-inline: 0;
     bottom: 0;
   }
-  /* Threads fits every thread it holds, up to the cap, and keeps that height however it
-     is filtered or searched. */
-  .lf-fp-view[data-view="threads"] {
-    height: min(
-      var(--lf-fp-view-height),
-      calc(10px + max(var(--lf-fp-rows), 3) * 34px)
-    );
-  }
   /* A thread scrolled past its first lines fades out at its top edge rather than
      cutting a line in half. */
   .lf-fp-view[data-view="thread"] {
@@ -647,13 +652,21 @@
   }
   .lf-fp-copy-text {
     min-width: 0;
-    height: 28px;
-    padding: 0 8px;
+    margin: 0;
+    padding: 4px 8px;
     border: 1px solid var(--lf-fp-ring);
     border-radius: 6px;
     background: none;
     color: var(--ink);
-    font: 12px var(--mono);
+    font: 12px / 18px var(--mono);
+    /* Its first few lines, as its `rows` say, not the theme's grown-to-fit field. */
+    field-sizing: fixed;
+    max-height: none;
+    resize: none;
+    scrollbar-width: none;
+  }
+  .lf-fp-copy .lf-fp-quiet {
+    align-self: start;
   }
   .lf-fp-copy .lf-fp-quiet {
     padding: 0 8px;

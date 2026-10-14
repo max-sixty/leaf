@@ -341,7 +341,6 @@ widget's role on the page:
 | `x-patch`            | `lf-tabs`                                                      |
 | `x-views`            | `lf-tabs`                                                      |
 | `x-thread-surface`   | `lf-diff` in `diff`, `lf-visual-review` in `visual-review`     |
-| `x-face`             | `lf-suggestion` (its slots), `lf-shot` in `default` (its rail) |
 
 A CSS-only widget is an entry and a theme rule. One with reusable behavior takes a
 module. The widget owns its implementation: supporting modules can sit beside its entry

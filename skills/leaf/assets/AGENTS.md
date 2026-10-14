@@ -51,8 +51,8 @@ representative desktop viewport.
   when their CSS loads before first paint: adding, removing or moving one keeps every
   block's position, wrapping and size. No rule pads, indents, widens or reflows a block
   to clear a pin, since reserved room would make the page's geometry depend on which
-  markers exist and where. Resting pins use clear space or are withheld, while Page Map
-  retains their threads and actions. The rail sits right of `main` wherever the window
+  markers exist and where. A pin stands by its target, over the target's own words
+  where no seat beside it is clear; hiding annotations reveals what it covers. The rail sits right of `main` wherever the window
   has room, and seating it there never moves, narrows or indents the column
   (`content-layout.js`). `data-rail` on `body` withholds or reserves it: `"right"` makes
   the shell give up the rail's width, so the page's layout gets narrower
@@ -342,6 +342,45 @@ its owner writes. A `:has()` on the chrome root, `body` or `html` is read again 
 every write below it and restyles it (`test_no_has_rule_stands_on_a_root`), so the
 owner of such a condition states it as an attribute on the element the rule styles.
 
+### The browser answers first
+
+The browser runs a layout engine, a cascade, and a focus model on every page. A script
+that recomputes one of their answers disagrees with them under zoom, subpixel
+rounding, a transform, or the page's own CSS. So before a module measures, positions,
+stacks, isolates, or tracks something, find the browser feature that already decides
+it, and shape the markup and CSS so the runtime uses its answer:
+
+| Question | The browser feature that answers it |
+| --- | --- |
+| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell |
+| Where a box stands against another box or the scroller holding it | the containing block, sticky positioning, anchor positioning, scroll timelines |
+| Which of Leaf's surfaces paints over which | the top layer, and stacking contexts |
+| Whether a box is rendered at all | `checkVisibility` |
+| Which rules reach an element | cascade layers, `@scope`, and a shadow root as the boundary |
+
+Where the feature nearly fits, change what the runtime asks of it, such as where a
+box lives in the DOM or which element carries a style, rather than computing its
+answer. A module that answers one of these questions in script says why in its
+header: the requirement the feature cannot meet and the case that shows it. A review
+asks for that reason, and a change that adds a script answer without one does not
+land. Patching a built-in prototype or a dependency's internals needs the same reason.
+
+Some questions already have script answers. `focus.js` paints
+`data-lf-focus` and `data-lf-focus-within` because native `:focus` also matches
+retargeted shadow hosts and a held label press, so style focus on those marks.
+Whether the user can see a box, and what covers it, stay with `geometry.js`
+(`seenRect`, `declareOccluder`), since Leaf's chrome stands over the page without
+clipping it, and some of it, such as the shortcut bar, takes no pointer hits for
+`elementsFromPoint` to find. `reserve` (`widget-elements.js`) predates this rule and
+measures each label in script; a change that touches it replaces it with labels
+stacked in one grid cell, or states why that fails.
+
+Each rendering callback gathers its layout reads before it writes: a read after a
+write forces a synchronous style and layout. A document-wide renderer that reads DOM
+another one materializes takes an entry in `PRESENTATION_ORDER`
+(`runtime/semantic-state.js`), which says why CSS or the publication cannot supply
+that reading.
+
 ### One writer for each fact
 
 Each mutable fact has one authority and one browser writer. The application publisher
@@ -383,9 +422,9 @@ A question the runtime asks in many places has one owner, which every caller ask
 second copy usually starts where a symptom appeared and its author did not find the
 first, then drifts from it at the edges: under a stuck header, in a shadow tree, in
 right-to-left text. Before writing a predicate or reading, or approving one in review,
-look for its question here. A change that creates an owner adds its row; a caller that
-keeps its own test says why beside it. Rows marked *lint* are enforced in
-`eslint.config.mjs`.
+look for its question in "The browser answers first", then here. A change that
+creates an owner adds its row; a caller that keeps its own test says why beside it.
+Rows marked *lint* are enforced in `eslint.config.mjs`.
 
 | Question | Owner |
 | --- | --- |

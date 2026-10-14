@@ -104,32 +104,45 @@ def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
 ):
     """The page's reading, which a tab polls, and its shared subscription, which its
     row publisher and lifetime supervisor wake on, derive from one declaration of its
-    inputs. A bound file outside the page moves both, as does renaming the folder
-    that holds it; a tab's attention lease, `viewed.json`, which the server renews
-    while a tab looks, moves neither."""
+    inputs. A bound file outside the page moves both, as does an authored edit or
+    renaming the folder that holds the bound file; a tab's attention lease,
+    `viewed.json`, which the server renews while a tab looks, moves neither.
+
+    Where the volume ignores letter case, the page and the file are named in a
+    spelling other than the one on disk, which notifications report: both must
+    still wake the watchers."""
+    from leaf.cli import resolve_dir
     from leaf.file_bindings import bind_file
     from leaf.file_changes import page_changes
     from leaf.served_state.reading import page_reading
+
+    def respelled(path):
+        alias = path.with_name(path.name.swapcase())
+        return alias if alias.exists() else path
 
     folder = tmp_path / "notes"
     folder.mkdir()
     target = folder / "notes.txt"
     target.write_text("hello\n")
-    bind_file(page_dir, "notes", target)
-    changes = page_changes(page_dir)
+    page = resolve_dir(str(respelled(page_dir)), renew=False)
+    bind_file(page, "notes", respelled(target))
+    changes = page_changes(page)
     while changes.wait(changes.mark(), DIAGNOSTIC_QUIET_WINDOW_S):
         pass
 
     def classified(write, timeout):
-        reading = page_reading(page_dir)
+        reading = page_reading(page)
         mark = changes.mark()
         write()
-        return changes.wait(mark, timeout), page_reading(page_dir) != reading
+        return changes.wait(mark, timeout), page_reading(page) != reading
 
     assert classified(
         lambda: cleanup_model.write_json(page_dir / "viewed.json", {"t": 1.0}),
         DIAGNOSTIC_QUIET_WINDOW_S,
     ) == (False, False)
+    assert classified(
+        lambda: (page_dir / "page" / "extra.css").write_text("p {}"), STATED_TIMEOUT
+    ) == (True, True)
     assert classified(
         lambda: target.write_text("edited outside Leaf\n"), STATED_TIMEOUT
     ) == (True, True)

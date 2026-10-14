@@ -11,6 +11,7 @@
  */
 
 import { type OutboundHandlerContext } from "@cloudflare/containers";
+import * as z from "zod/mini";
 
 import { errorName, leafAgentLog } from "./agent";
 import type { Env } from "./index";
@@ -23,38 +24,43 @@ interface ModelRequestFields {
   turnId?: string;
 }
 
-function metadataString(
-  metadata: Record<string, unknown>,
-  key: string,
-): string | undefined {
-  const value = metadata[key];
-  return typeof value === "string" && value.length > 0 && value.length <= 128
-    ? value
-    : undefined;
+// Both readings are optional diagnostics: a label that fails is dropped, and an
+// unreadable value reads as one carrying no labels, so neither blocks the request.
+const label = z.catch(
+  z.optional(z.string().check(z.minLength(1), z.maxLength(128))),
+  undefined,
+);
+const turnMetadata = z.catch(
+  z.object({ request_kind: label, thread_id: label, turn_id: label }),
+  {},
+);
+const responseEvent = z.catch(
+  z.object({ type: label, item: z.catch(z.optional(z.object({ type: label })), undefined) }),
+  {},
+);
+
+function jsonValue(text: string | null): unknown {
+  if (text === null) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
 }
 
 function modelRequestFields(
   request: Request,
   context: OutboundHandlerContext,
 ): ModelRequestFields {
-  let metadata: Record<string, unknown> = {};
-  const encoded = request.headers.get("x-codex-turn-metadata");
-  if (encoded !== null) {
-    try {
-      const parsed: unknown = JSON.parse(encoded);
-      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-        metadata = parsed as Record<string, unknown>;
-      }
-    } catch {
-      // Invalid optional diagnostics must not block the model request.
-    }
-  }
+  const metadata = turnMetadata.parse(
+    jsonValue(request.headers.get("x-codex-turn-metadata")),
+  );
   return {
     containerId: context.containerId,
     modelRequestId: crypto.randomUUID(),
-    requestKind: metadataString(metadata, "request_kind"),
-    threadId: metadataString(metadata, "thread_id"),
-    turnId: metadataString(metadata, "turn_id"),
+    requestKind: metadata.request_kind,
+    threadId: metadata.thread_id,
+    turnId: metadata.turn_id,
   };
 }
 
@@ -90,33 +96,18 @@ function observeModelBody(
         .map((line) => line.slice(5).trimStart())
         .join("\n");
       if (!data || data === "[DONE]") continue;
-      let event: unknown;
-      try {
-        event = JSON.parse(data);
-      } catch {
-        continue;
-      }
-      if (typeof event !== "object" || event === null || Array.isArray(event)) {
-        continue;
-      }
-      const record = event as Record<string, unknown>;
-      const eventType = metadataString(record, "type");
+      const event = responseEvent.parse(jsonValue(data));
       if (
         firstOutput &&
-        eventType !== undefined &&
+        event.type !== undefined &&
         !["response.created", "response.in_progress", "response.queued"].includes(
-          eventType,
+          event.type,
         )
       ) {
-        const item = record.item;
-        const outputType =
-          typeof item === "object" && item !== null && !Array.isArray(item)
-            ? metadataString(item as Record<string, unknown>, "type")
-            : undefined;
         modelLog("model_response_first_output", request, {
           durationMs: Date.now() - started,
-          responseEvent: eventType,
-          outputType,
+          responseEvent: event.type,
+          outputType: event.item?.type,
           upstreamRequestId,
         });
         firstOutput = false;

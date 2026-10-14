@@ -5,8 +5,8 @@ and check, the vendored vocabulary, the activation answer, the presence token. E
 kept between reads and checked against the stamps of the files it read, so a kept
 reading is never stale, only dropped. They are kept in a `PageMemory`. A process
 keeps the memories of the eight pages it read most recently (`PageMemories`), and any
-memory something else still references (`memory_of`): a sample holds its own for its
-life (`samples.Sample`), however many sibling samples a gallery opens.
+memory something else still references (`memory_of`): a sample holds its own and its
+parent's for its life (`samples.Sample`), however many sibling samples a gallery opens.
 
 A one-page server reads its own page and the samples it serves, and nothing of any
 other page: a neighbour's panel row reads small files and keeps nothing

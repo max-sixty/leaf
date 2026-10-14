@@ -78,6 +78,68 @@
       figure.fig.small svg {
         max-width: 360px;
       }
+      /* The Pages tab's cascade figure: each tier a band, highest first, edged in the
+         colour of whoever writes it. The two roots sit side by side and stack on a
+         narrow window. */
+      .cascade {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+        gap: var(--sp-4);
+        align-items: start;
+        --lf-holds-edge: 1;
+      }
+      .cascade-title {
+        margin: 0 0 var(--sp-2);
+        font: 600 var(--t-5) / 1.4 var(--sans);
+      }
+      .cascade ol {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 4px;
+      }
+      .cascade li {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 2px var(--sp-2);
+        margin: 0;
+        padding: 8px 12px;
+        border: 1px solid var(--rule);
+        border-inline-start: 4px solid var(--band);
+        border-radius: var(--r);
+        background: var(--band-tint);
+        font: var(--t-5) / 1.45 var(--sans);
+      }
+      .cascade li.leaf {
+        --band: var(--muted);
+        --band-tint: var(--field);
+      }
+      .cascade li.page {
+        --band: var(--accent);
+        --band-tint: var(--accent-tint);
+      }
+      .cascade li.pkg {
+        --band: var(--ok);
+        --band-tint: var(--ok-tint);
+      }
+      .cascade .tier {
+        font-weight: 600;
+      }
+      .cascade .by {
+        color: var(--muted);
+        text-align: end;
+      }
+      .cascade .what {
+        grid-column: 1 / -1;
+        color: var(--muted);
+      }
+      .cascade-note {
+        margin: var(--sp-2) 0 0;
+        font: var(--t-5) / 1.45 var(--sans);
+        color: var(--muted);
+      }
+
       /* A Layout's class name reads as one word, so it holds its line. */
       #layouts-table td:first-child code {
         white-space: nowrap;
@@ -1800,6 +1862,187 @@ flowchart TD
               replace or extend the page's selected layer. The
               <a href="/extending/">extension guide</a> lists the bundled packages and
               demonstrates a small custom package.
+            </p>
+          </section>
+
+          <section id="styles">
+            <h2>Styles and overrides</h2>
+            <p id="styles-lede">
+              Leaf, its packages and the page each add CSS to one document, and every
+              rule lands in a tier of the cascade. When two rules set the same property
+              on the same element, the higher tier wins, however specific the lower
+              rule's selector is (<code>!important</code> reverses the order, and is not
+              a way to override Leaf). Within a tier, the more specific selector wins;
+              between equally specific selectors, a rule scoped to a widget beats an
+              unscoped one; after that, the later rule wins.
+            </p>
+            <figure id="cascade-figure">
+              <div class="cascade">
+                <div class="cascade-root" id="cascade-document">
+                  <p class="cascade-title">The page's document</p>
+                  <ol>
+                    <li class="page">
+                      <span class="tier">The page's <code>&lt;style&gt;</code></span>
+                      <span class="by">Page</span>
+                      <span class="what"
+                        >Unlayered. Leaves Leaf's controls alone unless a selector names
+                        them. Leaf's banner, panels and marks share this tier and come
+                        after the page, so they win a tie.</span
+                      >
+                    </li>
+                    <li class="page">
+                      <span class="tier">The page's <code>@layer</code> blocks</span>
+                      <span class="by">Page</span>
+                      <span class="what"
+                        >Declared after Leaf's tiers, so above them.</span
+                      >
+                    </li>
+                    <li class="leaf">
+                      <span class="tier"><code>lf-state</code></span>
+                      <span class="by">Leaf</span>
+                      <span class="what">Hides the slots a decision retires.</span>
+                    </li>
+                    <li class="leaf">
+                      <span class="tier"><code>lf-layouts</code></span>
+                      <span class="by">Leaf</span>
+                      <span class="what"
+                        >The Layout classes, such as <code>layout-column</code>.</span
+                      >
+                    </li>
+                    <li class="pkg">
+                      <span class="tier"><code>lf-base</code></span>
+                      <span class="by">Leaf and packages</span>
+                      <span class="what"
+                        >Leaf's theme, then each package's <code>theme.css</code> in the
+                        page's package order. A widget package's rules reach only its
+                        own widgets.</span
+                      >
+                    </li>
+                    <li class="leaf">
+                      <span class="tier"><code>lf-reset</code></span>
+                      <span class="by">Leaf</span>
+                      <span class="what"
+                        >Clears the browser's form-control styles.</span
+                      >
+                    </li>
+                  </ol>
+                </div>
+                <div class="cascade-root" id="cascade-shadow">
+                  <p class="cascade-title">A widget's shadow tree</p>
+                  <ol>
+                    <li class="leaf">
+                      <span class="tier">Marks</span>
+                      <span class="by">Leaf</span>
+                      <span class="what">Unlayered.</span>
+                    </li>
+                    <li class="leaf">
+                      <span class="tier"><code>lf-state</code></span>
+                      <span class="by">Leaf</span>
+                      <span class="what">Hides the slots a decision retires.</span>
+                    </li>
+                    <li class="pkg">
+                      <span class="tier"><code>lf-shadow</code></span>
+                      <span class="by">Leaf and packages</span>
+                      <span class="what"
+                        >Leaf's and each package's <code>shadow.css</code>.</span
+                      >
+                    </li>
+                    <li class="pkg">
+                      <span class="tier"><code>lf-base</code></span>
+                      <span class="by">Packages</span>
+                      <span class="what"
+                        >Defaults the widget module adopts with
+                        <code>inBaseLayer()</code>.</span
+                      >
+                    </li>
+                  </ol>
+                  <p class="cascade-note">
+                    Page rules and Layouts stop at the shadow root. Inherited tokens
+                    such as <code>--accent</code> cross it, as does a part the widget
+                    exports with <code>::part</code>.
+                  </p>
+                </div>
+              </div>
+              <figcaption>
+                <strong>The tiers, highest first.</strong> A rule in a higher tier wins
+                over every rule below it for the properties both set.
+              </figcaption>
+            </figure>
+
+            <h3 id="override-page">Overriding for one page</h3>
+            <p>
+              The page's own <code>&lt;style&gt;</code> sits above everything Leaf and
+              the packages set on its content, so an ordinary rule there changes the
+              theme's type, a widget's default face, or a Layout's tracks. Rules a page
+              writes inside <code>@layer</code>, as CSS frameworks such as Tailwind do,
+              rank above Leaf's tiers too, because Leaf declares its tiers first and the
+              cascade ranks later layers higher.
+            </p>
+            <p>
+              A rule for <code>button</code> or <code>input</code> dresses the page's
+              own controls and leaves the controls Leaf and its widgets build alone. To
+              change those, the selector names the widget or Leaf's class:
+              <code>lf-board .lf-grip</code>. Leaf's banner and panels take the page's
+              colors and type from tokens set on <code>:root</code>, such as
+              <code>--accent</code> and <code>--sans</code>.
+            </p>
+
+            <h3 id="override-layout">Overriding a Layout</h3>
+            <p>
+              A Layout is a starting point. On one page, a rule in the page's
+              <code>&lt;style&gt;</code> changes a track, a gap or an order, and a page
+              no Layout fits drops the class and writes its own grid. Across pages, a
+              package's <code>theme.css</code> sits in <code>lf-base</code>, below the
+              Layouts, so it changes a Layout through the tokens the Layout reads:
+              <code>--col</code> and <code>--wide</code> for the column's widths,
+              <code>--sidebar</code> for the sidebar's width, and
+              <code>--page-pad-start</code> and <code>--page-pad-end</code> for the room
+              above and below the page. A package that declares widgets reaches only
+              inside them, so these rules go in a theme package, one that declares none.
+            </p>
+            <pre
+              id="override-layout-example"
+            ><code class="language-css">/* A theme package's theme.css: the page starts 28px below the banner. */
+body.site-page {
+  --page-pad-start: 28px;
+}</code></pre>
+
+            <h3 id="override-widget">Overriding a widget or a package</h3>
+            <p>
+              For one page, a rule in the page's <code>&lt;style&gt;</code> that names
+              the widget restyles it, such as <code>lf-card { padding: 8px; }</code>.
+              For every page, the widget's own package styles it in its
+              <code>theme.css</code>, where <code>:scope</code> names the widget itself
+              and ordinary selectors name what it contains.
+            </p>
+            <p>
+              A theme package restyles another package's widget through the tokens the
+              widget reads, such as <code>--accent</code>, <code>--r</code> and
+              <code>--sans</code>. Its rules share <code>lf-base</code> with the
+              widget's own, so a plain <code>lf-card</code> rule loses to the widget
+              package's <code>:scope:is(lf-card)</code>, which is more specific, and an
+              equally specific unscoped rule still loses to the scoped one. To change a
+              widget's own declaration, the theme package writes its rule in the same
+              scope with a selector at least as specific, and wins by coming later in
+              the page's package order:
+            </p>
+            <pre
+              id="override-widget-example"
+            ><code class="language-css">/* A theme package's theme.css */
+@scope (lf-card) {
+  :scope:is(lf-card) {
+    padding: 8px;
+  }
+}</code></pre>
+            <p>
+              Inside a widget's shadow tree, a package's <code>shadow.css</code> reaches
+              the private parts, and the page reaches only the tokens and the parts the
+              widget exports. The
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#styles-and-composition"
+                >package reference</a
+              >
+              lists the supported tokens.
             </p>
           </section>
         </lf-tab>

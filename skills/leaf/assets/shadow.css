@@ -1755,12 +1755,17 @@ leaf-text.lf-fab-input {
   color: var(--accent);
   background: var(--chip);
 }
-:host-context(html[data-lf-draw-mode]):host-context(main) * {
-  cursor: crosshair !important;
+html[data-lf-draw-mode] main {
+  --lf-draw-mode: on;
 }
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime],
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime] * {
-  cursor: auto !important;
+@container style(--lf-draw-mode: on) {
+  :host * {
+    cursor: crosshair !important;
+  }
+  :host [data-lf-runtime],
+  :host [data-lf-runtime] * {
+    cursor: auto !important;
+  }
 }
 :root {
   --lf-code-copy-size: max(32px, var(--aim-floor));

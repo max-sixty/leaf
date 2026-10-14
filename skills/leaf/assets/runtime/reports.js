@@ -54,8 +54,7 @@
    Raw report and history readings remain direct semantic selections. */
 import { watchProjection } from "./projection-watch.js";
 import { currentProjection } from "./projection/state.js";
-import { readApplication, projectionRegionsPresented } from "./semantic-state.js";
-
+import { projectionRegionsPresented, readPart } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { closestAcross } from "./passages.js";
 
@@ -76,14 +75,25 @@ function reportTarget(target) {
 }
 const targetKey = (target) =>
   target ? JSON.stringify([target.kind, target.id]) : null;
-export const reportSequence = (target = null) => {
-  const key = targetKey(reportTarget(target));
-  return (runtime.view?.reports ?? [])
-    .filter((report) => key === null || targetKey(report.target) === key)
-    .map((report) => structuredClone(report));
+// Each target's reports through a selection of its own, so a watcher reading one
+// target's sequence repaints when that target's reports move and no other's.
+const reportsByTarget = new Map();
+const reportsFor = (key) => {
+  if (!reportsByTarget.has(key))
+    reportsByTarget.set(
+      key,
+      readPart((root) =>
+        (root.effective.view?.reports ?? []).filter(
+          (report) => key === null || targetKey(report.target) === key,
+        ),
+      ),
+    );
+  return reportsByTarget.get(key)();
 };
+export const reportSequence = (target = null) =>
+  reportsFor(targetKey(reportTarget(target))).map((report) => structuredClone(report));
 
-const publishedAt = () => runtime.view?.published_at ?? null;
+const publishedAt = readPart((root) => root.effective.view?.published_at ?? null);
 export const saidAt = (el) =>
   closestAcross(el, ".lf-msg")?.querySelector(":scope > .lf-msg-head time")?.dateTime ||
   publishedAt();
@@ -94,10 +104,11 @@ export const saidAt = (el) =>
 // `x-history`; elsewhere the callback reads an empty feed. The second argument names
 // whether this is the complete ready application, so a retained mechanical reading
 // is never replaced by the empty preparation reading.
+const history = readPart((root) => root.authoritative?.browser.history ?? null);
 export const watchHistory = (owner, callback) =>
   watchProjection(owner, () =>
-    callback(structuredClone(runtime.browser?.history ?? []), {
-      ready: readApplication().phase === "ready",
+    callback(structuredClone(history() ?? []), {
+      ready: runtime.statePhase === "ready",
     }),
   );
 

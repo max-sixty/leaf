@@ -104,7 +104,8 @@ import { rowWalk } from "./walk-position.js";
 import { sizeObserver } from "./rendering.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
-import { agentName, readApplication, watchSemantic } from "./semantic-state.js";
+import { agentName, applicationState } from "./semantic-state.js";
+import { runtime } from "./context.js";
 import { renderedUnder } from "./shadow.js";
 import { closestAcross } from "./passages.js";
 
@@ -950,7 +951,7 @@ export function createFloatingPanel({
   const answerGesture = (ask) => {
     const id = ask?.answer?.event?.id ?? ask?.answer?.event;
     if (!id) return null;
-    const entry = readApplication().effective.view?.undo.find(
+    const entry = runtime.undo.find(
       ({ event }) => event.id === id || event.attempt === id,
     );
     return entry?.event ?? null;
@@ -1401,6 +1402,10 @@ export function createFloatingPanel({
     }
 
     const views = [leaving, top].filter(Boolean);
+    // A thread's view stands for that thread (thread/selectors.js, `THREAD`), so the
+    // user standing anywhere in it is in the thread, as in a card in Threads.
+    const shows = (route) =>
+      route.view === "thread" ? (threadByKey(route.thread)?.id ?? null) : null;
     render(
       repeat(
         views,
@@ -1410,6 +1415,8 @@ export function createFloatingPanel({
             class="lf-fp-view"
             tabindex="-1"
             data-view=${route.view}
+            data-thread=${shows(route) ?? nothing}
+            ?data-lf-thread-view=${shows(route) !== null}
             style=${
               rooms.has(routeKey(route))
                 ? `height: ${rooms.get(routeKey(route))}px`
@@ -1797,7 +1804,17 @@ export function createFloatingPanel({
     watchBannerRows(() => paint());
     watchThreads(host, () => paint());
     watchQueues(host, () => paint());
-    watchSemantic(() => paint());
+    // Beyond the threads and queues: the undo list, approval's asks and stamp, and
+    // the agent's name.
+    applicationState
+      .select((root) => ({
+        undo: root.effective.view?.undo ?? null,
+        asks: root.effective.asks,
+        document: root.document,
+        active: root.authoritative?.active ?? null,
+        agent: root.authoritative?.agent ?? null,
+      }))
+      .subscribe(() => paint());
     versionPicker.watch(() => paint());
     document.addEventListener("lf-chrome-preference", () => paint());
     paint();

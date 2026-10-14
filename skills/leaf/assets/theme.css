@@ -33,7 +33,6 @@
   --lf-z-margin-preview: 8920;
   --lf-z-region-capture: 8930;
   --lf-z-shortcut-bar: 8940;
-  --lf-z-menu: 8950;
   --lf-z-banner: 9000;
   --lf-z-scrim: 9010;
   --lf-z-covering-surface: 9020;
@@ -43,8 +42,6 @@
   --lf-z-chrome-paint: 9060;
   --lf-z-key-badges: 9070;
   --lf-z-page-search: 9080;
-  --lf-z-dialog: 9300;
-  --lf-z-media-viewer: 9400;
   --paper: light-dark(#faf9f5, #191815);
   --ink: light-dark(#1c1b18, #e8e4db);
   --muted: light-dark(#6f6a60, #a09889);
@@ -312,6 +309,12 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
     }
     html[data-lf-interactive] body:not([data-lf-upgraded]) > main .lf-ui {
       visibility: hidden !important;
+    }
+    html[data-lf-interactive] body:not([data-lf-presented]) {
+      --lf-before-presentation: 1;
+    }
+    html[data-lf-interactive] body:not([data-lf-upgraded]) {
+      --lf-before-upgrade: 1;
     }
     html[data-lf-sample-connecting] {
       opacity: 0 !important;

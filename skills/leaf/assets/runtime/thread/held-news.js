@@ -129,7 +129,7 @@ import { isReaction, messageKey, threadKey, threadNames } from "./model.js";
 import { allThreads, threadState } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
-import { readApplication } from "../semantic-state.js";
+import { runtime } from "../context.js";
 import { onStanding, focused, standingNodes } from "../focus.js";
 import { readingIsContinuous } from "../reading-continuity.js";
 import { watchOwner } from "../arrivals.js";
@@ -504,7 +504,7 @@ export class HeldNews {
   // Required presenters prepare before yielding to package layout. Only the
   // candidate actually painted becomes the baseline for the next comparison.
   prepare(reading, { row }) {
-    const read = readApplication().phase === "ready";
+    const read = runtime.statePhase === "ready";
     if (!read || !readingIsContinuous()) this.#forget();
     const prior = read ? this.#shown : null;
     const keys = new Set(reading.threads.map(({ key }) => key));
@@ -669,6 +669,12 @@ export class HeldNews {
     return Boolean(this.#threads.size || this.#holds.size);
   }
 
+  // Whether the seat holds no news and owes no release, so a reading it has drawn would
+  // draw the same again.
+  get settled() {
+    return !this.#holding() && !this.#released.size;
+  }
+
   #stop() {
     this.#stopWatching?.();
     this.#stopWatching = null;
@@ -719,7 +725,7 @@ export class HeldReading {
   hold(reading) {
     // Preparation can draw partial authored contributions before the complete log
     // arrives. That is no baseline for news: the first ready reading stands whole.
-    if (readApplication().phase !== "ready") {
+    if (runtime.statePhase !== "ready") {
       this.#shown = null;
       this.#stop();
       return reading;
@@ -794,7 +800,7 @@ export class HeldArrivals {
   // `node`; `drawn` holds the datums where the widget drew a thread last, and `all` is
   // every thread record on the page.
   hold(threads, { drawn, all }) {
-    const read = readApplication().phase === "ready";
+    const read = runtime.statePhase === "ready";
     if (!read) this.#held.clear();
     else if (this.#known) this.#take(threads, drawn);
     this.#known = read ? new Set(all.map(({ key }) => key)) : null;

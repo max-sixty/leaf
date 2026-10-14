@@ -62,6 +62,15 @@ export function activityFacts({ activity }) {
 
 // ---------- the banner ----------
 
+// Words following a status sentence: a step the transport watched after a middle dot,
+// anything else as a sentence of its own. With nothing before them they stand alone.
+const after = (head, words, step = false) =>
+  !head
+    ? words
+    : step
+      ? `${head} · ${words}`
+      : `${head}${head.endsWith(".") ? "" : "."} ${words}`;
+
 // Status sentences for an unreachable server or a state the page cannot apply.
 const OFFLINE_LINE =
   "Server offline — reconnecting. Keep this page open so pending changes can send.";
@@ -97,7 +106,8 @@ function pickedUpWords({ comments, answers }) {
 // Both levels of wording follow server-owned activity. Short summaries retain the
 // actionable distinction: working, listening, away, or nobody holding the page. How many
 // updates are waiting or saved is the disclosure's; the row counts what waits on each
-// side instead (`queueWords`).
+// side instead (`queueWords`). A third word is true where the sentence only restates the
+// summary, so a seat showing both leaves it out (`pageStatus`, `adds`).
 function statusWords({
   age,
   agent,
@@ -111,7 +121,7 @@ function statusWords({
   saved,
   work,
 }) {
-  if (kind === "closed") return ["Page closed", "Page closed"];
+  if (kind === "closed") return ["Page closed", "Page closed", true];
   if (kind === "unheld")
     return [
       "No session",
@@ -135,6 +145,7 @@ function statusWords({
       detail || !picked
         ? `${agent} is ${work}${said}`
         : `${agent} picked up ${picked} and hasn't said what it's doing yet`,
+      true,
     ];
   }
   // A declared request tells the user what to do. Preserve it on the row when
@@ -142,8 +153,12 @@ function statusWords({
   if (kind === "listening") {
     const awaits = `${agent} awaits — ${detail || "select text to comment"}`;
     return listening
-      ? [`${agent} listening`, `${agent} is listening${detail ? " — " + detail : ""}.`]
-      : [awaits, awaits];
+      ? [
+          `${agent} listening`,
+          `${agent} is listening${detail ? " — " + detail : ""}.`,
+          !detail,
+        ]
+      : [awaits, awaits, true];
   }
   if (kind === "stalled")
     return [shortDate, `${dated}${detail ? ": " + detail : ""}. ${saved}`];
@@ -167,7 +182,8 @@ function statusWords({
 // this tab's key rather than going away), or with a reading the page could not apply
 // (`broken`). The answer is the banner's reading before the queues join it
 // (`statusModel`): its `kind`, the dot's `tone`, the row's `summary`, the disclosure's
-// `explanation`, and the `actionableWork` whose change is announced.
+// `explanation`, what that explanation `adds` to the summary for a seat that shows both
+// (the floating panel's menu), and the `actionableWork` whose change is announced.
 export function pageStatus(state, { reach = "reached" } = {}) {
   if (reach === "broken")
     return {
@@ -175,11 +191,13 @@ export function pageStatus(state, { reach = "reached" } = {}) {
       tone: "offline",
       summary: BROKEN_LINE,
       explanation: BROKEN_LINE,
+      adds: "",
     };
   if (reach !== "reached")
     return {
       kind: "unreachable",
       tone: "offline",
+      adds: "",
       ...(reach === "refused"
         ? {
             summary: "Key refused — open Leaf's link in a new tab",
@@ -203,7 +221,7 @@ export function pageStatus(state, { reach = "reached" } = {}) {
     : `No check-in from ${agent} is recorded`;
   const ended = `${agent}’s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
-  const [summary, text] = statusWords({
+  const [summary, text, restates = false] = statusWords({
     age,
     agent,
     dated: facts.left ? ended : checkedIn,
@@ -220,19 +238,24 @@ export function pageStatus(state, { reach = "reached" } = {}) {
     work: facts.work,
   });
   let explanation = age ? `${text} (${age})` : text;
+  let adds = restates ? "" : explanation;
+  const append = (words, step = false) => {
+    explanation = after(explanation, words, step);
+    adds = after(adds, words, step);
+  };
   // What a transport can watch for itself, when the sentence beside it was written by
   // the agent: two facts about one turn, so the row keeps the one meant for the user
   // and the disclosure holds the step proving the session is still moving.
   if (activity.observed && activity.observed !== detail)
-    explanation += ` · ${activity.observed}`;
+    append(activity.observed, true);
   if (facts.waiting.length && ["working", "listening"].includes(kind))
-    explanation += `${explanation.endsWith(".") ? "" : "."} ${facts.waiting.join(" · ")}.`;
+    append(`${facts.waiting.join(" · ")}.`);
   const actionableWork = activity.awaiting ? activity.observed_kind : null;
   // An approval or a question the agent's own window holds is answered there, and
   // the page is the one place the user may be looking instead.
   if (actionableWork && kind === "working")
-    explanation += `${explanation.endsWith(".") ? "" : "."} It waits in its own session, not on this page.`;
-  return { kind, tone: facts.tone, summary, explanation, actionableWork };
+    append("It waits in its own session, not on this page.");
+  return { kind, tone: facts.tone, summary, explanation, adds, actionableWork };
 }
 
 // The page's two queues (`served_state.queues`) are told apart in the banner by where
@@ -288,22 +311,25 @@ const WITHOUT_QUEUES = new Set(["broken", "unreachable", "publication"]);
 
 // What the banner shows for a status (`pageStatus`, or a reading of startup's own),
 // beside the page's `queues` (`readQueues`) and the `agent` they wait on: the dot's
-// `tone`, the row's `summary` and the agent's count, the disclosure's `explanation`, and a
-// publication's introduction and links, which remain an ordinary reading row rather
-// than children of the status disclosure button.
+// `tone`, the row's `summary` and the agent's count, the disclosure's `explanation` and
+// what it `adds` to the summary, and a publication's introduction and links, which
+// remain an ordinary reading row rather than children of the status disclosure button.
 export function statusModel(status, queues, agent) {
   const { kind, tone, summary, publication = null } = status;
-  let { explanation } = status;
+  let { explanation, adds } = status;
   const counted = WITHOUT_QUEUES.has(kind)
     ? { summary: "", explanation: "", widest: "" }
     : queueWords(queues, agent);
-  if (counted.explanation)
-    explanation = `${explanation}${explanation.endsWith(".") ? "" : "."} ${counted.explanation}`;
+  if (counted.explanation) {
+    explanation = after(explanation, counted.explanation);
+    adds = after(adds, counted.explanation);
+  }
   let publicationModel = null;
   if (publication) {
     const [said, installs] = publicationWords(publication);
     const examples = publication.kind === "example" ? "Other examples" : null;
     explanation = said + (examples ? `${examples} ` : "") + installs;
+    adds = explanation;
     publicationModel = Object.freeze({
       copy: said,
       examples,
@@ -318,6 +344,7 @@ export function statusModel(status, queues, agent) {
     queues: counted.summary,
     queuesWidest: counted.widest,
     explanation,
+    adds,
     publication: publicationModel,
   });
 }

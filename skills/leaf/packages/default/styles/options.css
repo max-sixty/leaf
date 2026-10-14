@@ -529,8 +529,3 @@
     box-shadow: none; margin: 0; }
 
 }
-/* Paper cannot edit the document, so collapsed cards keep their hidden attribute and the
- * content-visibility it carries is undone here. */
-@media print {
-  :scope:is(lf-options)[settled] > lf-option { content-visibility: visible !important; }
-}

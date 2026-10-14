@@ -1279,11 +1279,6 @@
     margin: 0;
   }
 }
-@media print {
-  :scope:is(lf-options)[settled] > lf-option {
-    content-visibility: visible !important;
-  }
-}
 
 /* skills/leaf/packages/default/styles/board.css */
 :scope:is(lf-board) {
@@ -1999,9 +1994,6 @@
   }
 }
 @media print {
-  :scope:is(lf-tabs).lf-rendered > lf-tab {
-    content-visibility: visible !important;
-  }
   :scope:is(lf-tabs)[list=side] > lf-tab[group]::before {
     content: attr(group) " · " attr(label);
   }

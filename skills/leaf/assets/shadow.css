@@ -1158,7 +1158,8 @@ svg[data-lf-icon] {
   }
 }
 @media print {
-  details:not([open])::details-content {
+  details:not([open])::details-content,
+  [hidden=until-found] {
     content-visibility: visible;
   }
   details > summary {

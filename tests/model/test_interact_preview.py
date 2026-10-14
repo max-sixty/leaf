@@ -66,7 +66,7 @@ def test_automated_page_producers_record_the_run_before_input(tmp_path, serve, r
 
     state = tmp_path / "isolated-state"
     page = tmp_path / "arm-page"
-    arms.build_source(ROOT, state, source, page, compiled=False)
+    arms.build_source(ROOT, state, source, page)
     [context] = read_interactions(page)
     assert context | {"ts": "clock"} == {
         "source": "developer",

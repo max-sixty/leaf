@@ -2999,8 +2999,9 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     )
     publisher = server_rows_model.RowPublisher(neighbor, "fixture-server")
     publisher.refresh()
-    expected = page_state(neighbor)["activity"]
-    expected.pop("obligations")
+    activity = page_state(neighbor)["activity"]
+    assert activity["detail_source"] is not None
+    expected = server_rows_model.compact_activity(activity)
     reads = []
     read_json = files_model.read_json
 
@@ -3022,6 +3023,8 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     monkeypatch.setattr(event_model, "read_events", no_fold)
     [row] = presence_model.other_leaves(page_dir)
     assert row["activity"] == expected
+    assert "detail_source" not in row["activity"]
+    assert "obligations" not in row["activity"]
     assert row["activity"]["counts"]["pending"] == 1
     assert row["session_cwd"] == "/work/neighbor"
     assert reads == [neighbor / "service.json"]

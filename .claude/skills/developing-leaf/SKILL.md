@@ -321,14 +321,8 @@ exit. Keep previews and trace viewers handed to the user available for their rev
 
 ## Run the agent journey
 
-For timings from existing conversations, `uv run leaf-dev response-times PAGE...`
-reads retained page logs, with `--since` and `--until` taking timezone-qualified
-ISO timestamps. It reports exact-input first progress or answer times and missing
-observations. New browser diagnostics also measure send-to-visible words on one
-tab's monotonic clock. `--exclude-purpose test --exclude-purpose automated` omits
-declared runs while retaining unknowns; `--json` exports individual inputs,
-provenance and evidence for analysis without message text.
-`dev/leaf_dev/response_times.py` owns the measurement boundaries and limitations.
+For response timing, run `uv run leaf-dev response-times PAGE... --json`;
+`dev/leaf_dev/response_times.py` owns its measurements and limits.
 
 `uv run --project <root> leaf-dev journey TARGET` runs one user's journey against a
 real agent: on the triage board, it tells the agent that a release passed its checks

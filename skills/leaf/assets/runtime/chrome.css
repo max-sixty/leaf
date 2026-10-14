@@ -430,7 +430,7 @@
     color: var(--lf-fp-muted);
   }
   .lf-fp-where {
-    margin-inline-start: auto;
+    margin-inline: auto 12px;
     font-size: 12px;
     font-variant-numeric: tabular-nums;
   }

@@ -704,6 +704,27 @@
     padding-top: 8px;
     mask-image: linear-gradient(to bottom, transparent 0, #000 12px);
   }
+  /* An answer waiting below the fold (floating-panel.js, `fitAnswer`): a press at the
+     view's foot, where the answer begins, over what the view ends with. */
+  .lf-fp-new-reply {
+    position: sticky;
+    bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 auto;
+    padding: 0 12px 0 8px;
+    border-radius: 14px;
+    background: var(--lf-fp-surface);
+    box-shadow:
+      0 0 0 1px var(--lf-fp-ring),
+      0 4px 10px -6px var(--shade);
+    color: var(--ink);
+    font-size: 12px;
+  }
+  :where(.lf-floating-panel) .lf-fp-new-reply:hover {
+    background: color-mix(in srgb, var(--ink) 5%, var(--lf-fp-surface));
+  }
 
   /* Rows of a list, one line each. */
   .lf-fp-list {

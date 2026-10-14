@@ -53,8 +53,9 @@ Each event keeps its stored fields and order, less the browser's retry key
   pressed on: the revision the event names, or the frozen message that sent the
   widget. A later version that rewords the element does not change them. They are
   authored text, so they leave out what an earlier gesture changed and what a
-  widget's module draws beyond it. The words of an element the user wrote, such as
-  an added option, are in the event's own `detail` instead. An element that only
+  widget's module draws beyond it. An element the user wrote, such as an added
+  option, has no authored words; `says` gives it the words recorded by the action
+  that created it. An element that only
   encloses another named one is left out, so a pick gives its options' words and a
   gesture naming only its widget gives the whole widget's. An undo carries the words
   of the gesture it takes back.

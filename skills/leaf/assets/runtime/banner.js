@@ -39,6 +39,7 @@ import { UPGRADE } from "./presentation.js";
 import { WEBSITE_DELIVERY } from "./context.js";
 import { readQueues } from "./queue-api.js";
 import { approvalBlockingAsks } from "./asks/model.js";
+import { focusDestination, tabStops } from "./focus.js";
 
 const INITIAL = Object.freeze({
   tone: "",
@@ -53,6 +54,15 @@ const INITIAL = Object.freeze({
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 declareBanner(banner);
+// Where Leaf's controls begin in this chrome, as the page's Skip to Leaf controls finds
+// them: the banner's first control that takes focus, or the banner itself.
+export function enterBanner() {
+  for (const control of tabStops(banner)) {
+    focusDestination(control, "move");
+    if (control.matches(":focus")) return;
+  }
+  focusDestination(banner, "move");
+}
 const bannerStatus = createBannerStatusView(repaint, INITIAL);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
 // The agent's On count, which opens the On panel on the agent's list (queue-panel.js).
@@ -296,15 +306,17 @@ const presentStatus = ({ status, model }) => {
   if (changed) announce(model.explanation);
 };
 // Upgrade opens new comments before the buffered saved reading is applied.
+const LOADING_LINE =
+  "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds." +
+  (WEBSITE_DELIVERY
+    ? " Website examples can take longer to load their saved state than a usual Leaf page."
+    : "");
 const LOADING = Object.freeze({
   kind: "loading",
   tone: "",
   summary: "Loading saved state…",
-  explanation:
-    "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds." +
-    (WEBSITE_DELIVERY
-      ? " Website examples can take longer to load their saved state than a usual Leaf page."
-      : ""),
+  explanation: LOADING_LINE,
+  adds: LOADING_LINE,
 });
 // The developer preview's identity: which checkout is serving this page, and a press to
 // copy the whole diagnostic. It is the banner's least-used control, so it stays behind

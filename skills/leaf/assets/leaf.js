@@ -110,6 +110,7 @@ import { createVersionController } from "./runtime/version.js";
 import { versionMenu } from "./runtime/version-picker.js";
 import {
   banner,
+  enterBanner,
   isSignoffDeclared,
   loadIcon,
   mountBanner,
@@ -168,7 +169,6 @@ import {
   declareReading,
   focusDestination,
   releaseFocus,
-  tabStops,
   focused,
 } from "./runtime/focus.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
@@ -790,6 +790,7 @@ const writingResume = createWritingResume({
   arriveEditor: anchorTravel.arriveEditor,
   revealInThread: (context, intent) =>
     app.threadDestinations.openThreadDraft(context, intent),
+  holdsThreadDraft: (context) => app.threadDestinations.holdsThreadDraft(context),
 });
 goToSequence = createGoToSequence({
   panelIsOpen,
@@ -834,14 +835,10 @@ const standingPainters = {
   paintInputs: inputs.paintInputs,
 };
 
+// Skip to Leaf controls lands where the chrome the reader chose begins: the banner's, or
+// the floating panel's where it stands for the banner.
 const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
-skipToChrome.onclick = () => {
-  for (const control of tabStops(banner)) {
-    focusDestination(control, "move");
-    if (control.matches(":focus")) return;
-  }
-  focusDestination(banner, "move");
-};
+skipToChrome.onclick = floatingPanel?.enter ?? enterBanner;
 
 if (!offlineInteractive) {
   document.adoptedStyleSheets = [

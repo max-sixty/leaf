@@ -117,6 +117,8 @@ export {
   paintKeys,
   saying,
 } from "./keyboard/scopes.js";
+// The claim of a scope standing over the page: every key but the command reference's.
+export { allButCommandReference } from "./keyboard/register.js";
 export {
   afterScript,
   cancelRender,

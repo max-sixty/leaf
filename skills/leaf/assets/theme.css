@@ -711,33 +711,13 @@ th.num,
 td.num {
   text-align: right;
 }
-ol.steps {
-  list-style: none;
-  counter-reset: step;
-  padding-inline-start: 0;
-}
 ol.steps > li {
-  counter-increment: step;
-  position: relative;
-  padding-left: 34px;
   margin: 10px 0;
 }
-ol.steps > li::before {
-  content: counter(step);
-  position: absolute;
-  left: 0;
-  top: 0.5lh;
-  transform: translateY(-50%);
-  line-height: 1lh;
-  width: 21px;
-  height: 21px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--card);
-  font-size: 12px;
-  font-weight: 600;
-  display: grid;
-  place-items: center;
+ol.steps > li::marker {
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 svg.drawing {
   display: block;

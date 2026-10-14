@@ -76,8 +76,9 @@ class ThreadSeat {
   #model = EMPTY;
   #shown = EMPTY;
   #committed = EMPTY;
-  // A seat in the page's flow holds back news that would move what the reader reads, and
-  // says so in place of its first-message row while it draws no thread (held-news.js).
+  // A seat holds back news that would move what the reader reads, and says so in place
+  // of its first-message row while it draws no thread (held-news.js). The margin's
+  // floating card is a seat too, so it holds news as a seat in the page's flow does.
   #held = null;
   #notice = null;
   #commands = null;
@@ -109,7 +110,9 @@ class ThreadSeat {
         ? [...this.#resolved.node.children].slice(1)
         : [];
     this.#model = model;
-    if (model.surface === "page" || model.surface === "outlet")
+    // A reading with no surface, a first-message box drawn before its seat's threads,
+    // is no baseline for news.
+    if (model.surface)
       this.#held ??= new HeldNews(
         this.node,
         (key) => this.#views.get(key),

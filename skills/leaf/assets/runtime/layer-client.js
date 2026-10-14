@@ -158,9 +158,11 @@ export async function requestJson(url, init, what) {
     } catch (error) {
       throw failed(`${what}: HTTP ${response.status}`, error);
     }
+  // `said` is the server's own words for the refusal, where it gave any.
   if (!response.ok)
     throw Object.assign(failed(answer?.error ?? `${what}: HTTP ${response.status}`), {
       current: answer?.current,
+      said: answer?.error,
     });
   return answer;
 }

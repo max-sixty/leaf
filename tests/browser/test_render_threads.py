@@ -933,7 +933,7 @@ def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
         ephemeral=True,
     )
     told(page)
-    notice = thread.get_by_role("button", name="Work in progress", exact=True)
+    notice = thread.get_by_role("button", name="1 new update", exact=True)
     expect(notice).to_be_visible()
     expect(words).to_have_text("Reading the jobs")
     rendered(page)

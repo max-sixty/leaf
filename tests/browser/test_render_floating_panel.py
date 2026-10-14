@@ -406,9 +406,10 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     browser, serve
 ):
     """The On view has no name of its own: its title is the open tab's, On me or On
-    Claude, and under each list stands what left it. A reply the agent sent leaves its
-    list, so it stands under On Claude, said as sent. The On me mark opens the user's
-    list, turning the view to it where it shows the agent's."""
+    Claude, which the tabs beside it already show, so the title names the view to
+    assistive tech alone. Under each list stands what left it. A reply the agent sent
+    leaves its list, so it stands under On Claude, said as sent. The On me mark opens
+    the user's list, turning the view to it where it shows the agent's."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Is the window long enough?")
     append_carried_log_record(
@@ -427,6 +428,7 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
     page.locator(".lf-fp-on-user").click()
     title = page.locator(".lf-fp-title")
     expect(title).to_have_text("On me")
+    assert title.bounding_box()["width"] <= 1
     expect(page.locator(".lf-fp-filters button")).to_have_count(2)
     expect(page.locator(".lf-fp-on-done")).to_have_count(0)
     page.locator(".lf-fp-filters button", has_text="On Claude").click()
@@ -981,19 +983,40 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
 
 
 def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):
-    """A passing notice is said in the empty field's place, and once the field holds
-    words, which hide that, on the line above it, so a refused send's reason is seen
-    beside the words it returned; on a folded panel, the leaf's peek says it."""
-    page = floating(browser, serve(LONG_PAGE))
+    """A passing notice is said in the empty field's place, and once the caret is in the
+    field, whose placeholder then says where the words go, or once words hide that, on
+    the line above it, so a refused send's reason is seen beside the words it returned;
+    on a folded panel, the leaf's peek says it."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
     say = """async (text) => (await window.__lfWidgetApi())
       .notice(text)"""
     page.evaluate(say, "Saved for later")
     expect(field(page)).to_have_attribute(
         "placeholder", re.compile(r"^Saved for later")
     )
+    field(page).click()
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile(r"^Comment on the page")
+    )
+    expect(page.locator(".lf-fp-dest")).to_have_text("Saved for later")
     write(field(page), "Could the rollback cover the weekend?")
     page.evaluate(say, "Not sent: the page is offline")
     expect(page.locator(".lf-fp-dest")).to_have_text("Not sent: the page is offline")
+
+    # In a thread the focused field still says its words go there, not the notice.
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+    page.evaluate(say, "2 agent messages in 2 threads")
+    field(page).click()
+    expect(field(page)).to_have_attribute(
+        "placeholder", re.compile(r"^Reply in this thread")
+    )
+    expect(page.locator(".lf-fp-dest")).to_have_text("2 agent messages in 2 threads")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
 
     # Folded to the leaf, the panel has no field, and the leaf's peek says it.
     page.locator("body").focus()
@@ -1108,7 +1131,9 @@ def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
         cards.first.locator(".lf-fp-answer", has_text="Shim").click()
     answer = events_model.read_events(serve.page_dir)[-1]
     assert (answer["kind"], answer["widget"]) == ("action", "schema")
-    expect(cards.first).to_contain_text("Answered")
+    expect(cards.first.locator(".lf-fp-said")).to_have_text(
+        re.compile(r"^Answered: Shim the old schema")
+    )
     expect(chip).to_contain_text("1")
     assert cards.first.bounding_box() == first
     assert cards.nth(1).bounding_box() == second
@@ -1152,6 +1177,17 @@ def test_versions_travel_and_approval_open_in_the_panel(browser, serve):
     expect(page.locator("#lf-versions")).to_be_hidden()
     expect(view.locator(".lf-fp-version")).to_have_count(2)
     expect(view.locator(".lf-fp-version[data-current]")).to_contain_text("Showing")
+    # The list is one stop for Tab, which the arrows walk through each version and its
+    # Compare to the approval.
+    stops = view.locator(".lf-fp-item:not(:disabled), .lf-fp-compare")
+    view.focus()
+    page.keyboard.press("ArrowDown")
+    expect(stops.first).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(stops.nth(1)).to_be_focused()
+    page.keyboard.press("End")
+    expect(stops.last).to_be_focused()
+    expect(view.locator("[tabindex='0']")).to_have_count(1)
 
     with sending(page, "the approval"):
         view.locator(".lf-fp-item", has_text="Approve version").click()
@@ -1327,6 +1363,138 @@ def test_the_leaf_s_menu_is_one_tab_stop_its_keys_walk(browser, serve):
         expect(threads).to_be_visible()
         page.keyboard.press("Escape")
         expect(threads).to_have_count(0)
+
+
+def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
+    """The menu's head says the agent's state in a word, over its one line, and under
+    that only what the banner's disclosure adds to the line: while the agent works, the
+    disclosure's sentence restates the line, so what waits on the user is all it adds."""
+    url = serve(ASK_PAGE)
+    working(serve.page_dir, "Drafting the rollout")
+    page = floating(browser, url)
+    line = re.compile(r"^Claude working\b.* — Drafting the rollout")
+    page.locator(".lf-fp-leaf").click()
+    head = page.locator(".lf-fp-state")
+    expect(head.locator("b")).to_have_text("Working")
+    expect(head.locator("span").first).to_have_text(line)
+    expect(head.locator(".lf-fp-explain")).to_have_text(
+        re.compile(r"^Waiting on me: 2 asks\. Waiting on Claude: 1 to-do")
+    )
+
+
+def test_news_under_the_open_menu_moves_nothing_in_it(browser, serve):
+    """The leaf's menu stands on the leaf and grows upward, so while it stands it holds
+    what it showed: a status that wraps to more lines, or fewer, re-wraps inside the
+    lines its head first took, and a row a revision offers joins at the next opening, so
+    neither the head's words nor the rows move. The shift watch holds the words; the
+    boxes are read here."""
+    page = floating(browser, serve(LONG_PAGE))
+    leaf = page.locator(".lf-fp-leaf")
+    leaf.click()
+    head = page.locator(".lf-fp-state")
+    expect(head.locator("b")).to_have_text("Away")
+    settled(page)
+    boxes = (
+        "() => [...document.querySelectorAll('.lf-fp-menu > *')]"
+        ".map(n => { const r = n.getBoundingClientRect(); return [r.top, r.height]; })"
+    )
+    before = page.evaluate(boxes)
+    page.wait_for_timeout(600)  # Let Chrome's recent-input grace expire before news.
+    for line in (
+        "Drafting the rollout plan for the schema migration across every cluster",
+        "Checking",
+    ):
+        working(serve.page_dir, line)
+        expect(head.locator("span").first).to_contain_text(line)
+        assert page.evaluate(boxes) == before
+
+    source = (serve.page_dir / "index.html").read_text()
+    stamp_page(serve.page_dir, source.replace("Filler.", "Filler!", 1), "revised")
+    newer = re.compile("New page available → open v2")
+    expect(page.locator(".lf-latest-chip")).to_have_text(newer)
+    assert page.evaluate(boxes) == before
+    page.keyboard.press("Escape")
+    leaf.click()
+    expect(page.locator(".lf-fp-menu .lf-fp-item", has_text=newer)).to_be_visible()
+
+
+def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
+    """Threads and On are walked as the leaf's menu is: one stop for Tab, which the
+    arrows, Home and End move, and from the view a pointer opened, ↓ enters its first
+    row. Threads' rows leave out the state the selected filter already says, its
+    counted tab says 0 rather than leave a gap where a count would go, and the marks
+    that open both name themselves on hover."""
+    url = serve(ASK_PAGE)
+    for text in ("Is the window long enough?", "Who watches the weekend?"):
+        panel_comment(serve.page_dir, text)
+    page = floating(browser, url)
+    on_mark, threads_mark = (
+        page.locator(".lf-fp-on-user"),
+        page.locator(".lf-fp-threads"),
+    )
+    expect(on_mark).to_have_attribute("title", "On me: 2")
+    expect(threads_mark).to_have_attribute("title", "Threads, 2 open")
+
+    threads_mark.click()
+    view = page.locator(".lf-fp-view[data-view=threads]")
+    expect(view).to_be_focused()
+    rows = view.locator(".lf-fp-thread")
+    expect(rows).to_have_count(2)
+    expect(view.locator(".lf-fp-value", has_text="Open")).to_have_count(0)
+    page.keyboard.press("ArrowDown")
+    expect(rows.first).to_be_focused()
+    page.keyboard.press("End")
+    expect(rows.last).to_be_focused()
+    page.keyboard.press("Home")
+    expect(rows.first).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(rows.nth(1)).to_be_focused()
+    expect(view.locator("[tabindex='0']")).to_have_count(1)
+    expect(rows.nth(1)).to_have_attribute("tabindex", "0")
+    unread = page.locator(".lf-fp-filters button", has_text="Unread")
+    expect(unread.locator(".lf-fp-count[data-zero]")).to_have_text("0")
+
+    on_mark.click()
+    expect(page.get_by_role("button", name="On me 2", exact=True)).to_be_visible()
+    cards = page.locator(".lf-fp-view[data-view=on] .lf-fp-on-item")
+    expect(cards).to_have_count(2)
+    page.keyboard.press("ArrowDown")
+    expect(cards.first).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(cards.nth(1)).to_be_focused()
+    expect(cards.first).to_have_attribute("tabindex", "-1")
+
+
+def test_skip_to_leaf_controls_lands_in_the_panel(browser, serve):
+    """The page's first Tab stop, Skip to Leaf controls, lands in the panel that stands
+    for Leaf's controls: in its field, or on the leaf where the field takes no words, as
+    in a resolved thread, or while the panel is folded."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    skip = page.locator("body > .lf-skip")
+    skip.focus()
+    page.keyboard.press("Enter")
+    expect(field(page)).to_be_focused()
+
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    settle = page.locator(".lf-fp-settle")
+    with sending(page, "the resolve"):
+        settle.click()
+    expect(settle).to_have_text("Reopen", use_inner_text=True)
+    skip.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+
+    page.locator("body").focus()
+    page.keyboard.press(".")
+    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-rest", "mark")
+    skip.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
 
 
 def test_a_menu_row_that_puts_the_menu_away_leaves_the_user_on_the_leaf(browser, serve):

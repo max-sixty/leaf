@@ -37,18 +37,24 @@
 
    An open panel card shows appended messages immediately when no composition is
    active: its idle reply row and later cards may move, while existing messages keep
-   their place. A reply the agent is still streaming at the thread's end is such an
+   their place. The margin's floating card is a seat whose growth moves one of its own
+   edges (thread-preview.js). News at the thread's end shows at once where the card
+   holds its top, beside or below what it is about with the user not writing in it, its
+   reply row moving; everything else waits, but a settlement, which keeps the editor it
+   interrupts (thread-card.js, `newsMoves`). A reply the agent is still streaming at the thread's end is such an
    appended message, its words joining it as they come and its answer completing it
    in place, so it streams into an idle open card and a held one counts it once as a
    new reply. So is an answer folding the progress before it into Previous updates
    where that progress is the run at the thread's end, as the agent's acknowledgement
    is, unless the user stands on a message the fold puts away, by focus or by a
-   selection reaching into it (`standsOn`, focus.js). The progress itself is no news:
+   selection reaching into it (`standsOn`, focus.js). The progress itself is no reply:
    until that answer it joins the thread's working message, not its replies
    (thread-card.js), and its messages stand behind that message's disclosure. The
    working message's arrival, its departure, and a new step whose words wrap to
    another height change the thread's height, so a seat holds any change of its words
-   behind its control-row notice when that growth would move the reader.
+   behind its control-row notice when that growth would move the reader. The notice
+   counts each held step as it counts a held reply, "1 new step", and says "Work in
+   progress" or "Work updated" only where the working message changed with no step.
    A run on screen stays open where
    it stood, its group's border drawn around it (components/surfaces.css), so the fold
    moves none of its words; a run off screen folds away. Changes to other existing
@@ -104,7 +110,14 @@
    checking such lists. Arrival is read from where the user stands (the user's decision,
    2026-10-06, reversing #1780's record). Rejected: a `showHeld` call in each route that
    takes the user to a thread, which every new route had to remember and a route putting
-   them back had to opt out of.
+   them back had to opt out of. The margin's floating card holds news while the user
+   writes in it and keeps the width it first stood at (the user's decision,
+   2026-10-13): before, it took every change at once, widening up to 232px and carrying
+   Resolve, Close and Send sideways, and rising under a draft. Rejected: keeping only
+   its width, which doubled the rise; keeping its box and scrolling the transcript,
+   which scrolls Resolve away; and holding all news while it is open, which stops
+   progress showing live where the user watches it. A held step's notice reads like a
+   held reply's (the user's decision, 2026-10-13).
 
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
    clock decides, such as a command's lists of stopped goals and live workers. The first
@@ -216,6 +229,7 @@ function difference(was, now, { progressOpen = false } = {}) {
         : now.working?.live
           ? "Work in progress"
           : "Work updated",
+    steps: 0,
     replies: 0,
     messages: 0,
     edits: 0,
@@ -230,12 +244,15 @@ function difference(was, now, { progressOpen = false } = {}) {
     const change = messageChange(prior, message);
     if (!prior || prior.provisional) arrived.add(message.id);
     if (change === "completed") completed.add(message.id);
-    // A progress message joins the thread's working message, not its replies, so it is
-    // no news; the answer that later folds it is. Where the step shows, because the
-    // reader opened the progress (`progressOpen`, thread-card.js) or the thread is
-    // resolved and keeps its progress as messages, it is a reply's news.
-    if (change === "joined" && message.progress && !progressOpen && !now.resolved)
+    // A progress message joins the thread's working message, not its replies, so its
+    // notice counts it as a step, as it counts a reply; the answer that later folds it
+    // is a reply. Where the step shows, because the reader opened the progress
+    // (`progressOpen`, thread-card.js) or the thread is resolved and keeps its progress
+    // as messages, it is a reply's news.
+    if (change === "joined" && message.progress && !progressOpen && !now.resolved) {
+      news.steps += 1;
       continue;
+    }
     if (change === "joined") {
       if (message.author === "agent") news.replies += 1;
       else news.messages += 1;
@@ -291,7 +308,15 @@ function difference(was, now, { progressOpen = false } = {}) {
     ),
     summaries: gone.map(({ id }) => id),
   };
-  const counts = ["working", "replies", "messages", "edits", "reactions", "summaries"];
+  const counts = [
+    "working",
+    "steps",
+    "replies",
+    "messages",
+    "edits",
+    "reactions",
+    "summaries",
+  ];
   if (!settled && counts.every((count) => !news[count])) return null;
   const appendedAtEnd =
     news.appended &&
@@ -345,6 +370,7 @@ const counted = (count, one, many) => count && `${count} ${count === 1 ? one : m
 /** @param {{
  *   settled?: string,
  *   working?: string,
+ *   steps?: number,
  *   replies?: number,
  *   messages?: number,
  *   edits?: number,
@@ -355,6 +381,7 @@ const counted = (count, one, many) => count && `${count} ${count === 1 ? one : m
 const newsLabel = ({
   settled,
   working,
+  steps,
   replies,
   messages,
   edits,
@@ -364,8 +391,10 @@ const newsLabel = ({
 }) =>
   [
     settled,
-    ![settled, replies, messages, edits, reactions, summaries, threads].some(Boolean) &&
-      working,
+    ![settled, steps, replies, messages, edits, reactions, summaries, threads].some(
+      Boolean,
+    ) && working,
+    counted(steps, "new step", "new steps"),
     counted(replies, "new reply", "new replies"),
     counted(messages, "new message", "new messages"),
     counted(edits, "message edited", "messages edited"),
@@ -497,7 +526,11 @@ export class HeldNews {
   constructor(seat, view, changed) {
     this.#seat = seat;
     this.#view = view;
-    this.#changed = changed;
+    // A seat taken off the page, as the margin card's when it steps to another thread,
+    // draws nothing again: its views would take back controls the live one now holds.
+    this.#changed = () => {
+      if (seat.isConnected) changed();
+    };
     holders.add(this);
   }
 

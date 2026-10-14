@@ -110,12 +110,15 @@ representative desktop viewport.
   The value names the stationary box and what may move inside it. In a `text` region,
   such as a message header, labels may repack while every contained control stays put.
   In a `controls` region, such as the shortcut bar, hints and controls may repack. In
-  an `append` region, a panel card's transcript, new children may grow its end within
-  its stationary scrollport while existing messages stay put; the idle reply row and
-  later cards may move by that growth, and no other change may. Declare the box that
-  owns the room, not an auto-sized inner label group or a boxless wrapper. A nested
-  region holds its own boundary and every enclosing declaration's guarantees, including
-  across a shadow root, and never relaxes them. Neighbours and the page's reading
+  an `append` region, a thread card's transcript in the panel or the margin, its end
+  may grow within its stationary scrollport while existing messages stay put: new
+  children, or, where none joins, its last child, such as the working message or a
+  streaming reply. The idle reply row and later cards may move by that growth, and no
+  other change may. A scrollport sized to what it holds, as the margin's floating card
+  is, counts as stationary while it grows only at its foot, by that growth. Declare the
+  box that owns the room, not an auto-sized inner label group or a boxless wrapper. A
+  nested region holds its own boundary and every enclosing declaration's guarantees,
+  including across a shadow root, and never relaxes them. Neighbours and the page's reading
   content stay put. Check: the shift watch. Owners: `thread/thread-card.js`,
   `thread/messages.js` and `keyboard/shortcut-bar.js` declare today's regions.
 - **News never moves what the reader is reading.** News grows where the reader isn't

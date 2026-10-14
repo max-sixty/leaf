@@ -17,9 +17,11 @@
    the card: it leaves with its target and comes back with it. A target hidden by the
    document withholds the card's native draft and focus until it is drawn again.
 
-   A selection holds its placement side and one edge. Reading and draft growth hold
-   the top; a turn joining while drafting/sending holds the reply's foot, as does a
-   card above its target. Another selection chooses afresh. Floating UI supplies room
+   A selection holds its placement side, its width and one edge. The width is the one
+   the card first stood at, or was carried at, so a longer line arriving wraps inside it
+   rather than carrying the controls at its far edge; only a narrower room narrows it.
+   Reading and draft growth hold the top; a turn joining while drafting/sending holds
+   the reply's foot, as does a card above its target. Another selection chooses afresh. Floating UI supplies room
    at that edge; native grid tracks share it between transcript and reply, growing to
    their words before scrolling. Reply continuity retains removed turns as flexible
    space and lets the transcript yield writing room without losing the visible lines.
@@ -37,13 +39,7 @@ import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
 import { mapButton } from "../page-map-dialog.js";
-import {
-  focusDestination,
-  holdFocus,
-  onStanding,
-  focused,
-  standingIn,
-} from "../focus.js";
+import { focusDestination, holdFocus, onStanding, focused } from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { closeControl, el, offer } from "../widget-elements.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "../keeps.js";
@@ -79,6 +75,7 @@ import { retainUserIntent } from "../user-intent.js";
 import { threadFocusDestination } from "../thread/focus.js";
 import { keepThreadLanding, showLatestTurn } from "../thread/reply-landing.js";
 import { strongestWorkflow } from "../thread/workflow.js";
+import { writingIn } from "../thread/replies.js";
 
 // A margin card's reply box.
 const REPLY_BOX = `.lf-thread-reply ${TEXT_FIELD}`;
@@ -132,7 +129,7 @@ export function createThreadPreview({
       const session = previewSession;
       if (!session) return;
       if (box) {
-        session.carried = box.width;
+        session.width = box.width;
         session.side.adopt({
           box,
           placement: { ...session.side.capture(), moved: true },
@@ -447,12 +444,7 @@ export function createThreadPreview({
     const sending =
       latest?.author === "user" &&
       strongestWorkflow(latest.workflows)?.stage === "sending";
-    const drafting = Boolean(
-      replyEditor?.checkVisibility() &&
-      (standingIn(replyEditor.closest(".lf-thread-reply")) ||
-        replyEditor.value !== "" ||
-        sending),
-    );
+    const drafting = writingIn(replyEditor, sending);
     const boundary = commentBoundary({ region: place.region });
     session.region = place.region;
     if (!boundary.width || !boundary.height) {
@@ -496,15 +488,17 @@ export function createThreadPreview({
               end: !fresh && atScrollEnd(session.transcript),
               latest: session.arriving,
             };
-            if (fresh) session.carried = null;
+            if (fresh) session.width = null;
+            // A card that has stood keeps its width (`session.width`): its floor and
+            // cap are that width, or the room where the room is narrower.
             const room = Math.min(
               cardMeasure(),
               width,
-              (session.carried ?? Infinity) / scale.x,
+              (session.width ?? Infinity) / scale.x,
             );
             preview.style.setProperty(
               "--lf-thread-min-width",
-              layoutPx(Math.min(cardMinimum(), room)),
+              layoutPx(session.width === null ? Math.min(cardMinimum(), room) : room),
             );
             // Choosing its spot, the card is capped by the boundary alone, and slides
             // inside it rather than shrinking. Held, it has the room from its held edge
@@ -560,6 +554,7 @@ export function createThreadPreview({
         const { scale } = session.side.landed(position);
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
         placementDriver.stand(position);
+        session.width ??= preview.getBoundingClientRect().width;
         carry.placed();
         preview.style.removeProperty("visibility");
         session.withheldFocus?.();
@@ -652,7 +647,9 @@ export function createThreadPreview({
       place: null,
       stopRegion: null,
       side: commentPlacement(),
-      carried: null,
+      // The width the card stands at for this selection, in client pixels: the one it
+      // first stood at, or was carried at (`placeThreadPreview`).
+      width: null,
       region: null,
     };
     carryCommentFrame(origin);

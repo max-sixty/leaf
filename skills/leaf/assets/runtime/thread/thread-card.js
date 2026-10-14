@@ -59,7 +59,9 @@ import {
   replyAvailable,
   dismissReply,
   threadHoldsDraft,
+  writingIn,
 } from "./replies.js";
+import { TEXT_FIELD } from "../control-selectors.js";
 import {
   settleThread,
   landGesture,
@@ -542,6 +544,8 @@ export class ThreadView {
     this.#actions.className = "lf-thread-meta-actions";
     this.#transcript.className = "lf-thread-transcript";
     this.#working.className = "lf-thread-working";
+    // The transcript's last child, growing at its foot as steps come (shift_watch.js).
+    this.#working.dataset.lfAppendTail = "";
     this.#working.setAttribute("aria-live", "polite");
     // Native disclosure opens at the attribute checkpoint; queued toggle may arrive
     // after paint. Release held news here so the first opened body is current,
@@ -709,6 +713,31 @@ export class ThreadView {
     // the fold would put away, by focus or by a selection reaching into it.
     const foot =
       footFold && !folds.messages.some((key) => standsOn(this.#messageNode(key)));
+    // The margin's floating card grows at one of its own edges, the edge its placement
+    // keeps still being its top while it stands beside or below what it is about and the
+    // user is not writing in it (thread-preview.js, comment-placement.js `holding`). So
+    // news shows only there and only where it changes the thread's end, which the card
+    // grows down to take: its reply row moves, and nothing above it. Elsewhere it would
+    // move the head row or the messages being read, so it waits. A settlement keeps the
+    // editor it interrupts on its own (`replyAvailable`).
+    if (this.#model?.surface === "margin") {
+      if (news.settled) return false;
+      const last = this.#model.messages.at(-1);
+      const atEnd =
+        (!news.appended || appendedAtEnd) &&
+        !news.summaries &&
+        [...changed].every((key) => key === last?.key) &&
+        (foot || (!folds.messages.length && !folds.summaries.length));
+      const placed = this.node.closest("[data-lf-thread-placement]");
+      const writing = writingIn(
+        this.#reply?.node.querySelector(TEXT_FIELD),
+        last?.author === "user" && last.pending,
+      );
+      return (
+        growthIsSeen(this.node) &&
+        (!atEnd || writing || placed?.dataset.lfThreadPlacement === "above")
+      );
+    }
     const idleFoot =
       this.#model?.surface === "panel" &&
       this.node.open &&
@@ -1051,7 +1080,11 @@ export class ThreadView {
     }
     this.#checkpoints = checkpoints;
     this.#markers = markers;
-    keeps(this.#transcript, "data-lf-reflow", panel ? "append" : null);
+    keeps(
+      this.#transcript,
+      "data-lf-reflow",
+      panel || model.surface === "margin" ? "append" : null,
+    );
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
     const body = html`
       ${

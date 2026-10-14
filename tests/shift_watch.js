@@ -34,7 +34,11 @@
 // parent. Controls and declared regions keep their actual boxes. Runtime-declared
 // bounded reflow retains its historical ownership, stationary-boundary and clipping
 // proof. An append region may carry following content inside its stationary
-// scrollport by its measured suffix growth; existing children retain their boxes.
+// scrollport by its measured suffix growth: new children, the existing ones retaining
+// their boxes, or, where none joins, its last child growing at its foot where that
+// child declares itself the growing tail (`data-lf-append-tail`). A scrollport
+// that grows at its foot by no more than that growth, as a floating card sized to its
+// thread does, is stationary for this: it keeps its other edges.
 // Layout coordinates remove scrolling; sticky descendants retain their
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
 // inside the `anchor-scope` that limits its name, and a direct native anchor inset,
@@ -1052,6 +1056,7 @@
         paddingTop: range ? null : pixels(style.paddingTop),
         paddingBottom: range ? null : pixels(style.paddingBottom),
         reflow: range ? null : node.getAttribute("data-lf-reflow"),
+        appendTail: !range && node.hasAttribute("data-lf-append-tail"),
         appendChildren,
         runtime: !range && node.matches(".lf-chrome, [data-lf-runtime]"),
         control: !range && node.matches(interactive),
@@ -1531,7 +1536,9 @@
   // Append declarations own a source, not all motion in a container. The retained
   // prefix proves that growth came after the old children; unchanged old boxes keep
   // a fold or a rewritten message from borrowing that growth. Only its normal-flow
-  // followers in the same stationary runtime scrollport may be carried by it.
+  // followers in the same stationary runtime scrollport may be carried by it. A
+  // scrollport sized to what it holds grows at its foot with that growth, keeping
+  // every other edge, and counts as stationary.
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];
     const first = around[0].at,
@@ -1542,36 +1549,49 @@
       );
       return rects.every(Boolean) && rects.every((rect) => !moved(rects[0], rect));
     };
+    // Whether `node` keeps every edge but its foot, which grows by no more than `by`.
+    const footGrowth = (node, by, screen = false) => {
+      const rects = around.map(({ at }) =>
+        screen ? boxAt(node, at) : layoutAt(node, at),
+      );
+      return (
+        rects.every(Boolean) &&
+        rects.every(
+          (rect) =>
+            ["left", "right", "top"].every(
+              (edge) => Math.abs(rect[edge] - rects[0][edge]) < 1,
+            ) &&
+            rect.bottom - rects[0].bottom > -1 &&
+            rect.bottom - rects[0].bottom < by + 1,
+        )
+      );
+    };
     return around[0].nodes.flatMap((source) => {
       const readings = around.map(({ at }) => paintAt(source, at));
       if (!readings.every((paint) => paint?.reflow === "append")) return [];
       const before = readings[0].appendChildren,
         after = readings[2].appendChildren;
+      const prior = layoutAt(source, first),
+        next = layoutAt(source, last);
+      if (!prior || !next || next.bottom - prior.bottom < 1) return [];
+      const grown = next.bottom - prior.bottom;
+      // The end grows: children join after the old ones, which keep their boxes, or,
+      // where none joins, the last old one grows at its foot where it declares itself
+      // the region's growing tail (`data-lf-append-tail`), as a thread's working
+      // message does, taking a longer step.
       if (
         !before.length ||
-        after.length <= before.length ||
+        after.length < before.length ||
         !before.every(
           (child, i) =>
             readings.every((paint) => paint.appendChildren[i] === child) &&
-            stable(child),
-        )
-      )
-        return [];
-      const prior = layoutAt(source, first),
-        next = layoutAt(source, last);
-      if (
-        !prior ||
-        !next ||
-        next.bottom - prior.bottom < 1 ||
-        !around.every(({ at }) => {
-          const box = layoutAt(source, at);
-          return (
-            box &&
-            ["left", "right", "top"].every(
-              (edge) => Math.abs(box[edge] - prior[edge]) < 1,
-            )
-          );
-        })
+            (stable(child) ||
+              (after.length === before.length &&
+                i === before.length - 1 &&
+                around.every(({ at }) => paintAt(child, at)?.appendTail) &&
+                footGrowth(child, grown))),
+        ) ||
+        !footGrowth(source, grown)
       )
         return [];
       const port = ancestryAt(source, first).find(
@@ -1580,7 +1600,7 @@
       if (
         !port ||
         port === document.scrollingElement ||
-        !stable(port, true) ||
+        !(stable(port, true) || footGrowth(port, grown, true)) ||
         !around.every(
           ({ at }) =>
             ancestryAt(source, at).includes(port) &&
@@ -1592,7 +1612,7 @@
         )
       )
         return [];
-      return [{ source, port, bottom: prior.bottom, by: next.bottom - prior.bottom }];
+      return [{ source, port, bottom: prior.bottom, by: grown }];
     });
   };
   const permittedAppend = (node, previousRect, currentRect, around, growth) => {

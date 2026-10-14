@@ -10064,6 +10064,20 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
         page.evaluate("() => { window.__deep.target.slot = 'deep'; }")
         rendered(page)
         assert page.evaluate(offset) == before
+    # A widget rendering its part attribute again takes the anchor's part with it, here
+    # from the box the scroller carries beside the target, which the runtime gives back
+    # before the row needs it.
+    if target_tree == "shadow":
+        page.evaluate(
+            "() => window.__deep.inner.firstElementChild.setAttribute('part', 'own')"
+        )
+        rendered(page)
+        page.evaluate("() => { window.__deep.inner.scrollTop = 10; }")
+        rendered(page)
+        kept = page.evaluate(offset)
+        assert kept["offset"] == pytest.approx(before["offset"], abs=1), kept
+        page.evaluate("() => { window.__deep.inner.scrollTop = 0; }")
+        rendered(page)
     # A mutation remeasures placement in the scroll's own task, before another
     # frame can sample its native translation. The row must keep following.
     page.evaluate("""() => {

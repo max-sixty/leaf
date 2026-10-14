@@ -44,6 +44,7 @@ import { nativeLayerHolding } from "./shadow-tree.js";
 import { watchArrivals } from "./arrivals.js";
 import { keeps, layoutPx } from "./keeps.js";
 import { move } from "./dom-move.js";
+import { chromeRoot } from "./chrome.js";
 
 // Anchor names are global to their tree, so one per target element, merged with whatever
 // name the author gave the same box. The name stays for the element's life: rows come and
@@ -61,8 +62,8 @@ import { move } from "./dom-move.js";
 // box deeper than that anchors through the host holding its tree in the first one
 // (`anchorElement`). A box its own tree already names keeps that name and anchors through
 // its host too: declared again from the document, the name would leave the tree using it.
-// A widget that renders its part attribute again takes the part away until the next pass
-// reading the box names it again; no shipped widget binds `part`.
+// A widget that renders its part attribute again takes the part away, and the tree's
+// watch gives it back in the same mutation checkpoint (`keepParts`).
 const anchorNames = new WeakMap();
 let anchorOrdinal = 0;
 const nextName = () => `--lf-a${++anchorOrdinal}`;
@@ -70,6 +71,19 @@ const partOf = (name) => name.slice(2);
 const partNamed = (el) => el.part.contains(partOf(anchorNames.get(el)));
 let partRules = null;
 const declared = new Set();
+const given = new WeakMap(); // element → the anchor parts it was given
+const watchedTrees = new WeakSet();
+const restoreParts = (el) => {
+  for (const part of given.get(el) ?? [])
+    if (!el.part.contains(part)) el.part.add(part);
+};
+function keepParts(root) {
+  if (watchedTrees.has(root)) return;
+  watchedTrees.add(root);
+  new MutationObserver((records) => {
+    for (const { target } of records) restoreParts(target);
+  }).observe(root, { subtree: true, attributes: true, attributeFilter: ["part"] });
+}
 // Names `el`, or its `::before` where `pseudo` says so, through the part `name` spells.
 function namePart(el, name, pseudo = "") {
   if (!partRules) {
@@ -84,7 +98,9 @@ function namePart(el, name, pseudo = "") {
     );
     declared.add(name);
   }
-  if (!el.part.contains(partOf(name))) el.part.add(partOf(name));
+  given.set(el, new Set([...(given.get(el) ?? []), partOf(name)]));
+  keepParts(el.getRootNode());
+  restoreParts(el);
 }
 /** @returns {{el: any, name: string, write?: string, part?: boolean}} */
 export function anchorReading(el, name = anchorNames.get(el) ?? nextName()) {
@@ -126,8 +142,11 @@ function nameable(el) {
 }
 
 // The box a row or a float anchors to. A target inside an author's `anchor-scope: all`
-// anchors through the box holding the outermost such scope, since a name declared inside
-// one reaches nothing outside it; a target in a shadow tree anchors as itself where the
+// in the document that does not also hold the chrome anchors through the box holding the
+// outermost such scope, since a name declared inside one reaches nothing outside it. That
+// box does not follow a sticky or fixed box inside the scope, which the author's scope
+// keeps from every box outside it. A scope in a shadow tree limits that tree's names, not
+// the document's. A target in a shadow tree anchors as itself where the
 // document can name it (`nameable`), and otherwise through the host holding its tree; a
 // shape inside an SVG drawing has no CSS box of its own, so it anchors through the
 // drawing; a `display: contents` target through its first shown part. Wherever it
@@ -137,7 +156,12 @@ function outsideScopes(target) {
   let el = target;
   if (SCOPES)
     for (let at = target; at instanceof Element; at = renderedParent(at))
-      if (getComputedStyle(at).anchorScope === "all") el = renderedParent(at) ?? at;
+      if (
+        at.getRootNode() === document &&
+        !at.contains(chromeRoot) &&
+        getComputedStyle(at).anchorScope === "all"
+      )
+        el = renderedParent(at) ?? at;
   return el;
 }
 export function anchorElement(target) {

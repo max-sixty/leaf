@@ -81,6 +81,40 @@ default watch.
 
 </details>
 
+<details>
+<summary>Agent sandboxes</summary>
+
+Leaf's hooks run outside an agent's sandbox, but `leaf` commands run wherever the
+agent's shell commands do. The sandboxes of Claude Code and Codex refuse those
+commands what they need: writes to Leaf's state in `~/.local/state/leaf`, a port on
+localhost for the page server, and a browser for render checks. On Linux, Claude
+Code's sandbox also hides the session's process from them and ends the server when
+the command returns. The agent can rerun each refused command outside the
+sandbox, asking you first.
+
+To have `leaf` commands run outside the sandbox without asking, add this to Claude
+Code's settings, such as `~/.claude/settings.json`:
+
+```json
+{
+  "sandbox": { "excludedCommands": ["leaf *"] },
+  "permissions": { "allow": ["Bash(leaf *)"] }
+}
+```
+
+For Codex, add a rules file, such as `~/.codex/rules/leaf.rules`, and restart Codex:
+
+```
+prefix_rule(pattern = ["leaf"], decision = "allow")
+```
+
+Either one runs `leaf` with your own access, as Leaf's hooks already run, while the
+agent chooses its arguments, such as the directory `page init` writes to. Both
+apply only where the whole command line is `leaf` commands, so one chained after
+`cd` or piped into another program stays in the sandbox.
+
+</details>
+
 ## Explore and extend
 
 - [How it works](https://leaf.page/how-it-works/): comments, decisions, live

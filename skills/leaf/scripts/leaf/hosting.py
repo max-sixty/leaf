@@ -565,7 +565,7 @@ def cmd_serve(
                         (access["bind"], access.get("port", 0)), endpoint
                     )
                 except OSError as error:
-                    raise Refused(f"can't serve {page_dir}: {error}")
+                    raise Refused(f"can't serve {page_dir}: {error}") from error
                 lease.write(httpd.server_id.encode())
                 lease.flush()
                 rows = RowPublisher(page_dir, httpd.server_id)

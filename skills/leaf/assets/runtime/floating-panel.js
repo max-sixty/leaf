@@ -53,8 +53,9 @@
  * draft, caret and send), and the panel stands the current one in the field's place, so
  * words never move between editors.
  *
- * Nothing moves under the pointer: a filtered inventory keeps its height, and a control
- * the user pressed stays where it was. Every change of the box's size takes effect in
+ * Nothing moves under the pointer: a filtered inventory keeps its height, the leaf's
+ * menu holds what it showed while it stands, and a control the user pressed stays where
+ * it was. Every change of the box's size takes effect in
  * one step, and the surface behind it, a separate layer, follows by a clip from where it
  * stood to where it stands, the way the Codex app's floating panel moves
  * (`notes/floating-panel/GOAL.md`): nothing's layout tweens, so nothing a user aims at
@@ -510,6 +511,7 @@ export function createFloatingPanel({
   function setMenu(on) {
     if (menuOpen === on) return;
     menuOpen = on;
+    held = null;
     paint();
   }
 
@@ -601,6 +603,38 @@ export function createFloatingPanel({
     const view = stage.querySelector(".lf-fp-view:not([data-leaving])");
     if (!view || view.querySelector(".lf-fp-asked:empty")) return false;
     rooms.set(routeKey(top), view.offsetHeight);
+    return true;
+  }
+  // The leaf's menu stands on the leaf and grows upward, so anything news adds to it, or
+  // takes from it, carries everything above up or down the window: a row a revision
+  // offers, such as the newer version, or a status re-wrapping the head. So while the
+  // menu stands it holds what it showed with the first status it said (Connecting… is
+  // not yet one). Its rows keep their seats: a row news takes off offer stands
+  // disabled, and one news offers joins at the next opening. Each part of its head under
+  // the word keeps its lines: a later status re-wraps inside them, ending in an ellipsis
+  // where it runs past them; a part the first status lacked stays out, and one a later
+  // status lacks stands blank. Reopening the menu shows everything as it is. Rejected:
+  // holding the head's height and scrolling what runs past it, which still moves the
+  // words a re-wrap carries across its edge, and the same lines for every status, which
+  // leaves most heads blank.
+  let held = null;
+  // The menu's seats as last drawn, each a row's key and how to draw it, `gone` once
+  // news has taken it off offer.
+  let seats = [];
+  function holdMenu() {
+    if (!menuOpen || held !== null || !statusReading()) return false;
+    const state = menu.querySelector(".lf-fp-state");
+    if (!state) return false;
+    const lines = (part) => {
+      const line = state.querySelector(`.lf-fp-${part}`);
+      return line
+        ? Math.round(
+            line.getBoundingClientRect().height /
+              Number.parseFloat(getComputedStyle(line).lineHeight),
+          )
+        : 0;
+    };
+    held = { summary: lines("summary"), explain: lines("explain"), seats };
     return true;
   }
   function transition(before, { focus = true } = {}) {
@@ -772,24 +806,49 @@ export function createFloatingPanel({
     // is reached by pointer, key and finger alike.
     const { tone, summary, adds } = status();
     const word = TONE_WORDS[tone];
-    return html`<div class="lf-fp-state" role="none" data-tone=${tone || nothing}>
-        <b>${word ?? summary}</b>${word ? html`<span>${summary}</span>` : nothing}${
-          adds ? html`<span class="lf-fp-explain">${adds}</span>` : nothing
-        }
+    const part = (name, text) =>
+      (held ? held[name] : text)
+        ? html`<span
+            class="lf-fp-${name}"
+            style=${held ? `--lines: ${held[name]}` : nothing}
+            >${text}</span
+          >`
+        : nothing;
+    const seat = (entry) => ({
+      key: entry.key,
+      draw: (gone) => rowFor(gone ? { ...entry, disabled: true } : entry),
+    });
+    const offered = [
+      ...page.map(seat),
+      ...groups.map((group) => ({
+        key: `group:${group}`,
+        draw: (gone) =>
+          menuItem(
+            GROUPS[group],
+            groupValue(group)
+              ? html`<span class="lf-fp-value">${groupValue(group)}</span>`
+              : nothing,
+            () => open({ view: "group", group }),
+            { opens: true, disabled: gone },
+          ),
+      })),
+      { key: "", draw: () => html`<hr />` },
+      ...[keyboard, fold].filter(Boolean).map(seat),
+    ];
+    const now = new Map(offered.map((row) => [row.key, row]));
+    seats = held?.seats ?? offered;
+    return html`<div
+        class="lf-fp-state"
+        role="none"
+        data-tone=${tone || nothing}
+        ?data-held=${held !== null}
+      >
+        <b>${word ?? summary}</b>${part("summary", word ? summary : "")}${part(
+          "explain",
+          adds,
+        )}
       </div>
-      ${page.map(rowFor)}
-      ${groups.map((group) =>
-        menuItem(
-          GROUPS[group],
-          groupValue(group)
-            ? html`<span class="lf-fp-value">${groupValue(group)}</span>`
-            : nothing,
-          () => open({ view: "group", group }),
-          { opens: true },
-        ),
-      )}
-      <hr />
-      ${keyboard ? rowFor(keyboard) : nothing} ${fold ? rowFor(fold) : nothing}`;
+      ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
   }
   const groupValue = (group) =>
     group === "annotate"
@@ -1484,6 +1543,7 @@ export function createFloatingPanel({
     prefs().set("rest", rest);
     trail = [];
     menuOpen = false;
+    held = null;
     transition(before, { focus: false });
     if (inside) focusDestination(leaf, "return");
   }
@@ -1504,7 +1564,7 @@ export function createFloatingPanel({
     painting = true;
     try {
       paintNow();
-      if (holdRoom()) paintNow();
+      if ([holdRoom(), holdMenu()].some(Boolean)) paintNow();
     } finally {
       painting = false;
     }

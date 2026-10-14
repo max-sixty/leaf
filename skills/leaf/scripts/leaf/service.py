@@ -27,7 +27,7 @@ from leaf.event_log import (
     read_cursor,
 )
 from leaf.files import read_json, unfinished_publications
-from leaf.machine import pid_alive, state_home
+from leaf.machine import pid_alive, sandbox_remedy, state_home
 from leaf.refusals import Refused
 from leaf.schema import STATUS_FILE
 from leaf.state import (
@@ -165,6 +165,16 @@ def claim_is_active(claim: dict | None) -> bool:
     if claim.get("chat") is True:
         return chat_exists(record)
     return "pid" in claim and pid_alive(claim["pid"])
+
+
+def dead_session(claim: dict) -> str:
+    """Why a claim just prepared has no live session. Its session can end between
+    preparing and publishing, but where a sandbox runs the command in a process
+    namespace of its own, as Claude Code's does on Linux, the session's process
+    was never visible to it, and only a command run outside the sandbox can claim."""
+    if "pid" in claim and not pid_alive(claim["pid"]) and (remedy := sandbox_remedy()):
+        return f"the session's process ({claim['pid']}) is not visible here: {remedy}"
+    return "the prepared acquisition no longer has a live session"
 
 
 def claim_names_session(claim: dict | None, session_id: str) -> bool:
@@ -353,7 +363,7 @@ class PageTransaction:
         with flocked(session_lock_path(claim["id"])):
             projected = readable_claim(claim)
             if not claim_is_active(projected):
-                raise Refused("the prepared acquisition no longer has a live session")
+                raise Refused(dead_session(projected))
             previous = self.claim
             yield previous, projected
             publish_claim(self.page_dir, claim)

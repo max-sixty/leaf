@@ -33,6 +33,7 @@ export {
   seenRect,
   growthAfterIsSeen,
   stuckBox,
+  stackLevel,
 } from "./geometry.js";
 export { renderedParent, uiInside, upFrom } from "./shadow.js";
 export {

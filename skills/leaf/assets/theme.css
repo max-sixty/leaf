@@ -385,6 +385,7 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
 }
 main {
   position: relative;
+  z-index: 0;
   container-name: lf-content-frame;
   --lf-free-l: 0px;
   --lf-free-r: 0px;

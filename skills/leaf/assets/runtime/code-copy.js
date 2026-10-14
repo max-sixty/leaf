@@ -12,6 +12,10 @@
    keeps its own Enter (`nativeActivationAt`), and a document block's control stays out
    of the Tab sequence. Focus need not be on the control, so every copy's result also
    takes the status line.
+   A document block's control passes under the sticky headers the page declares over its
+   block, as the block's own words do, standing in the frames that cut every box
+   following scrolled content (css-anchors.js, `headerLevels`), so a block scrolled
+   under a stuck toolbar offers no Copy over the toolbar's controls.
    The control follows the common pattern for code copy: hidden at rest, so it covers no
    words, and shown while a pointer is over the block or the user stands on it. A finger
    has no hover, so a tap on the block stands the user on it and shows the control in
@@ -22,6 +26,8 @@ import { copyControl } from "./copy-control.js";
 import { watchArrivals } from "./arrivals.js";
 import {
   anchorReading,
+  cutFrames,
+  headerLevels,
   nameAnchor,
   anchorView,
   refreshAnchorView,
@@ -30,11 +36,45 @@ import { focusDestination, onStanding } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { chromeRoot } from "./chrome.js";
 import { move } from "./dom-move.js";
+import { nextRender } from "./rendering.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
 
 const controls = new WeakMap();
 const wired = new WeakMap();
+// The frames each document control stands in, under its block's sticky headers.
+const cuts = new WeakMap();
+const makeCut = () => {
+  const frame = document.createElement("div");
+  frame.className = "lf-code-copy-cut";
+  return frame;
+};
+// Stands a document control in the frames its block's headers cut (`headerLevels`),
+// read again each time the control is revealed and once a frame after a resize, since a
+// header can come, go or change height while the control shows or while it hides.
+const placed = new Map(); // document control → its block
+let resized = 0;
+addEventListener("resize", () => {
+  resized ||= nextRender(() => {
+    resized = 0;
+    // Every reading before any write, as on arrival.
+    const read = [...placed].map(([copy, pre]) => [copy, pre, headerLevels(pre)]);
+    for (const [copy, pre, levels] of read) standUnderHeaders(copy, pre, levels);
+  });
+});
+function standUnderHeaders(copy, pre, levels) {
+  const frames = cutFrames(levels, cuts.get(copy) ?? [], makeCut);
+  cuts.set(copy, frames);
+  placed.set(copy, pre);
+  if (frames[0] && frames[0].parentNode !== chromeRoot)
+    move(chromeRoot, frames[0], null);
+  const home = frames.at(-1) ?? chromeRoot;
+  if (copy.parentNode !== home) move(home, copy, null);
+}
+const revealed = (pre, copy) => {
+  if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
+  refreshAnchorView(copy);
+};
 // The key this module projects its Copy scope under, beside the block's other owners.
 const COPY_SCOPE = Symbol("code copy");
 
@@ -57,7 +97,7 @@ addEventListener(
 onStanding((node) => {
   for (let at = node; at; at = upFrom(at)) {
     const copy = controls.get(at);
-    if (copy) return refreshAnchorView(copy);
+    if (copy) return revealed(at, copy);
   }
 });
 
@@ -84,7 +124,7 @@ function prepareCodeBlock(pre, source, noun) {
       if (event.pointerType === "touch" && copy.isConnected)
         focusDestination(pre, "move");
     });
-    pre.addEventListener("pointerenter", () => refreshAnchorView(copy));
+    pre.addEventListener("pointerenter", () => revealed(pre, copy));
     controls.set(pre, copy);
   }
   const place = () =>
@@ -134,20 +174,22 @@ export function watchCodeBlocks() {
         .filter((pre) => pre.getRootNode() === document)
         .map(
           (pre) =>
-            /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>]} */ ([
+            /** @type {[HTMLElement, ReturnType<typeof prepareCodeBlock>, any[]]} */ ([
               pre,
               prepareCodeBlock(
                 pre,
                 () => pre.querySelector(":scope > code").textContent,
                 "code",
               ),
+              headerLevels(pre),
             ]),
         );
-      for (const [pre, pending] of prepared) {
+      for (const [pre, pending, levels] of prepared) {
         const copy = positionCodeBlock(pending);
         // Keep the page's authored sibling and child selectors intact. The anchor
-        // still positions this control at its source when it lives in chrome.
-        if (copy.parentNode !== chromeRoot) move(chromeRoot, copy, null);
+        // still positions this control at its source when it lives in chrome, in the
+        // frames its block's headers cut.
+        standUnderHeaders(copy, pre, levels);
         copy.tabIndex = -1;
         claimReachStop(pre);
         if (!wired.has(pre)) {
@@ -194,6 +236,9 @@ export function watchCodeBlocks() {
       if (copy?.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
         copy.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
       copy?.remove();
+      cuts.get(copy)?.[0]?.remove();
+      cuts.delete(copy);
+      placed.delete(copy);
       releaseReachStop(pre);
       projectCommandScope(pre, COPY_SCOPE, null);
     },

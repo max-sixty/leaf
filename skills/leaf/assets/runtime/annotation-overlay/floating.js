@@ -34,6 +34,10 @@
    does not. In the region's and the window's planes the answer depends on where the
    words stand inside what holds the box in, so each scroll around them solves it again.
    The box stays fixed, so native focus never scrolls the page under it.
+   Unlike the margin's rows and Copy, the surface stays over the sticky headers a page
+   declares rather than passing under them (css-anchors.js, `headerLevels`): it is where
+   the user is writing or reading a reply, and words scrolled under a stuck toolbar
+   would take the editor with them, out of reach until the user scrolled back.
 
    In either plane the box stands by the edges that hold it, one per axis (`held`). On
    the axis its placement stands it beside something, that is the edge facing it; on the

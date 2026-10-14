@@ -7784,6 +7784,7 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     expect(disclosure).to_have_text("Show 3 progress messages")
     rendered(page)
     pressed = disclosure.bounding_box()
+    compact = preview.bounding_box()
 
     if how == "key":
         disclosure.focus()
@@ -7796,6 +7797,21 @@ def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
     after = disclosure.bounding_box()
     assert (after["x"], after["y"]) == pytest.approx(
         (pressed["x"], pressed["y"]), abs=0.5
+    )
+
+    expanded = preview.bounding_box()
+    assert expanded["height"] > compact["height"]
+    if how == "key":
+        page.keyboard.press("Enter")
+    else:
+        disclosure.click()
+    expect(disclosure).to_have_text("Show 3 progress messages")
+    rendered(page)
+    assert preview.bounding_box()["height"] == pytest.approx(compact["height"], abs=0.5)
+    expect(disclosure).to_be_focused()
+    collapsed = disclosure.bounding_box()
+    assert (collapsed["x"], collapsed["y"]) == pytest.approx(
+        (after["x"], after["y"]), abs=0.5
     )
 
     close = preview.get_by_role("button", name="Dismiss thread view", exact=True)
@@ -10200,6 +10216,73 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
     margins_laid_out(page)
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
     expect(row).to_be_visible()
+
+
+STRIP_FILL = "".join(
+    f"<p>Filler paragraph {n}, a line of reading.</p>" for n in range(40)
+)
+STRIP_PIN_PAGE = leaf_page(
+    "a pin under a stuck tab strip",
+    f"""
+<lf-tabs id="views">
+  <lf-tab id="first-view" label="First">
+    {STRIP_FILL[:600]}<p id="under-strip">A finding the strip will stand over.</p>
+    <pre id="under-code"><code>let answer = 42;
+let question = unknown;</code></pre>{STRIP_FILL}
+  </lf-tab>
+  <lf-tab id="second-view" label="Second"><p>Second.</p></lf-tab>
+</lf-tabs>
+""",
+    layout=None,
+)
+
+
+def test_a_pin_and_copy_pass_under_a_stuck_tab_strip(browser, serve):
+    """A page's tab strip is a declared sticky header, and what scrolls under it passes
+    under it: a pin whose target scrolls under the stuck strip is cut at the strip's
+    foot, as the target's words are, so a press on the strip there reaches the strip,
+    and so is a code block's Copy."""
+    page = open_page(
+        browser, serve(STRIP_PIN_PAGE, events=[_comment_on("under-strip")])
+    )
+    resized(page, 1280, 800)
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="under-strip"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    under = """selector => {
+      const strip = document.querySelector('#views .lf-tabstrip');
+      const box = document.querySelector(selector);
+      const t = box.getBoundingClientRect(), s = strip.getBoundingClientRect();
+      const hit = document.elementFromPoint((t.left + t.right) / 2, s.bottom - 4);
+      return {top: t.top, strip: [s.top, s.bottom], hitStrip: strip.contains(hit),
+              below: box.contains(document.elementFromPoint(
+                (t.left + t.right) / 2, Math.min(t.bottom, s.bottom + 4) - 1))};
+    }"""
+    page.evaluate("""() => {
+      const strip = document.querySelector('#views .lf-tabstrip');
+      const t = document.getElementById('under-strip').getBoundingClientRect();
+      window.scrollBy(0, t.top - strip.getBoundingClientRect().bottom + 10);
+    }""")
+    rendered(page)
+    pin = page.evaluate(under, '[data-lf-margin-for="under-strip"]')
+    assert pin["strip"][0] < pin["top"] < pin["strip"][1], pin
+    assert pin["hitStrip"], pin
+    assert pin["below"], pin
+
+    page.evaluate("""() => {
+      const strip = document.querySelector('#views .lf-tabstrip');
+      const t = document.getElementById('under-code').getBoundingClientRect();
+      window.scrollBy(0, t.top - strip.getBoundingClientRect().top - 20);
+    }""")
+    rendered(page)
+    code = page.locator("#under-code").bounding_box()
+    page.mouse.move(code["x"] + 30, code["y"] + code["height"] - 4)
+    expect(page.locator(".lf-code-copy")).to_have_class(
+        re.compile("lf-code-copy-hover")
+    )
+    copy = page.evaluate(under, ".lf-code-copy")
+    assert copy["strip"][0] < copy["top"] < copy["strip"][1], copy
+    assert copy["hitStrip"], copy
 
 
 def test_a_pane_row_withheld_at_load_stands_once_its_target_scrolls_in(browser, serve):

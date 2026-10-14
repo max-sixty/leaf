@@ -977,9 +977,6 @@
     :is(.lf-floating-panel, .lf-fp-ground) {
       --lf-fp-width: calc(100vw - 20px - var(--lf-safe-left) - var(--lf-safe-right));
     }
-    .lf-fp-keys {
-      display: none;
-    }
     .lf-floating-panel[data-rest="mark"] {
       right: calc(16px + var(--lf-safe-right));
     }

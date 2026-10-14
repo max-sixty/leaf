@@ -137,6 +137,36 @@ test("a mark recoloured in place is in the both mask", () => {
   assert.deepEqual([at("before"), at("after"), at("both")], [0, 0, 255]);
 });
 
+test("a run with only what it encloses unchanged stands on no ground, in the both mask", () => {
+  // The whole image recoloured, and the same with one pixel inside it kept: the kept
+  // pixel is inside the run, not around it.
+  const white = blank(5, 5);
+  const black = painted(white, [0, 0, 5, 5]);
+  const kept = painted(white, [2, 2, 1, 1]);
+  for (const [was, went] of [
+    [white, black],
+    [kept, black],
+    [black, kept],
+  ]) {
+    const masks = changedPixels(was, went);
+    const at = (mask) => masks[mask][3];
+    assert.deepEqual([at("before"), at("after"), at("both")], [0, 0, 255]);
+  }
+});
+
+test("a mark spanning the frame stands on the ground left in its corners", () => {
+  // A cross from edge to edge: the corners it leaves are ground joined to the edge.
+  const white = blank(5, 5);
+  const cross = painted(white, [2, 0, 1, 5], [0, 2, 5, 1]);
+  const at = (masks, mask) => masks[mask][(0 * 5 + 2) * 4 + 3];
+  const added = changedPixels(white, cross);
+  const removed = changedPixels(cross, white);
+  assert.deepEqual(
+    [at(added, "after"), at(removed, "before"), at(added, "both")],
+    [255, 255, 0],
+  );
+});
+
 test("content that changed in place is outlined in both frames, whole", async () => {
   // A word becomes a longer word; the line beside it stays.
   const line = painted(page(300, 100), [200, 20, 30, 10]);

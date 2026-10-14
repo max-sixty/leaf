@@ -40,7 +40,7 @@ from PIL import Image, ImageDraw
 
 from leaf_dev import ROOT
 from leaf_dev.arms import base_ref, build_arm, run_directory, serving_source
-from leaf_dev.browser import headless_shell, load, tab
+from leaf_dev.browser import headless_shell, load, tab, use_linux_fonts
 
 OUT = ROOT / ".tmp" / "pins"
 # The report every run rewrites, so a preview of it follows each run as a revision of
@@ -262,7 +262,7 @@ CASES = (
         "scroll-pane",
         "A narrow paragraph at the top of a short bounded block, which scrolls.",
         '<div data-bound="start" style="height:120px;border:1px solid var(--rule)">'
-        f'<p id="scroll-pane-p" style="max-width:30ch">{WORDS}</p>'
+        f'<p id="scroll-pane-p" style="max-width:260px">{WORDS}</p>'
         f"<p>{WORDS}</p></div>",
         ({"section": "scroll-pane-p"},),
     ),
@@ -271,7 +271,7 @@ CASES = (
         "A narrow paragraph a short bounded block shows only the top of, below another.",
         '<div data-bound="start" style="height:120px;border:1px solid var(--rule)">'
         "<p>Placement reads the room.</p>"
-        f'<p id="scroll-pane-cut-p" style="max-width:30ch">{WORDS} {MORE}</p>'
+        f'<p id="scroll-pane-cut-p" style="max-width:260px">{WORDS} {MORE}</p>'
         f"<p>{WORDS}</p></div>",
         ({"section": "scroll-pane-cut-p"},),
     ),
@@ -670,6 +670,7 @@ add its shape here as a case.</p>
 )
 def pins(base) -> None:
     """Seat every pin case on this working tree, and write a Leaf page of crops."""
+    use_linux_fonts()
     OUT.mkdir(parents=True, exist_ok=True)
     out = run_directory(OUT)
     with tempfile.TemporaryDirectory(prefix="leaf-pins-") as built:

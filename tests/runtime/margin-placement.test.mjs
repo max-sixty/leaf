@@ -207,6 +207,22 @@ test("a pin that finds every seat taken by pins before it stands below them", ()
   assert.deepEqual(short.get("card").rect, corner);
 });
 
+test("a pin crowded off its seats takes the less covered of slid aside and pushed below", () => {
+  // A pin already stands in the corner and a control above it; words run to 300px.
+  const heading = box(24, 60, 366, 96);
+  const words = box(24, 104, 300, 140);
+  const crowded = (occupied) =>
+    seatRows([pin({ cover: [heading, words], controls: [heading] })], {
+      gap: 4,
+      occupied,
+    }).get("card").rect;
+  // Slid left it would cover the words' end; pushed below the other pin, nothing.
+  assert.deepEqual(crowded([corner]), box(318, 148, 362, 192));
+  // Pushed past the room read below the target, what it covers is unknown, so the pin
+  // takes the slid seat.
+  assert.deepEqual(crowded([corner, box(318, 148, 362, 192)]), box(270, 100, 314, 144));
+});
+
 // The same card's pin folded to its one control, opening leftward to 140px.
 const folds = {
   seats: [outside, corner, above].map((seat) => ({ ...seat, left: seat.right - 44 })),

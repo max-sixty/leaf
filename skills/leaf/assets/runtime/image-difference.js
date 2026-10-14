@@ -645,11 +645,15 @@ const FAR = 2 * SLIGHT;
  * at twice SLIGHT, so the soft edge of a moved mark fades as the image's own edge does
  * rather than stepping, which an enlarged view would draw as blocks. Which mask holds a
  * changed pixel says which image draws something there. Each run of touching changed
- * pixels stands on a ground, the commonest colour among the unchanged pixels touching
- * it, or the after image's commonest colour where none does. A pixel only `a` draws, unlike that ground while `b` shows it,
- * is in `before`; one only `b` draws is in `after`; one both draw, as a recolour, or
- * neither, as a redrawn shadow, is in `both`. So a mark that moved is in `before` where
- * it was and in `after` where it went, whatever the theme. A pixel only one image has is
+ * pixels stands on a ground, the commonest colour among the unchanged pixels around it:
+ * those touching it that an unchanged path joins to the frame's edge. An unchanged
+ * pixel the changes enclose, such as a mark that kept its colour inside a recoloured
+ * background, is not around the run but inside it, so it is no ground. A pixel only `a`
+ * draws, unlike that ground while `b` shows it, is in `before`; one only `b` draws is in
+ * `after`; one both draw, as a recolour, or neither, as a redrawn shadow, is in `both`,
+ * as is every pixel of a run with no ground, which nothing tells which image draws. So
+ * a mark that moved is in `before` where it was and in `after` where it went, whatever
+ * the theme. A pixel only one image has is
  * that image's. Takes what `differingRegions` takes. A reader paints its own colours
  * through the masks, so the picture follows the theme. */
 export function changedPixels(a, b) {
@@ -666,11 +670,36 @@ export function changedPixels(a, b) {
     after: new Uint8ClampedArray(width * height * 4),
     both: new Uint8ClampedArray(width * height * 4),
   };
+  // The unchanged pixels an unchanged path joins to the frame's edge.
+  const around = new Uint8Array(width * height);
+  const reached = [];
+  for (let i = 0; i < change.length; i += 1) {
+    const x = i % width;
+    const y = (i - x) / width;
+    const edge = x === 0 || y === 0 || x === width - 1 || y === height - 1;
+    if (edge && !change[i]) {
+      around[i] = 1;
+      reached.push(i);
+    }
+  }
+  for (let n = 0; n < reached.length; n += 1) {
+    const i = reached[n];
+    const x = i % width;
+    for (const j of [
+      x > 0 ? i - 1 : -1,
+      x < width - 1 ? i + 1 : -1,
+      i - width,
+      i + width,
+    ]) {
+      if (j < 0 || j >= change.length || change[j] || around[j]) continue;
+      around[j] = 1;
+      reached.push(j);
+    }
+  }
   const seen = new Uint8Array(width * height);
-  let whole;
   for (let start = 0; start < change.length; start += 1) {
     if (!change[start] || seen[start]) continue;
-    // The run's ground is the commonest colour among the unchanged pixels touching it,
+    // The run's ground is the commonest colour among the unchanged pixels around it,
     // so a rule along one side of it does not outvote the fill around the rest.
     const run = [start];
     seen[start] = 1;
@@ -695,6 +724,7 @@ export function changedPixels(a, b) {
           }
           continue;
         }
+        if (!around[j]) continue;
         // Unchanged, so both images have this pixel and agree on it.
         const q = other[ny * b.width + nx];
         const count = (counts.get(q) ?? 0) + 1;
@@ -702,16 +732,17 @@ export function changedPixels(a, b) {
         if (ground === undefined || count > counts.get(ground)) ground = q;
       }
     }
-    ground ??= whole ??= commonest(other);
     for (const i of run) {
       const x = i % width;
       const y = (i - x) / width;
       const p = x < a.width && y < a.height ? one[y * a.width + x] : undefined;
       const q = x < b.width && y < b.height ? other[y * b.width + x] : undefined;
       const drawsA =
-        q === undefined || (p !== undefined && distance(p, ground) >= SLIGHT);
+        q === undefined ||
+        (p !== undefined && (ground === undefined || distance(p, ground) >= SLIGHT));
       const drawsB =
-        p === undefined || (q !== undefined && distance(q, ground) >= SLIGHT);
+        p === undefined ||
+        (q !== undefined && (ground === undefined || distance(q, ground) >= SLIGHT));
       const mask = drawsA === drawsB ? masks.both : drawsA ? masks.before : masks.after;
       const far =
         p === undefined || q === undefined ? FAR : Math.min(distance(p, q), FAR);
@@ -719,18 +750,6 @@ export function changedPixels(a, b) {
     }
   }
   return { width, height, ...masks };
-}
-
-// The commonest colour among `pixels`.
-function commonest(pixels) {
-  const counts = new Map();
-  let best = pixels[0];
-  for (const p of pixels) {
-    const count = (counts.get(p) ?? 0) + 1;
-    counts.set(p, count);
-    if (count > counts.get(best)) best = p;
-  }
-  return best;
 }
 
 /* Which of four readings a difference is: "identical", "throughout", "slight" (it

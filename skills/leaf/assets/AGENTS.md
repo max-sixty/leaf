@@ -156,9 +156,9 @@ representative desktop viewport.
 - **Generated interface first appears in its settled position.** Reserve space before
   a generated control appears. Transient feedback may repaint a control or briefly
   replace its label but never changes its geometry (`data-lf-room`, `controls.css`,
-  sizes a label for all its words). An action awaiting confirmation dims its
-  existing control after the shared delay. The parent laying out adjacent actions gives
-  them disjoint hit boxes.
+  holds a label at the room of its words and cuts words past it). An action awaiting
+  confirmation dims its existing control after the shared delay. The parent laying out
+  adjacent actions gives them disjoint hit boxes.
 - **An unlikely event fits into what is already there.** Reserve no room for a state
   the user rarely meets, such as a failed save or another writer changing a file.
   Show it in a surface that already stands and already has room, such as a status
@@ -214,12 +214,12 @@ representative desktop viewport.
 ### Motion
 
 - **Animations are restrained and finite, and acknowledge state changes.** An
-  unchanged state does not animate continuously. One sheen is the only continuous
-  animation, and it marks work under way: across “Generating title” on an untitled thread
-  awaiting the agent (`styles/chrome.css`), across a thread's working message while the
-  agent's work on it runs (`styles/components/surfaces.css`), and across the floating
-  panel's empty field while it says the agent is working (`styles/floating-panel.css`).
-  It stops when that state ends, and is static under reduced motion.
+  unchanged state does not animate continuously. One sheen, `@keyframes lf-sheen` in
+  `styles/components/surfaces.css`, is the only continuous animation, and it marks work
+  under way: across “Generating title” on an untitled thread awaiting the agent, across
+  a thread's working message while the agent's work on it runs, and across the floating
+  panel's empty field while it says the agent is working. It stops when that state ends,
+  and is static under reduced motion.
 - **Nothing the user must read, press, or decide waits on a clock.** Motion runs from
   a state that is already true, and motion that must finish before the result can be
   read is a pause. A motion the user waits on stays under 300ms; one that moves
@@ -366,7 +366,7 @@ it, and shape the markup and CSS so the runtime uses its answer:
 
 | Question | The browser feature that answers it |
 | --- | --- |
-| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, a label's room drawn invisibly beside its words (`data-lf-room`) |
+| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, a label's room drawn invisibly over its words, which fill it and are cut past it (`data-lf-room`) |
 | Where a box stands against another box or the scroller holding it | the containing block, sticky positioning, anchor positioning, scroll timelines |
 | Which of Leaf's surfaces paints over which, and that the page paints beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0 |
 | Whether a box is rendered at all | `checkVisibility` |

@@ -95,6 +95,9 @@ from render_harness import (
     write,
 )
 
+from browser.test_render_floating_panel import field as floating_field
+from browser.test_render_floating_panel import floating
+
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
@@ -3077,6 +3080,44 @@ def paste_image(field, pixels, *, count=1):
             {"encoded": base64.b64encode(pixels).decode(), "count": count},
         )
     expect(field).not_to_have_attribute("aria-busy", "true")
+
+
+@pytest.mark.parametrize("chrome", ["card", "floating"])
+def test_a_draft_s_image_closes_back_to_the_draft(browser, serve, chrome):
+    """Opening a draft's attached image and closing it, by Escape, the close control or
+    a press outside, returns the user to the draft with its words and picture. The page
+    comment card is an auto popover, which modal entry dismisses unless the modal stands
+    in it; the floating panel puts a thread's view away on a press it reads as outside
+    it, and with it the reply being written."""
+    url = serve(LONG_PAGE)
+    if chrome == "card":
+        page = open_page(browser, url)
+        page.keyboard.press("c")
+        box = page.locator(".lf-page-comment-card leaf-text")
+    else:
+        panel_comment(serve.page_dir, "Can you show me the fault?")
+        page = floating(browser, url)
+        page.locator("body").focus()
+        page.keyboard.press("t")
+        expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
+        box = floating_field(page)
+    write(box, "See the fault")
+    paste_image(box, (example_media() / "051bee487bfb5d13.png").read_bytes())
+    thumbnail = page.get_by_role("button", name="View attached image 1", exact=True)
+    viewer = page.get_by_role("dialog", name="Image preview")
+
+    for dismiss in (
+        lambda: page.keyboard.press("Escape"),
+        lambda: viewer.get_by_role("button", name="Close image preview").click(),
+        lambda: page.mouse.click(8, 400),
+    ):
+        thumbnail.click()
+        expect(viewer).to_be_visible()
+        dismiss()
+        expect(viewer).to_be_hidden()
+        expect(thumbnail).to_be_focused()
+        expect(box).to_be_visible()
+        expect(box).to_have_js_property("value", "See the fault")
 
 
 def test_original_image_link_has_a_standalone_target(browser, serve):
@@ -6583,6 +6624,49 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
     ), "the manual hold disabled native anchoring after its mutation ended"
 
 
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_a_fold_frame_by_frame_keeps_the_card_below_on_its_pixel(
+    engine, request, serve
+):
+    """A card folding above the reader shrinks a little each frame, and each frame's
+    correction lands within the pixel the engine rounds a scroll offset to. The next
+    frame corrects from where the last one aimed, so the card the reader looks at
+    ends where it began rather than a rounding further per frame."""
+    browser = request.getfixturevalue(engine)
+    page = open_page(browser, serve(LONG_PAGE, comments=30), init_script=HOLD_MOTION)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    source, target = roots[5], roots[16]
+    target_card = page.locator(f'.lf-thread[data-id="{target}"]')
+    target_card.evaluate(
+        "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
+    )
+    one_frame(page)
+    start = target_card.evaluate("el => el.getBoundingClientRect().top")
+    before = page.evaluate("() => window.__lfHeld.length")
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": source},
+    )
+    told(page)
+    expect(page.locator(f'.lf-going[data-id="{source}"]')).to_have_count(1)
+    steps = 30
+    for step in range(1, steps):
+        page.evaluate(
+            "([i, part]) => { const motion = window.__lfHeld[i];"
+            " motion.currentTime = motion.effect.getComputedTiming().duration * part; }",
+            [before, step / steps],
+        )
+        one_frame(page)
+    tops = target_card.evaluate("el => el.getBoundingClientRect().top")
+    assert tops == pytest.approx(start, abs=1)
+
+
 def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
     """When the aimed-at card is itself leaving, its successor inherits the hold.
 
@@ -8191,7 +8275,7 @@ def test_the_address_sequence_places_a_focused_comment_at_either_list_edge(
     page.keyboard.press("g")
     expect(
         page.locator(
-            ".lf-shortcut-bar .lf-shortcut:not([hidden])",
+            ".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])",
             has_text="thread top / bottom",
         )
     ).to_have_count(1)
@@ -8667,7 +8751,7 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
     page.keyboard.press("Shift+t")
     expect(page.locator(OPEN_TITLE)).to_be_focused()
 
-    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
+    shown = page.locator(".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])")
     expect(shown).to_have_count(2)
     # The thread's own first key leads and the way out of the surface follows it, which
     # is what the line is for: the user can see the panel around them, and what they

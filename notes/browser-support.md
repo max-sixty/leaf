@@ -78,7 +78,7 @@ what fails and what still works.
 
 ### Shadow-tree startup and draw-mode rules
 
-- **Owner:** `runtime/shadow.js` (`SHADOW_STARTUP_CSS`) and
+- **Owner:** `runtime/shadow.js` (`SHADOW_LEADING_CSS`) and
   `styles/components/integration.css`. A declared shadow tree hides its generated
   interface until upgrade, holds transitions until presentation, and shows draw
   mode's crosshair under `main`. Its selectors cannot see the document's stamps, so

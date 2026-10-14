@@ -45,6 +45,7 @@ from render_harness import (
     _traffic,
     _until,
     compare_with,
+    consume_browser_errors,
     expect_asks_answered,
     expect_banner_control_offered,
     hold_selection,
@@ -451,6 +452,52 @@ def test_markdown_option_state_change_has_no_inline_text_diff(browser, serve):
     expect(page.locator("#job-mounts")).to_have_class(re.compile(r"\blf-ins-block\b"))
     change = page.locator('[data-lf-margin-for="job-mounts"] [data-lf-kinds~="change"]')
     expect(change).not_to_have_attribute("aria-controls", re.compile(".*"))
+
+
+def test_a_failed_draw_keeps_the_options_and_the_next_reading_draws_over_it(
+    browser, serve
+):
+    """A draw that throws shows its failure beside the authored options it paints, so
+    the next reading still has them to draw on."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Failed draw",
+                '<h1>Failed draw</h1><lf-ask id="ask"><h2>Which?</h2>'
+                '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
+                '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const options = document.getElementById('options');
+      options.render = function () {
+        this.state;
+        throw new Error('an intentional draw failure');
+      };
+      options.requestUpdate();
+      await options.updateComplete;
+      delete options.render;
+    }""")
+    expect(page.locator("#options .lf-error")).to_have_count(1)
+    # The report names the widget, which is how the agent that wrote it finds it.
+    consume_browser_errors(page, '<lf-options id="options"> failed')
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "options",
+            "action": "choose",
+            "detail": {"value": ["two"]},
+        },
+    )
+    told(page)
+    expect(page.locator("#two")).to_have_attribute("chosen", "")
+    expect(page.locator("#options .lf-error")).to_have_count(0)
+    expect(page.locator("#options .lf-pick")).to_have_count(2)
 
 
 def test_option_controls_hold_presentation_without_replacing_authored_nodes(

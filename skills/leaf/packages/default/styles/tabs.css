@@ -115,9 +115,6 @@
     /* until-found keeps the element's own box in flow; zero it so inactive panels
      * leave no stray gap below the active one. */
   :scope:is(lf-tabs).lf-rendered > lf-tab[hidden] { margin: 0; }
-    /* The boolean-hidden fallback (no until-found support) hides here, because the
-     * display:block above outranks the UA's [hidden] rule. */
-  :scope:is(lf-tabs).lf-rendered > lf-tab[hidden]:not([hidden="until-found"]) { display: none; }
 
     /* A boxed set's panel is a bounded box, so it is the container what it holds
      * measures itself against (theme.css in the kernel says why a framed box is one). */
@@ -512,10 +509,8 @@
   }
 
 }
-/* Paper cannot edit the document, so inactive panels keep their hidden attribute and the
- * content-visibility it carries is undone here. */
+/* Paper prints inactive panels open (controls.css, `until-found`). */
 @media print {
-  :scope:is(lf-tabs).lf-rendered > lf-tab { content-visibility: visible !important; }
   /* Stacked on paper, a queue's panel carries its group before its name, since no list
    * stands over the panels to say it. */
   :scope:is(lf-tabs)[list="side"] > lf-tab[group]::before {

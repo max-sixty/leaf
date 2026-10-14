@@ -246,7 +246,9 @@ customElements.define(
             ${this.#choices("mode", "View", INSPECTION, this.#mode)}
             ${this.#choices("scale", "Size", SCALE, this.#scale)}
             <div ${offered("lf-vr-opacity-control")} data-active=${active}>
-              <span ${offered("lf-vr-inspector-label")}>Candidate opacity</span>
+              <span ${offered("lf-vr-inspector-label lf-label")}
+                >Candidate opacity</span
+              >
               <wa-slider
                 ${offered("lf-vr-opacity")}
                 size="s"
@@ -683,12 +685,14 @@ customElements.define(
         data-classification=${record.classification}
         data-disposition=${disposition ?? ""}
         aria-label=${`Visual review case ${index + 1} of ${total}`}
-        ?hidden=${!selected}
+        ?data-selected=${selected}
         ${ref(place)}
       >
         <header class="lf-vr-case-head">
           <div class="lf-vr-case-heading">
-            <p class="lf-vr-case-position" data-lf-gen="1" data-lf-said>${heading}</p>
+            <p class="lf-vr-case-position lf-label" data-lf-gen="1" data-lf-said>
+              ${heading}
+            </p>
             <h3 class="lf-vr-case-title" data-lf-gen="1" data-lf-said>
               ${record.title}
             </h3>

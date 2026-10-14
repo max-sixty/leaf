@@ -441,7 +441,7 @@ def test_visual_review_leads_with_evidence_and_walks_only_remaining_cases(
     widget = page.locator("#visual-review-run")
     selected = widget.locator(".lf-vr-case-select")
     first_id = selected.evaluate("node => node.value")
-    case = widget.locator(".lf-vr-case:not([hidden])")
+    case = widget.locator(".lf-vr-case[data-selected]")
     expect(widget.locator(".lf-vr-inspection")).not_to_have_attribute("open", "")
     geometry = case.evaluate("""node => {
       const box = selector => node.querySelector(selector).getBoundingClientRect();

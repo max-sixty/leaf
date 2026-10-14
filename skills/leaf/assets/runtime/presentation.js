@@ -156,7 +156,7 @@ const READINESS_STAGES = new Set(READINESS.map(([stage]) => stage));
     change; after it, the page asks again at that moment and catches up by `taken`.
 
     `through` names the last stage the reader needs. A test that writes behind a page
-    in the middle of a gesture — a drag holding the projection, a fold still animating
+    in the middle of a gesture — a drag holding a revision back, a fold still animating
     — asks only that the page has taken the write in, which is `state`.
 
     Finite animation is not a stage: the render gate's `pageSettled` asks that

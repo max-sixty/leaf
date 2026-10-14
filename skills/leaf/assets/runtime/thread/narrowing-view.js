@@ -139,7 +139,7 @@ class ThreadNarrowingView extends HTMLElement {
           ? choice.label
           : html`<span
               data-lf-room=${`${choice.label} (${"0".repeat(this.#countDigits)})`}
-              >${choice.label} (${choice.amount})</span
+              ><span>${choice.label} (${choice.amount})</span></span
             >`
       }
     </button>`;

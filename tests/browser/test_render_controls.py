@@ -1816,7 +1816,7 @@ CONTROL_ARCHETYPES = (
         # state while its opposite remains beside it.
         "name": "visual-review-disposition",
         "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case:not([hidden]) .lf-vr-needs-work",
+        "target": ".lf-vr-case[data-selected] .lf-vr-needs-work",
     },
 )
 
@@ -3493,7 +3493,10 @@ STATUS_COUNTS = """() => {
   const others = [document.querySelector('.lf-banner-status'),
     ...document.querySelectorAll('.lf-banner-actions > :not([hidden])')];
   const approval = document.querySelector('.lf-banner-actions > .lf-signoff');
-  return {shown: counts.clientWidth, needed: counts.scrollWidth,
+  // A room cuts its words inside its own child (controls.css), which the control's
+  // scroll width does not see.
+  const words = (n) => n.querySelector('[data-lf-room] > *') ?? n;
+  return {shown: words(counts).clientWidth, needed: words(counts).scrollWidth,
           left: box.left, top: box.top, inert: counts.inert,
           statusLeft: document.querySelector('.lf-status-button').getBoundingClientRect().left,
           statusBottom: document.querySelector('.lf-banner-status').getBoundingClientRect().bottom,
@@ -3501,7 +3504,8 @@ STATUS_COUNTS = """() => {
             && box.top >= banner.top && box.bottom <= banner.bottom,
           drawn: box.top < rowsEnd - 0.5 && box.bottom > banner.top + 0.5,
           approval: approval?.checkVisibility()
-            ? {shown: approval.clientWidth, needed: approval.scrollWidth} : null,
+            ? {shown: words(approval).clientWidth, needed: words(approval).scrollWidth}
+            : null,
           overlaps: others.filter((n) => meets(n.getBoundingClientRect()))
             .map((n) => n.className)};
 }"""
@@ -4852,7 +4856,7 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
             return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
           };
           const bar = document.querySelector('.lf-shortcut-bar');
-          const hints = [...bar.querySelectorAll(".lf-shortcut:not([hidden])")];
+          const hints = [...bar.querySelectorAll(".lf-shortcut:not([data-lf-off-line])")];
           return {shortcut_bar: rect(bar), first: rect(hints[0]),
                   width: innerWidth, height: innerHeight};
         }"""

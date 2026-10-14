@@ -430,7 +430,6 @@ summary { align-content: center; }
 /* A checkpoint is agent-written reading context, followed by the retained originals
    it covers. One disclosure beside that context controls the entire range. */
 .lf-thread-checkpoint { margin-block: 16px; }
-.lf-thread-checkpoint[hidden] { display: none; }
 /* A border groups the retained messages without changing their headers or giving
    progress a separate background. It is drawn around them rather than taking room,
    so opening a group moves none of their words: an answer folding the progress a
@@ -459,7 +458,6 @@ summary { align-content: center; }
 .lf-thread-disclosure:hover { text-decoration: underline; text-underline-offset: 3px; }
 .lf-summary-required { margin-top: 6px; color: var(--turn-ink); font: 600 11px/1.4 var(--sans); }
 .lf-summary-originals { min-width: 0; }
-.lf-summary-originals[hidden] { display: none; }
 .lf-summary-originals > .lf-msg { margin-block: 8px; }
 /* The working message: the step of work in hand, at the transcript's foot just above
    the reply box. It takes a message's head and body faces, but its words stay dim, and
@@ -468,28 +466,30 @@ summary { align-content: center; }
    do, so the whole step shows however narrow the surface. Its arrival, its departure
    and a new step that replaces its words are held when they would move what the
    reader sees (held-news.js). */
-.lf-thread-working { margin-top: 16px;
-  --lf-working-dim: color-mix(in oklab, var(--muted) 80%, var(--paper)); }
+.lf-thread-working { margin-top: 16px; }
 .lf-thread-working-words { margin-top: var(--lf-msg-body-gap);
   inline-size: fit-content; max-inline-size: 100%;
-  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans); color: var(--lf-working-dim); }
-.lf-thread-working[data-lf-live] .lf-thread-working-words { color: transparent;
-  background: linear-gradient(110deg, var(--lf-working-dim) 42%, var(--ink) 50%,
-    var(--lf-working-dim) 58%);
-  background-size: 200% 100%; background-clip: text;
-  animation: lf-working-sheen 2s ease-in-out infinite alternate; }
-@keyframes lf-working-sheen {
+  font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
+  color: color-mix(in oklab, var(--muted) 80%, var(--paper)); }
+.lf-thread-working[data-lf-live] .lf-thread-working-words {
+  animation: lf-sheen 2s ease-in-out infinite alternate; }
+/* The one continuous animation, which marks work under way (assets/AGENTS.md,
+   "Motion"): a highlight passing across words painted as a background clipped to their
+   glyphs, from the box's own colour to ink and back. A box runs it by naming it, and
+   everything it paints lives in the keyframes, so where it stops — the state ending,
+   or the shared reduced-motion guard's single near-instant pass — the words are left
+   in their own face with nothing to undo. Forced colours drop the gradient but keep
+   the animation, so there the keyframes leave the glyphs filled. */
+@keyframes lf-sheen {
+  from, to { -webkit-text-fill-color: transparent; background-clip: text;
+    background-image: linear-gradient(110deg, currentColor 42%, var(--ink) 50%,
+      currentColor 58%);
+    background-size: 200% 100%; }
   from { background-position: 100% 0; }
   to { background-position: 0% 0; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .lf-thread-working[data-lf-live] .lf-thread-working-words { animation: none;
-    background: none; color: var(--lf-working-dim); }
-}
 @media (forced-colors: active) {
-  .lf-thread-working-words,
-  .lf-thread-working[data-lf-live] .lf-thread-working-words { animation: none;
-    background: none; color: GrayText; }
+  @keyframes lf-sheen { from, to { -webkit-text-fill-color: currentColor; } }
 }
 .lf-thread-disclosure[data-lf-focus] {
   outline: var(--focus-ring); --lf-focus-ring: summary-fold;

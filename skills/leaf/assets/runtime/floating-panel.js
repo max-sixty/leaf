@@ -36,7 +36,9 @@
  *   on the row, and the line above the field, while it has something to say, lies over
  *   the view's foot rather than taking room of its own, so its coming and going moves
  *   nothing at the view's head; with no view open it stands above the row, where nothing
- *   above it moves. The user chose this (2026-10-14), reversing the room the line kept
+ *   above it moves. Over a view it lies in the room the view keeps at its foot, which
+ *   the view's last words scroll clear of, as they do of New reply (`fitAnswer`), so
+ *   neither ever covers what the view holds at its end. The user chose this (2026-10-14), reversing the room the line kept
  *   under every open view, one line tall and blank while it had nothing to say, which
  *   held the head still but read in Threads as a missing row. That room had stood for
  *   the keys that send, shown while the caret was in the field; they moved to Send's
@@ -618,8 +620,8 @@ export function createFloatingPanel({
   // it, and nothing at its head moves. Where the answer fits in that height and the user
   // stood at the view's end, the end follows it into sight, the earlier words scrolling
   // up, as a card's transcript follows a turn joining its end. Otherwise it waits below
-  // the fold, and New reply stands at the view's foot, where the answer begins, until a
-  // press on it, or the user scrolling there, shows it; a press grows the view, up to its
+  // the fold, and New reply stands at the view's foot, where the answer begins, the
+  // words the user stood at the end of moving up just clear of it, until a press on it, or the user scrolling there, shows it; a press grows the view, up to its
   // cap, and brings the answer's start into sight (`fitAnswer`). The user chose to show
   // the answer at once (2026-10-14), reversing the hold behind the reader's "1 new reply"
   // in the head row of their own message, which left the reply they waited for unseen.
@@ -644,6 +646,9 @@ export function createFloatingPanel({
   let drawnThread = null;
   let waiting = null;
   let fitted = null;
+  // Where the panel itself last scrolled the open thread's view, which is not the user
+  // going anywhere (`sawAnswer`).
+  let placed = null;
   // Read where the reader's drawing lands, after layout and before the frame is shown.
   function fitAnswer() {
     const top = trail.at(-1);
@@ -707,8 +712,15 @@ export function createFloatingPanel({
         ? { key: top.thread, message: reply, label: "New reply" }
         : { key: top.thread, message: answer.keys[0], label: "New update" };
       if (waiting?.message !== next.message) {
+        // New reply takes room at the view's foot, so a user who stood at its end keeps
+        // the words they read there in sight above it.
+        const extent = !waiting && atEnd ? view.scrollHeight : null;
         waiting = next;
         paint();
+        if (extent !== null) {
+          view.scrollTop += view.scrollHeight - extent;
+          placed = view.scrollTop;
+        }
       }
       return;
     }
@@ -744,8 +756,8 @@ export function createFloatingPanel({
   // Scrolling the answer's start into sight above New reply takes New reply away, the
   // view keeping its height.
   function sawAnswer(event) {
-    if (!waiting) return;
     const view = event.currentTarget;
+    if (!waiting || view.scrollTop === placed) return;
     const node = view.querySelector(
       `.lf-msg[data-message="${CSS.escape(waiting.message)}"]`,
     );
@@ -799,6 +811,7 @@ export function createFloatingPanel({
     if (changed) {
       rooms.clear();
       waiting = null;
+      placed = null;
       drawnThread = null;
       onPageSeat = false;
     }
@@ -1315,9 +1328,11 @@ export function createFloatingPanel({
     return html`<div class="lf-fp-messages lf-fp-outlet"></div>
       ${
         waiting?.key === key
-          ? html`<button type="button" class="lf-fp-new-reply" @click=${showAnswer}>
-              ${iconTemplate("down", "lf-action-icon")}${waiting.label}
-            </button>`
+          ? html`<div class="lf-fp-foot">
+              <button type="button" class="lf-fp-new-reply" @click=${showAnswer}>
+                ${iconTemplate("down", "lf-action-icon")}${waiting.label}
+              </button>
+            </div>`
           : nothing
       }`;
   }

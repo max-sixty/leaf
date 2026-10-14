@@ -1154,6 +1154,22 @@ def test_the_payload_is_text():
     assert binary == [], "binary files in the tree: " + ", ".join(binary)
 
 
+def test_every_skill_file_reads_in_one_command():
+    """An agent reads a skill file with `cat` as often as with Read, and Claude Code
+    hands a Bash output over 30,000 characters back as a 2 KB preview with the rest
+    saved to a file the agent rarely opens. page-authoring.md at 48 KB reached
+    authoring sessions that way until it was split, so each skill's files stay
+    under that cap."""
+    oversized = {
+        path.relative_to(ROOT).as_posix(): size
+        for root in (ROOT / "skills", ROOT / ".claude" / "skills")
+        for path in root.rglob("*.md")
+        if path.name == "SKILL.md" or {"references", "instructions"} & set(path.parts)
+        if (size := len(path.read_text())) > 30_000
+    }
+    assert oversized == {}, oversized
+
+
 def test_claude_and_codex_read_the_same_repository_skills():
     claude_skills = ROOT / ".claude" / "skills"
     codex_skills = ROOT / ".agents" / "skills"

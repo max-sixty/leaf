@@ -39,7 +39,7 @@ A page module that shows the state of the asks in each card, section or item of 
 own layout reads them from Leaf rather than keeping a copy: `readAsks()` in a
 `watchProjection` paint with `asksIn(region)` selects each region's asks, answered or open, by the rule `lf-tabs`
 rows and `lf-tally` read, and `askActions.next({within})` steps to the next one
-waiting on the user (`references/module-authoring.md`, "Reading asks and obligation
+waiting on the user (`references/module-reading.md`, "Reading asks and obligation
 queues").
 
 `leaf page check` runs a page's own code, a script or a page widget the
@@ -72,7 +72,7 @@ runtime's requests elsewhere or leave its modules unresolved.
 A script, stylesheet, font, image, or frame may also come from another server, named
 by its absolute `http(s)://` URL, and a page's code may fetch from anywhere. The page
 loads it as written, so it arrives only while the user is online. Data the page
-presents belongs in a `data/` source instead (`references/packages.md`, "External or
+presents belongs in a `data/` source instead (`references/package-data.md`, "External or
 derived data"), where the log and an export hold it.
 
 Typed data and media remain inert inputs. Read them through their Leaf/browser APIs;

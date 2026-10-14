@@ -892,7 +892,9 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { disp
  * Layout lays out as the browser lays out any page. What stays here is what Leaf's chrome
  * coordinates with and draws nothing: the name a margin resident asks the page's
  * readings by, with no Layout, no room to grow into on either side, and the stacking
- * context that keeps the page beneath Leaf's ladder (`--lf-z-*`, above). */
+ * context that keeps the page beneath Leaf's ladder (`--lf-z-*`, above). A stacking
+ * context also isolates blending, so a page box's `mix-blend-mode` blends with what
+ * `main` paints and not with the paper behind it. */
 main {
   position: relative;
   z-index: 0;

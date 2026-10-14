@@ -74,10 +74,11 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev bugback NODEID...` runs the tests on HEAD and with the branch's non-test
   change reverted, in a scratch worktree, and reports which went red.
 - `leaf-dev bench-latency [BASE_REF]` times an open page's answer to a gesture, an
-  agent write, and a revision in Chrome, with the traffic each causes, for a base
-  runtime and HEAD's.
+  agent write, and a revision in Chrome, with the traffic each causes and who held
+  the main thread, for a base runtime and HEAD's; `--tree` with one `--page` and
+  `--transition` times the working tree alone in under a minute.
 - `leaf-dev profile SOURCE TRANSITION` says where one of those transitions spends its
-  time in this working tree: main-thread tasks up to the painted frame, forced style
+  time in this working tree: main-thread tasks up to its last painted goal, forced style
   recalculations and the writes that invalidated them, and JS by function. Traces and
   CPU profiles stay in its own run directory under `.tmp/profile/`.
 - `leaf-dev bench-check [BASE_REF]` times `leaf page check --render` on a few

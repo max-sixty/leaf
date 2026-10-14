@@ -56,6 +56,7 @@ from .files import read_json
 from .harness import session_harness
 from .machine import state_home
 from .refusals import Refused
+from .registry.kernel import record_format
 from .schema import CURSOR_FILE, WIDGET_KINDS
 from .service import (
     PageTransaction,
@@ -71,7 +72,7 @@ from .state import (
     write_json,
 )
 
-DELIVERY_FORMAT = "leaf-delivery-v5"
+DELIVERY_FORMAT = record_format("delivery")
 DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
     "page",
@@ -481,6 +482,13 @@ def read_delivery(delivery_id: str) -> dict:
     payload = read_json(path)
     if payload is None:
         raise Refused(f"unknown delivery {delivery_id!r}")
+    if isinstance(payload, dict) and payload.get("format") != DELIVERY_FORMAT:
+        raise Refused(
+            f"delivery {delivery_id!r} is {payload.get('format')!r}, written by a Leaf "
+            f"at another page protocol, and this Leaf reads {DELIVERY_FORMAT!r}. The "
+            "updates it carried stay pending: run `leaf page init` on each page it "
+            "names, and this Leaf delivers them again."
+        )
     if not readable_delivery(payload, delivery_id):
         raise RuntimeError(f"delivery {delivery_id!r} has an invalid envelope")
     return payload

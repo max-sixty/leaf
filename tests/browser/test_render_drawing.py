@@ -978,10 +978,10 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
 
 
-def test_an_older_runtimes_anchored_drawing_draft_keeps_its_words_without_the_mark(
+def test_another_protocols_anchored_drawing_draft_keeps_its_words_without_the_mark(
     browser, serve
 ):
-    """A draft an older runtime saved holds a drawing in a format this one does not
+    """A draft a runtime at another protocol saved may hold a drawing this one cannot
     draw, so its words come back and its mark neither shows nor sends."""
     page = open_page(browser, serve(TARGETS_PAGE))
     # The composer's draft is keyed on the passage it is on.
@@ -991,12 +991,13 @@ def test_an_older_runtimes_anchored_drawing_draft_keeps_its_words_without_the_ma
           const anchor = {section: 'prose'};
           localStorage.setItem(key, JSON.stringify({
             text: JSON.stringify({
+              format: 'leaf-draft/0',
               text: 'Keep these anchored words.',
               anchor,
               revision: 1,
               suggest: false,
               about: null,
-              drawing: {format: 'leaf-drawing/2', strokes: [[[0, 0], [9, 9]]]},
+              drawing: {strokes: [[[0, 0], [9, 9]]]},
               touched: Date.now(),
             }),
             attempt: record.attempt,
@@ -1039,7 +1040,7 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["kind"] == "comment"
     assert "text" not in event
-    assert event["drawing"]["format"] == "leaf-drawing/3"
+    assert event["drawing"]["strokes"]
     thread = page.get_by_role("dialog", name=re.compile("Thread for"))
     expect(thread).to_be_visible()
     expect(thread.locator(".lf-drawing-reference")).to_have_text("Drawing comment")
@@ -1051,7 +1052,6 @@ def test_an_inline_thread_keeps_drawing_context_on_the_page(browser, serve):
     in the inline transcript."""
     url = serve(THREAD_DIFF_PAGE)
     drawing = {
-        "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "viewport": [1280, 720],

@@ -61,6 +61,7 @@
    Its dependencies are structural vocabulary, rendering and writes; importing a
    gesture owner would cycle through its focus dependency. */
 import { afterScript, nextRender } from "./rendering.js";
+import { signal } from "/vendor/browser-runtime.js";
 import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 import {
@@ -308,7 +309,12 @@ function landLabelPress() {
 // the host of the shadow tree the user stands in, for a reader comparing or containing
 // nodes of that tree. Every reading of focus outside this module asks here, so none
 // misses a label press or a shadow tree (eslint's `architecture/standing-reads`).
+// Each reading of where the user stands advances this signal, and `focused` reads it, so
+// a command whose liveness asks where the user stands is read again when they move
+// (keyboard/scopes.js).
+const standing = signal(0);
 export const focused = (tree = null) => {
+  void standing.value;
   let at = heldByLabel() ?? deepFocus();
   if (tree) while (at && at.getRootNode() !== tree) at = shadowHost(at.getRootNode());
   return at;
@@ -317,7 +323,9 @@ export const focused = (tree = null) => {
 // The selection the user drew in the tree `node` stands in, where the browser keeps it.
 const selectionOf = (node) => {
   const root = node.getRootNode();
-  return (root instanceof ShadowRoot && root.getSelection?.()) || getSelection();
+  // Chromium's shadow roots answer their own selection.
+  const own = /** @type {{getSelection?: () => Selection}} */ (root);
+  return (root instanceof ShadowRoot && own.getSelection?.()) || getSelection();
 };
 
 // Where the user stands, nearest first: the focused node, unless focus rests on the
@@ -534,6 +542,7 @@ function publish(node, cause) {
   departed = false;
   const left = published?.deref() ?? null;
   const reading = ++readings;
+  standing.value = reading;
   // A drop leaves the place where readers last heard the user stood, so the next
   // reading, the owner putting them back there included, is told against it.
   if (cause === "drop") departed = true;
@@ -774,7 +783,9 @@ addEventListener(
       if (end) ends.push(end);
     }
     if (event.button !== 0 || labelPress) return;
-    const label = path.find((node) => node?.localName === "label" && node.control);
+    const label = /** @type {(EventTarget & Partial<HTMLLabelElement>)[]} */ (
+      path
+    ).find((node) => node?.localName === "label" && node.control);
     const held = label && deepFocus();
     if (!held || held === document.body) return;
     labelPress = { held, pointerId: event.pointerId, label };
@@ -787,7 +798,7 @@ function endPress(event, completed) {
   press = null;
   for (const end of ends) end(event, completed);
 }
-for (const type of ["pointerup", "pointercancel"])
+for (const type of /** @type {const} */ (["pointerup", "pointercancel"]))
   addEventListener(
     type,
     (event) => {
@@ -1016,6 +1027,7 @@ export function layerLanding(land) {
     return land(...args);
   };
 }
+/** @param {() => unknown} close @param {(() => unknown) | false | null} [land] */
 export function closeLayer(close, land = null) {
   closing += 1;
   let deferred = null;

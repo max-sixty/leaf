@@ -10,10 +10,11 @@ import {
   whenApplicationRegionsPresented,
   whenWidgetsPresented,
   presentDocument,
+  projectionRegionsPresented,
+  readPart,
 } from "./semantic-state.js";
 import { announce, notice } from "./notifications.js";
 import { readAsks } from "./asks/model.js";
-import { paintKeys } from "./keyboard/scopes.js";
 import { watchPendingTraffic } from "./traffic.js";
 import { createCommandDispatch } from "./pending/dispatch.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
@@ -22,7 +23,10 @@ import { createProjectionPresentation } from "./projection/presentation.js";
 import { createUndo } from "./undo.js";
 import { createDataProjection } from "./projection/data.js";
 import { createThreadPresentation } from "./thread/presentation.js";
-import { createAnnotationInventory } from "./annotation-inventory.js";
+import {
+  annotationSelection,
+  createAnnotationInventory,
+} from "./annotation-inventory.js";
 import { createAnnotationView } from "./annotation-view.js";
 import { createInlineContributions } from "./inline-contributions.js";
 import { presentingContributions, watchContributions } from "./contributions.js";
@@ -102,10 +106,9 @@ export function mountApplication(dependencies) {
       .releasable()
       .filter((entry) => attempts.has(entry.event.attempt));
     // Widget updates and the thread, projection, and ask owners have now committed
-    // this surviving semantic reading. Paint its command surface while the same pending
-    // records still stand; removing an accounted record is then a semantic no-op.
+    // this surviving semantic reading; removing an accounted record is a semantic no-op,
+    // and a key whose liveness read the record hears it leave through its own reading.
     if (!released.length) return false;
-    paintKeys();
     ledger.release(released);
     return true;
   };
@@ -152,13 +155,12 @@ export function mountApplication(dependencies) {
   function afterEnqueue(entry) {
     // Enqueue has already published and claimed its presentation, whose coordinator
     // reports any failed paint. The entry's answer describes the server's durable
-    // decision, so a local announcement or key-paint failure is reported here rather
+    // decision, so a local announcement failure is reported here rather
     // than turning an accepted gesture into an apparent refusal, and it cannot strand
     // the gesture before transport or leave later sends behind an unanswered entry.
     try {
       if (isMessageEvent(entry.event)) announce("Message sent");
       if (entry.event.kind === "edit") announce("Message edited");
-      paintKeys();
     } catch (error) {
       reportPageError(error, "optimistic presentation");
     } finally {
@@ -275,8 +277,19 @@ export function mountApplication(dependencies) {
       overlay?.paint(entries);
     }
   });
+  // The inventory lists the marks the projection's chrome paints, reading their nodes,
+  // which the watcher cannot track, so it reads the parts that move them itself, and
+  // reads them once that region has committed.
+  const annotationInputs = readPart(annotationSelection);
   const mountAnnotations = () => {
-    watchProjection(document.body, renderAnnotations);
+    watchProjection(
+      document.body,
+      () => {
+        annotationInputs();
+        renderAnnotations();
+      },
+      () => projectionRegionsPresented([]),
+    );
     document.addEventListener("lf-comparison", renderAnnotations);
     onPaper.addEventListener("change", () => {
       if (!onPaper.matches) renderAnnotations.refresh();
@@ -362,8 +375,7 @@ export function mountApplication(dependencies) {
     });
 
   const accountPending = (receipts) => {
-    const left = ledger.present(receipts);
-    if (left) paintKeys();
+    ledger.present(receipts);
     releasePendingSafely("receipt presentation");
   };
 
@@ -376,7 +388,6 @@ export function mountApplication(dependencies) {
     stateSignoff: dependencies.state.stateSignoff,
     renderOthers: dependencies.state.renderOthers,
     accountPending,
-    paintKeys,
   });
 
   const flushQueuedInvalidation = () => {
@@ -415,16 +426,11 @@ export function mountApplication(dependencies) {
         // ledger.accept; release itself waits for every owning presentation region
         // before undo and other semantic readers may observe the entry leave.
         releasePendingSafely("accepted event reconciliation");
-        // In that ordering a gesture that is not an action left on accept; the key
-        // repaint and descriptor invalidation accountPending gives an entry leaving on
-        // presentation belong to whichever edge actually retires it.
-        if (!applicationState.entry(entry.event.attempt)) {
-          paintKeys();
-          invalidateDom();
-        }
-        return;
+        // In that ordering a gesture that is not an action left on accept; the
+        // descriptor invalidation an entry leaving on presentation gets belongs to
+        // whichever edge actually retires it.
+        if (!applicationState.entry(entry.event.attempt)) invalidateDom();
       }
-      paintKeys();
     },
   });
 
@@ -488,13 +494,9 @@ export function mountApplication(dependencies) {
   // chrome's `yielded`, asked before its reader goes, returns how to hand the reader
   // taking its place the conversation it shows, which runs once the package holds its
   // registration, as that reader may ask it to present.
-  const attachPresentation = (owner, { render, reveal, replyBox = null }) => {
-    const reader = createPrimaryReader(
-      owner,
-      render,
-      inlineView,
-      () => threadPresenter.present(),
-      replyBox,
+  const attachPresentation = (owner, { render, reveal }) => {
+    const reader = createPrimaryReader(owner, render, inlineView, () =>
+      threadPresenter.present(),
     );
     const detachDestination = threadDestinations.register(owner, reveal, reader);
     let detachPresentation;

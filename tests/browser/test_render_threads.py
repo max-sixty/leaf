@@ -866,8 +866,8 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     )
     expect(line).to_have_attribute("data-lf-live", "")
     expect(line.get_by_role("button")).to_have_count(0)
-    # A step is a line: a long one keeps the working message's box, so nothing below
-    # it moves while the reader is there.
+    # A long step wraps as a message does, so all of it shows; in an idle open card
+    # it grows the thread's foot, as an arriving reply would.
     height = line.evaluate("node => node.getBoundingClientRect().height")
     steps.append(
         thread_model.post_reply(
@@ -880,8 +880,13 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
         )
     )
     told(page)
-    expect(line.locator(".lf-thread-working-words")).to_contain_text("Comparing")
-    assert line.evaluate("node => node.getBoundingClientRect().height") == height
+    expect(line.locator(".lf-thread-working-words")).to_contain_text(
+        "before and after the change"
+    )
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    words = line.locator(".lf-thread-working-words")
+    assert words.evaluate("node => node.scrollWidth <= node.clientWidth")
+    assert line.evaluate("node => node.getBoundingClientRect().height") > height
     for step in steps:
         expect(thread.locator(f'.lf-msg[data-mid="{step["id"]}"]')).to_be_hidden()
 
@@ -897,6 +902,45 @@ def test_pending_progress_is_the_threads_working_message_and_never_unread(
     expect(
         thread.get_by_role("button", name="Show 3 progress messages", exact=True)
     ).to_be_visible()
+
+
+@pytest.mark.watch_shifts
+def test_a_new_step_waits_where_its_words_would_move_the_draft(browser, serve):
+    """A step's words wrap, so a new step can change the working message's height. In a
+    seat where that would move the reply being typed, the step waits behind the
+    thread's notice, as a reply would, and the draft keeps its place."""
+    url = serve(SEATED_ASK_PAGE)
+    root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})
+    thread_model.post_reply(
+        serve.page_dir, {"to": root, "for": root}, "Reading the jobs.", ephemeral=True
+    )
+    page = open_page(browser, url)
+    resized(page, 390, 900)
+    thread = page.locator("#jobs .lf-page-thread")
+    words = thread.locator(".lf-thread-working-words")
+    expect(words).to_have_text("Reading the jobs")
+    editor = thread.locator("leaf-text")
+    write(editor, "Start with the mounts.")
+    rendered(page)
+    box = editor.bounding_box()
+
+    thread_model.post_reply(
+        serve.page_dir,
+        {"to": root, "for": root},
+        "Comparing the mounts, the bird bath and the camera against the frost "
+        "dates, and what each one needs before it can start.",
+        ephemeral=True,
+    )
+    told(page)
+    notice = thread.get_by_role("button", name="Work in progress", exact=True)
+    expect(notice).to_be_visible()
+    expect(words).to_have_text("Reading the jobs")
+    rendered(page)
+    assert editor.bounding_box() == pytest.approx(box, abs=0.5)
+
+    notice.click()
+    expect(words).to_contain_text("what each one needs before it can start")
+    assert editor.evaluate("box => box.value") == "Start with the mounts."
 
 
 def test_a_streaming_answer_takes_the_working_messages_place_and_disclosure(
@@ -1375,7 +1419,8 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     """The answer and its fold arrive together; originals remain a keyboard route.
     Pending progress stands hidden behind the working message; in the panel a search
     for it shows it, and a reader standing on it holds the answer that would fold it
-    behind its notice. The page thread has no search, so its answer lands at once."""
+    behind its notice. In the page thread the answer would grow the thread's foot under
+    the reader, so it waits behind the same notice."""
     url = serve(SEATED_ASK_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
     progress = thread_model.post_reply(
@@ -1445,6 +1490,8 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
         expect(original).to_be_focused()
         notice.click()
         expect(original).to_be_visible()
+    else:
+        card.get_by_role("button", name="1 new reply", exact=True).click()
     expect(card.locator(f'.lf-msg[{identity}="{answer["id"]}"]')).to_be_visible()
     checkpoint = card.locator(".lf-thread-checkpoint")
     expect(checkpoint.locator(".lf-summary-label")).to_have_count(0)
@@ -2102,6 +2149,8 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
     expect(resolve).to_be_enabled()
     expect(resolve).not_to_have_attribute("aria-busy", "true")
+    # Its command is live again, so the button says so to the keyboard as well.
+    expect(resolve).not_to_have_attribute("aria-disabled", "true")
     expect(resolve).not_to_have_attribute("aria-keyshortcuts", re.compile(r".*x.*"))
     resolve.focus()
     with page.expect_request("**/api/event"):

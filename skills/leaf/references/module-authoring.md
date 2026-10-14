@@ -22,7 +22,8 @@ the section for the task it serves, and the header of its module under `runtime/
 states its full contract. A DOM helper takes the element whose behavior it implements.
 
 Of Lit, the surface exports `render`, `html`, `nothing`, `repeat`, `keyed`, `live`,
-`ref`, `createRef`, `classMap`, `styleMap`, `guard`, and `unsafeHTML`.
+`ref`, `createRef`, `classMap`, `styleMap`, `guard`, and `unsafeHTML`. Of Preact
+Signals it exports `signal`, for private state a command's `when` reads ("Command rows").
 
 ## What a behavior module owes
 
@@ -714,8 +715,11 @@ A route may also declare its own `when` where its control is available independe
 its siblings. The shortcut bar stays compact, while the command reference lists and runs
 each route on its own.
 
-Call `paintKeys()` after private state a `when` or a computed field reads changes, since
-closures are not reactive; every projection of the commands then updates together.
+What a `when` or a computed field reads from Leaf's readings, such as a widget's state,
+the Questions or the threads, is tracked, and a widget's own render repaints the keys
+inside it. Hold other private state they read in a `signal`, which is tracked the same
+way, or call `paintKeys()` after it changes, since a plain closure over it is not
+reactive; every projection of the commands then updates together.
 
 ### How scopes compose
 
@@ -1291,10 +1295,15 @@ The icon is decorative; the button supplies its accessible label.
 
 Each page reading below has a `watch…(owner, callback)` subscription; register it once for
 each owner. `watchAsks`, `watchQueues`, `watchThreads`, `watchReports` and
-`watchHistory` share these rules. Each calls the callback on the microtask after
-subscribing, then again, at most once per microtask, whenever the application publishes
-a new reading, a drag starts or stops holding the page's projection back ("Pointer
-presses"), or the page dispatches `PRESENTATION` ("Startup and presentation"). Several
+`watchHistory` share these rules, as does `watchWork` ("Work hierarchies"). Each calls the callback on the microtask after
+subscribing, then again, at most once per microtask, whenever anything the callback read
+from the page's state has changed, a drag starts or stops holding the page's projection
+back ("Pointer presses"), or the page dispatches `PRESENTATION` ("Startup and
+presentation"). What the callback reads is tracked: its watcher's own reading, and any
+other reader it calls synchronously, such as `readWork`, `readAsks`, `reportSequence` or
+a widget controller's `read()`, so a callback never lists its inputs. A publication that
+moves none of them calls nothing. Reads after an `await` and reads of the document's
+nodes are not tracked; a callback that depends on them watches them itself. Several
 of these in one task make one call. It pauses while the owner is away and reads
 again on a return by the rule in "Connection lifetimes"; moving the owner within one
 mutation batch keeps it. The returned function retires the subscription for good,
@@ -1401,7 +1410,10 @@ the admitted reading; the server stays final. Collections keep their shape while
 
 ### Work hierarchies
 
-`readWork(scope)` reads a page-owned work hierarchy from the current publication. The page
+`readWork(scope)` reads a page-owned work hierarchy from the current publication, and
+`watchWork(owner, callback)` calls `callback()` whenever the widget states, threads, asks
+or reports it reads change, by the rules of "Page readings"; a widget whose display
+counts its children's work reads it there rather than in `watchReports`. The page
 declares `$work.widgets` roles: `scope` bounds one hierarchy; `goal` names a recorded
 `state` attribute and its `done` and `stopped` values; `worker` names its recorded `state`,
 its `running` and `retired` values, and an optional assignment attribute `on`; `evidence`

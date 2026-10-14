@@ -44,6 +44,19 @@ import {
   toggleInlineComparison,
 } from "./version.js";
 
+// What the inventory reads from the semantic root: the Questions, the workflows its
+// entries report, the shown revision and the agent's to-dos, and the projection whose
+// reported and overridden marks it lists once the projection's chrome has painted them.
+// Threads reach it through their presentation, which renders the annotations once it
+// commits.
+export const annotationSelection = (root) => ({
+  projection: root.effective.projection,
+  asks: root.effective.asks,
+  workflows: root.effective.workflows,
+  revision: root.document.revision,
+  todos: root.authoritative?.browser.todos ?? null,
+});
+
 export function createAnnotationInventory({
   readAsks,
   placedAt,
@@ -240,7 +253,9 @@ export function createAnnotationInventory({
     const groups = new Map();
     const receiptByCoordinate = new Map();
     for (const receipt of visibleWidgetWorkflows()) {
-      receiptByCoordinate.set(stateCoordinate(...receipt.coordinate), receipt);
+      // A widget's workflow names its owner, unit and verb.
+      const coordinate = /** @type {[string, string, string]} */ (receipt.coordinate);
+      receiptByCoordinate.set(stateCoordinate(...coordinate), receipt);
     }
     for (const thread of threadList()) {
       if (!threadHasDiscussion(thread) || !thread.anchor || claimed(thread.id))
@@ -417,7 +432,7 @@ export function createAnnotationInventory({
     // with the line of the start running on it, or as an open to-do under its title.
     // A thread's to-do is its thread's attention (above); the page's is the banner's. A
     // to-do on the user is on their list, On me, instead.
-    for (const todo of runtime.browser?.todos ?? []) {
+    for (const todo of runtime.todos) {
       if (
         todo.owner !== "agent" ||
         (todo.subject.kind !== "widget" && todo.subject.kind !== "element") ||

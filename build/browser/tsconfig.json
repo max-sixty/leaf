@@ -13,5 +13,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": false
   },
-  "include": ["*.ts"]
+  "include": ["*.ts", "../../skills/leaf/assets/runtime/**/*.js"]
 }

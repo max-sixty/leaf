@@ -169,7 +169,7 @@ export const storedDraft = (ctx) => {
   return read.available ? parseDraftRecord(read.value) : null;
 };
 const attemptAccepted = (attempt) =>
-  (runtime.browser?.receipts ?? []).some((event) => event.attempt === attempt);
+  runtime.receipts.some((event) => event.attempt === attempt);
 const writeDraftRecord = (ctx, record) =>
   draftStore.set(DRAFT + ctx, JSON.stringify(record));
 const rawDraftRecord = (ctx) => {
@@ -827,6 +827,14 @@ addEventListener("storage", (ev) => {
 // send or report settlement, so its lifecycle reads canonical draft availability.
 // `blank` answers what the box holds with no draft: nothing for a new message, and the
 // message's own words for a rewrite of it.
+/** @param {any} ta @param {any} sync @param {any} ctx
+ * @param {{
+ *   retained?: boolean,
+ *   mirrored?: boolean,
+ *   resume?: any,
+ *   onChange?: (value: string | null) => void,
+ *   blank?: () => string,
+ * }} [options] */
 export function mirrorDraft(
   ta,
   sync,

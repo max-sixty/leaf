@@ -37,7 +37,7 @@
 // interleaving a forced style recalculation with each. That paint runs in the frame the
 // change first shows in, so the button and placeholder never trail the words.
 import { rememberWriting } from "../drafts.js";
-import { keys, paintKeys } from "../keyboard/scopes.js";
+import { keys, paintKeysWithin } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
 import {
   advertisesKeys,
@@ -66,6 +66,7 @@ const MEDIA_SHELF_TAG = "leaf-attached-media-shelf";
 // control, so nothing rides along with a comment unseen or beyond the user's reach. The
 // drawing also takes back its last stroke here: the route a pointer or a finger has to
 // that, wherever the composer stands.
+/** @typedef {AttachedMediaShelf} AttachedMediaShelfElement For its tag (`runtime-globals.d.ts`). */
 class AttachedMediaShelf extends LitElement {
   static properties = {
     model: { attribute: false },
@@ -465,7 +466,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         if (shown && focused() === sendBtn) focusDestination(ta, "return");
         if (!shown && focused() === mic) focusDestination(ta, "return");
       }
-      paintKeys();
+      // Which of its controls the box shows moves its own keys, not the page's.
+      paintKeysWithin(field);
+      if (submitIn) paintKeysWithin(submitIn);
     };
     const refresh = () => {
       if (dictationPhase() === "idle") {

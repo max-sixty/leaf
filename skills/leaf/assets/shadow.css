@@ -423,9 +423,6 @@ summary {
   max-inline-size: 100%;
   font: max(var(--entry-floor), var(--t-5))/1.5 var(--sans);
   color: var(--lf-working-dim);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 .lf-thread-working[data-lf-live] .lf-thread-working-words {
   color: transparent;
@@ -1758,12 +1755,17 @@ leaf-text.lf-fab-input {
   color: var(--accent);
   background: var(--chip);
 }
-:host-context(html[data-lf-draw-mode]):host-context(main) * {
-  cursor: crosshair !important;
+html[data-lf-draw-mode] main {
+  --lf-draw-mode: on;
 }
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime],
-:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-runtime] * {
-  cursor: auto !important;
+@container style(--lf-draw-mode: on) {
+  :host * {
+    cursor: crosshair !important;
+  }
+  :host [data-lf-runtime],
+  :host [data-lf-runtime] * {
+    cursor: auto !important;
+  }
 }
 :root {
   --lf-code-copy-size: max(32px, var(--aim-floor));

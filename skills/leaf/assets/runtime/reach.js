@@ -329,7 +329,8 @@ const childLists = new MutationObserver((records) => {
     for (const node of removedNodes)
       if (node.nodeType === Node.ELEMENT_NODE) release(node);
     for (const node of addedNodes)
-      if (node.nodeType === Node.ELEMENT_NODE) reachSizes.observe(node);
+      if (node.nodeType === Node.ELEMENT_NODE)
+        reachSizes.observe(/** @type {Element} */ (node));
   }
 });
 function watchReach(el) {
@@ -572,7 +573,7 @@ const reached = (el) => {
   return false;
 };
 document.addEventListener(LAYOUT, (event) => {
-  const [changed] = event.composedPath();
+  const [changed] = /** @type {Node[]} */ (event.composedPath());
   if (changed?.nodeType === Node.ELEMENT_NODE && reached(changed)) reread(changed);
   paintReach();
 });

@@ -119,7 +119,7 @@ import {
 import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
-import { readApplication } from "./semantic-state.js";
+import { readPart } from "./semantic-state.js";
 import { COLLAPSE, TEXT_BLOCK } from "./passage-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
@@ -165,25 +165,39 @@ export const verbatimBoundaryIdentity = new WeakMap();
 //
 // `settlements` is that reading per holder id: its tag, and the tags its outcome
 // in force retires.
-// It is rebuilt once per publication or registry, and `settledKey` names it, so the
-// page reading is forgotten exactly when it changes (`catchUpReading`).
-let settledFrom = [];
-let settled = new Map();
+// It is a selection of the publication, one per registry, so it moves only when a
+// settlement does, and a paint that reads a passage's words repaints for a decision
+// rather than for every widget's state. `settledKey` names it, so the page reading is
+// forgotten exactly when it changes (`catchUpReading`).
+let settledReading = null;
+let settledDecisions;
+let settled = null;
 let settledKey = "[]";
 function settlements() {
-  const { document: shown, effective } = readApplication();
-  const from = [effective.widgets, registry.$decisions];
-  if (from.every((input, index) => input === settledFrom[index])) return settled;
-  settledFrom = from;
-  settled = new Map();
-  for (const [id, { state }] of effective.widgets) {
-    const tag = shown.authored.get(id)?.tag;
-    const decision = registry.$decisions?.[tag];
-    const outcome = decision && state[decision.verb]?.detail?.outcome;
-    const retires = outcome ? decision.retires[outcome] : null;
-    if (retires?.length) settled.set(id, { tag, retires });
+  if (settledDecisions !== registry.$decisions || !settledReading) {
+    const decisions = (settledDecisions = registry.$decisions);
+    settledReading = readPart((root) => {
+      const holders = new Map();
+      for (const [id, { state }] of root.effective.widgets) {
+        const tag = root.document.authored.get(id)?.tag;
+        const decision = decisions?.[tag];
+        // A decision verb's state is an action value, which carries the detail.
+        const outcome =
+          decision &&
+          /** @type {{detail?: {outcome?: string}} | undefined} */ (
+            state[decision.verb]
+          )?.detail?.outcome;
+        const retires = outcome ? decision.retires[outcome] : null;
+        if (retires?.length) holders.set(id, { tag, retires: [...retires] });
+      }
+      return holders;
+    });
   }
-  settledKey = JSON.stringify([...settled]);
+  const next = settledReading();
+  if (next !== settled) {
+    settled = next;
+    settledKey = JSON.stringify([...settled]);
+  }
   return settled;
 }
 // A slot its holder's decision took off the page: a child of the holder, in its light
@@ -634,6 +648,7 @@ export function closestAcross(node, selector) {
 //
 // `root` narrows the search to one authored document (`authoredScope`), with the roots
 // declared inside it.
+/** @param {string} id @param {Document | Element} [root] */
 export const elementById = (id, root = document) => {
   const found =
     root === document
@@ -718,14 +733,18 @@ export function pageRange(sel) {
 // still the programmatic write or a later user adjustment (including touch handles).
 let writtenSelection = null;
 let writtenBackward = false;
+// Each end is a boundary point, `[node, offset]`.
 export function selectEnds(anchor, focus) {
   const selection = getSelection();
   const from = document.createRange(),
     to = document.createRange();
-  from.setStart(...anchor);
-  to.setStart(...focus);
+  from.setStart(.../** @type {[Node, number]} */ (anchor));
+  to.setStart(.../** @type {[Node, number]} */ (focus));
   writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
-  selection.setBaseAndExtent(...anchor, ...focus);
+  selection.setBaseAndExtent(
+    .../** @type {[Node, number]} */ (anchor),
+    .../** @type {[Node, number]} */ (focus),
+  );
   writtenSelection = selectionEnds(selection);
 }
 const selectionEnds = (selection) => {
@@ -866,8 +885,12 @@ function readSegments(segments, mapCharacters) {
   });
   return mapCharacters ? { text, units } : text;
 }
-export const quoteFrom = (segments) => readSegments(segments, false);
-export const readingFrom = (segments) => readSegments(segments, true);
+export const quoteFrom = (segments) =>
+  /** @type {string} */ (readSegments(segments, false));
+export const readingFrom = (segments) =>
+  /** @type {{text: string, units: {text: string, start: any, end: any}[]}} */ (
+    readSegments(segments, true)
+  );
 // Cutting one to length is the caller's business and always by code point: half a surrogate
 // pair is a character no UTF-8 file can hold, and a quote is written to one.
 export const cut = (text, from, to) => [...text].slice(from, to).join("");
@@ -1106,10 +1129,19 @@ const changesTheReading = (record) => {
   const wasSaid = record.attributeName === "data-lf-said" && record.oldValue !== null;
   return wasSaid || holdsSaid(target) || pageReads(target.parentNode);
 };
+// Which page reading stands: it advances each time one is forgotten, so a reading
+// derived from the page's own nodes, as the visual responses are, keeps what it derived
+// while this stands.
+let readingVersion = 0;
 const forgetReading = () => {
   reading = null;
   elementReadings = new WeakMap();
+  readingVersion += 1;
 };
+export function pageReadingVersion() {
+  catchUpReading();
+  return readingVersion;
+}
 function watchReading() {
   if (watcher) return watcher;
   watcher = new MutationObserver((records) => {

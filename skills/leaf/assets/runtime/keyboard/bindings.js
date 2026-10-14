@@ -110,7 +110,7 @@
    command reference. Call `paintKeys` when a state change moves row liveness so this projection
    and the visible surfaces change together. */
 import { coarsePointer } from "../pointer.js";
-import { readApplication } from "../semantic-state.js";
+import { runtime } from "../context.js";
 
 // Which platform's spelling, and which modifier is the sequence's. Up here rather than beside
 // the text inputs because the spelling table below is the first thing that needs it.
@@ -335,7 +335,7 @@ export const declaredCommandAvailable = (row, route = null) =>
 const scopeReadiness = new WeakMap();
 // Terminal absence is known input too. Availability still comes from the owner's
 // `when` (widget actions require a complete reading); only unfinished input queues.
-export const savedReadingSettled = () => readApplication().phase !== "waiting";
+export const savedReadingSettled = () => runtime.statePhase !== "waiting";
 // A scope supplies a shared input contract without replacing its rows or their identity.
 export function declareCommandReadiness(rows, ready) {
   if (ready !== undefined && typeof ready !== "function")
@@ -568,6 +568,8 @@ const ariaBindings = (binding) => {
       .join("+"),
   );
 };
+/** @param {any} rows @param {boolean} [current] @param {string} [where]
+ * @param {(binding: any, entry: any, row: any) => boolean} [includes] */
 export const ariaShortcuts = (rows, current = true, where, includes = () => true) =>
   [
     ...new Set(

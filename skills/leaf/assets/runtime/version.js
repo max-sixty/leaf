@@ -617,7 +617,12 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
   // would show: the event's exact source, never a collapsed comparison value.
   for (const [id, { state, specs }] of baseWidgets)
     for (const [verb, spec] of specs) {
-      if (spec.record?.kind !== "body" || !state[verb].action) continue;
+      // A body record's state is an action's value.
+      if (
+        spec.record?.kind !== "body" ||
+        !(/** @type {{action: string | null}} */ (state[verb]).action)
+      )
+        continue;
       const body = doc.getElementById(id)?.querySelector(":scope > .lf-markdown-body");
       if (body) paintMarkdown(body, state[verb].value);
     }
@@ -676,9 +681,11 @@ function applyDiff(doc, baseAuthored, baseVersion, baseReading) {
         continue;
       // The option now picked is where a pick reads; anything else reads on its
       // widget.
+      // An attribute record's value is the ids it picks.
+      const ids = /** @type {string[]} */ (value);
       const picked =
-        spec.record.kind === "attribute" && value.length === 1
-          ? elementById(value[0])
+        spec.record.kind === "attribute" && ids.length === 1
+          ? elementById(ids[0])
           : null;
       mark(picked ?? widget);
     }
@@ -992,6 +999,20 @@ function revisionDocument(revision) {
   return revisionDocuments.get(revision.revision);
 }
 
+/** @param {{
+ *   compositionInput: any,
+ *   openThread: any,
+ *   refreshThread: any,
+ *   midComposition: any,
+ *   hasPending: any,
+ *   readAndApply: any,
+ *   retireProjectionCoverage: any,
+ *   syncLayout: any,
+ *   captureRetainedStanding?: () => unknown,
+ *   restoreRetainedStanding?: (standing: unknown) => boolean,
+ *   captureAskStanding?: () => unknown,
+ *   restoreAskStanding?: (standing: unknown) => void,
+ * }} controller */
 export function createVersionController({
   compositionInput,
   openThread,
@@ -1293,6 +1314,7 @@ export function createVersionController({
       next.add(imported);
     }
     authoredHeadNodes = next;
+    /** @type {HTMLMetaElement | null} */
     let marker = document.querySelector('meta[name="lf-revision"][data-lf-runtime]');
     if (!marker) {
       marker = document.createElement("meta");
@@ -2358,7 +2380,9 @@ export function createVersionController({
     // target a widget generates, hides, or moves (`aimArrival`), and travel to a
     // different authored revision, where a passage is a better landmark than the old
     // document's pixels.
-    const navigationType = performance.getEntriesByType("navigation")[0]?.type;
+    const navigationType = /** @type {PerformanceNavigationTiming | undefined} */ (
+      performance.getEntriesByType("navigation")[0]
+    )?.type;
     const handoff = (() => {
       const serialized = tabStore.get(HANDOFF_KEY);
       tabStore.set(HANDOFF_KEY, null);
@@ -2434,7 +2458,10 @@ export function createVersionController({
   // (`returnToFragment`); both read the same destination and reveal it the same way.
   let aimedAt = null;
   function aimArrival() {
-    const fresh = performance.getEntriesByType("navigation")[0]?.type === "navigate";
+    const fresh =
+      /** @type {PerformanceNavigationTiming | undefined} */ (
+        performance.getEntriesByType("navigation")[0]
+      )?.type === "navigate";
     const arrivedAt = location.hash;
     const currentIntent = retainUserIntent({ since: 0 });
     return function landFragment() {

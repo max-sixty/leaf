@@ -46,8 +46,9 @@
    selection reaching into it (`standsOn`, focus.js). The progress itself is no news:
    until that answer it joins the thread's working message, not its replies
    (thread-card.js), and its messages stand behind that message's disclosure. The
-   working message's arrival or departure changes the thread's height, so a seat
-   holds it behind its control-row notice when that growth would move the reader.
+   working message's arrival, its departure, and a new step whose words wrap to
+   another height change the thread's height, so a seat holds any change of its words
+   behind its control-row notice when that growth would move the reader.
    A run on screen stays open where
    it stood, its group's border drawn around it (components/surfaces.css), so the fold
    moves none of its words; a run off screen folds away. Changes to other existing
@@ -128,7 +129,7 @@ import { isReaction, messageKey, threadKey, threadNames } from "./model.js";
 import { allThreads, threadState } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
-import { readApplication } from "../semantic-state.js";
+import { runtime } from "../context.js";
 import { onStanding, focused, standingNodes } from "../focus.js";
 import { readingIsContinuous } from "../reading-continuity.js";
 import { watchOwner } from "../arrivals.js";
@@ -209,13 +210,11 @@ function difference(was, now, { progressOpen = false } = {}) {
   const news = {
     settled,
     working:
-      Boolean(was.working) !== Boolean(now.working)
-        ? now.working
-          ? now.working.live
-            ? "Work in progress"
-            : "Work updated"
-          : "Work updated"
-        : null,
+      was.working?.words === now.working?.words
+        ? null
+        : now.working?.live
+          ? "Work in progress"
+          : "Work updated",
     replies: 0,
     messages: 0,
     edits: 0,
@@ -342,6 +341,16 @@ function withheld(was, now) {
 }
 
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
+/** @param {{
+ *   settled?: string,
+ *   working?: string,
+ *   replies?: number,
+ *   messages?: number,
+ *   edits?: number,
+ *   reactions?: number,
+ *   summaries?: number,
+ *   threads?: number,
+ * }} news */
 const newsLabel = ({
   settled,
   working,
@@ -505,7 +514,7 @@ export class HeldNews {
   // Required presenters prepare before yielding to package layout. Only the
   // candidate actually painted becomes the baseline for the next comparison.
   prepare(reading, { row }) {
-    const read = readApplication().phase === "ready";
+    const read = runtime.statePhase === "ready";
     if (!read || !readingIsContinuous()) this.#forget();
     const prior = read ? this.#shown : null;
     const keys = new Set(reading.threads.map(({ key }) => key));
@@ -670,6 +679,12 @@ export class HeldNews {
     return Boolean(this.#threads.size || this.#holds.size);
   }
 
+  // Whether the seat holds no news and owes no release, so a reading it has drawn would
+  // draw the same again.
+  get settled() {
+    return !this.#holding() && !this.#released.size;
+  }
+
   #stop() {
     this.#stopWatching?.();
     this.#stopWatching = null;
@@ -720,7 +735,7 @@ export class HeldReading {
   hold(reading) {
     // Preparation can draw partial authored contributions before the complete log
     // arrives. That is no baseline for news: the first ready reading stands whole.
-    if (readApplication().phase !== "ready") {
+    if (runtime.statePhase !== "ready") {
       this.#shown = null;
       this.#stop();
       return reading;
@@ -795,7 +810,7 @@ export class HeldArrivals {
   // `node`; `drawn` holds the datums where the widget drew a thread last, and `all` is
   // every thread record on the page.
   hold(threads, { drawn, all }) {
-    const read = readApplication().phase === "ready";
+    const read = runtime.statePhase === "ready";
     if (!read) this.#held.clear();
     else if (this.#known) this.#take(threads, drawn);
     this.#known = read ? new Set(all.map(({ key }) => key)) : null;

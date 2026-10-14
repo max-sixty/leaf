@@ -46,7 +46,6 @@ export function createStateApplication({
   stateSignoff,
   renderOthers,
   accountPending,
-  paintKeys,
 }) {
   let observedSemanticNews = null;
   let presentedNewsReading = null;
@@ -56,6 +55,7 @@ export function createStateApplication({
 
   async function runSerialized(operation) {
     const prior = admission;
+    /** @type {PromiseWithResolvers<void>} */
     const { promise, resolve: release } = Promise.withResolvers();
     admission = promise;
     await prior;
@@ -203,7 +203,6 @@ export function createStateApplication({
         throw error;
       } finally {
         stateApplying = false;
-        paintKeys();
       }
     });
   }

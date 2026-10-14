@@ -666,25 +666,39 @@ export function createFloatingPanel({
     const message = (key) => msgs.find((each) => each.key === key);
     const lastTurn = (drawn) =>
       drawn.map(message).findLast((each) => each && !each.ephemeral);
+    // What follows the user's last turn in what is drawn: the answer, as far as it has
+    // come. Before, it held only work under way or a reply still streaming.
+    const answerIn = (drawn) => {
+      const turn = drawn.findLastIndex((key) => {
+        const each = message(key);
+        return each?.author === "user" && !each.ephemeral;
+      });
+      return turn < 0 ? null : { turn: drawn[turn], keys: drawn.slice(turn + 1) };
+    };
     const room = routeKey(top);
     const fresh = before ? keys.filter((key) => !before.keys.includes(key)) : [];
+    const answer = answerIn(keys);
+    const asked = before && answerIn(before.keys);
     if (
-      fresh.length &&
+      answer?.keys.length &&
+      asked?.turn === answer.turn &&
+      asked.keys.every((key) => message(key)?.ephemeral || message(key)?.provisional) &&
+      answer.keys.every((key) => message(key)?.author === "agent") &&
+      view.scrollHeight > before.extent + 0.5 &&
       !waiting &&
-      rooms.has(room) &&
-      lastTurn(before.keys)?.author === "user" &&
-      fresh.every((key) => message(key)?.author === "agent")
+      rooms.has(room)
     ) {
-      // Where the user stood at the view's end, and what the answer adds fits in its
-      // height, the end follows the answer into sight; otherwise New reply says it waits.
+      // The answer arriving, or growing as it streams. Where the user stood at the
+      // view's end and what it adds fits in the view's height, the end follows it into
+      // sight; otherwise New reply says what waits below the fold.
       const atEnd = view.scrollTop + view.clientHeight >= before.extent - 1;
       if (atEnd && view.scrollHeight - before.extent <= view.clientHeight)
         view.scrollTop = view.scrollHeight;
       else {
         waiting = {
           key: top.thread,
-          message: fresh[0],
-          label: fresh.some((key) => !message(key).ephemeral)
+          message: answer.keys[0],
+          label: answer.keys.some((key) => !message(key).ephemeral)
             ? "New reply"
             : "New update",
         };

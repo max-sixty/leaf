@@ -894,6 +894,51 @@ def test_an_answer_the_user_waits_for_shows_at_once_where_it_fits(browser, serve
     expect(messages).to_have_count(4)
 
 
+def test_a_streaming_answer_follows_into_sight_until_it_outgrows_the_view(
+    browser, serve, request
+):
+    """An answer the user waits for that streams in grows inside the view: while what
+    each step adds fits, the view's end follows it, and nothing at the head moves; a
+    step that would not fit leaves New reply at the view's foot."""
+    # The threads suite imports this one, so its stream helpers come in at run time.
+    from browser.test_render_threads import claim_for_codex, stream_reply
+
+    url = serve(LONG_PAGE)
+    root = panel_comment(
+        serve.page_dir,
+        "Record the release on the board: "
+        + "which build shipped, which checks passed, and who signed it off. " * 3,
+    )
+    claim_for_codex(serve.page_dir, request)
+    stream_reply(serve.page_dir, root, "")
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    view = page.locator(".lf-fp-view[data-view=thread]")
+    messages = view.locator(".lf-msg")
+    expect(messages).to_have_count(1)
+    settled(page)
+    seats = page.evaluate(HEAD_SEATS)
+    stands = view.bounding_box()
+
+    def streamed(text):
+        stream_reply(serve.page_dir, root, text)
+        told(page)
+        expect(messages.last.locator(".lf-msg-text")).to_have_text(text)
+        settled(page)
+        assert page.evaluate(HEAD_SEATS) == seats
+        assert view.bounding_box() == stands
+
+    streamed("I'll")
+    streamed("I'll record it on the board now.")
+    shown, box = messages.last.bounding_box(), view.bounding_box()
+    assert shown["y"] + shown["height"] <= box["y"] + box["height"] + 0.5
+    expect(view.locator(".lf-fp-new-reply")).to_have_count(0)
+
+    streamed("I'll record it on the board now. " + "Then I check the totals. " * 40)
+    expect(view.locator(".lf-fp-new-reply")).to_have_text("New reply")
+
+
 def test_an_open_view_covers_the_page_beneath_it(browser, serve):
     """What a view open above the row stands over is hidden from every reading of what
     the user sees (geometry.js, `declareOccluder`): a paragraph under it reads as seen

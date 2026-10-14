@@ -128,7 +128,6 @@ test("a return stays interrupted until its refreshed reading is actually present
       const preparation = Promise.withResolvers();
       const paint = Promise.withResolvers();
       const painted = [];
-      const statuses = [];
       const receiveState = async (answer) => {
         if (answer.reading === "initial") {
           applicationState.adopt(answer);
@@ -151,7 +150,6 @@ test("a return stays interrupted until its refreshed reading is actually present
         invalidateDom: async () => {},
         receiveState,
         prepareActivation: async () => null,
-        renderStatus: (status) => statuses.push(status),
       });
       feed.startFeed(async () => {}, Promise.resolve({ state: state("initial") }));
       await setImmediate();
@@ -163,13 +161,15 @@ test("a return stays interrupted until its refreshed reading is actually present
       assert.equal(readingIsContinuous(), false);
 
       if (mode === "rejected") {
-        assert.equal(statuses.at(-1)?.message, "state presentation failed");
+        assert.equal(applicationState.read().reach, "broken");
         return;
       }
       if (mode !== "painting") news = "second";
       looks.at(-1)();
       await setImmediate();
       assert.equal(reads, mode === "painting" ? 1 : 2);
+      // A read that brings nothing says so to whatever reads the server's reach.
+      if (mode === "offline") assert.equal(applicationState.read().reach, "unreachable");
       if (mode === "overtaken") {
         preparation.resolve();
         await setImmediate();

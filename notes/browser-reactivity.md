@@ -20,6 +20,11 @@ open questions; each owning module's header states the current contract.
   Preact effect also subscribes the paint to private signals it reads, such as where
   the user stands, which a paint may also write: tracked by an effect, the annotation
   inventory's paint re-ran itself without end and hung the page.
+- **Chrome paints are watchers too.** The banner's status, the floating panel, the
+  version picker and the pages drawer each paint through one `watchProjection`, and
+  call its `refresh()` for their own mechanical inputs, such as an open menu or a
+  comparison. How the server answered the latest read is in the publication (`reach`),
+  so the status reads it rather than the state feed pushing each answer at it.
 - **Regions collect what they read.** The four document regions (projection, threads,
   asks, the Questions panel) are `applicationPresenter`s (`runtime/semantic-state.js`).
   Each one's `reading` says whether it owes a paint, and the parts its reading and its

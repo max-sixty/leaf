@@ -73,7 +73,7 @@ import { advertisesKeys, submitLabel } from "./keyboard/bindings.js";
 import { bannerRows, watchBannerRows } from "./banner-toolbar.js";
 import { readPlace } from "./history.js";
 import { readThreads } from "./thread/state.js";
-import { watchThreads } from "./thread/watch.js";
+import { watchProjection } from "./projection-watch.js";
 import { threadAttention, workflowLabel } from "./thread/workflow.js";
 import { threadSummary } from "./thread/model.js";
 import { messageReading } from "./thread/messages.js";
@@ -91,7 +91,7 @@ import { textField } from "./composing/text-field.js";
 import { draftOf, syncInput } from "./composing/input.js";
 import { TEXT_FIELD } from "./control-selectors.js";
 import { retainUserIntent } from "./user-intent.js";
-import { queueItemKey, readQueues, watchQueues } from "./queue-api.js";
+import { queueItemKey, readQueues } from "./queue-api.js";
 import { queueTitle } from "./queue-title.js";
 import { askEnding } from "./asks/answer.js";
 import { versionMenu, versionPicker } from "./version-picker.js";
@@ -110,7 +110,7 @@ import { rowWalk } from "./walk-position.js";
 import { sizeObserver } from "./rendering.js";
 import { scrollIntoView } from "./landing-scroll.js";
 import { declareOccluder, declareWindowChrome } from "./geometry.js";
-import { agentName, applicationState } from "./semantic-state.js";
+import { agentName } from "./semantic-state.js";
 import { runtime } from "./context.js";
 import { renderedUnder } from "./shadow.js";
 import { closestAcross } from "./passages.js";
@@ -1404,14 +1404,18 @@ export function createFloatingPanel({
   }
 
   // A paint can blur what it removes, and the blur asks for a paint; that one runs
-  // once this has finished rather than inside it.
+  // once this has finished rather than inside it. Every paint runs through the panel's
+  // watcher (`watchProjection`), so the readings it draws repaint it whichever input
+  // asked for the paint.
   let painting = false;
   let again = false;
+  let watching = null;
   function paint() {
-    if (painting) {
-      again = true;
-      return;
-    }
+    if (painting) again = true;
+    else if (watching) watching.refresh();
+    else paintPanel();
+  }
+  function paintPanel() {
     painting = true;
     try {
       paintNow();
@@ -1421,7 +1425,8 @@ export function createFloatingPanel({
     }
     if (again) {
       again = false;
-      paint();
+      paintPanel();
+      return;
     }
     landReader();
     seatOnItems();
@@ -1883,21 +1888,9 @@ export function createFloatingPanel({
     // A passing notice is said in the empty field, the one seat this chrome gives it.
     registerNoticePresentation(() => paint());
     watchBannerRows(() => paint());
-    watchThreads(host, () => paint());
-    watchQueues(host, () => paint());
-    // Beyond the threads and queues: the undo list, approval's asks and stamp, and
-    // the agent's name.
-    applicationState
-      .select((root) => ({
-        undo: root.effective.view?.undo ?? null,
-        asks: root.effective.asks,
-        document: root.document,
-        active: root.authoritative?.active ?? null,
-        agent: root.authoritative?.agent ?? null,
-      }))
-      .subscribe(() => paint());
     versionPicker.watch(() => paint());
     document.addEventListener("lf-chrome-preference", () => paint());
+    watching = watchProjection(host, paintPanel);
     paint();
   }
 

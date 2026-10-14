@@ -428,6 +428,9 @@ function advance(
 
 
 
+
+
+
 /** A server view with its basis, the transport identity, left off. */
 
 
@@ -865,6 +868,11 @@ export function createSemanticApplication({
     // `unresolved` ledger; each leaves once the answer carrying it is applied.
     markingRead: []                    ,
     phase: "waiting",
+    // How the server answered the page's latest read: not yet (`waiting`), with a
+    // reading the page adopted (`reached`), with nothing (`unreachable`, or `refused`
+    // where it refused this tab's key), or with one the page could not apply
+    // (`broken`). It is what the banner says about the server, and no semantic epoch.
+    reach: "waiting"                                                                ,
     hostAvailable: true,
     data: { version: null                 , sources: {}                            },
     effective: derive(
@@ -1229,12 +1237,16 @@ export function createSemanticApplication({
     );
   };
 
+  // The ledger's own readings select their parts, so a paint that reads one follows
+  // the ledger and the receipts rather than every publication.
+  const unresolvedPart = publisher.select((root) => root.unresolved);
+  const receiptsPart = publisher.select(
+    (root) => root.authoritative?.browser.receipts ?? [],
+  );
+  const widgetsPart = publisher.select((root) => root.effective.widgets);
   const entry = (attempt        ) =>
-    publisher.read().unresolved.find((item) => item.event.attempt === attempt);
-  const ledgerAndReceipts = () => {
-    const { unresolved, authoritative } = publisher.read();
-    return [unresolved, authoritative?.browser.receipts ?? []]         ;
-  };
+    unresolvedPart.read().find((item) => item.event.attempt === attempt);
+  const ledgerAndReceipts = () => [unresolvedPart.read(), receiptsPart.read()]         ;
   const update = (attempt        , change                                     ) =>
     publish({
       unresolved: publisher
@@ -1281,7 +1293,7 @@ export function createSemanticApplication({
     // Render checks compare authored, carried, and current states. The event filter is
     // a semantic selection of the same root, not a presentation-owned partial fold.
     selectWidgets(eventIds                  = null) {
-      if (eventIds === null) return publisher.read().effective.widgets;
+      if (eventIds === null) return widgetsPart.read();
       const wanted = new Set(eventIds);
       return publisher
         .select((root) =>
@@ -1347,6 +1359,10 @@ export function createSemanticApplication({
     },
     setPhase(phase        ) {
       return publish({ phase });
+    },
+    setReach(reach                      ) {
+      if (publisher.peek().reach === reach) return publisher.peek();
+      return publish({ reach });
     },
     // Source revisions are digests with no order, so a reading's data is ordered by
     // the moment the server took it: an answer taken before the one already accepted
@@ -1414,6 +1430,7 @@ export function createSemanticApplication({
         authoritative,
         unresolved,
         phase: "ready",
+        reach: "reached",
       });
       return true;
     },
@@ -1552,10 +1569,10 @@ export function createSemanticApplication({
     },
     // The entries no document pass has presented yet.
     unpresented: () =>
-      publisher.read().unresolved.filter((item) => UNPRESENTED.has(item.state)),
+      unresolvedPart.read().filter((item) => UNPRESENTED.has(item.state)),
     // The entries `release` would retire now, in ledger order.
     releasable: () =>
-      publisher.read().unresolved.filter((item) => RELEASABLE.has(item.state)),
+      unresolvedPart.read().filter((item) => RELEASABLE.has(item.state)),
     // Retire those of `attempts` still in a releasable state.
     release(attempts             ) {
       return publish({

@@ -28,7 +28,6 @@ import { pagePresented } from "./runtime/page-paint.js";
 import { nextFrame, renderingState, observePreparations } from "./runtime/rendering.js";
 import { observeQueuedWork } from "./runtime/queued-work.js";
 import { mountApplication } from "./runtime/application.js";
-import { approvalBlockingAsks } from "./runtime/asks/model.js";
 import { beginRead } from "./runtime/state-feed.js";
 import {
   applicationState,
@@ -116,7 +115,6 @@ import {
   mountBanner,
   paintApproval,
   queueCounts,
-  renderStatus,
   setThreadCounts,
   stateSignoff,
   toggleBtn,
@@ -129,7 +127,6 @@ import { overflowMenu } from "./runtime/banner-toolbar.js";
 import {
   leavesOffered,
   presentLeaves,
-  renderOthers,
   declareLeavesKeys,
 } from "./runtime/live-leaves.js";
 import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
@@ -228,7 +225,6 @@ const narrowing = createThreadNarrowing({
   readThreads: threadList,
   repaint: () => app.presentThread(),
 });
-const paintVersionApproval = () => paintApproval(approvalBlockingAsks());
 let threadPanelController;
 let drawers;
 let layout;
@@ -482,9 +478,7 @@ app = mountApplication({
     acceptData,
     notifyDataSubscribers,
     isSignoffDeclared,
-    renderStatus,
-    stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
-    renderOthers: offlineInteractive ? () => undefined : renderOthers,
+    stateSignoff: (next) => stateSignoff(next, layout.syncLayout),
   },
 });
 app.registerThreadPanel({
@@ -885,7 +879,6 @@ if (!offlineInteractive) {
   version.mount();
   mountBanner({
     approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
-    paintApproval: paintVersionApproval,
   });
   auxiliarySurfaces.mount();
   // Connect the search field before mount awaits its rendered input: Lit does not
@@ -1010,7 +1003,7 @@ async function presentPage() {
   auxiliarySurfaces.present();
   presentLeaves();
   paintKeys();
-  paintVersionApproval();
+  paintApproval();
   repaint();
   app.overlay?.flushLayout();
   landFragment();
@@ -1080,5 +1073,5 @@ startPage().catch((error) => {
     new CustomEvent("lf-startup-failed", { detail: { reason, error } }),
   );
   reportPageError(error, "page failed to start");
-  renderStatus(error);
+  applicationState.setReach("broken");
 });

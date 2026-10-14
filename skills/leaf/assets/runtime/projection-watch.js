@@ -25,7 +25,8 @@
    presentation feedback loop. The returned function permanently ends the subscription,
    including queued paints. Its `refresh()` reruns the same paint synchronously for
    mechanical changes such as revealing held news, or on the return when the owner is
-   away, while retaining the owner's lifetime and readiness proof. `watchAsks`,
+   away, while retaining the owner's lifetime and readiness proof; before the first
+   paint it draws that one at once. `watchAsks`,
    `watchQueues`, `watchThreads`, `watchReports`, `watchHistory` and `watchWork` are this
    watcher around a reader of their own, so none of them states these rules again. */
 import { collectReads } from "../vendor/browser-runtime.js";
@@ -116,6 +117,7 @@ export function watchProjection(owner, paint, ready = null) {
     stopLifetime();
     draw.stop();
   };
-  stop.refresh = draw.refresh;
+  // A refresh before the first paint is that paint, drawn now.
+  stop.refresh = () => (draw.owes(key) && owner.isConnected ? draw(key) : draw.refresh());
   return stop;
 }

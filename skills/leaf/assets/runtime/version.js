@@ -1,6 +1,8 @@
 /* Version travel, comparison, and user continuity.
  *
- * `renderVersions` supplies the immutable picker reading. `prepareActivation` installs
+ * The picker paints its immutable reading from what it reads of the application's
+ * publication (`watchProjection`), and again for each comparison it starts or stops.
+ * `prepareActivation` installs
  * a live revision; `goActive` also returns from a pinned document, while `goVersion`
  * opens a historical `?pin` address. The controller receives application and travel
  * capabilities before mount binds listeners; `installArrival` restores continuity once
@@ -159,6 +161,7 @@ import { pointerAt, restorePointer } from "./pointer.js";
 
 import { reportPageError } from "./layer-client.js";
 import { projectView, readApplication } from "./semantic-state.js";
+import { watchProjection } from "./projection-watch.js";
 
 import { ADDRESSABLE, anchoringIsReady, fragmentTarget } from "./anchor-resolution.js";
 import { scrollToFragment } from "./anchor-travel.js";
@@ -415,24 +418,21 @@ function pickerModel(state) {
   });
 }
 
-function presentPicker(state = runtime.state) {
-  const model = pickerModel(state);
+// The page before its first accepted state has a null `runtime.state`. Version controls
+// read the immutable document revision and the accepted root.
+function paintPicker() {
+  const model = pickerModel(runtime.state);
   versionPicker.present(model);
   showNews(latestChip, model.latest.news);
   repaint();
-  return model;
-}
-
-// `null` is the page before its first accepted state. Version controls read the
-// immutable document revision and the accepted root.
-export function renderVersions(state) {
-  presentPicker(state);
   const walkable = versionsToWalk();
   if (walkable !== versionsWalkable) {
     versionsWalkable = walkable;
     paintKeys();
   }
 }
+let pickerWatch = null;
+const presentPicker = () => pickerWatch?.refresh();
 
 // ---------- version diff ----------
 // "Changes since vN": blocks (paragraphs, list items, Leaf elements) whose text
@@ -2503,7 +2503,8 @@ export function createVersionController({
       ],
       { when: versionsToWalk, ready: savedReadingSettled },
     );
-    renderVersions(null);
+    pickerWatch = watchProjection(document.body, paintPicker);
+    presentPicker();
   }
 
   // The arrival chip's route spans two rows — the picker the page opens and the menu's own

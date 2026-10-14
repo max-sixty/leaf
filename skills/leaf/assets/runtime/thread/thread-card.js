@@ -396,12 +396,14 @@ function paintBoundary(node, kind) {
 
 let nextViewId = 0;
 // The margin card's controls stand over its transcript, so each message's head keeps
-// their width clear and its words end before them. A render that changes the controls,
-// as a held-news notice coming or going does, writes that allocation in its own pass
-// (`present`), so the heads it rewraps move with the render that moved them. Any other
-// change of the controls' size writes it in the next rendering pass: applying it can
-// wrap a header and resize the controls' ancestors, which ResizeObserver cannot deliver
-// again in the controls' own delivery.
+// their width clear and its words end before them. A held-news notice is not among
+// them: it comes with news, which must not rewrap a head, so it stands beside them over
+// the head's end (`.lf-margin-thread-news`) until it is pressed. A render that changes
+// the controls writes the allocation in its own pass (`present`), so the heads it
+// rewraps move with the render that moved them. Any other change of the controls' size
+// writes it in the next rendering pass: applying it can wrap a header and resize the
+// controls' ancestors, which ResizeObserver cannot deliver again in the controls' own
+// delivery.
 const allotMarginControls = (row) =>
   row.parentElement?.style.setProperty(
     "--lf-margin-controls-width",
@@ -1159,12 +1161,17 @@ export class ThreadView {
       ${
         threadActions
           ? marginControls
-            ? html`<div
-                class="lf-margin-thread-controls"
-                ${ref(this.#watchMarginControls)}
-              >
-                ${news}${threadActions}
-              </div>`
+            ? html`${
+                  model.news
+                    ? html`<div class="lf-margin-thread-news">${news}</div>`
+                    : nothing
+                }
+                <div
+                  class="lf-margin-thread-controls"
+                  ${ref(this.#watchMarginControls)}
+                >
+                  ${threadActions}
+                </div>`
             : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>`

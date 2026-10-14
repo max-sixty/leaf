@@ -1592,7 +1592,11 @@
                 // Read before the growth: a streaming reply that completes drops
                 // the mark in the render that adds its last words.
                 paintAt(child, first)?.appendTail &&
-                footGrowth(child, grown))),
+                footGrowth(child, grown) &&
+                // The tail's own growth is the region's whole growth.
+                Math.abs(
+                  layoutAt(child, last).bottom - layoutAt(child, first).bottom - grown,
+                ) < 1)),
         ) ||
         // Where none joins, the growth is the tail's: the region's own box growing
         // around unchanged children is no arrival.

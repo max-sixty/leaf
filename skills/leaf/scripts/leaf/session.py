@@ -15,12 +15,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 from .detached import StartRefused
-from .file_changes import (
-    FileChanges,
-    existing_root,
-    page_change,
-    page_targets,
-)
+from .file_changes import FileChanges, existing_root, target_paths
 from .files import file_stamp
 from .harness import Harness, claim_harness, session_harness
 from .leases import (
@@ -34,12 +29,8 @@ from .locations import path_location, paths_same
 from .machine import state_home
 from .presence import nudge_unwatched
 from .refusals import Refused
-from .schema import (
-    ANSWER_ASK_INSTRUCTION,
-    MESSAGE_KINDS,
-    VIEWED_FILE,
-)
-from .served_state.reading import page_reading
+from .schema import ANSWER_ASK_INSTRUCTION, MESSAGE_KINDS
+from .served_state.reading import outside_inputs, page_input, page_reading
 from .server import read_service, running_server
 from .service import (
     PageTransaction,
@@ -246,7 +237,7 @@ class Watch:
         pages = tuple(self.watched)
         discovery = self.discovery_targets()
         targets = discovery | {
-            target for page in pages for target in page_targets(page)
+            target for page in pages for target in outside_inputs(page)
         }
         if self.session_id:
             targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
@@ -264,16 +255,14 @@ class Watch:
         ):
             if self.changes is not None:
                 self.changes.close()
+            watched = target_paths(targets)
             self.changes = FileChanges(
                 roots,
                 lambda changed: (
                     changed == self.claims
                     or changed.parent == self.claims
-                    or changed in targets
-                    or any(
-                        page_change(page, changed) and changed.name != VIEWED_FILE
-                        for page in pages
-                    )
+                    or changed in watched
+                    or any(page_input(page, changed) for page in pages)
                 ),
             )
             self.change_pages = key

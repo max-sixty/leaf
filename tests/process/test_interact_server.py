@@ -19,6 +19,7 @@ import time
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import wait as wait_futures
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -3150,23 +3151,28 @@ def test_a_row_ages_at_the_canonical_deadline_and_recovers_after_cache_loss(
 def test_a_row_read_cannot_block_server_stop(page_dir, spawn, tmp_path):
     """A row producer waiting on a page writer cannot hold service retirement.
 
-    The process probe announces entry to the real row transaction, so the stop
-    runs after the producer is blocked rather than winning a scheduling race.
+    The process probe announces the producer's reading of the log, its first wait
+    on a writer, so the stop runs after the producer is blocked rather than winning
+    a scheduling race.
     """
     entered = tmp_path / "row-entered"
     child = spawn_probe(
         spawn,
         page_dir,
         """
+from contextlib import contextmanager
 from leaf import hosting
-from leaf.served_state import service
+from leaf.served_state import reading
 
-class AnnouncedTransaction(service.PageTransaction):
-    def __enter__(self):
-        Path(os.environ["ENTERED"]).write_text("reading")
-        return super().__enter__()
+leased = reading.flocked
 
-service.PageTransaction = AnnouncedTransaction
+@contextmanager
+def announced(path, **options):
+    Path(os.environ["ENTERED"]).write_text("reading")
+    with leased(path, **options) as log:
+        yield log
+
+reading.flocked = announced
 hosting.cmd_serve(Path(os.environ["PAGE"]), persistent=True, harness=None)
 """,
         ENTERED=entered,
@@ -3961,7 +3967,7 @@ def test_comparison_revision_reads_stay_inside_the_page_transaction(
 
     monkeypatch.setattr(read_context, "read_revision", held_revision)
     monkeypatch.setattr(read_context, "read_data", unrelated_read)
-    monkeypatch.setattr(served_reading, "page_reading", unrelated_read)
+    monkeypatch.setattr(served_reading, "held_page_reading", unrelated_read)
     status, body = fetch(f"{server}/api/view?revision=1&through_seq={latest}")
     assert status == 200, body
     assert set(observed) == {1, 2}
@@ -4001,6 +4007,28 @@ def test_a_page_reading_moves_for_a_second_write_in_one_clock_tick(
     written(value)
     assert json.loads(value.read_text()) == {"n": 2}
     assert served_reading.page_reading(page_dir) != before
+
+
+def test_a_page_reading_waits_out_an_append_in_progress(page_dir):
+    """A look names the log before an append or after it, never mid-write. A stat
+    crossing an in-place append can pair its modification time with the size before
+    it, a state the log was never at, so the look waits for the log's lease, which
+    every append holds, and then names the finished append as a state answer would."""
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        with cleanup_model.flocked(page_dir / "events.jsonl") as log:
+            log.seek(0, os.SEEK_END)
+            log.write(b'{"kind": "comment", "author": "user", "text": "ha')
+            log.flush()
+            look = executor.submit(served_reading.page_reading, page_dir)
+            # The window is the subject of an absence assertion, not a deadline.
+            assert not wait_futures([look], timeout=0.2).done, (
+                "the look named the log while an append held it"
+            )
+            log.write(b'lf"}\n')
+            log.flush()
+        named = look.result(timeout=STATED_TIMEOUT)
+    assert named == served_reading.page_reading(page_dir)
+    assert event_model.read_events(page_dir)[-1]["text"] == "half"
 
 
 def test_neighbour_discovery_sees_a_row_made_in_one_clock_tick(page_dir, monkeypatch):

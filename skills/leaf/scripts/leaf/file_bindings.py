@@ -12,9 +12,10 @@ A binding the page lacks, as in a copied page or the unbound worked example, is 
 designed state rather than a fault: a read answers it as no file, so the browser's
 console stays clean, and only a save against it refuses.
 
-The page's reading carries each binding's stamp (`binding_stamps`), so the news token
-moves when a bound file does and a state answer names which binding moved. A stamp
-only prompts a read; the read's revision decides what changed.
+The page's reading stamps each bound file (`bound_paths`), so the news token moves
+and the page's watchers wake when a bound file does, and a state answer carries each
+binding's stamp (`binding_stamps`), naming which binding moved. A stamp only prompts
+a read; the read's revision decides what changed.
 """
 
 import hashlib
@@ -88,23 +89,31 @@ def _target(page_dir: Path, binding: str) -> Path | None:
     return path
 
 
-def binding_stamps(page_dir: Path) -> dict[str, str]:
-    """Each binding's short token, moving whenever its path or what the filesystem
-    says of the file there (`file_stamp`) does.
+def bound_paths(page_dir: Path) -> dict[str, Path]:
+    """Each binding's granted path, by binding.
 
-    Taken without the page lock, as the page's reading is. A grants record this
-    version cannot read stamps as no bindings: the reading must not fail on it, and
-    a read through the binding names the refusal."""
+    Read without the page lock, by the page's reading and its watchers. A grants
+    record this version cannot read binds nothing here: the reading must not fail
+    on it, and a read through the binding names the refusal."""
     try:
         bindings = _bindings(page_dir)
     except (FileBindingError, OSError, ValueError):
         return {}
     return {
+        binding: path
+        for binding, raw in sorted(bindings.items())
+        if (path := _granted(raw)) is not None
+    }
+
+
+def binding_stamps(page_dir: Path) -> dict[str, str]:
+    """Each binding's short token, moving whenever its path or what the filesystem
+    says of the file there (`file_stamp`) does."""
+    return {
         binding: hashlib.sha256(
             repr((str(path), file_stamp(path))).encode()
         ).hexdigest()[:16]
-        for binding, raw in sorted(bindings.items())
-        if (path := _granted(raw)) is not None
+        for binding, path in bound_paths(page_dir).items()
     }
 
 

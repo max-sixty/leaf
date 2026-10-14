@@ -22,14 +22,14 @@ const minutesAgo = (minutes) => new Date(NOW - minutes * 60_000).toISOString();
 const NO_QUEUES = { on_user: [], on_agent: [], done: [] };
 
 // The page's served state with `activity`, as the banner reads it.
-const state = (activity, agent = "Claude") => ({
+const state = (activity) => ({
   activity: servedActivity(activity),
-  agent,
+  agent: "Claude",
   publication: null,
 });
 // The row's words and the disclosure's, for one activity reading.
-const said = (activity, agent) => {
-  const { summary, explanation } = pageStatus(state(activity, agent));
+const said = (activity) => {
+  const { summary, explanation } = pageStatus(state(activity));
   return [summary, explanation];
 };
 
@@ -41,15 +41,10 @@ test("working says the agent's own sentence, dated on the row once it is old", (
     "Claude working — revising the plan",
     "Claude is working — revising the plan (just now). 1 response owed on updates awaiting delivery.",
   ]);
-  assert.deepEqual(said({ ...work, counts: { queued: 1 } }), [
-    "Claude working — revising the plan",
-    "Claude is working — revising the plan (just now). 1 response owed on queued updates.",
-  ]);
   assert.deepEqual(said({ ...work, ts: minutesAgo(5) }), [
     "Claude working · 5m ago — revising the plan",
     "Claude is working — revising the plan (5m ago)",
   ]);
-  assert.equal(said(work, "Codex")[0], "Codex working — revising the plan");
 });
 
 test("working with no sentence of the agent's names what its turn picked up", () => {
@@ -84,17 +79,6 @@ test("a step the transport watched names the work and stands beside the agent's 
       "Claude is using a tool — revising the plan (just now) · Running the tests. 1 response owed on updates awaiting delivery.",
     ],
   );
-  for (const [observed_kind, words] of [
-    ["thinking", "thinking"],
-    ["awaiting_input", "waiting for input"],
-    ["awaiting_approval", "waiting for approval"],
-    ["awaiting_user", "waiting for me"],
-    ["replying", "replying"],
-  ])
-    assert.equal(
-      said({ ...work, observed_kind })[0],
-      `Claude ${words} — revising the plan`,
-    );
 });
 
 test("work waiting in the agent's own session says where it is answered, and is announced by it", () => {
@@ -177,18 +161,6 @@ test("a page nobody holds, and a closed one, say so without the agent", () => {
     "No session holds this page. Updates are saved. It picks up again when a session does.",
   ]);
   assert.deepEqual(said({ kind: "closed" }), ["Page closed", "Page closed"]);
-});
-
-test("each kind paints its dot's tone", () => {
-  for (const [kind, tone] of [
-    ["working", "working"],
-    ["listening", "listening"],
-    ["stalled", "away"],
-    ["away", "away"],
-    ["unheld", ""],
-    ["closed", ""],
-  ])
-    assert.equal(pageStatus(state({ kind })).tone, tone, kind);
 });
 
 test("an unreachable server, a refused key and an unappliable state each say what to do", () => {

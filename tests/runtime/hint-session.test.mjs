@@ -112,25 +112,19 @@ function hintMap(t, names) {
 const scrollStarts = () => document.dispatchEvent(new Event("scroll"));
 const scrollEnds = () => document.dispatchEvent(new Event("scrollend"));
 
-test("arming reads the scene and paints a chip for every code", (t) => {
-  const map = hintMap(t, ["one", "two", "three", "four"]);
-  assert.deepEqual(
-    map.session.arm().map(({ code }) => code),
-    ["a", "s", "da", "ds"],
-  );
-  map.session.paint();
-  assert.deepEqual(map.shown(), ["a", "s", "da", "ds"]);
-  assert.equal(map.current(), null);
-});
-
-test("a letter narrows the map, and the letter that completes a code takes it", (t) => {
+test("a letter narrows the map, one that names nothing changes nothing, and the letter that completes a code takes it", (t) => {
   const map = hintMap(t, ["one", "two", "three", "four"]);
   map.session.arm();
   map.session.paint();
+  assert.deepEqual(map.shown(), ["a", "s", "da", "ds"]);
 
   map.session.type("d");
   assert.equal(map.heard(), "2 targets remain.");
-  assert.equal(map.session.prefix(), "d");
+  map.session.paint();
+  assert.deepEqual(map.shown(), ["da", "ds"]);
+
+  map.session.type("f");
+  assert.equal(map.heard(), "No hint df. The current hints are unchanged.");
   map.session.paint();
   assert.deepEqual(map.shown(), ["da", "ds"]);
   assert.deepEqual(map.taken, []);
@@ -138,20 +132,6 @@ test("a letter narrows the map, and the letter that completes a code takes it", 
   // A complete code acts at once, with no terminator or timeout.
   map.session.type("s");
   assert.deepEqual(map.taken, ["four"]);
-});
-
-test("a letter that names nothing is reported and leaves the map as it was", (t) => {
-  const map = hintMap(t, ["one", "two", "three", "four"]);
-  map.session.arm();
-  map.session.type("d");
-  map.session.paint();
-
-  map.session.type("f");
-  assert.equal(map.heard(), "No hint df. The current hints are unchanged.");
-  assert.equal(map.session.prefix(), "d");
-  map.session.paint();
-  assert.deepEqual(map.shown(), ["da", "ds"]);
-  assert.deepEqual(map.taken, []);
 });
 
 test("Escape gives back one letter at a time, then hands Escape on", (t) => {

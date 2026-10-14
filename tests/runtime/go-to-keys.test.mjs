@@ -51,15 +51,12 @@ const goTo = createGoToSequence({
 const press = (key) =>
   dispatchKey(new window.KeyboardEvent("keydown", { key, cancelable: true }), {});
 
-test("unarmed, the letter is the page command's", () => {
-  assert.equal(goTo.goToSequenceActive(), false);
+test("a letter is the page command's until Go-to is armed, then a hint miss that leaves the sequence standing", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   assert.equal(press("e"), true);
   assert.deepEqual(reacted, ["e"]);
   reacted.length = 0;
-});
 
-test("armed, a letter no hint names is reported as a miss, and the sequence stands", (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
   assert.equal(press("g"), true);
   assert.equal(goTo.goToSequenceActive(), true);
   t.after(() => goTo.setGoToSequence(false));

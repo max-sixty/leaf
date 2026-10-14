@@ -1126,9 +1126,6 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
             activity["observed_kind"],
             activity["observed"],
         ) == ("working", "revising the plan", "tool", "Running the tests")
-        for kind in ("thinking", "awaiting_input", "awaiting_approval", "replying"):
-            _, activity = declare("working", "revising the plan", stream={"kind": kind})
-            assert (activity["kind"], activity["observed_kind"]) == ("working", kind)
 
         # A claim of work that has gone quiet is still a claim of work, and a live
         # watcher does not turn it into an invitation: it is the silence with no

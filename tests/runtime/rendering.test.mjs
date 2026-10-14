@@ -327,28 +327,20 @@ test("a hidden page reads settled while work waits for an update it will not get
   }
 });
 
-test("work waiting on settling waits for an update after it and every preparation", async () => {
+test("work waiting on settling waits for an update after it and the preparations begun since", async () => {
+  const unrelated = holdRendering();
   await update();
-  assert.equal(Object.values(renderingState()).every(Boolean), true);
+  assert.equal(renderingState().updatesSettled, true);
   let settled = 0;
   afterSettling(() => settled++);
-  assert.equal(settled, 0, "a settled page still owes the update after the ask");
+  assert.equal(settled, 0, "settled updates still owe the update after the ask");
   const preparing = holdRendering();
   await update();
   await update();
-  assert.equal(settled, 0, "a preparation begun meanwhile holds it");
+  assert.equal(settled, 0, "a preparation begun since the ask holds it");
   preparing();
   await update();
-  assert.equal(settled, 1);
-});
-
-test("a preparation waiting before the ask is not the asker's", async () => {
-  const unrelated = holdRendering();
-  await update();
-  let settled = 0;
-  afterSettling(() => settled++);
-  await update();
-  assert.equal(settled, 1);
+  assert.equal(settled, 1, "a preparation waiting before the ask is not the asker's");
   unrelated();
   await update();
 });

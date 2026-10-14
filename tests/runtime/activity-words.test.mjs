@@ -164,21 +164,21 @@ test("a page nobody holds, and a closed one, say so without the agent", () => {
 });
 
 test("an unreachable server, a refused key and an unappliable state each say what to do", () => {
-  assert.deepEqual(pageStatus(null), {
+  assert.deepEqual(pageStatus(null, { reach: "unreachable" }), {
     kind: "unreachable",
     tone: "offline",
     summary: "Server offline — reconnecting; keep page open",
     explanation:
       "Server offline — reconnecting. Keep this page open so pending changes can send.",
   });
-  assert.deepEqual(pageStatus(null, { keyRefused: true }), {
+  assert.deepEqual(pageStatus(null, { reach: "refused" }), {
     kind: "unreachable",
     tone: "offline",
     summary: "Key refused — open Leaf's link in a new tab",
     explanation:
       "The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.",
   });
-  assert.deepEqual(pageStatus(new Error("bad state")), {
+  assert.deepEqual(pageStatus(null, { reach: "broken" }), {
     kind: "broken",
     tone: "offline",
     summary: "Page couldn't apply current state — reload",
@@ -208,7 +208,11 @@ test("the disclosure names what waits on each side, and the row counts the agent
   );
   // A page with nothing waiting adds nothing, and an offline page counts nothing.
   assert.equal(statusModel(status, NO_QUEUES, "Agent").explanation, status.explanation);
-  const offline = statusModel(pageStatus(null), queues, reading.agent);
+  const offline = statusModel(
+    pageStatus(reading, { reach: "unreachable" }),
+    queues,
+    reading.agent,
+  );
   assert.deepEqual(
     [offline.queues, offline.explanation],
     [

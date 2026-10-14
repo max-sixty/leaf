@@ -1,11 +1,13 @@
 /* This module derives the machine's immutable Leaves presentation and owns its walk. */
-import { clocked } from "./presence.js";
+import { watchProjection } from "./projection-watch.js";
+import { runtime } from "./context.js";
 import { pagePresented } from "./page-paint.js";
 import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { activityFacts, leafRow } from "./activity-words.js";
 import { rowWalk } from "./walk-position.js";
 
+/** @type {readonly any[]} */
 let others = [];
 let rows = Object.freeze([]);
 
@@ -70,7 +72,8 @@ const rowAccount = (entry, title, line) =>
     .filter(Boolean)
     .join("\n");
 
-function renderOthersNow(state) {
+function paintOthers() {
+  const state = runtime.state;
   const offeredBefore = leavesOffered();
   // Null is the explicit pre-read state. It has no self presence to draw, and recovery
   // from a refused first reading must remove every row that candidate introduced.
@@ -108,7 +111,8 @@ function renderOthersNow(state) {
   return presentLeaves();
 }
 
-// Clocked on the list rather than on the body: the body never leaves, so a clock owned
-// by it would go on repainting a drawer that has, and the owner argument is exactly the
-// question of whose departure ends the paint.
-export const renderOthers = clocked(liveLeavesList, renderOthersNow);
+// Owned by the list rather than the body: the body never leaves, so a clock owned by it
+// would go on repainting a drawer that has, and the owner argument is exactly the
+// question of whose departure ends the paint. An offline page never mounts the list,
+// so it draws no rows.
+watchProjection(liveLeavesList, paintOthers);

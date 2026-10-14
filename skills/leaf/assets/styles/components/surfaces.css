@@ -377,7 +377,8 @@ summary { align-content: center; }
 /* Every conversation shares its reading edge, including a floating draft. The
    field subtracts its border; messages and metadata take the full inset. */
 /* An open progress group's border overhangs the transcript's end by
-   `--lf-group-ring-end`, so a transcript that scrolls keeps that much room there. */
+   `--lf-group-ring-end`, so a transcript that scrolls keeps at least that much room
+   there (`--lf-transcript-room`, annotation-chrome.css). */
 :root, .lf-page-thread, .lf-thread, .lf-fab-bar {
           --lf-thread-text-inset: 13px;
           --lf-group-ring-end: 6px;

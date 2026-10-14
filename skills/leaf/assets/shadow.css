@@ -1524,9 +1524,6 @@ button.lf-media-open {
 .lf-thread-transcript .lf-msg-editor {
   margin-inline-start: calc(-1 * var(--lf-thread-text-inset));
 }
-.lf-msg-editor > .lf-compose-field:has(> leaf-text[data-lf-focus]) {
-  outline-offset: calc(-1 * var(--focus-ring-w));
-}
 .lf-msg-edit-foot {
   display: block;
   block-size: 0;

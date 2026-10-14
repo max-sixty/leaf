@@ -317,3 +317,87 @@ test("bound data draws only as it is delivered, and a held element holds the ver
   assert.deepEqual(revisions, ["b2", "b3"]);
   element.remove();
 });
+
+test("a move published just before the element leaves is drawn on its return", async () => {
+  applicationState.setPhase("waiting");
+  const { element, draws } = probe(() => phase());
+  document.body.append(element);
+  await settled(element);
+  applicationState.setPhase("offline");
+  element.remove();
+  await settled(element);
+  assert.deepEqual(draws, ["waiting"], "nothing draws into a detached element");
+  document.body.append(element);
+  await settled(element);
+  assert.deepEqual(draws, ["waiting", "offline"]);
+  element.remove();
+});
+
+test("a failure after the draw is reported and shown, not swallowed", async () => {
+  const errors = [];
+  const original = console.error;
+  console.error = (...args) => errors.push(args.join(" "));
+  const tag = `lf-probe-updated-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      render() {
+        return html`${phase()}`;
+      }
+      updated(changed) {
+        super.updated(changed);
+        if (phase() === "offline") throw new Error("cannot finish");
+      }
+    },
+  );
+  applicationState.setPhase("waiting");
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  await settled(element);
+  applicationState.setPhase("offline");
+  await settled(element);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  console.error = original;
+  assert.match(element.textContent, /failed: cannot finish/);
+  element.remove();
+});
+
+test("accepted data claims the element's region until its delivery draws", async () => {
+  const tag = `lf-probe-claim-${++tags}`;
+  adoptRegistry({
+    [tag]: { "x-data": { rows: { source: "source", contract: "rows" } } },
+    $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
+  });
+  const accept = (version, revision) =>
+    acceptData(
+      {
+        version,
+        sources: { jobs: { contract: "rows", revision, value: [{ key: "api" }] } },
+      },
+      1,
+    );
+  accept("j1", "r1");
+  await notifyDataSubscribers();
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      render() {
+        return html`${this.data("rows")?.revision}`;
+      }
+    },
+  );
+  const element = document.createElement(tag);
+  element.id = "jobs";
+  element.setAttribute("source", "jobs");
+  document.body.append(element);
+  await settled(element);
+  accept("j2", "r2");
+  await settled(element);
+  assert.equal(element.textContent, "r1");
+  assert.ok(pending(element), "the accepted reading holds the region open");
+  await notifyDataSubscribers();
+  assert.equal(element.textContent, "r2");
+  assert.ok(!pending(element));
+  element.remove();
+});

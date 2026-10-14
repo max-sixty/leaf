@@ -112,8 +112,12 @@ export function dataReader(element, input) {
       return () => deliveryListeners.delete(moved);
     },
   );
+  stagedReadings.add(selected);
   let reported = null;
   return () => {
+    // The accepted reading claims the element's region inside the publication that
+    // accepts it; the delivered one draws.
+    selected.read();
     const sourceStore = /** @type {{contract: string, revision?: string} | null} */ (
       delivered.read()
     );
@@ -144,6 +148,9 @@ export function dataReader(element, input) {
 // presents, as a `watchData` subscription does; its readers hear the delivery itself.
 let deliveries = 0;
 const deliveryListeners = new Set();
+// The accepted readings a `LeafElement` follows to claim its region, not to draw.
+const stagedReadings = new WeakSet();
+export const stagesOnly = (reading) => stagedReadings.has(reading);
 export function joinDataDelivery(region) {
   const subscription = { region, notify() {} };
   subscriptions.add(subscription);

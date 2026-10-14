@@ -45,7 +45,7 @@ import { failSoft, failSoftUnreported, once } from "./widget-upgrade.js";
 import { watchOwner } from "./arrivals.js";
 import { dragHeld, watchDragRelease } from "./widget-elements.js";
 import { paintKeysWithin } from "./keyboard/scopes.js";
-import { dataReader, joinDataDelivery } from "./data.js";
+import { dataReader, joinDataDelivery, stagesOnly } from "./data.js";
 import { registry } from "./registry.js";
 
 const REFRESH = Symbol("refresh");
@@ -76,6 +76,8 @@ export class LeafElement extends LitElement {
   // The open claim the next update that draws settles.
   #ticket = null;
   #holds = 0;
+  // Whether the failure of the update under way has been reported.
+  #reported = false;
   #data = new Map();
   #leaveData = null;
 
@@ -160,7 +162,9 @@ export class LeafElement extends LitElement {
   }
 
   shouldUpdate(changed) {
-    if (!this.#connected) {
+    // A draw queued as the element left waits for its return, whether or not the arrival
+    // batch has told it yet.
+    if (!this.#connected || !this.isConnected) {
       this.#owed = true;
       return false;
     }
@@ -170,7 +174,11 @@ export class LeafElement extends LitElement {
     }
     const gate = collectReads(() => this.#complete());
     this.#gateReads = gate.reads;
-    if ("error" in gate) throw gate.error;
+    if ("error" in gate) {
+      this.#failed(gate.error, this.#ticket);
+      this.#follow();
+      throw gate.error;
+    }
     if (!gate.value) {
       // Nothing to draw until every declared verb has arrived; the claim stands drawn.
       this.#settle();
@@ -180,23 +188,28 @@ export class LeafElement extends LitElement {
   }
 
   update(changed) {
+    // The claim this update draws; one its own reads claim while it runs is the next's.
+    const ticket = this.#ticket;
+    this.#ticket = null;
     const outcome = collectReads(() => super.update(changed));
     this.#renderReads = outcome.reads;
-    this.#follow();
     if ("error" in outcome) {
-      this.#failed(outcome.error);
+      this.#failed(outcome.error, ticket);
+      this.#follow();
       throw outcome.error;
     }
-    this.#settle();
+    ticket?.resolve();
+    this.#follow();
   }
 
-  // A failed update has reported and shown its failure (`#failed`); Lit has marked it
-  // done, so the next move draws again.
+  // An update that failed anywhere, its gate and `updated` included, reports once and
+  // shows its failure; Lit has marked it done, so the next move draws again.
   performUpdate() {
+    this.#reported = false;
     try {
       super.performUpdate();
-    } catch {
-      // Reported where it failed.
+    } catch (error) {
+      if (!this.#reported) this.#failed(error, null);
     }
   }
 
@@ -212,9 +225,9 @@ export class LeafElement extends LitElement {
   }
 
   // The fail-soft box goes where the render draws, so the next update draws over it.
-  #failed(error) {
-    const ticket = this.#ticket;
-    this.#ticket = null;
+  #failed(error, ticket) {
+    this.#reported = true;
+    if (ticket === this.#ticket) this.#ticket = null;
     if (ticket) ticket.reject(error);
     else failSoft(this.renderRoot, error);
   }
@@ -226,8 +239,10 @@ export class LeafElement extends LitElement {
       ? reads.map(([reading, seen]) =>
           reading.subscribe((now) => {
             if (now === seen) return;
-            // Proof moving draws again without a claim, which would move proof again.
+            // Proof moving draws again without a claim, which would move proof again;
+            // accepted data claims and waits for its delivery to draw.
             if (readsProof(reading)) this.requestUpdate();
+            else if (stagesOnly(reading)) this.#stage();
             else this.#moved();
           }),
         )
@@ -240,6 +255,15 @@ export class LeafElement extends LitElement {
       return;
     }
     this.#present();
+  }
+
+  // Claim the region for a reading that draws later, leaving the claim open.
+  #stage() {
+    if (!this.#connected || this.#ticket || !this.#region) return;
+    this.#ticket = this.#region.present(
+      untracked(() => this.#controller?.read() ?? {}),
+      (reason) => failSoftUnreported(this.renderRoot, reason),
+    );
   }
 
   // Claim the region for the reading as it stands, and draw it on the next update; a

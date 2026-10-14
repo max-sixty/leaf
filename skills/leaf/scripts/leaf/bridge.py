@@ -149,13 +149,18 @@ def serve(lock: int) -> None:
 
     class Handler(socketserver.StreamRequestHandler):
         def handle(self) -> None:
-            # Anything on the machine can connect, so a request that is not the
-            # client's ends the handler within the silence a client may keep.
+            # Anything on the machine can connect, so a request that has not
+            # arrived whole within the silence a client may keep is not the
+            # client's, however slowly its bytes come.
             self.connection.settimeout(SILENCE_SECONDS)
+            deadline = threading.Timer(SILENCE_SECONDS, self.cut)
+            deadline.start()
             try:
                 frame = receive(self.rfile, REQUEST_BYTES)
             except OSError:
                 return
+            finally:
+                deadline.cancel()
             if frame is None or frame[0] != REQUEST:
                 return
             request = json.loads(frame[1])
@@ -188,6 +193,10 @@ def serve(lock: int) -> None:
                 running.discard(child.pid)
                 with contextlib.suppress(queue.Full):
                     stdin.put_nowait(b"")
+
+        def cut(self) -> None:
+            with contextlib.suppress(OSError):
+                self.connection.shutdown(socket.SHUT_RDWR)
 
         def feed(
             self, child: subprocess.Popen, stdin: queue.Queue, finished: threading.Event

@@ -5,18 +5,15 @@ import {
   threadBox,
   keeps,
   keepsText,
-  once,
+  LeafElement,
+  nothing,
   readWork,
-  watchProjection,
-  widgetController,
   workAncestor,
 } from "/runtime/widget-api.js";
 customElements.define(
   "lf-test-task",
-  class extends HTMLElement {
-    #controller = widgetController(this);
-    connectedCallback() {
-      if (!once(this)) return;
+  class extends LeafElement {
+    setup() {
       keeps(this, "role", "group");
       this.ariaLabelledByElements = [this.querySelector(":scope > strong")].filter(
         Boolean,
@@ -37,17 +34,15 @@ customElements.define(
         const thread = threadBox(this, "Say something here");
         if (thread) this.append(thread);
       }
-      this.#controller.subscribe(() => {});
-      watchProjection(this, () => {
-        const row = readWork(
-          workAncestor(this, "scope") ?? this.parentElement,
-        ).goals.find((row) => row.element === this);
-        keepsText(this.progress, `${row.finished}/${row.leaves.length} done`);
-      });
     }
-    renderState(state) {
-      keeps(this, "status", state.status.value);
-      keepsText(this.statusLine, state.status.value ?? "");
+    render() {
+      keeps(this, "status", this.state.status.value);
+      keepsText(this.statusLine, this.state.status.value ?? "");
+      const row = readWork(
+        workAncestor(this, "scope") ?? this.parentElement,
+      ).goals.find((row) => row.element === this);
+      keepsText(this.progress, `${row.finished}/${row.leaves.length} done`);
+      return nothing;
     }
   },
 );

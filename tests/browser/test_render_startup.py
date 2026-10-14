@@ -3806,6 +3806,42 @@ def test_the_first_read_and_the_user_s_later_ones_are_bounded_apart(browser, ser
     assert 0 < bounds[1] < bounds[0], bounds
 
 
+def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
+    browser, serve
+):
+    """A first read that fails presents each widget at its authored state, and the
+    read that recovers draws the choice the log holds."""
+    url = serve(
+        leaf_page(
+            "Offline choice",
+            '<h1>Offline choice</h1><lf-ask id="ask"><h2>Which?</h2>'
+            '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
+            '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+        )
+    )
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "options",
+            "action": "choose",
+            "detail": {"value": ["two"]},
+        },
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page.route("**/api/state*", refuse)
+    page.goto(url, wait_until="load")
+    expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+    expect(page.locator(".lf-status-detail")).to_contain_text("Server offline")
+    expect(page.locator("#options .lf-pick")).to_have_count(2)
+    expect(page.locator("#two")).not_to_have_attribute("chosen", "")
+    page.unroute("**/api/state*")
+    told(page)
+    expect(page.locator("#two")).to_have_attribute("chosen", "")
+
+
 def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):
     """The network slot ends with the read, not an unbounded package repaint."""
     page = open_page(browser, serve(LONG_PAGE))

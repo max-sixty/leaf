@@ -720,15 +720,32 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 # names with the endpoints under it.
 SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions", RENDER_CHECKS_DIR)
 PAGE_ROUTE_DIRS = ("api", *BROWSER_DIRS, *SESSION_ROUTE_DIRS)
+CONTENT_TYPES = {
+    ".js": "application/javascript",
+    ".mjs": "application/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".html": "text/html",
+    **MEDIA_TYPES,
+}
+JAVASCRIPT_SUFFIXES = frozenset(
+    suffix for suffix, mime in CONTENT_TYPES.items() if mime == "application/javascript"
+)
+MODULE_EXTENSION = (
+    "(?:" + "|".join(re.escape(suffix) for suffix in sorted(JAVASCRIPT_SUFFIXES)) + ")"
+)
+# Helper modules have package-owned names; only widget entry names follow tag syntax.
+# Share safe path segments with vendor files, excluding traversal segments.
+BROWSER_FILE = r"(?:(?!\.{1,2}/)[^/\\\x00-\x20?#]+/)*(?!\.{1,2}$)[^/\\\x00-\x20?#]+"
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side instructions stay vendored but are read
 # only through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.
 DIR_FILES = {
-    "runtime": r"(?:[A-Za-z0-9-]+/)*[A-Za-z0-9-]+\.(?:js|css)",
-    "widgets": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.js",
-    "vendor": (r"(?:(?!\.{1,2}/)[A-Za-z0-9._-]+/)*" r"(?!\.{1,2}$)[A-Za-z0-9._-]+"),
+    "runtime": rf"{BROWSER_FILE}(?:{MODULE_EXTENSION}|\.css)",
+    "widgets": rf"{BROWSER_FILE}{MODULE_EXTENSION}",
+    "vendor": BROWSER_FILE,
     MEDIA_DIR: rf"[a-f0-9]{{{MEDIA_DIGEST}}}(?:"
     + "|".join(re.escape(e) for e in MEDIA_TYPES)
     + ")",
@@ -743,13 +760,6 @@ SERVED_PATH = re.compile(
     )
     + ")"
 )
-CONTENT_TYPES = {
-    ".js": "application/javascript",
-    ".css": "text/css",
-    ".json": "application/json",
-    ".html": "text/html",
-    **MEDIA_TYPES,
-}
 BINARY_TYPES = frozenset(MEDIA_TYPES.values()) - {"image/svg+xml"}
 
 

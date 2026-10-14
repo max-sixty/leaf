@@ -253,3 +253,40 @@ test("each publication selects its own widgets while native and widget selectors
       [["lf-publication-owner", verb, {}]],
     );
 });
+
+test("member state owns each physical slot independently across a hierarchy", () => {
+  const root = document.createElement("main");
+  root.innerHTML = `<lf-audit-board id="outer">
+    <lf-audit-zone id="one" phase="ready"><lf-audit-card id="card" selected phase="idle">
+      <lf-audit-board id="inner"><lf-audit-zone id="inner-zone" phase="ready">
+        <lf-audit-card id="inner-card" selected phase="idle">Inner</lf-audit-card>
+      </lf-audit-zone></lf-audit-board>
+    </lf-audit-card></lf-audit-zone><lf-audit-zone id="two" phase="ready"></lf-audit-zone>
+  </lf-audit-board>`;
+  const declarations = {
+    $layer: { generation: "independent-member-records" },
+    "lf-audit-board": {
+      "x-state": {
+        move: { unit: "unit", record: { kind: "position", within: "lf-audit-zone" } },
+      },
+    },
+    "lf-audit-zone": {
+      "x-state": {
+        phase: { unit: "widget", record: { kind: "value", attr: "phase" } },
+        choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
+      },
+    },
+    "lf-audit-card": {
+      "x-state": {
+        phase: { unit: "widget", record: { kind: "value", attr: "phase" } },
+      },
+    },
+  };
+  bindVocabulary(root, { revision: 1, declarations });
+  const states = stageAuthoredStates(root, new Map());
+  assert.deepEqual(states.get("outer").state.move.value, { one: ["card"], two: [] });
+  assert.deepEqual(states.get("one").state.choose.value, ["card"]);
+  assert.deepEqual(states.get("inner-zone").state.choose.value, ["inner-card"]);
+  assert.equal(states.get("one").state.phase.value, "ready");
+  assert.equal(states.get("card").state.phase.value, "idle");
+});

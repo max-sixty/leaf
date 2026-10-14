@@ -13,7 +13,6 @@ from pathlib import Path
 from leaf.asks import (
     approval_blocking,
     asking,
-    projected_action_holders,
     quoted_in,
 )
 from leaf.event_log import APPEND_STAMPED, EventRefused, new_event_id
@@ -25,7 +24,10 @@ from leaf.layer import incompatible_layer, incompatible_revision
 from leaf.page_view import CandidatePageView, PageView
 from leaf.projection import (
     authored_positions,
+    generated_children,
+    projected_action_holders,
     record_members,
+    recorded_owner,
 )
 from leaf.read_state import read_contract_error
 from leaf.registry.contract import (
@@ -216,28 +218,22 @@ def position_record_error(
             node = holder(node)
         return False
 
-    def recording_owner(node: dict):
-        """Nearest enclosing widget whose declaration records durable state.
-
-        The walk starts at the holder, so a part that records state of its own is
-        still its container's to place: verbs are local to the widget contract that
-        declares them."""
-        node = node["holder"]
-        while node is not None:
-            entry = registry.get(node["tag"], {})
-            if any(spec.get("record") for _, spec in state_specs(entry)):
-                return node
-            node = node["holder"]
-        return None
-
-    # A node has one place, and the nearest recording widget above it records it.
-    if recording_owner(unit) is not current:
+    # Admission and projection use the same physical-slot ownership for both ends.
+    owner = event["widget"]
+    if (
+        recorded_owner(unit_id, record, by_id, registry, holders=projected_holders)
+        != owner
+    ):
         return Finding("foreign-unit", values=named)
     if inside(target, unit):
         return Finding("nested-unit", values=named)
     # A part record repositions something inside its owning widget, so its
     # destination belongs there too.
-    if not inside(target, current):
+    if (
+        not inside(target, current)
+        or recorded_owner(target_id, record, by_id, registry, holders=projected_holders)
+        != owner
+    ):
         return Finding("outside-destination", values=named)
     if target["tag"] not in (registry.get(unit["tag"]) or {}).get("x-owners", []):
         return Finding("unowned-placement", values={**named, "unit_tag": unit["tag"]})
@@ -354,7 +350,15 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     # A created child is new: an id the markup already holds is an authored element,
     # which a user's gesture can mark or move but never write into being.
     created = created_child(event, spec)
-    if created and (created[0] in document.by_id or created[0] in thread_by_id):
+    if created:
+        authored = set(document.ids) | thread.structure.ids
+        occupied = {
+            child["id"]
+            for projection in (readings.page(revision).projection, thread.projection)
+            for children in generated_children(projection.desired, authored).values()
+            for child in children
+        }
+    if created and created[0] in authored | occupied:
         return Finding(
             "created-exists",
             values={"tag": tag, "verb": event["action"], "created": created[0]},
@@ -378,14 +382,13 @@ def record_contract_error(view, event, spec, readings, page_owned=True):
             stale := stale_move_error(view, event, spec, reading, readings)
         ):
             return stale
-        projection, byid, spk = (
+        projection, byid = (
             reading.projection,
             reading.document.by_id,
-            reading.spoken,
         )
     else:
         thread = readings.thread
-        projection, byid, spk = thread.projection, thread.by_id, thread.spoken
+        projection, byid = thread.projection, thread.by_id
 
     current = byid[event["widget"]]
     record = {
@@ -401,7 +404,9 @@ def record_contract_error(view, event, spec, readings, page_owned=True):
         ):
             return error.but(values=record)
     if record_kind == "attribute":
-        members = record_members(event["widget"], projection, byid, spk, registry)
+        members = record_members(
+            event["widget"], spec["record"], projection, byid, registry
+        )
         named = event["detail"]["value"]
         if strangers := sorted(set(named) - members):
             return Finding("unknown-members", values={**record, "strangers": strangers})

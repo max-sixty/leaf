@@ -723,7 +723,7 @@ export function createPresentationSchedule(
       current: () => boolean,
     ) => Proof | PromiseLike<Proof> | typeof PRESENTATION_HELD;
     failSoft?: (reason: unknown) => Proof;
-    order?: number;
+    order?: number | (() => number);
   }): EpochPresenter<Value> {
     interface Claim {
       readonly claimed: number;
@@ -762,7 +762,7 @@ export function createPresentationSchedule(
       // The claim is synchronous, inside the publication that opened the epoch. Only
       // the paint waits for the pass.
       const ticket = claim(value);
-      collect(order, () => run(ticket));
+      collect(typeof order === "function" ? order() : order, () => run(ticket));
       return passed();
     }
 

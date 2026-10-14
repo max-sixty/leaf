@@ -1971,3 +1971,146 @@ test("pending undo removes a custom ask answer before authoritative completion c
   app.refuse("re-pick");
   assert.equal(app.read().effective.asks.all[0].answer.event.id, accepted.id);
 });
+
+test("attribute-set readings follow their own current membership through moves and undo", () => {
+  const move = {
+    unit: "unit",
+    writer: "user",
+    record: { kind: "position", within: "lf-audit-lane" },
+  };
+  const choose = {
+    unit: "widget",
+    writer: "user",
+    record: { kind: "attribute", attr: "selected" },
+  };
+  const declared = (id, tag, verbs, parent = null) =>
+    capturedDescriptor({
+      ...descriptor,
+      id,
+      tag,
+      declaration: { "x-state": verbs },
+      parent: parent && { id: parent, tag: "lf-audit-manifest" },
+      ancestors: [],
+    });
+  const board = declared("manifest", "lf-audit-manifest", { move });
+  const north = declared("north", "lf-audit-lane", { choose }, "manifest");
+  const shelf = declared("shelf", "lf-audit-shelf", {}, "manifest");
+  const south = declared("south", "lf-audit-lane", { choose }, "shelf");
+  const other = declared("other", "lf-audit-lane", { choose });
+  const cargo = declared("cargo", "lf-audit-cargo", {}, "north");
+  const baseline = (owner, value) => [
+    owner.id,
+    {
+      tag: owner.tag,
+      specs: new Map([["choose", choose]]),
+      state: { choose: { action: null, value, detail: { value } } },
+    },
+  ];
+  const app = setup(
+    [board, north, south, other, cargo, shelf].map((owner) => [owner.id, owner]),
+    [
+      [
+        board.id,
+        {
+          tag: board.tag,
+          specs: new Map([["move", move]]),
+          state: {
+            move: {
+              value: { north: ["cargo"], south: [] },
+              units: {},
+              ranks: { cargo: "1" },
+            },
+          },
+        },
+      ],
+      baseline(north, ["cargo"]),
+      baseline(south, []),
+      baseline(other, []),
+    ],
+  );
+  const selected = new Map(
+    [north, south, other].map((owner) => [owner.id, app.selectWidget(owner)]),
+  );
+  const before = new Map([...selected].map(([id, reading]) => [id, reading.read()]));
+  const paints = { north: 0, south: 0, other: 0 };
+  const stops = [...selected].map(([id, reading]) =>
+    reading.subscribe(() => paints[id]++),
+  );
+  const placed = app.enqueue(
+    {
+      kind: "action",
+      widget: "manifest",
+      action: "move",
+      detail: { unit: "cargo", value: "south", rank: "1" },
+      revision: 1,
+      attempt: "move",
+    },
+    "now",
+  );
+  assert.deepEqual(paints, { north: 2, south: 2, other: 1 });
+  assert.equal(app.read().effective.widgetParents.get("cargo"), "south");
+  assert.equal(app.read().effective.widgetParents.get("south"), "shelf");
+  assert.deepEqual(selected.get("north").read().state, before.get("north").state);
+  assert.deepEqual(selected.get("south").read().state, before.get("south").state);
+  app.enqueue(
+    {
+      kind: "action",
+      widget: "south",
+      action: "choose",
+      detail: { value: [] },
+      revision: 1,
+      attempt: "clear",
+    },
+    "now",
+  );
+  app.enqueue({ kind: "undo", undoes: placed.localId, attempt: "undo" }, "now");
+  assert.deepEqual(paints, { north: 3, south: 4, other: 1 });
+  assert.equal(app.read().effective.widgetParents.get("cargo"), "north");
+  assert.deepEqual(selected.get("north").read().state.choose.value, ["cargo"]);
+  for (const stop of stops) stop();
+});
+
+test("flat creations remain parent-owned units through undo and refusal", () => {
+  const sow = {
+    unit: "seed",
+    writer: "user",
+    creates: { child: "lf-seedling", words: "label" },
+  };
+  const tray = capturedDescriptor({
+    ...descriptor,
+    id: "tray",
+    tag: "lf-tray",
+    declaration: { "x-state": { sow } },
+  });
+  const app = setup(
+    [[tray.id, tray]],
+    [
+      [
+        tray.id,
+        {
+          tag: tray.tag,
+          specs: new Map([["sow", sow]]),
+          state: { sow: { value: {}, units: {} } },
+        },
+      ],
+    ],
+  );
+  const selected = app.selectWidget(tray);
+  const created = app.enqueue(
+    {
+      kind: "action",
+      revision: 1,
+      widget: "tray",
+      action: "sow",
+      detail: { seed: "elm", label: "Elm" },
+      attempt: "sow-elm",
+    },
+    "now",
+  );
+  assert.equal(selected.read().state.sow.units.elm.detail.label, "Elm");
+  assert.equal(app.read().effective.widgets.has("elm"), false);
+  app.enqueue({ kind: "undo", undoes: created.localId, attempt: "undo-sow" }, "now");
+  assert.deepEqual(selected.read().state.sow.units, {});
+  app.refuse("undo-sow");
+  assert.equal(selected.read().state.sow.units.elm.detail.label, "Elm");
+});

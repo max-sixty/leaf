@@ -39,26 +39,26 @@ import { initialParent, initialSource } from "../initial-render.js";
    - `body`: the parsed data body's exact text, including indentation and trailing whitespace;
    - no record: `null` for a widget verb, an empty unit map otherwise.
 
-   Ownership of record members stops at `recordedOwner`, the nearest widget with a
-   declared record. A custom outer container must not capture or restore a nested
-   recorded widget's members. */
+   Ownership of record members stops at the nearest ancestor recording the same
+   physical slot: an attribute set's attribute, or a position. Other attributes
+   and record kinds coexist, including scalar state on a member or container. */
 export const authoredStates = () => readApplication().document.authored;
 export const authoredParents = new WeakMap();
-/** @param {Element} member */
-const recordedOwner = (member) => {
-  const selector = recordedWidgetSelector(member);
-  return selector ? member.closest(selector) : null;
+/** @param {Element} member @param {StateRecord} record */
+const recordedOwner = (member, record) => {
+  const selector = recordedWidgetSelector(record, member);
+  return selector ? (member.parentElement?.closest(selector) ?? null) : null;
 };
-/** @param {Element} widget @param {string} selector */
-const ownedRecordMembers = (widget, selector) =>
+/** @param {Element} widget @param {string} selector @param {StateRecord} record */
+const ownedRecordMembers = (widget, selector, record) =>
   [...widget.querySelectorAll(selector)].filter(
-    (member) => recordedOwner(member) === widget,
+    (member) => recordedOwner(member, record) === widget,
   );
 
 /** @param {Element} el @param {StateRecord} record */
 export function domValue(el, record) {
   if (record.kind === "attribute")
-    return ownedRecordMembers(el, `[${record.attr}]`)
+    return ownedRecordMembers(el, `[${record.attr}]`, record)
       .map((o) => o.id)
       .filter(Boolean)
       .sort();
@@ -88,7 +88,7 @@ function initialState(widget, spec) {
     /** @type {Record<string, string>} */
     const ranks = {};
     for (const container of widget.querySelectorAll(record.within))
-      if (container.id && recordedOwner(container) === widget) {
+      if (container.id && recordedOwner(container, record) === widget) {
         const ids = [...container.children]
           .filter((part) => part.id)
           .map((part) => part.id);
@@ -99,7 +99,7 @@ function initialState(widget, spec) {
   }
   let value = null;
   if (record?.kind === "attribute")
-    value = ownedRecordMembers(widget, `[${record.attr}]`)
+    value = ownedRecordMembers(widget, `[${record.attr}]`, record)
       .map((member) => member.id)
       .filter(Boolean)
       .sort();

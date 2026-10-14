@@ -6028,3 +6028,368 @@ def test_frozen_replies_keep_their_publications_command_and_ask_meanings():
         (event["widget"], event["action"])
         for event, _ in reading.projection.actions.values()
     ] == [("old-later", "choose"), ("new", "pick")]
+
+
+def _independent_member_records():
+    """An unfamiliar package composes selection, positions and scalar member state."""
+    registry = deepcopy(model_layer())
+    for tag in ("lf-audit-board", "lf-audit-zone", "lf-audit-card"):
+        registry[tag] = element_declaration(tag, upgrade=True)
+        registry[tag]["properties"]["restated"] = {"type": "boolean"}
+        registry[tag].pop("x-example", None)
+    board, zone, card = (
+        registry[tag] for tag in ("lf-audit-board", "lf-audit-zone", "lf-audit-card")
+    )
+    board["x-content"] = "members"
+    board["x-state"] = {
+        "move": {
+            "unit": "unit",
+            "record": {"kind": "position", "within": "lf-audit-zone"},
+        }
+    }
+    zone["x-owners"] = ["lf-audit-board"]
+    zone["x-content"] = "members"
+    zone["properties"]["phase"] = {"type": "string"}
+    zone["x-state"] = {
+        "phase": {"unit": "widget", "record": {"kind": "value", "attr": "phase"}},
+        "choose": {
+            "unit": "widget",
+            "record": {"kind": "attribute", "attr": "selected"},
+        },
+    }
+    card["x-owners"] = ["lf-audit-zone"]
+    card["properties"].update(selected={"type": "boolean"}, phase={"type": "string"})
+    card["x-state"] = {
+        "phase": {"unit": "widget", "record": {"kind": "value", "attr": "phase"}}
+    }
+    registry_validation.validate_registry(registry, "independent member records")
+    markup = """<lf-audit-board id="outer">
+<lf-audit-zone id="one" phase="ready"><lf-audit-card id="card" selected phase="idle">
+<lf-audit-board id="inner"><lf-audit-zone id="inner-zone" phase="ready">
+<lf-audit-card id="inner-card" selected phase="idle">Inner</lf-audit-card>
+</lf-audit-zone></lf-audit-board></lf-audit-card></lf-audit-zone>
+<lf-audit-zone id="two" phase="ready"></lf-audit-zone></lf-audit-board>"""
+    return ModelPage(markup, registry=registry)
+
+
+def test_member_records_compose_without_claiming_each_others_state(tmp_path):
+    from leaf.construction import constructed_content
+    from leaf.projection import (
+        authored_positions,
+        folded_positions,
+        markup_value,
+        page_reading,
+    )
+    from leaf.validation.instances import widget_errors
+
+    page = _independent_member_records()
+    reading = page.reading(1)
+    registry, document, spoken = reading.registry, reading.document, reading.spoken
+
+    def constructed(projection):
+        pending = constructed_content(
+            document,
+            projection,
+            spoken,
+            registry,
+            {"sources": {}},
+            tmp_path,
+            retired=set(),
+            thread="thread",
+        )
+        nodes = {}
+        while pending:
+            node = pending.pop()
+            if isinstance(node, dict):
+                nodes[node["attrs"].get("id")] = node
+                pending.extend(node["content"])
+        return nodes
+
+    assert widget_errors(document.lf_elements, registry) == []
+    selected = registry["lf-audit-zone"]["x-state"]["choose"]
+    move = registry["lf-audit-board"]["x-state"]["move"]
+    assert markup_value("one", selected, document.by_id, spoken, registry) == ["card"]
+    assert authored_positions(
+        "outer", move["record"], document.by_id, spoken, registry
+    ) == {"one": ["card"], "two": []}
+    log = []
+    for widget, action, detail in (
+        ("one", "choose", {"value": ["card"]}),
+        ("card", "phase", {"value": "running"}),
+        ("outer", "move", {"unit": "card", "value": "two", "rank": "1"}),
+    ):
+        event = event_contracts_model.admitted_event(
+            page,
+            log,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": widget,
+                "action": action,
+                "detail": detail,
+            },
+        )
+        log.append({**event, "seq": len(log) + 1, "ts": "2026-10-12T12:00:00+00:00"})
+    projection = page_reading(reading, log, 1).projection
+    assert {key for key in projection.desired} == {
+        ("one", "one", "choose"),
+        ("card", "card", "phase"),
+        ("outer", "card", "move"),
+    }
+    assert folded_positions(
+        "outer", "move", move["record"], document.by_id, spoken, registry, projection
+    ) == {"one": [], "two": ["card"]}
+    assert "selected" not in constructed(projection)["card"]["attrs"]
+    cleared_after_move = event_contracts_model.admitted_event(
+        page,
+        log,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "two",
+            "action": "choose",
+            "detail": {"value": []},
+        },
+    )
+    move_id = log[-1]["id"]
+    log.append({**cleared_after_move, "seq": 4, "ts": "2026-10-12T12:00:00+00:00"})
+    with pytest.raises(events_model.EventRefused):
+        event_contracts_model.admitted_event(
+            page,
+            log,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "one",
+                "action": "choose",
+                "detail": {"value": ["card"]},
+            },
+        )
+    assert constructed(page_reading(reading, log, 1).projection)["card"]["attrs"] == {
+        "id": "card",
+        "phase": "running",
+    }
+    withdrawn = {
+        "kind": "undo",
+        "id": "undo-move",
+        "author": "user",
+        "undoes": move_id,
+        "seq": 5,
+    }
+    projection = page_reading(reading, [*log, withdrawn], 1).projection
+    assert folded_positions(
+        "outer", "move", move["record"], document.by_id, spoken, registry, projection
+    ) == {"one": ["card"], "two": []}
+    assert projection.desired["card", "card", "phase"][0]["detail"] == {
+        "value": "running"
+    }
+    assert constructed(projection)["card"]["attrs"] == {
+        "id": "card",
+        "selected": "",
+        "phase": "running",
+    }
+
+
+def test_nested_member_records_refuse_foreign_selection_and_position():
+    page = _independent_member_records()
+    for widget, action, detail in (
+        ("one", "choose", {"value": ["inner-card"]}),
+        ("outer", "move", {"unit": "inner-card", "value": "two", "rank": "1"}),
+        ("outer", "move", {"unit": "card", "value": "inner-zone", "rank": "1"}),
+    ):
+        with pytest.raises(events_model.EventRefused):
+            event_contracts_model.admitted_event(
+                page,
+                [],
+                {
+                    "kind": "action",
+                    "author": "user",
+                    "revision": 1,
+                    "widget": widget,
+                    "action": action,
+                    "detail": detail,
+                },
+            )
+
+
+def _flat_member_registry():
+    """A fresh package creates stateless members and owns their selection."""
+    registry = deepcopy(model_layer())
+    tray = element_declaration("lf-seed-tray", upgrade=True)
+    tray["x-content"] = "members"
+    tray["properties"]["restated"] = {"type": "boolean"}
+    seed = element_declaration("lf-seed", upgrade=True)
+    seed["x-owners"] = ["lf-seed-tray"]
+    seed["properties"]["chosen"] = {"type": "boolean"}
+    seed["x-visual"] = "whole"
+    tray["x-state"] = {
+        "sow": {
+            "unit": "seed",
+            "creates": {"child": "lf-seed", "words": "label"},
+            "detail": {
+                "type": "object",
+                "properties": {
+                    "seed": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+                    "label": {"type": "string", "minLength": 1},
+                },
+                "required": ["seed", "label"],
+                "additionalProperties": False,
+            },
+        },
+        "choose": {"unit": "widget", "record": {"kind": "attribute", "attr": "chosen"}},
+    }
+    tray["x-example"] = '<lf-seed-tray id="tray"></lf-seed-tray>'
+    seed["x-example"] = (
+        '<lf-seed-tray id="example"><lf-seed id="seed">Seed</lf-seed></lf-seed-tray>'
+    )
+    registry.update({"lf-seed-tray": tray, "lf-seed": seed})
+    registry_validation.validate_registry(registry, "flat-members")
+    return registry
+
+
+def test_creates_targets_are_members_while_authored_widgets_keep_owner_capabilities():
+    from leaf.registry.state import validate_widget_state_relations
+
+    registry = _flat_member_registry()
+    values = {
+        "x-state": {
+            "choose": {"unit": "widget", "record": {"kind": "value", "attr": "phase"}}
+        },
+        "x-awaits": {"value": "choose", "answered": {"choose": {}}},
+        "x-ask-context": True,
+        "x-work": True,
+        "x-history": True,
+        "x-thread-seat": {"when": {}},
+        "x-thread-surface": True,
+        "x-data": {"input": {"contract": "records", "source": "data"}},
+        "x-measured": {"input": "input", "run": "run"},
+        "x-visual": {"prefixes": ["part-"]},
+    }
+    for key, value in values.items():
+        child = deepcopy(registry["lf-seed"])
+        child[key] = value
+        declarations = {**registry, "lf-seed": child}
+        with pytest.raises(registry_contract.RegistryError) as refusal:
+            validate_widget_state_relations(
+                "lf-seed-tray", registry["lf-seed-tray"], declarations, "flat-members"
+            )
+        assert refusal.value.findings[0].code == "creates-semantic-owner"
+        assert refusal.value.findings[0].values["keys"] == [key]
+
+    # An authored tag with the same module and own state remains supported.
+    del registry["lf-seed-tray"]["x-state"]["sow"]
+    child = registry["lf-seed"]
+    child["properties"]["phase"] = {"type": "string", "enum": ["growing", "dormant"]}
+    child["properties"]["restated"] = {"type": "boolean"}
+    child["x-state"] = values["x-state"]
+    child["x-awaits"] = values["x-awaits"]
+    child["x-history"] = True
+    child["x-work"] = True
+    registry_validation.validate_registry(registry, "authored-owners")
+
+
+def test_flat_created_members_keep_parent_state_words_and_frozen_identity(tmp_path):
+    from leaf.construction import constructed_content
+    from leaf.gesture_words import GestureWords
+    from leaf.projection import frozen_thread_reading, generated_children, page_reading
+
+    registry = _flat_member_registry()
+    markup = '<section id="reserved"><lf-seed-tray id="tray"></lf-seed-tray><lf-seed-tray id="other"></lf-seed-tray></section>'
+    page = ModelPage(markup, registry=registry)
+    log = []
+
+    def append(kind="action", **command):
+        event = event_contracts_model.admitted_event(
+            page,
+            log,
+            {
+                "kind": kind,
+                "id": f"flat-{len(log)}",
+                "seq": len(log) + 1,
+                "ts": model.NOW,
+                "author": "user",
+                **({"revision": 1} if kind != "undo" else {}),
+                **command,
+            },
+        )
+        log.append(event)
+        return event
+
+    def children():
+        reading = page_reading(page.reading(1), log, 1)
+        return generated_children(reading.projection.desired, set(reading.document.ids))
+
+    first = append(widget="tray", action="sow", detail={"seed": "elm", "label": "Elm"})
+    pick = append(widget="tray", action="choose", detail={"value": ["elm"]})
+    assert [child["id"] for child in children()["tray"]] == ["elm"]
+    for widget, identity in (("other", "elm"), ("tray", "reserved")):
+        with pytest.raises(events_model.EventRefused) as collision:
+            append(
+                widget=widget,
+                action="sow",
+                detail={"seed": identity, "label": "Duplicate"},
+            )
+        assert refused_on(collision.value).code == "created-exists"
+    with pytest.raises(events_model.EventRefused) as sender:
+        append(widget="elm", action="choose", detail={"value": []})
+    assert refused_on(sender.value).code == "unknown-sender"
+    append("undo", undoes=first["id"])
+    assert children() == {}
+    second = append(
+        widget="tray", action="sow", detail={"seed": "elm", "label": "New elm"}
+    )
+    assert children()["tray"][0]["text"] == "New elm"
+    words = GestureWords(
+        log, registry, page.reading, available_revisions=page.revisions
+    )
+    assert words.name(pick, "elm") == "Elm"
+    assert words.name(second, "elm") == "New elm"
+    reading = page_reading(page.reading(1), log, 1)
+    content = constructed_content(
+        reading.document,
+        reading.projection,
+        reading.spoken,
+        registry,
+        {"sources": {}},
+        tmp_path,
+        retired=set(),
+        thread="thread",
+    )
+    tray = content[0]["content"][0]
+    assert tray["content"][0]["attrs"] == {"id": "elm", "chosen": None}
+
+    page = ModelPage("<p>Page</p>", registry=registry)
+    log = []
+    opening = append("comment", text="Pick a seed.")
+    append("reply", author="agent", parent=opening["id"], text="Seeds", markup=markup)
+    created = append(
+        widget="tray", action="sow", detail={"seed": "elm", "label": "Elm"}
+    )
+    pick = append(widget="tray", action="choose", detail={"value": ["elm"]})
+    with pytest.raises(events_model.EventRefused) as collision:
+        append(
+            widget="other", action="sow", detail={"seed": "elm", "label": "Duplicate"}
+        )
+    assert refused_on(collision.value).code == "created-exists"
+    frozen = frozen_thread_reading(
+        log, page.registry, available_revisions=page.revisions
+    )
+    assert "elm" not in frozen.by_id
+    words = GestureWords(
+        log, registry, page.reading, available_revisions=page.revisions
+    )
+    assert words.name(pick, "elm") == "Elm"
+    append("undo", undoes=created["id"])
+    append(widget="tray", action="sow", detail={"seed": "elm", "label": "Returned elm"})
+    frozen = frozen_thread_reading(
+        log, page.registry, available_revisions=page.revisions
+    )
+    assert (
+        generated_children(frozen.projection.desired, set(frozen.by_id))["tray"][0][
+            "text"
+        ]
+        == "Returned elm"
+    )

@@ -553,6 +553,52 @@ function localTodos(
 
 const NO_QUEUES             = { questions: [], tasks: [], done: [] };
 
+/** Attribute-set owners depend on the members their total render paints, as well
+ * as on the selected ids. Capture supplies authored parentage; the complete
+ * position fold supplies current parentage for declared descendants. */
+function currentWidgetRelations(
+  document                  ,
+  widgets                                     ,
+) {
+  const parents = new Map(
+    [...document.descriptors].map(([id, descriptor]) => [id, descriptor.parent?.id]),
+  );
+  const owners = new Map                     ();
+  const memberships = new Map                                  ();
+  for (const [id, widget] of widgets) {
+    for (const [verb, spec] of widget.specs) {
+      const record = spec.record;
+      if (record?.kind === "attribute") {
+        const named = owners.get(record.attr) ?? new Set        ();
+        named.add(id);
+        owners.set(record.attr, named);
+        const slots = memberships.get(id) ?? {};
+        slots[record.attr] = [];
+        memberships.set(id, slots);
+      } else if (record?.kind === "position") {
+        const state = widget.state[verb];
+        if (state && "ranks" in state)
+          for (const [container, units] of Object.entries(state.value))
+            for (const unit of units) parents.set(unit, container);
+      }
+    }
+  }
+  for (const [attr, named] of owners) {
+    for (const id of document.descriptors.keys()) {
+      const seen = new Set        ([id]);
+      for (let parent = parents.get(id); parent; parent = parents.get(parent)) {
+        if (seen.has(parent)) break;
+        seen.add(parent);
+        if (!named.has(parent)) continue;
+        memberships.get(parent) [attr] .push(id);
+        break;
+      }
+    }
+    for (const owner of named) memberships.get(owner) [attr] .sort();
+  }
+  return { parents, memberships };
+}
+
 /* What is on the user (Questions), what is on the agent (Tasks), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
  * placed against them. A send moves an item the server listed only where the item is
@@ -893,6 +939,7 @@ export function createSemanticApplication({
     );
     const folded = foldThreads(view?.thread.threads ?? [], gestures);
     const widgets = foldWidgetStates(document.authored, projection);
+    const { parents: widgetParents, memberships } = currentWidgetRelations(document, widgets);
     const asks = ready
       ? normalizedAsks(view, widgets, document, projection, local)
       : NO_ASKS;
@@ -1085,6 +1132,8 @@ export function createSemanticApplication({
       // Inside the publication signature, so a read that changes only the view's
       // reports, publication time, or undo list still reaches its watchers.
       view,
+      memberships,
+      widgetParents,
       // The attempts still waiting for their POST's answer, in ledger order.
       sending: unresolved
         .filter((entry) => SENDING.has(entry.state))
@@ -1239,7 +1288,10 @@ export function createSemanticApplication({
       let priorSignature                    ;
       return publisher.select((root) => {
         const reading = widgetReading(root, descriptor);
-        const readingSignature = semanticSignature(reading);
+        const readingSignature = semanticSignature([
+          reading,
+          root.effective.memberships.get(descriptor.id),
+        ]);
         if (readingSignature === priorSignature && prior) return prior;
         prior = reading;
         priorSignature = readingSignature;

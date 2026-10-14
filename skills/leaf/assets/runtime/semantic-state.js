@@ -45,6 +45,27 @@ const widgetRegions = (widget) =>
 export const attachWidgetPresentation = (widget, kind, renderer) =>
   presentation.attach(widgetRegion(widget, kind), renderer);
 
+// A parent renders moved members before their attribute-set owner reads the DOM.
+// Authored parentage and projected moves supply the current depth; module arrival
+// order supplies none. Widgets paint ahead of document projection at zero.
+export const createWidgetPresenter = (widget, renderer, paint, failSoft) =>
+  schedule.presenter({
+    attach: () => presentation.attach(widgetRegion(widget, "render"), renderer),
+    order: () => {
+      const parents = readApplication().effective.widgetParents;
+      const seen = new Set();
+      let depth = 0;
+      for (let parent = parents.get(widget); parent; parent = parents.get(parent)) {
+        if (seen.has(parent)) break;
+        seen.add(parent);
+        depth++;
+      }
+      return -1 / (depth + 1);
+    },
+    paint,
+    failSoft,
+  });
+
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
 // thread resolves its passages over the nodes that leaves, the ask view resolves

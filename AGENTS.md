@@ -13,6 +13,13 @@ The agent decides both a page's content and its presentation. The user's
 word overrides either, whether given in a comment or as a standing preference,
 and Leaf's own defaults yield to both.
 
+Extensibility is a product goal: Leaf has a small core and default packages, and
+independently authored packages use the same declared interfaces as the defaults.
+Core owns shared state, event, and lifecycle guarantees; packages own domain
+behavior and widget presentation. Judge simplifications by the mechanisms they
+remove and the package compositions they preserve or rule out, rather than by
+use in bundled widgets alone.
+
 Leaf supplies what the agent builds with: primitives, instructions, and
 templates. An agent could instead build a bespoke site for each task, so each
 primitive must give the user something that site would not:

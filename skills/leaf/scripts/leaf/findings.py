@@ -1277,6 +1277,13 @@ _TEXT = {
             v, "whose required id must use the canonical element-id schema"
         )
     ),
+    "creates-semantic-owner": _declared(
+        lambda v: _created(
+            v,
+            "which must be a parent-owned member without independent owner capabilities: "
+            + ", ".join(v["keys"]),
+        )
+    ),
     "shared-slot": _declared(
         lambda v: (
             f"x-state verbs `{v['verbs'][0]}` and `{v['verbs'][1]}` claim the"

@@ -4,16 +4,56 @@ the first box a widget keeps where the report's served examples do not reach: a 
 opening on a later panel, and an export."""
 
 import json
+import os
 import re
+import subprocess
 
 import pytest
+from click.testing import CliRunner
+from conftest import LEAF_COMMAND
 from interact_support import SKILL_ROOT
+from leaf import cli as cli_model
 from leaf import exporting as exporting_model
 from leaf.render_checks import wait_until_ready
 from leaf.revision_delivery import json_script
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import ROOT, consume_browser_errors, displayed
+
+
+def test_package_render_check_refuses_a_failed_async_paint(tmp_path, headless_shell):
+    """A settled example whose public reading paint rejected was not drawn."""
+    package = tmp_path / "package"
+    made = CliRunner().invoke(
+        cli_model.cli,
+        ["package", "init", str(package), "--widget", "lf-async-panel"],
+    )
+    assert made.exit_code == 0, made.output
+    (package / "widgets/lf-async-panel.js").write_text("""\
+import { once, readingPaint, whileConnected } from "/runtime/widget-api.js";
+export default class extends HTMLElement {
+  connectedCallback() {
+    if (!once(this)) return;
+    const paint = readingPaint(this, async () => {
+      await Promise.resolve();
+      throw new Error("The instrument paint failed");
+    });
+    whileConnected(this, () => { paint("instrument"); });
+  }
+}
+""")
+    ran = subprocess.run(
+        [*LEAF_COMMAND, "package", "check", str(package), "--render", "--json"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=os.environ | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
+    )
+    report = json.loads(ran.stdout)
+    assert ran.returncode == report["status"] == 1, report
+    (finding,) = report["findings"]
+    assert finding["code"] == "unreadable-examples", report
+    assert "The instrument paint failed" in finding["values"]["error"], report
 
 
 def grows_at_upgrade(tag: str, style: str) -> str:

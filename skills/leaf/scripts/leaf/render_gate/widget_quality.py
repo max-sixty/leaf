@@ -63,7 +63,9 @@ from leaf.vendoring import start_throwaway_page
 
 from .preview import preview_server
 from .scheme import (
+    answer_reports,
     arm_interception,
+    collect_page_errors,
     served,
     start_with_pre_upgrade_proof,
 )
@@ -153,11 +155,17 @@ def _readings(
     page = browser.new_page(viewport=RENDER_VIEWPORT)
     arm_interception(page)
     install_driver(page)
+    errors = []
+    collect_page_errors(page, errors)
+    # Runtime reports already reach the console; an example's preview writes no log.
+    answer_reports(page, lambda text: None)
     try:
         if faults := start_with_pre_upgrade_proof(page, url):
             raise UnreadablePage("; ".join(map(str, faults)))
         wait_until_ready(page, served(page, url, "/api/state").json())
         wait_for_probe(page, "pageSettled")
+        if errors:
+            raise UnreadablePage("; ".join(map(str, errors)))
         changed = evaluate_probe(page, "changedBoxes")
         unshown = evaluate_probe(page, "unshownContextKeys", tags)
         return changed, unshown, evaluate_probe(page, "heldScrollers", tags)

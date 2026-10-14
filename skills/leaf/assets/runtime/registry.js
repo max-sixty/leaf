@@ -34,6 +34,9 @@ export function adoptRegistry(declarations) {
 }
 
 const stateIndexes = new WeakMap();
+/** @param {import("../../../../build/browser/domain.ts").StateRecord} record */
+const recordSlot = (record) =>
+  JSON.stringify([record.kind, "attr" in record ? record.attr : null]);
 function indexedState(declarations) {
   const stateIndex = stateIndexes.get(declarations);
   const generation = declarations.$layer?.generation;
@@ -45,22 +48,28 @@ function indexedState(declarations) {
   for (const [tag, entry] of elementDeclarations(declarations))
     for (const [verb, spec] of Object.entries(entry["x-state"] ?? {}))
       specs.push({ tag, verb, spec });
-  const indexed = {
-    generation,
-    recordedWidgetSelector: [
-      ...new Set(specs.filter(({ spec }) => spec.record).map(({ tag }) => tag)),
-    ].join(","),
-    specs,
-  };
+  const recordTags = new Map();
+  for (const { tag, spec } of specs) {
+    if (!spec.record) continue;
+    const slot = recordSlot(spec.record);
+    const tags = recordTags.get(slot) ?? new Set();
+    tags.add(tag);
+    recordTags.set(slot, tags);
+  }
+  const recordSelectors = new Map(
+    [...recordTags].map(([slot, tags]) => [slot, [...tags].join(",")]),
+  );
+  const indexed = { generation, recordSelectors, specs };
   stateIndexes.set(declarations, indexed);
   return indexed;
 }
 
 /** @param {Document | DocumentFragment | Element} scope */
 export const stateSpecs = (scope = document) => indexedState(registryFor(scope)).specs;
-/** @param {Document | DocumentFragment | Element} scope */
-export const recordedWidgetSelector = (scope = document) =>
-  indexedState(registryFor(scope)).recordedWidgetSelector;
+/** @param {import("../../../../build/browser/domain.ts").StateRecord} record
+ * @param {Document | DocumentFragment | Element} scope */
+export const recordedWidgetSelector = (record, scope = document) =>
+  indexedState(registryFor(scope)).recordSelectors.get(recordSlot(record)) ?? "";
 
 // Shared `$` declarations follow the owner's publication. Return a copy so a package
 // module can read its cross-widget vocabulary without a registry write path.

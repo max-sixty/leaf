@@ -24,6 +24,7 @@ from .schema import (
     HTML_NAME,
     INSTRUCTIONS_DIR,
     INSTRUCTIONS_FILE,
+    JAVASCRIPT_SUFFIXES,
     LAYER_PLACEHOLDER,
     PACKAGE_DIRS,
     PLUGIN_ROOT,
@@ -617,7 +618,6 @@ def provenance_label(provenance: dict) -> str:
 def compose_layer(roots: list[Path]) -> LayerComposition:
     """Read and validate the complete layer produced by checked inputs."""
     from .revision_artifact import (
-        JAVASCRIPT_SUFFIXES,
         dependency_path,
         javascript_imports,
     )

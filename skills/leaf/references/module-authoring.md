@@ -449,6 +449,11 @@ indication resolves again.
 
 ## The widget controller
 
+`widgetController` belongs to a widget authored in page or message markup. A
+user-added `creates` member has no independent controller; its parent reads and
+renders that member through its own declared state. A member's asynchronous drawing
+joins the parent's presentation with `controller.present(promise)`.
+
 `widgetController(owner)` is the one semantic interface of a registry-declared widget;
 callers supply no options. Leaf captures the owner's identity and revision-bound
 declaration before upgrade, so an author change to those facts fails closed. Its

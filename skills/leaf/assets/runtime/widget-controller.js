@@ -13,7 +13,12 @@
    rendering readiness until completion or removal; queued updates can independently
    settle while it waits. Local editing defers the render
    region at its newest unpublished reading, without painting a detached owner. */
-import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
+import {
+  applicationState,
+  attachWidgetPresentation,
+  createWidgetPresenter,
+  PRESENTATION_HELD,
+} from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
 import { failSoftUnreported } from "./widget-upgrade.js";
@@ -108,7 +113,13 @@ function createWidgetController(owner) {
 
   const render = () => {
     if (!renderHandle && owner.isConnected)
-      renderHandle = attachWidgetPresentation(descriptor.id, "render", owner);
+      renderHandle = createWidgetPresenter(
+        descriptor.id,
+        owner,
+        (reading) =>
+          deferred || dragHeld() ? PRESENTATION_HELD : paint(reading, reading),
+        (reason) => failSoftUnreported(owner, reason),
+      );
     return renderHandle;
   };
 
@@ -187,16 +198,14 @@ function createWidgetController(owner) {
   // with the fail-soft box; the paint has already reported the failure.
   const presentRender = (reading) => {
     if (!owner.isConnected) return;
-    render()
-      ?.present(reading, (reason) => failSoftUnreported(owner, reason))
-      .resolve(paint(reading, reading));
+    render()?.sync(reading);
   };
 
   // A held reading leaves its ticket open; the next presentation or the handle's
   // disconnect releases it.
   const holdRender = (reading) => {
     deferredReading = reading;
-    render()?.present(reading);
+    render()?.sync(reading);
   };
 
   const resumeGestureRender = () => {

@@ -36,6 +36,7 @@ from leaf.revision_artifact import (
     artifact_name,
     bind_imports,
     captured_imports,
+    dependency_path,
     read_artifact,
     read_revision,
 )
@@ -46,6 +47,7 @@ from leaf.revision_delivery import (
     compose_document,
     delivered_resource,
     json_script,
+    module_address,
     publication_css,
     rebase_css,
 )
@@ -256,20 +258,25 @@ def _export_resources(kernel, publications, roots, markup, data_resources):
             else:
                 resource = delivered_resource(artifact, logical, address)
             resources[root + logical] = resource
-        pending.extend(
-            address(path)
+        entries = [
+            path
             for path in artifact.entries
             if artifact.resources[path].mime == "application/javascript"
-        )
+        ]
         tags = {
             record["tag"]
             for document in markup[revision]
             for record in document.lf_elements
         }
-        pending.extend(
-            address(f"/widgets/{tag}.js")
+        entries.extend(
+            f"/widgets/{tag}.js"
             for tag in tags
             if artifact.registry.get(tag, {}).get("x-upgrade")
+        )
+        # The host addresses URLs; graph traversal consumes captured logical paths.
+        pending.extend(
+            dependency_path(module_address(path, address), "/index.html", module=True)
+            for path in entries
         )
         initializers.update(
             root + initial
@@ -358,7 +365,8 @@ def export_document(
     # its `leaf:` name, so a page module is one instance however it is reached.
     def address(path):
         located = publication_address(path)
-        return modules[located] if located in modules else inliner.address(located)
+        logical = unquote(urlsplit(located).path)
+        return modules[logical] if logical in modules else inliner.address(located)
 
     def stylesheet(path):
         return inliner.stylesheet(

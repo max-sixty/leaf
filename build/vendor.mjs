@@ -313,7 +313,7 @@ const bundles = {
       "export { markdownLanguage, insertNewlineContinueMarkup }" +
       ' from "@codemirror/lang-markdown";\n' +
       'export { ChangeSet, EditorSelection, Prec, Transaction, Annotation, Facet, RangeSet, RangeSetBuilder, StateField, Text, codePointAt, codePointSize, fromCodePoint, combineConfig, MapMode, RangeValue, CharCategory } from "@codemirror/state";\n' +
-      'export { drawSelection, lineNumbers, highlightActiveLineGutter, highlightActiveLine, dropCursor, rectangularSelection, crosshairCursor, GutterMarker, gutter, WidgetType, logException, Direction, showTooltip, getTooltip } from "@codemirror/view";\n' +
+      'export { drawSelection, lineNumbers, highlightActiveLineGutter, highlightActiveLine, dropCursor, rectangularSelection, crosshairCursor, GutterMarker, gutter, WidgetType, logException, Direction, showTooltip, getTooltip, placeholder } from "@codemirror/view";\n' +
       'export { defaultKeymap } from "@codemirror/commands";\n' +
       'export { HighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, syntaxTree, indentUnit, language, highlightingFor } from "@codemirror/language";\n' +
       'export { tags, highlightTree } from "@lezer/highlight";\n',

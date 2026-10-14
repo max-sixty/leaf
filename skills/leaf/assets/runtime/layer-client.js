@@ -232,6 +232,7 @@ function observeKey(response) {
   runtime.keyRefused = response.status === KEY_REFUSED;
 }
 
+/** @type {PromiseWithResolvers<void>} */
 const { promise: layerReady, resolve: revealLayer } = Promise.withResolvers();
 export { revealLayer };
 

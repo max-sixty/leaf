@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "ES2023.Array", "ES2024.Promise", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": false,
+    "allowJs": true,
+    "checkJs": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "skipLibCheck": false,
+    "paths": {
+      "/vendor/*": ["../../skills/leaf/assets/vendor/*"],
+      "/runtime/*": ["../../skills/leaf/assets/runtime/*"],
+      "/checks/*": ["../../skills/leaf/scripts/leaf/render-checks/*"]
+    }
+  },
+  "include": [
+    "runtime-globals.d.ts",
+    "../../node_modules/@awesome.me/webawesome/dist/components/copy-button/copy-button.d.ts",
+    "../../node_modules/@awesome.me/webawesome/dist/components/input/input.d.ts",
+    "../../skills/leaf/assets/runtime/**/*.js",
+    "../../skills/leaf/scripts/leaf/render-checks/*.js"
+  ]
+}

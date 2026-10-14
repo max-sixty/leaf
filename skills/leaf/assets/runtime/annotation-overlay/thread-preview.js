@@ -612,6 +612,15 @@ export function createThreadPreview({
     if (carry) focusDestination(button, "return");
   }
 
+  /** @param {{
+   *   entry: any,
+   *   threadItem: string,
+   *   control: any,
+   *   origin?: any,
+   *   accompanies: any,
+   *   forced?: boolean,
+   *   disclosed?: boolean,
+   * }} chosen */
   function select({
     entry,
     threadItem,

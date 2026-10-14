@@ -46,6 +46,7 @@ export function createThreadActions({
   // Its replies and settlement use the same ledger dependency on that opening send.
   const find = (key) => readThreads().threads.find((thread) => thread.key === key);
 
+  /** @param {string} key @param {string} text @param {{attempt?: string}} [options] */
   const reply = (key, text, { attempt } = {}) => {
     if (!text) return null;
     const thread = find(key);
@@ -61,6 +62,8 @@ export function createThreadActions({
 
   // The user rewriting a message of their own (`message-edit.js`), written over the
   // revision `base` names. Words the message already says, and none, send nothing.
+  /** @param {string} key @param {string} messageId @param {string} text
+   * @param {{attempt?: string, base?: string}} [options] */
   const edit = (key, messageId, text, { attempt, base } = {}) => {
     const thread = find(key);
     if (!thread || thread.settling) return null;
@@ -77,6 +80,7 @@ export function createThreadActions({
 
   // A thread that already stands as asked, such as one resolved elsewhere while its
   // card still draws it open (held-news.js), sends nothing.
+  /** @param {string} key @param {boolean} resolved @param {{attempt?: string}} [options] */
   const settle = (key, resolved, { attempt } = {}) => {
     const thread = find(key);
     if (!thread?.offers[resolved ? "resolve" : "reopen"]) return null;

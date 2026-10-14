@@ -156,7 +156,19 @@ export function openMessageEditIn(thread, id) {
  * answers the drawn thread around message `node`, which the user stands on once the
  * editor goes where the box is out of view; `opening(id)` is the reader's own share of
  * a rewrite of `id` opening, such as unfolding the summary that holds it; `thread`
- * answers the thread's key, which every reader of it shares. */
+ * answers the thread's key, which every reader of it shares.
+ *
+ * @param {{
+ *   thread: () => string,
+ *   views: () => any[],
+ *   send: (id: string, text: string, options: any) => any,
+ *   paint: (node: any) => void,
+ *   box: () => HTMLElement | null,
+ *   home: (node?: Element) => Element,
+ *   opening?: (id: string) => void,
+ *   landInThread?: any,
+ *   landSent?: any,
+ * }} reader */
 export function threadRewrites({
   thread,
   views,

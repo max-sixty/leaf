@@ -342,6 +342,16 @@ function withheld(was, now) {
 }
 
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
+/** @param {{
+ *   settled?: string,
+ *   working?: string,
+ *   replies?: number,
+ *   messages?: number,
+ *   edits?: number,
+ *   reactions?: number,
+ *   summaries?: number,
+ *   threads?: number,
+ * }} news */
 const newsLabel = ({
   settled,
   working,

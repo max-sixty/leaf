@@ -66,6 +66,7 @@ const MEDIA_SHELF_TAG = "leaf-attached-media-shelf";
 // control, so nothing rides along with a comment unseen or beyond the user's reach. The
 // drawing also takes back its last stroke here: the route a pointer or a finger has to
 // that, wherever the composer stands.
+/** @typedef {AttachedMediaShelf} AttachedMediaShelfElement For its tag (`runtime-globals.d.ts`). */
 class AttachedMediaShelf extends LitElement {
   static properties = {
     model: { attribute: false },

@@ -267,7 +267,7 @@ export type Workflow = Omit<WireWorkflow, "quiet" | "dropped" | "stage"> & {
 interface WireTodo {
   id: string;
   owner: "agent" | "user";
-  subject: { kind: "thread" | "widget"; id: string } | { kind: "page" };
+  subject: { kind: "thread" | "widget" | "element"; id: string } | { kind: "page" };
   thread: string | null;
   title: string | null;
   state: "open" | "done" | "failed" | "dropped";
@@ -295,7 +295,7 @@ interface QueueItem {
   kind: "ask" | "todo" | "resend" | "answer" | "work";
   id: string;
   owner?: "user" | "agent";
-  subject: { kind: "thread" | "widget"; id: string } | { kind: "page" };
+  subject: { kind: "thread" | "widget" | "element"; id: string } | { kind: "page" };
   thread: string | null;
   /** Whether the agent has it in hand now. */
   live: boolean;
@@ -363,6 +363,8 @@ interface AuthoritativeState {
   versions?: { revision: number; version: number; url: string }[];
   revision_labels: Record<string, string>;
   events: Event[];
+  /** Each bound file's stamp, by binding, which moves when the file may have. */
+  files: Record<string, string>;
   workflows: WireWorkflow[];
   browser: {
     basis: { through_seq: number };
@@ -381,9 +383,25 @@ interface AuthoritativeState {
           projection: WireProjection;
           asks: WireAsks;
         };
-        undo: { event: Event }[];
+        /** Each gesture undo can take back, latest first; `newest` marks the user's
+         * latest gesture (`served_state.document`). */
+        undo: { event: Event; coordinate?: string[]; newest?: true }[];
         coverage: Coverage[];
-        reports: object[];
+        /** The view's report feed, in log order (`projection.canonical_reports`). */
+        reports: {
+          id: string;
+          target: { kind: "widget"; id: string };
+          source: "report";
+          action: string;
+          detail: Record<string, unknown>;
+          text: string | null;
+          ts: string;
+          revision: number;
+          seq: number;
+          agent: string | null;
+          session: string | null;
+          disposition: "effective" | "outranked" | "settled";
+        }[];
         published_at: string | null;
         queues: WireQueues;
         /** The asks approving this version waits on (`asks.approval_blocking`). */
@@ -398,6 +416,11 @@ interface AuthoritativeState {
     thread_memberships: Record<string, string[]>;
     todos: WireTodo[];
     ended_todos: WireTodo[];
+    /** Each version's note, by version (`served_state.browser`). */
+    version_notes: Record<string, string>;
+    /** The newest events as a history feed reads them, sent only to a page holding a
+     * widget that declares `x-history` (`history.history`). */
+    history?: object[];
   };
   activity: unknown;
   reading?: string;

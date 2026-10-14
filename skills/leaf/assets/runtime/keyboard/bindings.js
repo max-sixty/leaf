@@ -568,6 +568,8 @@ const ariaBindings = (binding) => {
       .join("+"),
   );
 };
+/** @param {any} rows @param {boolean} [current] @param {string} [where]
+ * @param {(binding: any, entry: any, row: any) => boolean} [includes] */
 export const ariaShortcuts = (rows, current = true, where, includes = () => true) =>
   [
     ...new Set(

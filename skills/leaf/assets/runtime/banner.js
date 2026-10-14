@@ -932,7 +932,9 @@ export const renderStatus = clocked(document.body, renderStatusNow);
 // them an ending it could not deliver. The declaration rides the document, so a
 // pinned older version keeps its own decision.
 export const isSignoffDeclared = () =>
-  document.querySelector('meta[name="lf-review"]')?.content === "sign-off";
+  /** @type {HTMLMetaElement | null} */ (
+    document.querySelector('meta[name="lf-review"]')
+  )?.content === "sign-off";
 
 let signoff = false;
 

@@ -15,7 +15,10 @@ export function askWords(ask) {
   if (ask.source.kind === "reply")
     return ask.answer.value.text ?? ask.answer.value.token ?? "";
   const source = elementById(ask.source.id);
-  const formatter = customElements.get(ask.source.tag)?.answerWords;
+  const formatter =
+    /** @type {{answerWords?: (value: unknown, element: Element) => unknown}} */ (
+      customElements.get(ask.source.tag)
+    )?.answerWords;
   return String(source && formatter ? formatter(ask.answer.value, source) : "")
     .replace(/\s+/g, " ")
     .trim();

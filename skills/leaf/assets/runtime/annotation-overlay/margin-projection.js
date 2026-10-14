@@ -1248,6 +1248,7 @@ export function createMarginProjection({
   const landOnEntry = layerLanding((button) =>
     handBack(button, ...(button?.lfEntry ? mapControlPlaces(button.lfEntry) : [])),
   );
+  /** @param {(control?: HTMLElement) => unknown} [land] */
   function closePreview(land = letGo) {
     const button = card.selection()?.control;
     const at = focused();

@@ -181,7 +181,12 @@ function settlements() {
       for (const [id, { state }] of root.effective.widgets) {
         const tag = root.document.authored.get(id)?.tag;
         const decision = decisions?.[tag];
-        const outcome = decision && state[decision.verb]?.detail?.outcome;
+        // A decision verb's state is an action value, which carries the detail.
+        const outcome =
+          decision &&
+          /** @type {{detail?: {outcome?: string}} | undefined} */ (
+            state[decision.verb]
+          )?.detail?.outcome;
         const retires = outcome ? decision.retires[outcome] : null;
         if (retires?.length) holders.set(id, { tag, retires: [...retires] });
       }
@@ -643,6 +648,7 @@ export function closestAcross(node, selector) {
 //
 // `root` narrows the search to one authored document (`authoredScope`), with the roots
 // declared inside it.
+/** @param {string} id @param {Document | Element} [root] */
 export const elementById = (id, root = document) => {
   const found =
     root === document
@@ -727,14 +733,18 @@ export function pageRange(sel) {
 // still the programmatic write or a later user adjustment (including touch handles).
 let writtenSelection = null;
 let writtenBackward = false;
+// Each end is a boundary point, `[node, offset]`.
 export function selectEnds(anchor, focus) {
   const selection = getSelection();
   const from = document.createRange(),
     to = document.createRange();
-  from.setStart(...anchor);
-  to.setStart(...focus);
+  from.setStart(.../** @type {[Node, number]} */ (anchor));
+  to.setStart(.../** @type {[Node, number]} */ (focus));
   writtenBackward = from.compareBoundaryPoints(Range.START_TO_START, to) > 0;
-  selection.setBaseAndExtent(...anchor, ...focus);
+  selection.setBaseAndExtent(
+    .../** @type {[Node, number]} */ (anchor),
+    .../** @type {[Node, number]} */ (focus),
+  );
   writtenSelection = selectionEnds(selection);
 }
 const selectionEnds = (selection) => {
@@ -875,8 +885,12 @@ function readSegments(segments, mapCharacters) {
   });
   return mapCharacters ? { text, units } : text;
 }
-export const quoteFrom = (segments) => readSegments(segments, false);
-export const readingFrom = (segments) => readSegments(segments, true);
+export const quoteFrom = (segments) =>
+  /** @type {string} */ (readSegments(segments, false));
+export const readingFrom = (segments) =>
+  /** @type {{text: string, units: {text: string, start: any, end: any}[]}} */ (
+    readSegments(segments, true)
+  );
 // Cutting one to length is the caller's business and always by code point: half a surrogate
 // pair is a character no UTF-8 file can hold, and a quote is written to one.
 export const cut = (text, from, to) => [...text].slice(from, to).join("");

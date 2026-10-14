@@ -3535,7 +3535,7 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
         told(page)
         page.wait_for_function(
             "(words) => document.querySelector('.lf-status-text').textContent === words",
-            arg=f"Agent working — {detail}",
+            arg=f"Claude working — {detail}",
         )
         page_at_rest(page)
         return page.evaluate(STATUS_PRESS)

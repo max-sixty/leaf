@@ -677,7 +677,7 @@ def test_a_reply_notice_survives_a_failed_state_and_keeps_its_agent(browser, ser
         page.evaluate(
             "async () => (await window.__lfCheckApi()).readApplication().authoritative.agent"
         )
-        == "Agent"
+        == "Claude"
     )
     page.lf_errors.remove(console_finding(fault.value))
 

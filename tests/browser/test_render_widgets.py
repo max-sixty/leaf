@@ -5397,9 +5397,8 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
     change sits costs it nothing: one inside a card — a positioned ancestor, which
     `left: 100%` used to resolve against, dropping the row back into the text —
     hangs in the rail beside its card like any other. What is left is a
-    measurement no lint can make: where a row stands as a pin, it stands by the change
-    it decides, level with the line the change ends on, over none of the change's
-    words, and on the change's own card."""
+    measurement no lint can make: where a row stands as a pin, it touches the change
+    it decides, over none of the change's words, and stays on the page."""
     page = open_page(browser, serve(SUGGESTION_PAGE), init_script=HOLD_MOTION)
     page.emulate_media(reduced_motion=reduced_motion)
     column = page.locator("main").evaluate("el => el.getBoundingClientRect().right")
@@ -5438,22 +5437,23 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         .map((entry) => edges(entry.getBoundingClientRect()));
       const hit = (a, b) => a.left < b.right && b.left < a.right
         && a.top < b.bottom && b.top < a.bottom;
-      const last = edges([...change.getClientRects()].at(-1));
       const r = row.getBoundingClientRect();
+      const touches = [...change.getClientRects()].some(part =>
+        Math.hypot(
+          Math.max(0, r.left - part.right, part.left - r.right),
+          Math.max(0, r.top - part.bottom, part.top - r.bottom)) <= 12);
       return {
         covers: entries.filter((e) => words.some((w) => hit(e, w))).length,
-        near: Math.hypot(
-          Math.max(0, r.left - last.right, last.left - r.right),
-          Math.max(0, r.top - last.bottom, last.top - r.bottom)) <= 12,
+        touches,
         inPage: r.right <= document.body.getBoundingClientRect().right,
       };
     }"""
     placed = in_card_row.evaluate(stands_by)
     assert placed == {
         "covers": 0,
-        "near": True,
+        "touches": True,
         "inPage": True,
-    }, f"a change inside a board is decided near its words: {placed}"
+    }, f"a change inside a board is decided by its target: {placed}"
 
     # No rail: every row is a pin by its own change, and nothing spills sideways.
     resized(page, 820, 900)
@@ -5466,9 +5466,9 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve, reduced_moti
         placed = page.locator(f"[data-lf-margin-for='{widget}']").evaluate(stands_by)
         assert placed == {
             "covers": 0,
-            "near": True,
+            "touches": True,
             "inPage": True,
-        }, f"a pin stands near the change it decides, over none of its words: {placed}"
+        }, f"a pin stands by the change it decides, over none of its words: {placed}"
 
 
 def test_the_page_says_a_change_is_only_proposed(browser, serve):

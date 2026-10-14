@@ -468,6 +468,19 @@ test("a failure before the render settles the claim with the failure", async () 
   element.remove();
 });
 
+test("a check's redraw leaves the update a move queued, and its claim", async () => {
+  applicationState.setPhase("waiting");
+  const { element, draws } = probe(() => phase());
+  document.body.append(element);
+  await settled(element);
+  applicationState.setPhase("offline");
+  element.redraw();
+  await settled(element);
+  assert.deepEqual(draws, ["waiting", "offline", "offline"]);
+  assert.ok(!pending(element));
+  element.remove();
+});
+
 test("accepted data claims the element's region until its delivery draws", async () => {
   const tag = `lf-probe-claim-${++tags}`;
   adoptRegistry({

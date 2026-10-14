@@ -88,6 +88,12 @@ editing keys ahead of every widget scope and context alias, including aliases at
 to an editor itself. Replacing or removing a scope's attachment withdraws its old
 routes.
 
+A scope standing over the page, such as a menu a widget opens, passes
+`allButCommandReference` as its `claims` option
+(`commandsOn(title, rows, { claims: allButCommandReference })`), so while the user
+stands in it the page's own keys wait, as they do in Leaf's own menus, and only the
+command reference reaches past it.
+
 A native button with a row's `control` and `run` has one activation path: Leaf invokes
 `run` for both its click and its keyboard command, and paints its disabled state from
 `when`. Remove a separate click listener and disabled painter, and run the semantic

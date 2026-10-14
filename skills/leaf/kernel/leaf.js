@@ -5149,12 +5149,7 @@ function createAnchorControls({
     for (const candidate of pageQueryAll(visualSelector())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
-      let parts;
-      try {
-        parts = visualParts(candidate, { strict: true });
-      } catch {
-        continue;
-      }
+      const parts = visualParts(candidate);
       const targets2 = [
         {
           anchor: { section: found.id },

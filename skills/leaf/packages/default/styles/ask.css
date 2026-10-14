@@ -24,21 +24,24 @@
     --lf-breakout: 1;
   }
 }
-/* An Ask whose evidence includes a figure (its heading first, a chart, image, table
- * or shot after it, and one option list last) outruns a window when its options stack:
+/* An Ask whose evidence includes a figure (a chart, image, table or shot, with an
+ * option list somewhere after it) outruns a window when its options stack:
  * the cards land below the figure they turn on, one under another. It asks its option
  * list to lay them across instead (`--lf-options-across`, said on the Ask and read by
  * its own children; options.css), so as many cards as the ask's width holds stand
  * side by side under the evidence, and they stack where only one fits.
  * The content decides, so there is no attribute for it: an Ask of words alone keeps its
- * cards reading down, since there the cards are most of what the reader weighs.
+ * cards reading down, since there the cards are most of what the reader weighs. The rule
+ * reads only that relation, a figure before the list: where the heading sits, and what
+ * follows the list, change nothing. The list is the Ask's own child because the
+ * variable that says so does not inherit.
  *
  * It replaced a 16rem options track that floated the evidence beside a sticky list at
  * 50rem and wider. The track held only for a list no taller than its evidence: three
  * cards with drawings beside a five-row table left the window's width beside the table
  * empty, and the reading column was too narrow for it, so every such Ask had to ask
  * for the wide measure. */
-:scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
+:scope:is(lf-ask):has(> :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options) {
   --lf-options-across: 1;
 }
 /* An Ask told it has a definite height to fill (`--lf-full-height`, layouts.css), as a

@@ -55,7 +55,7 @@ def test_ship_review_asks_are_directly_answerable(browser, serve, tmp_path):
     # for here is the rows — the More control's keycap is static and would show
     # whatever happened. At rest a page shows `c` and `e`.
     expect(
-        page.locator(".lf-shortcut-bar .lf-shortcut:not([hidden])")
+        page.locator(".lf-shortcut-bar .lf-shortcut:not([data-lf-off-line])")
     ).not_to_have_count(0)
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
     page.locator("#off-workaround-review .lf-pick").first.click()

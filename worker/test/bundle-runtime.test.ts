@@ -39,12 +39,7 @@ describe("published runtime bundle", () => {
         join(layer, "runtime", "url.js"),
         'export const moduleUrl = import.meta . url; export const prose = "import.meta.url";',
       );
-      for (const entry of [
-        "layer-client",
-        "media",
-        "widget-api",
-        "check-api",
-      ]) {
+      for (const entry of ["layer-client", "media", "widget-api", "check-api"]) {
         await writeFile(
           join(layer, "runtime", `${entry}.js`),
           `export const revision = "${revision}";`,
@@ -100,11 +95,9 @@ describe("published runtime bundle", () => {
       // The production layer is a prepared installation's kernel composed with its
       // bundled packages, as the site build vendors it.
       const install = join(directory, "install");
-      execFileSync(
-        "uv",
-        ["run", "leaf-dev", "distribution", "--output", install],
-        { cwd: fileURLToPath(new URL("../..", import.meta.url)) },
-      );
+      execFileSync("uv", ["run", "leaf-dev", "distribution", "--output", install], {
+        cwd: fileURLToPath(new URL("../..", import.meta.url)),
+      });
       const runtime = join(directory, "layer");
       execFileSync(join(install, "bin", "leaf"), ["page", "init", runtime], {
         env: { ...process.env, XDG_STATE_HOME: join(directory, "state") },
@@ -118,7 +111,9 @@ describe("published runtime bundle", () => {
         await readFile(join(output, "runtime", "layer-client.js"), "utf8"),
       ).toBeTruthy();
       const verifier = await readFile(
-        fileURLToPath(new URL("../../dev/leaf_dev/verify_site_browser.js", import.meta.url)),
+        fileURLToPath(
+          new URL("../../dev/leaf_dev/verify_site_browser.js", import.meta.url),
+        ),
         "utf8",
       );
       for (const [, name] of verifier.matchAll(/runtimeModule\("([^"]+)"\)/g)) {

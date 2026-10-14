@@ -300,6 +300,9 @@ html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) {
   display: none;
 }
 @layer {
+  [hidden]:not([hidden=until-found]) {
+    display: none !important;
+  }
   @media screen {
     html[data-lf-interactive] body:not([data-lf-presented]),
     html[data-lf-interactive] body:not([data-lf-presented]) > main,
@@ -523,6 +526,12 @@ img {
 }
 img {
   box-shadow: 0 0 0 1px var(--border-2), 0 2px 8px var(--shade);
+}
+img,
+svg,
+video,
+canvas {
+  vertical-align: middle;
 }
 details {
   border: var(--details-border) solid var(--rule);
@@ -809,10 +818,10 @@ svg.drawing .danger {
 }
 @media screen {
   html:root {
-    .lf-thread-seat:not([hidden]) {
+    .lf-thread-seat {
       display: block;
     }
-    .lf-say:not([hidden]) {
+    .lf-say {
       display: flex;
     }
   }
@@ -879,9 +888,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   font: 600 var(--t-6)/1 var(--sans);
   white-space: nowrap;
   scroll-margin-block: var(--focus-ring-room);
-}
-.lf-margin-entry[hidden] {
-  display: none;
 }
 .lf-margin-entry[data-lf-behavior=action] {
   border-width: 2px;

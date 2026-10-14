@@ -332,9 +332,6 @@ summary {
 .lf-thread-checkpoint {
   margin-block: 16px;
 }
-.lf-thread-checkpoint[hidden] {
-  display: none;
-}
 .lf-thread-checkpoint[data-expanded=true] {
   position: relative;
 }
@@ -406,9 +403,6 @@ summary {
 }
 .lf-summary-originals {
   min-width: 0;
-}
-.lf-summary-originals[hidden] {
-  display: none;
 }
 .lf-summary-originals > .lf-msg {
   margin-block: 8px;
@@ -1174,7 +1168,8 @@ svg[data-lf-icon] {
   }
 }
 @media print {
-  details:not([open])::details-content {
+  details:not([open])::details-content,
+  [hidden=until-found] {
     content-visibility: visible;
   }
   details > summary {
@@ -1194,10 +1189,7 @@ svg[data-lf-icon] {
   color: var(--ink);
   display: inline-block;
 }
-:is(.lf-btn, .button)[hidden]:not([hidden=until-found]) {
-  display: none;
-}
-:where([data-lf-room]:not([hidden])) {
+:where([data-lf-room]) {
   display: inline-block;
   max-inline-size: 100%;
 }
@@ -1300,9 +1292,6 @@ svg[data-lf-icon] {
   display: grid;
   place-items: center;
   border-radius: var(--r);
-}
-.lf-icon-action[hidden] {
-  display: none;
 }
 .lf-action-icon {
   position: relative;
@@ -1410,9 +1399,6 @@ svg[data-lf-icon] {
   overflow-x: auto;
   padding: 2px;
   box-sizing: border-box;
-}
-.lf-composer-media[hidden] {
-  display: none !important;
 }
 .lf-composer-media-item {
   flex: none;
@@ -1629,9 +1615,6 @@ leaf-text.lf-fab-input {
   gap: 0;
   white-space: nowrap;
   cursor: pointer;
-}
-.lf-response-action[hidden] {
-  display: none;
 }
 .lf-response-action:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--card));

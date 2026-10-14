@@ -23,5 +23,4 @@ export {
   createPresentationCoordinator,
   createPresentationSchedule,
   describeFailure,
-  PRESENTATION_HELD,
 } from "./presentation.js";

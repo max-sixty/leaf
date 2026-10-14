@@ -15,7 +15,15 @@ from leaf import event_log as events_model
 from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
-from render_harness import LONG_PAGE, open_page, sending, stamp_page, told, write
+from render_harness import (
+    LONG_PAGE,
+    consume_browser_errors,
+    open_page,
+    sending,
+    stamp_page,
+    told,
+    write,
+)
 
 from browser.test_render_controls import leaf_page as titled_page
 
@@ -602,9 +610,9 @@ def test_threads_is_as_tall_as_the_threads_it_first_shows(browser, serve):
 
 def test_about_s_rows_that_copy_say_what_they_copy(browser, serve):
     """A row of About whose press copies, such as the Leaf version's diagnostics, shows
-    the text it copies beside Leaf's copy control, as the share link does, and names it.
-    The control is the one a code block wears, an icon named for what it copies, and a
-    press copies the text and says so."""
+    the text it copies beside Leaf's copy control, and names it. The control is the one
+    a code block wears, an icon named for what it copies, and a press copies the text
+    and says so."""
     page = floating(browser, serve(LONG_PAGE))
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.locator(".lf-fp-leaf").click()
@@ -619,6 +627,46 @@ def test_about_s_rows_that_copy_say_what_they_copy(browser, serve):
         "placeholder", re.compile("^Leaf version copied")
     )
     assert page.evaluate("navigator.clipboard.readText()") == text.input_value()
+
+
+def test_copy_link_is_one_press_in_the_leaf_s_menu(browser, serve):
+    """The page's link is copied from a row of the leaf's menu itself, in one press that
+    puts the menu away and says in the field that the link was copied; its hover name
+    says what the link grants. About keeps the Leaf version and no longer the link."""
+    page = floating(browser, serve(LONG_PAGE))
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.locator(".lf-fp-leaf").click()
+    row = page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link")
+    expect(row).to_have_attribute("title", re.compile("^Grants access"))
+    row.click()
+    expect(page.locator(".lf-fp-menu")).to_be_hidden()
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Link copied"))
+    assert re.match(
+        r"^http://.*[?&]t=", page.evaluate("navigator.clipboard.readText()")
+    )
+
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-menu .lf-fp-item", has_text="About this page").click()
+    about = page.locator(".lf-fp-view[data-view=group]")
+    expect(about.locator(".lf-fp-copy", has_text="Leaf version")).to_be_visible()
+    expect(about.get_by_label("Link", exact=True)).to_have_count(0)
+
+
+def test_a_refused_copy_leaves_the_link_to_select_in_about(browser, serve):
+    """A clipboard that refuses the write leaves the user the link all the same: the
+    press opens About on the link, in a field they can select, and the field says the
+    link was not copied."""
+    refuses = (
+        "Clipboard.prototype.writeText = () => Promise.reject(new Error('refused'));"
+    )
+    page = open_page(browser, serve(LONG_PAGE), init_script=f"{FLOATING}\n{refuses}")
+    page.locator(".lf-fp-leaf").click()
+    page.locator(".lf-fp-menu").get_by_role("menuitem", name="Copy link").click()
+    about = page.locator(".lf-fp-view[data-view=group]")
+    link = about.get_by_label("Link", exact=True)
+    expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
+    expect(page.locator(".lf-fp-head")).to_contain_text("About this page")
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Link not copied"))
 
 
 def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
@@ -982,6 +1030,46 @@ def test_the_empty_field_says_the_agent_s_status_until_the_caret_is_in(browser, 
     sheen(False)
 
 
+def test_a_status_that_asks_the_user_to_act_stands_out(browser, serve):
+    """A status that only reports reads in the dim face, and one that asks the user to
+    act, here to open Leaf's link once the server refuses this tab's key, reads at full
+    strength (`pageStatus`, `asks`). Pointing at the field says the status in full,
+    where its room would cut it short."""
+    url = serve(LONG_PAGE)
+    working(serve.page_dir, "Drafting the rollout")
+    page = floating(browser, url)
+    words = page.locator(".lf-fp-field .lf-compose-placeholder > span")
+    panel = page.locator(".lf-floating-panel")
+
+    def alpha():
+        color = words.evaluate("node => getComputedStyle(node).color")
+        found = re.search(r"/\s*([\d.]+)\)$", color)
+        return float(found.group(1)) if found else 1.0
+
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Claude working"))
+    expect(panel).not_to_have_attribute("data-asks", "")
+    expect(page.locator(".lf-fp-field")).to_have_attribute(
+        "title", re.compile("^Claude is working — Drafting the rollout")
+    )
+
+    page.route("**/api/state*", lambda route: route.fulfill(status=401, body="{}"))
+    declare_idle(serve.page_dir)
+    expect(field(page)).to_have_attribute("placeholder", re.compile("^Key refused"))
+    expect(panel).to_have_attribute("data-asks", "")
+    assert alpha() == 1.0, "the status asking the user to act reads dimmed"
+    expect(page.locator(".lf-fp-field")).to_have_attribute(
+        "title", re.compile("^The server no longer accepts this tab's key")
+    )
+    # Once the caret is in, the field says where words go, and the status's tooltip
+    # goes with it.
+    field(page).click()
+    expect(page.locator(".lf-fp-field")).not_to_have_attribute("title", re.compile("."))
+    assert alpha() < 0.5
+    # The refused reads recur on the page's clock until it closes.
+    page.close()
+    consume_browser_errors(page, {"code": "failed-load", "status": 401})
+
+
 def test_a_notice_stays_in_sight_over_words_in_the_field(browser, serve):
     """A passing notice is said in the empty field's place, and once the caret is in the
     field, whose placeholder then says where the words go, or once words hide that, on
@@ -1120,6 +1208,9 @@ def test_asks_are_answered_where_they_are_read_on_me(browser, serve):
     page = floating(browser, serve(ASK_PAGE))
     chip = page.locator(".lf-fp-on-user")
     expect(chip).to_contain_text("2")
+    # Its mark is its own: the question mark is help's, as `?` and the menu's
+    # Keyboard shortcuts row say.
+    expect(chip.locator("svg")).not_to_have_attribute("data-lf-icon", "question")
     chip.click()
     view = page.locator(".lf-fp-view[data-view=on]")
     cards = view.locator(".lf-fp-on-item")
@@ -1611,19 +1702,20 @@ def test_the_share_link_shows_where_it_can_be_selected_without_a_clipboard(
     browser, serve
 ):
     """A browser offers the clipboard only to a secure context, so a page read from
-    another machine over plain http cannot copy. About shows the share link in a field
-    the user can select, with no copy control that could only fail, and says what the
-    link grants."""
+    another machine over plain http cannot copy. The menu's Copy link gives way to the
+    link in About, in a field the user can select, with no copy control that could only
+    fail, saying what the link grants."""
     no_clipboard = "Object.defineProperty(Navigator.prototype, 'clipboard', {get: () => undefined});"
     page = open_page(
         browser, serve(LONG_PAGE), init_script=f"{FLOATING}\n{no_clipboard}"
     )
     page.locator(".lf-fp-leaf").click()
+    expect(page.locator(".lf-fp-menu")).not_to_contain_text("Copy link")
     page.locator(".lf-fp-menu .lf-fp-item", has_text="About this page").click()
-    share = page.locator(".lf-fp-copy", has_text="Share link")
+    share = page.locator(".lf-fp-copy", has_text="Link")
     link = share.locator(".lf-fp-copy-text")
     expect(link).to_have_value(re.compile(r"^http://.*[?&]t="))
-    expect(link).to_have_accessible_name("Share link")
+    expect(link).to_have_accessible_name("Link")
     expect(share.get_by_role("button", name=re.compile("Copy"))).to_have_count(0)
     expect(share).to_contain_text("Grants access")
     link.focus()

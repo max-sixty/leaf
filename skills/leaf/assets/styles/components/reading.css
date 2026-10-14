@@ -127,33 +127,24 @@
  * sticks at the table's own top (`--lf-top`), and, like `pre`, leaves room under its
  * last row for an overlay scrollbar (shadow.css, beside `pre`).
  *
- * It is the inline-size container its fill and its caption measure the scrollport by
- * (100cqi, below) in every engine, and a scroll-state container only where the engine
- * has one. Firefox and WebKit have none and drop a `container-type` that names one
- * whole, so the table stopped being a size container there, its 100cqi measured the
- * page, and a two-column table in a 720px Ask laid its rows out 1728px wide in a
- * 1728px window and cut its second column off. So the size container is declared on
- * its own first, which those engines keep. */
+ * It is the inline-size container its fill and caption read (100cqi) in every engine:
+ * the size type is declared alone first, since an engine without scroll-state
+ * containers (Firefox, WebKit) drops a `container-type` naming it whole. */
 :where(:root, .lf-thread-transcript) table { display: block; overflow-x: auto;
         container-type: inline-size; container-type: inline-size scroll-state; --lf-top: 0px;
         border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
-/* A table's painted grid fills a drawn frame, or the room a box holding it was granted
+/* A table's painted grid fills a drawn frame, or the room its nearest allocation grants
    beyond the column (`wide` or `available`), whose start edge the table shares with
-   that box's other blocks. Otherwise the grid keeps its columns' natural width. A box
-   allocated the column, such as an Ask, gives no more room than the column does and
-   draws no edge, so a table in one is set as the same table in a section is; spread
-   over the measure, an Ask's two-column table stood apart from every other table on
-   its page. A frame that only trims draws no edge to fill (`--lf-block-frame: trim`).
+   that box's other blocks. Otherwise, as in a box allocated the column such as an Ask,
+   the grid keeps its columns' natural width. A frame that only trims draws no edge to
+   fill (`--lf-block-frame: trim`). `--lf-granted` carries the nearest allocation down.
 
    The grid is an anonymous box inside the scrolling block, so CSS cannot size it
    directly. An empty caption as wide as the scrollport (100cqi) supplies its minimum;
-   automatic table layout distributes that width among the columns. Wider content
-   still scrolls. The claim stays on each table, so a nested table asks its own frame.
-
-   Which room a table stands in is its nearest allocation's: `--lf-granted` inherits
-   from the nearest box allocated `wide` or `available` (1) or the column (0), so an
-   Ask inside a granted figure gives its table the column, as it would anywhere. */
+   automatic table layout distributes that width among the columns (not in Firefox,
+   which never widens a grid to its caption). Wider content still scrolls. The claim
+   stays on each table, so a nested table asks its own frame. */
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-granted { syntax: "<integer>"; inherits: true; initial-value: 0; }
 :where([data-lf-space="wide"], [data-lf-space="available"]) { --lf-granted: 1; }

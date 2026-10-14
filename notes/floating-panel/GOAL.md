@@ -79,6 +79,13 @@ icon.
   summarize the thread; the review's sample threads had none, so the head fell back to
   their opening words. Revisit only if titled threads still leave a reader unsure what
   a thread is about.
+- **Selected words go to the anchored comment box, not the field.** The fresh review
+  found that clicking the panel's field with words selected drops the selection and
+  comments on the page as a whole. The user declined carrying the selection into the
+  field (14 October): "at the moment we should encourage using the anchored comment
+  box; though we may change our mind", since that box becomes the anchored comment and
+  stands beside its passage. If the drop needs treating, steer toward that box rather
+  than giving the field a second way to anchor.
 
 Build an opt-in alternative to Leaf's chrome: one panel that hovers over the
 bottom of the page, like the Codex app's floating chat panel, and replaces both

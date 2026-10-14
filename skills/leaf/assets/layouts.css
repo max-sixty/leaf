@@ -226,11 +226,15 @@
    *
    * The negative margins widen a box whose width is its holder's less its margins, which
    * an auto-width block is and a box with a width of its own is not: a table box (a
-   * sample) moved left by the margin and kept the column's width. Such a box takes its
-   * width from `--lf-breakout-width` instead, the room's width: its holder's, and the
-   * breakout's surplus on top where the box takes one. It does not inherit, so a box in
-   * a list inside wide evidence takes its holder's width, not that plus the section's
-   * surplus. */
+   * sample) moved left by the margin and kept the column's width, and an iframe, whose
+   * size containment leaves it no intrinsic width, collapsed to its borders at the room's
+   * left edge. So a breakout states its width as well, `--lf-breakout-width`, the room's
+   * width: its holder's, and the breakout's surplus on top where the box takes one. A
+   * widget that sizes its own box reads it too, and so fills its holder outside a
+   * breakout. It does not inherit, so a box in a list inside wide evidence takes its
+   * holder's width, not that plus the section's surplus. A page rule sizing a breakout
+   * replaces the width and keeps the margins, which moves the box off the prose axis;
+   * the render check names it (layout.js, `off-axis`). */
   @property --lf-breakout-width { syntax: "*"; inherits: false; initial-value: 100%; }
   /* Measured on each breakout alone, so they do not inherit: a block inside one stands in
    * its own holder. Zero until read, the holder taken as the column. */
@@ -272,6 +276,7 @@
     }
     [data-lf-space]:where(:not([data-lf-space="column"])) {
       max-width: none;
+      width: var(--lf-breakout-width);
       margin-left: calc(-1 * var(--lf-grow-l));
       margin-right: calc(-1 * var(--lf-grow-r));
       /* The box's width is the room's and never its content's — that is the whole

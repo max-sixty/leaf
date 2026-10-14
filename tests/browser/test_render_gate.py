@@ -3943,6 +3943,46 @@ def test_misplaced_boxes_checks_page_overflow_but_not_an_authored_scroller(
     assert overflow > 1, "the true page spill did not reach the root scrollport"
 
 
+def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serve):
+    """A breakout's margins move it out past its holder and its width is the room's,
+    so an iframe granted `wide` covers the prose evenly where it had collapsed to its
+    borders at the room's left edge. A page rule sizing it keeps the margins and
+    replaces the width: the frame stood out in the left margin and stopped short of
+    the prose's right edge, and the gate read it as clean. The reading asks only of a
+    box the margins grew that the user can see: a positioned frame is placed by its
+    own offsets, and its parent is not what holds it."""
+    source = leaf_page(
+        "Sized breakouts",
+        """
+<h1>Sized breakouts</h1>
+<style>.sized { width: 100%; }</style>
+<p id="prose">Prose sets the column the frames break out of.</p>
+<iframe id="granted" title="Granted" data-width="wide" style="display: block"></iframe>
+<iframe id="sized" class="sized" title="Sized" data-width="wide" style="display: block"></iframe>
+<iframe id="unseen" class="sized" title="Unseen" data-width="wide"
+  style="display: block; opacity: 0"></iframe>
+<div style="position: relative; height: 160px"><div style="width: 50%; margin-left: 25%">
+  <iframe id="placed" title="Placed" data-width="wide"
+    style="position: absolute; left: 0; width: 50%"></iframe>
+</div></div>
+""",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    at = page.evaluate("""() => Object.fromEntries(['prose', 'granted'].map(id => {
+      const b = document.getElementById(id).getBoundingClientRect();
+      return [id, {left: b.left, right: b.right}];
+    }))""")
+    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
+    page.close()
+
+    grown = at["prose"]["left"] - at["granted"]["left"]
+    assert grown > 100, at
+    assert at["granted"]["right"] - at["prose"]["right"] == pytest.approx(grown, abs=1)
+    off = [m["at"] for m in misplaced if m["code"] == "off-axis"]
+    assert off == ["<iframe id=sized>"], misplaced
+
+
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
     """Both residents of the right margin stand level with what they belong to — the
     controls with the change they decide, the note with the block it annotates — so the

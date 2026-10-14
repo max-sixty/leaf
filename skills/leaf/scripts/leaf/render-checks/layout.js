@@ -19,6 +19,18 @@ const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
 // keeps the measure as text does, so these checks read it as ordinary flow.
 const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 
+// The box a block's width and margins resolve against: its nearest ancestor that
+// generates one, inside that ancestor's border and padding.
+function contentBox(el) {
+  let s = getComputedStyle(el);
+  while (s.display === "contents") s = getComputedStyle((el = el.parentElement));
+  const b = el.getBoundingClientRect();
+  return {
+    left: b.left + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft),
+    right: b.right - parseFloat(s.borderRightWidth) - parseFloat(s.paddingRight),
+  };
+}
+
 // The page's own margin residents, without Leaf's rail: that holds only markers and
 // never moves the column. Both a sweep sample and its breakpoint refinement read the
 // tokens the margin layout publishes, rather than rediscovering residency from boxes.
@@ -406,6 +418,25 @@ export function misplacedBoxes() {
       );
     });
     if (hit) report(el, "over-margin", { resident: at(hit) });
+    // The theme grows a breakout past its holder by its margins and gives it the
+    // room's width (layouts.css), so it covers its holder whichever side it grows
+    // toward. A width of the box's own, such as a page rule sizing an iframe,
+    // overrides the second and keeps the first: the box moves out past one edge and
+    // stops short of the other, off the prose axis, and every bound above still holds.
+    // Only growth the margins made counts, since a box placed some other way, such as
+    // a positioned one, is not grown (prepaint.js, `indents`), and only a box the user
+    // can see.
+    if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
+      continue;
+    const s = getComputedStyle(el);
+    const h = contentBox(el.parentElement);
+    const outL = parseFloat(s.marginLeft) < -1 ? h.left - b.left : 0;
+    const outR = parseFloat(s.marginRight) < -1 ? b.right - h.right : 0;
+    const short = Math.round(
+      outL > 1 ? h.right - b.right : outR > 1 ? b.left - h.left : 0,
+    );
+    if (short > 1)
+      report(el, "off-axis", { out: Math.round(Math.max(outL, outR)), short });
   }
   // The other half of excusing a resident: an excuse is only good if the user can
   // see the thing. Both readings above hand a box to something else to answer for —

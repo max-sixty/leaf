@@ -142,8 +142,7 @@
    The canonical search is the tools row itself. Its count stays inside that field's
    end slot, so the same single frame holds at desktop and phone widths. */
 .lf-diff-tools { display: block; width: 100%; min-width: 0; margin: 0 0 8px; }
-.lf-diff-progress { width: var(--lf-reserved-width, auto);
-                    color: var(--code-muted); font: var(--t-6) var(--sans);
+.lf-diff-progress { color: var(--code-muted); font: var(--t-6) var(--sans);
                     font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* The file comment is a sibling of its disclosure, so each keeps its own action.
    Both follow the sticky header; the shared height reserves the comment's square. */

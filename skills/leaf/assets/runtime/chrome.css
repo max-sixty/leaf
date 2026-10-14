@@ -1245,7 +1245,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-banner-actions > .lf-signoff {
     flex-shrink: 1;
     overflow: hidden;
+  }
+  .lf-signoff > [data-lf-room] {
+    overflow: hidden;
     text-overflow: ellipsis;
+    vertical-align: top;
   }
   .lf-banner-actions > .lf-btn:where(:not(.primary)) {
     border-color: transparent;
@@ -1362,7 +1366,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-banner > .lf-status-queues {
     flex: none;
-    min-width: var(--lf-reserved-width, 0);
     min-height: var(--aim-floor);
     padding: 2px 0;
     border: 0;
@@ -3316,7 +3319,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-page-search-status {
     min-width: 0;
     min-height: 1lh;
-    width: var(--lf-reserved-width, 0px);
     color: var(--muted);
     font-size: var(--t-6);
     font-variant-numeric: tabular-nums;

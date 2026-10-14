@@ -426,12 +426,13 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     .lf-banner > .lf-status-queues { order: 2;
       margin-inline-start: var(--lf-status-inset-left); }
   }
-  /* Reading targets keep their reservations. Approval takes the remaining room,
+  /* Reading targets keep the room of their words. Approval takes the remaining room,
      down to the shared aim floor, and truncates its label when a larger face needs
      more than the window can hold. Its complete text remains the accessible name. */
   .lf-banner-actions > .lf-btn { flex: none; }
-  .lf-banner-actions > .lf-signoff { flex-shrink: 1; overflow: hidden;
-    text-overflow: ellipsis; }
+  .lf-banner-actions > .lf-signoff { flex-shrink: 1; overflow: hidden; }
+  .lf-signoff > [data-lf-room] { overflow: hidden; text-overflow: ellipsis;
+    vertical-align: top; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)) { border-color: transparent;
     border-radius: 0; background: transparent; }
   .lf-banner-actions > .lf-btn:where(:not(.primary)):hover { background: var(--chip); }
@@ -500,12 +501,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   }
   /* The agent's On count is a page fact, like the Threads count, so it stands apart
      from the sentence: on one row between the status's room and the run, in a box
-     reserved for the count it usually reaches (banner.js), which only grows. Its words
+     with room for the count it usually reaches (banner-status-view.js), which only
+     grows. Its words
      start at its fixed leading edge in tabular digits, so a count changing moves none of
      them, and a sentence changing reaches them only as the press's ellipsis. It is a
      press of its own, opening the On panel, in the status press's face and ring. */
-  .lf-banner > .lf-status-queues { flex: none;
-    min-width: var(--lf-reserved-width, 0); min-height: var(--aim-floor);
+  .lf-banner > .lf-status-queues { flex: none; min-height: var(--aim-floor);
     padding: 2px 0; border: 0; border-radius: 4px; background: none; font: inherit;
     text-align: left; cursor: pointer; white-space: nowrap; line-height: 1.35;
     font-variant-numeric: tabular-nums; color: var(--ink-2); }
@@ -967,9 +968,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     grid-template-columns: 76px minmax(0, 1fr); align-items: center; column-gap: 8px; }
   .lf-thread-filter-label { color: var(--muted); font: var(--t-6) var(--sans); }
   .lf-thread-filter-choices { display: flex; flex-wrap: wrap; gap: 5px; }
-  /* A choice reserves its widest count (narrowing-view.js), so a count that changes
-     moves no choice after it; tabular digits and the leading edge keep its words
-     still inside that room. */
+  /* A choice holds the room of its widest count (narrowing-view.js), so a count that
+     changes moves no choice after it; tabular digits and the leading edge keep its
+     words still inside that room. */
   .lf-thread-filter { padding: max(2px, (var(--aim-floor) - 1lh) / 2 - 1px) 8px;
     font-size: var(--t-6); font-variant-numeric: tabular-nums; text-align: start; }
   .lf-thread-filter-group:not(:has(.lf-thread-filter:not([hidden]))) { display: none; }
@@ -1757,7 +1758,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     border-radius: var(--r);
     box-shadow: 0 8px 24px var(--shade); }
   .lf-page-search[hidden] { display: none; }
-  .lf-page-search-status { min-width: 0; min-height: 1lh; width: var(--lf-reserved-width, 0px); color: var(--muted);
+  .lf-page-search-status { min-width: 0; min-height: 1lh; color: var(--muted);
     font-size: var(--t-6); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
   .lf-legend-box { position: absolute; pointer-events: none;
     box-sizing: border-box;

@@ -2520,17 +2520,12 @@
   display: block;
 }
 @media screen {
-  :scope:is(lf-ask)[data-lf-space=column]:has(> [data-lf-space=wide]:not([data-lf-arranged])) {
-    --lf-reach: min(var(--wide), var(--lf-room, 0px));
-  }
-  :scope:is(lf-ask)[data-lf-space=column]:has(> [data-lf-space=available]:not([data-lf-arranged])) {
-    --lf-reach: var(--lf-room, 0px);
-  }
   :scope:is(lf-ask)[data-lf-space=column]:has(> :is([data-lf-space=wide], [data-lf-space=available]):not([data-lf-arranged])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));
     padding-left: var(--lf-grow-l);
     padding-right: var(--lf-grow-r);
+    --lf-breakout: 1;
   }
 }
 :scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {

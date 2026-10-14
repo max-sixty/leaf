@@ -419,24 +419,33 @@ export function misplacedBoxes() {
     });
     if (hit) report(el, "over-margin", { resident: at(hit) });
     // The theme grows a breakout past its holder by its margins and gives it the
-    // room's width (layouts.css), so it covers its holder whichever side it grows
-    // toward. A width of the box's own, such as a page rule sizing an iframe,
-    // overrides the second and keeps the first: the box moves out past one edge and
-    // stops short of the other, off the prose axis, and every bound above still holds.
-    // Only growth the margins made counts, since a box placed some other way, such as
-    // a positioned one, is not grown (prepaint.js, `indents`), and only a box the user
-    // can see.
+    // room's width (layouts.css), so it spans exactly the room its margins open. A
+    // width of the box's own, such as a page rule sizing an iframe, overrides the
+    // width and keeps the margins, so the box starts where the room does and ends
+    // somewhere else, off the prose axis, while every bound above still holds. The
+    // computed margins are the ones the theme set, however the box's own width
+    // over-constrains them. Only growth the margins made counts: a positioned box is
+    // not grown (prepaint.js, `indents`), and a table is placed by its translation
+    // (layouts.css), so its margins do not say where its room is. Only a box the user
+    // can see is read.
     if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
       continue;
     const s = getComputedStyle(el);
-    const h = contentBox(el.parentElement);
-    const outL = parseFloat(s.marginLeft) < -1 ? h.left - b.left : 0;
-    const outR = parseFloat(s.marginRight) < -1 ? b.right - h.right : 0;
-    const short = Math.round(
-      outL > 1 ? h.right - b.right : outR > 1 ? b.left - h.left : 0,
-    );
-    if (short > 1)
-      report(el, "off-axis", { out: Math.round(Math.max(outL, outR)), short });
+    const grownL = -parseFloat(s.marginLeft);
+    const grownR = -parseFloat(s.marginRight);
+    if ((grownL > 1 || grownR > 1) && s.translate === "none") {
+      const h = contentBox(el.parentElement);
+      const left = h.left - grownL;
+      const right = h.right + grownR;
+      const off = Math.round(
+        Math.max(Math.abs(b.left - left), Math.abs(b.right - right)),
+      );
+      if (off > 1)
+        report(el, "off-axis", {
+          drawn: Math.round(b.width),
+          granted: Math.round(right - left),
+        });
+    }
   }
   // The other half of excusing a resident: an excuse is only good if the user can
   // see the thing. Both readings above hand a box to something else to answer for —

@@ -551,9 +551,9 @@ _TEXT = {
         " — the side that holds it gives no room"
     ),
     "off-axis": lambda at, v: (
-        f"{at} stands {v['out']}px out past one edge of the box it is in and stops"
-        f" {v['short']}px short of the other, off the prose axis — a width or"
-        " max-width set on it overrides the width its room gives it"
+        f"{at} is drawn {v['drawn']}px wide where its width grants {v['granted']}px"
+        " of room, so it stands off the prose axis — a width or max-width set on it"
+        " overrides the room's"
     ),
     "clipped-out": lambda at, v: (
         f"{at} is drawn {v['past']}px outside {v['container']}, which does not show it"

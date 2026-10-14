@@ -356,7 +356,7 @@ it, and shape the markup and CSS so the runtime uses its answer:
 | --- | --- |
 | How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell |
 | Where a box stands against another box or the scroller holding it | the containing block, sticky positioning, anchor positioning, scroll timelines |
-| Which of Leaf's surfaces paints over which | the top layer, and stacking contexts |
+| Which of Leaf's surfaces paints over which, and that the page paints beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0 |
 | Whether a box is rendered at all | `checkVisibility` |
 | Which rules reach an element | cascade layers, `@scope`, and a shadow root as the boundary |
 

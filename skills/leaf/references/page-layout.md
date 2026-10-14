@@ -270,6 +270,11 @@ A control the page writes itself matches Leaf's own when it carries Leaf's class
 `class="field"` on a text input or select. Without one, a control in `main` takes
 Leaf's type and keeps the browser's frame.
 
+Leaf's banner, panels, highlights and markers paint over everything in `main`,
+whatever `z-index` the page gives it. A box of the page's that must stand over them,
+such as its own modal or menu, opens in the top layer: a `<dialog>` shown with
+`showModal()`, an element with `popover`, or fullscreen.
+
 The runtime injects the status banner, thread panel, Versions menu, keyboard
 shortcuts, live-leaves drawer, and On panel. `conversation-loop.md`,
 "The On lists", owns what belongs in those lists and how to inspect them.

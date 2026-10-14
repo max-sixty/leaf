@@ -138,7 +138,7 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
             sleep(seconds)
 
         monkeypatch.setattr(hosting_model.time, "sleep", stop_in_the_pause)
-    with hosting_model.restarting_server(page_dir):
+    with hosting_model.restarting_server(page_dir, harness_model.session_harness()):
         assert not files_model.read_json(page_dir / "service.json")["enabled"]
         if stopped == "during the block":
             hosting_model.cmd_stop(page_dir)
@@ -157,6 +157,38 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
     else:
         assert not service["enabled"]
         assert starts == []
+
+
+def test_a_restart_leaves_the_service_of_a_session_that_took_the_page_meanwhile(
+    page_dir, monkeypatch
+):
+    """A re-vendor decides from the page's claim that its session may bring the
+    service back, and another session can take the page before the service goes
+    down. The stop then belongs to that session's service, not this one's, so it
+    keeps running and the re-vendor is refused rather than run under the new owner."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    service_model.claim_page(page_dir)
+    fixture_service(page_dir, available_loopback_port(), lifetime="session")
+    restarting_for = harness_model.session_harness()
+    decided = hosting_model._restarts_for_session
+
+    def taken_after_the_decision(page, harness):
+        comes_back = decided(page, harness)
+        monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
+        service_model.claim_page(page)
+        return comes_back
+
+    monkeypatch.setattr(
+        hosting_model, "_restarts_for_session", taken_after_the_decision
+    )
+    with (
+        pytest.raises(Refused, match="another session took"),
+        hosting_model.restarting_server(page_dir, restarting_for),
+    ):
+        pytest.fail("the re-vendor ran over another session's page")
+    service = files_model.read_json(page_dir / "service.json")
+    assert service["enabled"] and "restart" not in service
 
 
 def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
@@ -599,7 +631,7 @@ def test_a_re_vendor_stops_a_server_whose_record_it_cannot_read(
     version cannot read is still running, so the re-vendor stops it first, and it
     stays stopped: there is no lifetime this version could bring it back under."""
     process = older_server(page_dir, spawn)
-    with hosting_model.restarting_server(page_dir):
+    with hosting_model.restarting_server(page_dir, harness_model.session_harness()):
         assert not leases_model.lock_is_held(page_dir / "server.lock")
     assert process.wait(timeout=STATED_TIMEOUT) == 0
     assert not (page_dir / "service.json").exists()

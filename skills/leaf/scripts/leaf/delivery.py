@@ -296,6 +296,15 @@ def batch_refs(batch: dict) -> dict[str, dict]:
     }
 
 
+def reads_reference(reference: str) -> bool:
+    """Whether this Leaf reads the delivery that emitted `reference`. One an earlier
+    Leaf wrote at another page protocol it does not (`read_delivery`), so the hooks
+    treat the update it owes an answer as having no usable reference and capture it
+    again (`hook_transport.read_plans`)."""
+    payload = read_json(delivery_path(reference.partition(":")[0]))
+    return isinstance(payload, dict) and payload.get("format") == DELIVERY_FORMAT
+
+
 def response_address(reference: str) -> dict:
     """Resolve only a complete reference emitted by an immutable delivery.
 
@@ -486,8 +495,8 @@ def read_delivery(delivery_id: str) -> dict:
         raise Refused(
             f"delivery {delivery_id!r} is {payload.get('format')!r}, written by a Leaf "
             f"at another page protocol, and this Leaf reads {DELIVERY_FORMAT!r}. The "
-            "updates it carried stay pending: run `leaf page init` on each page it "
-            "names, and this Leaf delivers them again."
+            "updates it carried that still owe an answer are captured again in a "
+            "delivery this Leaf writes, which the session's next prompt or Stop names."
         )
     if not readable_delivery(payload, delivery_id):
         raise RuntimeError(f"delivery {delivery_id!r} has an invalid envelope")
@@ -685,8 +694,9 @@ def deliverable(page: PageTransaction) -> list[dict]:
     a page whose log this Leaf may not write (`event_contracts.write_refusal`), where
     `receive_batch` refuses its receipt. Handed over anyway, it stayed pending, so a
     watch woke its session on every pass and a Codex watch opened a turn for it each
-    time. It waits for a Leaf that can write the page; the prompt hook names the
-    re-vendor that frees it (`hook_transport.remedies`). A page with nothing pending
+    time. Its session's hooks and commands re-vendor such a page before they read it
+    (`vendoring.renew_layer`), so input waits here only on a page whose re-vendor was
+    refused, and the hooks name why (`hook_transport.remedies`). A page with nothing pending
     is answered without loading its layer, since Codex asks after every tool call."""
     pending = unacknowledged(page.events, page.cursor)
     if not pending:

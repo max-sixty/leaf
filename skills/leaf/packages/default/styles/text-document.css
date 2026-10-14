@@ -21,7 +21,30 @@
    simply the default. The frame keeps `overflow-x: auto` for what no line box can break:
    a path, a URL, minified data. An author whose capture is columnar has no attribute to
    say so yet; add one when a page needs it. */
-:scope:is(lf-text-document) pre { margin: 0; border: 0; border-radius: 0; white-space: pre-wrap; }
+:scope:is(lf-text-document) pre {
+  margin: 0; padding: 0; border: 0; border-radius: 0; white-space: pre-wrap;
+}
+/* Pierre's file box uses the same type and paper as Leaf's code blocks. Its scoped
+   vendor sheet supplies the line grid and wrapping; these are the theme's tokens. */
+:scope:is(lf-text-document) .lf-text-document-listing {
+  color-scheme: inherit;
+  --diffs-font-family: var(--mono);
+  --diffs-font-size: var(--code-size);
+  --diffs-line-height: var(--code-line);
+  --diffs-bg: var(--pre-bg);
+  --diffs-bg-buffer: var(--pre-bg);
+  --diffs-fg: var(--code-ink);
+  --diffs-fg-number: var(--code-muted);
+}
+:scope:is(lf-text-document) [data-line-number-content]::before {
+  content: attr(data-number);
+}
+/* The listing owns source scroll, including when Preview and Source have separate
+   fixed viewports. Pierre's own horizontal trap must not swallow document scrolling. */
+:scope:is(lf-text-document) code[data-code] {
+  display: grid; padding: 0; border: 0; border-radius: 0; background: none;
+  font: inherit; overscroll-behavior: auto;
+}
 /* A bounded capture keeps its caption in view and scrolls the listing under it. */
 @media screen {
   :scope:is(lf-text-document)[data-lf-bound] { max-block-size: none; overflow: visible;

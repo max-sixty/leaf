@@ -95,7 +95,7 @@
     "x-example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
-    "description": "A file-backed text document with optional syntax coloring and rendered Markdown or HTML previews.",
+    "description": "A file-backed text document with Pierre's numbered source rendering, syntax coloring, and optional Markdown or HTML previews.",
     "x-instructions": "Bind source to the page-owned feed. Use label to name the file. Set preview to markdown or html for Preview and Source tabs over the same text; language optionally overrides the source syntax. HTML is a separate document: its provider owns typography, spacing, and responsive CSS; it inherits no Leaf styles. Both readings share a scrollable viewport sized by --lf-bound (28rem by default). Compose ordinary lf-tabs for other kinds of preview. Put it inside details when it should begin collapsed.",
     "x-name": "label",
     "type": "object",

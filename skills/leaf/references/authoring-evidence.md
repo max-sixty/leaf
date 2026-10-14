@@ -76,7 +76,9 @@ registry's `$keys` entry for `x-visual` states the contract.
 ## Source files and media
 
 Use `lf-text-document` when literal UTF-8 text should remain selectable and commentable
-without copying it into the authored HTML. Set `preview="markdown"` or
+without copying it into the authored HTML. Source uses Pierre's numbered,
+syntax-colored file rendering, sharing its presentation with diffs; gutter numbers
+stay out of copied text and passage comments. Set `preview="markdown"` or
 `preview="html"` to give the document Preview and Source tabs over that same
 text. Markdown uses Leaf’s message dialect; raw HTML remains literal text.
 HTML previews render HTML, CSS, and scripts in an opaque-origin sandbox,

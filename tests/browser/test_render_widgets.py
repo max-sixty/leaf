@@ -9528,7 +9528,7 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
 ):
     """Preview and source are two readings of one feed, reachable by press and key."""
     text = (
-        "# A rendered document\n\n"
+        "# A rendered document\r\n\r"
         "Read [the details](https://example.com/details).\n\n"
         "- First item\n- Second item\n\n"
         "| Name | Value |\n| --- | --- |\n| Outcome | **Ready** |\n"
@@ -9558,6 +9558,19 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
     expect(source).to_have_attribute("aria-selected", "true")
     expect(document.locator("pre")).to_be_visible()
     assert document.locator("code").text_content() == text
+    # Numbering stays in its own visible column and outside the exact source text.
+    gutter = document.locator("[data-gutter]")
+    content = document.locator("[data-content]")
+    assert gutter.bounding_box()["width"] > 0
+    assert gutter.evaluate(
+        "el => el.getBoundingClientRect().right"
+    ) <= content.evaluate("el => el.getBoundingClientRect().left")
+    assert (
+        document.locator("[data-line-number-content]").first.evaluate(
+            "el => getComputedStyle(el, '::before').content"
+        )
+        == '"1"'
+    )
     source.press("ArrowLeft")
     expect(preview).to_be_focused()
     expect(preview).to_have_attribute("aria-selected", "true")

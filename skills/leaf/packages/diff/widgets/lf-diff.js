@@ -78,6 +78,7 @@ import {
   readDiffCoordinate,
 } from "./diff-coordinates.js";
 import "/vendor/webawesome.esm.js";
+import { pierre, markSyntax } from "/widgets/pierre.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
 // an authored <lf-diff> bound to data
 // that has not arrived yet does not. So it is imported on first use rather than at
@@ -87,8 +88,6 @@ import "/vendor/webawesome.esm.js";
 // Metadata must be parsed before its row commits; unopened text needs no renderer.
 let parser = null;
 const parse = () => (parser ??= import("/vendor/pierre-parser.esm.js"));
-let renderer = null;
-const pierre = () => (renderer ??= import("/vendor/pierre-diffs.esm.js"));
 
 const OPTIONS = Object.freeze({
   diffStyle: "unified",
@@ -99,19 +98,6 @@ const OPTIONS = Object.freeze({
   lineDiffType: "word-alt",
   overflow: "scroll",
 });
-
-// Keep Pierre's Shiki styles intact. The marker lets the render gate inspect
-// themed glyphs without prescribing their colors or translating them into roles.
-function markSyntax(root, foreground) {
-  for (const token of root.querySelectorAll("span[style]"))
-    if (
-      (token.style.color && token.style.color !== foreground) ||
-      token.style.fontStyle ||
-      token.style.fontWeight ||
-      token.style.textDecoration
-    )
-      token.dataset.lfSyn = "";
-}
 
 // The records every source form renders from, in the shape of the contract's file
 // manifest. A patch text is parsed once, strictly, so a malformed hunk never becomes

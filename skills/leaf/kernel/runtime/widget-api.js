@@ -234,7 +234,8 @@ import {
   queueWidgetUpdate,
   readPart,
   readsProof,
-  revisionLabel
+  revisionLabel,
+  widgetRegions
 } from "./bundle-semantic-state.js";
 import {
   TEXT_BOX,
@@ -739,6 +740,15 @@ var LeafElement = class extends LitElement {
       this.#drawing = outer;
     }
   }
+  /** The render drawn again at once, outside any claim and Lit's own schedule, with a
+   *  failure thrown rather than shown: the render check's replay
+   *  (render-checks/replay.js), which holds a draw of the same reading to change
+   *  nothing. `updated()` does not run, since what follows a draw may start
+   *  preparation that would claim the widget's presentation and land after the check
+   *  reads the page. An update Lit has queued stays queued, with its claim. */
+  redraw() {
+    render(this.render(), this.renderRoot, this.renderOptions);
+  }
   updated(changed) {
     super.updated(changed);
     paintKeysWithin(this);
@@ -804,7 +814,7 @@ var LeafElement = class extends LitElement {
     this.#connectedParent = this.parentElement;
     if (registry[this.localName]?.["x-data"])
       this.#leaveData = joinDataDelivery(
-        this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName
+        this.#descriptor ? widgetRegions(this.#descriptor.id) : [this.#regionName]
       );
     this.#follow();
     const moved = untracked(

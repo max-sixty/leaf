@@ -65,6 +65,14 @@ def at_rest(page: Page) -> None:
     """The page as it loads."""
 
 
+def captured_source(page: Page) -> None:
+    """The gallery's captured source file, with its numbered syntax presentation."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Data & work", exact=True
+    ).click()
+    page.locator("#bg-source-captures").scroll_into_view_if_needed()
+
+
 def tab_by_keyboard(page: Page) -> None:
     """The selected tab's focus beside its persistent selection mark."""
     page.keyboard.press("Tab")
@@ -897,6 +905,12 @@ class State:
 
 
 STATES = (
+    State(
+        "captured-source",
+        "developer/feature-gallery",
+        captured_source,
+        region="#bg-source-live",
+    ),
     State(
         "banner-more",
         "developer/feature-gallery",

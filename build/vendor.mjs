@@ -500,12 +500,15 @@ const bundles = {
   // `syntax.esm.js`, and Pierre's theme registry binds to Leaf's theme shim.
   // The unused WASM import carries no binary or separate module.
   pierre: () => ({
-    out: `${packageVendor("diff")}/pierre-diffs.esm.js`,
+    out: `${packageVendor("default")}/pierre-diffs.esm.js`,
     entryPoints: {
       "pierre-diffs.esm": input("pierre/entry.mjs"),
       "pierre-parser.esm": input("pierre/parser.mjs"),
     },
-    outdir: packageVendor("diff"),
+    outdir: packageVendor("default"),
+    place: {
+      [`${packageVendor("default")}/pierre-parser.esm.js`]: `${packageVendor("diff")}/pierre-parser.esm.js`,
+    },
     splitting: true,
     chunkNames: "pierre/[name]-[hash]",
     adapt: [

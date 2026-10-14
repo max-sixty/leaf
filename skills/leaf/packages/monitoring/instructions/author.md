@@ -10,7 +10,7 @@ ordinary flow, with the reference material in `details`. Keep release identity a
 summary in authored markup so a feed update cannot silently change the page's
 conclusion.
 For a live run whose newest line the user follows, select its reading region as
-"Bounds and widths" in `references/page-authoring.md` describes.
+"Bounds and widths" in `references/page-layout.md` describes.
 
 When rollback is genuinely available, ask for it beside the current state: an
 `lf-ask` whose heading asks whether to roll back, holding an `lf-options choose` group

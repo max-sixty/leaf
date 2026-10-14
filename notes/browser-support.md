@@ -195,7 +195,7 @@ what fails and what still works.
   native destination and Reset. A valid Leaf reload reconnects; a non-Leaf document
   stays visible without a private port. The opaque parent cannot classify a later
   failed reload separately from authored departure. The author-facing contract is
-  [Live samples](../skills/leaf/references/page-authoring.md#live-samples).
+  [Live samples](../skills/leaf/references/live-samples.md).
 
 - **Observed, 2026-10-13:** Playwright Chromium 153.0.8010.12 rejects an
   opaque sample's pending icon, registry, and state fetches during a second native

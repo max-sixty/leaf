@@ -6,7 +6,7 @@ the sections its behavior needs. The same helpers serve each form. A semantic
 controller needs a registry-declared widget; ordinary elements use the other helpers
 alone.
 
-[page-authoring.md, "Page behavior"](page-authoring.md#page-behavior) owns script placement,
+[page-behavior.md](page-behavior.md) owns script placement,
 imports, and revision lifetime. [packages.md, "A widget"](packages.md#a-widget)
 owns element declarations; its ["User state"](packages.md#user-state) and
 ["External or derived data"](packages.md#external-or-derived-data) sections own

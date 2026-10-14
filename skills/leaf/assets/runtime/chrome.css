@@ -236,12 +236,12 @@
   .lf-fp-chip[aria-pressed=true] {
     background: var(--lf-fp-faint);
   }
-  .lf-fp-questions,
+  .lf-fp-on-user,
   .lf-fp-threads {
     min-width: calc(16px + 4px + 2ch + 14px);
     justify-content: flex-start;
   }
-  .lf-fp-questions[data-due] .lf-fp-num {
+  .lf-fp-on-user[data-due] .lf-fp-num {
     color: var(--accent);
     font-weight: 600;
   }
@@ -657,13 +657,13 @@
   .lf-fp-quiet:hover {
     color: var(--ink);
   }
-  .lf-fp-question {
+  .lf-fp-on-item {
     padding: 10px 8px 12px;
   }
-  .lf-fp-question + .lf-fp-question {
+  .lf-fp-on-item + .lf-fp-on-item {
     border-top: 1px solid var(--lf-fp-faint);
   }
-  .lf-fp-qtitle {
+  .lf-fp-on-title {
     margin: 0 0 2px;
     font: inherit;
     font-size: 12px;

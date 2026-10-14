@@ -906,7 +906,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     takes, so the release-notes shot, the wide exhibit in the control, grows left only
     to stop short of it.
 
-    The Questions panel stands over the page from the right and moves nothing in the left
+    The On panel stands over the page from the right and moves nothing in the left
     margin. A narrow viewport returns the aside to the flow, and print proves paper
     reserves no blank margin for a posture it cannot use.
 
@@ -1026,7 +1026,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # The Questions panel stands over the page from the right and moves nothing in the left
+    # The On panel stands over the page from the right and moves nothing in the left
     # margin: the fixed ToC and the sidebar stay where the page put them while it stands.
     resized(page, 1700, 900)
     margin = """() => {

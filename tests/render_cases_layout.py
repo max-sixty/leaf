@@ -581,8 +581,8 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 # `drawnEdge` is that the two are one piece of furniture reflected — a reading written
 # for the panel alone would go on passing on the day the drawer's edge stopped working,
 # and the drawer's edge exists precisely because the panel's did not have to be written
-# a second time. The right edge holds Threads and Questions, one side panel at one width
-# (`QUESTIONS`); the left holds the Leaves drawer, which needs a neighbour to list.
+# a second time. The right edge holds Threads and the On panel, one side panel at one width
+# (`ON_PANEL`); the left holds the Leaves drawer, which needs a neighbour to list.
 #
 # `html` is a call rather than the markup, because a parametrize list is read at import.
 # `squeeze` is the window that has no room for what the user chose and the width the
@@ -614,9 +614,9 @@ EDGES = [
     ),
 ]
 EDGE_IDS = [edge.name for edge in EDGES]
-# The Questions panel, which stands on the Threads panel's edge at its width.
-QUESTIONS = SimpleNamespace(
-    name="questions",
+# The On panel, which stands on the Threads panel's edge at its width.
+ON_PANEL = SimpleNamespace(
+    name="on",
     html=lambda: ASKS_PAGE,
     comments=0,
     fixtures=(),
@@ -634,7 +634,7 @@ def edge_world(request, edge):
         request.getfixturevalue(name)
 
 
-# One Ask, so a page offers the Questions panel.
+# One Ask, so a page offers the On panel.
 ONE_ASK = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
     '<lf-options id="go" choose>'
@@ -653,7 +653,7 @@ def with_one_ask(html):
 
 
 def toggle_queue(page, open=True):
-    """Open or close the Questions panel from its banner control and wait for it to stand."""
+    """Open or close the On panel from its banner control and wait for it to stand."""
     banner_control(page, ".lf-queue").click()
     drawer = expect(page.locator(".lf-queue-panel"))
     opened = re.compile(r"\bopen\b")
@@ -902,7 +902,7 @@ BANNER_ORDER = r"""() => {
       // The version's age ticks with the clock between two readings; the order does not.
       .replace(/ · \S+ ago$/, '')
       // The queue's population does not change the control's place in that order.
-      .replace(/^Questions: \d+ waiting on me$/, 'Questions'));
+      .replace(/^On me: \d+$/, 'On me'));
 }"""
 
 

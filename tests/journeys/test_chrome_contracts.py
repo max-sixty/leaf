@@ -1540,9 +1540,7 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     door = page.locator(".lf-banner-more")
     _publish(serve.page_dir, 3, html, "reworded the suggestion again")
     told(page)
-    expect(door).to_have_attribute(
-        "aria-label", "More page controls, questions waiting, new"
-    )
+    expect(door).to_have_attribute("aria-label", "More page controls, items on me, new")
     accent = token_colour(page, "--accent")
     face = door.evaluate(
         "d => ({dot: getComputedStyle(d, '::after').backgroundColor,"
@@ -1553,7 +1551,7 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
 
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
     """The fixed menu and primary row keep one reading order at every desk width, and
-    a phone reads the same order with Approval, Comment on the page and Questions,
+    a phone reads the same order with Approval, Comment on the page and On me,
     which stand before Threads on a desk, moved to the head of More."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
@@ -1574,7 +1572,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         resized(page, width, 900)
         orders[width] = page.evaluate(BANNER_ORDER)
     phone = orders.pop(390)
-    moved = ["Approve version", "Comment on the page", "Questions"]
+    moved = ["Approve version", "Comment on the page", "On me"]
     assert phone[: len(moved)] == moved, phone
     rest = phone[len(moved) :]
     assert rest[:-1] + moved + rest[-1:] == orders[800], (phone, orders[800])
@@ -1594,7 +1592,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
 
     # More follows the primary reading loop, with one order at every width.
     widest = max(orders.values(), key=len)
-    for wanted in ("All pages", "Questions", "Accept all", "v1", "Approve version"):
+    for wanted in ("All pages", "On me", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in widest), (
             f"{wanted} was not on the row at all, so this order proves little: {widest}"
         )

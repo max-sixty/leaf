@@ -22,7 +22,8 @@ authored text, layout, and image alt text and explains the unavailable graphics.
 stands behind it, so threads and any action that needs an agent or server are
 unavailable. A page that declares a live sample needs a server and
 cannot be exported. Write the file where the project keeps user-facing artifacts.
-A live page can be exported without ending its loop.
+A live page can be exported without ending its loop. Exports omit the links to
+neighboring live Leaf pages and their server access keys.
 
 ## Address and authentication
 

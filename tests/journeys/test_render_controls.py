@@ -1607,7 +1607,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     # The complete real action set, wherever the fold has put each of them: what this is
     # about is the pressure that set puts on the sentence beside it.
     on_the_row = page.evaluate(BANNER_ORDER)
-    for wanted in ("All pages", "Questions", "Accept all", "v1", "Approve version"):
+    for wanted in ("All pages", "On me", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in on_the_row), (
             f"{wanted} was not on the row, so the fixture is short of the crowding this "
             f"test is about: {on_the_row}"
@@ -2172,7 +2172,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
 
     # At the product's 320px floor the comment sheet has no possible width to move
     # through, so it offers no inert separator. A user standing on the grip lands on
-    # its surviving close control before it disappears. The Questions panel stands on
+    # its surviving close control before it disappears. The On panel stands on
     # the same edge at the same floor, so its grip is gone there too.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -3193,7 +3193,7 @@ def test_covering_threads_keeps_the_user_inside(browser, serve):
 
 
 def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, serve):
-    """The Questions panel gets the covering auxiliary surface contract rather than a drawer-specific
+    """The On panel gets the covering auxiliary surface contract rather than a drawer-specific
     focus trap. Its exact Ask and reading place survive both responsive crossings, its
     reading keys move its own list, and closing returns to its door without moving the
     document behind it."""
@@ -3223,7 +3223,7 @@ def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, se
         assert drawer.evaluate(
             "el => document.activeElement === document.body "
             "|| el.closest('dialog').contains(document.activeElement)"
-        ), "Tab reached a control behind the covering Questions panel"
+        ), "Tab reached a control behind the covering On panel"
 
     list_box.evaluate("el => el.scrollTop = 0")
     rows.first.focus()
@@ -3262,7 +3262,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     Pointer entry starts in the list rather than on its dismissal furniture. The banner
     controls are inert while a drawer covers the document, so they cannot be the only
     pointer route out. Closing either drawer returns focus to the control that opened it,
-    ready to reopen the same drawer: the Questions door on the banner's row, and More for
+    ready to reopen the same drawer: the On me door on the banner's row, and More for
     Leaves, folded behind it.
     """
     page = open_page(browser, serve(MANY_ASKS_PAGE))
@@ -3273,7 +3273,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     ), "the fixture did not fold Pages behind the banner menu"
 
     for selector, panel, name, first_destination, door_back in (
-        (".lf-queue", ".lf-queue-panel", "questions", ".lf-queue-row", ".lf-queue"),
+        (".lf-queue", ".lf-queue-panel", "the On panel", ".lf-queue-row", ".lf-queue"),
         (
             ".lf-others",
             ".lf-others-panel",
@@ -3298,7 +3298,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
 
 def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     """Auxiliary placement does not retire a live return; closing its surface does. The
-    Questions panel is the surface that crosses between covering and beside."""
+    On panel is the surface that crosses between covering and beside."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 500, 640)
     origin = page.locator("main .lf-pick").first
@@ -3307,7 +3307,7 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     opened = re.compile(r"\bopen\b")
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
+    page.keyboard.press("Shift+m")
     expect(drawer).to_have_class(opened)
     assert bool(page.locator("dialog:modal").count())
 
@@ -3322,8 +3322,8 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     assert page.evaluate("() => document.activeElement === document.body")
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+q")
-    page.get_by_role("button", name="Close questions").click()
+    page.keyboard.press("Shift+m")
+    page.get_by_role("button", name="Close the On panel").click()
     expect(drawer).not_to_have_class(opened)
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body"), (
@@ -3377,7 +3377,7 @@ def test_a_walk_down_the_drawer_stops_clear_of_the_shortcut_bar_text(
 
 
 def test_a_walk_down_the_queue_stops_clear_of_the_shortcut_bar_text(browser, serve):
-    """A covering Questions panel keeps the last row above the shortcut bar.
+    """A covering On panel keeps the last row above the shortcut bar.
 
     Beside a live page the bar ends at the panel's edge, so only the covering
     posture exercises the clearance shared with the Pages drawer."""

@@ -470,7 +470,7 @@
   },
   "lf-tabs": {
     "description": "Several views of one artifact, as page navigation, a local tabbed section, or a side-list queue.",
-    "x-instructions": "Place the first set directly in main for page navigation; other placements make a framed local tabbed section. Put the shared title and lede before page tabs and the primary current view first. Each lf-tab is a self-contained view, while history, Threads, Questions, versions, and sign-off belong to the whole page. Retire obsolete views once current work no longer depends on them, preserving needed context and passages anchoring open threads or decisions in force in details within the relevant tab. Use list=\"side\" for a queue beside its selected item; it remains framed and its list does not stick.",
+    "x-instructions": "Place the first set directly in main for page navigation; other placements make a framed local tabbed section. Put the shared title and lede before page tabs and the primary current view first. Each lf-tab is a self-contained view, while history, Threads, the On panel, versions, and sign-off belong to the whole page. Retire obsolete views once current work no longer depends on them, preserving needed context and passages anchoring open threads or decisions in force in details within the relevant tab. Use list=\"side\" for a queue beside its selected item; it remains framed and its list does not stick.",
     "type": "object",
     "properties": {
       "id": {

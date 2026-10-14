@@ -1,14 +1,15 @@
-"""Agent-facing page state: the Questions and Tasks lists, and the asks and to-dos
+"""Agent-facing page state: the On me and On <agent> lists, and the asks and to-dos
 they select from.
 
 The reading uses one transaction and prints the two lists the active view serves
-(`served_state.queues`): Questions holds open asks, to-dos on the user and resends;
-Tasks holds the answers the agent owes, its work in hand and its to-dos. The ask
-inventory also retains finished records, whatever their `status` (`questions`). `source` states whether a
-document is live and whether an invalid source save leaves the last valid version
-active. A page this Leaf cannot serve as vendored (`layer.incompatible_layer`) is
-still read, its `source.error` the refusal naming the re-vendor: the reading gives the
-agent the page's context, and the error says not to act on it before `page init`.
+(`served_state.queues`): On me (`on_user`) holds open asks, to-dos on the user and
+resends; On <agent> (`on_agent`) holds the answers the agent owes, its work in hand
+and its to-dos. The ask inventory (`asks`) also retains finished records, whatever
+their `status`. `source` states whether a document is live and whether an invalid
+source save leaves the last valid version active. A page this Leaf cannot serve as
+vendored (`layer.incompatible_layer`) is still read, its `source.error` the refusal
+naming the re-vendor: the reading gives the agent the page's context, and the error
+says not to act on it before `page init`.
 """
 
 import json
@@ -122,10 +123,10 @@ def _base_state(
         },
         "data_bindings": page_data_binding_inventory(page_dir, registry, events),
         "measurement_lag": [],
-        # What is on the user (Questions) and what is on the agent (Tasks), each item
+        # What is on the user (On me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
         # side; and the complete canonical ask inventory those lists select from.
-        "queues": {"questions": [], "tasks": []},
+        "queues": {"on_user": [], "on_agent": []},
         "todos": [],
         "asks": [],
         # Current semantic facts only. A thread's history belongs to
@@ -302,7 +303,7 @@ def _write_page_state(
     authored measurements whose live source has run again
     (`measurement_lag_entries`), each comment thread's current state, attention, and
     the agent messages in it the user has not read, every open to-do on either side,
-    the asks, the two lists, Questions and Tasks, that they and the workflows add up
+    the asks, the two lists, On me and On <agent>, that they and the workflows add up
     to (`served_state.queues`, the banner's own counts), and presence beside what
     answers for it. It is a
     selection from the reading /api/state serves (`read_served_page`), computed on
@@ -384,7 +385,9 @@ def _write_page_state(
         state["asks"] = view["document"]["asks"]["all"] + view["thread"]["asks"]["all"]
         state["todos"] = browser["todos"]
         served_queues = view["queues"]
-        state["queues"] = {side: served_queues[side] for side in ("questions", "tasks")}
+        state["queues"] = {
+            side: served_queues[side] for side in ("on_user", "on_agent")
+        }
     subject = None
     if target is not None:
         subject = page_subject(page_dir, events, target)

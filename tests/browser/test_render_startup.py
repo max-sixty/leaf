@@ -1157,7 +1157,7 @@ RESTORED_PROSE = "".join(
 @pytest.mark.parametrize(
     ("saved", "wide", "window", "contained"),
     [
-        # Questions stands on the Threads panel's edge, at the width the user drew it.
+        # The On panel stands on the Threads panel's edge, at the width the user drew it.
         (
             {"lf-auxiliary-surface": "queue", "lf-thread-panel-width": "380"},
             False,
@@ -1172,7 +1172,7 @@ RESTORED_PROSE = "".join(
         ),
         # Where it would leave less than a usable page it covers the page instead.
         ({"lf-auxiliary-surface": "threads"}, True, 700, False),
-        # The Questions panel by the same rule: 420 of a 600px window leaves 180.
+        # The On panel by the same rule: 420 of a 600px window leaves 180.
         ({"lf-auxiliary-surface": "queue"}, False, 600, False),
         # A sample's child page starts without its host's saved chrome. Isolation is
         # one rule whatever the surface and window, so one case asks it.
@@ -2052,16 +2052,15 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     body = page.locator("body")
     expect(body).to_have_attribute("data-lf-auxiliary-surface", "queue")
     # The door stands on every page, and claims no count before the log has answered.
-    expect(page.locator(".lf-queue")).to_have_text("Questions")
+    expect(page.locator(".lf-queue")).to_have_text("On me")
+
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
     # The stable blanket control claims no action before the first state answer.
     expect(page.locator(".lf-answer-all:visible")).to_have_count(0)
     # Opened by hand, the panel counts nothing yet either.
     page.locator(".lf-queue").click()
-    expect(page.locator(".lf-queue-panel")).to_contain_text(
-        "Loading current questions…"
-    )
-    expect(page.locator(".lf-queue-panel")).not_to_contain_text("Questions · 0")
+    expect(page.locator(".lf-queue-panel")).to_contain_text("Loading…")
+    expect(page.locator(".lf-queue-panel")).not_to_contain_text("On me · 0")
 
     comments = page.locator(".lf-threads-toggle")
     expect(comments).to_be_enabled()
@@ -2076,7 +2075,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     decisions = page.locator(".lf-queue")
-    expect(decisions).to_have_text("Questions: 0")
+    expect(decisions).to_have_text("On me: 0")
     expect_asks_answered(page, "1/1")
     expect(decisions).to_have_attribute("aria-expanded", "false")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
@@ -2486,7 +2485,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     # and the target keeps the local quiet word.
     expect(page.locator("#draft-ops[data-lf-restated]")).to_have_count(1)
     page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    page.keyboard.press("Shift+p")
     rewritten = page.get_by_role(
         "button", name=re.compile(r"^Open rewritten: Rewritten")
     )
@@ -2496,7 +2495,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
         page.locator("#draft-ops").evaluate("el => getComputedStyle(el).outlineStyle")
         == "none"
     )
-    assert "rewritten since I decided" in page.locator("#draft-ops").aria_snapshot()
+    assert "rewritten since the decision" in page.locator("#draft-ops").aria_snapshot()
 
 
 def test_user_overrides_identify_state_that_differs_from_authored_inputs(
@@ -3752,7 +3751,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up my comment and hasn't said what it's doing yet"
+        "Claude picked up the comment and hasn't said what it's doing yet"
         " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 to-do"
         " (Work on the page)."
     )
@@ -3769,7 +3768,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     told(page)
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude picked up my comment and hasn't said what it's doing yet"
+        "Claude picked up the comment and hasn't said what it's doing yet"
         " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies."
     )
 
@@ -3991,7 +3990,7 @@ def test_a_workflow_and_the_banner_share_agent_activity(browser, serve):
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(
-            r"^\s*Claude picked up my comment and hasn't said what it's doing yet"
+            r"^\s*Claude picked up the comment and hasn't said what it's doing yet"
             r" \(just now\)\. Waiting on me"
         )
     )
@@ -4024,7 +4023,7 @@ def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
         expect(page.locator(".lf-status-text")).to_have_text(
             "Claude awaits — pick a storage engine"
         )
-        expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
+        expect(page.locator(".lf-status-queues")).to_have_text("On Claude: 1")
         expect(page.locator(".lf-status-detail")).to_have_text(
             "Claude awaits — pick a storage engine. Waiting on Claude: 1 reply."
         )
@@ -5952,8 +5951,8 @@ def test_the_public_widget_api_can_load_before_boot_registers_page_keys(browser,
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-state", "accept")
 
 
-def test_page_annotation_view_seats_questions_and_contributed_controls(browser, serve):
-    """A page that owns its annotations shows Questions and contributed actions in its
+def test_page_annotation_view_seats_asks_and_contributed_controls(browser, serve):
+    """A page that owns its annotations shows its asks and contributed actions in its
     own box: Leaf hands the consumer each entry's items and native controls, and the
     page only arranges them. Activating an item reaches its ask, and a seated
     control still runs its contribution's action. The view follows the log: an answered

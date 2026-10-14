@@ -8260,6 +8260,10 @@ def test_a_drawer_sliding_out_takes_no_focus(browser, serve):
     banner_control(page, ".lf-queue").click()
     expect(page.locator(".lf-queue-panel")).to_be_visible()
     render_checks_model.wait_for_probe(page, "pageSettled")
+    # The drawer's own slide in has ended, so any animation read below is the swap's.
+    page.wait_for_function(
+        "() => document.querySelector('.lf-queue-panel').getAnimations().length === 0"
+    )
     swapped = page.evaluate(
         """() => {
           document.querySelector('.lf-threads-toggle').click();

@@ -1826,7 +1826,8 @@ def test_a_put_down_start_holds_no_input_in_hand(page_dir):
 def test_each_reply_the_agent_sent_is_its_own_item_in_its_lists_done():
     """A reply leaves On <agent> for its Done under the key of the answer listed for the
     input it answers. The log can hold a second answer to the same input, which is its
-    own item rather than a second row under that key. Done orders by instant, read as
+    own item rather than a second row under that key, and which answer came first is
+    the log's order, whichever thread each stands in. Done orders by instant, read as
     Leaf reads any timestamp it admits, a `z` suffix included."""
     from model_folds import leaf_page, served_reading
 
@@ -1834,19 +1835,20 @@ def test_each_reply_the_agent_sent_is_its_own_item_in_its_lists_done():
         leaf_page("Review", "<h1>Review</h1>"),
         (
             {"kind": "comment", "text": "Q"},
+            {"kind": "comment", "text": "Another"},
             *(
                 {
                     "kind": "reply",
                     "author": "agent",
                     "agent": "Agent",
-                    "parent": "e1",
+                    "parent": parent,
                     "responds": "e1",
                     "text": text,
                     "ts": ts,
                 }
-                for text, ts in (
-                    ("First answer", "2026-10-13T10:00:00z"),
-                    ("Second answer", "2026-10-13T11:00:00+00:00"),
+                for parent, text, ts in (
+                    ("e2", "First answer", "2026-10-13T10:00:00z"),
+                    ("e1", "Second answer", "2026-10-13T11:00:00+00:00"),
                 )
             ),
         ),
@@ -1856,4 +1858,4 @@ def test_each_reply_the_agent_sent_is_its_own_item_in_its_lists_done():
         (item["owner"], item["kind"], item["id"], item["answer"]["message"])
         for item in view["queues"]["done"]
     ]
-    assert done == [("agent", "answer", "e3", "e3"), ("agent", "answer", "e1", "e2")]
+    assert done == [("agent", "answer", "e4", "e4"), ("agent", "answer", "e1", "e3")]

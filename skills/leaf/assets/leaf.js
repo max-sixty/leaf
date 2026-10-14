@@ -783,7 +783,7 @@ if (document.documentElement.lfSample) {
 
 drawers = createDrawers({
   doors: { queue: [queueCounts] },
-  turns: { queue: queue.turn },
+  views: { queue: queue.views },
   auxiliarySurfaces,
   closePreview: app.overlay?.closePreview,
   leavesOffered,

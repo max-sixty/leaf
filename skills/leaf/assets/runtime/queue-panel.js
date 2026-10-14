@@ -9,7 +9,7 @@
    Done: what left that list (`served_state.queues`, by `owner`). Each door opens it on
    its own list, the agent's count beside the status on On <agent>, and every other way
    in, `g Shift+M` included, opens On me, the list `m` walks; a door pressed while the
-   panel shows the other list turns it to the door's (drawers.js, `turns`). Which tab is
+   panel shows the other list turns it to the door's (drawers.js, `views`). Which tab is
    open is the panel's own view state, which the log never holds.
 
    On me holds asks, to-dos on the user and resends; On <agent> holds answers the agent
@@ -55,6 +55,7 @@ import {
   queueBtn,
   queueList,
   queueNextBtn,
+  queueName,
   queuePanel,
   queueTabs,
   drawerIsOpen,
@@ -246,8 +247,12 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
   };
   for (const [id, control] of Object.entries(queueTabs))
     control.onclick = () => turnTo(id);
-  // A door's press, before the drawer opens or closes: the list that door counts.
-  const turn = (door) => turnTo(door === agentDoor ? "agent" : "you");
+  // Each door's list, the one it counts, for the drawer's doors (drawers.js).
+  const tabOf = (door) => (door === agentDoor ? "agent" : "you");
+  const views = Object.freeze({
+    shows: (door) => tabOf(door) === tab,
+    turn: (door) => turnTo(tabOf(door)),
+  });
   // Each tab names its list and, once the log has answered, how many items wait on it;
   // the open one is pressed, and names the panel.
   function nameTabs() {
@@ -257,7 +262,7 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
       keepsText(control, known ? `${tabName(id)} · ${count}` : tabName(id));
       keeps(control, "aria-pressed", String(id === tab));
     }
-    keeps(queuePanel, "aria-label", tabName(tab));
+    keepsText(queueName, tabName(tab));
   }
 
   let rows = new Map();
@@ -394,5 +399,5 @@ export function createQueuePanel({ actions, next, announce, agentDoor }) {
     document.addEventListener(PRESENTATION, present);
   }
 
-  return { mount, present, turn };
+  return { mount, present, views };
 }

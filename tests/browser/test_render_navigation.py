@@ -3505,7 +3505,7 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
     expect(counts).to_have_text("On Agent: 2")
     counts.click()
     expect(panel).to_be_visible()
-    expect(panel).to_have_attribute("aria-label", "On Agent")
+    expect(panel).to_have_accessible_name("On Agent")
     expect(tabs.nth(1)).to_have_attribute("aria-pressed", "true")
     expect(counts).to_have_attribute("aria-expanded", "true")
     counts.click()
@@ -3530,10 +3530,16 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
     # The On me door turns the open panel to the user's list rather than closing it,
     # and the agent's count turns it back.
     page.locator(".lf-queue").click()
-    expect(panel).to_have_attribute("aria-label", "On me")
+    expect(panel).to_have_accessible_name("On me")
     expect(tabs.first).to_have_attribute("aria-pressed", "true")
     counts.click()
-    expect(panel).to_have_attribute("aria-label", "On Agent")
+    expect(panel).to_have_accessible_name("On Agent")
+    # The dialog the panel stands in takes the list's name as it turns, and `g`
+    # offers Shift+M as the turn to On me rather than a close.
+    expect(page.get_by_role("dialog", name="On Agent")).to_have_count(1)
+    page.keyboard.press("g")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("close On panel")
+    page.keyboard.press("Escape")
     page.get_by_role("button", name="Close the On panel").click()
     expect(panel).to_be_hidden()
     expect(counts).to_be_focused()
@@ -3541,7 +3547,7 @@ def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     expect(panel).to_be_visible()
-    expect(panel).to_have_attribute("aria-label", "On me")
+    expect(panel).to_have_accessible_name("On me")
     expect(tabs).to_have_text(["On me · 2", "On Agent · 2"])
     rows = page.evaluate(QUEUE_ROW_SAYS)
     # A question asked in a thread is answered there, so its row says Thread.

@@ -149,8 +149,18 @@ def queues(
         for todo in ended_todos
     ]
     # A reply the agent sent is the answer On <agent> listed for the input it responds
-    # to. The input's first answer takes that answer's identity, so the item keeps its
-    # key as it moves; any later answer to the same input is its own item.
+    # to. The input's first answer in the log takes that answer's identity, so the item
+    # keeps its key as it moves; any later answer to the same input, in whichever
+    # thread, is its own item.
+    sent = sorted(
+        (
+            (thread, message)
+            for thread in threads
+            for message in thread["msgs"]
+            if is_answer(message)
+        ),
+        key=lambda pair: pair[1]["seq"],
+    )
     answered = set()
 
     def answer_id(message: dict) -> str:
@@ -175,9 +185,7 @@ def queues(
             "ended": message["ts"],
             "detail": None,
         }
-        for thread in threads
-        for message in thread["msgs"]
-        if is_answer(message)
+        for thread, message in sent
     ]
     done.sort(
         key=lambda item: (

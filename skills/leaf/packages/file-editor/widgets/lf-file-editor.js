@@ -44,6 +44,7 @@ import {
   closeLayer,
   closeNativeLayer,
   commandsOn,
+  el,
   focusDestination,
   focused,
   handBack,
@@ -52,7 +53,6 @@ import {
   isNativeLayer,
   LeafElement,
   nothing,
-  offer,
   offered,
   rove,
   rowWalk,
@@ -104,9 +104,12 @@ customElements.define(
       // Stage one retained owner: Lit's markers belong inside it, and CodeMirror's
       // mounts are persistent node values within the template.
       const element = this;
-      const view = (this.#view = offer("div", "lf-file-editor-view"));
-      const mount = offer("div", "lf-file-editor-edit");
-      const comparisonMount = offer("div", "lf-file-editor-comparison");
+      // The stage, the mounts and the comparison hold the file, which prints, so they are
+      // plain elements and only the editor's controls are offers. `lf-ui` keeps the
+      // file's words out of the page's passages.
+      const view = (this.#view = el("div", "lf-file-editor-view lf-ui"));
+      const mount = el("div", "lf-file-editor-edit");
+      const comparisonMount = el("div", "lf-file-editor-comparison");
       view.append(mount);
       shadowStage(this, [view]);
       this.replaceChildren();
@@ -284,8 +287,8 @@ customElements.define(
         const conflicted = Boolean(latest);
         const retryable = Boolean(failure) && !latest && api.writable;
         return html`
-          <div ${offered("lf-file-editor-head")}>
-            <span ${offered("lf-file-editor-name")}>${label}</span>
+          <div class="lf-file-editor-head">
+            <span class="lf-file-editor-name">${label}</span>
             <span
               ${offered("lf-file-editor-status")}
               title=${failure?.message ?? nothing}
@@ -359,11 +362,11 @@ customElements.define(
           </div>
           ${mount}
           <div
-            ${offered("lf-file-editor-compared")}
+            class="lf-file-editor-compared"
             id="lf-file-editor-compared"
             ?hidden=${!comparing}
           >
-            <p ${offered("lf-file-editor-legend")}>
+            <p class="lf-file-editor-legend">
               Removed text is on disk. Added text is the draft.
             </p>
             ${comparing ? comparisonMount : nothing}

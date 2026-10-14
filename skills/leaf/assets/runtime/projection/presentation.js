@@ -14,6 +14,7 @@
 import { authoredStates } from "./authored.js";
 import { projectionOrigins } from "./model.js";
 import { projectionDeferred, setProjectionDeferred } from "./state.js";
+import { untracked } from "../../vendor/browser-runtime.js";
 import {
   applicationPresenter,
   applicationState,
@@ -199,8 +200,9 @@ export function createProjectionPresentation({ onDeferredReady }) {
   function paintReading() {
     const projection = presentCurrent();
     // A drag holds this region open at the user's own gesture rather than
-    // committing a document-wide reading their own controller has not taken yet.
-    return projectionDeferred() ? PRESENTATION_HELD : projection;
+    // committing a document-wide reading their own controller has not taken yet. The
+    // region sets the deferral rather than following it: the drag's release claims it.
+    return untracked(projectionDeferred) ? PRESENTATION_HELD : projection;
   }
 
   // `present` stays in here. The region has two ways in — its own subscription above,

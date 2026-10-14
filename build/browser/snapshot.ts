@@ -34,50 +34,121 @@ interface ApplicationSnapshot {
 
 interface SnapshotReading<T> {
   read(): T;
-  subscribe(listener: (value: T) => void): () => void;
+  subscribe(listener: (value: T, round?: object) => unknown): () => void;
+  readonly outside?: true;
 }
 
-// The readings a caller is collecting (`collectReads`), each with the first value it
-// gave. A reading records itself when read, after its own derivation, whose reads of
-// the root are the selection's rather than the caller's.
-let collecting: Map<SnapshotReading<unknown>, unknown> | null = null;
+// The readings a caller is collecting, each with the first value it gave: every
+// reading (`collectReads`), and, where a paint inside it collects only what stands
+// outside the publication (`collectOutside`), the readings outside it. A reading records
+// itself when read, after its own derivation, whose reads of the root are the
+// selection's rather than the caller's.
+type Reads = Map<SnapshotReading<unknown>, unknown>;
+let collecting: Reads | null = null;
+let collectingOutside: Reads | null = null;
 function collected<T>(reading: SnapshotReading<T>, read: () => T): T {
   const outer = collecting;
+  const outerOutside = collectingOutside;
   collecting = null;
+  collectingOutside = null;
   let value: T;
   try {
     value = read();
   } finally {
     collecting = outer;
+    collectingOutside = outerOutside;
   }
-  if (outer && !outer.has(reading)) outer.set(reading, value);
+  const into = reading.outside ? outerOutside : outer;
+  if (into && !into.has(reading)) into.set(reading, value);
   return value;
+}
+// Run `run` with these collections, putting back the caller's after.
+function collectingInto<T>(reads: Reads | null, outside: Reads | null, run: () => T): T {
+  const outer = collecting;
+  const outerOutside = collectingOutside;
+  collecting = reads;
+  collectingOutside = outside;
+  try {
+    return run();
+  } finally {
+    collecting = outer;
+    collectingOutside = outerOutside;
+  }
 }
 
 /**
  * Run `run`, collecting every selection of a publication it reads synchronously, with
  * the value it read. A watcher or a region follows exactly these, so it repaints when a
  * part its paint read moves and for nothing else.
- * Only reads of the publication count: a paint also reads and writes private signals,
- * such as where the user stands, and subscribing it to those would have a paint that
- * moves focus repaint itself. Reading the root whole inside `run` throws, since every
+ * Only reads of the publication, and the readings outside it that record themselves
+ * (`outsideReading`), count: a paint also reads and writes private signals, such as
+ * where the user stands, and subscribing it to those would have a paint that moves
+ * focus repaint itself. Reading the root whole inside `run` throws, since every
  * publication moves the root: a paint that read it would repaint on every publication,
  * however little of it the paint draws, so it reads its parts through selections. A
  * failure still returns what was read before it.
  */
 export function collectReads<T>(
   run: () => T,
-): { reads: Map<SnapshotReading<unknown>, unknown> } & ({ value: T } | { error: unknown }) {
-  const outer = collecting;
-  const reads = new Map<SnapshotReading<unknown>, unknown>();
-  collecting = reads;
+): { reads: Reads } & ({ value: T } | { error: unknown }) {
+  const reads: Reads = new Map();
   try {
-    return { reads, value: run() };
+    return { reads, value: collectingInto(reads, reads, run) };
   } catch (error) {
     return { reads, error };
-  } finally {
-    collecting = outer;
   }
+}
+
+/**
+ * Run `run`, collecting only the readings outside the publication it makes
+ * (`outsideReading`), for a paint whose caller follows the publication's parts itself
+ * (`clocked`). The parts it reads go on to the collection running around it, if any,
+ * as though the caller had read them, and so does the rule against reading the root
+ * whole there.
+ */
+export function collectOutside<T>(
+  run: () => T,
+): { reads: Reads } & ({ value: T } | { error: unknown }) {
+  const reads: Reads = new Map();
+  try {
+    return { reads, value: collectingInto(collecting, reads, run) };
+  } catch (error) {
+    return { reads, error };
+  }
+}
+
+/**
+ * A reading of a value outside the publication, which a collection records as it
+ * records a part: the clock's answer to a paint's question, whether a drag holds the
+ * projection, how many times the page has presented. `read` computes the value now, and
+ * `heard` registers a callback for each moment it may have moved, returning the way to
+ * stop; the source passes the callback one object per round of notifications, such as
+ * a clock tick, so a follower of several readings answers a round once. A watcher or a
+ * region follows it with the parts its paint read, by one rule: a reading whose value
+ * moved since the paint read it owes a paint. As a part's does, its subscription calls
+ * the listener at once with the value now, so a follower subscribing after its paint
+ * hears what that paint, or the time since, moved. A listener whose subscription has
+ * stopped is not called, even in a round already under way. `outside` tells it from a
+ * part.
+ */
+export function outsideReading<T>(
+  read: () => T,
+  heard: (moved: (round: object) => unknown) => () => void,
+): SnapshotReading<T> & { readonly outside: true } {
+  const reading = Object.freeze({
+    outside: true as const,
+    read: (): T => collected(reading, read),
+    subscribe(listener: (value: T, round?: object) => unknown) {
+      let active = true;
+      const stop = heard((round) => (active ? listener(read(), round) : undefined));
+      listener(read(), {});
+      return () => {
+        active = false;
+        stop();
+      };
+    },
+  });
+  return reading;
 }
 
 /**
@@ -87,13 +158,7 @@ export function collectReads<T>(
  * nested owner's state, and throw where the owner reads the root whole.
  */
 export function untracked<T>(run: () => T): T {
-  const outer = collecting;
-  collecting = null;
-  try {
-    return run();
-  } finally {
-    collecting = outer;
-  }
+  return collectingInto(null, null, run);
 }
 
 // Object.freeze says nothing about descendants or Map/Set entries. Only values this

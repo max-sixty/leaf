@@ -761,6 +761,16 @@
   .lf-fp-on-item + .lf-fp-on-item {
     border-top: 1px solid var(--lf-fp-faint);
   }
+  /* What left the list in view, under it. */
+  .lf-fp-on-done {
+    margin: 0 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--lf-fp-faint);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--lf-fp-muted);
+  }
   .lf-fp-on-title {
     margin: 0 0 2px;
     font: inherit;

@@ -404,6 +404,48 @@ def test_the_panel_names_the_agent_as_the_page_s_messages_do(browser, serve):
     expect(page.locator(".lf-fp-filters")).to_contain_text("On Claude")
 
 
+def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
+    browser, serve
+):
+    """The On view has no name of its own: its title is the open tab's, On me or On
+    Claude, and under each list stands what left it. A reply the agent sent leaves its
+    list, so it stands under On Claude, said as sent. The On me mark opens the user's
+    list, turning the view to it where it shows the agent's."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Is the window long enough?")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "text": "Forty-eight hours covers the first cohort.",
+        },
+    )
+    page = floating(browser, url)
+    page.locator(".lf-fp-on-user").click()
+    title = page.locator(".lf-fp-title")
+    expect(title).to_have_text("On me")
+    expect(page.locator(".lf-fp-filters button")).to_have_count(2)
+    expect(page.locator(".lf-fp-on-done")).to_have_count(0)
+    page.locator(".lf-fp-filters button", has_text="On Claude").click()
+    expect(title).to_have_text("On Claude")
+    expect(page.locator(".lf-fp-empty")).to_have_text("Nothing waiting on Claude.")
+    expect(page.locator(".lf-fp-on-done")).to_have_text("Done")
+    sent = page.locator(".lf-fp-on-item")
+    expect(sent).to_have_count(1)
+    expect(sent).to_contain_text("Forty-eight hours covers the first cohort.")
+    expect(sent.locator(".lf-fp-said")).to_have_text(re.compile(r"^Sent"))
+    # The On me mark turns the open view back to the user's list, and then closes it.
+    page.locator(".lf-fp-on-user").click()
+    expect(title).to_have_text("On me")
+    page.locator(".lf-fp-on-user").click()
+    expect(title).to_have_count(0)
+
+
 def test_on_shows_an_ask_as_its_message_and_reply_comes_back(browser, serve):
     """A question the agent asked in a thread reads in the On view as its message, drawn
     whole as the thread draws it, so what it introduces after a colon is there with it.

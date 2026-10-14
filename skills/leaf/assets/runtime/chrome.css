@@ -680,6 +680,15 @@
   .lf-fp-on-item + .lf-fp-on-item {
     border-top: 1px solid var(--lf-fp-faint);
   }
+  .lf-fp-on-done {
+    margin: 0 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--lf-fp-faint);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--lf-fp-muted);
+  }
   .lf-fp-on-title {
     margin: 0 0 2px;
     font: inherit;
@@ -1970,6 +1979,32 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-thread-panel-head {
     flex: none;
+  }
+  .lf-queue-panel .lf-auxiliary-title {
+    display: flex;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lf-queue-tab {
+    --lf-tab-pad: max(2px, (var(--aim-floor) - 1lh) / 2 - 1px);
+    margin-block: calc(-1 * var(--lf-tab-pad));
+    padding: var(--lf-tab-pad) 8px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .lf-queue-tab:first-child {
+    margin-inline-start: -8px;
+  }
+  .lf-queue-tab:hover {
+    background: var(--chip);
+  }
+  .lf-queue-tab[aria-pressed=true] {
+    color: var(--ink);
   }
   :is(.lf-first-unread, .lf-queue-next) {
     margin-inline-start: auto;

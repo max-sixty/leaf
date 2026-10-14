@@ -323,13 +323,6 @@ A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, 
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Give On me and On Claude each their own Done, and title the panel by its open
-  tab.** The panel is titled "On" for now and keeps one Done shared by both lists. An
-  item should land in the Done of the list it left: asks the user answered, to-dos
-  they ended and asks the agent withdrew under On me; replies the agent sent and its
-  ended to-dos under On Claude. Sent replies appear in no Done today
-  (`served_state/queues.py`). With each list complete, the panel needs no name of its
-  own: both panels show two tabs, and the title reads the open one.
 - **Start `m` from the open item's ask.** From a row, `m` goes to the queue's first
   open ask, and `1` then picks for an item the user isn't looking at. The walk
   measures from focus (`queue-walk.js`), and the row precedes every

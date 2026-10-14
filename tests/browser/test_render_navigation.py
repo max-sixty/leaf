@@ -3442,13 +3442,16 @@ def test_m_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     counts(1, 2)
 
 
-def test_the_on_panel_lists_both_queues_and_what_is_done(browser, serve):
-    """The On panel lists the queues the `m` walk and the banner's counts read,
-    the user's first and then the agent's, and folds what is done at the foot: here a
-    task the agent ended. The prose question is an agent opening comment, which
-    asks implicitly. A row arrives where `m` would. A reply the user sends joins the
-    agent's list as it is sent, and its thread leaves the user's once the server has
-    read the reply."""
+def test_the_on_panel_shows_each_list_with_its_own_done(browser, serve):
+    """The On panel is two tabs, the lists the `m` walk and the banner's counts read,
+    and the open tab is its title. Each list shows its open items, then folds its own
+    Done: what left that list. Here the agent's Done holds a to-do it ended and the
+    replies it sent, and the user's fills as they answer. The prose question is an
+    agent opening comment, which asks implicitly. The agent's count opens the agent's
+    list, and every other way in opens the user's. A row arrives where `m` would. A
+    reply the user sends joins the agent's list as it is sent, and its thread leaves the
+    user's for the user's Done once the server has read the reply. A door pressed while
+    the panel shows the other list turns it to the door's list."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
 
@@ -3492,21 +3495,51 @@ def test_the_on_panel_lists_both_queues_and_what_is_done(browser, serve):
     page = open_page(browser, url)
     resized(page, 1280, 900)
     panel = page.locator(".lf-queue-panel")
+    tabs = panel.locator(".lf-queue-tab")
 
     # The user's On me stands on its door beside Threads, and the agent's On count
-    # beside the status is a door too: a press opens what they count and another takes
-    # it down, and closing it from inside hands focus back to them.
+    # beside the status is a door too, to the agent's list: a press opens what they
+    # count and another takes it down, and closing it from inside hands focus back.
     expect(page.locator(".lf-queue")).to_have_text("On me: 2")
     counts = page.locator(".lf-status-queues")
     expect(counts).to_have_text("On Agent: 2")
     counts.click()
     expect(panel).to_be_visible()
+    expect(panel).to_have_accessible_name("On Agent")
+    expect(tabs.nth(1)).to_have_attribute("aria-pressed", "true")
     expect(counts).to_have_attribute("aria-expanded", "true")
     counts.click()
     expect(panel).to_be_hidden()
     expect(counts).to_have_attribute("aria-expanded", "false")
     counts.click()
     expect(panel).to_be_visible()
+    rows = page.evaluate(QUEUE_ROW_SAYS)
+    assert [(row["list"], row["word"], row["title"]) for row in rows[:2]] == [
+        ("agent", "Reply", "Tighten this."),
+        ("agent", "To-do", "Rebuild the notes"),
+    ], rows
+    # Its Done holds what left it: the to-do it ended and the replies it sent, each
+    # under its own words, newest first.
+    assert sorted((row["list"], row["word"], row["title"]) for row in rows[2:]) == [
+        ("done", "Reply", "Rebuilding them."),
+        ("done", "Reply", "Retitling it."),
+        ("done", "To-do", "Retitle the release"),
+    ], rows
+    assert all(row["where"].startswith(("Done", "Sent")) for row in rows[2:]), rows
+    expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 3")
+    # The On me door turns the open panel to the user's list rather than closing it,
+    # and the agent's count turns it back.
+    page.locator(".lf-queue").click()
+    expect(panel).to_have_accessible_name("On me")
+    expect(tabs.first).to_have_attribute("aria-pressed", "true")
+    counts.click()
+    expect(panel).to_have_accessible_name("On Agent")
+    # The dialog the panel stands in takes the list's name as it turns, and `g`
+    # offers Shift+M as the turn to On me rather than a close.
+    expect(page.get_by_role("dialog", name="On Agent")).to_have_count(1)
+    page.keyboard.press("g")
+    expect(page.locator(".lf-shortcut-bar")).not_to_contain_text("close On panel")
+    page.keyboard.press("Escape")
     page.get_by_role("button", name="Close the On panel").click()
     expect(panel).to_be_hidden()
     expect(counts).to_be_focused()
@@ -3514,40 +3547,26 @@ def test_the_on_panel_lists_both_queues_and_what_is_done(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     expect(panel).to_be_visible()
+    expect(panel).to_have_accessible_name("On me")
+    expect(tabs).to_have_text(["On me · 2", "On Agent · 2"])
     rows = page.evaluate(QUEUE_ROW_SAYS)
+    # A question asked in a thread is answered there, so its row says Thread.
     assert [(row["list"], row["word"], row["title"]) for row in rows] == [
         ("you", "Options", "Which channel first?"),
         ("you", "Thread", "Weekly?"),
-        ("agent", "Reply", "Tighten this."),
-        ("agent", "To-do", "Rebuild the notes"),
-        ("done", "To-do", "Retitle the release"),
-    ], rows
-    # A question asked in a thread is answered there, so its row says Thread.
-    assert [row["word"] for row in rows] == [
-        "Options",
-        "Thread",
-        "Reply",
-        "To-do",
-        "To-do",
     ], rows
     assert rows[1]["where"].startswith("§ Release"), rows
-    assert rows[-1]["where"].startswith("Done"), rows
-    expect(panel.locator(".lf-queue-heading")).to_have_text(
-        ["On me · 2", "On Agent · 2", "Done · 1"]
-    )
-    expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 1")
+    # Nothing has left the user's list yet, so it has no Done.
+    expect(page.locator(".lf-queue-done")).to_have_count(0)
 
     # The first row holds the focus, and the next is the thread whose question waits on
     # the user: Enter arrives where `m` would.
     expect(page.locator("button.lf-queue-row").first).to_be_focused()
-    # The walk's position counts the items, not Done's door, though the door is a stop.
     position = page.locator(".lf-walk-position")
     page.keyboard.press("End")
-    expect(page.locator(".lf-queue-done > summary")).to_be_focused()
-    page.keyboard.press("ArrowUp")
-    expect(position).to_have_text("Item 4 of 4")
+    expect(position).to_have_text("Item 2 of 2")
     page.keyboard.press("Home")
-    expect(position).to_have_text("Item 1 of 4")
+    expect(position).to_have_text("Item 1 of 2")
     page.keyboard.press("ArrowDown")
     page.keyboard.press("Enter")
     thread = page.locator(f'.lf-page-thread[data-thread="{asked["id"]}"]')
@@ -3561,7 +3580,7 @@ def test_the_on_panel_lists_both_queues_and_what_is_done(browser, serve):
     page.keyboard.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the reply")
     you = panel.locator("[data-lf-queue='you'] .lf-queue-row")
-    expect(panel.locator("[data-lf-queue='agent'] .lf-queue-row")).to_have_count(3)
+    expect(tabs).to_have_text(["On me · 2", "On Agent · 3"])
     expect(you).to_have_count(2)
     page.unroute("**/api/event")
     for route in held:
@@ -3569,12 +3588,17 @@ def test_the_on_panel_lists_both_queues_and_what_is_done(browser, serve):
     round_trip(page)
     expect(you).to_have_count(1)
 
-    # The answered question joins what is done, which stays folded until opened, and a
-    # done row arrives at its thread too.
-    expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 2")
-    page.locator(".lf-queue-done > summary").click()
+    # The answered question joins the user's Done, which stays folded until opened, and
+    # a done row arrives at its thread too. The thread's card stands over the panel's
+    # head, so the keyboard opens the fold.
+    summary = page.locator(".lf-queue-done > summary")
+    expect(summary).to_have_text("Done · 1")
+    summary.focus()
+    page.keyboard.press("Enter")
     done = page.locator(".lf-queue-done .lf-queue-row")
-    expect(done.filter(has_text="Weekly?")).to_have_count(1)
+    expect(done).to_have_text([re.compile("Weekly\\?")])
+    tabs.nth(1).click()
+    expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 3")
     done.filter(has_text="Retitle the release").click()
     expect(
         page.locator(f'.lf-page-thread[data-thread="{retitle["id"]}"]')
@@ -6605,9 +6629,10 @@ def test_a_completed_ask_stays_reachable_through_the_on_panel(browser, serve, wi
     page.keyboard.press("Shift+m")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
 
+    # With nothing left on the user, the panel opens on its Done's door.
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    expect(page.locator(".lf-queue-row").first).to_be_focused()
+    expect(page.locator(".lf-queue-done > summary")).to_be_focused()
 
 
 # What the shortcut bar is saying, chip by chip. The word is the chip's own trailing span —
@@ -6870,6 +6895,8 @@ def test_on_me_says_when_a_revision_removes_its_last_ask(browser, serve):
     expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
     expect(note).to_be_visible()
     expect(note).to_have_text("Nothing waiting on me.")
+    # The agent's tab says the same of its list.
+    page.locator(".lf-queue-tab", has_text="On ").nth(1).click()
     expect(
         page.locator(".lf-queue-panel [data-lf-queue='agent'] .lf-queue-empty")
     ).to_have_text(re.compile(r"^Nothing waiting on \S+\.$"))
@@ -13356,6 +13383,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     expect(page.locator('.lf-queue-row[data-lf-at="widget:sug-window"]')).to_have_count(
         1
     )
+    page.locator(".lf-queue-tab").nth(1).click()
     agent_rows = page.locator("[data-lf-queue='agent'] .lf-queue-row")
     expect(agent_rows).to_have_count(1)
     expect(agent_rows).to_contain_text("Steel, unless the sealing is quick?")

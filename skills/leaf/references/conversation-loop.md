@@ -215,8 +215,10 @@ optional invitation to comment on information creates no obligation.
 
 The banner's On me count and the On panel show everything waiting on the
 user: these requests, and any update whose send failed and needs sending again.
-Your list, which the user sees as **On <your name>**, shows what waits on you. Done
-holds ended items. The user presses `m` to step through On me in page order. Each press lands where the next item is
+Your list, which the user sees as **On <your name>**, shows what waits on you. Under
+each list, its Done holds what left it: the asks the user answered or you withdrew
+and the to-dos they ended under On me, and the replies you sent and the to-dos you
+ended under yours. The user presses `m` to step through On me in page order. Each press lands where the next item is
 answered, such as an ask's answering widget or the thread holding a prose ask, and
 an ask's displayed `1`–`9` actions answer it there.
 

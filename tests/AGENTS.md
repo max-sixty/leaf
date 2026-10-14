@@ -355,9 +355,9 @@ The watch has two modes, which its header describes. Every test runs its gate, w
 judges Chrome's layout-shift entries by the watch's own record of input and names at
 most the five boxes Chrome attributes. `LEAF_SHIFT_LEDGER=1` runs its ledger instead,
 which reads every box on each changed frame to say what moved and from where; a gate
-failure names that setting. The watch's own tests choose their mode with the
-`shift_ledger` marker, as does a test whose page Chrome misreads, such as an editor
-reusing a line's box for other words.
+failure names that setting. The gate passes what Chrome does not name, which the header
+lists. The watch's own tests choose their mode with the `shift_ledger` marker; the
+cases of what both modes judge run in both, with the gate's known gaps failing strictly.
 
 Typed words leaving the screen without a key or press, which the "Words stay where
 they were typed" rule forbids, is one too (`words_watch.js`), in every test of every

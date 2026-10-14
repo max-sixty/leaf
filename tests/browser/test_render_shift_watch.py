@@ -25,6 +25,107 @@ from render_harness import (
 # These tests prove the ledger's readings and credits.
 pytestmark = pytest.mark.shift_ledger
 
+# The cases of what the gate also models, its declared regions, `append` growth and a
+# typing field's native placement, run in both modes, so a gate regression fails here.
+# A case the gate cannot judge as the ledger does is listed with why, and fails strictly
+# should the gate come to judge it. The gate names the boxes Chrome attributes, so a
+# case run in both modes asserts the ledger's names and evidence under the ledger only.
+# What the gate does not model at all, credit for an effect an input began once its
+# rendering ends and the floating surfaces' solver credits, runs under the ledger only.
+BOTH_MODES = {
+    "test_passive_motion_is_confined_to_a_runtime_owned_region",
+    "test_control_reflow_stays_inside_its_runtime_region",
+    "test_nested_shadow_regions_keep_enclosing_guarantees_at_source_cap",
+    "test_metadata_at_the_source_cap_cannot_hide_a_control",
+    "test_reading_and_controls_keep_their_place_inside_a_stationary_parent",
+    "test_append_reflow_credits_only_its_measured_suffix_growth",
+    "test_append_uses_an_actual_scrollport_past_boxless_overflow",
+    "test_append_reflow_preserves_nested_text_reflow",
+    "test_append_reflow_does_not_credit_typing_that_carries_its_editor",
+    "test_boxless_overflow_does_not_hide_carried_reading",
+    "test_scrolling_a_sticky_owner_does_not_credit_its_controls_local_motion",
+    "test_a_retained_landmark_keeps_its_pose_when_a_new_sticky_owner_adopts_it",
+    "test_typing_keeps_native_scroll_ownership_without_crediting_local_carry",
+    "test_native_anchor_scroll_retains_local_motion_proof",
+    "test_unused_anchor_cannot_bank_an_earlier_scroll",
+    "test_new_anchor_relation_cannot_credit_scroll_before_activation",
+    "test_long_held_native_anchor_keeps_complete_history",
+    "test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry",
+    "test_a_delayed_native_frame_keeps_the_typing_origins_camera",
+    "test_completed_input_does_not_own_an_effects_unrelated_passive_motion",
+    "test_sampled_native_translation_distinguishes_press_from_news",
+    "test_message_age_may_shift_metadata_but_leaves_the_thread_in_place",
+    "test_a_move_in_the_frame_after_presentation_fails",
+    "test_typing_credits_a_fixed_field_following_its_anchor",
+    "test_words_an_editor_moves_into_a_reused_box_stay_put",
+}
+GATE_GAPS = {
+    "test_append_reflow_credits_only_its_measured_suffix_growth[sticky_extra-": (
+        "Chrome names the carried article, not the sticky reply's extra 7px"
+    ),
+    "test_append_reflow_credits_only_its_measured_suffix_growth[extra_carry-": (
+        "Chrome names the carried article, not its button's extra 7px"
+    ),
+    **{
+        f"test_metadata_at_the_source_cap_cannot_hide_a_control[{motion}]": (
+            "Chrome names five receipts and omits the control outside every region"
+        )
+        for motion in [
+            "control",
+            "resize",
+            "visible_child",
+            "moving_offscreen",
+            "withdrawn_with_control",
+            "moved_then_withdrawn",
+            "moved_then_hidden",
+            "moved_then_removed",
+        ]
+    },
+    **{
+        f"test_nested_shadow_regions_keep_enclosing_guarantees_at_source_cap[{case}]": (
+            "the control leaves its region before the frame after the paint is read"
+        )
+        for case in [
+            "reparent-open-text",
+            "reparent-closed-text",
+            "remove-open-text",
+            "remove-closed-text",
+        ]
+    },
+    "test_a_retained_landmark_keeps_its_pose_when_a_new_sticky_owner_adopts_it": (
+        "Chrome reports a reparented control as inserted, not moved"
+    ),
+    "test_sampled_native_translation_distinguishes_press_from_news[press]": (
+        "an effect the press began moves the page after the press's rendering ends"
+    ),
+}
+
+
+def pytest_generate_tests(metafunc):
+    if metafunc.function.__name__ in BOTH_MODES:
+        metafunc.parametrize(
+            "shift_mode",
+            [
+                pytest.param("ledger"),
+                pytest.param("gate", marks=pytest.mark.shift_ledger(False)),
+            ],
+            indirect=True,
+        )
+
+
+@pytest.fixture(name="shift_mode", autouse=True)
+def shift_mode_fixture(request):
+    """The watch's mode for this case; a listed gate gap fails strictly."""
+    mode = getattr(request, "param", "ledger")
+    if mode == "gate":
+        case = request.node.name.replace("gate-", "").replace("-gate", "")
+        case = case.replace("[gate]", "")
+        for prefix, reason in GATE_GAPS.items():
+            if case.startswith(prefix):
+                request.applymarker(pytest.mark.xfail(strict=True, reason=reason))
+    return mode
+
+
 # A field below a box. A key landing in the field grows the box above it, carrying the
 # field, or grows the field itself, as the page's `data-key` says.
 FIELD = """<!doctype html><body style="margin:0">
@@ -412,6 +513,121 @@ def test_typing_protects_subjects_through_a_coordinate_carrier_rebase(
         )
 
 
+# The frame a page is presented in may still carry its widgets' upgrade; the frame
+# after it may not move anything.
+AFTER_PRESENTATION = """frames => new MutationObserver((records, observer) => {
+  if (!document.body?.hasAttribute('data-lf-presented')) return;
+  observer.disconnect();
+  let count = frames;
+  const next = () => {
+    if (--count) return requestAnimationFrame(next);
+    document.getElementById('control').style.marginTop = '40px';
+  };
+  requestAnimationFrame(next);
+}).observe(document, {subtree: true, attributeFilter: ['data-lf-presented']})"""
+
+
+@pytest.mark.parametrize("frames", [1, 2], ids=["presenting", "after"])
+def test_a_move_in_the_frame_after_presentation_fails(browser, serve, frames):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Presentation", '<p>Read this.</p><button id="control">Act</button>'
+            )
+        ),
+        init_script=f"({AFTER_PRESENTATION})({frames})",
+    )
+    expect(page.locator("#control")).to_have_css("margin-top", "40px")
+    judge_watches()
+    if frames == 2:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "button#control"), errors
+
+
+@pytest.mark.parametrize("carry", [False, True])
+def test_typing_credits_a_fixed_field_following_its_anchor(browser, carry):
+    """A field placed at its anchor follows that anchor's scroll as it types; only a
+    move of its own carries it. Chrome does not report the anchored field following its
+    anchor, so another box's move gives the typing check a painted shift to judge."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<!doctype html><body style="margin:0">
+<div id="scroller" style="height:200px;overflow:auto">
+<div style="height:100px"></div>
+<div id="target" style="anchor-name:--target;width:100px;height:20px">Anchor</div>
+<div style="height:600px"></div></div>
+<textarea id="field" rows="1" style="position:fixed;margin:0;position-anchor:--target;top:anchor(bottom);left:anchor(left)"></textarea>
+<p id="evidence" style="position:absolute;left:300px;top:400px">Painted source</p>
+<script>field.addEventListener('beforeinput', () => {{
+  scroller.scrollTop += 20;
+  evidence.style.left = '320px';
+  {"field.style.marginTop = '10px';" if carry else ""}
+}})</script></body>""")
+    )
+    paint(page)
+    before = page.locator("#field").bounding_box()
+    page.locator("#field").fill("a")
+    paint(page)
+    after = page.locator("#field").bounding_box()
+    assert after["y"] == before["y"] - 20 + (10 if carry else 0)
+    judge_watches()
+    if carry:
+        consume_browser_errors(
+            page,
+            {
+                "code": "typing-moved",
+                "field": "textarea#field",
+                "node": "textarea#field",
+            },
+        )
+
+
+@pytest.mark.parametrize("change", ["reused", "carried"])
+def test_words_an_editor_moves_into_a_reused_box_stay_put(browser, change):
+    """An editor that drops the empty lines below its first keeps the last line's box
+    and moves the first line's words into it: the box travels, the words do not."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px/20px monospace">'
+            '<div id="above"></div><div id="lines">'
+            '<div id="l0">First line</div><div><br></div><div><br></div>'
+            '<div id="l3"><br></div></div></body>'
+        )
+    )
+    paint(page)
+    words = page.evaluate(
+        """() => { const range = document.createRange();
+          range.selectNodeContents(document.getElementById('l0'));
+          return range.getBoundingClientRect().y; }"""
+    )
+    page.evaluate(
+        """change => {
+          if (change === 'carried') {
+            document.getElementById('above').style.height = '60px';
+            return;
+          }
+          const last = document.getElementById('l3');
+          last.replaceChildren(document.getElementById('l0').firstChild);
+          for (const line of [...document.getElementById('lines').children])
+            if (line !== last) line.remove();
+        }""",
+        change,
+    )
+    paint(page)
+    assert page.evaluate(
+        """() => { const range = document.createRange();
+          range.selectNodeContents(document.getElementById('lines').firstElementChild);
+          return range.getBoundingClientRect().y; }"""
+    ) == words + (60 if change == "carried" else 0)
+    judge_watches()
+    if change == "carried":
+        consume_browser_errors(page, {"code": "moved-without-input"})
+
+
 @pytest.mark.parametrize("distance", [6, 40])
 def test_a_shift_without_input_fails(browser, distance):
     page = field_page(browser)
@@ -456,6 +672,7 @@ PASSIVE_FAULTS = [
     ("contained_control", "button#action"),
     ("growing_header", "p#reading"),
     ("escaping_label", "span#receipt"),
+    ("entering_label", "span#receipt"),
 ]
 
 
@@ -496,6 +713,8 @@ def test_passive_motion_is_confined_to_a_runtime_owned_region(
             }""",
             fault,
         )
+    if fault == "entering_label":
+        page.locator("#receipt").evaluate("node => node.style.marginLeft = '400px'")
     if fault == "stationary_control":
         page.locator("#row").evaluate(
             """row => {
@@ -550,6 +769,8 @@ def test_passive_motion_is_confined_to_a_runtime_owned_region(
           if (fault === 'growing_header') metadata.style.paddingBlockStart = '20px';
           if (fault === 'moving_region') document.getElementById('row').style.marginLeft = '6px';
           if (fault === 'escaping_label') metadata.style.paddingInlineStart = '420px';
+          if (fault === 'entering_label')
+            document.getElementById('receipt').style.marginLeft = '0';
         }""",
         fault,
     )
@@ -685,10 +906,11 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         ("outside_runtime", "button#reply"),
         ("port_outside_runtime", "button#reply"),
         ("enclosing_text", "button#reply"),
+        ("no_growth", "button#reply"),
     ],
 )
 def test_append_reflow_credits_only_its_measured_suffix_growth(
-    browser, fault, protected
+    browser, fault, protected, shift_mode
 ):
     """An arrival may move its reply and later cards, preserving the transcript."""
     page = browser.new_page()
@@ -729,6 +951,8 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           next.textContent = 'The newly appended reply.';
           next.style.cssText = `margin:0;height:${fault.startsWith('sticky_') ? 400 : 40}px`;
           if (fault === 'prepend') source.prepend(next);
+          else if (fault === 'no_growth')
+            document.getElementById('reply').style.marginTop = '40px';
           else source.append(next);
           if (fault === 'old_growth') document.getElementById('old').style.height = '60px';
           if (fault === 'extra_carry') document.getElementById('later').style.marginTop = '7px';
@@ -750,7 +974,7 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
             assert page.locator("#reply").bounding_box()["y"] == reply_before["y"] + 40
     else:
         errors = consume_browser_errors(page, {"code": "moved-without-input"})
-        assert names_move(errors, protected), errors
+        assert shift_mode == "gate" or names_move(errors, protected), errors
 
 
 @pytest.mark.parametrize("overflow", ["visible", "auto"])
@@ -2595,7 +2819,7 @@ def test_native_modality_keeps_its_exposed_controls_in_place(browser, serve):
 @pytest.mark.parametrize("carry", [False, True])
 @pytest.mark.parametrize("slotted", [False, True])
 def test_typing_keeps_native_scroll_ownership_without_crediting_local_carry(
-    browser, sticky, carry, slotted
+    browser, sticky, carry, slotted, shift_mode
 ):
     position = "position:sticky;top:0" if sticky else ""
     reading = f"""<div style="height:150px"></div>
@@ -2635,8 +2859,8 @@ const scroller=host.shadowRoot.getElementById('scroller');</script>"""
                 "node": "textarea#field",
             },
         )
-        evidence = shift_evidence(errors[0])
-        if sticky:
+        evidence = shift_evidence(errors[0]) if shift_mode == "ledger" else None
+        if sticky and evidence:
             assert any(
                 term["branch"] == "sticky_scroll"
                 and term["axis"] == "top"
@@ -3343,7 +3567,7 @@ def test_a_delayed_native_frame_keeps_the_typing_origins_camera(browser, fault, 
 
 
 @pytest.mark.parametrize("fault", [False, True])
-def test_long_held_native_anchor_keeps_complete_history(browser, fault):
+def test_long_held_native_anchor_keeps_complete_history(browser, fault, shift_mode):
     page = browser.new_page()
     page.goto(
         "data:text/html,"
@@ -3386,9 +3610,10 @@ def test_long_held_native_anchor_keeps_complete_history(browser, fault):
             for e in errors
             if is_problem(e, {"code": "moved-without-input", "node": "textarea#field"})
         )
-        evidence = shift_evidence(error)
-        comparisons = evidence["comparisons"]
-        assert any(
+        comparisons = (
+            shift_evidence(error)["comparisons"] if shift_mode == "ledger" else []
+        )
+        assert shift_mode == "gate" or any(
             term["branch"] == "native_anchor"
             and term["owner"] == "textarea#field"
             and term["inputs"]["anchor"] == "div#target"

@@ -6,7 +6,13 @@ test runs."""
 from datetime import datetime, timedelta
 
 import pytest
-from browser.test_render_shift_watch import held_stretch, paint, shift_evidence
+from browser.test_render_shift_watch import (
+    held_stretch,
+    paint,
+    pytest_generate_tests,  # noqa: F401 — runs the listed cases in both modes
+    shift_evidence,
+    shift_mode_fixture,  # noqa: F401 — the mode each case runs in
+)
 from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_interaction import ASK_PAGE

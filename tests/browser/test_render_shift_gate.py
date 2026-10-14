@@ -1,6 +1,8 @@
 """The shift watch's gate, which every browser test runs (`shift_watch.js`, "The
 gate"): Chrome's layout-shift entries, owned by the watch's record of input rather than
-by Chrome's recent-input window, and typing judged on its field's holders alone."""
+by Chrome's recent-input window, and typing judged on its field's holders alone. What
+the gate shares with the ledger, its declared regions and native placement, runs in
+both modes in `test_render_shift_watch.py`."""
 
 from urllib.parse import quote
 
@@ -10,7 +12,6 @@ from render_harness import SHIFT_LEDGER, consume_browser_errors, judge_watches
 from browser.test_render_shift_watch import (
     FIELD,
     PAINTED,
-    PASSIVE_LABELS,
     field_page,
     moved_within,
     names_move,
@@ -103,82 +104,3 @@ def test_typing_through_fill_that_carries_its_field_fails(browser):
     )
     assert errors[0].values["by"] == [0, 59], errors[0]
     assert f"rerun with {SHIFT_LEDGER}=1" in str(errors[0]), errors[0]
-
-
-@pytest.mark.parametrize(
-    "fault, protected",
-    [
-        ("", None),
-        ("undeclared", "span#receipt"),
-        ("outside_runtime", "span#receipt"),
-        ("contained_control", "button#action"),
-        ("moving_region", "div#row"),
-        ("escaping_label", "span#receipt"),
-    ],
-)
-def test_a_runtime_text_region_lets_only_its_labels_repack(browser, fault, protected):
-    """A label repacking inside its runtime region passes; a control in it, the region
-    itself, or a label leaving it fails, as does any move the runtime did not declare."""
-    page = browser.new_page()
-    page.goto("data:text/html," + quote(PASSIVE_LABELS))
-    page.evaluate(
-        """fault => {
-          if (fault === 'undeclared')
-            document.getElementById('row').removeAttribute('data-lf-reflow');
-          if (fault === 'outside_runtime') document.body.className = '';
-          if (fault === 'contained_control') {
-            const button = document.createElement('button');
-            button.id = 'action';
-            button.textContent = 'Act';
-            document.getElementById('labels').append(button);
-          }
-        }""",
-        fault,
-    )
-    page.evaluate(PAINTED)
-    page.evaluate(
-        """fault => {
-          const age = document.getElementById('age');
-          age.textContent = '1m ago';
-          if (fault === 'moving_region')
-            document.getElementById('row').style.marginLeft = '6px';
-          if (fault === 'escaping_label') age.parentElement.style.paddingInlineStart = '420px';
-        }""",
-        fault,
-    )
-    judge_watches()
-    if protected:
-        errors = consume_browser_errors(page, {"code": "moved-without-input"})
-        assert names_move(errors, protected), errors
-
-
-@pytest.mark.parametrize("declared", [True, False])
-def test_an_append_region_carries_what_follows_it_down_its_scrollport(
-    browser, declared
-):
-    """New messages grow a panel card's transcript; the reply row below it moves down
-    by that growth, which only the `append` declaration permits."""
-    region = ' data-lf-reflow="append"' if declared else ""
-    page = browser.new_page()
-    page.goto(
-        "data:text/html,"
-        + quote(
-            '<!doctype html><body class="lf-chrome" style="margin:0">'
-            '<div id="port" style="height:300px;overflow:auto">'
-            f'<div id="transcript"{region}><p>First message.</p></div>'
-            '<div id="reply"><button id="send">Reply</button></div></div>'
-            "</body>"
-        )
-    )
-    page.evaluate(PAINTED)
-    page.evaluate(
-        """() => {
-          const message = document.createElement('p');
-          message.textContent = 'Second message.';
-          document.getElementById('transcript').append(message);
-        }"""
-    )
-    judge_watches()
-    if not declared:
-        errors = consume_browser_errors(page, {"code": "moved-without-input"})
-        assert names_move(errors, "div#reply") or names_move(errors, "button#send")

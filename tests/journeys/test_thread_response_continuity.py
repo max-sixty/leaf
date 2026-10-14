@@ -33,24 +33,18 @@ def reply_editing_pose(editor):
     }""")
 
 
-# A mirrored draft that drops the empty lines below the first keeps CodeMirror's last
-# line box and moves the first line's words into it. Chrome reports that box moving up
-# four lines though no words move, so the shift gate fails it; the ledger reads the words.
-MIRRORED = pytest.mark.shift_ledger
-
-
 @pytest.mark.parametrize(
     ("place", "edit", "platform"),
     [
         ("seat", "delete", "desktop"),
         ("margin", "delete", "desktop"),
-        pytest.param("seat", "mirrored", "desktop", marks=MIRRORED),
+        ("seat", "mirrored", "desktop"),
         ("seat", "resize", "desktop"),
         ("seat", "resize-paste", "desktop"),
         ("seat", "resize-replace", "desktop"),
         # Android's EditContext input reaches the renderer without a DOM beforeinput.
         ("seat", "resize-insert", "android"),
-        pytest.param("seat", "mirrored-composing", "android", marks=MIRRORED),
+        ("seat", "mirrored-composing", "android"),
     ],
 )
 def test_native_reply_edits_after_semantic_paint_keep_the_first_line(

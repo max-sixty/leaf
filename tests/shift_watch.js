@@ -6,21 +6,34 @@
 // `ledger`: on the watch's own tests, and on any test run with the variable `rerun`
 // names (`render_harness.shift_ledger`).
 //
-// The gate. Chrome's layout-shift entries say which painted boxes moved; Chrome leaves
-// out scrolling and transforms. The gate fails each entry's sources unless the record
-// of input owns that frame (a trusted gesture's counted rendering, a typing session,
-// the landing of a preparation an input began), or the runtime declares the move: the
-// page before it presents or as it returns from a hidden tab, and a source inside a
-// runtime region declared with `data-lf-reflow`, or following an `append` region down
-// within its scrollport. Ownership comes from that record, never from Chrome's
-// `hadRecentInput`: typing through `fill` sends no key, and the half-second window
-// hides a move no input caused. Typing reads only its field and the field's control,
-// region, media and painted ancestors, at the edit and on each frame until the session
-// closes. The gate reads no other geometry, so a failure names at most Chrome's five
-// sources, and a source Chrome leaves unnamed, as it leaves every node in a shadow
-// tree, by the node there whose box is the source's. Chrome reports layout boxes, not
-// words, so a box an editor reuses for other words reads as moving where the ledger
-// sees words stay put. A failure names `rerun`, which shows what moved and from where.
+// The gate. Chrome's layout-shift entries say which painted boxes moved, with their
+// places before and after; Chrome leaves out scrolling, sticky and anchor placement
+// that scrolling drives, and transforms. The gate fails each entry's sources unless:
+// - the record of input owns that frame (a trusted gesture's counted rendering, a
+//   typing session, the landing of a preparation an input began). Ownership comes from
+//   that record, never from Chrome's `hadRecentInput`: typing through `fill` sends no
+//   key, and the half-second window hides a move no input caused;
+// - the runtime declares the move: the page before it presents or as it returns from a
+//   hidden tab; a source inside every runtime `text` or `controls` region holding it at
+//   both places while each region stands, no control in a `text` region; a source
+//   carried down by an `append` region's growth in the region's standing scrollport,
+//   by no more than it grew, its earlier children standing. Each frame keeps the
+//   declared regions' boxes for these comparisons, and a `text` region's controls,
+//   which must stand whether or not Chrome names them;
+// - the source carried nothing the previous paint showed there: no words, control,
+//   media or region that was in it then. Chrome reports a box, not its words, so a box
+//   an editor reuses for words it moves in reads as moving while the words stay put.
+// Typing reads only its field, its control, region, media and painted holders, and
+// what places them natively (the anchor an anchored holder follows, a sticky holder,
+// an effect already moving one), at the edit and on each frame until the session
+// closes, and credits that placement as the ledger does. The gate reads no other
+// geometry, so what Chrome does not name passes: a box moving further than the
+// container Chrome names, a control past Chrome's five sources outside any `text`
+// region, a reparented control, which Chrome counts as inserted. It credits neither an
+// effect an input began once that input's rendering ends nor the floating surfaces'
+// solver writes, both of which the ledger credits. A source Chrome leaves unnamed, as
+// it leaves every node in a shadow tree, is named by the node there whose box is the
+// source's. A failure names `rerun`, which shows what moved and from where.
 //
 // The ledger checks the same contract using protected reading/control landmarks.
 //
@@ -494,15 +507,25 @@
       },
     });
   }
-  // The gate keeps the roots too, to find a source Chrome leaves unnamed.
+  // The gate keeps the roots too, to find a source Chrome leaves unnamed and the words
+  // a host's tree holds, and when each node last arrived where it is.
+  const shadows = new WeakMap();
+  const arrived = new WeakMap();
+  const arrivals = new MutationObserver((records) => {
+    const at = nativePerformance.now();
+    for (const record of records)
+      for (const node of record.addedNodes) arrived.set(node, at);
+  });
+  if (!ledger) arrivals.observe(document, { childList: true, subtree: true });
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);
     roots.add(root);
+    shadows.set(this, root);
     if (ledger) {
       watchTree(root);
       announce();
-    }
+    } else arrivals.observe(root, { childList: true, subtree: true });
     return root;
   };
   // A zero-sized native anchor independently exposes the compositor source pose
@@ -837,9 +860,16 @@
     // Poses belong to their synchronous observation time. The native frame start
     // is kept separately to associate Chrome's painted shift with that frame.
     const at = nativePerformance.now();
-    // The gate keeps only the frame's times, which ownership is judged by.
+    // The gate keeps the frame's times, which ownership is judged by, the declared
+    // regions, and when the frame had painted, after which arrivals are new.
     if (!ledger) {
-      if (frame) frames.push({ at, start: time });
+      if (frame) {
+        const entry = { at, start: time, regions: readRegions() };
+        frames.push(entry);
+        nativeTask(() => {
+          entry.painted = nativePerformance.now();
+        });
+      }
       return at;
     }
     const selections = new Map(
@@ -1320,20 +1350,7 @@
     for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
     const start = nativePerformance.now();
     if (!ledger) {
-      const found = holding.filter(
-        (node) =>
-          node === field ||
-          node.matches(interactive) ||
-          node.hasAttribute("data-lf-reflow") ||
-          readingMedia(node) ||
-          paintedHolder(node),
-      );
-      begin(
-        start,
-        { field, at: start, found: poses(found), samples: [], until: Infinity },
-        new Set(),
-        event,
-      );
+      begin(start, typingSession(field, holding, start), new Set(), event);
       return;
     }
     const at = read(start, false);
@@ -1449,16 +1466,18 @@
     sources.filter((source) => source.node !== node).map((source) => name(source.node));
   // Widgets upgrade after the authored document has painted,
   // and the frame that presents the page carries every box their upgrade reshaped. The
-  // page before it is presented runs through the second frame after the runtime stamps
-  // `data-lf-presented` on a page that has one (runtime/presentation.js), whose paint
-  // the gate judges by that frame's start. Fixing the defect deletes this.
+  // page before it is presented runs until the second frame after the runtime stamps
+  // `data-lf-presented` on a page that has one (runtime/presentation.js). Fixing the
+  // defect deletes this. That frame begins when its callbacks run, not at its
+  // timestamp: a frame that long tasks delayed paints the presenting frame after the
+  // next frame's timestamp, and a paint's start time follows the actual paint.
   let presented = null;
   new MutationObserver(() => {
     if (presented !== null || !document.body?.hasAttribute("data-lf-presented")) return;
     presented = Infinity;
     nativeFrame(() =>
-      nativeFrame((at) => {
-        presented = at;
+      nativeFrame(() => {
+        presented = nativePerformance.now();
       }),
     );
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-presented"] });
@@ -1475,8 +1494,8 @@
       returns.push({ start: nativePerformance.now(), through: Infinity });
     } else if (current?.through === Infinity) {
       nativeFrame(() =>
-        nativeFrame((at) => {
-          if (turn === continuityTurn) current.through = at;
+        nativeFrame(() => {
+          if (turn === continuityTurn) current.through = nativePerformance.now();
         }),
       );
     }
@@ -1484,7 +1503,7 @@
   const presenting = ({ startTime }) =>
     document.querySelector("script[data-lf-entry]") &&
     (presented === null ||
-      startTime <= presented ||
+      startTime < presented ||
       returns.some(({ start, through }) => startTime >= start && startTime <= through));
   const permittedReflow = ({ node, previousRect, currentRect }, around) => {
     const element = node?.nodeType === Node.TEXT_NODE ? up(node) : node;
@@ -2322,41 +2341,284 @@
       });
     }
   };
-  // The gate (header, "The gate"). A holder's pose is its box, and that box in layout
-  // coordinates, which scrolling does not move; a removed holder has none.
+  // The declared regions as a frame stands, which the gate's exemptions compare across
+  // a paint: each region's pose, a `text` region's controls, including those in shadow
+  // trees within it, and an `append` region's scrollport, the nearest boxed ancestor
+  // that clips its block axis, and its children.
+  const scrollportOf = (region) => {
+    for (let at = up(region); at instanceof Element; at = up(at)) {
+      if (at === document.scrollingElement) return null;
+      if (
+        at.getClientRects().length &&
+        ["auto", "scroll", "hidden"].includes(getComputedStyle(at).overflowY)
+      )
+        return at;
+    }
+    return null;
+  };
+  // What matches in a subtree and every shadow tree within it.
+  const composedAll = (root, selector) => {
+    const found = [...root.querySelectorAll(selector)];
+    for (const element of root.querySelectorAll("*")) {
+      const shadow = shadows.get(element);
+      if (shadow) found.push(...composedAll(shadow, selector));
+    }
+    return found;
+  };
+  const readRegions = () => {
+    const found = new Map();
+    for (const tree of [
+      document,
+      ...[...roots].filter((root) => root.host.isConnected),
+    ])
+      for (const region of tree.querySelectorAll("[data-lf-reflow]")) {
+        const mode = region.getAttribute("data-lf-reflow");
+        // Every scroll above the region is added, a fixed container's included: a
+        // region stands where either place holds, so the extra offset costs nothing.
+        const rect = region.getBoundingClientRect();
+        const layout = { left: rect.left, top: rect.top };
+        for (let at = up(region); at instanceof Element; at = up(at)) {
+          if (!at.scrollLeft && !at.scrollTop) continue;
+          const offset = scrollOffset(at);
+          layout.left += offset.left;
+          layout.top += offset.top;
+        }
+        const reading = { mode, rect, layout };
+        if (mode === "text")
+          reading.controls = new Map(
+            composedAll(region, interactive).map((control) => [
+              control,
+              control.getBoundingClientRect(),
+            ]),
+          );
+        if (mode === "append") {
+          reading.port = scrollportOf(region);
+          reading.portRect = reading.port?.getBoundingClientRect();
+          reading.children = [...region.children].map((child) => [
+            child,
+            child.getBoundingClientRect(),
+          ]);
+        }
+        found.set(region, reading);
+      }
+    return found;
+  };
+  // The gate (header, "The gate"). A pose is a box, and that box in layout
+  // coordinates, which scrolling does not move; a removed node has none.
   const scrollOffset = (source) => {
     const axes = scrollAxes(source);
     const { scrollLeft: x, scrollTop: y } = source;
     return { left: x * axes.x.x + y * axes.y.x, top: x * axes.x.y + y * axes.y.y };
   };
-  const poses = (nodes) =>
-    new Map(
-      nodes.map((node) => {
-        if (!node.isConnected) return [node, null];
-        const rect = node.getBoundingClientRect();
-        let { left, top } = rect;
-        const add = (source) => {
-          if (!source.scrollLeft && !source.scrollTop) return;
-          const offset = scrollOffset(source);
-          left += offset.left;
-          top += offset.top;
-        };
-        // The root's border box travels with its own scroll.
-        if (node === document.scrollingElement) add(node);
-        for (
-          let child = node, parent = up(node);
-          parent instanceof Element;
-          child = parent, parent = up(parent)
-        ) {
-          if (getComputedStyle(child).position === "fixed") break;
-          add(parent);
-        }
-        return [node, { rect, layout: { left, top } }];
-      }),
-    );
+  const pose = (node) => {
+    if (!node.isConnected) return null;
+    const rect = node.getBoundingClientRect();
+    let { left, top } = rect;
+    const add = (source) => {
+      if (!source.scrollLeft && !source.scrollTop) return;
+      const offset = scrollOffset(source);
+      left += offset.left;
+      top += offset.top;
+    };
+    // The root's border box travels with its own scroll.
+    if (node === document.scrollingElement) add(node);
+    for (
+      let child = node, parent = up(node);
+      parent instanceof Element;
+      child = parent, parent = up(parent)
+    ) {
+      if (getComputedStyle(child).position === "fixed") break;
+      add(parent);
+    }
+    return { rect, layout: { left, top } };
+  };
+  // What a running effect has translated its target by, read as the ledger reads it.
+  const motionSample = (animation) => {
+    const target = animation.effect?.target;
+    if (!target?.isConnected) return null;
+    const style = getComputedStyle(target);
+    return {
+      values: Object.fromEntries(
+        animationProperties(animation).map((property) => [property, style[property]]),
+      ),
+      axes: translationAxes(target),
+    };
+  };
   const sampleTyping = (typing, at) => {
-    typing.samples.push({ at, poses: poses([...typing.found.keys()]) });
+    const sample = {
+      at,
+      poses: new Map(typing.watched.map((node) => [node, pose(node)])),
+      motion: new Map(
+        typing.moving.map((animation) => [animation, motionSample(animation)]),
+      ),
+    };
+    typing.samples.push(sample);
     pruneSamples(typing.samples);
+    return sample;
+  };
+  // The anchors in a tree, by name; read only for a field whose holder an anchor places.
+  const treeAnchors = (tree) => {
+    const names = new Map();
+    for (const node of tree.querySelectorAll("*"))
+      for (const name of getComputedStyle(node).anchorName.split(",")) {
+        const anchor = name.trim();
+        if (anchor && anchor !== "none")
+          names.set(anchor, names.has(anchor) ? null : node);
+      }
+    return new Map([[tree, names]]);
+  };
+  // A typing session watches its field, the holders a reader would see carried, and
+  // what places them natively: the anchor an anchored holder follows, a sticky holder,
+  // and an effect already moving one.
+  const typingSession = (field, holding, start) => {
+    const found = holding.filter(
+      (node) =>
+        node === field ||
+        node.matches(interactive) ||
+        node.hasAttribute("data-lf-reflow") ||
+        readingMedia(node) ||
+        paintedHolder(node),
+    );
+    const anchors = new Map();
+    const sticky = [];
+    for (const element of holding) {
+      const style = getComputedStyle(element);
+      if (style.position === "sticky") sticky.push(element);
+      if (!["fixed", "absolute"].includes(style.position)) continue;
+      const x = ["left", "right"].some((side) =>
+        anchoredInset(element, style, side, "left"),
+      );
+      const y = ["top", "bottom"].some((side) =>
+        anchoredInset(element, style, side, "top"),
+      );
+      const anchor =
+        (x || y) && anchorOf(element, style, treeAnchors(element.getRootNode()));
+      if (anchor) anchors.set(element, { anchor, x, y });
+    }
+    const moving = holding
+      .flatMap((node) => node.getAnimations())
+      .filter((animation) => animation.playState === "running" && moves(animation));
+    const typing = {
+      field,
+      at: start,
+      holding,
+      found,
+      anchors,
+      sticky,
+      moving,
+      watched: [
+        ...new Set([
+          ...found,
+          ...sticky,
+          ...[...anchors.values()].map((a) => a.anchor),
+        ]),
+      ],
+      samples: [],
+      until: Infinity,
+    };
+    typing.start = sampleTyping(typing, start);
+    return typing;
+  };
+  // The native placement a holder received between two samples: its anchor's travel
+  // where the anchor kept its layout place, its sticky holder's travel within the
+  // scroll that drove it, and the sampled translation of effects already moving it.
+  const typingCredit = (typing, node, before, after) => {
+    const credit = { left: 0, top: 0 };
+    const chain = typing.holding.slice(typing.holding.indexOf(node));
+    const anchored = chain.find((element) => typing.anchors.has(element));
+    if (anchored) {
+      const { anchor, x, y } = typing.anchors.get(anchored);
+      const was = before.poses.get(anchor),
+        now = after.poses.get(anchor);
+      for (const [axis, held] of [
+        ["left", x],
+        ["top", y],
+      ])
+        if (was && now && held && Math.abs(now.layout[axis] - was.layout[axis]) < 1)
+          credit[axis] += now.rect[axis] - was.rect[axis];
+    }
+    const sticky = chain.find((element) => typing.sticky.includes(element));
+    const was = sticky && before.poses.get(sticky),
+      now = sticky && after.poses.get(sticky);
+    if (was && now)
+      for (const axis of ["left", "top"]) {
+        const scroll =
+          now.layout[axis] - now.rect[axis] - (was.layout[axis] - was.rect[axis]);
+        const shifted = now.rect[axis] - was.rect[axis];
+        if (
+          scroll &&
+          shifted >= Math.min(0, -scroll) - 1 &&
+          shifted <= Math.max(0, -scroll) + 1
+        )
+          credit[axis] += shifted;
+      }
+    for (const animation of typing.moving) {
+      if (!chain.includes(animation.effect?.target)) continue;
+      const prior = before.motion.get(animation),
+        next = after.motion.get(animation);
+      if (!prior || !next) continue;
+      for (const property of animationProperties(animation)) {
+        const from = animationTranslation(property, prior.values[property]);
+        const to = animationTranslation(property, next.values[property]);
+        if (!from || !to) continue;
+        const moved = viewportTranslation(property, prior, next, {
+          left: to.left - from.left,
+          top: to.top - from.top,
+        });
+        if (!moved) continue;
+        credit.left += moved.left;
+        credit.top += moved.top;
+      }
+    }
+    return credit;
+  };
+  // Chrome's sources are painted boxes, clipped to the viewport, so the field's holders
+  // are compared at the edit and at the frame after the paint, capped at the session's
+  // close.
+  const typedNatively = (entry, typing, painted) => {
+    const sample = typing.samples.findLast(
+      ({ at }) => at <= Math.min(painted, typing.until),
+    );
+    if (!sample) return;
+    for (const node of typing.found) {
+      const before = typing.start.poses.get(node),
+        after = sample.poses.get(node);
+      if (!before || !after) continue;
+      const credit = typingCredit(typing, node, typing.start, sample);
+      const [x, y] = [
+        ["left", "right"],
+        ["top", "bottom"],
+      ].map(
+        ([start, end]) =>
+          carried(before.rect, after.rect, start, end) &&
+          Math.abs(after.layout[start] - before.layout[start]) >= 1 &&
+          Math.abs(after.rect[start] - before.rect[start] - credit[start]) >= 1,
+      );
+      if (!x && !y) continue;
+      const field = window.lfPlace(typing.field),
+        place = window.lfPlace(node);
+      report(`typing in ${field} moved ${place}`, {
+        code: "typing-moved",
+        node: place,
+        field,
+        by: by(before.rect, after.rect),
+        found: box(before.rect),
+        painted: box(after.rect),
+        beside: entry.sources
+          .filter((source) => source.node !== node)
+          .map((source) => sourceName(source.node, source)),
+        rerun,
+        evidence: {
+          kind: "typing",
+          node: place,
+          field,
+          paint_at: entry.startTime,
+          before: { at: typing.at, rect: box(before.rect), layout: before.layout },
+          after: { at: sample.at, rect: box(after.rect), layout: after.layout },
+          credit,
+        },
+      });
+    }
   };
   // Chrome leaves a source in a shadow tree unnamed. The deepest words, else the
   // deepest element, there whose box, clipped to the viewport as Chrome clips it, is
@@ -2395,96 +2657,167 @@
     );
     return over ? `an unnamed box over ${name(over)}` : "an unnamed box";
   };
+  // Chrome reports a box whose place changed, not the words in it. A source carried
+  // what the reader saw only where it holds words, a control, media or a region the
+  // previous paint already held there; words an editor moved into a reused box since
+  // then are new in it, however far the box travelled.
+  const carriesReading = (source, since) => {
+    const visit = (node, fresh) => {
+      fresh ||= (arrived.get(node) ?? -Infinity) > since;
+      if (node.nodeType === Node.TEXT_NODE)
+        return !fresh && Boolean(node.textContent.trim());
+      if (!(node instanceof Element)) return false;
+      if (
+        !fresh &&
+        (node.matches(interactive) ||
+          readingMedia(node) ||
+          node.hasAttribute("data-lf-reflow"))
+      )
+        return true;
+      const shadow = shadows.get(node);
+      return [...(shadow?.childNodes ?? []), ...node.childNodes].some((child) =>
+        visit(child, fresh),
+      );
+    };
+    return visit(source, false);
+  };
+  // Chrome clips a source's rectangles to what is visible, so a source carried out of
+  // view has an empty current rectangle; its actual box stands for it.
+  const visibleOr = (node, rect) => {
+    if (!node || (rect.width && rect.height)) return rect;
+    if (node.nodeType !== Node.TEXT_NODE) return node.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    return range.getBoundingClientRect();
+  };
+  // A region stands where its box keeps its size and either its screen or its layout
+  // place: scrolling may carry a region, not reshape it.
+  const stands = (was, now) =>
+    Math.abs(now.rect.width - was.rect.width) < 1 &&
+    Math.abs(now.rect.height - was.rect.height) < 1 &&
+    (!moved(was.rect, now.rect) ||
+      ["left", "top"].every(
+        (axis) => Math.abs(now.layout[axis] - was.layout[axis]) < 1,
+      ));
+  // Chrome states a source's previous place with the frame's scrolling taken out, so a
+  // region's earlier box is put the same way to compare with it.
+  const scrolledBack = (was, now) => {
+    if (!moved(was.rect, now.rect)) return was.rect;
+    const [left, top] = ["left", "top"].map(
+      (axis) => now.layout[axis] - now.rect[axis] - (was.layout[axis] - was.rect[axis]),
+    );
+    return {
+      left: was.rect.left - left,
+      top: was.rect.top - top,
+      right: was.rect.right - left,
+      bottom: was.rect.bottom - top,
+    };
+  };
   const runtimeOwned = (ancestry) =>
     ancestry.some((owner) => owner.matches(".lf-chrome, [data-lf-runtime]"));
-  // A source the runtime declares free to move: inside every `text` and `controls`
-  // region holding it, within the region's box and, in a `text` region, no control;
-  // or below an `append` region in that region's scrollport, carried down by its growth.
-  const declared = (node, { previousRect, currentRect }) => {
-    if (!node) return false;
+  const within = (rect, frame) =>
+    rect.left >= frame.left - 1 &&
+    rect.top >= frame.top - 1 &&
+    rect.right <= frame.right + 1 &&
+    rect.bottom <= frame.bottom + 1;
+  // An `append` region's growth carries what follows it in its scrollport down by no
+  // more than it grew, while its start, its earlier children and the scrollport stand.
+  const appendCarried = (
+    element,
+    ancestry,
+    previousRect,
+    currentRect,
+    before,
+    after,
+  ) => {
+    const dy = currentRect.top - previousRect.top;
+    // Chrome snaps its rectangles to whole pixels, and a box carried out of view is
+    // read from the page instead, so the two places agree within a pixel either way.
+    if (Math.abs(currentRect.left - previousRect.left) >= 2 || dy < 1) return false;
+    let growth = 0;
+    for (const [region, now] of after) {
+      const was = before.get(region);
+      if (
+        now.mode !== "append" ||
+        was?.mode !== "append" ||
+        !now.port ||
+        was.port !== now.port ||
+        ancestry.includes(region) ||
+        !ancestry.includes(now.port) ||
+        !(region.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING) ||
+        moved(was.portRect, now.portRect) ||
+        was.children.some(
+          ([child, rect], i) =>
+            now.children[i]?.[0] !== child || moved(rect, now.children[i][1]),
+        ) ||
+        ["left", "right", "top"].some(
+          (edge) => Math.abs(now.rect[edge] - scrolledBack(was, now)[edge]) >= 1,
+        ) ||
+        previousRect.top < scrolledBack(was, now).bottom - 1
+      )
+        continue;
+      const between = [];
+      for (let at = up(region); at && at !== now.port; at = up(at)) between.push(at);
+      const portAncestry = ancestry.slice(ancestry.indexOf(now.port));
+      if (
+        [...between, now.port].some((at) => at.hasAttribute("data-lf-reflow")) ||
+        !runtimeOwned(portAncestry)
+      )
+        continue;
+      growth += Math.max(0, now.rect.bottom - scrolledBack(was, now).bottom);
+    }
+    return growth >= 1 && dy <= growth + 2;
+  };
+  // A source the runtime declares free to move, from the regions read at the frames
+  // around its paint: inside every `text` and `controls` region holding it at both its
+  // places, each region's box standing still, no control between it and a `text`
+  // region; or carried by an `append` region's growth.
+  const declared = (node, { previousRect, currentRect }, before, after) => {
+    if (!node || !before || !after) return false;
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const ancestry = [];
     for (let at = element; at instanceof Element; at = up(at)) ancestry.push(at);
-    const mode = (at) => at.getAttribute("data-lf-reflow");
-    if (["text", "controls"].includes(mode(element))) return false;
-    const regions = ancestry.filter((at) => ["text", "controls"].includes(mode(at)));
-    if (regions.length)
-      return regions.every((region) => {
-        const depth = ancestry.indexOf(region);
-        const frame = region.getBoundingClientRect();
-        return (
-          runtimeOwned(ancestry.slice(depth)) &&
-          (mode(region) === "controls" ||
-            !ancestry.slice(0, depth).some((at) => at.matches(interactive))) &&
-          currentRect.left >= frame.left - 1 &&
-          currentRect.top >= frame.top - 1 &&
-          currentRect.right <= frame.right + 1 &&
-          currentRect.bottom <= frame.bottom + 1
-        );
-      });
+    const regions = ancestry.filter((at) =>
+      ["text", "controls"].includes(after.get(at)?.mode),
+    );
     if (
-      Math.abs(currentRect.left - previousRect.left) >= 1 ||
-      currentRect.top <= previousRect.top
+      regions.length &&
+      !regions.includes(element) &&
+      regions.every((region) => {
+        const was = before.get(region),
+          now = after.get(region);
+        const depth = ancestry.indexOf(region);
+        return (
+          was?.mode === now.mode &&
+          stands(was, now) &&
+          runtimeOwned(ancestry.slice(depth)) &&
+          (now.mode === "controls" ||
+            !ancestry.slice(0, depth).some((at) => at.matches(interactive))) &&
+          within(previousRect, scrolledBack(was, now)) &&
+          within(currentRect, now.rect)
+        );
+      })
     )
-      return false;
-    const port = ancestry.find(
-      (at) =>
-        at !== element &&
-        at !== document.scrollingElement &&
-        ["auto", "scroll", "hidden"].includes(getComputedStyle(at).overflowY),
-    );
-    return Boolean(
-      port &&
-      runtimeOwned(ancestry.slice(ancestry.indexOf(port))) &&
-      [...port.querySelectorAll('[data-lf-reflow="append"]')].some(
-        (region) =>
-          !region.contains(element) &&
-          region.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING,
-      ),
-    );
+      return true;
+    return appendCarried(element, ancestry, previousRect, currentRect, before, after);
   };
-  // Chrome's sources are painted boxes, clipped to the viewport, so the field's holders
-  // are compared at the edit and at the frame after the paint, capped at the session's
-  // close.
-  const typedNatively = (entry, typing, painted) => {
-    const sample = typing.samples.findLast(
-      ({ at }) => at <= Math.min(painted, typing.until),
-    );
-    if (!sample) return;
-    for (const [node, before] of typing.found) {
-      const after = sample.poses.get(node);
-      if (!before || !after) continue;
-      const x =
-        carried(before.rect, after.rect, "left", "right") &&
-        Math.abs(after.layout.left - before.layout.left) >= 1;
-      const y =
-        carried(before.rect, after.rect, "top", "bottom") &&
-        Math.abs(after.layout.top - before.layout.top) >= 1;
-      if (!x && !y) continue;
-      const field = window.lfPlace(typing.field),
-        place = window.lfPlace(node);
-      report(`typing in ${field} moved ${place}`, {
-        code: "typing-moved",
-        node: place,
-        field,
-        by: by(before.rect, after.rect),
-        found: box(before.rect),
-        painted: box(after.rect),
-        beside: entry.sources
-          .filter((source) => source.node !== node)
-          .map((source) => sourceName(source.node, source)),
-        rerun,
-        evidence: {
-          kind: "typing",
-          node: place,
-          field,
-          paint_at: entry.startTime,
-          before: { at: typing.at, rect: box(before.rect), layout: before.layout },
-          after: { at: sample.at, rect: box(after.rect), layout: after.layout },
-        },
-      });
-    }
-  };
+  // A source no node could be found for, such as a pseudo-element's box, is placed by
+  // its rectangles alone: within a standing runtime `text` or `controls` region at both
+  // places, whose controls are checked on their own.
+  const inRegion = ({ previousRect, currentRect }, before, after) =>
+    [...(after ?? [])].some(([region, now]) => {
+      const was = before?.get(region);
+      if (!["text", "controls"].includes(now.mode) || was?.mode !== now.mode)
+        return false;
+      const ancestry = [];
+      for (let at = region; at instanceof Element; at = up(at)) ancestry.push(at);
+      return (
+        stands(was, now) &&
+        runtimeOwned(ancestry) &&
+        within(previousRect, scrolledBack(was, now)) &&
+        within(currentRect, now.rect)
+      );
+    });
   const gate = (entry, frame, next, rendering) => {
     const at = entry.startTime;
     const typing = rendering?.typing;
@@ -2495,33 +2828,61 @@
     // Input dispatched in the painting frame comes after the frame's start, so the
     // frame's own sampling time is owned too, as the ledger's audit has it.
     const sampled = frames[frame]?.at ?? at;
-    if (
-      presenting(entry) ||
-      presenting({ startTime: frames[frame]?.start ?? at }) ||
-      inputOwns(at) ||
-      inputOwns(sampled)
-    )
-      return;
+    if (presenting(entry) || inputOwns(at) || inputOwns(sampled)) return;
     const latest = renderings.findLast(({ start }) => start <= sampled);
     if (latest?.typing && sampled <= latest.typing.until) return;
+    // The frames either side of the paint: what the previous one painted, and the
+    // regions as they stood before and after.
+    const prior = frames[frame - 1],
+      after = frames[frame + 1]?.regions;
+    const since = prior?.painted ?? prior?.at ?? -Infinity;
     const nodes = entry.sources.map(sourceNode);
     const names = entry.sources.map((source, i) => sourceName(nodes[i], source));
+    const moves = [];
+    entry.sources.forEach((source, i) => {
+      // Chrome can report a box whose painted place did not change.
+      if (by(source.previousRect, source.currentRect).every((delta) => !delta)) return;
+      if (nodes[i] && !carriesReading(nodes[i], since)) return;
+      const places = {
+        previousRect: source.previousRect,
+        currentRect: visibleOr(nodes[i], source.currentRect),
+      };
+      const permitted = nodes[i]
+        ? declared(nodes[i], places, prior?.regions, after)
+        : inRegion(places, prior?.regions, after);
+      if (!permitted) moves.push([names[i], source.previousRect, source.currentRect]);
+    });
+    // A `text` region's controls stand within it, whether or not Chrome's five sources
+    // name them.
+    for (const [region, now] of after ?? []) {
+      const was = prior?.regions.get(region);
+      if (now.mode !== "text" || was?.mode !== "text") continue;
+      for (const [control, from] of was.controls) {
+        const to = now.controls.get(control);
+        if (
+          to &&
+          ["left", "top"].some(
+            (axis) =>
+              Math.abs(to[axis] - now.rect[axis] - (from[axis] - was.rect[axis])) >= 1,
+          )
+        )
+          moves.push([name(control), from, to]);
+      }
+    }
     const sources = entry.sources.map((source, i) => ({
       node: names[i],
       before: box(source.previousRect),
       after: box(source.currentRect),
     }));
-    entry.sources.forEach((source, i) => {
-      if (declared(nodes[i], source)) return;
-      report(`moved ${names[i]}`, {
+    for (const [node, previousRect, currentRect] of moves)
+      report(`moved ${node}`, {
         code: "moved-without-input",
-        node: names[i],
-        by: by(source.previousRect, source.currentRect),
-        beside: names.filter((_, j) => j !== i),
+        node,
+        by: by(previousRect, currentRect),
+        beside: names.filter((other) => other !== node),
         rerun,
         evidence: { kind: "native", paint_at: at, value: entry.value, sources },
       });
-    });
   };
   // Native observer delivery can precede the next health frame. Its passive pose
   // belongs to the native paint it reports; a later input cannot replace that pose
@@ -2617,7 +2978,9 @@
         )
         .map((rendering) => rendering.typing.at),
     );
-    while (frames.length > 2 && frames[1].start < needed) frames.shift();
+    // The gate also keeps the frame before a judged paint, whose regions it compares.
+    const kept = ledger ? 1 : 2;
+    while (frames.length > kept + 1 && frames[kept].start < needed) frames.shift();
     // Native frame starts associate painted shifts; poses are sampled later in the
     // callback's synchronous turn. Retaining that frame cannot retire an earlier
     // input pose its readers still need. All coordinate histories keep the same

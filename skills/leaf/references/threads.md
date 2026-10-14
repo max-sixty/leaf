@@ -40,10 +40,10 @@ message.
 
 Add `--markup` for an HTML fragment after the text: a native table, a bounded log, or
 a small question using `lf-ask` and `lf-options`. Native HTML needs no widget
-wrapper. Its ids must be new to the page and its messages. Leaf checks markup as it
-checks a page, and refuses document settings or a stylesheet for the whole page. An
-`lf-sample` template gives the user a live practice page in the thread
-(`live-samples.md`).
+wrapper. Its ids must be new, used in no version of the page and no earlier
+message. Leaf checks markup as it checks a page, and refuses document settings or a
+stylesheet for the whole page. An `lf-sample` template gives the user a live
+practice page in the thread (`live-samples.md`).
 
 ```bash
 leaf response reply <answer.ref> --done --text "The deploy passed." --markup '<details><summary>Deploy log</summary><pre>Ready&#10;Done</pre></details>'
@@ -79,9 +79,10 @@ no page path or message id. While the session it was delivered to holds the page
 delivered before the user's newer correction does not answer that correction.
 
 Save any source edit before replying: the reply checks the saved `index.html` and
-makes it the active revision with the answer. Replying again with the same `ref`
-adds nothing. When no answer is coming, `--failure <code>` posts a failure receipt,
-which settles the input without reopening a resolved thread.
+makes it the active revision with the answer. Rerunning an answer with the same
+`ref` adds nothing; each `--ephemeral` progress line posts. When no answer is
+coming, `--failure <code>` posts a failure receipt, which settles the input without
+reopening a resolved thread.
 
 When an answer has `writer: "turn"`, your turn's final text answers it (your
 harness's "Replies"). Use `leaf response reply` instead when the answer needs markup,
@@ -157,10 +158,10 @@ its text becomes the **Working** line in the banner, so keep it to one line
 ([conversation loop, "When to write"](conversation-loop.md#when-to-write)). In a
 thread that owes no reply, use `leaf thread reply --ephemeral`.
 
-The thread shows the latest progress as one dim working message above its reply box,
-never unread. Your next ordinary reply takes its place, with the progress folded
-behind it. Progress carries only text, so put asks, to-dos, markup, failures and
-anchor moves in ordinary replies.
+The thread shows the latest progress as one dim working message above its reply box;
+progress never counts as unread. Your next ordinary reply takes its place, with the
+progress folded behind it. Progress carries only text; asks, to-dos, markup, anchor
+moves and failure receipts each need a reply of their own.
 
 A widget in a reply's markup whose registry entry declares `x-awaits` is already an
 ask, and keeps its thread "My turn" until the user answers it. Leaf refuses `--ask`

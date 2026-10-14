@@ -75,14 +75,14 @@ leaf task end <page> <todo> done "<where the result is>"
 refuses. Housekeeping such as re-vendoring, restarting the server, or merging needs
 no to-do.
 
-When input arrives during other work:
+When input arrives:
 
 1. If the delivery's `acknowledge` names a receipt command, run it first. If it is
    `null`, your harness has confirmed receipt.
 2. Post the progress line for each update that asks for work. Answer one that asks
    for no work, such as a question, right away.
-3. Then start your earlier item again, so the banner describes the work that
-   continues.
+3. If it interrupted other work, start that item again, so the banner describes the
+   work that continues.
 
 Reply once the revision passes `leaf page check`, the only check the main skill's
 "Check the page" step requires before a reply.
@@ -99,7 +99,8 @@ leaf status <page> waiting "<what you want back>"
 Name the answer or decision, not the fact that you are waiting. On an informational
 page with no ask, leave it empty; the banner then invites the user to comment. Tell
 the user what they can do on the page, and hand over as your harness contract says.
-From the first handoff on, every turn's final response includes the exact page URL.
+From the first handoff on, every turn's final response includes the exact page URL;
+progress messages don't repeat it.
 An export hands over its file URL, and a harness that already shows the page uses
 its own handoff surface.
 
@@ -171,10 +172,12 @@ present for their judgment, not only the one you recommend. Ask each as a direct
 question by a route in the table below, grouped as `authoring-asks.md` says, and keep
 it until the user decides or you withdraw it. A question written in prose, a heading,
 a status line or chat isn't on On me; only the routes in the table put it there.
+Information they may comment on but need not decide is not an item.
 
 On me also lists any update of the user's that failed to send. Your own list shows as
-**On <your name>**. The user presses `m` to step through On me in page order, landing
-where each item is answered, where the ask's numbered actions (`1`–`9`) answer it.
+**On <your name>**. The user presses `m` to step through On me in page order. Each
+press lands where the item is answered; on a widget ask, its numbered actions
+(`1`–`9`) answer it there.
 
 | Request | Register it | What answers it |
 | --- | --- | --- |
@@ -202,10 +205,11 @@ leaf page state <page> | jq '{source, asks, todos, queues}'
 `queues.on_agent` is your list: answers you owe, updates you are working on, and your
 to-dos. Read them as given rather than rebuilding them from events. An ask holds its
 `prompt`, its `answer` once given, and its `status`; a widget ask's answer comes from
-the widget's state. Read a thread with `leaf page state <page> <message-id>`, and a
-widget in the HTML file named by `active.file`. Unsent drafts and tabs on older
-versions are not in this reading. Check `source` for an invalid or missing draft
-before taking an empty list as a clean handoff.
+the widget's state. Read a thread or a widget with `leaf page state <page> <id>`,
+using a message id or a widget id; the widget's markup is in the HTML file named by
+`active.file`. Unsent drafts and tabs on older versions are not in this reading.
+Check `source` for an invalid or missing draft before taking an empty list as a
+clean handoff.
 
 An empty On me means you need nothing from the user now. Finish authorized work
 without asking again. Ask about a paused project only when resuming or dropping it

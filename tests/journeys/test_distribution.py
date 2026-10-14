@@ -163,4 +163,4 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
             check=False,
         )
         assert refused.returncode != 0
-        assert "replaces private kernel modules: runtime/context.js" in refused.stderr
+        assert "replaces private kernel modules: runtime/context.js" in refused.stdout

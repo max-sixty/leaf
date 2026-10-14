@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   collectReads,
+  outsideReading,
   createPresentationCoordinator,
   createPresentationSchedule,
 } from "../../skills/leaf/assets/vendor/browser-runtime.js";
@@ -10,16 +11,33 @@ import {
   readPart,
 } from "../../skills/leaf/assets/runtime/semantic-state.js";
 import {
-  projectionDeferred,
-  setProjectionDeferred,
-} from "../../skills/leaf/assets/runtime/projection/state.js";
-import {
   ago,
   shortAgo,
   clocked,
   clockValue,
   tickClock,
 } from "../../skills/leaf/assets/runtime/presence.js";
+
+// A value outside the publication that a paint reads and follows, one round per change.
+function outside(initial) {
+  let value = initial;
+  const heard = new Set();
+  const reading = outsideReading(
+    () => value,
+    (moved) => {
+      heard.add(moved);
+      return () => heard.delete(moved);
+    },
+  );
+  return {
+    read: () => reading.read(),
+    set(next) {
+      value = next;
+      const round = {};
+      for (const moved of [...heard]) moved(round);
+    },
+  };
+}
 
 const before = (ms) => new Date(Date.now() - ms).toISOString();
 const MINUTE = 60 * 1000;
@@ -173,7 +191,7 @@ test("a paint another stops during a tick stays stopped", async () => {
   });
   first();
   second();
-  for (const _ of [1, 2]) {
+  for (let round = 0; round < 2; round += 1) {
     clock += 1;
     await tickClock((message) => {
       throw new Error(message);
@@ -187,11 +205,12 @@ test("a paint another stops during a tick stays stopped", async () => {
 test("a clocked paint follows each change of what else it read outside the publication", () => {
   const owner = document.createElement("div");
   document.body.append(owner);
+  const held = outside(false);
   const shown = [];
-  const paint = clocked(owner, () => shown.push(projectionDeferred()));
+  const paint = clocked(owner, () => shown.push(held.read()));
   paint();
-  setProjectionDeferred(true);
-  setProjectionDeferred(false);
+  held.set(true);
+  held.set(false);
   assert.deepEqual(shown, [false, true, false]);
   paint.stop();
   owner.remove();
@@ -221,22 +240,22 @@ test("a clocked paint that moved the time it read paints again at the next tick"
 test("a clocked paint that moves what it follows does not paint again inside itself", () => {
   const owner = document.createElement("div");
   document.body.append(owner);
+  const held = outside(false);
   let calls = 0;
   const paint = clocked(owner, () => {
     calls += 1;
-    projectionDeferred();
-    if (calls === 2) setProjectionDeferred(true);
+    held.read();
+    if (calls === 2) held.set(true);
     return calls;
   });
   paint();
   assert.equal(paint(), 2);
   assert.equal(calls, 2);
   // A later round that moves it from what this paint read paints it again.
-  setProjectionDeferred(false);
-  setProjectionDeferred(true);
+  held.set(false);
+  held.set(true);
   assert.equal(calls, 3);
   paint.stop();
-  setProjectionDeferred(false);
   owner.remove();
 });
 

@@ -33,7 +33,7 @@
    `readHistory`), and one watcher serves a paint that reads several. */
 import { collectReads, outsideReading } from "../vendor/browser-runtime.js";
 import { watchPresentation } from "./semantic-state.js";
-import { projectionDeferred } from "./projection/state.js";
+import { projectionDeferred, watchProjectionDeferral } from "./projection/state.js";
 import { PRESENTATION } from "./presentation.js";
 import { watchOwner } from "./arrivals.js";
 import { readingPaint } from "./presence.js";
@@ -47,6 +47,7 @@ document.addEventListener(PRESENTATION, () => {
   const round = {};
   for (const moved of [...heard]) moved(round);
 });
+const deferral = outsideReading(projectionDeferred, watchProjectionDeferral);
 const presented = outsideReading(
   () => presentations,
   (moved) => {
@@ -93,7 +94,7 @@ export function watchProjection(owner, paint, ready = null) {
     if (ready !== null && !ready()) return draw.forget();
     const outcome = collectReads(() => {
       presented.read();
-      projectionDeferred();
+      deferral.read();
       return paint();
     });
     read = outcome.reads;

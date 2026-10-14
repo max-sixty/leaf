@@ -1193,8 +1193,9 @@ export class ThreadView {
       `,
       this.node,
     );
-    if (marginControls && this.#marginControlsRow?.isConnected)
-      allotMarginControls(this.#marginControlsRow);
+    const controlsRow = marginControls && this.#marginControlsRow;
+    if (controlsRow?.isConnected)
+      measure(controlsRow, () => allotMarginControls(controlsRow));
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();

@@ -1589,7 +1589,9 @@
             (stable(child) ||
               (after.length === before.length &&
                 i === before.length - 1 &&
-                around.every(({ at }) => paintAt(child, at)?.appendTail) &&
+                // Read before the growth: a streaming reply that completes drops
+                // the mark in the render that adds its last words.
+                paintAt(child, first)?.appendTail &&
                 footGrowth(child, grown))),
         ) ||
         // Where none joins, the growth is the tail's: the region's own box growing

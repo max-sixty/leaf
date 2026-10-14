@@ -214,7 +214,10 @@ each assertion at the boundary that owns it").
 Use maintained dependencies for established capabilities, including prototypes.
 Leaf code owns product-specific behavior and integration. Native platform and
 standard-library implementations count as reuse. Implement a mechanism ourselves
-only when existing implementations cannot meet a concrete requirement.
+only when existing implementations cannot meet a concrete requirement. In the
+browser, use the platform's layout, cascade and focus model before writing a
+mechanism of your own (`skills/leaf/assets/AGENTS.md`, "The browser answers
+first").
 
 Build browser dependencies in Leaf's development and release pipeline and ship
 ready assets. Consumers run no browser build.

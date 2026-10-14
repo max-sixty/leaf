@@ -771,8 +771,8 @@ html { background: var(--paper); }
  * surface's width wherever the page keeps its 320 whole pixels (every width here is whole)
  * and below zero wherever it does not. Where the selected surface states no width — none
  * is selected, or it is the Leaves drawer — the room is nothing. Registered so the runtime
- * reads it as one resolved length; not inherited, so it restyles body alone as an edge
- * moves. */
+ * reads it as one resolved length. Chrome explicitly inherits that reading for its
+ * bottom bar; page content does not inherit it. */
 @property --lf-auxiliary-beside {
   syntax: "<length>";
   inherits: false;
@@ -1444,7 +1444,10 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
  * slot on the page would animate from one palette to the other for a change nobody
  * made. */
 lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
-  background: none; color: inherit; text-decoration: none; padding: 0; }
+  background: none; color: inherit; text-decoration: none; }
+/* The retiring slot keeps its ordinary inset until native fold motion gives it
+   back; restyling it first would change the fold's intrinsic starting box. */
+lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) { padding: 0; }
 /* The visible label becomes transient hover and focus chrome once the runtime's
  * stylesheet arrives. The accessible name comes from the entry reading. */
 .lf-margin-entry > :is(.lf-margin-entry-space, .lf-margin-entry-label) {

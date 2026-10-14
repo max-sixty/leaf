@@ -210,6 +210,14 @@ choosing a number or caching a value. The `--lf-motion-*` time inputs accept CSS
 calculations and are set on the document root, including when the animated element lives
 in a shadow tree.
 
+`foldBlock(element)` gives a block's room back from its ordinary CSS size to zero,
+including its block margins, inset and minimum size. It returns the shared motion
+animation, or `null` for immediate retirement under reduced motion, before presentation,
+or without native intrinsic-size interpolation. Apply semantic retirement at once; the
+effect keeps the outgoing block drawn until its pixels finish. Keep its ordinary sizing
+rules while it leaves, so the browser can supply the fold's starting shape. Cancel the
+effect if the retirement is reversed. Inline word swaps stay immediate.
+
 A temporary yellow cue calls `backgroundFlash(element, ms)`. It supplies only the starting
 tint; the browser fades to the element's live CSS background, including any hover or
 theme change during the cue, and it shares `motion`'s gates and cleanup.

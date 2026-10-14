@@ -4338,6 +4338,10 @@ def test_a_board_at_its_floor_scrolls_rather_than_breaking_a_card_s_words(
     asserted first: the board must be at its floor and scrolling for the rest, or a
     board that simply fitted would pass this while proving nothing."""
     page = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
+    # The title spends the grip's room too; short titles can hide a missing reservation.
+    page.locator("#sq-card-0 > strong").evaluate(
+        "title => { title.textContent = 'Internationalization'; }"
+    )
     measured = page.evaluate(
         """() => {
         const board = document.getElementById('crowd');
@@ -5974,6 +5978,23 @@ def test_a_decided_change_folds_away_rather_than_vanishing(browser, serve):
     assert after.evaluate("el => el.getBoundingClientRect().top") < below, (
         "the page never gave back the room the retired paragraph was holding"
     )
+
+    # Undo during a later fold returns the same ordinary box, with no filled effect
+    # or temporary sizing style keeping the retired presentation alive.
+    round_trip(page)
+    undo(page)
+    expect(old).to_be_visible()
+    page.locator("[data-lf-margin-for='sug'] .lf-sug-accept").click()
+    round_trip(page)
+    page.evaluate(
+        "() => { const m = window.__lfHeld.at(-1);"
+        " m.currentTime = m.effect.getTiming().duration / 2; }"
+    )
+    assert 0 < page.evaluate(at) < tall
+    undo(page)
+    expect(old).to_be_visible()
+    assert page.evaluate(at) == pytest.approx(tall, abs=1)
+    assert old.evaluate("el => el.getAnimations().length") == 0
 
 
 def test_a_user_who_asked_for_less_motion_gets_the_collapse_at_once(browser, serve):

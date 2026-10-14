@@ -1599,6 +1599,20 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
         preview.get_by_role("button", name="Previous thread", exact=True).click()
     expect(card).to_be_visible()
     expect(preview.locator(".lf-margin-preview-position")).to_have_text("1/3")
+
+    def expect_headers_clear_actions():
+        geometry = card.evaluate("""card => ({
+          actions: card.querySelector('.lf-margin-thread-controls').getBoundingClientRect().left,
+          heads: [...card.querySelectorAll('.lf-msg-head')]
+            .filter(head => head.checkVisibility())
+            .map(head => head.getBoundingClientRect().right)
+        })""")
+        assert geometry["heads"], geometry
+        assert all(right <= geometry["actions"] + 0.5 for right in geometry["heads"]), (
+            geometry
+        )
+
+    expect_headers_clear_actions()
     originals = [
         card.locator(f'.lf-msg[data-event="{message["id"]}"]') for message in progress
     ]
@@ -1634,6 +1648,7 @@ def test_progress_disclosure_keeps_its_words_visible_beside_margin_paging(
     page.keyboard.press("Enter")
     for original in originals:
         expect(original).to_be_visible()
+    expect_headers_clear_actions()
     collapse = card.get_by_role("button", name="Hide 3 progress messages", exact=True)
     expect(collapse).to_be_focused()
     expect_unclipped_words(collapse)

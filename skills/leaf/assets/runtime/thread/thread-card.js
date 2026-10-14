@@ -388,26 +388,6 @@ function paintBoundary(node, kind) {
 }
 
 let nextViewId = 0;
-// The margin card's controls stand over its transcript, so each message's head keeps
-// their width clear and its words end before them. A held-news notice is not among
-// them: it comes with news, which must not rewrap a head, so it stands beside them over
-// the head's end (`.lf-margin-thread-news`) until it is pressed. A render that changes
-// the controls writes the allocation in its own pass (`present`), so the heads it
-// rewraps move with the render that moved them. Any other change of the controls' size
-// writes it in the next rendering pass: applying it can wrap a header and resize the
-// controls' ancestors, which ResizeObserver cannot deliver again in the controls' own
-// delivery.
-const allotMarginControls = (row) =>
-  row.parentElement?.style.setProperty(
-    "--lf-margin-controls-width",
-    layoutPx(row.getBoundingClientRect().width),
-  );
-const marginControlsSizes = sizeObserver((entries) => {
-  nextRender(() => {
-    for (const { target } of entries) allotMarginControls(target);
-  });
-});
-
 // A panel card's reply row is pinned over the turns above it at the list's foot, so the
 // card states the row's height and a landing in those turns stops above it (chrome.css).
 // The row grows with its draft, so the height is read rather than a token.
@@ -450,7 +430,6 @@ export class ThreadView {
   #expandedSummaries = new Set();
   #quoteExpanded = false;
   #marginControls = null;
-  #marginControlsRow = null;
   #viewId = ++nextViewId;
   // What a thread in the page's flow holds back says so in its control row (held-news.js).
   #news = newsNotice();
@@ -467,11 +446,6 @@ export class ThreadView {
     if (this.#quoteNode) this.#sizes.unobserve(this.#quoteNode);
     this.#quoteNode = node;
     if (node) this.#sizes.observe(node);
-  };
-  #watchMarginControls = (node) => {
-    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
-    this.#marginControlsRow = node;
-    if (node) marginControlsSizes.observe(node);
   };
   #sizes = sizeObserver(() => {
     this.#retainHeaderSlot();
@@ -1158,12 +1132,7 @@ export class ThreadView {
                     ? html`<div class="lf-margin-thread-news">${news}</div>`
                     : nothing
                 }
-                <div
-                  class="lf-margin-thread-controls"
-                  ${ref(this.#watchMarginControls)}
-                >
-                  ${threadActions}
-                </div>`
+                <div class="lf-margin-thread-controls">${threadActions}</div>`
             : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>`
@@ -1192,9 +1161,6 @@ export class ThreadView {
       `,
       this.node,
     );
-    const controlsRow = marginControls && this.#marginControlsRow;
-    if (controlsRow?.isConnected)
-      measure(controlsRow, () => allotMarginControls(controlsRow));
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
@@ -1753,7 +1719,6 @@ export class ThreadView {
     this.#sizes.disconnect();
     this.#quoteNode = null;
     this.#releaseHeaderSlot();
-    if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
     this.#heldNews?.dispose();
     this.#continuity?.release();
     this.retire();

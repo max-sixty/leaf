@@ -112,16 +112,7 @@ export function createAnchorControls({
     for (const candidate of pageQueryAll(visualSelector())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
-      let parts;
-      try {
-        parts = visualParts(candidate, { strict: true });
-      } catch {
-        // Page check reports the malformed inventory. Withhold this visual's
-        // whole action too, while allowing the rest of the page to present.
-        continue;
-      }
-      // Controls must not outlive a malformed inventory: even the whole-visual
-      // action belongs to the same reading as the parts beside it.
+      const parts = visualParts(candidate);
       const targets = [
         {
           anchor: { section: found.id },

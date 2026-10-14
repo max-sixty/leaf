@@ -27,6 +27,7 @@
     margin-right: calc(-1 * var(--lf-grow-r));
     padding-left: var(--lf-grow-l);
     padding-right: var(--lf-grow-r);
+    --lf-breakout: 1;
   }
 }
 /* An Ask whose evidence includes a figure (its heading first, a chart, image, table

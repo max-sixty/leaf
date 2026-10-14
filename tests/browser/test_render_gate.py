@@ -4009,22 +4009,26 @@ def test_a_breakout_takes_the_rooms_width_unless_the_page_sizes_it(browser, serv
     assert off == ["<iframe id=sized>", "<iframe id=wider>"], misplaced
 
 
-def test_a_box_reaches_as_far_as_the_breakouts_it_holds(browser, serve):
+def test_an_ask_spanning_its_block_is_a_breakout(browser, serve):
     """An Ask allocated the column spans the wide block it holds, so its ring goes round
     the block, and the gate named it as set out in the margin on every page with one.
-    A box's padding reaches as far as the breakouts it holds and no further, and its
-    content keeps the column: one padded past the column with nothing wide in it is
-    named, whether it paints there or not, and so is one sized past it, whatever the
-    breakout filling it."""
+    The theme says which boxes it lets stand past their holders, so the gate reads the
+    Ask as the breakout it is, and a page width that moves it off the block is named,
+    as for any breakout. A box padded or sized past the
+    column without that leave is named, whether or not it paints there or a breakout
+    fills it."""
+    ask = """<lf-ask id="{id}"><h2>Which one?</h2>
+  <figure data-width="wide"><p>Evidence the room holds.</p></figure>
+  <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
+</lf-ask>"""
     source = leaf_page(
         "Reaching past the column",
-        """
+        f"""
 <h1>Reaching past the column</h1>
+<style>#sized-ask {{ max-width: 36rem; }}</style>
 <p>Prose sets the column.</p>
-<lf-ask id="ask"><h2>Which one?</h2>
-  <figure id="evidence" data-width="wide"><p>Evidence the room holds.</p></figure>
-  <lf-options id="ask-o" choose><lf-option id="ask-a">This one</lf-option></lf-options>
-</lf-ask>
+{ask.format(id="ask")}
+{ask.format(id="sized-ask")}
 <div id="bare" style="margin: 0 -120px; padding: 0 120px; text-indent: -120px">Out.</div>
 <div id="tinted" style="margin: 0 -120px; padding: 0 120px; background: #eee">Tint.</div>
 <div id="sized" style="width: calc(100% + 120px); background: #eee; --lf-block-frame: 1">
@@ -4043,8 +4047,13 @@ def test_a_box_reaches_as_far_as_the_breakouts_it_holds(browser, serve):
     page.close()
 
     assert grown > 100, "the Ask never spanned its block, so nothing here was tested"
-    past = [m["at"] for m in misplaced if m["code"] == "past-column"]
-    assert past == ["<div id=bare>", "<div id=tinted>", "<div id=sized>"], misplaced
+    found = sorted((m["code"], m["at"]) for m in misplaced)
+    assert found == [
+        ("off-axis", "<lf-ask id=sized-ask>"),
+        ("past-column", "<div id=bare>"),
+        ("past-column", "<div id=sized>"),
+        ("past-column", "<div id=tinted>"),
+    ], misplaced
 
 
 def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):

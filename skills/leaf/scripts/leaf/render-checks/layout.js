@@ -15,9 +15,12 @@ import { shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
-// A block the theme grows past the column (layouts.css). A block allocated `column`
-// keeps the measure as text does, so these checks read it as ordinary flow.
-const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+// A box the theme lets stand past its holder, which says so where it lets it
+// (`--lf-breakout`, layouts.css): a block granted a wider room than the measure, and an
+// Ask spanning such a block (ask.css). Every other box keeps to the column, as text
+// does. The theme lets only a box it allocates room break out.
+const breaksOut = (el) =>
+  getComputedStyle(el).getPropertyValue("--lf-breakout").trim() === "1";
 
 // The box a block's width and margins resolve against: its nearest ancestor that
 // generates one, inside that ancestor's border, padding and any scrollbar gutter, at
@@ -250,7 +253,7 @@ function marginReading(main) {
     // pointer events keep them from occupying the margin until it opens.
     if (
       !el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) ||
-      el.matches(BREAKOUT)
+      breaksOut(el)
     )
       return false;
     const style = getComputedStyle(el);
@@ -290,6 +293,9 @@ export function misplacedBoxes() {
     !uiInside(el, main) ||
     el.checkVisibility({ opacityProperty: true, visibilityProperty: true });
   const { isResident, left, residents, right } = marginReading(main);
+  const wides = new Set(
+    [...main.querySelectorAll("[data-lf-space]")].filter(breaksOut),
+  );
   // A widget the registry declares wide is answered for out here, the way an
   // absolutely-positioned resident is: standing past the column is what it was
   // declared for. What still has to hold is the page's own box — the room the layout
@@ -324,7 +330,7 @@ export function misplacedBoxes() {
   // scrolled, `overflow-x: auto` having caught every descendant a line above.
   const insideWide = (el) => {
     for (let a = el.parentElement; a && a !== main; a = a.parentElement)
-      if (a.matches(BREAKOUT)) return a;
+      if (wides.has(a)) return a;
     return null;
   };
   // What a wide widget may not escape, whatever the page has room for: the nearest
@@ -351,26 +357,9 @@ export function misplacedBoxes() {
       if (draws(a)) return a;
     return null;
   };
-  // A box's content keeps to its bound, and its padding and border reach no further
-  // than the breakouts it holds, each held to its own room above. So an Ask allocated
-  // the column, which spans the wide block it holds with padding (ask.css) so its ring
-  // goes round the block, is in place; it was named as standing out in the margin. A
-  // box sized past the column is not excused by a breakout that fills it.
-  const breakouts = [...main.querySelectorAll(BREAKOUT)].map((w) => [
-    w,
-    w.getBoundingClientRect(),
-  ]);
-  const reach = (el, left, right) => {
-    for (const [w, r] of breakouts)
-      if (w !== el && el.contains(w) && r.width >= 1) {
-        left = Math.min(left, r.left);
-        right = Math.max(right, r.right);
-      }
-    return { left, right };
-  };
   const over = new Map();
   for (const el of main.querySelectorAll("*")) {
-    const wide = el.matches(BREAKOUT);
+    const wide = wides.has(el);
     // A wide widget is asked whatever it stands in, where everything else is excused
     // by a scroll container above it. The excuse is about the column — a box inside a
     // scroller is drawn only as far as the scroller reaches, so it cannot spill onto
@@ -384,25 +373,15 @@ export function misplacedBoxes() {
     const frame = wide ? framing(el) : null;
     const host = wide ? null : insideWide(el);
     const bound = (frame || host)?.getBoundingClientRect() ?? null;
-    const [l, r] =
+    const past =
       wide || host
-        ? [bound ? bound.left : roomLeft, bound ? bound.right : roomRight]
-        : [left, right];
-    const held = reach(el, l, r);
-    // Its insets as drawn: a transform scales them with the rect. An SVG element has
-    // no offsetWidth, and no padding or border either.
-    const s = getComputedStyle(el);
-    const k = el.offsetWidth ? b.width / el.offsetWidth : 1;
-    const inL = (parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft)) * k;
-    const inR = (parseFloat(s.borderRightWidth) + parseFloat(s.paddingRight)) * k;
-    const past = Math.round(
-      Math.max(
-        b.right - held.right,
-        held.left - b.left,
-        b.right - inR - r,
-        l - (b.left + inL),
-      ),
-    );
+        ? Math.round(
+            Math.max(
+              b.right - (bound ? bound.right : roomRight),
+              (bound ? bound.left : roomLeft) - b.left,
+            ),
+          )
+        : Math.round(Math.max(b.right - right, left - b.left));
     if (past > 1) over.set(el, [past, wide, frame, host]);
   }
   // Each finding is a record (findings.py) carrying its element's place
@@ -433,7 +412,7 @@ export function misplacedBoxes() {
   // maintains. A resident is whatever `marginReading` finds standing past the column, so
   // a project hanging its own furniture out there is covered without declaring anything
   // to this pass.
-  for (const el of main.querySelectorAll(BREAKOUT)) {
+  for (const el of wides) {
     if (!el.checkVisibility()) continue;
     const b = el.getBoundingClientRect();
     const hit = residents.find((r) => {

@@ -412,9 +412,10 @@ def incompatible_layer(page_dir: Path, registry: dict) -> Finding | None:
     the gate's and the website's included (`http.page_endpoint`,
     `leaf_website.page_binding`), the one append door and the writers that ask it
     first (`event_contracts.write_refusal`), and `page check` refuse on this one
-    reading, each naming the re-vendor that repairs the page; the holding session's
-    commands and hooks make that re-vendor first for a page vendored at an older
-    number (`vendoring.renew_layer`). So does the source
+    reading, each naming the re-vendor that repairs the page; for a page vendored at an
+    older number, the holding session's prompt and Stop hooks, and each of its
+    commands that names the page, make that re-vendor first
+    (`vendoring.renew_layer`). So does the source
     check (`validation.source.check_source`), so activation writes no revision under
     the layer and `page state` reports the refusal as `source.error`. A revision the
     page saved before its last re-vendor is judged on its own registry

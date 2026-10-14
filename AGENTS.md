@@ -107,10 +107,10 @@ checks and writes it, so the two often differ. Changes cross that gap in two way
   announces it: the kernel registry's `$events.protocol` changes, and a Leaf
   refuses a page vendored at another number, naming the `leaf page init` that
   rebuilds it, except that the session holding a page vendored at an older number
-  makes that re-vendor itself on its first command or hook
-  (`vendoring.renew_layer`). A change to what a page's log holds, what its runtime posts, or the
-  reading its server serves, that an earlier page would break on, bumps the
-  number; the browser build holds the event contract to that. The number is
+  makes that re-vendor itself on the first command naming the page, or at its
+  first prompt or Stop hook (`vendoring.renew_layer`). A change to what a page's
+  log holds, what its runtime posts, or the reading its server serves, that an
+  earlier page would break on, bumps the number; the browser build holds the event contract to that. The number is
   Leaf's only version: each record Leaf keeps outside a page, such as a delivery
   envelope or a browser draft, carries it, and a change one of them needs bumps it
   too (`layer-registry.md`, "Page protocol"). Bumps are rare,

@@ -2,9 +2,9 @@
 
 A delivery hands the agent the user's updates from one or more pages.
 `freeze_delivery` writes it once as an immutable envelope with one batch per page,
-its events in log order. Each event's `answer` is what the agent owed it at capture, and the
-`leaf response` commands check the page again when they write, so a stale `answer`
-settles nothing. Each batch lists each distinct handling clause once, under an id
+its events in log order. Each event's `answer` is what the agent owed it at capture,
+and the `leaf response` commands check the page again when they write, so a stale
+`answer` settles nothing. Each batch lists each distinct handling clause once, under an id
 its events refer to; the ids mean nothing outside that batch.
 
 Receipt (`receive_batch`) checks, under the page transaction, that the receiver
@@ -22,8 +22,9 @@ under `stream.reply_reservations`, and session-lifetime.md says when one is
 released. While a reservation is open, no other delivery can reserve the address,
 the turn's final message commits as the reply, and failure receipts and other
 turns' finals are refused or write nothing. A `leaf response reply` still commits at
-once, and the turn's final then yields to it. `writer` is only the hint captured at
-freeze; the open reservation decides who writes.
+once, so its refusals reach the agent while it can still fix them, and the turn's
+final then yields to it. `writer` is only the hint captured at freeze; the open
+reservation decides who writes.
 
 `freeze_delivery` gives each owed answer an `answer.ref` naming its delivery, batch
 and input, and only the envelope holds what a ref points to. Receipt copies each

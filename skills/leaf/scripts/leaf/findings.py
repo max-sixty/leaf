@@ -1622,14 +1622,14 @@ _TEXT = {
     ),
     # A to-do, a start and an ending (`tasks.task_error`, `work.widget_seat_error`).
     "progress-parent": lambda at, v: (
-        f"a progress reply under {v['parent']!r} must start the update that a reply"
-        f" to {v['parent']!r} answers"
+        f"this progress line replies to {v['parent']!r} but starts an update you owe"
+        f" no reply to {v['parent']!r} for; it may already be answered"
     ),
     "not-a-widget": lambda at, v: f"{v['widget']!r} is not a widget on this page",
     "not-an-element": lambda at, v: f"{v['element']!r} is not an element on this page",
     "hidden-widget": lambda at, v: (
         f"{v['widget']} no longer shows on the page: a decision in the log retired it"
-        " or left it empty"
+        " or left it empty; open the to-do on another element or on `page`"
     ),
     "quoted-seat": lambda at, v: (
         f"{v['widget']} is quoted exhibit content, not a live page widget"
@@ -1679,8 +1679,9 @@ _TEXT = {
     ),
     # Advice on a to-do ended `done` (`todos.finished_in_view`).
     "finished-in-view": lambda at, v: (
-        f"Your work on `{v['element']}` is done, and it still stands among the open"
-        " work. Unless it is the page's current content, move it, cut to its outcome,"
+        f"Your work on `{v['element']}` is done, and it still shows unfolded on the"
+        " newest revision (not inside a closed details, a later tab or [hidden])."
+        " Unless it is the page's current content, move it, cut to its outcome,"
         " to the finished work collapsed after the open work, and let what comes next"
         ' take its place (authoring-revisions.md, "Keep the current page current").'
     ),

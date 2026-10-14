@@ -10,14 +10,15 @@ Every state read calls `activate_source` first, so `page_memory` keeps its last
 answer, keyed on the two readings `served_state.reading.source_readings` returns:
 the source, and the history (the log and the revisions). That is how a saved
 `index.html` reaches an open tab: the next read sees the source change and makes
-the revision. An answer that found the source to be the active revision holds until
-the source changes, since admission checked each new event against the revision it
-names. A refusal is checked again when the source or the history changes.
+the revision. A cached "no new revision" stays valid while only the log grows,
+because admission checked each event against the revision it names. A refusal is
+checked again when the source or the history changes.
 
 When a revision drops the passage an open thread is anchored to, activation appends
 a `reanchor` event in the same log transaction, which moves the thread to the
-section that survives or detaches it. An explicit replacement reply takes
-precedence. A `reanchor` adds no message and answers no update.
+section that survives or detaches it. A reply that moves the thread itself
+(`--quote`/`--section`/`--part`/`--detach`) takes precedence. A `reanchor` adds no
+message and answers no update.
 
 `publish_checked_event` publishes a reply or version note together with the
 revision it needs. It computes reanchors against the log with that event appended,

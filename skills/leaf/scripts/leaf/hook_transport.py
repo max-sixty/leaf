@@ -42,9 +42,8 @@ index.html now fails. A page that could not be re-vendored offers no input
 A harness reads a hook's output only after the hook exits, and discards it if the
 hook times out. So the hook confirms only before `CONFIRM_WITHIN`, well inside its
 timeout, and prints afterwards. It never waits for a lock past that deadline, and a
-page whose lock is still held goes unconfirmed. A turn that ends just after it
-starts, as an interrupt can end it, leaves its updates reading Picked up in an ended
-turn, as an App Server turn's do.
+page whose lock is still held goes unconfirmed. If an interrupt ends a turn just
+after it starts, its updates still read Picked up; App Server turns behave the same.
 
 Confirmed input can still miss the context, as when Leaf's Claude Code hooks module
 runs this hook for a wake and finds the session ended before it appends the output

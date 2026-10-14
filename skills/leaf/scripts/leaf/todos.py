@@ -39,9 +39,9 @@ that wrote it and holds its item only for that turn; once that turn ends with th
 item still running, `activity` shows it stalled. A later start on the same item
 replaces it, which is how the next turn takes the item up again. `leaf status
 waiting` and `idle` first write a `put_down` event when any start is in force
-(`put_down`). It ends every earlier start, leaving their to-dos open with nothing
-running, and it is an event so that admission, which reads only the document and
-the log, sees it. A start on a page declared `idle` reopens the page with a plain
+(`put_down`). The `put_down` ends every earlier start, leaving their to-dos open
+with nothing running. It is an event so that admission, which reads only the
+document and the log, sees it. A start on a page declared `idle` reopens the page with a plain
 `waiting` after it, which writes no `put_down`.
 
 Only the session that wrote an agent to-do's latest start can end it, by `todo_end`
@@ -61,8 +61,9 @@ a `todo_end` of an open to-do; the user ends only a to-do opened on them.
 adds their thread and activity readings.
 
 When `leaf task end` ends a to-do on an element `done`, and that element still shows
-on the newest revision where a reader meets it without opening anything, with
-nothing on it or inside it left on either list, the command advises moving it
+unfolded on the newest revision (not inside a closed details, a later tab or
+[hidden]) with nothing on it or inside it on either list, the command advises moving
+it
 (`finished_in_view`), because agents had left pages that were mostly finished work.
 The agent judges whether the element is finished work or the page's current
 content.

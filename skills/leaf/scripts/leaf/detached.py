@@ -1,10 +1,9 @@
 """Start a detached child process and wait until it is ready.
 
-`hosting._starting_server` starts a page server this way (`leaf server _serve`),
-`codex_adapter` starts the Codex delivery adapter (`leaf codex run`), and
-`leaf-dev preview` detaches a preview. `starting_detached` spawns the child and
-yields what it sends through `Handshake.announce`, or raises `StartRefused` with the
-child's reason.
+For example, `hosting._starting_server` starts a page server this way (`leaf
+server _serve`), and `codex_adapter` starts the Codex delivery adapter (`leaf codex
+run`). `starting_detached` spawns the child and yields what it sends through
+`Handshake.announce`, or raises `StartRefused` with the child's reason.
 
 Leaving the parent's `with` block normally accepts the start, and an exception
 abandons it. Only after acceptance does the child run the `commit` callback it gave

@@ -32,7 +32,8 @@ answers both. A widget action that answers no ask, such as an edit to a user-own
 draft or a moved card, owes nothing. The log goes on applying it to later readings
 of the document, and `page check` makes the next version write any part of it the
 markup must record. Its receipt shows until the document takes it in: on the page,
-until the markup records it or a later version follows it (`page_action_unsettled`);
+until the markup records it or a later version's note takes it in
+(`page_action_unsettled`);
 in a thread's frozen markup, which no version rewrites, until the agent's next
 message in that thread or a resolution after it.
 

@@ -1269,9 +1269,9 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     Neither records an answer from the user. A widget's ask ends through its
     declared state or an authored withdrawal.
 
-    Ending a to-do on an element `done` notes when that element still shows in the
-    page's open work, where a reader meets it without opening anything, and nothing
-    on it or inside it is left on either list."""
+    Ending a to-do on an element `done` prints a note if that element still shows
+    unfolded on the newest revision (not inside a closed details, a later tab or
+    [hidden]) and nothing on it or inside it is on either list."""
     from leaf.findings import note
     from leaf.todos import cmd_end, finished_in_view
 

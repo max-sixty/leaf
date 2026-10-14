@@ -8,7 +8,8 @@ stderr:
     values:
       element: plan-choice-decision
     text: >-
-      Your work on `plan-choice-decision` is done, and it still stands among the
-      open work. Unless it is the page's current content, move it, cut to its outcome,
-      to the finished work collapsed after the open work, and let what comes next
-      take its place (authoring-revisions.md, "Keep the current page current").
+      Your work on `plan-choice-decision` is done, and it still shows unfolded on
+      the newest revision (not inside a closed details, a later tab or [hidden]).
+      Unless it is the page's current content, move it, cut to its outcome, to the
+      finished work collapsed after the open work, and let what comes next take
+      its place (authoring-revisions.md, "Keep the current page current").

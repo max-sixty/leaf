@@ -22,9 +22,9 @@
  * from the last one's landing, is one history entry. Pressing or tabbing to another
  * authored passage ends the journey, even while its landing still shows; a press on a
  * control or chrome, or a focus move the runtime makes, does not. A fragment link's
- * trip (`followFragment`) departs by the entry the browser already added, and Back or
- * Forward to a place the page has since hidden (`returnToFragment`) is a trip that
- * adds no entry.
+ * trip (`followFragment`) uses the history entry the browser added for the link as
+ * its departure, and Back or Forward to a place the page has since hidden
+ * (`returnToFragment`) is a trip that adds no entry.
  */
 
 import {

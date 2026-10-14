@@ -20,10 +20,7 @@
                   "const": 9
                 }
               },
-              "required": [
-                "sha256",
-                "format"
-              ],
+              "required": ["sha256", "format"],
               "additionalProperties": false
             },
             "viewerUrl": {
@@ -56,14 +53,7 @@
               }
             }
           },
-          "required": [
-            "archive",
-            "viewerUrl",
-            "streams",
-            "pages",
-            "actions",
-            "images"
-          ],
+          "required": ["archive", "viewerUrl", "streams", "pages", "actions", "images"],
           "additionalProperties": false,
           "$defs": {
             "box": {
@@ -82,12 +72,7 @@
                   "type": "number"
                 }
               },
-              "required": [
-                "x",
-                "y",
-                "width",
-                "height"
-              ],
+              "required": ["x", "y", "width", "height"],
               "additionalProperties": false
             },
             "node": {
@@ -97,22 +82,13 @@
                   "type": "string"
                 },
                 "role": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "name": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "text": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "box": {
                   "anyOf": [
@@ -125,13 +101,7 @@
                   ]
                 }
               },
-              "required": [
-                "path",
-                "role",
-                "name",
-                "text",
-                "box"
-              ],
+              "required": ["path", "role", "name", "text", "box"],
               "additionalProperties": false
             },
             "tree": {
@@ -147,10 +117,7 @@
                   }
                 }
               },
-              "required": [
-                "timestamp",
-                "nodes"
-              ],
+              "required": ["timestamp", "nodes"],
               "additionalProperties": false
             },
             "phase": {
@@ -164,10 +131,7 @@
                   "type": "number"
                 },
                 "imageId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "tree": {
                   "anyOf": [
@@ -180,12 +144,7 @@
                   ]
                 }
               },
-              "required": [
-                "pageId",
-                "timestamp",
-                "imageId",
-                "tree"
-              ],
+              "required": ["pageId", "timestamp", "imageId", "tree"],
               "additionalProperties": false
             },
             "point": {
@@ -198,10 +157,7 @@
                   "type": "number"
                 }
               },
-              "required": [
-                "x",
-                "y"
-              ],
+              "required": ["x", "y"],
               "additionalProperties": false
             },
             "viewport": {
@@ -216,29 +172,17 @@
                   "exclusiveMinimum": 0
                 }
               },
-              "required": [
-                "width",
-                "height"
-              ],
+              "required": ["width", "height"],
               "additionalProperties": false
             },
             "input": {
-              "type": [
-                "object",
-                "null"
-              ],
+              "type": ["object", "null"],
               "properties": {
                 "selector": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "key": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "point": {
                   "anyOf": [
@@ -261,12 +205,7 @@
                   ]
                 }
               },
-              "required": [
-                "selector",
-                "key",
-                "point",
-                "viewport"
-              ],
+              "required": ["selector", "key", "point", "viewport"],
               "additionalProperties": false
             },
             "action": {
@@ -284,10 +223,7 @@
                   "type": "string"
                 },
                 "pageId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "title": {
                   "type": "string"
@@ -303,16 +239,10 @@
                   "type": "number"
                 },
                 "endTime": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
+                  "type": ["number", "null"]
                 },
                 "error": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "phases": {
                   "type": "object",
@@ -364,10 +294,7 @@
                   "type": "number"
                 },
                 "kind": {
-                  "enum": [
-                    "frame",
-                    "checkpoint"
-                  ]
+                  "enum": ["frame", "checkpoint"]
                 },
                 "url": {
                   "type": "string",
@@ -382,18 +309,10 @@
                   "minimum": 1
                 },
                 "callId": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "phase": {
-                  "enum": [
-                    "before",
-                    "action",
-                    "after",
-                    null
-                  ]
+                  "enum": ["before", "action", "after", null]
                 }
               },
               "required": [
@@ -425,11 +344,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "id",
-                "stream",
-                "pageId"
-              ],
+              "required": ["id", "stream", "pageId"],
               "additionalProperties": false
             },
             "stream": {
@@ -443,22 +358,13 @@
                   "type": "string"
                 },
                 "playwrightVersion": {
-                  "type": [
-                    "string",
-                    "null"
-                  ]
+                  "type": ["string", "null"]
                 },
                 "wallTime": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
+                  "type": ["number", "null"]
                 },
                 "monotonicTime": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
+                  "type": ["number", "null"]
                 }
               },
               "required": [
@@ -472,9 +378,7 @@
             }
           }
         },
-        "resources": [
-          "images[].url"
-        ]
+        "resources": ["images[].url"]
       }
     }
   },
@@ -496,10 +400,7 @@
         "minLength": 1
       }
     },
-    "required": [
-      "id",
-      "source"
-    ],
+    "required": ["id", "source"],
     "additionalProperties": false,
     "x-content": "members",
     "x-data": {
@@ -511,9 +412,7 @@
     "x-upgrade": true,
     "x-space": "available",
     "x-visual": {
-      "prefixes": [
-        "trace-"
-      ]
+      "prefixes": ["trace-"]
     },
     "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"></lf-trace>",
     "x-prepaint": "<p class=\"lf-trace-waiting\">Waiting for a Playwright recording.</p>"
@@ -536,15 +435,10 @@
         "pattern": "^[a-z][a-z0-9-]*$"
       }
     },
-    "required": [
-      "label",
-      "target"
-    ],
+    "required": ["label", "target"],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-owners": [
-      "lf-trace"
-    ],
+    "x-owners": ["lf-trace"],
     "x-name": "label",
     "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"><lf-trace-bookmark label=\"Popup closes\" target=\"trace-0000000000000000000000000000000000000000000000000000000000000000-image-demo\"></lf-trace-bookmark></lf-trace>",
     "x-upgrade": false
@@ -559,9 +453,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-upgrade": true,

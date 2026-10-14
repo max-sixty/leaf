@@ -458,8 +458,9 @@ on 2026-10-07.
   `build/browser/`, keeping the generated event and protocol declarations under
   their generator. Rebuild the vendored JavaScript in the same change: the
   compiler preserves source formatting, and the build gate compares its bytes.
-- **Format authored JSON and YAML.** Expand Prettier's scope while keeping
-  generated corpus files, media pins, pnpm lockfiles, Tend workflows, test
+- **Finish JSON coverage and format authored YAML.** Authored JSON is enabled
+  except for the core registry, deferred while active edits overlap it. Expand YAML
+  while keeping generated corpus files, media pins, pnpm lockfiles, Tend workflows, test
   snapshots, and frozen captures under their producers. Verify that regeneration
   leaves the formatted tree unchanged.
 - **Set formatter conventions for authored CSS and Markdown.** Review what

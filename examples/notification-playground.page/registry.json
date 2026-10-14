@@ -4,16 +4,16 @@
     "description": "The deployment-notification playground with one exact scalar configuration.",
     "type": "object",
     "properties": {
-      "id": {"type": "string", "const": "notification-playground"},
-      "submit-label": {"type": "string", "const": "Create notification"},
-      "restated": {"type": "boolean"}
+      "id": { "type": "string", "const": "notification-playground" },
+      "submit-label": { "type": "string", "const": "Create notification" },
+      "restated": { "type": "boolean" }
     },
     "required": ["id", "submit-label"],
     "additionalProperties": false,
     "x-content": "members",
     "x-instructions": "All notification controls, including event pressure, belong to one exact page-owned value schema and one Playground submission.",
     "x-upgrade": true,
-    "x-awaits": {"value": "choose", "answered": {"choose": {}}},
+    "x-awaits": { "value": "choose", "answered": { "choose": {} } },
     "x-state": {
       "choose": {
         "detail": {
@@ -22,14 +22,14 @@
             "values": {
               "type": "object",
               "properties": {
-                "events": {"type": "integer", "minimum": 1, "maximum": 4},
-                "radius": {"type": "integer", "minimum": 0, "maximum": 24},
-                "compact": {"type": "boolean"},
-                "format": {"enum": ["banner", "status strip"]},
-                "tone": {"enum": ["calm", "urgent"]},
-                "show-owner": {"type": "boolean"},
-                "accent": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
-                "title": {"type": "string"}
+                "events": { "type": "integer", "minimum": 1, "maximum": 4 },
+                "radius": { "type": "integer", "minimum": 0, "maximum": 24 },
+                "compact": { "type": "boolean" },
+                "format": { "enum": ["banner", "status strip"] },
+                "tone": { "enum": ["calm", "urgent"] },
+                "show-owner": { "type": "boolean" },
+                "accent": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+                "title": { "type": "string" }
               },
               "required": [
                 "events",
@@ -43,7 +43,7 @@
               ],
               "additionalProperties": false
             },
-            "instruction": {"type": "string", "minLength": 1}
+            "instruction": { "type": "string", "minLength": 1 }
           },
           "required": ["values", "instruction"],
           "additionalProperties": false

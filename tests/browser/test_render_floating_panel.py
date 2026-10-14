@@ -467,7 +467,7 @@ def test_on_shows_an_ask_as_its_message_and_reply_comes_back(browser, serve):
     card.locator(".lf-fp-answer", has_text="Reply").click()
     expect(page.locator(".lf-fp-view[data-view=thread]")).to_be_visible()
     back = page.locator(".lf-fp-back")
-    expect(back).to_have_text("On")
+    expect(back).to_have_text("On me")
     back.click()
     expect(page.locator(".lf-fp-view[data-view=on]")).to_be_visible()
 

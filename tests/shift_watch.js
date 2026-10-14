@@ -63,7 +63,8 @@
 // Continuing translation is credited from sampled animated property values, not
 // the ancestor's whole box: independent movement of it or its children still fails.
 // This proof supports unique replace effects with pure transform translation, a
-// pixel `translate`, or pixel left/top/marginLeft/marginTop. Scale, rotation and
+// `translate` in pixels or percentages of the border box, or pixel
+// left/top/marginLeft/marginTop. Scale, rotation and
 // composed effects receive no inferred translation credit.
 //
 // Chrome's paint signal and landmark poses answer distinct questions. The ledger
@@ -541,6 +542,37 @@
         .flatMap((frame) => Object.keys(frame).filter((key) => GEOMETRY.test(key))),
     ),
   ];
+  // An animated property's value as a translation reads it. The individual `translate`
+  // keeps its percentages in its computed value, each of the target's border box (an
+  // HTML element's transform reference box), so the reading resolves them to pixels.
+  const animatedValue = (target, style, property) => {
+    const value = style[property];
+    if (
+      property !== "translate" ||
+      !value.includes("%") ||
+      !(target instanceof HTMLElement)
+    )
+      return value;
+    const edges = (a, b) =>
+      ["padding", "border"].reduce(
+        (sum, part) =>
+          sum +
+          parseFloat(style[`${part}${a}${part === "border" ? "Width" : ""}`]) +
+          parseFloat(style[`${part}${b}${part === "border" ? "Width" : ""}`]),
+        0,
+      );
+    const content = style.boxSizing === "content-box";
+    const size = [
+      parseFloat(style.width) + (content ? edges("Left", "Right") : 0),
+      parseFloat(style.height) + (content ? edges("Top", "Bottom") : 0),
+    ];
+    return value
+      .split(" ")
+      .map((length, axis) =>
+        length.endsWith("%") ? `${(parseFloat(length) / 100) * size[axis]}px` : length,
+      )
+      .join(" ");
+  };
   const animationTranslation = (property, value) => {
     if (property === "transform") {
       const matrix = new DOMMatrixReadOnly(value === "none" ? undefined : value);
@@ -660,7 +692,7 @@
     return Object.fromEntries(
       ["transform", "translate", "left", "top", "marginLeft", "marginTop"]
         .filter((property) => !competing.has(property))
-        .map((property) => [property, style[property]]),
+        .map((property) => [property, animatedValue(target, style, property)]),
     );
   };
   const animate = Element.prototype.animate;
@@ -764,9 +796,10 @@
             (property) =>
               replace &&
               uses.get(effect.target)?.get(property) === 1 &&
-              (!returning || origin?.[property] === style[property]),
+              (!returning ||
+                origin?.[property] === animatedValue(effect.target, style, property)),
           )
-          .map((property) => [property, style[property]]),
+          .map((property) => [property, animatedValue(effect.target, style, property)]),
       );
       const readings = animated.get(animation) ?? [];
       readings.push({

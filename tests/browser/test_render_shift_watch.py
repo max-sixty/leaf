@@ -2827,16 +2827,22 @@ def test_owned_animation_retains_local_motion_through_next_gesture(browser, faul
 
 
 @pytest.mark.parametrize("begun", ["press", "script"])
-@pytest.mark.parametrize("property", ["transform", "translate"])
+@pytest.mark.parametrize(
+    ("property", "moved"),
+    [
+        ("transform", "translateX(-600px)"),
+        ("translate", "-600px 0"),
+        ("translate", "-300% 0%"),
+    ],
+)
 def test_a_pressed_transition_owns_its_travel_whichever_property_carries_it(
-    browser, property, begun
+    browser, property, moved, begun
 ):
     """A press beginning a transition of a box's translation owns the travel it
-    samples, by the transform or by the individual `translate` property, as the
-    floating panel's menu slides in. A later press moving the layout has that travel
-    judged with its own rendering: credited where the press began it, and a move
-    without input where a script did."""
-    moved = {"transform": "translateX(-600px)", "translate": "-600px 0"}[property]
+    samples, by the transform or by the individual `translate` property, in pixels
+    or in percentages of the box, as the floating panel's menu slides in. A later
+    press moving the layout has that travel judged with its own rendering: credited
+    where the press began it, and a move without input where a script did."""
     page = browser.new_page()
     page.goto(
         "data:text/html,"

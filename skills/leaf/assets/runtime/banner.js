@@ -2,10 +2,10 @@
  * paints its tone on the tab icon, and announces changes after the first status
  * reading. Provisional interface readiness paints the banner
  * without establishing that announcement baseline; saved state or a failed read does. */
-import { html, nothing, render } from "../vendor/browser-runtime.js";
+import { html, nothing, render } from "/vendor/browser-runtime.js";
 import { ago } from "./presence.js";
 import { pageStatus, statusModel } from "./activity-words.js";
-import { el, offer, reserve } from "./widget-elements.js";
+import { el, offer } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
 import { SHARE_ROOT, runtime, runtimeResource, shareUrl } from "./context.js";
 import {
@@ -39,6 +39,7 @@ import { UPGRADE } from "./presentation.js";
 import { WEBSITE_DELIVERY } from "./context.js";
 import { readQueues } from "./queue-api.js";
 import { approvalBlockingAsks } from "./asks/model.js";
+import { focusDestination, tabStops } from "./focus.js";
 
 const INITIAL = Object.freeze({
   tone: "",
@@ -53,6 +54,15 @@ const INITIAL = Object.freeze({
 export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 declareBanner(banner);
+// Where Leaf's controls begin in this chrome, as the page's Skip to Leaf controls finds
+// them: the banner's first control that takes focus, or the banner itself.
+export function enterBanner() {
+  for (const control of tabStops(banner)) {
+    focusDestination(control, "move");
+    if (control.matches(":focus")) return;
+  }
+  focusDestination(banner, "move");
+}
 const bannerStatus = createBannerStatusView(repaint, INITIAL);
 registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
 // The agent's On count, which opens the On panel on the agent's list (queue-panel.js).
@@ -63,6 +73,7 @@ export const queueCounts = bannerStatus.queues;
 // words on both. The desk's words stay one run of text, so they draw as they always have.
 export const toggleBtn = el("button", "lf-btn lf-auxiliary-toggle lf-threads-toggle");
 const threadsLabel = el("span", "lf-threads-label", "Threads");
+threadsLabel.dataset.lfRoom = "Threads\nThreads: 999";
 toggleBtn.append(iconElement("comment", "lf-threads-icon"), threadsLabel);
 toggleBtn.title = "Show or hide the thread panel";
 toggleBtn.setAttribute("aria-expanded", "false");
@@ -92,8 +103,15 @@ export function setThreadCounts(open, unread) {
   unreadThreads = unread;
   paintThreadCounts();
 }
+// The primary controls hold the room of the widest words they can show, so an
+// asynchronous count or approval result cannot move a sibling. CSS bounds Approval's
+// room when the complete words cannot fit. Secondary controls can grow inside More
+// without changing the page's reading loop.
 const approveBtn = el("button", "lf-btn primary lf-signoff");
 approveBtn.id = "lf-approve";
+const approveWords = el("span");
+approveWords.dataset.lfRoom = "Approve version\n✓ Version approved";
+approveBtn.append(approveWords);
 // Another chrome that presents the approval in this control's place, as the floating
 // panel's On view does, names the control it shows and brings the user to it.
 let approvalPresentation = null;
@@ -120,7 +138,7 @@ export const approvalReading = () => {
 };
 // Keep a refused press focusable, with its reason available to keyboard and touch.
 function presentApproval({ reason, text, title }) {
-  render(text, approveBtn);
+  render(text, approveWords);
   keeps(approveBtn, "aria-disabled", reason ? "true" : null);
   keeps(approveBtn, "aria-description", reason || null);
   keeps(approveBtn, "title", title);
@@ -288,15 +306,17 @@ const presentStatus = ({ status, model }) => {
   if (changed) announce(model.explanation);
 };
 // Upgrade opens new comments before the buffered saved reading is applied.
+const LOADING_LINE =
+  "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds." +
+  (WEBSITE_DELIVERY
+    ? " Website examples can take longer to load their saved state than a usual Leaf page."
+    : "");
 const LOADING = Object.freeze({
   kind: "loading",
   tone: "",
   summary: "Loading saved state…",
-  explanation:
-    "The page is ready for reading and new comments. Saved comments and choices are still loading; new comments will be sent when the server responds." +
-    (WEBSITE_DELIVERY
-      ? " Website examples can take longer to load their saved state than a usual Leaf page."
-      : ""),
+  explanation: LOADING_LINE,
+  adds: LOADING_LINE,
 });
 // The developer preview's identity: which checkout is serving this page, and a press to
 // copy the whole diagnostic. It is the banner's least-used control, so it stays behind
@@ -656,7 +676,6 @@ export function mountBanner({ approveVersion }) {
     keeps(counts, "inert", drawn ? null : "");
   });
   for (const box of [banner, bannerActions, counts]) seatCounts.observe(box);
-  reserveBannerControls();
   approveBtn.onclick = approve;
   async function approveNow() {
     if (approving) return;
@@ -695,19 +714,8 @@ export function stateSignoff(next, syncLayout) {
   if (shown === signoff) return;
   signoff = shown;
   showBannerControl(approveBtn, signoff);
-  if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
   paintApproval();
   syncLayout();
-}
-
-// The primary controls reserve the widest words they can show, so an asynchronous
-// count or approval result cannot move a sibling. CSS bounds Approval's room when
-// the complete words cannot fit. Secondary controls can grow inside
-// More without changing the page's reading loop.
-function reserveBannerControls() {
-  if (signoff) reserve(approveBtn, ["Approve version", "✓ Version approved"]);
-  reserve(queueBtn, ["On me: 99"]);
-  reserve(toggleBtn, ["Threads", "Threads: 999"]);
 }
 
 let approving = false;

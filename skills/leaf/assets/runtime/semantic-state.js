@@ -8,7 +8,7 @@ import {
   createPresentationCoordinator,
   createPresentationSchedule,
   createSemanticApplication,
-} from "../vendor/browser-runtime.js";
+} from "/vendor/browser-runtime.js";
 
 import { bindQueuedWork } from "./queued-work.js";
 

@@ -30,7 +30,7 @@
    paint it draws that one at once. A reading has no watcher of its own: a paint calls
    its reader (`readAsks`, `readQueues`, `readThreads`, `readWork`, `reportSequence`,
    `readHistory`), and one watcher serves a paint that reads several. */
-import { collectReads, outsideReading } from "../vendor/browser-runtime.js";
+import { collectReads, outsideReading } from "/vendor/browser-runtime.js";
 import { watchPresentation } from "./semantic-state.js";
 import { PRESENTATION } from "./presentation.js";
 import { watchOwner } from "./arrivals.js";

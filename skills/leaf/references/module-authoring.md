@@ -49,7 +49,8 @@ another one.
   `<pre>` body with `bodyText()` or `dataBody()` (`module-reading.md`,
   "Reading the page").
 - Build injected UI with `offer()`, `offered` or `selectableOffer()`, label it with
-  `relabel()`, and reserve measured room inside `measure` ("Generated controls").
+  `relabel()`, give a label whose words change the room of all of them with
+  `data-lf-room`, and take measurements inside `measure` ("Generated controls").
 - After a view swap that keeps the widget's outer box, await `layoutChanged()` before
   restoring scroll ("Generated controls").
 - Keep the widget's first-paint box once the page presents ("First paint").
@@ -364,9 +365,17 @@ markers as static attributes: `data-lf-gen="1"`, plus `data-lf-said` or `data-lf
 
 A widget upgrades wherever Leaf connects it, including in a shut panel where every box
 measures zero. Take a measurement inside `measure(element, take)`, which runs `take`
-now when the element has a box and otherwise the first time it does. `reserve(control,
-labels)` reserves a changing label's widest words, measured in the control's own face,
-through `measure`, and measures again when the window changes the face.
+now when the element has a box and otherwise the first time it does.
+
+A label whose words change, such as a count, keeps one width for all of them, so a
+change moves nothing beside it. Put the words it can show, one per line, in
+`data-lf-room` on the element holding only its words, and write the words into that
+element. The theme draws that element as an inline block at least as wide as its widest
+room line in its own face, and no wider than its container; the room is invisible and
+stays out of its text and accessible name. The element keeps its own `::before` free for
+the room. Words longer than every room line widen it, so list the longest words the
+label will show. Where the label may meet a narrower box, the widget's CSS decides
+whether it truncates.
 
 After a view swap that rearranges descendants without resizing the widget's outer box,
 call `layoutChanged(element)` and await its promise before restoring scroll. It
@@ -376,8 +385,8 @@ holds listens for; a listener joins asynchronous work through the event's
 
 `searchField(className, {name, label, placeholder = label})` builds a search or filter
 field with the shared frame, accessible label, native editor and Clear. The caller owns
-its query and results. Put an auxiliary reading such as a match count in its `end` slot
-and reserve its longest value with `reserve`.
+its query and results. Put an auxiliary reading such as a match count in its `end` slot,
+with its longest value in `data-lf-room`.
 
 A widget folds content it may show again by setting its `hidden` to `HIDDEN`. Where the
 browser supports `hidden="until-found"`, find-in-page and fragment links still reach the

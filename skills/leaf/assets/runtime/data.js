@@ -15,7 +15,7 @@
    result into the authored seat; they do not fetch it, mutate the accepted copy, or keep a
    hidden current-value map of their own.*/
 
-import { outsideReading, untracked } from "../vendor/browser-runtime.js";
+import { outsideReading, untracked } from "/vendor/browser-runtime.js";
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
 import {
   applicationState,

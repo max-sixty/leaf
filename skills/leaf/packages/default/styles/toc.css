@@ -127,10 +127,6 @@
       :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
         background: var(--ink-2); border-color: var(--ink-2);
       }
-      :scope:is(lf-toc) li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
-      :scope:is(lf-toc) li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
-      :scope:is(lf-toc) li[data-lf-depth="3"] { --lf-toc-indent: 30px; }
-      :scope:is(lf-toc) li[data-lf-depth="4"] { --lf-toc-indent: 40px; }
       :scope:is(lf-toc) .lf-toc-start a, :scope:is(lf-toc) li a {
         position: absolute; z-index: 3; display: -webkit-box;
         top: 0; left: 0; width: 100%;

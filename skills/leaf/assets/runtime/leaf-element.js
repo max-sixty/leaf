@@ -33,7 +33,7 @@
    element whose tag declares `x-data` holds the page's data version while it stands,
    until it has drawn what was delivered. `setup()` runs
    once, on the first connection, before the first render. */
-import { LitElement, collectReads, untracked } from "../vendor/browser-runtime.js";
+import { LitElement, collectReads, untracked } from "/vendor/browser-runtime.js";
 import {
   attachApplicationPresentation,
   attachWidgetPresentation,

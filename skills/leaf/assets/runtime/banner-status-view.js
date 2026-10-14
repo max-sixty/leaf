@@ -9,10 +9,10 @@
  *
  * The agent's On count (`queues`) is the view's second box, which the banner places
  * beside the status rather than inside it, so the banner can give it whichever row
- * leaves the sentence its room (chrome.css). The box is reserved for the count it
- * usually reaches (`queuesWidest`), so the sentence changing never carries it and its
- * changing moves nothing. A count past that widens the box once, and it keeps the width
- * while the page is open. The count is a press, one of the On panel's doors
+ * leaves the sentence its room (chrome.css). Its words hold the room of the count it
+ * usually reaches (`queuesWidest`, as `data-lf-room`), so the sentence changing never
+ * carries it and its changing moves nothing. A count past that widens the box once, and
+ * it keeps the width while the page is open. The count is a press, one of the On panel's doors
  * (drawers.js wires it), so the panel listing what it counts is one press from where they
  * are counted.
  *
@@ -27,8 +27,8 @@ import {
   classMap,
   createRef,
   ref,
-} from "../vendor/browser-runtime.js";
-import { el, reserve } from "./widget-elements.js";
+} from "/vendor/browser-runtime.js";
+import { el } from "./widget-elements.js";
 import { keeps, keepsHidden } from "./keeps.js";
 import { focusDestination, focused } from "./focus.js";
 import { agentName } from "./semantic-state.js";
@@ -47,29 +47,22 @@ class BannerStatusView extends HTMLElement {
   #model = null;
   #queues = el("button", "lf-status-queues");
   #queuesWidest = "";
-  #queuesReserved = "";
+  #queuesRoom = "";
   #presentQueues = () => {
     const model = this.#model;
-    render(model.queues, this.#queues);
+    // The room only grows: its digits are tabular, so the longest counts yet shown are
+    // the widest, and a box that shrank back would move them on the next.
+    if (model.queuesWidest !== this.#queuesWidest) {
+      this.#queuesWidest = model.queuesWidest;
+      this.#queuesRoom = model.queuesWidest;
+    }
+    if (model.queues.length > this.#queuesRoom.length) this.#queuesRoom = model.queues;
+    render(
+      html`<span data-lf-room=${this.#queuesRoom}>${model.queues}</span>`,
+      this.#queues,
+    );
     keeps(this.#queues, "title", `Show or hide what's on me and on ${agentName()}`);
     keepsHidden(this.#queues, !model.queues);
-    // The reservation only grows: its digits are tabular, so the longest counts yet
-    // shown are the widest, and a box that shrank back would move them on the next.
-    if (model.queues) {
-      const kept =
-        model.queuesWidest === this.#queuesWidest
-          ? this.#queuesReserved
-          : model.queuesWidest;
-      const reserved = model.queues.length > kept.length ? model.queues : kept;
-      if (
-        model.queuesWidest !== this.#queuesWidest ||
-        reserved !== this.#queuesReserved
-      ) {
-        this.#queuesWidest = model.queuesWidest;
-        this.#queuesReserved = reserved;
-        reserve(this.#queues, [reserved]);
-      }
-    }
   };
 
   constructor() {

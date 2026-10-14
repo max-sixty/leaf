@@ -366,7 +366,23 @@ def pytest_collection_modifyitems(config, items):
     the map would have to come from recorded Python and Chrome coverage. Nearly every
     browser test loads the same runtime and server, so a change there, about half of
     recent commits, would select close to the complete suite, and coverage cannot say
-    which CSS rules a test relied on."""
+    which CSS rules a test relied on.
+
+    So the selection misses any later-tier test whose own function is unchanged while
+    something it depends on changed:
+    - the product code it reaches, as above;
+    - a fixture or helper it calls, in a `conftest.py`, `render_harness.py`,
+      `render_cases_*.py`, `interact_support.py` or its own module;
+    - a module-level constant or `pytestmark` it reads, or a list its `parametrize`
+      decorator names from elsewhere;
+    - a page under `fixtures/pages/`, a regtest recording, or a pinned image in
+      `leaf-assets.json`.
+    Accounting for these precisely would need dependency tracking (fixture graphs, call
+    graphs, data references). A coarser rule, such as running every test in a changed
+    module, would catch some of them at the price of selecting far more, and every miss
+    still runs once the change lands, in the push run or the daily one. The user judged (2026-10-14) that catching these before landing is
+    not worth that complication, after a fixture edit let a `browser` test's failure
+    reach `main`."""
     selected = (
         config.getoption("keyword")
         or config.getoption("markexpr")
@@ -501,7 +517,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("CODEX_HOME", str(tmp_path_factory.mktemp("codex")))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
-    for name in harness_model.IDENTITY_VARIABLES:
+    for name in (*harness_model.IDENTITY_VARIABLES, *machine_model.SANDBOX_VARIABLES):
         monkeypatch.delenv(name, raising=False)
     # Claude Code's session registry, where a live turn is read
     # (`harness.claude_code_session_records`): empty, so no session of the developer's

@@ -1022,6 +1022,9 @@ export const clippedPlace = (where, clips, box = placeBox(where)) =>
 // Where a box stacks among the page's root-level layers: the z-index of its outermost
 // positioned ancestor that sets one, and above all of them in the top layer. Both are
 // read up the tree as rendered, where a slotted box stacks inside its slot's ancestors.
+// For anything in `main` that ancestor is `main`, a stacking context at 0 (theme.css,
+// at the ladder), so a page box reads 0 whatever z-index it or a box around it sets,
+// unless it stands in the top layer.
 export function stackLevel(node) {
   let level = 0;
   for (let a = node; a; a = renderedParent(a)) {

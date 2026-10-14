@@ -17,7 +17,9 @@ def resolve_dir(dir_arg: str, must_exist: bool = True, *, renew: bool = True) ->
     the session running the command (`vendoring.renew_layer`), which says on stderr
     what still holds it back; `renew` is off for a command that would undo the
     re-vendor's restart."""
-    page_dir = Path(dir_arg).expanduser().resolve()
+    from leaf.locations import canonical_path
+
+    page_dir = canonical_path(Path(dir_arg).expanduser())
     if not must_exist:
         return page_dir
     if not (page_dir / EVENTS_FILE).is_file():
@@ -100,20 +102,30 @@ class LeafGroup(click.Group):
     This is the command line's one translation of a refusal: its words on stderr, or,
     where the command was given `--json` (`json_option`), one JSON object on stdout,
     `Refused.json`, whose `findings` carry each refusal's code and fields. Either way
-    the command exits 1. Exit statuses (including a package script's) keep their
+    the command exits 1. An agent's sandbox refusing the command a file or socket,
+    directly or as the cause of a refusal, adds what the agent does about it
+    (`machine.sandbox_refusal`). Exit statuses (including a package script's) keep their
     meaning and output, and any other exception surfaces with its traceback.
     """
 
     def invoke(self, ctx: click.Context):
+        from leaf.machine import sandbox_refusal
         from leaf.refusals import Refused
 
         try:
             return super().invoke(ctx)
         except Refused as error:
+            reason = sandbox_refusal(error) or str(error)
             if ctx.meta.get(JSON_REQUESTED):
-                click.echo(json.dumps(error.json(), ensure_ascii=False))
+                click.echo(
+                    json.dumps(error.json() | {"error": reason}, ensure_ascii=False)
+                )
                 ctx.exit(1)
-            raise click.ClickException(str(error)) from error
+            raise click.ClickException(reason) from error
+        except OSError as error:
+            if (reason := sandbox_refusal(error)) is None:
+                raise
+            raise click.ClickException(reason) from error
 
 
 class RecordsCommand(click.Command):
@@ -744,11 +756,13 @@ def file() -> None:
 @click.argument("path", type=click.Path(path_type=Path), metavar="PATH")
 def file_bind(dir: str, binding: str, path: Path) -> None:
     """Use ID in <lf-file-editor binding=\"ID\"> to edit PATH."""
-    from leaf.file_bindings import bind_file
+    from leaf.file_bindings import bind_file, bound_paths
 
-    snapshot = bind_file(resolve_dir(dir), binding, path)
+    page_dir = resolve_dir(dir)
+    snapshot = bind_file(page_dir, binding, path)
     click.echo(
-        f"Bound {binding} to {path.expanduser().resolve()} ({snapshot['bytes']} bytes)."
+        f"Bound {binding} to {bound_paths(page_dir)[binding]} "
+        f"({snapshot['bytes']} bytes)."
     )
 
 
@@ -1255,7 +1269,22 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     either side. A prose ask's id (`reply:<message-id>`) ends that request
     without creating a user answer: `done` records it answered elsewhere, DETAIL
     saying where, and `dropped` records it withdrawn. Widget asks end through
-    their declared state or an authored withdrawal."""
-    from leaf.todos import cmd_end
+    their declared state or an authored withdrawal. Ending a to-do on an element
+    `done` while that element still stands among the open work, with nothing on it
+    or inside it left on either list, says so on stderr."""
+    from leaf.todos import cmd_end, finished_in_view
 
-    _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))
+    page_dir = resolve_dir(dir)
+    end = cmd_end(page_dir, task_id, outcome, detail)
+    _print_records(end)
+    # The record leads, so a reader parsing the first line still gets it.
+    sys.stdout.flush()
+    if element := finished_in_view(page_dir, end):
+        click.echo(
+            f"Your work on `{element}` is done, and it still stands among the open "
+            "work. Unless it is the page's current content, move it, cut to its "
+            "outcome, to the finished work collapsed after the open work, and let what "
+            'comes next take its place (authoring-revisions.md, "Keep the current page '
+            'current").',
+            err=True,
+        )

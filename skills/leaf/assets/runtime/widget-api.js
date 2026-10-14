@@ -24,7 +24,7 @@ export {
   styleMap,
   unsafeHTML,
   signal,
-} from "../vendor/browser-runtime.js";
+} from "/vendor/browser-runtime.js";
 export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
@@ -251,7 +251,6 @@ export {
   offered,
   reachedForWords,
   relabel,
-  reserve,
   searchField,
   selectableOffer,
   worksInside,

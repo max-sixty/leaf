@@ -3,9 +3,10 @@
    A behavior module builds injected controls with `offer`, and uses `relabel` when a
    control's label is also one of the page's words. A Lit template reaches the same
    writers through element directives built by `elementDirective`. A behavior module
-   reserves a control's room from inside `measure`: a widget upgrades wherever the
-   runtime connects it, and a shut panel is `display: none`, where every word measures
-   zero and the reservation the press needs is nothing at all. It calls
+   reads a box from inside `measure`: a widget upgrades wherever the runtime connects
+   it, and a shut panel is `display: none`, where every word measures zero. A label
+   whose words change holds the room of all of them with `data-lf-room`, which the
+   theme sizes without script (controls.css). A module calls
    `layoutChanged(el)` after view state rearranges descendants without resizing its
    outer box — `ResizeObserver` already covers size changes, and geometry consumers
    listen to this signal instead of watching every DOM mutation.
@@ -54,7 +55,7 @@ import {
   html,
   render,
   signal,
-} from "../vendor/browser-runtime.js";
+} from "/vendor/browser-runtime.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container
@@ -462,74 +463,6 @@ export function relabel(node, label, { says } = {}) {
   node.toggleAttribute("data-lf-echo", says === "echo");
   keepsText(node, label);
 }
-
-// A changing label reserves its widest words in its actual computed face. The shared
-// button rule reads --lf-reserved-width as a preferred size; the containing layout may
-// stretch it to a menu row or shrink it to available room. CSS owns the minimum hit
-// target, and the label's owner owns truncation. The press and poll sweeps check that
-// the labels supplied here are the labels the writers actually use.
-//
-// A hidden, absolute shallow copy measures intrinsic words beside the control, with
-// its imposed width cleared. It leaves in the same task, so no frame paints it and
-// neither the control's focus nor its neighbours move. Reservation waits through
-// `measure` until the control's ancestors draw a box; a shut panel measures nothing.
-// It retains its labels and measured face so a viewport change that alters typography
-// or padding, such as the banner's narrower phone inset, remeasures the reservation.
-export function reserve(control, labels) {
-  measure(control, () => sizeReservation(control, labels));
-}
-
-function sizeReservation(control, labels) {
-  const copy = control.cloneNode(false);
-  copy.removeAttribute("id");
-  Object.assign(copy.style, {
-    minWidth: "0",
-    width: "auto",
-    display: "inline-block",
-    position: "absolute",
-    visibility: "hidden",
-  });
-  control.after(copy);
-  let widest = 0;
-  for (const label of labels) {
-    copy.textContent = label;
-    widest = Math.max(widest, copy.getBoundingClientRect().width);
-  }
-  copy.remove();
-  control.style.setProperty("--lf-reserved-width", Math.ceil(widest) + "px");
-  forgetDetached();
-  reservations.set(control, { labels, face: reservedFace(control) });
-}
-
-// What of a control's computed face a reservation was measured in.
-const reservedFace = (control) => {
-  const style = getComputedStyle(control);
-  return [
-    style.font,
-    style.letterSpacing,
-    style.paddingInline,
-    style.borderInlineStartWidth,
-    style.borderInlineEndWidth,
-  ].join("|");
-};
-// A control swapped out of the document leaves with the next reservation rather than
-// waiting on a resize: the playground replaces its copy trigger on every instruction.
-const reservations = new Map();
-function forgetDetached() {
-  for (const control of reservations.keys())
-    if (!control.isConnected) reservations.delete(control);
-}
-// When the window's size changes, a control whose face has changed measures its words
-// again, through `reserve`, so one undrawn by then waits for its box. The root is
-// watched from the start rather than by each reservation: a floor is often taken inside
-// `measure`'s own resize delivery, and observing the root there asks for a delivery
-// shallower than the one in progress, which the browser reports as undelivered.
-const reservedFaces = sizeObserver(() => {
-  forgetDetached();
-  for (const [control, { labels, face }] of reservations)
-    if (reservedFace(control) !== face) reserve(control, labels);
-});
-reservedFaces.observe(document.documentElement);
 
 // Every surface that closes wears one control for it: the cross, named for what it
 // closes, since the glyph alone says only "close". `name` is the accessible name, such

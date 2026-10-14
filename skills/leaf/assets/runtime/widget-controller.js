@@ -13,7 +13,7 @@
    rendering readiness until completion or removal; queued updates can independently
    settle while it waits. Local editing defers the render
    region at its newest unpublished reading, without painting a detached owner. */
-import { untracked } from "../vendor/browser-runtime.js";
+import { untracked } from "/vendor/browser-runtime.js";
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";

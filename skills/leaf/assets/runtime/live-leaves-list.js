@@ -10,7 +10,7 @@
    Each assigned reading opens one Leaves presentation region before either face
    schedules an update. A failed update restores both committed faces before the
    coordinator reports and settles the attempt. */
-import { html, repeat } from "../vendor/browser-runtime.js";
+import { html, repeat } from "/vendor/browser-runtime.js";
 import {
   attachApplicationPresentation,
   failSoftAfterRetention,

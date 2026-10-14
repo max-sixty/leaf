@@ -760,6 +760,8 @@ export function createThreadPreview({
       {
         nav: previewNav.hidden ? null : previewNav,
         close: previewClose,
+        // The edge news would grow the card from (comment-placement.js, `edgeFor`).
+        heldEdge: (turn) => previewSession?.side.edgeFor(turn) ?? "top",
         // A resolved thread with no draft has no margin card, so resolving closes it and
         // hands the user to its target, and a resolve that no longer stands opens the
         // card on the thread again, while the margin is still where threads open.

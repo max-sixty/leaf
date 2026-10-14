@@ -673,6 +673,7 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         ("sticky_tail", None),
         ("tail_growth", None),
         ("undeclared_tail_growth", "button#reply"),
+        ("region_growth", "button#reply"),
         ("growing_port", None),
         ("overgrown_port", "button#later"),
         ("sticky_extra", "button#reply"),
@@ -699,7 +700,7 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         if fault in {"growing_port", "overgrown_port"}
         else ""
     )
-    tail = " data-lf-append-tail" if fault == "tail_growth" else ""
+    tail = " data-lf-append-tail" if fault in {"tail_growth", "region_growth"} else ""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
@@ -740,6 +741,7 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           if (fault === 'prepend') source.prepend(next);
           else if (fault.endsWith('tail_growth'))
             document.getElementById('old').style.height = '80px';
+          else if (fault === 'region_growth') source.style.paddingBottom = '40px';
           else source.append(next);
           if (fault === 'growing_port') document.getElementById('port').style.height = '340px';
           if (fault === 'overgrown_port') document.getElementById('port').style.height = '350px';

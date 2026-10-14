@@ -360,6 +360,8 @@ export function commentPlacement() {
   // reading the placement in flight answers, which its landing records.
   let held = null;
   let reading = null;
+  // The edge the last `holding` answer held.
+  let edge = "top";
   const forget = () => {
     side = null;
     inline = null;
@@ -370,6 +372,7 @@ export function commentPlacement() {
     moved = false;
     held = null;
     reading = null;
+    edge = "top";
   };
   const line = (clear, row) =>
     quoted
@@ -422,8 +425,14 @@ export function commentPlacement() {
       // Adoption holds the message's start: expanded composer choices may add a row
       // below it that the thread does not carry. Later placements use the surface's own
       // top/foot reading, including the normal above-side and reply-line holds.
-      return !hold && (keepReplyLine || (!drafting && side === "top")) ? "foot" : "top";
+      edge = !hold && (keepReplyLine || (!drafting && side === "top")) ? "foot" : "top";
+      return edge;
     },
+    // The edge a change the user did not make would hold, read before it is drawn: a
+    // turn joining while they read releases a hold on their own reply's line, so it
+    // holds the foot only where the surface stands above what it is about; any other
+    // change keeps the edge held now.
+    edgeFor: (turn) => (turn ? (side === "top" ? "foot" : "top") : edge),
     // The held edge's offset for `options`' `hold`, and the height between the held
     // top and foot, which caps a held surface no shorter than it last stood.
     heldAt: (edge) => held && { [edge]: held[edge] },

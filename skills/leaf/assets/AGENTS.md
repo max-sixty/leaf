@@ -112,8 +112,8 @@ representative desktop viewport.
   In a `controls` region, such as the shortcut bar, hints and controls may repack. In
   an `append` region, a thread card's transcript in the panel or the margin, its end
   may grow within its stationary scrollport while existing messages stay put: new
-  children, or, where none joins, its last child, such as the working message or a
-  streaming reply. The idle reply row and later cards may move by that growth, and no
+  children, or, where none joins, a last child declared its growing tail
+  (`data-lf-append-tail`), the working message or a streaming reply. The idle reply row and later cards may move by that growth, and no
   other change may. A scrollport sized to what it holds, as the margin's floating card
   is, counts as stationary while it grows only at its foot, by that growth. Declare the
   box that owns the room, not an auto-sized inner label group or a boxless wrapper. A

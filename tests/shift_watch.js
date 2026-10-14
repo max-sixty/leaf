@@ -36,9 +36,10 @@
 // proof. An append region may carry following content inside its stationary
 // scrollport by its measured suffix growth: new children, the existing ones retaining
 // their boxes, or, where none joins, its last child growing at its foot where that
-// child declares itself the growing tail (`data-lf-append-tail`). A scrollport
-// that grows at its foot by no more than that growth, as a floating card sized to its
-// thread does, is stationary for this: it keeps its other edges.
+// child declares itself the growing tail (`data-lf-append-tail`), as a thread's
+// working message and a reply still streaming do. A scrollport that grows at its foot
+// by no more than that growth, as a floating card sized to its thread does, is
+// stationary for this: it keeps its other edges.
 // Layout coordinates remove scrolling; sticky descendants retain their
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
 // inside the `anchor-scope` that limits its name, and a direct native anchor inset,
@@ -1578,7 +1579,7 @@
       // The end grows: children join after the old ones, which keep their boxes, or,
       // where none joins, the last old one grows at its foot where it declares itself
       // the region's growing tail (`data-lf-append-tail`), as a thread's working
-      // message does, taking a longer step.
+      // message does, taking a longer step, and a streaming reply, taking more words.
       if (
         !before.length ||
         after.length < before.length ||
@@ -1591,6 +1592,9 @@
                 around.every(({ at }) => paintAt(child, at)?.appendTail) &&
                 footGrowth(child, grown))),
         ) ||
+        // Where none joins, the growth is the tail's: the region's own box growing
+        // around unchanged children is no arrival.
+        (after.length === before.length && stable(before.at(-1))) ||
         !footGrowth(source, grown)
       )
         return [];

@@ -36,6 +36,7 @@ import { focusDestination, onStanding } from "./focus.js";
 import { upFrom } from "./shadow.js";
 import { chromeRoot } from "./chrome.js";
 import { move } from "./dom-move.js";
+import { nextRender } from "./rendering.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 import { commandScope, projectCommandScope } from "./keyboard/scopes.js";
 
@@ -49,14 +50,22 @@ const makeCut = () => {
   return frame;
 };
 // Stands a document control in the frames its block's headers cut (`headerLevels`),
-// read again each time the control is revealed and, for a control standing in frames,
-// on every resize, since a header can change height while it shows or while it hides.
-const framed = new Map(); // control in frames → its block
+// read again each time the control is revealed and once a frame after a resize, since a
+// header can come, go or change height while the control shows or while it hides.
+const placed = new Map(); // document control → its block
+let resized = 0;
+addEventListener("resize", () => {
+  resized ||= nextRender(() => {
+    resized = 0;
+    // Every reading before any write, as on arrival.
+    const read = [...placed].map(([copy, pre]) => [copy, pre, headerLevels(pre)]);
+    for (const [copy, pre, levels] of read) standUnderHeaders(copy, pre, levels);
+  });
+});
 function standUnderHeaders(copy, pre, levels) {
   const frames = cutFrames(levels, cuts.get(copy) ?? [], makeCut);
   cuts.set(copy, frames);
-  if (frames.length) framed.set(copy, pre);
-  else framed.delete(copy);
+  placed.set(copy, pre);
   if (frames[0] && frames[0].parentNode !== chromeRoot)
     move(chromeRoot, frames[0], null);
   const home = frames.at(-1) ?? chromeRoot;
@@ -66,9 +75,6 @@ const revealed = (pre, copy) => {
   if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
   refreshAnchorView(copy);
 };
-addEventListener("resize", () => {
-  for (const [copy, pre] of framed) standUnderHeaders(copy, pre, headerLevels(pre));
-});
 // The key this module projects its Copy scope under, beside the block's other owners.
 const COPY_SCOPE = Symbol("code copy");
 
@@ -232,7 +238,7 @@ export function watchCodeBlocks() {
       copy?.remove();
       cuts.get(copy)?.[0]?.remove();
       cuts.delete(copy);
-      framed.delete(copy);
+      placed.delete(copy);
       releaseReachStop(pre);
       projectCommandScope(pre, COPY_SCOPE, null);
     },

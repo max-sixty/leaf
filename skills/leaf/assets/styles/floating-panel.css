@@ -564,7 +564,8 @@
     justify-content: center;
     gap: 4px;
   }
-  .lf-fp-face:not([data-shown]) {
+  .lf-fp-face:not([data-shown]),
+  .lf-fp-quiet[data-unoffered] {
     visibility: hidden;
   }
   .lf-fp-settle:hover {

@@ -470,7 +470,8 @@ def test_news_in_an_open_thread_moves_nothing_at_its_head(browser, serve):
     """A thread's head holds each control where it stood while the thread changes under
     it. Retitled long or short, the title gives or takes room at its own end, and Back,
     where the thread stands among the open ones, On the page, Resolve and Close stay
-    put; resolved by the agent, the thread's Reopen takes Resolve's seat."""
+    put; detached by a revision, On the page leaves its seat empty; resolved by the
+    agent, the thread's Reopen takes Resolve's seat."""
     url = serve(LONG_PAGE, comments=3, anchored=[("p3", "Paragraph 3.")])
     root = events_model.read_events(serve.page_dir)[-1]["id"]
     page = floating(browser, url)
@@ -497,6 +498,23 @@ def test_news_in_an_open_thread_moves_nothing_at_its_head(browser, serve):
         expect(title).to_have_text(name)
         settled(page)
         assert page.evaluate(HEAD_SEATS) == seats
+
+    # A revision that drops the passage detaches the thread: On the page has nowhere
+    # to go, and its seat stands empty while the view does.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reanchor",
+            "author": "page",
+            "revision": 1,
+            "thread": root,
+            "anchor": None,
+        },
+    )
+    told(page)
+    expect(page.locator(".lf-fp-head .lf-fp-quiet")).to_be_hidden()
+    settled(page)
+    assert page.evaluate(HEAD_SEATS) == seats
 
     agent({"kind": "resolve", "parent": root})
     expect(page.locator(".lf-fp-head .lf-reopen")).to_be_visible()

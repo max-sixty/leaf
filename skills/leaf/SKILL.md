@@ -13,18 +13,6 @@ its URL with a status saying what you want back, and wait.
 Answer each delivered update on the page and in its thread, stamp checkpoints,
 and idle the page when it is finished.
 
-The user's **On me** list is the one place they find what waits on them: every
-decision your work leaves to them, whether or not your next step depends on it,
-and anything else you need from them. A heading or label on the page, or an
-open item or `needs input:` line in your chat reply, that says something waits
-on them names an item already in On me, so register the item before you write
-it there. An empty On me says nothing waits on them now. Your own list, which
-the user sees as **On <your name>**, holds what waits on you. Before handing over
-or waiting, read `leaf page state <page>` and reconcile `queues.on_user` (On me)
-and `queues.on_agent` (yours) with the work and decisions still open.
-`references/conversation-loop.md`, "The On lists", owns what appears there
-and how to register each request.
-
 The input is a subject to present, or a delivery from a page already handed
 over: a named `leaf_delivery` tool output, a `leaf-delivery` element, or the
 envelope a `leaf wait` printed. A delivery starts at step 6 below; do
@@ -32,6 +20,14 @@ not initialize or hand the page over again. With no subject in `$ARGUMENTS`,
 present the work already under discussion.
 
 $ARGUMENTS
+
+## Must remember
+
+- **Everything waiting on the user is an item in their On me list**, including
+  each decision you leave to them that your next step does not depend on. Register
+  it before a page heading, a chat open item, or a `needs input:` line mentions it.
+  `references/conversation-loop.md`, "The On lists", says how to register each
+  kind and when to reconcile the lists.
 
 ## Core principles
 

@@ -6583,6 +6583,49 @@ def test_a_folding_thread_keeps_the_card_under_the_pointer_put(browser, serve):
     ), "the manual hold disabled native anchoring after its mutation ended"
 
 
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_a_fold_frame_by_frame_keeps_the_card_below_on_its_pixel(
+    engine, request, serve
+):
+    """A card folding above the reader shrinks a little each frame, and each frame's
+    correction lands within the pixel the engine rounds a scroll offset to. The next
+    frame corrects from where the last one aimed, so the card the reader looks at
+    ends where it began rather than a rounding further per frame."""
+    browser = request.getfixturevalue(engine)
+    page = open_page(browser, serve(LONG_PAGE, comments=30), init_script=HOLD_MOTION)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    source, target = roots[5], roots[16]
+    target_card = page.locator(f'.lf-thread[data-id="{target}"]')
+    target_card.evaluate(
+        "el => el.scrollIntoView({behavior: 'instant', block: 'center'})"
+    )
+    one_frame(page)
+    start = target_card.evaluate("el => el.getBoundingClientRect().top")
+    before = page.evaluate("() => window.__lfHeld.length")
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": source},
+    )
+    told(page)
+    expect(page.locator(f'.lf-going[data-id="{source}"]')).to_have_count(1)
+    steps = 30
+    for step in range(1, steps):
+        page.evaluate(
+            "([i, part]) => { const motion = window.__lfHeld[i];"
+            " motion.currentTime = motion.effect.getComputedTiming().duration * part; }",
+            [before, step / steps],
+        )
+        one_frame(page)
+    tops = target_card.evaluate("el => el.getBoundingClientRect().top")
+    assert tops == pytest.approx(start, abs=1)
+
+
 def test_a_folding_reference_hands_its_hold_to_the_next_card(browser, serve):
     """When the aimed-at card is itself leaving, its successor inherits the hold.
 

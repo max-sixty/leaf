@@ -473,8 +473,8 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   // Places are measured from the top of the box's landing band, below whatever covers
   // its top edge (the page's banner), so a region handed from the page to its own body
   // keeps the landmark at the same distance below what the user can see. A box a move
-  // left short of its aim by its rounding is read as if at the aim (scrolling.js,
-  // `aimedTop`), where the content stands that much higher.
+  // left off its aim by its rounding is read as if it stood at the aim (scrolling.js,
+  // `aimedTop`).
   const boxTop = landingBand(box).top + aimedTop(box) - box.scrollTop;
   const landmarkTop = (top, block, blockTop = top) =>
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;

@@ -52,7 +52,10 @@ import {
   replyAvailable,
   dismissReply,
   threadHoldsDraft,
+  writingIn,
 } from "./replies.js";
+import { TEXT_FIELD } from "../control-selectors.js";
+import { atScrollEnd } from "../scrolling.js";
 import {
   settleThread,
   landGesture,
@@ -386,16 +389,22 @@ function paintBoundary(node, kind) {
 
 let nextViewId = 0;
 // The margin card's controls stand over its transcript, so each message's head keeps
-// their width clear and its words end before them. Applying that allocation can wrap
-// a header and resize the controls' ancestors. Write it in the next rendering pass:
-// ResizeObserver cannot deliver those shallower boxes again in the controls' delivery.
+// their width clear and its words end before them. A held-news notice is not among
+// them: it comes with news, which must not rewrap a head, so it stands beside them over
+// the head's end (`.lf-margin-thread-news`) until it is pressed. A render that changes
+// the controls writes the allocation in its own pass (`present`), so the heads it
+// rewraps move with the render that moved them. Any other change of the controls' size
+// writes it in the next rendering pass: applying it can wrap a header and resize the
+// controls' ancestors, which ResizeObserver cannot deliver again in the controls' own
+// delivery.
+const allotMarginControls = (row) =>
+  row.parentElement?.style.setProperty(
+    "--lf-margin-controls-width",
+    layoutPx(row.getBoundingClientRect().width),
+  );
 const marginControlsSizes = sizeObserver((entries) => {
   nextRender(() => {
-    for (const { target, borderBoxSize } of entries)
-      target.parentElement?.style.setProperty(
-        "--lf-margin-controls-width",
-        layoutPx(borderBoxSize[0].inlineSize),
-      );
+    for (const { target } of entries) allotMarginControls(target);
   });
 });
 
@@ -534,6 +543,8 @@ export class ThreadView {
     this.#actions.className = "lf-thread-meta-actions";
     this.#transcript.className = "lf-thread-transcript";
     this.#working.className = "lf-thread-working";
+    // The transcript's last child, growing at its foot as steps come (shift_watch.js).
+    this.#working.dataset.lfAppendTail = "";
     this.#working.setAttribute("aria-live", "polite");
     // Native disclosure opens at the attribute checkpoint; queued toggle may arrive
     // after paint. Release held news here so the first opened body is current,
@@ -701,6 +712,37 @@ export class ThreadView {
     // the fold would put away, by focus or by a selection reaching into it.
     const foot =
       footFold && !folds.messages.some((key) => standsOn(this.#messageNode(key)));
+    // The margin's floating card grows at one of its own edges: the one its placement
+    // does not hold (comment-placement.js, `edgeFor`, which a turn joining may change).
+    // News shows at once only where it changes the thread's end and the card holds its
+    // top for it with the user not writing in it: the card grows down, moving its reply
+    // row and nothing above. A change to the last message is such news where it is a
+    // reply still streaming, or where the transcript, at its cap and scrolled to its
+    // end, follows it there (thread-preview.js). Anything else would move the head row
+    // or the messages being read, so it waits. A settlement keeps the editor it
+    // interrupts on its own (`replyAvailable`).
+    if (this.#model?.surface === "margin") {
+      if (news.settled) return false;
+      const last = this.#model.messages.at(-1);
+      const list = this.#transcript;
+      const follows = list.scrollHeight > list.clientHeight + 0.5 && atScrollEnd(list);
+      const atEnd =
+        (!news.appended || appendedAtEnd) &&
+        !news.summaries &&
+        [...changed].every(
+          (key) => key === last?.key && (last.provisional || follows),
+        ) &&
+        (foot || (!folds.messages.length && !folds.summaries.length));
+      const writing = writingIn(
+        this.#reply?.node.querySelector(TEXT_FIELD),
+        last?.author === "user" && last.pending,
+      );
+      const turn = news.appended || news.progress > 0 || footFold;
+      return (
+        growthIsSeen(this.node) &&
+        (!atEnd || writing || this.#marginControls?.heldEdge(turn) === "foot")
+      );
+    }
     const idleFoot =
       this.#model?.surface === "panel" &&
       this.node.open &&
@@ -1003,6 +1045,13 @@ export class ThreadView {
           ? this.#summaryToggle(progressByReply.get(message.id), true)
           : nothing,
       });
+      // A reply still streaming at the thread's end grows at its foot as its words
+      // come, as the working message does with each step (shift_watch.js).
+      keeps(
+        view.node,
+        "data-lf-append-tail",
+        message.provisional && message === model.messages.at(-1) ? "" : null,
+      );
       return { key: message.key, node: view.node };
     });
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
@@ -1043,7 +1092,11 @@ export class ThreadView {
     }
     this.#checkpoints = checkpoints;
     this.#markers = markers;
-    keeps(this.#transcript, "data-lf-reflow", panel ? "append" : null);
+    keeps(
+      this.#transcript,
+      "data-lf-reflow",
+      panel || model.surface === "margin" ? "append" : null,
+    );
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
     const body = html`
       ${
@@ -1100,12 +1153,17 @@ export class ThreadView {
       ${
         threadActions
           ? marginControls
-            ? html`<div
-                class="lf-margin-thread-controls"
-                ${ref(this.#watchMarginControls)}
-              >
-                ${news}${threadActions}
-              </div>`
+            ? html`${
+                  model.news
+                    ? html`<div class="lf-margin-thread-news">${news}</div>`
+                    : nothing
+                }
+                <div
+                  class="lf-margin-thread-controls"
+                  ${ref(this.#watchMarginControls)}
+                >
+                  ${threadActions}
+                </div>`
             : html`<div class="lf-thread-controls" data-lf-reflow="text">
                 ${news}${threadActions}
               </div>`
@@ -1134,6 +1192,9 @@ export class ThreadView {
       `,
       this.node,
     );
+    const controlsRow = marginControls && this.#marginControlsRow;
+    if (controlsRow?.isConnected)
+      measure(controlsRow, () => allotMarginControls(controlsRow));
     if (!marginControls && model.news)
       measure(this.node, () => this.#retainHeaderSlot());
     else this.#releaseHeaderSlot();
@@ -1289,8 +1350,8 @@ export class ThreadView {
     );
     controls.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
     if (this.#model.news) {
-      // While news stands, the notice keeps at least the width of the words it first
-      // showed, so later news with shorter words never narrows it under the pointer.
+      // While news stands, the notice keeps the width of the words it first showed, so
+      // later news never narrows or widens it under the pointer; longer news is cut.
       if (!this.#news.node.hasAttribute("data-lf-room"))
         this.#news.node.dataset.lfRoom = this.#model.news.label;
       const line = controls.getBoundingClientRect();

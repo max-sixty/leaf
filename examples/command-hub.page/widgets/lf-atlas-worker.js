@@ -6,22 +6,18 @@ import {
   html,
   keeps,
   keepsText,
-  once,
+  LeafElement,
+  noChange,
   readWork,
-  render,
   reportSequence,
-  reportsPresented,
-  watchProjection,
-  widgetController,
+  reportsReady,
   workAncestor,
 } from "/runtime/widget-api.js";
 customElements.define(
   "lf-atlas-worker",
-  class extends HTMLElement {
-    #controller = widgetController(this);
+  class extends LeafElement {
     pending = false;
-    connectedCallback() {
-      if (!once(this)) return;
+    setup() {
       if (!this.querySelector("details")) {
         const details = document.createElement("details");
         const summary = document.createElement("summary");
@@ -43,56 +39,49 @@ customElements.define(
         details.append(summary, body);
         this.append(details);
       }
-      this.reading = new HeldReading(
+      this.held = new HeldReading(
         this,
         () => [this.querySelector(".atlas-worker-body")],
-        () => this.watching.refresh(),
-      );
-      this.#controller.subscribe(() => {});
-      this.watching = watchProjection(
-        this,
-        () => this.paint(),
-        () => reportsPresented(this),
+        () => this.requestUpdate(),
       );
     }
-    renderState(state) {
-      keeps(this, "state", state.state.value);
+    createRenderRoot() {
+      return this.querySelector(".atlas-worker-report");
     }
-    paint() {
+    render() {
+      keeps(this, "state", this.state.state.value);
       const worker = readWork(workAncestor(this, "scope")).workers.find(
         (row) => row.element === this,
-      );
-      const report = reportSequence(this).findLast(
-        (row) => row.source === "report" && row.disposition === "effective",
       );
       keepsText(
         this.querySelector(".atlas-worker-state"),
         `${worker.state}${worker.quiet ? " · quiet" : ""}`,
       );
+      if (!reportsReady(this)) return noChange;
+      const report = reportSequence(this).findLast(
+        (row) => row.source === "report" && row.disposition === "effective",
+      );
       const next = JSON.stringify({
         heard: worker.heard,
         text: report?.text ?? "No report yet.",
       });
-      const shown = this.reading.hold(next);
+      const shown = this.held.hold(next);
       const reading = JSON.parse(shown);
-      render(
-        html`${reading.text}${
-          reading.heard
-            ? html` Last heard
-                <time datetime=${reading.heard} title=${reading.heard}
-                  >${ago(reading.heard)}</time
-                >`
-            : ""
-        }`,
-        this.querySelector(".atlas-worker-report"),
-      );
       if (this.pending !== (next !== shown)) {
         this.pending = next !== shown;
         this.dispatchEvent(new CustomEvent("atlas-reading", { bubbles: true }));
       }
+      return html`${reading.text}${
+        reading.heard
+          ? html` Last heard
+              <time datetime=${reading.heard} title=${reading.heard}
+                >${ago(reading.heard)}</time
+              >`
+          : ""
+      }`;
     }
     showLatest() {
-      this.reading.show();
+      this.held.show();
     }
   },
 );

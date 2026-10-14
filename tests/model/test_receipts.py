@@ -21,6 +21,7 @@ from interact_support import (
     page_state,
     printed,
     record_claim,
+    said,
     serving,
     spawn_probe,
     wait_for,
@@ -359,7 +360,7 @@ def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
                 {
                     "exit": result.exit_code,
                     "stdout": result.stdout,
-                    "stderr": result.stderr,
+                    "stderr": said(result.stderr),
                 },
             ),
         )
@@ -389,7 +390,7 @@ def test_ack_rearm_does_not_reclaim_a_page_from_its_successor(page_dir, snapshot
                 {
                     "exit": result.exit_code,
                     "stdout": result.stdout,
-                    "stderr": result.stderr,
+                    "stderr": said(result.stderr),
                 },
             ),
         )
@@ -509,7 +510,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
                 {
                     "exit": acknowledging.returncode,
                     "stdout": out,
-                    "stderr": err,
+                    "stderr": said(err),
                 },
             ),
         )

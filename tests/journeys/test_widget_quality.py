@@ -121,7 +121,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     registry_path.write_text(json.dumps(registry))
 
     ran = subprocess.run(
-        [*LEAF_COMMAND, "package", "check", str(package), "--render", "--json"],
+        [*LEAF_COMMAND, "package", "check", str(package), "--render"],
         capture_output=True,
         text=True,
         check=False,

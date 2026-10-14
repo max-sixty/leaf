@@ -102,98 +102,74 @@ def test_reader_reconstructs_retries_and_reports_loss_before_filtering(tmp_path)
     ]
 
 
-def test_cli_reads_keys_commands_focus_and_requests_without_changing_the_log(
-    tmp_path, monkeypatch
-):
-    monkeypatch.setenv("TZ", "UTC")
-    import time
-
-    time.tzset()
-    try:
-        (tmp_path / "events.jsonl").write_text("")
-        rows = client_records(
+def test_cli_reads_keys_commands_focus_and_requests_without_changing_the_log(tmp_path):
+    (tmp_path / "events.jsonl").write_text("")
+    rows = client_records(
+        "tab",
+        "/",
+        [
+            {
+                "ts": "2026-10-09T06:08:42.551Z",
+                "sequence": 1,
+                "type": "keydown",
+                "key": "Escape",
+                "target": ["leaf-text[name=reply]", "div", "aside#lf-margin-preview"],
+                "nodes": [76, 77, 57],
+            },
+            {
+                "ts": "2026-10-09T06:08:42.552Z",
+                "sequence": 2,
+                "type": "command",
+                "id": "text.leave",
+                "binding": "Escape",
+            },
+            {
+                "ts": "2026-10-09T06:08:42.553Z",
+                "sequence": 3,
+                "type": "focusin",
+                "target": ["div", "aside#lf-margin-preview"],
+                "nodes": [70, 57],
+            },
+        ],
+    )
+    request = {
+        "source": "server",
+        "ts": "2026-10-09T06:08:42.554Z",
+        "method": "POST",
+        "path": "/api/event",
+        "status": 400,
+        "durationMs": 1.5,
+    }
+    append_interactions(tmp_path, [*rows, request])
+    path = tmp_path / "interactions.jsonl"
+    before = path.read_bytes()
+    result = CliRunner().invoke(cli, ["page", "interactions", str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert [json.loads(line) for line in result.stdout.splitlines()] == [
+        *rows,
+        request,
+    ]
+    result = CliRunner().invoke(
+        cli,
+        [
+            "page",
+            "interactions",
+            str(tmp_path),
+            "--session",
             "tab",
-            "/",
-            [
-                {
-                    "ts": "2026-10-09T06:08:42.551Z",
-                    "sequence": 1,
-                    "type": "keydown",
-                    "key": "Escape",
-                    "target": [
-                        "leaf-text[name=reply]",
-                        "div",
-                        "aside#lf-margin-preview",
-                    ],
-                    "nodes": [76, 77, 57],
-                },
-                {
-                    "ts": "2026-10-09T06:08:42.552Z",
-                    "sequence": 2,
-                    "type": "command",
-                    "id": "text.leave",
-                    "binding": "Escape",
-                },
-                {
-                    "ts": "2026-10-09T06:08:42.553Z",
-                    "sequence": 3,
-                    "type": "focusin",
-                    "target": ["div", "aside#lf-margin-preview"],
-                    "nodes": [70, 57],
-                },
-            ],
-        )
-        append_interactions(
-            tmp_path,
-            [
-                *rows,
-                {
-                    "source": "server",
-                    "ts": "2026-10-09T06:08:42.554Z",
-                    "method": "POST",
-                    "path": "/api/event",
-                    "status": 400,
-                    "durationMs": 1.5,
-                },
-            ],
-        )
-        path = tmp_path / "interactions.jsonl"
-        before = path.read_bytes()
-        result = CliRunner().invoke(cli, ["page", "interactions", str(tmp_path)])
-        assert result.exit_code == 0, result.output
-        assert (
-            result.output
-            == """2026-10-09T06:08:42.551+00:00 tab / #1 keydown key="Escape" target="leaf-text[name=reply] < aside#lf-margin-preview" node=76
-2026-10-09T06:08:42.552+00:00 tab / #2 command id="text.leave" binding="Escape"
-2026-10-09T06:08:42.553+00:00 tab / #3 focusin target="div < aside#lf-margin-preview" node=70
-2026-10-09T06:08:42.554+00:00 server POST /api/event → 400 (1.5 ms)
-"""
-        )
-        result = CliRunner().invoke(
-            cli,
-            [
-                "page",
-                "interactions",
-                str(tmp_path),
-                "--session",
-                "tab",
-                "--type",
-                "command",
-                "--json",
-            ],
-        )
-        assert result.exit_code == 0, result.output
-        assert json.loads(result.output) == rows[1]
-        assert path.read_bytes() == before
-        result = CliRunner().invoke(
-            cli,
-            ["page", "interactions", str(tmp_path), "--since", "2026-10-09T06:08:42"],
-        )
-        assert result.exit_code == 1
-        assert "require a timezone offset" in result.output
-    finally:
-        monkeypatch.undo()
-        time.tzset()
+            "--type",
+            "command",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout) == rows[1]
+    assert path.read_bytes() == before
+    result = CliRunner().invoke(
+        cli,
+        ["page", "interactions", str(tmp_path), "--since", "2026-10-09T06:08:42"],
+    )
+    assert result.exit_code == 1
+    assert "require a timezone offset" in json.loads(result.stderr)["error"]
 
 
 def test_invalid_transport_is_refused_and_a_torn_line_is_skipped(tmp_path):
@@ -216,10 +192,10 @@ def test_invalid_transport_is_refused_and_a_torn_line_is_skipped(tmp_path):
     append_interactions(tmp_path, [valid])
     (tmp_path / "events.jsonl").write_text("")
     result = CliRunner().invoke(
-        cli, ["page", "interactions", str(tmp_path), "--session", "good", "--json"]
+        cli, ["page", "interactions", str(tmp_path), "--session", "good"]
     )
     assert result.exit_code == 0, result.output
-    assert [json.loads(line) for line in result.output.splitlines()] == [valid] * 2
+    assert [json.loads(line) for line in result.stdout.splitlines()] == [valid] * 2
 
 
 def test_a_split_record_that_joins_into_no_entry_is_marked_not_read(tmp_path):

@@ -231,14 +231,17 @@ pageScope("text entry", {
 // landing its title would take the user away from the turn they were answering, so it
 // is a `return` the list leaves where it is. One that fits, or one the user has
 // scrolled out of view since, is a `move`, which the list lands in view (`onStanding`
-// below) as local scrolling reveals its title.
+// below) as local scrolling reveals its title. Local scrolling leaves one the user
+// already sees where it is: the box they left stands beside the gesture, and a landing
+// would carry it by the room the thread's focus ring asks at its foot.
 function standOnThread(thread) {
-  if (!fitsWhole(thread) && alreadyShown(thread)) {
+  const shown = alreadyShown(thread);
+  if (!fitsWhole(thread) && shown) {
     focusThread(thread, "return");
     return;
   }
   focusThread(thread, "move");
-  scrollIntoView(threadFocusStop(thread), { block: "nearest" });
+  if (!shown) scrollIntoView(threadFocusStop(thread), { block: "nearest" });
 }
 
 // A thread's own keys, live wherever the user stands in one: the card, the message a

@@ -33,6 +33,7 @@ from interact_support import (
     install_payload,
     js_facts,
     lock_contention,
+    package_findings,
     publish,
     record_claim,
     registry_refusal,
@@ -40,6 +41,7 @@ from interact_support import (
     vendored_at_another_protocol,
     vendored_before_the_ask_rename,
     wait_for,
+    words,
 )
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -363,14 +365,11 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed)
         cli_model.cli, ["page", "check", str(page_dir)], env=other
     )
     assert checked.exit_code != 0
-    assert "x-question-context" in checked.output and revendor in checked.output
-    as_json = CliRunner().invoke(
-        cli_model.cli, ["page", "check", "--json", str(page_dir)], env=other
-    )
-    report = json.loads(as_json.output)
+    report = json.loads(checked.stdout)
     assert report["status"] == 1 and report["browser"] is None
     [finding] = report["findings"]
-    assert finding["code"] == "retired-layer" and revendor in finding["text"]
+    assert finding["code"] == "retired-layer"
+    assert "x-question-context" in finding["text"] and revendor in finding["text"]
 
     vendored(lambda keys: keys.pop("x-question-context"))
     assert write_refusal(page_dir) is None
@@ -468,8 +467,8 @@ def test_a_layer_stamped_with_its_revision_still_names_the_revendor(page_dir):
         check=False,
     )
     assert checked.returncode != 0
-    assert "x-work" in checked.stderr
-    assert f"leaf page init {page_dir}" in checked.stderr
+    assert "x-work" in words(checked.stdout)
+    assert f"leaf page init {page_dir}" in words(checked.stdout)
 
 
 def test_the_skill_routes_every_reference_it_ships():
@@ -805,10 +804,13 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # than whatever project the caller's directory sits in. `--no-dev` because
     # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
-    # payload path turns the console script into a `/bin/sh` trampoline.
+    # payload path turns the console script into a `/bin/sh` trampoline. The
+    # checkout's environment exists, so uv skips its cache, which an agent's
+    # sandbox refuses; the hook registration tests run a payload with none.
     assert dispatched == [
         "run",
         "-q",
+        "--no-cache",
         "--no-dev",
         "--project",
         str(PLUGIN_ROOT),
@@ -2126,8 +2128,11 @@ def test_the_browser_gate_reads_a_page_another_leaf_vendored(tmp_path, monkeypat
     result = runner.invoke(cli_model.cli, ["page", "check", "--render", str(page)])
 
     assert result.exit_code == 0, result.output
-    assert "render checks passed" in result.output
-    assert "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00" in result.output
+    report = json.loads(result.stdout)
+    assert report["browser"]["ran"] == ["render check"]
+    assert "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00" in words(
+        result.stdout
+    )
 
 
 def test_the_browser_gate_names_the_re_vendor_when_its_probes_cannot_link(
@@ -2305,14 +2310,12 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
     stamp = page_dir / "registry.json"
     registry = json.loads(stamp.read_text(encoding="utf-8"))
 
-    def checked(producer, *flags):
+    def checked(producer):
         registry["$layer"]["producer"] = producer
         cleanup_model.write_json(stamp, registry)
-        result = CliRunner().invoke(
-            cli_model.cli, ["page", "check", str(page_dir), *flags]
-        )
+        result = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
         assert result.exit_code == 0, result.output
-        return result.output
+        return json.loads(result.stdout)
 
     older = {
         "commit": "a74b08365870",
@@ -2320,21 +2323,20 @@ def test_page_check_names_an_older_leaf_beside_its_own(page_dir):
         "committed": "2026-09-26T09:32:21-07:00",
     }
     this_leaf = layer_model.provenance_label(layer_model.payload_provenance())
-    assert (
-        "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00 vendored this page; "
-        f"this is Leaf {this_leaf}." in checked(older)
-    )
-    assert "vendored this page" not in checked(layer_model.payload_provenance())
-    report = json.loads(checked(older, "--json"))
+    report = checked(older)
     assert (report["status"], report["browser"]) == (0, None)
     [finding] = [f for f in report["findings"] if f["code"] == "leaf-version"]
+    assert finding["text"] == (
+        "Leaf a74b08365870, committed 2026-09-26T09:32:21-07:00 vendored this page; "
+        f"this is Leaf {this_leaf}."
+    )
     assert finding["severity"] == "advice"
     assert finding["values"] == {
         "vendored": "a74b08365870, committed 2026-09-26T09:32:21-07:00",
         "running": this_leaf,
         "page": str(page_dir),
     }
-    same = json.loads(checked(layer_model.payload_provenance(), "--json"))
+    same = checked(layer_model.payload_provenance())
     assert {f["code"] for f in same["findings"]} == {"unpointable"}, same
     assert {f["severity"] for f in same["findings"]} == {"advice"}, same
 
@@ -2911,8 +2913,7 @@ def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
     result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(page)])
 
     assert result.exit_code != 0
-    assert result.stderr.startswith("Error: ")
-    assert f"leaf page init '{page}'" in result.stderr
+    assert f"leaf page init '{page}'" in json.loads(result.stderr)["error"]
     assert list(page.iterdir()) == []
 
 
@@ -3620,11 +3621,8 @@ def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeyp
     result = runner.invoke(cli_model.cli, ["package", "check", ".leaf"])
 
     assert result.exit_code != 0
-    # With --json the refusal is the result's one finding, in the words the
-    # command line printed.
-    report = json.loads(
-        runner.invoke(cli_model.cli, ["package", "check", ".leaf", "--json"]).stdout
-    )
+    # The refusal is the result's one finding.
+    report = json.loads(result.stdout)
     assert (report["status"], report["browser"]) == (1, None)
     [refusal] = report["findings"]
     assert (refusal["code"], refusal["at"], refusal["severity"]) == (
@@ -3632,7 +3630,6 @@ def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeyp
         "<lf-toned-note>",
         "error",
     )
-    assert refusal["text"] in result.output
 
 
 def test_package_check_refuses_a_registry_example_that_violates_its_schema(
@@ -3651,7 +3648,8 @@ def test_package_check_refuses_a_registry_example_that_violates_its_schema(
     entry["required"].append("tone")
     registry_path.write_text(json.dumps(registry))
 
-    refused = command_refusal("package", "check", ".leaf")
+    status, [refused] = package_findings(".leaf")
+    assert status == 1
 
     assert (refused.code, refused.at) == ("invalid-example", "<lf-toned-note>")
     example = Finding.loads(refused.values["finding"])
@@ -4479,7 +4477,7 @@ def test_review_evidence_packages_export_independently(
         source.write_text(source.read_text().replace('diff="patch"', 'diff="title"'))
         checked = runner.invoke(cli_model.cli, ["page", "check", str(page)])
         assert checked.exit_code != 0
-        assert 'diff="title" must name a $diff.widgets widget' in checked.output
+        assert 'diff="title" must name a $diff.widgets widget' in words(checked.output)
 
 
 def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
@@ -4649,7 +4647,8 @@ def test_package_check_refuses_a_malformed_reaction_token(tmp_path, monkeypatch,
     registry["$reactions"] = {"tokens": {"nod": entry}}
     registry_path.write_text(json.dumps(registry))
 
-    refused = command_refusal("package", "check", ".leaf")
+    status, [refused] = package_findings(".leaf")
+    assert status == 1
 
     assert refused.code == "layer-facts"
     assert refused.values["path"][:3] == ["$reactions", "tokens", "nod"]
@@ -4782,6 +4781,12 @@ def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
     hint = browser_model.browser_hint()
     assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
 
+    # Inside an agent's sandbox no browser starts however the host names one, so
+    # the line sends the check outside the sandbox instead.
+    monkeypatch.setenv("CODEX_SANDBOX", "seatbelt")
+    hint = browser_model.browser_hint()
+    assert "CODEX_SANDBOX=seatbelt" in hint and "outside the sandbox" in hint
+
 
 def test_producer_instructions_names_a_package_script_the_run_door_reaches(tmp_path):
     """A reader of `leaf page instructions` with no skill loaded, such as a worker the
@@ -4847,8 +4852,8 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     assert failed.returncode == 3
     assert json.loads(failed.stdout) == {"args": ["--fail"], "lines": 2}
     assert missing.returncode == 1
-    assert missing.stderr == (
-        "Error: package 'tally' has no script 'total.py'; available: count.py\n"
+    assert json.loads(missing.stderr)["error"] == (
+        "package 'tally' has no script 'total.py'; available: count.py"
     )
     assert unknown.returncode == 1
     assert "unknown package 'tallies'" in unknown.stderr
@@ -4871,11 +4876,13 @@ def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
     installed = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
 
     assert checked.exit_code == 1
-    assert checked.output.startswith(f"Error: {script}")
+    [refused] = json.loads(checked.stdout)["findings"]
+    assert refused["code"] == "package"
+    assert refused["text"].startswith(str(script))
     message = "needs an inline `# /// script` metadata block"
-    assert message in checked.output
+    assert message in refused["text"]
     assert installed.exit_code == 1
-    assert message in installed.output
+    assert message in json.loads(installed.stderr)["error"]
     assert not (machine_model.package_store() / "tally").exists()
 
 

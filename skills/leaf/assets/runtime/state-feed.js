@@ -107,8 +107,8 @@ export function createStateFeed({
     applicationState.setReach("broken");
   }
 
-  // The clock has no state to replay, and a projection a drag deferred is retried by
-  // the drag's release; time-dependent paints remember their own displayed readings.
+  // The clock has no state to replay; time-dependent paints remember their own
+  // displayed readings.
   async function tick() {
     if (stateApplying()) return;
     // A repaint through a reading paint has already reported its own failure.

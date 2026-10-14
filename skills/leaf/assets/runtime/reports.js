@@ -53,7 +53,12 @@
    The shared presentation coordinator owns the proof that guards report callbacks.
    Raw report and history readings remain direct semantic selections. */
 import { currentProjection } from "./projection/state.js";
-import { projectionRegionsPresented, readPart } from "./semantic-state.js";
+import {
+  applicationRegionsPresented,
+  projectionRegionsPresented,
+  proofReading,
+  readPart,
+} from "./semantic-state.js";
 import { closestAcross } from "./passages.js";
 
 function reportTarget(target) {
@@ -110,7 +115,10 @@ export const readHistory = readPart((root) => ({
 // A report can speak only once the renderer of its widget and coordinate chrome
 // have committed. Required asynchronous preparation is the same coordinator region
 // used by startup and pending release, not a second coordinate/event-id commit map.
-export const reportsPresented = (target = null) => {
+export const reportsPresented = (target = null) =>
+  projectionRegionsPresented([...reportWidgets(target)]);
+
+const reportWidgets = (target) => {
   const key = targetKey(reportTarget(target));
   const widgets = new Set(target instanceof Element ? [target.id] : []);
   for (const entry of currentProjection().classified.values()) {
@@ -118,5 +126,23 @@ export const reportsPresented = (target = null) => {
     if (key === null || key === targetKey({ kind: "widget", id: entry.e.widget }))
       widgets.add(entry.e.widget);
   }
-  return projectionRegionsPresented([...widgets]);
+  return widgets;
 };
+
+// The same proof for a widget that narrates its reports in the update that draws its
+// state (a `LeafElement`, leaf-element.js): that update is its render, so only its
+// preparation, the coordinate chrome, and any other widget the reports name must have
+// committed. Read in a render, the answer is followed as the time a render shows is.
+export const reportsReady = (target) =>
+  proofReading(() =>
+    applicationRegionsPresented([
+      "projection:chrome",
+      `widget:${target.id}:preparation`,
+      ...[...reportWidgets(target)]
+        .filter((widget) => widget !== target.id)
+        .flatMap((widget) => [
+          `widget:${widget}:render`,
+          `widget:${widget}:preparation`,
+        ]),
+    ]),
+  ).read();

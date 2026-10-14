@@ -1,0 +1,14 @@
+# Ending a to-do done on an element that still stands among the open work.
+
+exit: 0
+
+stderr:
+  - code: finished-in-view
+    severity: advice
+    values:
+      element: plan-choice-decision
+    text: >-
+      Your work on `plan-choice-decision` is done, and it still stands among the
+      open work. Unless it is the page's current content, move it, cut to its outcome,
+      to the finished work collapsed after the open work, and let what comes next
+      take its place (authoring-revisions.md, "Keep the current page current").

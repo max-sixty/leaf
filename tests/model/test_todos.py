@@ -24,10 +24,12 @@ from interact_support import (
     record_claim,
     refused_on,
     response_reference,
+    said,
     served_thread,
     serving,
     stamp,
     state_json,
+    yaml_document,
 )
 from leaf import cli as cli_model
 from leaf import delivery as delivery_model
@@ -1034,10 +1036,10 @@ def test_idle_refuses_over_an_open_todo(page_dir):
 
 
 def test_ending_a_section_todo_done_names_the_section_left_among_the_open_work(
-    page_dir,
+    page_dir, snapshot
 ):
     """Finished work belongs collapsed after what is still open, so ending a to-do on
-    an element `done` says on stderr when that element still stands open, and says
+    an element `done` notes when that element still stands open, and says
     nothing for another outcome, while work or a thread on it or inside it stays on
     either list, or once the saved page folds it."""
     publish(page_dir)
@@ -1048,9 +1050,13 @@ def test_ending_a_section_todo_done_names_the_section_left_among_the_open_work(
     ended = leaf("task", "end", page_dir, parent["id"], "done", "version 2")
     assert len(ended.output.splitlines()) == 1
     ended = leaf("task", "end", page_dir, child["id"], "done", "version 2")
-    record, note = ended.output.splitlines()
-    assert json.loads(record)["outcome"] == "done"
-    assert "`plan-choice-decision` is done, and it still stands among" in note
+    assert json.loads(ended.stdout)["outcome"] == "done"
+    snapshot.check(
+        yaml_document(
+            "Ending a to-do done on an element that still stands among the open work.",
+            {"exit": ended.exit_code, "stderr": said(ended.stderr)},
+        )
+    )
     comment = append_carried_log_record(
         page_dir,
         {

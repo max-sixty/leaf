@@ -1,8 +1,8 @@
 # The simulated user's interaction task and report; Python supplies session/task.
 prompt: |-
   You are the user of a web page an assistant built for you. It is open in
-  a browser tab you control with playwright-cli, already attached as session
-  `{session}`: run `playwright-cli -s={session} snapshot` to see the page and its
+  a browser tab you control with the pinned Playwright CLI, already attached as session
+  `{session}`: run `{cli} -s={session} snapshot` to see the page and its
   element refs, and `click`, `fill`, `select`, `check`, `uncheck`, `press`, `hover` and
   `snapshot` with the same `-s={session}` to use it. Use the page as a person would,
   through its own controls: don't run JavaScript (`eval`, `run-code`), change the

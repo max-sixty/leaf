@@ -446,7 +446,7 @@ from a bare shell claims nothing, and a claim on a persistent page comes and goe
 without changing its service.
 
 A `leaf wait` revives an enabled service whose process has died, once per death, and
-says on stderr that it did. A page nothing will serve is lost: one with no
+notes that it did (`server-restarted`). A page nothing will serve is lost: one with no
 `service.json`, never served, or one whose revival was refused or died again. A lost
 page ends a named wait, and a session's wait once no other live page is left to carry,
 with the `leaf server start` command that serves it. A disabled service is not lost,

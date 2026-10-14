@@ -9,12 +9,14 @@ each of `VIEWPORTS`, each case scrolled into view, and its pins read against wha
 they may not cover (`faults`).
 
 The command builds that page from this working tree, and with `--base` from the
-merge base with `main` (or REF) too, and writes a Leaf page under `.tmp/pins/` that
-shows each case's crop at every viewport, its targets outlined in blue, beside the
+merge base with `main` (or REF) too, and writes a Leaf page at
+`.tmp/pins/report/pins.html` that shows each case's crop at every viewport, its targets outlined in blue, beside the
 faults read there. With `--base` each crop is an `lf-shot` pair that opens on its
 changed pixels: where the base drew a pin in red, where this tree draws it in blue.
-Both arms' crops of a case cover the same rectangle, so the pair lines up. It prints
-the command that previews that page.
+Both arms' crops of a case cover the same rectangle, so the pair lines up. Each run
+rewrites that one page, so a running `--user` preview of it shows the new run as a
+revision, with the threads left on it where they were. It prints the command that
+starts that preview.
 
 The same catalogue is a test: `test_render_margin.py` asserts that every case at
 every viewport has no fault beyond the kinds its `allow` accepts. So a case that
@@ -23,6 +25,7 @@ fixed, or the case accepts that fault, saying why.
 """
 
 import json
+import shutil
 import tempfile
 from dataclasses import dataclass, field
 from html import escape
@@ -38,6 +41,9 @@ from leaf_dev.arms import base_ref, build_arm, run_directory, serving_source
 from leaf_dev.browser import headless_shell, load, tab
 
 OUT = ROOT / ".tmp" / "pins"
+# The report every run rewrites, so a preview of it follows each run as a revision of
+# one page and keeps the threads on it; each run's captures stay in its own directory.
+REPORT = OUT / "report"
 
 # How far a pin may stand from the nearest box of its target.
 REACH = 12
@@ -560,9 +566,11 @@ PAIRS = (
 
 
 def report(arms: dict[str, tuple[str, dict]], cases, out: Path) -> Path:
-    """Write the Leaf page that shows every case's crops, and return its path."""
-    media = out / "media"
-    media.mkdir()
+    """Write the Leaf page that shows every case's crops into REPORT, replacing the
+    last run's, and return its path. Crops are cut into the run directory `out`."""
+    media = REPORT / "media"
+    shutil.rmtree(media, ignore_errors=True)
+    media.mkdir(parents=True)
     head = arms["head"][1]
     base = arms.get("base")
     failing = [
@@ -610,7 +618,7 @@ def report(arms: dict[str, tuple[str, dict]], cases, out: Path) -> Path:
             f'<section id="{case.name}">\n<h2>{case.name}</h2>\n'
             f"<p>{escape(case.says)}</p>\n" + "\n".join(rows) + "\n</section>"
         )
-    page = out / "pins.html"
+    page = REPORT / "pins.html"
     page.write_text(
         f"""<!doctype html>
 <html lang="en">
@@ -684,4 +692,4 @@ def pins(base, names) -> None:
                     readings[arm] = (label, capture(browser, address, cases, shots))
     page = report(readings, cases, out)
     click.echo(page)
-    click.echo(f"uv run leaf-dev preview --source {page} --slot {out.name} --user")
+    click.echo(f"uv run leaf-dev preview --source {page} --slot pins --user")

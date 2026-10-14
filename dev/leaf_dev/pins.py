@@ -1,27 +1,29 @@
 """Seat comment pins on a catalogue of targets and show where each one stands.
 
-    uv run leaf-dev pins [--base [REF]] [--case NAME]...
+    uv run leaf-dev pins [--base [REF]]
 
-A case is a small piece of page, ordinary or pathological, with comments anchored in
-it (`CASES`). Every case stands on one page with no Layout, so `main` fills the
-window and no rail stands beside it: each comment takes a pin. The page is opened at
-each of `VIEWPORTS`, each case scrolled into view, and its pins read against what
-they may not cover (`faults`).
+A case is a small piece of page, ordinary or pathological, with comments anchored in it
+(`CASES`). The catalogue is small, and its cases are the shapes that came to mind for a
+pin to sit on, not ones picked because the placement handles them well; add one whenever
+a page shows a placement that looks wrong. Every case stands on one page with no Layout,
+so `main` fills the window and no rail stands beside it: each comment takes a pin. The
+page is opened at each of `VIEWPORTS`, each case scrolled into view, and its pins read
+against what they may not cover (`faults`).
 
-The command builds that page from this working tree, and with `--base` from the
-merge base with `main` (or REF) too, and writes a Leaf page at
-`.tmp/pins/report/pins.html` that shows each case's crop at every viewport, its targets outlined in blue, beside the
+The command builds that page from this working tree, and with `--base` from the merge
+base with `main` (or REF) too, and writes a Leaf page at `.tmp/pins/report/pins.html`
+that shows each case's crop at every viewport, its targets outlined in blue, beside the
 faults read there. With `--base` each crop is an `lf-shot` pair that opens on its
-changed pixels: where the base drew a pin in red, where this tree draws it in blue.
-Both arms' crops of a case cover the same rectangle, so the pair lines up. Each run
-rewrites that one page, so a running `--user` preview of it shows the new run as a
-revision, with the threads left on it where they were. It prints the command that
-starts that preview.
+changed pixels: where the base drew a pin in red, where this tree draws it in blue. Both
+arms' crops of a case cover the same rectangle, so the pair lines up. Each run rewrites
+that one page, so a running `--user` preview of it shows the new run as a revision, with
+the threads left on it where they were. It prints the command that starts that preview.
 
 The same catalogue is a test: `test_render_margin.py` asserts that every case at
 every viewport has no fault beyond the kinds its `allow` accepts. So a case that
 shows a bad placement goes into `CASES`; the test then fails until the placement is
-fixed, or the case accepts that fault, saying why.
+fixed, or the case accepts that fault and says why in `why`, which the page shows.
+A full run takes about 10s, and 20s with `--base`.
 """
 
 import json
@@ -62,14 +64,15 @@ EVERY = tuple(VIEWPORTS)
 class Case:
     """`body` is the case's markup; each anchor is a comment's, as an event names it
     (`{"section": id}` for an element, with `"quote"` for a passage inside it); `allow`
-    maps each fault kind the case accepts to the viewports it accepts it at, each for a
-    reason given beside it."""
+    maps each fault kind the case accepts to the viewports it accepts it at, and `why`
+    says why it accepts them."""
 
     name: str
     says: str
     body: str
     anchors: tuple[dict, ...]
     allow: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    why: str = ""
 
 
 WORDS = (
@@ -106,6 +109,12 @@ def _tiles(prefix: str, count: int) -> str:
     )
 
 
+# Why the passage cases accept a far pin; seating it by the passage's own lines is open.
+PASSAGE = (
+    "A passage's pin stands by the element holding it, not by the passage, so it can"
+    " stand a window's width from the words quoted."
+)
+
 CASES = (
     Case(
         "paragraph",
@@ -130,24 +139,24 @@ CASES = (
         "A passage in the middle of a line of a full-width paragraph.",
         f'<p id="quote-mid-line-p">{WORDS} {MORE}</p>',
         ({"section": "quote-mid-line-p", "quote": "before it seats the pin"},),
-        # A passage's pin stands by the element holding it, not by the passage.
         allow={"far": EVERY},
+        why=PASSAGE,
     ),
     Case(
         "quote-paragraph-end",
         "A passage that ends its paragraph, short of the window's edge.",
         f'<p id="quote-paragraph-end-p">{WORDS}</p>',
         ({"section": "quote-paragraph-end-p", "quote": "to read them."},),
-        # A passage's pin stands by the element holding it, not by the passage.
         allow={"far": EVERY},
+        why=PASSAGE,
     ),
     Case(
         "one-word",
         "A single word inside a sentence.",
         f'<p id="one-word-p">{WORDS}</p>',
         ({"section": "one-word-p", "quote": "seats"},),
-        # A passage's pin stands by the element holding it, not by the passage.
         allow={"far": EVERY},
+        why=PASSAGE,
     ),
     Case(
         "list-items",
@@ -178,8 +187,8 @@ CASES = (
             {"section": "two-comments-p", "quote": "Placement reads the room"},
             {"section": "two-comments-p", "quote": "to read them."},
         ),
-        # Both comments' pins stand together, by the paragraph holding them.
         allow={"far": EVERY},
+        why="Both comments' pins stand together, by the paragraph holding them.",
     ),
     Case(
         "image",
@@ -273,8 +282,9 @@ CASES = (
         f'<p id="paragraph-in-flow-p">{MORE} {WORDS}</p>'
         f"<p>{WORDS} {MORE}</p>",
         ({"section": "paragraph-in-flow-p"},),
-        # On a phone every seat touching it is on words, its own or its neighbours'.
         allow={"words": ("phone",)},
+        why="On a phone every seat touching it is on words, its own or its"
+        " neighbours'.",
     ),
     Case(
         "dense-text",
@@ -522,14 +532,14 @@ def crop(seen: dict, rect: tuple[int, int, int, int], out: Path) -> Path:
     return out
 
 
-def capture(browser, address: str, cases, out: Path) -> dict:
+def capture(browser, address: str, out: Path) -> dict:
     """Open `address` at each viewport, screenshot each case under `out`, and return
     `{case: {viewport: {"faults", "unaccepted", "reading", "shot"}}}`."""
-    result = {case.name: {} for case in cases}
+    result = {case.name: {} for case in CASES}
     for viewport, (size, touch) in VIEWPORTS.items():
         with tab(browser, size, touch=touch, scale=SCALE) as page:
             load(page, address)
-            for case in cases:
+            for case in CASES:
                 reading = read(page, case)
                 shot = out / f"{case.name}-{viewport}-full.png"
                 page.screenshot(path=shot)
@@ -565,7 +575,7 @@ PAIRS = (
 )
 
 
-def report(arms: dict[str, tuple[str, dict]], cases, out: Path) -> Path:
+def report(arms: dict[str, tuple[str, dict]], out: Path) -> Path:
     """Write the Leaf page that shows every case's crops into REPORT, replacing the
     last run's, and return its path. Crops are cut into the run directory `out`."""
     media = REPORT / "media"
@@ -575,7 +585,7 @@ def report(arms: dict[str, tuple[str, dict]], cases, out: Path) -> Path:
     base = arms.get("base")
     failing = [
         case
-        for case in cases
+        for case in CASES
         if any(seen["unaccepted"] for seen in head[case.name].values())
     ]
     against = f" against {escape(base[0])}" if base else ""
@@ -589,7 +599,7 @@ def report(arms: dict[str, tuple[str, dict]], cases, out: Path) -> Path:
         + "</ul>"
     )
     sections = []
-    for case in cases:
+    for case in CASES:
         rows = []
         for viewport in VIEWPORTS:
             seen = head[case.name][viewport]
@@ -616,7 +626,10 @@ def report(arms: dict[str, tuple[str, dict]], cases, out: Path) -> Path:
             rows.append(f"{line}</p>\n{picture}")
         sections.append(
             f'<section id="{case.name}">\n<h2>{case.name}</h2>\n'
-            f"<p>{escape(case.says)}</p>\n" + "\n".join(rows) + "\n</section>"
+            f"<p>{escape(case.says)}</p>\n"
+            + (f"<p>Accepted: {escape(case.why)}</p>\n" if case.why else "")
+            + "\n".join(rows)
+            + "\n</section>"
         )
     page = REPORT / "pins.html"
     page.write_text(
@@ -629,9 +642,12 @@ def report(arms: dict[str, tuple[str, dict]], cases, out: Path) -> Path:
 <main class="layout-column">
 <header id="intro">
 <h1>Pin cases</h1>
-<p>{len(cases)} cases on {escape(arms["head"][0])}{against}, at
+<p>{len(CASES)} cases on {escape(arms["head"][0])}{against}, at
 {" and ".join(f"{v} ({s[0][0]}px)" for v, s in VIEWPORTS.items())}. Targets are
 outlined in blue.{PAIRS if base else ""}</p>
+<p>These are few, and not chosen to flatter the placement: they are the shapes that
+came to mind for a pin to sit on. Where a page shows a placement that looks wrong,
+add its shape here as a case.</p>
 {summary}
 </header>
 {chr(10).join(sections)}
@@ -652,16 +668,8 @@ outlined in blue.{PAIRS if base else ""}</p>
     default=None,
     help="Also seat the cases on the merge base with main, or the ref given.",
 )
-@click.option(
-    "--case",
-    "names",
-    multiple=True,
-    type=click.Choice([case.name for case in CASES]),
-    help="Show only this case; repeat for more.",
-)
-def pins(base, names) -> None:
+def pins(base) -> None:
     """Seat every pin case on this working tree, and write a Leaf page of crops."""
-    cases = [case for case in CASES if not names or case.name in names]
     OUT.mkdir(parents=True, exist_ok=True)
     out = run_directory(OUT)
     with tempfile.TemporaryDirectory(prefix="leaf-pins-") as built:
@@ -689,7 +697,7 @@ def pins(base, names) -> None:
                 shots = out / arm
                 shots.mkdir()
                 with serving_source(arm_dir, fixture, scratch / arm) as address:
-                    readings[arm] = (label, capture(browser, address, cases, shots))
-    page = report(readings, cases, out)
+                    readings[arm] = (label, capture(browser, address, shots))
+    page = report(readings, out)
     click.echo(page)
     click.echo(f"uv run leaf-dev preview --source {page} --slot pins --user")

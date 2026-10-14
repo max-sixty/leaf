@@ -285,6 +285,7 @@ export function createFloatingPanel({
   // name already heads its view.
   const whereTo = (key) => (key ? "Reply in this thread" : "Comment on the page");
   // The page's own editor: the field where no thread is open.
+  let general = null;
   function pageEditor() {
     if (general) return general;
     const input = textField();
@@ -305,8 +306,10 @@ export function createFloatingPanel({
         retype();
       },
       send: (_text, raw, owns) => {
-        const handle = sendMessage("general", owns, (attempt) =>
-          threadActions.create({ attempt, text: raw })?.delivery,
+        const handle = sendMessage(
+          "general",
+          owns,
+          (attempt) => threadActions.create({ attempt, text: raw })?.delivery,
         );
         if (!handle) return;
         // The box empties as the send leaves; the row reads it again once it has.
@@ -325,7 +328,6 @@ export function createFloatingPanel({
     general = { box, input, sync };
     return general;
   }
-  let general = null;
   // A thread's reply is the reply box every thread view has (thread/replies.js), which
   // Leaf's reader draws into the field where the panel nominates it (`nominate`), so ↑
   // to the user's last message, the draft's editing session and Send work as in a card.

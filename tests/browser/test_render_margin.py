@@ -7625,7 +7625,8 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     than carrying Resolve, Close and Send sideways. Read idle, a step shows at once and
     the card grows down past its reply row. While the user writes, a step and an
     answer wait behind the thread's notice, as a held reply does in a seat, so nothing
-    moves; pressing the notice shows them and keeps the draft."""
+    moves. Pressing the notice shows them under the press: the head row stays and
+    the card grows down, keeping the draft's words."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Make the banner quieter", {"section": "h-how"}
@@ -7701,6 +7702,10 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
     notice.click()
     expect(preview).to_contain_text("one weight lighter")
     assert editor.evaluate("box => box.value") == "Also check the dark scheme"
+    rendered(page)
+    for name, control in controls.items():
+        assert control.bounding_box() == pytest.approx(held[name], abs=0.5), name
+    assert editor.bounding_box()["y"] > held["editor"]["y"] + 1
 
 
 @pytest.mark.watch_shifts
@@ -7738,6 +7743,51 @@ def test_a_card_above_its_target_holds_news_it_would_grow_up_for(browser, serve)
     expect(preview.locator(".lf-thread-working-words")).to_contain_text("the change")
 
 
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("how", ["press", "key"])
+def test_a_press_in_the_card_keeps_the_pressed_spot_still(browser, serve, how):
+    """What a press shows grows the card from where the user pressed, as a seat on
+    the page grows: opening an answer's progress, by pointer or key, grows the card up
+    past the disclosure, which stays where it was pressed. The hold ends with that
+    input, so a draft typed next grows the card down from its head row."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Make the banner quieter", {"section": "h-how"}
+    )
+    address = {"to": root, "for": root}
+    for words in ("Comparing the banner.", "Checking both schemes.", "Measuring."):
+        thread_model.post_reply(serve.page_dir, address, words, ephemeral=True)
+    thread_model.post_reply(serve.page_dir, address, "Done: the banner is quieter.")
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.locator(".lf-margin-marker").first.click()
+    preview = page.locator(".lf-margin-preview")
+    disclosure = preview.locator(".lf-summary-expand")
+    expect(disclosure).to_have_text("Show 3 progress messages")
+    rendered(page)
+    pressed = disclosure.bounding_box()
+
+    if how == "key":
+        disclosure.focus()
+        page.keyboard.press("Enter")
+    else:
+        disclosure.click()
+    expect(disclosure).to_have_text("Hide 3 progress messages")
+    expect(preview).to_contain_text("Checking both schemes")
+    rendered(page)
+    after = disclosure.bounding_box()
+    assert (after["x"], after["y"]) == pytest.approx(
+        (pressed["x"], pressed["y"]), abs=0.5
+    )
+
+    close = preview.get_by_role("button", name="Dismiss thread view", exact=True)
+    head = close.bounding_box()
+    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    page.keyboard.type("Also check the dark scheme, " * 6, delay=0)
+    rendered(page)
+    assert close.bounding_box() == pytest.approx(head, abs=0.5)
+
+
 @pytest.mark.parametrize(("size", "how"), [((1200, 900), "key"), ((800, 520), "press")])
 def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size, how):
     """The sent turn joins the transcript above the box the user sent it from, and the
@@ -7773,6 +7823,14 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     expect(preview.locator(".lf-msg").last).not_to_have_attribute("aria-busy", "true")
     rendered(page)
     assert preview.evaluate(DRAFTING_CARD) == before
+
+    # The hold ends with the Send: a follow-up draft grows the card from its head row.
+    close = preview.get_by_role("button", name="Dismiss thread view", exact=True)
+    head = close.bounding_box()
+    editor.click()
+    page.keyboard.type("And the dark scheme too, " * 6, delay=0)
+    rendered(page)
+    assert close.bounding_box() == pytest.approx(head, abs=0.5)
 
 
 def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve):

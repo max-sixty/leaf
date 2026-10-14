@@ -21,9 +21,11 @@
    the card first stood at, or was carried at, so a longer line arriving wraps inside it
    rather than carrying the controls at its far edge; only a narrower room narrows it.
    Reading and draft growth hold the top; a turn joining while drafting/sending holds
-   the reply's foot, as does a card above its target. Another selection chooses afresh. Floating UI supplies room
-   at that edge; native grid tracks share it between transcript and reply, growing to
-   their words before scrolling. Reply continuity retains removed turns as flexible
+   the reply's foot, as does a card above its target; what a press in the card shows
+   in its transcript keeps the pressed spot still, until the user's next input or a
+   change they did not make. Another selection chooses afresh. Floating UI supplies
+   room at that edge; native grid tracks share it between transcript and reply, growing
+   to their words before scrolling. Reply continuity retains removed turns as flexible
    space and lets the transcript yield writing room without losing the visible lines.
 
    Placement changes geometry, never rebuilds contents. Retained state reads hold the
@@ -39,7 +41,14 @@ import { spokenSubject } from "../contribution-model.js";
 import { labelWords } from "../words.js";
 import { THREAD_CARD } from "./margin-layout.js";
 import { mapButton } from "../page-map-dialog.js";
-import { focusDestination, holdFocus, onStanding, focused } from "../focus.js";
+import {
+  focusDestination,
+  holdFocus,
+  inputCount,
+  onStanding,
+  onUserInput,
+  focused,
+} from "../focus.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { closeControl, el, offer } from "../widget-elements.js";
 import { keeps, keepsHidden, keepsText, layoutPx } from "../keeps.js";
@@ -139,6 +148,32 @@ export function createThreadPreview({
     },
   });
   preview.append(carry.grip, previewList);
+  // A press in the card changes what it shows from where the user pressed, so the
+  // placement that change causes keeps the pressed spot still (`holding`'s `pressed`)
+  // until the user's next input. The press, by pointer, touch or key, is read at the input
+  // edge, before its handlers change the card: each element on its path, from the
+  // card's top, so a control the press removes, as its notice is, gives way to the
+  // nearest one still drawn.
+  onUserInput((event) => {
+    // A tap counts its `touchstart` after its `pointerdown`, so it is read again there.
+    if (
+      !previewSession ||
+      !["pointerdown", "touchstart", "keydown"].includes(event.type)
+    )
+      return;
+    const path = event.composedPath();
+    if (!path.includes(preview)) return;
+    const top = preview.getBoundingClientRect().top;
+    previewSession.pressed = {
+      input: inputCount(),
+      path: path
+        .filter(
+          (node) =>
+            node instanceof Element && node !== preview && preview.contains(node),
+        )
+        .map((node) => ({ node, offset: node.getBoundingClientRect().top - top })),
+    };
+  });
   let previewRegionMounted = false;
   // The card's transcript is re-rendered on every reading of its thread; a message holds
   // the user's place in it under the event id it is rendered with (user-place.js).
@@ -461,6 +496,10 @@ export function createThreadPreview({
       scroller,
       coarse: coarsePointer.matches,
     });
+    const pressed =
+      session.pressed?.input === inputCount()
+        ? session.pressed.path.find(({ node }) => node.checkVisibility())
+        : null;
     const held = session.side.holding({
       fresh,
       hold,
@@ -468,6 +507,15 @@ export function createThreadPreview({
       drafting,
       latest,
       draftText: replyEditor?.value ?? "",
+      pressed: pressed && {
+        input: session.pressed.input,
+        moved:
+          Math.abs(
+            pressed.node.getBoundingClientRect().top -
+              preview.getBoundingClientRect().top -
+              pressed.offset,
+          ) > 0.5,
+      },
     });
     void floatingUi()
       .then((ui) => {
@@ -651,6 +699,8 @@ export function createThreadPreview({
       // first stood at, or was carried at (`placeThreadPreview`).
       width: null,
       region: null,
+      // The user's latest press in the card, while it is their latest input (`holding`).
+      pressed: null,
     };
     carryCommentFrame(origin);
     if (origin) previewSession.side.adopt(origin.frame);

@@ -136,7 +136,7 @@
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
 /* A table's painted grid fills a drawn frame, or the room its nearest allocation grants
    beyond the column (`wide` or `available`), whose start edge the table shares with
-   that box's other blocks. Otherwise, as in a box allocated the column such as an Ask,
+   that box's other blocks. Otherwise, as in a box kept to the column such as an Ask,
    the grid keeps its columns' natural width. A frame that only trims draws no edge to
    fill (`--lf-block-frame: trim`). `--lf-granted` carries the nearest allocation down.
 
@@ -147,15 +147,15 @@
    stays on each table, so a nested table asks its own frame. */
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-granted { syntax: "<integer>"; inherits: true; initial-value: 0; }
-:where([data-lf-space="wide"], [data-lf-space="available"]) { --lf-granted: 1; }
-:where([data-lf-space="column"]) { --lf-granted: 0; }
+:where([data-lf-space]) { --lf-granted: 1; }
+:where([data-lf-column]) { --lf-granted: 0; }
 @container style(--lf-granted: 1) {
   :where(:root, .lf-thread-transcript) table { --lf-fills-frame: 1; }
 }
 /* A table granted room of its own (`data-width`) fills only a drawn frame: elsewhere it
    keeps its columns' natural width within that room rather than spreading the room
    between them, and layouts.css sizes its box to them. */
-:where(:root, .lf-thread-transcript) table:where([data-lf-space="wide"], [data-lf-space="available"]) {
+:where(:root, .lf-thread-transcript) table:where([data-lf-space]) {
   --lf-fills-frame: 0; }
 @container style(--lf-block-frame: 1) {
   :where(:root, .lf-thread-transcript) table { --lf-fills-frame: 1; }

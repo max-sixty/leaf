@@ -665,7 +665,7 @@
         box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
     };
   };
-  const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+  const BREAKOUT = '[data-lf-space]';
   const ARRANGED = "data-lf-arranged";
   // The box a breakout is laid out in: its slot's where a widget slots it, past any
   // ancestor that draws no box of its own (shadow-tree.js, `renderedParent`), and past
@@ -756,11 +756,11 @@
         Math.max(0, Math.round(column.right - edges.right)),
       ];
       readings.push([breakout, ...reading, false]);
-      // A holder allocated the column can span the breakout it holds, as an Ask does
+      // A holder kept to the column can span the breakout it holds, as an Ask does
       // (the default package's ask.css), and its padding keeps its content box where
       // its own holder's is, so it stands in from the column as far: it takes the same
       // reading, and grows as far each way as the block does.
-      if (holder.matches('[data-lf-space="column"]'))
+      if (holder.matches('[data-lf-column]'))
         readings.push([holder, ...reading, false]);
     }
     let changed = false;

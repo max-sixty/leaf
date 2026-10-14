@@ -67,7 +67,7 @@ export function settleResidency() {
 // no such bound. A holder that changes how it arranges what it holds, from a block to a
 // grid, say, while nothing in it moves or resizes, keeps its reading until the next
 // pass.
-const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
+const BREAKOUT = '[data-lf-space]';
 const bringsBreakout = (node) =>
   node.nodeType === Node.ELEMENT_NODE &&
   (node.matches(BREAKOUT) || node.querySelector(BREAKOUT) !== null);

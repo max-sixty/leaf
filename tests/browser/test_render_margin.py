@@ -117,7 +117,7 @@ run several lines beside the prose and the callout that follow it.</p></aside>
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
     expect(page.locator("#note")).to_have_css("float", "right")
-    expect(page.locator("#column")).to_have_attribute("data-lf-space", "column")
+    expect(page.locator("#column")).to_have_attribute("data-lf-column", "")
     at = page.evaluate(
         """() => ({
           column: document.getElementById('column').getBoundingClientRect().top,

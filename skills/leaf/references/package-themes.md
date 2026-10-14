@@ -40,7 +40,7 @@ out side by side (a flex row, a grid) declares `--lf-holds-edge: 1`, so the trim
 it rather than taking one item's margin and leaving the others'.
 
 Delivery paints declared layout facts into the served document as `[data-lf-inline]`,
-`[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`, `[data-lf-exhibit]`, and
+`[data-lf-space]` (`[data-lf-column]` for `x-space: column`), `[data-lf-bound]`, `[data-lf-height]`, `[data-lf-exhibit]`, and
 `[data-lf-views]`, `[data-lf-content]`, and `[data-lf-verbatim]`; shared selectors read those attributes instead of naming widget
 tags. The registry's `$keys` entries for `x-space`, `x-bound`, and `x-height` say what
 each declaration requests; none of them chooses the widget's internal layout, which the

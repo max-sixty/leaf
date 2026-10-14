@@ -1321,7 +1321,8 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
       for (const id of ['prose', 'wide', 'table', 'nested-prose', 'options']) {
         const el = document.getElementById(id), box = el.getBoundingClientRect();
         result[id] = {width: box.width, left: box.left,
-          space: el.getAttribute('data-lf-space'), role: el.getAttribute('role')};
+          space: el.getAttribute('data-lf-space'), role: el.getAttribute('role'),
+          column: el.hasAttribute('data-lf-column')};
       }
       return result;
     }""")
@@ -1329,7 +1330,7 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
     assert at["table"]["space"] == "available"
     assert at["wide"]["width"] > at["prose"]["width"]
     assert at["table"]["width"] == pytest.approx(at["wide"]["width"], abs=1)
-    assert at["options"]["space"] == "column"
+    assert at["options"]["column"] and at["options"]["space"] is None
     assert at["wide"]["left"] < at["prose"]["left"]
     for column in ("nested-prose", "options"):
         assert at[column]["width"] == pytest.approx(at["prose"]["width"], abs=1)
@@ -1471,6 +1472,13 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
             width="",
             table='<table data-width="wide"><tr><td>a</td><td>b</td></tr></table>',
         )
+        + '<div id="wrapper" data-width="wide">'
+        + ask.format(
+            id="wrapped",
+            width="",
+            table=f'<table data-width="available"><tr>{cells}</tr></table>',
+        )
+        + "</div>"
         + '<div id="pulled" style="margin-inline: -150px">Pulled words.'
         + '<div data-width="available">Room.</div></div>'
         + '<div><span id="spilled" style="margin-left: -150px">Spilled words.'
@@ -1482,7 +1490,9 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     resized(column, 1726, 900)
     at = column.evaluate(
         measure.replace(
-            "'list']", "'list', 'listed', 'listed-t', 'both', 'both-t', 'tracked']"
+            "'list']",
+            "'list', 'listed', 'listed-t', 'both', 'both-t', 'tracked', 'wrapper',"
+            " 'wrapped']",
         )
     )
     assert at["holds-t"]["width"] == 1080, at
@@ -1496,6 +1506,9 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         at
     )
     assert at["tracked"]["width"] == 350, at
+    # An Ask kept to the column inside a breakout takes its holder's room, as any block
+    # there does, however much room its own block asks for.
+    assert at["wrapped"] == at["wrapper"], at
     # An Ask that spans its block is a breakout the theme grows, so the gate reads it as
     # one, even where it reaches further than a table of two columns does; a box the
     # page pulls out of the column by its margins, an inline one, or one it grows round

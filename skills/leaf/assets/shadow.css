@@ -660,10 +660,10 @@ button.lf-thread-notice[data-lf-focus] {
 }
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
 @property --lf-granted { syntax: "<integer>"; inherits: true; initial-value: 0; }
-:where([data-lf-space=wide], [data-lf-space=available]) {
+:where([data-lf-space]) {
   --lf-granted: 1;
 }
-:where([data-lf-space=column]) {
+:where([data-lf-column]) {
   --lf-granted: 0;
 }
 @container style(--lf-granted: 1) {
@@ -671,7 +671,7 @@ button.lf-thread-notice[data-lf-focus] {
     --lf-fills-frame: 1;
   }
 }
-:where(:root, .lf-thread-transcript) table:where([data-lf-space=wide], [data-lf-space=available]) {
+:where(:root, .lf-thread-transcript) table:where([data-lf-space]) {
   --lf-fills-frame: 0;
 }
 @container style(--lf-block-frame: 1) {

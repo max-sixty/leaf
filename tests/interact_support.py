@@ -16,6 +16,7 @@ import re
 import secrets
 import shlex
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -1470,6 +1471,21 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     retire_test_services(tmp_path, isolated_session)
 
 
+def retire_bridge(lock):
+    """End the bridge holding `lock` once it has published its address."""
+    record = wait_for(
+        lambda: files_model.read_json(lock.with_suffix(".json")),
+        bool,
+        failure="a started bridge never published its address",
+    )
+    os.kill(record["pid"], signal.SIGTERM)
+    wait_for(
+        lambda: leases_model.lock_is_held(lock),
+        lambda held: not held,
+        failure="a bridge outlived its test",
+    )
+
+
 def retire_test_services(tmp_path, isolated_session):
     """End the test's harnesses before removing their coordination files.
 
@@ -1486,6 +1502,10 @@ def retire_test_services(tmp_path, isolated_session):
         record = files_model.read_json(path)
         if isinstance(record, dict) and isinstance(record.get("id"), str):
             cleanup_model.end_session(record["id"])
+    # A Claude Code hook leaves Leaf's bridge running for the worker's lifetime.
+    for lock in (isolated_session / "bridge").glob("*.lock"):
+        if leases_model.lock_is_held(lock):
+            retire_bridge(lock)
     for root in (tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
             if server_model.running_server(lease.parent):

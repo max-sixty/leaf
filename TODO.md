@@ -95,6 +95,16 @@ has tried; settle that before building it.
   removed in October 2026 have been gone a while; if pages written since still
   carry the heading, remove this check too. It fired in 4 sessions, 2 of them on
   user pages, between 2026-07-22 and 2026-10-11.
+- **Run `leaf` in Codex's sandbox without settings.** Codex's sandbox refuses what a
+  `leaf` command needs and, unlike Claude Code's, leaves a command no route out:
+  with network off it has no proxy, and a direct connection to 127.0.0.1 or a Unix
+  socket is refused (measured at codex-cli 0.160.0), so the bridge Claude Code's
+  sandboxed commands use (`bridge.py`) cannot serve it. A plugin's MCP server runs
+  outside both harnesses' sandboxes (measured on macOS). Ship one whose tool runs
+  `leaf` with the arguments it is given, have a sandboxed refusal name it, and
+  drop the README's Codex rule. Codex asks before each MCP tool call unless the
+  user approves the tool or sets the server's `default_tools_approval_mode =
+  "approve"`; find whether a plugin can declare that itself.
 - **Consider a reminder when revising decided content.** An optional `--force`
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before

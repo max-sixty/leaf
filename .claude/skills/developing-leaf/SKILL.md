@@ -316,9 +316,9 @@ checks:
 - `claude-code` (`journey_claude_code.py`): run it, with and without
   `--hooks-module`, after a change to `hooks/hooks.json`, `hooks/claude-code.ts`,
   `ClaudeCodeHarness`, `hooks.py`, `background-watch.py`, or the watch between
-  turns in `session.py`. Run it with `--sandbox` after a change to the README's
-  "Agent sandboxes" settings or to what a `leaf` command needs from the machine
-  outside its page directory.
+  turns in `session.py`. Run it with `--sandbox` after a change to `bridge.py`,
+  the README's "Agent sandboxes" settings, or what a `leaf` command needs from
+  the machine outside its page directory.
 - `codex-app-server` and `codex-queue` (`journey_codex.py`): run both after a change
   to `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's
   turn in `service.py`, adding `--preview` for a change to preview startup or

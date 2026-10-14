@@ -36,7 +36,6 @@ import { decisionControls } from "../keyboard/bindings.js";
 import { closestAcross, inChrome, showsWords } from "../passages.js";
 import { TEXT_BLOCK } from "../passage-facts.js";
 import { scrollerFor } from "../reading-regions.js";
-import { reserve } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { queueList } from "../drawers.js";
 import { decisionFor, registry, tagsDeclaring } from "../registry.js";
@@ -166,11 +165,8 @@ export function createAskView({
       const outcome = registry[tag]["x-awaits"].all;
       if (bulkAnswers.has(outcome)) continue;
       const label = outcome[0].toUpperCase() + outcome.slice(1);
-      const btn = bannerControls.registerBulk(outcome, label);
+      bannerControls.registerBulk(outcome, label);
       bulkAnswers.set(outcome, label);
-      // In the row now, so it holds the widest it reaches below a thousand — the same
-      // words syncAsks writes, measured in the face it will render in (see reserve).
-      reserve(btn, [`${label} all (999)`]);
     }
   }
 

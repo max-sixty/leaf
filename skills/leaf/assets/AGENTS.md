@@ -152,8 +152,8 @@ representative desktop viewport.
   finding `tests/known_widget_findings.py` does not list.
 - **Generated interface first appears in its settled position.** Reserve space before
   a generated control appears. Transient feedback may repaint a control or briefly
-  replace its label but never changes its geometry (`reserve` in `widget-elements.js`
-  sizes a control for all its labels). An action awaiting confirmation dims its
+  replace its label but never changes its geometry (`data-lf-room`, `controls.css`,
+  sizes a label for all its words). An action awaiting confirmation dims its
   existing control after the shared delay. The parent laying out adjacent actions gives
   them disjoint hit boxes.
 - **A gesture shows the result the page can draw as it is made** (root `AGENTS.md`,
@@ -354,7 +354,7 @@ it, and shape the markup and CSS so the runtime uses its answer:
 
 | Question | The browser feature that answers it |
 | --- | --- |
-| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell |
+| How large a box is, including the widest of several labels | grid and flex tracks, `min-content` and `max-content`, labels stacked in one grid cell, a label's room drawn invisibly beside its words (`data-lf-room`) |
 | Where a box stands against another box or the scroller holding it | the containing block, sticky positioning, anchor positioning, scroll timelines |
 | Which of Leaf's surfaces paints over which, and that the page paints beneath them all | the top layer, and stacking contexts: the theme's `--lf-z-*` ladder, and `main` as one context at 0 |
 | Whether a box is rendered at all | `checkVisibility` |
@@ -373,9 +373,7 @@ retargeted shadow hosts and a held label press, so style focus on those marks.
 Whether the user can see a box, and what covers it, stay with `geometry.js`
 (`seenRect`, `declareOccluder`), since Leaf's chrome stands over the page without
 clipping it, and some of it, such as the shortcut bar, takes no pointer hits for
-`elementsFromPoint` to find. `reserve` (`widget-elements.js`) predates this rule and
-measures each label in script; a change that touches it replaces it with labels
-stacked in one grid cell, or states why that fails.
+`elementsFromPoint` to find.
 
 Each rendering callback gathers its layout reads before it writes: a read after a
 write forces a synchronous style and layout. A document-wide renderer that reads DOM

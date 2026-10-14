@@ -1259,7 +1259,22 @@ def task_end(dir: str, task_id: str, outcome: str, detail: str | None) -> None:
     either side. A prose ask's id (`reply:<message-id>`) ends that request
     without creating a user answer: `done` records it answered elsewhere, DETAIL
     saying where, and `dropped` records it withdrawn. Widget asks end through
-    their declared state or an authored withdrawal."""
-    from leaf.todos import cmd_end
+    their declared state or an authored withdrawal. Ending a to-do on an element
+    `done` while that element still stands among the open work, with nothing on it
+    or inside it left on either list, says so on stderr."""
+    from leaf.todos import cmd_end, finished_in_view
 
-    _print_records(cmd_end(resolve_dir(dir), task_id, outcome, detail))
+    page_dir = resolve_dir(dir)
+    end = cmd_end(page_dir, task_id, outcome, detail)
+    _print_records(end)
+    # The record leads, so a reader parsing the first line still gets it.
+    sys.stdout.flush()
+    if element := finished_in_view(page_dir, end):
+        click.echo(
+            f"Your work on `{element}` is done, and it still stands among the open "
+            "work. Unless it is the page's current content, move it, cut to its "
+            "outcome, to the finished work collapsed after the open work, and let what "
+            'comes next take its place (authoring-revisions.md, "Keep the current page '
+            'current").',
+            err=True,
+        )

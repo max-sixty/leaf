@@ -74,7 +74,9 @@ Before adding one, estimate its precision (the share of its firings that were ne
 and recall (the share of the failure's occurrences it catches) on real pages and
 sessions, not only on the failure that prompted it, and say where the numbers are
 estimates. Low precision spams the agent. Low recall makes the failure look handled
-while it continues everywhere the check doesn't see.
+while it continues everywhere the check doesn't see. The rates inform the call
+rather than gate it: weigh what a missed failure costs as well as how often it
+happens, and whether agents improve the page after receiving the message.
 
 ## When to pass guidance back to the authoring agent
 
@@ -82,7 +84,7 @@ Pass guidance back when it helps the author improve the user's result, weighed a
 the interruption and the cost of another rule (root `AGENTS.md`, "Leaf's role"). First
 ask whether Leaf should provide the behavior itself: layout and runtime code should
 carry out the author's intent without making them work around incidental markup
-restrictions.
+restrictions. Keep editorial choices with the author and preserve the user's state.
 
 Refuse input only when proceeding would break a guarantee, and say how to fix it where
 the author can act. Use the owning parser or validator rather than repeating its rules,
@@ -92,8 +94,10 @@ limitation alone doesn't justify a restriction.
 
 Where Leaf has evidence but the author must judge it, report the observation without
 making it a requirement: page findings in check results, a command's consequences in
-its output. Put reusable knowledge in the instructions the author reads when making the
-relevant choice, with the reason it matters. When a markup contract changes, update its
+its output. Say what was checked and what was not. Put reusable knowledge in the instructions the author reads when making the
+relevant choice, with the reason it matters. Add no message when it would only
+repeat known information or request a change the page does not need. When a
+markup contract changes, update its
 reader, validation, dependent layout rules and instructions together.
 
 Data one Leaf module writes for another over a channel only Leaf writes is not input:
@@ -145,11 +149,11 @@ item is selected; finishing the task by one route proves only that route.
 Open the exact preview URL in a fresh browser context and check those outcomes on
 arrival and through ordinary input; setup the user can't repeat belongs in the fixture.
 Judge legibility and layout in the states ordinary input produces, in every affected
-colour scheme, at a representative desktop viewport, including the hovered or
+color scheme, at a representative desktop viewport, including the hovered or
 keyboard-targeted item inside an open surface. Capture the viewport when fixed chrome
 should appear: a Playwright screenshot of an element taller than the viewport draws
 fixed overlays in the wrong place. Close a browser session you opened when you finish
-with it.
+with it; the user's review preview and a borrowed browser keep their own lifetimes.
 
 Derive the required visual relationships from the reader's task, not from the checks
 that pass. For each ordinary input, state which content and controls the reader needs
@@ -182,7 +186,8 @@ states where layout can cover a focus ring; add a missing state to `STATES` rath
 driving it by hand.
 
 Hand off every difference a still can show as a Leaf page with an `lf-shot` of the
-`stills` crops and a sentence saying what changed, and link the page in the reply.
+`stills` crops and a sentence saying what changed, and link the page in the reply. A
+live preview may accompany the pairs but does not replace them.
 Several states often show the same difference: show it once, in the state where it
 reads most clearly, and name the states that repeat it. Add a dark-scheme or phone pair
 only where the change looks different there. For an interaction-only change, compare

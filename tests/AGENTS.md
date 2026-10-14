@@ -50,7 +50,7 @@ before testing to wait for it and see failures. A plain clone starts it with
 wt setup
 uv run pytest tests/browser/test_render_widgets.py -q -n0 -k board   # the tests a change needs
 pnpm run test:runtime                 # tests/runtime/, under Node
-uv run pytest tests                  # broad selection; the landing gate runs it
+uv run pytest tests                  # broad selection; the landing gate runs it (root AGENTS.md, "Working on the repository")
 uv run pytest --lf --lfnf=none -x -n0
 uv run pytest --regtest-reset -n0 <node-id>
 ```
@@ -110,16 +110,17 @@ by node id or `-k`; find them by reading which tests exercise the changed code. 
 A change lands through a gate that runs the broad selection: a pull request's `test`
 job or `wt merge`'s pre-merge. A failure there that the change causes is the gate doing
 its job; fix it and push. A failure the change doesn't cause, such as one main's latest
-run also shows (confirm by running it on main by node id), blocks nothing: name it in
-the pull request as inherited and land. The user chose this (2026-10-13), so `test` is
+run also shows (confirm by running it on main by node id), blocks nothing and calls
+for no rerun: name it in the pull request as inherited and land. The user chose this (2026-10-13), so `test` is
 not a required check on `main`; they want it required again once the suite improves.
 `wt merge` refuses on any failure, so such a change lands through a pull request.
 
 CI reports the rest. The `test` job in `ci.yaml` runs the `main` tier once main moves
 and every tier daily, and `tend-ci-fix` answers either failing. The user accepted
-(2026-10-04) that a pull request can land green and break a test it never ran, so a red
-main is no reason to widen a change or its tests. A newer push cancels the queued run
-behind it; that is intended. To learn what main fails, read that job's run and
+(2026-10-04) that a pull request can land green and break a test it never ran, and
+that main stays red until `tend-ci-fix` repairs it, so a red main is no reason to
+widen a change or its tests. Main runs one push suite at a time; a newer commit
+replaces the run still waiting, which GitHub shows as cancelled. That is intended. To learn what main fails, read that job's run and
 reproduce a failure by node id. `tend-ci-fix` sees only that run, so a failure only
 macOS reproduces is left to a local session: check that no session, worktree or open
 pull request already covers it, then start one (for example with `/dispatch`).
@@ -255,8 +256,9 @@ it by its fields (`{"code": "failed-load", "status": 400}`) or by a fragment of 
 console message (`render_harness.is_problem`). For a recurring fault, close the page
 first and then consume. Filtering the collector is not an assertion.
 
-Four watches report problems the same way. Fix what they report rather than consuming
-it; none has per-test allowances.
+Three watches report problems; a fourth, `input_work_watch.js`, tells them which input
+caused a change. Fix what they report rather than consuming it; there is no per-test
+allowance list.
 
 - `write_watch.js` reports a DOM write that changes nothing. Fix the writer with
   `runtime/keeps.js`. A write that must restate, as a vendored component's does, joins
@@ -288,7 +290,7 @@ Worker's, carry no input.
 
 Leaf's own widgets are held to the widget quality report `package check --render` gives
 a package's author (`leaf/render_gate/widget_quality.py`): `test_widget_quality.py`
-runs it over every bundled package. `known_widget_findings.py` lists today's findings,
+runs it over the base layer and every bundled package. `known_widget_findings.py` lists today's findings,
 each a defect awaiting a fix. A new finding fails the test, and so does an entry that
 no longer occurs, so fixing a widget deletes its entry.
 
@@ -298,7 +300,7 @@ Open pages through `open_page`, and call `wait_until_ready` (`leaf.render_checks
 after any manual navigation. It waits on the runtime's one readiness signal,
 `pageReadiness`; network quiet implies none of its stages, and a key pressed before
 replay can be lost silently. Never combine the stamps yourself or wait for a deferred
-widget by name. Call `displayed` before measuring a page before its runtime starts.
+widget by name. To measure a page before its runtime starts, call `displayed` first.
 
 ## Waits
 
@@ -360,7 +362,8 @@ matching frame even if the gesture goes on to another result. The helpers in
 Wait for something the gesture itself changes. An empty highlight or an optimistic
 `pending:` card satisfies an assertion too early; wait for painted ranges
 (`wait_for_pending_mark`) or the admitted comment's id. Where applying the server's
-response is the subject, wait for `data-lf-applied`. Wait for `rendered` between
+response is the subject, wait for `data-lf-applied`, which counts only actions,
+reports and undos; observe a comment, reply or reaction by its paint. Wait for `rendered` between
 repeated presses a repaint could answer, and before `scroll_settled`, check that the
 scroll started.
 

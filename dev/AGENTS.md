@@ -93,8 +93,8 @@ they make live in `max-sixty/leaf-assets`, so outside `.tmp/` they change only t
 in `leaf-assets.json` and the README's image URLs.
 
 - `leaf-dev site` builds <https://leaf.page/> into `.tmp/site`, its edge assets into
-  `.tmp/site-assets`, and the installation its container runs into
-  `.tmp/site-install`; `--output` gives a separate build its own destination.
+  `.tmp/site-assets`, and, in `.tmp/site-install`, the installation its container
+  runs; `--output` gives a separate build its own destination.
   `pnpm run site:dev` builds and serves it through `wrangler dev`.
 - `leaf-dev verify-site` checks a release at an origin, or with `website-worker` the
   site `leaf-dev site` built, through the local Worker and container, and prints the

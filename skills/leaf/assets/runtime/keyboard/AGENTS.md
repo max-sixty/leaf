@@ -46,6 +46,8 @@ innermost step as one `navigation.back` command.
   containing page.
 - Draw and Design are page modes; surfaces opened inside them close first.
 - A surface's own state, such as a Threads filter, clears before the surface closes.
+  Page-side selections, targets, clusters and the page composer coexist beside an
+  auxiliary surface, and focus decides which answers first.
 - A composer, reply box or find box returns to its container: an element comment's
   composer to its element, a reply box to its thread, and a find box to its panel.
   A layer opened from a banner control returns to that control.
@@ -77,8 +79,8 @@ contents. A page-level letter must be useful on every page; any other control is
 reachable by Tab, native activation, ask digits or Go-to hints. `PAGE_COMMANDS` lists
 the page commands in shortcut-bar order. A lowercase letter steps a walk forward and
 Shift steps it back, wrapping at either end. A surface may reuse a page key for the same
-intent with a nearer destination. While the user is on an ask, core forwards only the
-widget's declared `contextKeys`; widgets assign their own `1`–`9`.
+intent with a nearer destination. While the user is on an ask, or its margin or thread
+representative, core forwards only the widget's declared `contextKeys`; widgets assign their own `1`–`9`.
 
 ## Touch routes
 

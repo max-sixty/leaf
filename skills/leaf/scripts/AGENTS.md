@@ -91,9 +91,9 @@ the requested views, `page` composes the response, `reading` names file changes 
 freshness reads, and `service` owns the page source every route reads (the live
 directory or a `page_snapshot` capture) and its transaction.
 
-Within `render_gate/`, `scheme` owns one browser and colour-scheme run, `readings` the
-probe readings and the findings they become, `version` retries, `page_code` plain
-`page check`'s run, `preview` temporary servers, `browser` the browser's launch and
+Within `render_gate/`, `scheme` owns one browser and color-scheme run, `readings` the
+probe readings and the findings they become, `version` retries, `page_code` the run
+plain `page check` makes, `preview` temporary servers, `browser` the browser's launch and
 exit, `screens` the screenshots a passing check saves, `picture` the image
 `page picture` draws of a drawing comment, `command` the CLI, and `widget_quality` the
 report `package check --render` gives a widget's author, which never fails a check.

@@ -70,10 +70,10 @@ representative desktop viewport.
 
 - **The page holds still under the user's aim.** A state change may repaint any box,
   but must not move the controls next to the gesture that caused it. Without a gesture,
-  a box may grow into free space, but reading content and controls stay put. A change
+  a box may grow or shrink into free room, but reading content and controls stay put. A change
   the user asked for may reflow the content it replaces, with motion the eye can
-  follow. Revealing something on hover, focus or a key never changes the space its
-  neighbours get, and typing may grow a field but never moves it. Check:
+  follow. Revealing something on hover, focus or a key never changes the size or
+  position of its ancestors or siblings, and typing may grow a field but never moves it. Check:
   `tests/shift_watch.js`, which the browser fixture runs on every test outside a
   module marked `shifts_unsurveyed` (`tests/AGENTS.md`, "Browser errors").
 - **A runtime region whose contents rearrange inside it declares `data-lf-reflow`.**
@@ -84,15 +84,16 @@ representative desktop viewport.
   row and later cards move with that growth. When the growth would push a reply row the
   user just sent below its landing band, the transcript scrolls instead
   (`sendLanding` in `thread/reply-landing.js`). Put the attribute on the box that owns
-  the space, and know that a nested region keeps every guarantee of the regions around
-  it. Owners: `thread/thread-card.js`, `thread/messages.js`,
+  the space. A nested region keeps every guarantee of the regions around it. Owners: `thread/thread-card.js`, `thread/messages.js`,
   `keyboard/shortcut-bar.js`.
 - **News never moves what the reader is reading.** News from the server grows above
   the screen, where scroll anchoring absorbs it, or below it. Anywhere else it waits
   behind a fixed-size control until the reader goes to it, and an editor in use stays
   still. Check: `test_news_just_after_a_press_moves_nothing`. Owners:
   `thread/held-news.js`, which also holds widget rows (`HeldReading`) and boxes a late
-  arrival would resize (`heldGrowth`); `newsMoves` in `thread/thread-card.js`; and
+  arrival would resize (`heldGrowth`); `newsMoves` in `thread/thread-card.js`;
+  `thread/thread-list.js` for the Threads panel's reading place; `keeping` in
+  `thread/thread-list-view.js` for a card news would take out of view; and
   `reading-continuity.js` for a hidden tab.
 - **A turn of the user's own takes them with it.** When the user's reply or Reopen
   moves its card out of the Threads panel's current filter, the panel widens its view
@@ -101,7 +102,8 @@ representative desktop viewport.
 - **A box floating over the page grows inside the window.** The comment box and the
   thread card grow toward the window edge that has room, and never scroll the page to
   make room (`annotation-overlay/comment-placement.js`). A box a scroll carried away
-  comes back when the user types into it (`off-flow.js`).
+  comes back when the user types into it (`off-flow.js`). Only a field in flow
+  scrolls to keep its controls in view (`thread/reply-landing.js`).
 - **A widget paints its final box before it upgrades.** The theme sizes each widget
   under `html[data-lf-interactive]` as its module will draw it
   (`../references/module-authoring.md`, "First paint"). Check: the widget quality check
@@ -118,17 +120,20 @@ representative desktop viewport.
 - **A gesture shows the result the page can draw as it is made** (root `AGENTS.md`,
   "The document starts state; the log changes it"). `standGesture` in `drafts.js`
   handles a send and the refusal that returns the words to their box. The new content
-  and its Undo confirm success, so success shows no notice. A gesture that moves the
+  and its Undo confirm success, so success needs no notice beyond the announcement
+  for a listener. A gesture that moves the
   user, such as resolving a thread, moves them back when it is refused or undone
   (`thread/folding.js`). A result only the log can supply waits with `aria-busy`, shown
-  after a delay so a fast answer shows nothing.
+  after a delay so a fast answer shows nothing. Persistent status text is for a
+  state the user must return to, such as a failure.
 
 ### Words stay where they were typed
 
 - **Typed words stay in their native editor until the user puts them away.** A box
   holding words closes only on a key or press meant to close it (Send, Cancel, Escape,
   a press elsewhere, another target) or when its subject leaves the document; a scroll,
-  resize, timer or server news never closes it. The box follows its passage through
+  resize, timer or server news never closes it. Geometry decides where the box
+  sits, never whether it exists: it follows its passage through
   scrolling ancestors, out of view too, and Resume writing (`g i`) shows the same
   editor. A re-render that replaces the box's node hands its words and caret to the
   replacement. Checks: `tests/words_watch.js`, which fails any test whose page loses
@@ -161,10 +166,11 @@ representative desktop viewport.
 ## Runtime ownership
 
 `leaf.js` only boots the page: each owner is a module that exports its capability, and
-`leaf.js` imports the owners and starts them in the order its header lists. Two classic scripts run before any module. `runtime/prepaint.js` runs
+`leaf.js` imports the owners and starts them in the order its header lists.
+Two classic scripts run before any module. `runtime/prepaint.js` runs
 inline in every document, served or exported, and sets `data-lf-interactive` so the
-theme gives widgets their upgraded size; if the runtime can't start, it removes that
-attribute and names the reason in `data-lf-startup-error`, and every widget shows its
+theme gives widgets their upgraded size. When something the page needs doesn't
+arrive, or the page declares a failure, it removes that attribute and names the reason in `data-lf-startup-error`, and every widget shows its
 readable fallback. `runtime/bootstrap.js` runs in a served page only: it sets
 `data-lf-live`, holds keys pressed before upgrade, and shows a startup failure.
 
@@ -242,7 +248,8 @@ Stylesheets apply in cascade layers, in the order `CASCADE_LAYERS` in `layer.py`
 declares (`../references/packages.md`, "Styles and composition"). Each widget package's
 rules reach only its own widgets (`widget_confinement` in `layer.py`), so a rule several
 packages need belongs in the kernel. Page and theme-package rules skip the chrome and
-every `.lf-ui` control unless they name a widget (`runtime/page-sheets.js`).
+every `.lf-ui` control unless they name a widget or the layer's vocabulary
+(`runtime/page-sheets.js`).
 `runtime/stylesheets.js` says which sheets the document and shadow roots adopt.
 
 A `:has()` rule restyles far more than it means to in two shapes. When its rightmost

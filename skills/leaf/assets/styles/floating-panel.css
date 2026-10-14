@@ -254,15 +254,17 @@
   }
   /* The field's presses stand in the row's flow beside the words, rather than over the
      words' end where a card's composer floats them, so the row's one alignment places
-     them too. */
+     them too. Each is a line square, as the leaf is, in place of a composer's own
+     hit box, so Send stays round. */
   .lf-fp-field :is(.lf-compose-submit, .lf-compose-dictate) {
     position: relative;
     inset: auto;
     flex: none;
     place-items: center;
-    width: 32px;
-    height: auto;
-    min-height: var(--lf-fp-line);
+    width: var(--lf-fp-line);
+    min-width: 0;
+    height: var(--lf-fp-line);
+    min-height: 0;
     padding: 0;
   }
   /* Send stands in the counts' place while the user types, as a round ink press. */

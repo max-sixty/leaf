@@ -202,9 +202,10 @@
     inset: auto;
     flex: none;
     place-items: center;
-    width: 32px;
-    height: auto;
-    min-height: var(--lf-fp-line);
+    width: var(--lf-fp-line);
+    min-width: 0;
+    height: var(--lf-fp-line);
+    min-height: 0;
     padding: 0;
   }
   .lf-fp-field .lf-compose-submit {

@@ -349,38 +349,39 @@
     padding-inline: 10px;
   }
 
-  /* Clicking in opens one quiet line above the field: the keys that send, and where
-     the words go once they hide the placeholder. It is one line tall whatever it says,
-     and while a view is open its room stands empty until then, so the line arriving or
-     changing moves nothing at the view's head and cuts nothing off the view's foot. */
+  /* One quiet line over the field, there only while it has something to say: where the
+     words go once they hide the placeholder, or a notice the placeholder has given up.
+     It is one line tall whatever it says. With no view open it stands above the row,
+     with nothing above it to move. While a view is open it lies over the view's foot,
+     on the panel's ground, rather than taking room of its own, so its coming, changing
+     or going moves nothing at the view's head, and no empty band stands under the view
+     while it has nothing to say. It stands there across the seam between the view and
+     the row, in the room their paddings already leave between the view's last words and
+     the field's, so it covers little of the view beyond the view's own padding. */
   .lf-fp-context {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
+    position: relative;
+    z-index: 1;
     box-sizing: content-box;
-    min-height: 1lh;
+    height: 1lh;
     padding: 8px 14px 0;
     color: var(--lf-fp-muted);
     font-size: 12px;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .lf-fp-context[hidden] {
     display: none;
   }
-  .lf-floating-panel[data-open] .lf-fp-context[hidden] {
-    display: flex;
-    visibility: hidden;
+  .lf-floating-panel[data-open] .lf-fp-context {
+    padding-top: 0;
+    margin: calc(6px - 1lh) 0 -6px;
+    background: var(--lf-fp-surface);
+    /* What it covers fades out just above it rather than being cut at its edge. */
+    box-shadow: 0 -3px 4px var(--lf-fp-surface);
   }
-  .lf-fp-dest {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .lf-fp-dest[data-notice] {
+  .lf-fp-context[data-notice] {
     color: var(--ink);
-  }
-  .lf-fp-keys {
-    flex: none;
   }
 
   /* ---------- folded to the leaf, in the window's corner ---------- */

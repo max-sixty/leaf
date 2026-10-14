@@ -19,18 +19,24 @@
  *   "Comment"; in a thread it says whose turn it is. A status reads dimmer than anything
  *   written, and while the agent works it carries the one sheen that marks work under
  *   way. Clicking in gives the placeholder to where the words go, a passing notice
- *   included, and opens one quiet line above it with the keys that send, which it shows
- *   only while the caret is in the field; a notice standing then moves to that line,
- *   where it also stands over words that hide the placeholder. Once words hide it, the
- *   line says where they go as well, and keeps saying it while they stand. It never
- *   names who reads them: the page has one agent.
+ *   included, which then moves to one quiet line above the field, where it also stands
+ *   over words that hide the placeholder. Once words hide it, that line says where they
+ *   go as well, and keeps saying it while they stand. It never names who reads them: the
+ *   page has one agent. The keys that send are Send's hover name, where Return sends
+ *   with Shift+Return's new line beside it (composing/input.js).
  * - **Opened**: a view above the same row (On, Threads, a thread, Versions, or a
  *   group of the page's controls) with where the user is at its top edge. It lasts while
  *   it is used: Escape or a press on the page puts it away, Escape once the caret has
- *   left the field, since the caret is the innermost thing open. The room of the line
- *   above the field stands while a view is open, one line tall whatever it says and
- *   blank while it has nothing to say, so clicking in or typing moves nothing at the
- *   view's head. It is as tall as what it
+ *   left the field, since the caret is the innermost thing open. The view stands right
+ *   on the row, and the line above the field, while it has something to say, lies over
+ *   the view's foot rather than taking room of its own, so its coming and going moves
+ *   nothing at the view's head; with no view open it stands above the row, where nothing
+ *   above it moves. The user chose this (2026-10-14), reversing the room the line kept
+ *   under every open view, one line tall and blank while it had nothing to say, which
+ *   held the head still but read in Threads as a missing row. That room had stood for
+ *   the keys that send, shown while the caret was in the field; they moved to Send's
+ *   hover name, so clicking in shows nothing new. Rejected: keeping the room, and the
+ *   line pushing the view up as it comes. It is as tall as what it
  *   holds, so a one-message thread opens one message tall, up to most of the window's
  *   height, the larger size a long thread or a long Threads list is read at; past that
  *   it scrolls. The user chose views that fit their content with a larger size for long
@@ -75,7 +81,7 @@ import {
 import { queueBtn } from "./drawers.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageCommand, pageRung } from "./keyboard/register.js";
-import { advertisesKeys, submitLabel } from "./keyboard/bindings.js";
+import { advertisesKeys } from "./keyboard/bindings.js";
 import { keySequenceModel, keySequenceTemplate } from "./keyboard/key-sequence.js";
 import { bannerRows, watchBannerRows } from "./banner-toolbar.js";
 import { readPlace } from "./history.js";
@@ -219,9 +225,6 @@ export function createFloatingPanel({
   const stage = el("div", "lf-fp-stage");
   opened.append(head, stage);
   const context = el("div", "lf-fp-context");
-  const contextDest = el("span", "lf-fp-dest");
-  const contextKeys = el("span", "lf-fp-keys");
-  context.append(contextDest, contextKeys);
   const row = el("div", "lf-fp-row");
   const menu = el("div", "lf-fp-menu");
   menu.id = "lf-fp-menu";
@@ -282,13 +285,6 @@ export function createFloatingPanel({
   let landAtEnd = null;
 
   // ---------- one native editor per destination ----------
-  // The draft the field writes: the open thread's reply, or the page's comment.
-  const destination = () => {
-    const top = trail.at(-1);
-    return top?.view === "thread"
-      ? `reply:${threadByKey(top.thread)?.key ?? top.thread}`
-      : PAGE_DRAFT;
-  };
   // What the empty field says, and whose reading it is (`says`): once the caret is in
   // a field that takes words, where they go; a passing notice while one stands; a
   // resolved thread's way back; else on the page what the agent is doing or wants, in
@@ -1755,12 +1751,6 @@ export function createFloatingPanel({
     keepsHidden(replyOutlet, resting);
     const input = fieldInput();
     if (input) syncInput(input);
-    const holds = Boolean(loadDraft(destination())?.trim());
-    // Clicking in opens one quiet line above the field; it stays while the field holds
-    // words, and while a thread is open, whose field is always its reply, so nothing
-    // moves when the caret leaves.
-    const engaged = Boolean(thread) || writing || holds;
-    keeps(host, "data-engaged", engaged ? "" : null);
     keeps(host, "data-writing", writing ? "" : null);
     // While the user types, Send stands in the counts' place.
     typing = writing && Boolean(draftOf(input).trim());
@@ -1770,35 +1760,23 @@ export function createFloatingPanel({
     const reading = fieldReading(replying ? top.thread : null, input);
     keeps(host, "data-says", reading.says);
     keeps(host, "data-tone", status().tone || null);
-    // A passing notice is said where the field's placeholder would be; once the caret
-    // is in, where the placeholder says where the words go, or words hide it, the notice
-    // stands on this line instead, as a refused send's reason does over the words it
-    // returned. Where the words go is said once: by the empty focused field's
-    // placeholder, and once words hide that, here in the same words, the way a field's
-    // label rises above what is written in it. Who reads them goes unsaid: every word
-    // written here goes to the page's one agent.
+    // The line over the field says what the field cannot: a passing notice is said
+    // where the field's placeholder would be, and once the caret is in, where the
+    // placeholder says where the words go, or words hide it, the notice stands on this
+    // line instead, as a refused send's reason does over the words it returned. Where the
+    // words go is said once: by the empty focused field's placeholder, and once words hide
+    // that, here in the same words, the way a field's label rises above what is written
+    // in it. Who reads them goes unsaid: every word written here goes to the page's one
+    // agent. With nothing to say the line is gone.
     const empty = draftOf(input) === "";
     const notice = noticeReading();
     const covered = notice.visible && (!empty || reading.says === "destination");
-    keeps(contextDest, "data-notice", covered ? "" : null);
+    keeps(context, "data-notice", covered ? "" : null);
     keepsText(
-      contextDest,
+      context,
       covered ? notice.message : empty ? "" : whereTo(replying ? top.thread : null),
     );
-    // The keys that send are said while the caret is in the field, where they work,
-    // and nowhere else: not on the leaf or its menu, and not in a view the user has
-    // stepped into from the field.
-    keepsText(
-      contextKeys,
-      input === focused() && advertisesKeys()
-        ? `${submitLabel()} to send${submitLabel() === "⏎" ? " · ⇧⏎ new line" : ""}`
-        : "",
-    );
-    // A line with nothing to say stands only as the room it keeps under an open view.
-    keepsHidden(
-      context,
-      !engaged || !(contextDest.textContent || contextKeys.textContent),
-    );
+    keepsHidden(context, !context.textContent);
 
     // The next step of what the user is doing now, such as leaving Draw mode or
     // commenting on the words a finger selected, stands in the counts' place while that

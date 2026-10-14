@@ -3,11 +3,12 @@
 from leaf.asks import asking, local_ask_entry, quoted_in
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import leading_title_node
-from leaf.projection import enclosing_widgets
+from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
     is_element_name,
     registry_path,
     retirement_slots,
+    state_specs,
 )
 from leaf.registry.schema import json_validator, schema_reading
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
@@ -115,6 +116,48 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 )
             if rec["text"]:
                 errors.append(found_at("loose-text", rec))
+    byid = {rec["attrs"]["id"]: rec for rec in lf_elements if rec["attrs"].get("id")}
+    return errors + attribute_slot_errors(lf_elements, byid, registry)
+
+
+def attribute_slot_errors(
+    elements, byid: dict, registry: dict, *, holders: dict | None = None
+) -> list[Finding]:
+    """Scalar records cannot share their node's attribute with a parent's selection.
+
+    Declarations remain reusable in unrelated compositions. Ownership follows the
+    canonical physical-slot reading, including holder overrides for a proposed move.
+    Callers select the elements whose composition they are validating.
+    """
+    errors = []
+    for rec in elements:
+        identity = rec["attrs"].get("id")
+        if identity is None:
+            continue
+        for verb, spec in state_specs(registry.get(rec["tag"], {})):
+            record = spec.get("record") or {}
+            if record.get("kind") != "value":
+                continue
+            attribute = {"kind": "attribute", "attr": record["attr"]}
+            owner = recorded_owner(identity, attribute, byid, registry, holders=holders)
+            if owner is None:
+                continue
+            owner_verb = next(
+                verb
+                for verb, spec in state_specs(registry[byid[owner]["tag"]])
+                if spec.get("record") == attribute
+            )
+            errors.append(
+                found_at(
+                    "member-record-slot",
+                    rec,
+                    id=identity,
+                    attr=record["attr"],
+                    value_verb=verb,
+                    owner=owner,
+                    owner_verb=owner_verb,
+                )
+            )
     return errors
 
 

@@ -23,7 +23,7 @@ from leaf import leases as leases_model
 from leaf import machine as machine_model
 from leaf.render_gate import browser as browser_model
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
-from leaf_dev.browser import LINUX_FONTCONFIG, require_linux_fonts, shell_executable
+from leaf_dev.browser import shell_executable, use_linux_fonts
 from leaf_dev.page_fixtures import package_selection_args
 from playwright.sync_api import sync_playwright
 
@@ -711,9 +711,7 @@ def headless_shell():
     fixture drives (`leaf_dev.browser.shell_executable`). A test whose subject is how
     a host that named no browser gets one clears every variable
     (`test_render_commands`, `unnamed_browser`)."""
-    if sys.platform == "linux":
-        require_linux_fonts()
-        os.environ["FONTCONFIG_FILE"] = str(LINUX_FONTCONFIG)
+    use_linux_fonts()
     executable = shell_executable()
     os.environ[browser_model.VARIABLE] = executable
     return executable

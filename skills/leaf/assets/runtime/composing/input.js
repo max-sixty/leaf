@@ -170,6 +170,9 @@ if (!customElements.get(MEDIA_SHELF_TAG))
 // this module ask through this seam for the complete draft; an unwired box keeps
 // its ordinary value.
 export const draftOf = (ta) => inputDrafts.get(ta)?.value() ?? ta?.value ?? "";
+// Ask a wired field to paint again, as its own `sync()` does, where what its hint or
+// name reads has changed and the caller holds the field rather than its wiring.
+export const syncInput = (ta) => inputDrafts.get(ta)?.();
 // Boot binds one input owner to the app's upload command and contextual-hint
 // reading. Fields keep those capabilities for their lifetime; importing this module
 // never installs or replaces application callbacks.

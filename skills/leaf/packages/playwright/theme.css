@@ -168,7 +168,6 @@
 .lf-trace-image-pending { visibility: hidden; }
 .lf-trace-image-viewport { position: relative; inline-size: 100%; margin-inline: auto; overflow: clip; }
 .lf-trace-image { margin: 0; position: absolute; inset: 0; }
-.lf-trace-image img { display: block; inline-size: attr(data-lf-image-width px); max-inline-size: 100%; block-size: auto; margin-inline: auto; border: 1px solid var(--border-2); box-sizing: border-box; }
 .lf-trace-capture-footer { display: flex; align-items: center; gap: var(--sp-3); margin-block-start: var(--sp-1); min-inline-size: 0; }
 .lf-trace-caption { flex: 1; min-inline-size: 0; max-inline-size: none; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lf-trace-full-image[inert] { visibility: hidden; }
@@ -223,7 +222,7 @@
 .lf-trace-canvas > img { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; object-fit: contain; border: 0; }
 .lf-trace-canvas .viewer-container { background: var(--paper-2, var(--paper)); touch-action: pan-y; }
 .lf-trace-canvas .viewer-canvas { touch-action: pan-y; }
-.lf-trace-canvas .viewer-canvas img { max-inline-size: none; border: 0; margin: 0; }
+.lf-trace-canvas .viewer-canvas img { max-inline-size: none; margin: 0; }
 .lf-trace-image-tools:not([hidden]) { display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; margin-block: var(--sp-2) 0; }
 .lf-trace-image-tools button { min-block-size: var(--lf-trace-control-size); }
 .lf-trace-image-tools button[aria-label] { inline-size: var(--lf-trace-control-size); }
@@ -238,8 +237,10 @@
   .lf-trace-capture-footer { gap: var(--sp-2); }
 }
 
+/* A playback frame stands exactly where lf-trace.js places it, over the committed
+   capture, rather than stretched to the canvas as its source image is. */
+.lf-trace-canvas > .lf-trace-playback-image { position: absolute; z-index: 1; inset: auto; max-inline-size: none; pointer-events: none; }
 /* The image names the input its capture belongs to. */
-.lf-trace-playback-image { position: absolute; z-index: 1; max-inline-size: none; margin: 0; border: 0; pointer-events: none; }
 .lf-trace-input-badge { position: absolute; z-index: 2; inset-block-start: var(--sp-2); inset-inline-end: var(--sp-2); max-inline-size: min(45ch, 85%); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border: 1px solid var(--accent); border-radius: var(--r); padding: var(--sp-1) var(--sp-2); background: var(--paper); color: var(--accent); font: 600 var(--lf-trace-small-type) / 1.5 var(--sans); pointer-events: none; }
 .lf-trace-input-point { position: absolute; z-index: 2; inline-size: 18px; block-size: 18px; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent-tint); transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--paper); pointer-events: none; }
 

@@ -10,3 +10,9 @@ export const queueOffers = (item, ready, onUser) => ({
 
 export const itemNoun = (item) =>
   item.kind === "answer" && item.answer?.kind === "reply" ? "reply" : item.kind;
+
+// How a finished item other than an ask ended, in the words its row says: a reply the
+// agent sent, or a to-do's outcome. An ask says its own ending (asks/answer.js).
+const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
+export const itemOutcome = (item) =>
+  item.kind === "answer" ? "Sent" : (OUTCOMES[item.state] ?? item.state);

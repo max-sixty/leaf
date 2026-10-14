@@ -106,18 +106,18 @@ def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve
         }"""
     )
     # The box empties as the reply leaves, and the counts take Send's place again.
-    expect(page.locator(".lf-fp-send")).to_be_hidden()
+    expect(page.locator(".lf-fp-field .lf-compose-submit")).to_be_hidden()
     expect(page.locator(".lf-fp-on-user")).to_be_visible()
 
     settle = page.locator(".lf-fp-settle")
     with sending(page, "the resolve"):
         settle.click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
-    expect(settle).to_have_text(re.compile("Reopen"))
+    expect(settle).to_have_text("Reopen", use_inner_text=True)
     with sending(page, "the reopen"):
         settle.click()
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
-    expect(settle).to_have_text(re.compile("Resolve"))
+    expect(settle).to_have_text("Resolve", use_inner_text=True)
 
     field(page).focus()
     page.keyboard.press("Escape")
@@ -230,13 +230,13 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     with sending(page, "the resolve"):
         page.keyboard.press("r")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
-    expect(settle).to_have_text(re.compile("Reopen"))
+    expect(settle).to_have_text("Reopen", use_inner_text=True)
     expect(thread).to_be_focused()
 
     with sending(page, "the reopen"):
         page.keyboard.press("Enter")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
-    expect(settle).to_have_text(re.compile("Resolve"))
+    expect(settle).to_have_text("Resolve", use_inner_text=True)
 
     # A click on a message's words stands on the part of the thread drawing it.
     message = thread.locator(".lf-primary-part", has_text="Is the window long enough?")
@@ -257,12 +257,127 @@ def test_a_thread_s_keys_answer_in_its_view(browser, serve):
     with sending(page, "the reopen from Resolve's place"):
         page.keyboard.press("r")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "unresolve"
-    expect(settle).to_have_text(re.compile("Resolve"))
+    expect(settle).to_have_text("Resolve", use_inner_text=True)
     expect(settle).to_be_focused()
+    # The head stands for the thread, whose messages are in the view below it.
+    page.keyboard.press("e")
+    expect(strip).to_contain_class("lf-react-open")
+    page.keyboard.press("Escape")
+    expect(strip).not_to_contain_class("lf-react-open")
+    settle.focus()
     with sending(page, "the resolve from Resolve's place"):
         page.keyboard.press("r")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "resolve"
     expect(settle).to_be_focused()
+
+
+def test_the_field_is_the_thread_s_reply_box(browser, serve):
+    """The field a thread opens with is that thread's reply box, as a card's is: a rewrite
+    opened on a message is a rung below it, so Escape or Save hands the caret back to
+    the field; ↑ from the empty field opens the rewrite of the user's last message, and
+    ↑ from the start of an unchanged rewrite the message before. Resolve leaves the
+    reply as a card's does, and the field says how to reopen the thread."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Is the window long enough?")
+    for author, text in [
+        ("agent", "Forty-eight hours covers the first cohort."),
+        ("user", "What about the second cohort?"),
+    ]:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": author,
+                **({"agent": "Claude"} if author == "agent" else {}),
+                "parent": root,
+                "revision": 1,
+                "text": text,
+            },
+        )
+    page = floating(browser, url)
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    thread = page.locator(".lf-fp-view[data-view=thread]")
+    expect(thread).to_be_visible()
+    rewrite = thread.locator(".lf-msg-editor leaf-text")
+
+    # A rewrite opened on the message itself is a rung below the reply box too.
+    thread.locator(".lf-msg-body", has_text="What about the second cohort?").dblclick()
+    expect(rewrite).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(rewrite).to_have_count(0)
+    expect(field(page)).to_be_focused()
+
+    page.keyboard.press("ArrowUp")
+    expect(rewrite).to_be_focused()
+    expect(rewrite).to_have_js_property("value", "What about the second cohort?")
+    page.keyboard.press("Home")
+    page.keyboard.press("ArrowUp")
+    expect(rewrite).to_be_focused()
+    expect(rewrite).to_have_js_property("value", "Is the window long enough?")
+    page.keyboard.press("Escape")
+    expect(rewrite).to_have_count(0)
+    expect(field(page)).to_be_focused()
+    expect(field(page)).to_have_attribute("name", "reply")
+
+    page.keyboard.press("ArrowUp")
+    page.keyboard.press("End")
+    page.keyboard.type(" And the third?")
+    with sending(page, "the rewrite"):
+        page.keyboard.press("Enter")
+    edit = events_model.read_events(serve.page_dir)[-1]
+    assert (edit["kind"], edit["text"]) == (
+        "edit",
+        "What about the second cohort? And the third?",
+    )
+    expect(field(page)).to_be_focused()
+
+    page.locator(".lf-fp-settle").focus()
+    with sending(page, "the resolve"):
+        page.keyboard.press("Enter")
+    expect(field(page)).to_be_hidden()
+    expect(page.locator(".lf-fp-resolved")).to_have_text("Resolved · reopen to reply")
+
+
+def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
+    """`t` opens the next thread in the panel and stands on it, as the walk stands on a
+    card's title in Threads, so `t` and `T` go on walking from there rather than typing
+    into its reply; showing news held back in it stands on the thread too."""
+    url = serve(LONG_PAGE)
+    first = panel_comment(serve.page_dir, "Is the window long enough?")
+    panel_comment(serve.page_dir, "Should the rollout pause on Fridays?")
+    page = floating(browser, url)
+    view = page.locator(".lf-fp-view[data-view=thread]:not([data-leaving])")
+    title = page.locator(".lf-fp-title")
+    page.locator("body").focus()
+    page.keyboard.press("t")
+    expect(title).to_have_text("Is the window long enough?")
+    expect(view).to_be_focused()
+    page.keyboard.press("t")
+    expect(title).to_have_text("Should the rollout pause on Fridays?")
+    expect(view).to_be_focused()
+    page.keyboard.press("Shift+t")
+    expect(title).to_have_text("Is the window long enough?")
+    expect(view).to_be_focused()
+
+    # News that would move what is read waits behind its notice.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": first,
+            "revision": 1,
+            "text": "The window covers it. " * 60,
+        },
+    )
+    news = view.locator(".lf-thread-news")
+    expect(news).to_be_visible()
+    news.focus()
+    page.keyboard.press("Enter")
+    expect(view).to_contain_text("The window covers it.")
+    expect(view).to_be_focused()
 
 
 def test_the_panel_names_the_agent_as_the_page_s_messages_do(browser, serve):
@@ -287,6 +402,48 @@ def test_the_panel_names_the_agent_as_the_page_s_messages_do(browser, serve):
     expect(page.locator(".lf-fp-dest")).to_have_text("To Claude")
     page.locator(".lf-fp-on-user").click()
     expect(page.locator(".lf-fp-filters")).to_contain_text("On Claude")
+
+
+def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
+    browser, serve
+):
+    """The On view has no name of its own: its title is the open tab's, On me or On
+    Claude, and under each list stands what left it. A reply the agent sent leaves its
+    list, so it stands under On Claude, said as sent. The On me mark opens the user's
+    list, turning the view to it where it shows the agent's."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Is the window long enough?")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "responds": root,
+            "revision": 1,
+            "text": "Forty-eight hours covers the first cohort.",
+        },
+    )
+    page = floating(browser, url)
+    page.locator(".lf-fp-on-user").click()
+    title = page.locator(".lf-fp-title")
+    expect(title).to_have_text("On me")
+    expect(page.locator(".lf-fp-filters button")).to_have_count(2)
+    expect(page.locator(".lf-fp-on-done")).to_have_count(0)
+    page.locator(".lf-fp-filters button", has_text="On Claude").click()
+    expect(title).to_have_text("On Claude")
+    expect(page.locator(".lf-fp-empty")).to_have_text("Nothing waiting on Claude.")
+    expect(page.locator(".lf-fp-on-done")).to_have_text("Done")
+    sent = page.locator(".lf-fp-on-item")
+    expect(sent).to_have_count(1)
+    expect(sent).to_contain_text("Forty-eight hours covers the first cohort.")
+    expect(sent.locator(".lf-fp-said")).to_have_text(re.compile(r"^Sent"))
+    # The On me mark turns the open view back to the user's list, and then closes it.
+    page.locator(".lf-fp-on-user").click()
+    expect(title).to_have_text("On me")
+    page.locator(".lf-fp-on-user").click()
+    expect(title).to_have_count(0)
 
 
 def test_on_shows_an_ask_as_its_message_and_reply_comes_back(browser, serve):
@@ -332,6 +489,80 @@ def test_clicking_into_the_field_moves_nothing_at_an_open_view_s_head(browser, s
     assert (
         page.locator(".lf-fp-filters button", has_text="Resolved").bounding_box() == tab
     )
+
+
+HEAD_SEATS = """() => {
+  const head = document.querySelector('.lf-fp-head');
+  const seat = (selector) => {
+    const box = head.querySelector(selector)?.getBoundingClientRect();
+    return box && [box.left, box.top, box.right, box.bottom];
+  };
+  return {
+    back: seat('.lf-fp-back'),
+    start: seat('.lf-fp-title')[0],
+    where: seat('.lf-fp-where'),
+    on: seat('.lf-fp-quiet'),
+    settle: seat('.lf-fp-settle'),
+    close: seat('.lf-fp-close'),
+  };
+}"""
+
+
+def test_news_in_an_open_thread_moves_nothing_at_its_head(browser, serve):
+    """A thread's head holds each control where it stood while the thread changes under
+    it. Retitled long or short, the title gives or takes room at its own end, and Back,
+    where the thread stands among the open ones, On the page, Resolve and Close stay
+    put; detached by a revision, On the page leaves its seat empty; resolved by the
+    agent, the thread's Reopen takes Resolve's seat."""
+    url = serve(LONG_PAGE, comments=3, anchored=[("p3", "Paragraph 3.")])
+    root = events_model.read_events(serve.page_dir)[-1]["id"]
+    page = floating(browser, url)
+    page.locator(".lf-fp-threads").click()
+    page.locator(".lf-fp-filters button", has_text="Open").click()
+    page.locator(".lf-fp-thread", has_text="About this bit.").click()
+    title = page.locator(".lf-fp-head .lf-fp-title")
+    expect(title).to_have_text("About this bit.")
+    settled(page)
+    seats = page.evaluate(HEAD_SEATS)
+    assert all(seats.values()), seats
+
+    def agent(event):
+        append_carried_log_record(
+            serve.page_dir, {"author": "agent", "agent": "Claude", **event}
+        )
+        told(page)
+
+    for name in [
+        "Whether the third paragraph's filler should stay in the published draft",
+        "Filler",
+    ]:
+        agent({"kind": "thread_title", "thread": root, "title": name})
+        expect(title).to_have_text(name)
+        settled(page)
+        assert page.evaluate(HEAD_SEATS) == seats
+
+    # A revision that drops the passage detaches the thread: On the page has nowhere
+    # to go, and its seat stands empty while the view does.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reanchor",
+            "author": "page",
+            "revision": 1,
+            "thread": root,
+            "anchor": None,
+        },
+    )
+    told(page)
+    expect(page.locator(".lf-fp-head .lf-fp-quiet")).to_be_hidden()
+    settled(page)
+    assert page.evaluate(HEAD_SEATS) == seats
+
+    agent({"kind": "resolve", "parent": root})
+    expect(page.locator(".lf-fp-head .lf-reopen")).to_be_visible()
+    settled(page)
+    # A resolved thread stands nowhere among the open ones, so only its count goes.
+    assert {**page.evaluate(HEAD_SEATS), "where": seats["where"]} == seats
 
 
 def test_threads_is_as_tall_as_the_threads_it_first_shows(browser, serve):

@@ -130,7 +130,10 @@
     align-items: flex-end;
   }
   .lf-fp-box,
-  .lf-fp-box .lf-compose-field {
+  .lf-fp-reply,
+  .lf-fp-reply > .lf-primary-part,
+  .lf-fp-reply .lf-thread-reply,
+  .lf-fp-field .lf-compose-field {
     flex: 1;
     min-width: 0;
     display: flex;
@@ -142,7 +145,21 @@
     margin: 0;
     box-shadow: none;
   }
-  .lf-fp-box leaf-text {
+  .lf-fp-reply[hidden],
+  .lf-fp-reply > .lf-primary-part[hidden] {
+    display: none;
+  }
+  .lf-fp-field .lf-compose-field:has(> leaf-text[data-lf-focus]) {
+    outline: none;
+  }
+  .lf-fp-resolved {
+    flex: 1;
+    margin: 0;
+    padding: 5px 6px;
+    color: var(--lf-fp-quiet);
+    font: 14px / 22px var(--sans);
+  }
+  .lf-fp-field .lf-compose-field > leaf-text {
     flex: 1;
     min-width: 0;
     border: 0;
@@ -155,17 +172,17 @@
     font: 14px / 22px var(--sans);
     --lf-field-end-room: 0px;
   }
-  .lf-fp-box leaf-text[data-lf-focus] {
+  .lf-fp-field .lf-compose-field > leaf-text[data-lf-focus] {
     outline: none;
   }
-  .lf-fp-box leaf-text::part(placeholder) {
+  .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-quiet);
   }
-  .lf-floating-panel[data-says=notice] .lf-fp-box leaf-text::part(placeholder) {
+  .lf-floating-panel[data-says=notice] .lf-fp-field leaf-text::part(placeholder) {
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
-  .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-box leaf-text::part(placeholder) {
+  .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-field leaf-text::part(placeholder) {
     color: transparent;
     background:
       linear-gradient(
@@ -177,10 +194,10 @@
     background-clip: text;
     animation: lf-runtime-4f3c2a8d-sheen 2s ease-in-out infinite alternate;
   }
-  .lf-fp-box .lf-compose-placeholder kbd {
+  .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
   }
-  .lf-fp-box .lf-compose-submit {
+  .lf-fp-field .lf-compose-submit {
     flex: none;
     display: none;
     place-items: center;
@@ -191,16 +208,16 @@
     background: var(--ink);
     color: var(--lf-fp-surface);
   }
-  .lf-fp-box .lf-compose-submit:hover {
+  .lf-fp-field .lf-compose-submit:hover {
     background: var(--ink);
   }
-  .lf-floating-panel[data-typing] .lf-fp-box .lf-compose-submit {
+  .lf-floating-panel[data-typing] .lf-fp-field .lf-compose-submit {
     display: grid;
   }
   .lf-floating-panel[data-typing] .lf-fp-quick:not([data-steps]) {
     display: none;
   }
-  .lf-fp-box .lf-compose-dictate:not([hidden]) {
+  .lf-fp-field .lf-compose-dictate:not([hidden]) {
     flex: none;
     display: grid;
     place-items: center;
@@ -413,7 +430,9 @@
     color: var(--lf-fp-muted);
   }
   .lf-fp-where {
+    margin-inline: auto 12px;
     font-size: 12px;
+    font-variant-numeric: tabular-nums;
   }
   .lf-fp-aux {
     flex: none;
@@ -439,7 +458,7 @@
   }
   .lf-fp-count {
     display: inline-block;
-    min-width: 1.2ch;
+    min-width: 2ch;
     margin-left: 1px;
     text-align: start;
     font-variant-numeric: tabular-nums;
@@ -456,10 +475,19 @@
     color: var(--ink);
   }
   .lf-fp-settle {
+    display: inline-grid;
+    color: var(--lf-fp-muted);
+  }
+  .lf-fp-face {
+    grid-area: 1 / 1;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 4px;
-    color: var(--lf-fp-muted);
+  }
+  .lf-fp-face:not([data-shown]),
+  .lf-fp-quiet[data-unoffered] {
+    visibility: hidden;
   }
   .lf-fp-settle:hover {
     color: var(--ink);
@@ -663,6 +691,15 @@
   .lf-fp-on-item + .lf-fp-on-item {
     border-top: 1px solid var(--lf-fp-faint);
   }
+  .lf-fp-on-done {
+    margin: 0 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--lf-fp-faint);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--lf-fp-muted);
+  }
   .lf-fp-on-title {
     margin: 0 0 2px;
     font: inherit;
@@ -830,7 +867,7 @@
     .lf-floating-panel[data-rest=mark] :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
       animation: none;
     }
-    .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-box leaf-text::part(placeholder) {
+    .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-field leaf-text::part(placeholder) {
       animation: none;
       background: none;
       color: var(--lf-fp-quiet);
@@ -851,7 +888,7 @@
     .lf-fp-peek {
       border: 1px solid CanvasText;
     }
-    .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-box leaf-text::part(placeholder) {
+    .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-field leaf-text::part(placeholder) {
       animation: none;
       background: none;
       color: GrayText;
@@ -1953,6 +1990,32 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   }
   .lf-thread-panel-head {
     flex: none;
+  }
+  .lf-queue-panel .lf-auxiliary-title {
+    display: flex;
+    gap: 2px;
+    min-width: 0;
+  }
+  .lf-queue-tab {
+    --lf-tab-pad: max(2px, (var(--aim-floor) - 1lh) / 2 - 1px);
+    margin-block: calc(-1 * var(--lf-tab-pad));
+    padding: var(--lf-tab-pad) 8px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .lf-queue-tab:first-child {
+    margin-inline-start: -8px;
+  }
+  .lf-queue-tab:hover {
+    background: var(--chip);
+  }
+  .lf-queue-tab[aria-pressed=true] {
+    color: var(--ink);
   }
   :is(.lf-first-unread, .lf-queue-next) {
     margin-inline-start: auto;

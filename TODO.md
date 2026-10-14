@@ -21,7 +21,8 @@
   interaction mechanisms so each new case does not require another fix.
 - **Reduce the burden of tests.** Tests now take long enough to meaningfully
   slow development. Reduce their runtime and the work needed to run them while
-  preserving useful coverage.
+  preserving useful coverage. `notes/shift-watch-cost.md` records what the
+  Stability sensor costs and when a cheaper gate would be worth revisiting.
 
 Priority runs from **Now** to **Next** to **Etc**. Themes group related work within
 each priority; bullets are outcomes, not implementation plans. Linked notes hold the
@@ -322,13 +323,6 @@ A queue is one `lf-tabs list="side"` beside its open item (`page-authoring.md`, 
 workspace"). The first real one, a 21-item triage page, showed these. Its list's
 height and where a switch lands wait on the workspace decision under Layout.
 
-- **Give On me and On Claude each their own Done, and title the panel by its open
-  tab.** The panel is titled "On" for now and keeps one Done shared by both lists. An
-  item should land in the Done of the list it left: asks the user answered, to-dos
-  they ended and asks the agent withdrew under On me; replies the agent sent and its
-  ended to-dos under On Claude. Sent replies appear in no Done today
-  (`served_state/queues.py`). With each list complete, the panel needs no name of its
-  own: both panels show two tabs, and the title reads the open one.
 - **Start `m` from the open item's ask.** From a row, `m` goes to the queue's first
   open ask, and `1` then picks for an item the user isn't looking at. The walk
   measures from focus (`queue-walk.js`), and the row precedes every
@@ -343,13 +337,20 @@ height and where a switch lands wait on the workspace decision under Layout.
 - **Close the tally's small gaps.** On a phone the workspace header, tally
   included, scrolls away after Next; Undo's announcement doesn't name what it
   undid; the `m` help text is ambiguous; and a row's ○ mark has no legend.
-- **Call an ask one thing in the interface.** "Next question" and "In this question"
-  say question, while a queue row's kind label, the walk
-  announcement ("Ask 2 of 3"), the `m` binding's description and the approval refusal
-  ("Answer every ask before approving") say ask (`queue-panel.js`, `queue-walk.js`,
-  `asks/view.js`, `banner.js`, `contribution-model.js`). The glossary defines the ask
-  record but not the user's word for it; choose one. The list is now On me, so its
-  name no longer favours question.
+
+### Before/after comparison
+
+- **#29 — Make `lf-shot`'s views one coherent comparison.** A pair now offers
+  Plain, Outlines and Pixels, and Pixels paints one picture: red where only the
+  before image drew, blue where only the after image did, amber where both did. A
+  shot with `pixels` alone opens in Pixels, one with `outlines` in Outlines, and
+  any other in Plain. Settle the details as one design: which view a pair opens
+  in, and whether every pair should offer every view rather than the author
+  choosing them per shot; a key for the three colours; the rail's reading
+  ("identical", "only slight changes", "2 areas changed"), which stands among the
+  view buttons in another voice and reads as a view or a warning, as "identical"
+  does over a pair of pin captures whose pins never moved; and the faint amber
+  halo a moved mark's redrawn shadow leaves in Pixels.
 
 ### Recorded interaction review
 
@@ -654,6 +655,27 @@ Revisit these when their stated trigger becomes real; they are not an active que
   (pings, sleep, outbound interception) and `standard-1` in place of `basic`.
   Trigger: the policy leaves beta, or leaf.page gains visitors a deploy would
   interrupt.
+- **Push page updates instead of polling.** Each visible tab asks `api/news` every
+  250 ms (`runtime/state-feed.js`). Pages streamed updates until #1589 replaced
+  per-document streams with polling, because the streams used up HTTP/1.1's six
+  connections per host. Measured on 2026-10-13, polling costs about 1% of one core
+  per visible tab locally. On leaf.page each look bills a Worker and a Durable
+  Object request, under $1.20 a month per user at list price and inside the
+  included quotas, and polling accounts for about 1% of container hours. A stopped
+  container stays asleep under polling, since its Durable Object answers `api/news`
+  from the page the container last saved; a stream held in the container would
+  wake it for a passive reader, so push needs an idle path of its own before its
+  cost compares with polling's. Push would show an agent's
+  change sooner: locally the file watcher notices an append in about 90 ms against
+  polling's 125 ms average, and on leaf.page, where a look takes about 370 ms, it
+  would save roughly 250 ms. A sketch of one stream per browser (a leader tab
+  holding it through a Web Lock, relaying over a BroadcastChannel, with samples
+  relayed through their parent) adds about 115 lines more than it deletes; a
+  WebSocket per document avoids the leader and the relay. Either way, first give
+  the server one subscribable change detector per page, whose watched files and
+  stat token derive from one declaration of page inputs (today `page_reading` and
+  `file_changes.page_targets` disagree on bound files and `viewed.json`). Trigger:
+  hosted replies visibly lag.
 - **#27 — Runtime fold tests:** add focused Node tests as rules change; extend
   `tests/runtime/dom.mjs` only when a test needs another module.
 - **Claude Code tool observation:** consider a cheap hook for sessions holding

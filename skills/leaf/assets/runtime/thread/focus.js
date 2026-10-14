@@ -38,6 +38,10 @@ export function forwardToThread(thread) {
 // `c` answer alike whichever chrome draws the thread. A thread drawn in pieces within
 // one that declares, as a reader's message parts in the panel's view, has the
 // enclosing drawing's parts where it holds none (`drawingsOf`).
+//
+// Such a presentation also declares `whole`, the element standing for the thread as a
+// whole where its pieces stand apart, as the panel's view does for its head and its
+// field (`wholeThread`).
 const declaredParts = new WeakMap();
 export const declareThreadParts = (thread, parts) => declaredParts.set(thread, parts);
 const ownParts = {
@@ -61,9 +65,13 @@ function* drawingsOf(thread) {
   )
     yield at;
 }
-// The whole of the thread drawn at `thread`, its outermost drawing, as what a reading of
-// the thread's messages searches.
-export const wholeThread = (thread) => [...drawingsOf(thread)].at(-1);
+// The whole of the thread drawn at `thread`: its outermost drawing, or the element that
+// drawing declares as the whole. It holds the thread's messages, so a reading of them
+// searches it, and it is the thread a keyboard stands on, as a reply box's way back.
+export function wholeThread(thread) {
+  const outer = [...drawingsOf(thread)].at(-1);
+  return declaredParts.get(outer)?.whole(outer) ?? outer;
+}
 export function threadPart(thread, name) {
   for (const at of drawingsOf(thread)) {
     const part = (declaredParts.get(at) ?? ownParts)[name](at);

@@ -14,9 +14,9 @@ const sheets = JSON.parse(
 );
 
 // A widget module's own rules join the theme's cascade layer (layer.py, CASCADE_LAYERS), so
-// specificity, scope proximity, then order rank their rules, below Layouts, semantic
-// state and the page's own stylesheet. Shared shadow rules use `lf-shadow` above
-// these adopted defaults and below semantic state.
+// specificity, scope proximity, then order rank their rules, below Layouts, theme
+// packages, semantic state and the page's own stylesheet. Shared shadow rules use
+// `lf-shadow` above these adopted defaults and below theme packages and semantic state.
 // Chrome and apparatus marks stay unlayered so their paint beats page and widget
 // alike. The marks sheet's indication default uses lf-base so widgets can choose
 // their own indication face (marks.css).

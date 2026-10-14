@@ -190,8 +190,12 @@ make them visibly fictional. Render tickets, source locations, and URLs as real
 links.
 
 For a page-scale visual change, use `lf-shot` with before and after captures from
-the same viewport, of the versions the page compares. For a small change, crop
-both frames to the changed area or show the element itself at real size.
+the same viewport, of the versions the page compares. The pair draws each capture
+across the column, about 720px, so how much of the page a capture spans sets the
+scale its details are read at: a whole 1440px window shows at half size. For a
+smaller change, capture the subject as a page lays it out, in a reading column
+rather than across the window, and crop both frames to the changed area, or show
+the element itself at real size.
 The expand symbol beside each label opens that capture at full size; clicking
 the comparison itself still flips between its endpoints.
 Before writing the prose and `alt` around a pair, open both images and compare
@@ -210,10 +214,14 @@ change, or say that nothing changed. Where it reads "only slight changes", the
 reader will hardly see the change, so name it in the prose, or say that nothing but
 redrawing changed.
 Add `pixels` where the reader needs to see exactly which pixels changed, as when
-the change is a shift of a few pixels or a recolour that flipping barely shows, or
-when the claim is that nothing else changed. Pixels joins the rail's view selector,
-showing the after image greyed with every changed pixel painted over it, so build no
-difference image of your own. Without available outlines, the selector starts in Plain.
+the change is a shift of a few pixels, a recolour that flipping barely shows, or a mark
+that moved, or when the claim is that nothing else changed. Pixels joins the rail's
+view selector, showing the after image greyed with every changed pixel painted over it:
+red where only the before image drew something, blue where only the after image did,
+and amber where both did, as a recolour, so a moved mark reads as where it was and
+where it went in one picture; build no difference image of your own. With `pixels`
+alone the selector starts in Pixels, and with `outlines` too it starts in Outlines
+where the pair has outlines to show.
 Arrow keys select a view; selecting the current view keeps it selected. Choosing
 Plain or Outlines preserves the divider, and clicking the pixel picture or a
 Before/After endpoint returns to the previous comparison view. It combines with

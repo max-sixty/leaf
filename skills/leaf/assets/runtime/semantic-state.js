@@ -57,7 +57,7 @@ export const selectWidgets = applicationState.selectWidgets;
 export const attachApplicationPresentation = (region, renderer) =>
   presentation.attach(region, renderer);
 const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
-export const widgetRegions = (widget) =>
+const widgetRegions = (widget) =>
   ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
 export const attachWidgetPresentation = (widget, kind, renderer) =>
   presentation.attach(widgetRegion(widget, kind), renderer);

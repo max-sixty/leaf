@@ -393,15 +393,19 @@ test("bound data draws only as it is delivered", async () => {
   element.remove();
 });
 
-test("a move published just before the element leaves is drawn on its return", async () => {
+test("a move draws at once, inside the publication, and a return redraws nothing", async () => {
   applicationState.setPhase("waiting");
   const { element, draws } = probe(() => phase());
   document.body.append(element);
   await settled(element);
   applicationState.setPhase("offline");
+  assert.deepEqual(
+    draws,
+    ["waiting", "offline"],
+    "drawn before the publication returns",
+  );
   element.remove();
   await settled(element);
-  assert.deepEqual(draws, ["waiting"], "nothing draws into a detached element");
   document.body.append(element);
   await settled(element);
   assert.deepEqual(draws, ["waiting", "offline"]);
@@ -477,6 +481,35 @@ test("a check's redraw leaves the update a move queued, and its claim", async ()
   element.redraw();
   await settled(element);
   assert.deepEqual(draws, ["waiting", "offline", "offline"]);
+  assert.ok(!pending(element));
+  element.remove();
+});
+
+test("a draw's claim waits for the drawing it holds it for", async () => {
+  let finish;
+  const tag = `lf-probe-drawing-${++tags}`;
+  customElements.define(
+    tag,
+    class extends LeafElement {
+      render() {
+        return html`${phase()}`;
+      }
+      updated(changed) {
+        super.updated(changed);
+        if (phase() === "offline") this.drawing(new Promise((done) => (finish = done)));
+      }
+    },
+  );
+  applicationState.setPhase("waiting");
+  const element = document.createElement(tag);
+  element.id = tag;
+  document.body.append(element);
+  await settled(element);
+  applicationState.setPhase("offline");
+  await settled(element);
+  assert.ok(pending(element), "the claim waits for the drawing");
+  finish();
+  await settled(element);
   assert.ok(!pending(element));
   element.remove();
 });

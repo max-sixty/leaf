@@ -74,7 +74,9 @@ const widgetOf = (el) => {
 
 // An owner that keeps the nodes it drew through a failure places the box itself, beside
 // them, rather than have them replaced by it: a `LeafElement` (leaf-element.js), whose
-// render may paint retained nodes that no later draw would make again.
+// render may paint retained nodes that no later draw would make again. Its placer
+// answers whether it placed the box; otherwise the box goes where it would for any
+// widget.
 const placers = new WeakMap();
 export const placesFailure = (el, place) => placers.set(el, place);
 
@@ -87,11 +89,7 @@ function showFailure(el, text, source) {
     pre.textContent = source;
     box.append(pre);
   }
-  const place = placers.get(el);
-  if (place) {
-    place(box);
-    return;
-  }
+  if (placers.get(el)?.(box)) return;
   // An x-shadow widget shows only what its stage holds, so the box stands there, and
   // the widget's next stage replaces it.
   if (el.shadowRoot) {

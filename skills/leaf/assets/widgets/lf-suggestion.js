@@ -23,9 +23,10 @@ import {
   commands,
   foldDuration,
   keeps,
+  LeafElement,
   contributionEntry,
   motion,
-  once,
+  nothing,
   paintKeys,
   quietWord,
   quoted,
@@ -35,7 +36,6 @@ import {
   shownParts,
   textNodesUnder,
   notice,
-  widgetController,
   standingIn,
 } from "/runtime/widget-api.js";
 
@@ -120,7 +120,7 @@ function toRanges(segments, spans) {
 
 customElements.define(
   "lf-suggestion",
-  class extends HTMLElement {
+  class extends LeafElement {
     // What the ask was answered with: the decision.
     static answerWords(value) {
       return value.outcome === "accept" ? "Accepted" : "Rejected";
@@ -132,17 +132,16 @@ customElements.define(
     #undoing = false;
     #margin = null;
     #commandScope = null;
-    #controller = null;
     #presentedOutcome = null;
 
+    // Re-connection — a card dragged to another column, a replay moving one — must
+    // restore this target's contribution to the shared margin entry cluster.
     connectedCallback() {
-      // Re-connection — a card dragged to another column, a replay moving one — must
-      // restore this target's contribution to the shared margin entry cluster.
-      if (!once(this)) {
-        this.#offer();
-        return;
-      }
-      this.#controller = widgetController(this);
+      super.connectedCallback();
+      this.#offer();
+    }
+
+    setup() {
       // Presentation, not input, so an exhibited pending change gets it too: quoting
       // gates the action channel, never what a change looks like. Both consume the
       // controller's application selection; painted attributes are output only.
@@ -151,10 +150,7 @@ customElements.define(
       // Quoted material is exhibited, not offered: a suggestion inside an
       // exhibit shows what a pending change looks like, so it keeps the marks
       // the theme draws and never grows controls to decide it with.
-      if (quoted(this)) {
-        this.#subscribeReading();
-        return;
-      }
+      if (quoted(this)) return;
       // The runtime says it just opened this element's containers (reveal): the entry
       // may be waiting on geometry the target only now has, and the caller is about
       // to focus it, so the layout question is answered now rather than at the
@@ -162,28 +158,10 @@ customElements.define(
       this.addEventListener("lf-reveal", () =>
         this.#margin?.update({ immediate: true }),
       );
-      this.#offer();
-      this.#subscribeReading();
-    }
-
-    #subscribeReading() {
-      this.#controller.subscribe((reading) => {
-        if (quoted(this) || !this.#margin) return;
-        if (
-          standingIn(this.#margin) &&
-          outcomeOf(reading.state) !== this.#presentedOutcome
-        ) {
-          // Signals publish before the projection adapter. Keep the currently focused
-          // entry until that adapter applies the new state: the next complete reading can
-          // hand focus directly to its semantic replacement instead of losing the
-          // user's place when this subscriber removes it first.
-          return;
-        }
-        this.#refreshMargin();
-      });
     }
 
     disconnectedCallback() {
+      super.disconnectedCallback();
       this.#margin?.unregister();
       this.#margin = null;
       emphasized.delete(this);
@@ -268,7 +246,7 @@ customElements.define(
           disabled:
             this.#staging ||
             Boolean(this.#deciding) ||
-            !this.#controller.read().actions.decide?.available,
+            !this.controller.read().actions.decide?.available,
           activation: kind,
           className: `lf-sug-${kind}`,
           scope: this.#commandScope,
@@ -394,8 +372,8 @@ customElements.define(
     // winner and reconciles the authored state before this continuation paints the repair
     // controls, so the user returns to a pending suggestion with Failed, Retry, Cancel.
     #decide(outcome, focus = null) {
-      if (outcomeOf(this.#controller.read().state)) return Promise.resolve(true);
-      if (!this.#controller.read().actions.decide?.available)
+      if (outcomeOf(this.controller.read().state)) return Promise.resolve(true);
+      if (!this.controller.read().actions.decide?.available)
         return Promise.resolve(false);
       if (this.#staging || this.#deciding)
         return this.#deciding ?? Promise.resolve(false);
@@ -414,7 +392,7 @@ customElements.define(
       // gesture the durable id Undo must name.
       this.#staging = true;
       const sent = (
-        this.#controller.dispatch({
+        this.controller.dispatch({
           kind: "action",
           verb: "decide",
           detail: { outcome },
@@ -453,13 +431,13 @@ customElements.define(
     }
 
     #acceptedStillStands(event) {
-      return Object.values(this.#controller.read().actions).some(({ inForce }) =>
+      return Object.values(this.controller.read().actions).some(({ inForce }) =>
         inForce.some((winner) => winner.event.id === event.id),
       );
     }
 
     #undoable(outcome) {
-      return this.#controller
+      return this.controller
         .read()
         .actions.decide?.undo.find((event) => event.detail?.outcome === outcome);
     }
@@ -492,7 +470,7 @@ customElements.define(
     }
 
     async #undoOutcome() {
-      const outcome = outcomeOf(this.#controller.read().state);
+      const outcome = outcomeOf(this.controller.read().state);
       if (!outcome || this.#undoing) return;
       if (this.#staging || this.#deciding) {
         notice("Wait for the current change to finish before undoing");
@@ -508,7 +486,7 @@ customElements.define(
       this.#refreshMargin();
       try {
         if (
-          !(await this.#controller.dispatch({
+          !(await this.controller.dispatch({
             kind: "undo",
             target: event.attempt ?? event.id,
           })?.delivery)
@@ -676,7 +654,21 @@ customElements.define(
       return this.#subject();
     }
 
-    renderState(state) {
+    render() {
+      const { state } = this.reading;
+      this.#draw(state);
+      if (quoted(this) || !this.#margin) return nothing;
+      // Signals publish before the projection adapter. Keep the currently focused entry
+      // until that adapter applies the new state: the next complete reading can hand
+      // focus directly to its semantic replacement instead of losing the user's place
+      // when this draw removes it first.
+      if (standingIn(this.#margin) && outcomeOf(state) !== this.#presentedOutcome)
+        return nothing;
+      this.#refreshMargin();
+      return nothing;
+    }
+
+    #draw(state) {
       const outcome = outcomeOf(state);
       if (outcome) return this.#settle(outcome);
       if (!this.#presentedOutcome) return;
@@ -694,7 +686,7 @@ customElements.define(
     }
 
     #outcome() {
-      const state = this.#controller?.read().state;
+      const state = this.reading?.state;
       return state ? outcomeOf(state) : null;
     }
   },

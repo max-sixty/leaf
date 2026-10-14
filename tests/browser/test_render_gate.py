@@ -1137,10 +1137,9 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate("""async () => {
       const {validationWidgetStates} = await window.__lfCheckApi();
-      const widget = validationWidgetStates().find(s => s.widget?.renderState).widget;
-      window.restoreReplay = () => { widget.renderState = original; };
-      const original = widget.renderState;
-      widget.renderState = function replayProjection() { throw new TypeError('replay rejected'); };
+      const widget = validationWidgetStates().find(s => s.widget?.redraw).widget;
+      window.restoreReplay = () => { delete widget.render; };
+      widget.render = function replayProjection() { throw new TypeError('replay rejected'); };
     }""")
     try:
         findings = render_checks_model.evaluate_probe(page, "relativeReplays")

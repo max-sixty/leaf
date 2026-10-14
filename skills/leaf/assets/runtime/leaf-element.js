@@ -23,8 +23,10 @@
    claim waits on, such as a mechanical redraw, reports and shows its failure the same
    way, and so does a failed preparation (`present()`) or a module's own
    `failSoft(this, …)`. A `setup()` that throws shows its failure, and the element draws
-   nothing after it. Lit updates on the microtask after a claim, so the result stands
-   before the browser draws the next frame.
+   nothing after it. A move draws at once, inside the publication that made it, as the
+   controller's paint did, so the widget draws before any renderer the publication
+   schedules: a suggestion measures the slot it folds before the layer marks it retired.
+   A connection draws on Lit's microtask, and a move before it joins that draw.
 
    Its readers are followed while it stands (`watchOwner`, arrivals.js), and it draws
    nothing while away, so a draw queued as it left is owed to its return; a return draws
@@ -35,8 +37,8 @@
    controller's `defer()` holds it, its claim stays open; the release draws the newest
    reading at once, changed or not, since the gesture may have rewritten its nodes. An
    element whose tag declares `x-data` holds the page's data version while it stands,
-   until it has drawn what was delivered and any preparation that draw started
-   (`controller.present()`), such as highlighting or a loading frame, has landed.
+   until it has drawn what was delivered, and any drawing that draw held it for
+   (`drawing()`), such as highlighting or a loading frame, has landed.
    `setup()` runs once, on the first connection, before the first render. */
 import {
   LitElement,
@@ -49,7 +51,6 @@ import {
   attachWidgetPresentation,
   queueWidgetUpdate,
   readsProof,
-  widgetRegions,
 } from "./semantic-state.js";
 import { widgetDescriptor } from "./widget-descriptors.js";
 import { drawsItself, widgetController, widgetMounted } from "./widget-controller.js";
@@ -90,6 +91,8 @@ export class LeafElement extends LitElement {
   #broken = false;
   // The claim the update under way draws, settled once `updated` has run too.
   #drawing = null;
+  // The drawing that follows the update under way, which its claim waits for.
+  #work = null;
   #data = new Map();
   #leaveData = null;
   #scheduled = null;
@@ -132,11 +135,14 @@ export class LeafElement extends LitElement {
       ? null
       : `element:${this.localName}#${this.id}:${++regions}`;
     placesFailure(this, (box) => {
+      const root = this.renderRoot ?? this;
+      // A widget showing a shadow stage over its host shows the box as that stage,
+      // which its next stage replaces, as any shadow widget does.
+      if (root === this && this.shadowRoot) return false;
       this.#box?.remove();
       this.#box = box;
-      // Before the render root exists, as in a `setup()` that threw, the box stands where
-      // the element shows its contents.
-      (this.renderRoot ?? this.shadowRoot ?? this).prepend(box);
+      root.prepend(box);
+      return true;
     });
     try {
       this.setup();
@@ -238,16 +244,27 @@ export class LeafElement extends LitElement {
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
+    const outerWork = this.#work;
     this.#drawing = null;
+    this.#work = null;
     try {
       super.performUpdate();
-      this.#drawing?.resolve();
+      this.#drawing?.resolve(this.#work ?? undefined);
     } catch (error) {
       if (outer && !this.#drawing) throw error;
       this.#failed(error, this.#drawing);
     } finally {
       this.#drawing = outer;
+      this.#work = outerWork;
     }
+  }
+
+  /** Hold the claim of the update under way until `work`, drawing that follows the
+   *  render asynchronously, lands: highlighting a document, say. The widget's
+   *  presentation, and the data version a delivery it draws holds, wait for it. Call it
+   *  from `updated()`. */
+  drawing(work) {
+    this.#work = work;
   }
 
   /** The render drawn again at once, outside any claim and Lit's own schedule, with a
@@ -296,7 +313,9 @@ export class LeafElement extends LitElement {
       this.#owed = true;
       return;
     }
-    this.#present();
+    // A draw already queued under a claim, as a connection's is, takes this move too.
+    if (this.#ticket && this.isUpdatePending) return;
+    this.#present({ now: true });
   }
 
   // Claim the region for a reading that draws later, leaving the claim open.
@@ -338,9 +357,8 @@ export class LeafElement extends LitElement {
     this.#connectedParent = this.parentElement;
     if (registry[this.localName]?.["x-data"])
       this.#leaveData = joinDataDelivery(
-        this.#descriptor ? widgetRegions(this.#descriptor.id) : [this.#regionName],
+        this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName,
       );
-    this.#follow();
     const moved = untracked(() =>
       [...this.#gateReads, ...this.#renderReads].some(
         ([reading, seen]) => reading.read() !== seen,
@@ -351,6 +369,7 @@ export class LeafElement extends LitElement {
       this.#present();
     } else
       this.#region.present(untracked(() => this.#controller?.read() ?? {})).resolve();
+    this.#follow();
     if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
   }
 

@@ -30,7 +30,7 @@ import {
   ref,
   render,
   repeat,
-  once,
+  LeafElement,
   paintKeys,
   PRESS,
   projectData,
@@ -45,9 +45,7 @@ import {
   shownWindow,
   sizeObserver,
   threadSurface,
-  watchData,
   whileConnected,
-  widgetController,
   focused,
 } from "/runtime/widget-api.js";
 
@@ -103,9 +101,8 @@ function previewUrl(target, path) {
 
 customElements.define(
   "lf-visual-review",
-  class extends HTMLElement {
-    #controller = widgetController(this);
-    #presentGenerated = (promise) => this.#controller.present(promise);
+  class extends LeafElement {
+    #presentGenerated = (promise) => this.controller.present(promise);
     #caseEntries = new Map();
     #casesBody = null;
     #commands = null;
@@ -125,12 +122,18 @@ customElements.define(
     #snapshot = null;
     #sizes = null;
 
-    connectedCallback() {
-      if (!once(this)) return;
+    // The run delivery the last render read, the one shown, and whether that render drew.
+    #delivered;
+    #shown;
+    #drew = false;
+    #bare = false;
+
+    setup() {
       this.#buildLayout();
       whileConnected(this, (signal) => {
         this.#sizes = sizeObserver(this.#scheduleEvidenceLayout);
-        this.#bindEvidence();
+        // The first connection binds once its first draw has made the evidence.
+        if (this.#evidenceHost) this.#bindEvidence();
         window.addEventListener("resize", this.#scheduleEvidenceLayout, { signal });
         return () => {
           this.#sizes.disconnect();
@@ -139,9 +142,40 @@ customElements.define(
           this.#stopEvidence = null;
         };
       });
-      // renderState paints the complete reading; subscribing activates its lifecycle.
-      this.#controller.subscribe(() => {});
-      watchData(this, "run", (snapshot) => this.#show(snapshot));
+    }
+
+    // A failed source shows its failure until another source arrives.
+    shouldUpdate(changed) {
+      return (
+        super.shouldUpdate(changed) &&
+        (this.#sourceReady || this.data("run") !== this.#shown)
+      );
+    }
+
+    // The cases and their review state, drawn whole; a failed source draws none.
+    render() {
+      this.#reviewUnits = this.state?.review?.units ?? {};
+      this.#delivered = this.data("run");
+      this.#drew = this.#sourceReady;
+      return this.#drew ? this.#template() : nothing;
+    }
+
+    // What follows a draw reads the nodes it drew; a new run then shows.
+    updated(changed) {
+      super.updated(changed);
+      if (this.#drew) {
+        const bodyChanged = this.#casesBody !== this.querySelector(".lf-vr-cases");
+        this.#evidenceHost = this.querySelector(".lf-vr-evidence-region");
+        this.#casesBody = this.querySelector(".lf-vr-cases");
+        if (bodyChanged && this.#sizes) this.#bindEvidence();
+        else this.#observeSelected();
+        // A draw for the review state paints the inspection too, as a source or
+        // selection change does (`#paintReview`).
+        if (!this.#bare) this.#paintInspection();
+      }
+      if (this.#delivered === this.#shown) return;
+      this.#shown = this.#delivered;
+      this.#show(this.#shown);
     }
 
     // A recovered template has new evidence nodes under the same region identity.
@@ -320,11 +354,6 @@ customElements.define(
       });
     }
 
-    // A source, review state or selection change renders the cases, then the inspection.
-    #paintReview() {
-      if (this.#render()) this.#paintInspection();
-    }
-
     // An inspection choice repaints the inspector and the pairs; the cases stand.
     #paintInspection() {
       this.#renderInspector();
@@ -461,7 +490,6 @@ customElements.define(
       for (const [id, { article }] of this.#caseEntries)
         if (article && !cases.has(id)) releaseOutlets(article);
       const restoreFocus = holdFocus(this);
-      const resume = this.#controller.defer();
       try {
         const places = placeKeeper(scrollerFor(this.#casesBody), {
           items: `#${CSS.escape(this.id)} :is(.lf-vr-case-title, .lf-vr-disposition, .lf-vr-next-remaining, .lf-vr-details-summary, .lf-vr-action, .lf-vr-result)`,
@@ -503,9 +531,8 @@ customElements.define(
         this.#sourceReady = false;
         this.#caseEntries.clear();
         releaseOutlets(this);
+        render(nothing, this);
         failSoft(this, error);
-      } finally {
-        resume();
       }
     }
 
@@ -654,8 +681,8 @@ customElements.define(
     }
 
     async #review(id, disposition) {
-      if (!this.#controller.read().actions.review.available) return;
-      const accepted = await this.#controller.dispatch({
+      if (!this.controller.read().actions.review.available) return;
+      const accepted = await this.controller.dispatch({
         kind: "action",
         verb: "review",
         detail: { case: id, disposition },
@@ -666,7 +693,7 @@ customElements.define(
     #caseView(record, index, total, remaining) {
       const disposition = this.#disposition(record.id);
       const selected = record.id === this.#selected;
-      const available = this.#controller.read().actions.review?.available ?? false;
+      const available = this.controller.read().actions.review?.available ?? false;
       const [heading, analysis] = this.#position(record, index, total);
       const { before, after, shotKey, prepare, place } = this.#caseEntries.get(
         record.id,
@@ -800,79 +827,86 @@ customElements.define(
       </article>`;
     }
 
+    // A draw now, of the cases alone, for a caller that reads what it drew.
     #render() {
-      if (!this.#inspector || !this.#sourceReady) return false;
+      this.#bare = true;
+      try {
+        this.requestUpdate();
+        this.performUpdate();
+      } finally {
+        this.#bare = false;
+      }
+    }
+
+    // A source, review state or selection change renders the cases, then the inspection.
+    #paintReview() {
+      this.#render();
+      if (this.#sourceReady) this.#paintInspection();
+    }
+
+    #template() {
       const run = this.#run;
       const cases = run?.cases ?? [];
       const remaining = this.#remaining().length;
       const reviewed = cases.length - remaining;
-      render(
-        html`<header class="lf-vr-head">
-            <h2 class="lf-vr-title" data-lf-gen="1" data-lf-said>
-              ${run ? run.title : "Waiting for a visual run"}
-            </h2>
-            <p class="lf-vr-progress" data-lf-gen="1" data-lf-said>
-              ${cases.length ? `${reviewed} of ${cases.length} cases reviewed` : "No cases reviewed"}
-            </p>
-          </header>
-          <section
-            class="lf-vr-evidence-region"
-            data-lf-reading-role="pane"
-            data-lf-generated
-            aria-label="Selected visual evidence"
-          >
-            <header class="lf-vr-queue">
-              <nav ${offered("lf-vr-queue-region")} aria-label="Visual review cases">
-                <wa-select
-                  ${offered("lf-vr-case-select")}
-                  name="visual-case"
-                  size="s"
-                  label="Selected visual case"
-                  aria-label="Selected visual case"
-                  ?disabled=${!cases.length}
-                  .value=${live(this.#selected ?? "")}
-                  @change=${(event) => this.#select(event.currentTarget.value)}
-                >
-                  ${repeat(
-                    cases,
-                    (record) => record.id,
-                    (record, index) =>
-                      html`<wa-option ${offered("")} value=${record.id}
-                        >${`${index + 1} of ${cases.length} · ${record.title} · ${
+      return html`<header class="lf-vr-head">
+          <h2 class="lf-vr-title" data-lf-gen="1" data-lf-said>
+            ${run ? run.title : "Waiting for a visual run"}
+          </h2>
+          <p class="lf-vr-progress" data-lf-gen="1" data-lf-said>
+            ${cases.length ? `${reviewed} of ${cases.length} cases reviewed` : "No cases reviewed"}
+          </p>
+        </header>
+        <section
+          class="lf-vr-evidence-region"
+          data-lf-reading-role="pane"
+          data-lf-generated
+          aria-label="Selected visual evidence"
+        >
+          <header class="lf-vr-queue">
+            <nav ${offered("lf-vr-queue-region")} aria-label="Visual review cases">
+              <wa-select
+                ${offered("lf-vr-case-select")}
+                name="visual-case"
+                size="s"
+                label="Selected visual case"
+                aria-label="Selected visual case"
+                ?disabled=${!cases.length}
+                .value=${live(this.#selected ?? "")}
+                @change=${(event) => this.#select(event.currentTarget.value)}
+              >
+                ${repeat(
+                  cases,
+                  (record) => record.id,
+                  (record, index) =>
+                    html`<wa-option ${offered("")} value=${record.id}
+                      >${`${index + 1} of ${cases.length} · ${record.title} · ${
                           DISPOSITION[
                             this.#reviewUnits[record.id]?.detail.disposition
                           ] ?? CLASSIFICATION[record.classification]
                         }`}</wa-option
-                      >`,
-                  )}
-                </wa-select>
-                <button ${offered("lf-btn lf-vr-previous")}>Previous</button>
-                <button ${offered("lf-btn lf-vr-next")}>Next</button>
-              </nav>
-            </header>
-            <div class="lf-vr-cases">
-              ${
-                run
-                  ? repeat(
-                      cases,
-                      (record) => record.id,
-                      (record, index) =>
-                        this.#caseView(record, index, cases.length, remaining),
-                    )
-                  : html`<p class="lf-vr-empty" data-lf-gen="1" data-lf-said>
-                      Waiting for visual-run data.
-                    </p> `
-              }
-            </div>
-          </section>`,
-        this,
-      );
-      const bodyChanged = this.#casesBody !== this.querySelector(".lf-vr-cases");
-      this.#evidenceHost = this.querySelector(".lf-vr-evidence-region");
-      this.#casesBody = this.querySelector(".lf-vr-cases");
-      if (bodyChanged && this.#sizes) this.#bindEvidence();
-      else this.#observeSelected();
-      return true;
+                    >`,
+                )}
+              </wa-select>
+              <button ${offered("lf-btn lf-vr-previous")}>Previous</button>
+              <button ${offered("lf-btn lf-vr-next")}>Next</button>
+            </nav>
+          </header>
+          <div class="lf-vr-cases">
+            ${
+              run
+                ? repeat(
+                    cases,
+                    (record) => record.id,
+                    (record, index) =>
+                      this.#caseView(record, index, cases.length, remaining),
+                  )
+                : html`<p class="lf-vr-empty" data-lf-gen="1" data-lf-said>
+                    Waiting for visual-run data.
+                  </p> `
+            }
+          </div>
+        </section>`;
     }
 
     // Only a source commit changes datum membership or provenance. Inspection and
@@ -914,12 +948,6 @@ customElements.define(
       )
         return null;
       return entry.article.querySelector(".lf-vr-thread-outlet");
-    }
-
-    renderState(state) {
-      this.#reviewUnits = state?.review?.units ?? {};
-      this.#paintReview();
-      return true;
     }
   },
 );

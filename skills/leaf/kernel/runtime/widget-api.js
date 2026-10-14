@@ -234,8 +234,7 @@ import {
   queueWidgetUpdate,
   readPart,
   readsProof,
-  revisionLabel,
-  widgetRegions
+  revisionLabel
 } from "./bundle-semantic-state.js";
 import {
   TEXT_BOX,
@@ -606,6 +605,8 @@ var LeafElement = class extends LitElement {
   #broken = false;
   // The claim the update under way draws, settled once `updated` has run too.
   #drawing = null;
+  // The drawing that follows the update under way, which its claim waits for.
+  #work = null;
   #data = /* @__PURE__ */ new Map();
   #leaveData = null;
   #scheduled = null;
@@ -641,9 +642,12 @@ var LeafElement = class extends LitElement {
     }
     this.#regionName = this.#descriptor ? null : `element:${this.localName}#${this.id}:${++regions}`;
     placesFailure(this, (box2) => {
+      const root = this.renderRoot ?? this;
+      if (root === this && this.shadowRoot) return false;
       this.#box?.remove();
       this.#box = box2;
-      (this.renderRoot ?? this.shadowRoot ?? this).prepend(box2);
+      root.prepend(box2);
+      return true;
     });
     try {
       this.setup();
@@ -729,16 +733,26 @@ var LeafElement = class extends LitElement {
   // claim of its own, its failure is the enclosing claimed update's.
   performUpdate() {
     const outer = this.#drawing;
+    const outerWork = this.#work;
     this.#drawing = null;
+    this.#work = null;
     try {
       super.performUpdate();
-      this.#drawing?.resolve();
+      this.#drawing?.resolve(this.#work ?? void 0);
     } catch (error) {
       if (outer && !this.#drawing) throw error;
       this.#failed(error, this.#drawing);
     } finally {
       this.#drawing = outer;
+      this.#work = outerWork;
     }
+  }
+  /** Hold the claim of the update under way until `work`, drawing that follows the
+   *  render asynchronously, lands: highlighting a document, say. The widget's
+   *  presentation, and the data version a delivery it draws holds, wait for it. Call it
+   *  from `updated()`. */
+  drawing(work) {
+    this.#work = work;
   }
   /** The render drawn again at once, outside any claim and Lit's own schedule, with a
    *  failure thrown rather than shown: the render check's replay
@@ -777,7 +791,8 @@ var LeafElement = class extends LitElement {
       this.#owed = true;
       return;
     }
-    this.#present();
+    if (this.#ticket && this.isUpdatePending) return;
+    this.#present({ now: true });
   }
   // Claim the region for a reading that draws later, leaving the claim open.
   #stage() {
@@ -814,9 +829,8 @@ var LeafElement = class extends LitElement {
     this.#connectedParent = this.parentElement;
     if (registry[this.localName]?.["x-data"])
       this.#leaveData = joinDataDelivery(
-        this.#descriptor ? widgetRegions(this.#descriptor.id) : [this.#regionName]
+        this.#descriptor ? `widget:${this.#descriptor.id}:render` : this.#regionName
       );
-    this.#follow();
     const moved = untracked(
       () => [...this.#gateReads, ...this.#renderReads].some(
         ([reading, seen]) => reading.read() !== seen
@@ -827,6 +841,7 @@ var LeafElement = class extends LitElement {
       this.#present();
     } else
       this.#region.present(untracked(() => this.#controller?.read() ?? {})).resolve();
+    this.#follow();
     if (this.#descriptor) widgetMounted(this, this.#descriptor, parentChanged);
   }
   #disconnect() {

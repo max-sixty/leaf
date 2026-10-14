@@ -178,7 +178,7 @@
     color: var(--lf-fp-muted);
     font-weight: 500;
   }
-  .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-field leaf-text::part(placeholder) {
+  .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
     color: transparent;
     background:
       linear-gradient(
@@ -189,6 +189,25 @@
     background-size: 200% 100%;
     background-clip: text;
     animation: lf-runtime-4f3c2a8d-sheen 2s ease-in-out infinite alternate;
+  }
+  .lf-floating-panel[data-says=status][data-asks] .lf-fp-field leaf-text::part(placeholder) {
+    color: var(--lf-fp-asks);
+    font-weight: 500;
+  }
+  .lf-floating-panel[data-asks] {
+    --lf-fp-asks: var(--ink);
+  }
+  .lf-floating-panel[data-asks][data-tone=working] {
+    --lf-fp-asks: var(--accent);
+  }
+  .lf-floating-panel[data-asks][data-tone=listening] {
+    --lf-fp-asks: var(--ok-ink);
+  }
+  .lf-floating-panel[data-asks][data-tone=away] {
+    --lf-fp-asks: var(--warn-ink);
+  }
+  .lf-floating-panel[data-asks][data-tone=offline] {
+    --lf-fp-asks: var(--danger-ink);
   }
   .lf-fp-field .lf-compose-placeholder kbd {
     display: none;
@@ -888,7 +907,7 @@
     .lf-floating-panel[data-rest=mark] :is(.lf-fp-leaf, .lf-fp-badge, .lf-fp-news-dot) {
       animation: none;
     }
-    .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-field leaf-text::part(placeholder) {
+    .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
       animation: none;
       background: none;
       color: var(--lf-fp-quiet);
@@ -909,7 +928,7 @@
     .lf-fp-peek {
       border: 1px solid CanvasText;
     }
-    .lf-floating-panel[data-says=status][data-tone=working] .lf-fp-field leaf-text::part(placeholder) {
+    .lf-floating-panel[data-says=status][data-tone=working]:not([data-asks]) .lf-fp-field leaf-text::part(placeholder) {
       animation: none;
       background: none;
       color: GrayText;

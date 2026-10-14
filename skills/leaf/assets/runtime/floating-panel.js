@@ -87,6 +87,7 @@ import { messageReading } from "./thread/messages.js";
 import { declareThreadParts } from "./thread/focus.js";
 import { dismissReply, replyAvailable } from "./thread/replies.js";
 import {
+  PAGE_DRAFT,
   draftHasContent,
   loadDraft,
   mirrorDraft,
@@ -274,7 +275,7 @@ export function createFloatingPanel({
     const top = trail.at(-1);
     return top?.view === "thread"
       ? `reply:${threadByKey(top.thread)?.key ?? top.thread}`
-      : "general";
+      : PAGE_DRAFT;
   };
   // What the empty field says, and whose reading it is (`says`): once the caret is in
   // a field that takes words, where they go; a passing notice while one stands; a
@@ -312,20 +313,20 @@ export function createFloatingPanel({
     send.type = "button";
     const box = el("div", "lf-fp-box");
     box.append(input, send);
-    input.value = loadDraft("general") ?? "";
+    input.value = loadDraft(PAGE_DRAFT) ?? "";
     const sync = wireInput(input, {
       hint: () => fieldReading(null, input).words,
       accessibleName: "Comment on the page",
       sends: "send",
       sendBtn: send,
       save: (text) => {
-        saveDraft("general", text);
-        tellDraft("general", text);
+        saveDraft(PAGE_DRAFT, text);
+        tellDraft(PAGE_DRAFT, text);
         retype();
       },
       send: (_text, raw, owns) => {
         const handle = sendMessage(
-          "general",
+          PAGE_DRAFT,
           owns,
           (attempt) => threadActions.create({ attempt, text: raw })?.delivery,
         );
@@ -339,7 +340,7 @@ export function createFloatingPanel({
     });
     sync();
     // Resume writing (`g i`) comes back to the page's words here, in the panel.
-    mirrorDraft(input, sync, "general", {
+    mirrorDraft(input, sync, PAGE_DRAFT, {
       retained: true,
       resume: () => ({ where: input, input: () => input, open: writeOnPage }),
     });

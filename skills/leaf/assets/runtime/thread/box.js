@@ -1,5 +1,6 @@
 /* This module owns page-seated first-message boxes: the thread a widget declares
  * through `x-thread-seat`, built by `threadBox`. */
+import { whileConnected } from "../arrivals.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { loadDraft, saveDraft, sendMessage, watchDraft } from "../drafts.js";
 import { inChrome } from "../passages.js";
@@ -67,17 +68,20 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
   });
   sync();
   box.lfFirstMessage = row;
-  const off = watchDraft(
-    ctx,
-    (value) => {
-      if (!box.isConnected) return off();
-      sync.load(value ?? "");
-      onDraftChanged();
-    },
-    {
-      input: ta,
-      resume: () => ({ where: el, input: () => ta }),
-    },
+  // The seat's box is this draft's editor while it stands, so a revision that takes the
+  // seat away leaves Resume writing nothing holding its words (drafts.js).
+  whileConnected(box, () =>
+    watchDraft(
+      ctx,
+      (value) => {
+        sync.load(value ?? "");
+        onDraftChanged();
+      },
+      {
+        input: ta,
+        resume: () => ({ where: el, input: () => ta }),
+      },
+    ),
   );
   mountFirstMessage(box, row);
   return box;

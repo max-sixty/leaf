@@ -10202,7 +10202,9 @@ def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
     expect(row).to_be_visible()
 
 
-STRIP_FILL = "".join(f"<p>Filler paragraph {n}, a line of reading.</p>" for n in range(40))
+STRIP_FILL = "".join(
+    f"<p>Filler paragraph {n}, a line of reading.</p>" for n in range(40)
+)
 STRIP_PIN_PAGE = leaf_page(
     "a pin under a stuck tab strip",
     f"""
@@ -10224,7 +10226,9 @@ def test_a_pin_and_copy_pass_under_a_stuck_tab_strip(browser, serve):
     under it: a pin whose target scrolls under the stuck strip is cut at the strip's
     foot, as the target's words are, so a press on the strip there reaches the strip,
     and so is a code block's Copy."""
-    page = open_page(browser, serve(STRIP_PIN_PAGE, events=[_comment_on("under-strip")]))
+    page = open_page(
+        browser, serve(STRIP_PIN_PAGE, events=[_comment_on("under-strip")])
+    )
     resized(page, 1280, 800)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="under-strip"]')
@@ -10257,7 +10261,9 @@ def test_a_pin_and_copy_pass_under_a_stuck_tab_strip(browser, serve):
     rendered(page)
     code = page.locator("#under-code").bounding_box()
     page.mouse.move(code["x"] + 30, code["y"] + code["height"] - 4)
-    expect(page.locator(".lf-code-copy")).to_have_class(re.compile("lf-code-copy-hover"))
+    expect(page.locator(".lf-code-copy")).to_have_class(
+        re.compile("lf-code-copy-hover")
+    )
     copy = page.evaluate(under, ".lf-code-copy")
     assert copy["strip"][0] < copy["top"] < copy["strip"][1], copy
     assert copy["hitStrip"], copy

@@ -1362,7 +1362,8 @@ export function layoutMarginRows() {
     const kept = new Set(
       members
         .filter((read) => !read.target)
-        .flatMap(({ home, container }) => [home, container]),
+        .flatMap(({ home, container }) => [home, container])
+        .filter(Boolean),
     );
     let previous = null;
     for (const read of members) {

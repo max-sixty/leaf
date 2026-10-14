@@ -49,24 +49,25 @@ const makeCut = () => {
   return frame;
 };
 // Stands a document control in the frames its block's headers cut (`headerLevels`),
-// read again each time the control is revealed, since a header or a scroller can change
-// size while it is hidden.
-function standUnderHeaders(copy, levels) {
+// read again each time the control is revealed and, for a control standing in frames,
+// on every resize, since a header can change height while it shows or while it hides.
+const framed = new Map(); // control in frames → its block
+function standUnderHeaders(copy, pre, levels) {
   const frames = cutFrames(levels, cuts.get(copy) ?? [], makeCut);
   cuts.set(copy, frames);
+  if (frames.length) framed.set(copy, pre);
+  else framed.delete(copy);
   if (frames[0] && frames[0].parentNode !== chromeRoot)
     move(chromeRoot, frames[0], null);
   const home = frames.at(-1) ?? chromeRoot;
   if (copy.parentNode !== home) move(home, copy, null);
 }
 const revealed = (pre, copy) => {
-  if (cuts.has(copy)) standUnderHeaders(copy, headerLevels(pre));
+  if (cuts.has(copy)) standUnderHeaders(copy, pre, headerLevels(pre));
   refreshAnchorView(copy);
 };
-// A resize can change a header's height under a control the user is on.
-const shown = new Map(); // revealed document control → its block
 addEventListener("resize", () => {
-  for (const [copy, pre] of shown) revealed(pre, copy);
+  for (const [copy, pre] of framed) standUnderHeaders(copy, pre, headerLevels(pre));
 });
 // The key this module projects its Copy scope under, beside the block's other owners.
 const COPY_SCOPE = Symbol("code copy");
@@ -182,7 +183,7 @@ export function watchCodeBlocks() {
         // Keep the page's authored sibling and child selectors intact. The anchor
         // still positions this control at its source when it lives in chrome, in the
         // frames its block's headers cut.
-        standUnderHeaders(copy, levels);
+        standUnderHeaders(copy, pre, levels);
         copy.tabIndex = -1;
         claimReachStop(pre);
         if (!wired.has(pre)) {
@@ -199,30 +200,24 @@ export function watchCodeBlocks() {
             },
             options,
           );
-          const mark = (name, on) => {
-            copy.classList.toggle(name, on);
-            if (copy.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
-              shown.set(copy, pre);
-            else shown.delete(copy);
-          };
           pre.addEventListener(
             "pointerenter",
-            () => mark("lf-code-copy-hover", true),
+            () => copy.classList.add("lf-code-copy-hover"),
             options,
           );
           pre.addEventListener(
             "pointerleave",
-            () => mark("lf-code-copy-hover", false),
+            () => copy.classList.remove("lf-code-copy-hover"),
             options,
           );
           pre.addEventListener(
             "focus",
-            () => mark("lf-code-copy-focused", true),
+            () => copy.classList.add("lf-code-copy-focused"),
             options,
           );
           pre.addEventListener(
             "blur",
-            () => mark("lf-code-copy-focused", false),
+            () => copy.classList.remove("lf-code-copy-focused"),
             options,
           );
         }
@@ -237,7 +232,7 @@ export function watchCodeBlocks() {
       copy?.remove();
       cuts.get(copy)?.[0]?.remove();
       cuts.delete(copy);
-      shown.delete(copy);
+      framed.delete(copy);
       releaseReachStop(pre);
       projectCommandScope(pre, COPY_SCOPE, null);
     },

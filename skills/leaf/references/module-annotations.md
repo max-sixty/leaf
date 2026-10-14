@@ -74,7 +74,8 @@ working on it with `presentContributionReceipts(control, receipt, awaitsUser)`, 
 
 A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each
 part. It declares the ids' prefixes in `x-visual.prefixes` (here `commit:`) and calls
-`registerVisualParts(source, read, {reveal, label})` once. `read()` returns the parts
+`registerVisualParts(source, read, {reveal, label})` once; a second registration for the
+same source throws. `read()` returns the parts
 drawn now as `{id, element, label}`. An id is a nonempty string with no whitespace,
 used as written; Leaf throws when `read()` returns one that isn't. `reveal(id)` shows a
 part when someone follows its thread, even if it is visible already, so cancel work that

@@ -1427,7 +1427,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     left: auto;
     bottom: auto;
     margin: 0;
-    z-index: var(--lf-z-menu);
     display: none;
     flex-direction: column;
     align-items: stretch;
@@ -1519,7 +1518,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     bottom: auto;
     left: auto;
     margin: 0;
-    z-index: var(--lf-z-menu);
     box-sizing: border-box;
     width: var(--lf-card-width);
     max-height: calc(100dvh - var(--lf-banner-h));
@@ -1552,7 +1550,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
     bottom: auto;
     left: auto;
     margin: 0;
-    z-index: var(--lf-z-menu);
     display: none;
     grid-template-columns: 1fr auto;
     align-items: start;
@@ -2597,7 +2594,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-command-reference {
     --lf-command-reference-top: max(10dvh, calc(var(--lf-safe-top) + 16px));
     position: fixed;
-    z-index: var(--lf-z-dialog);
     top: var(--lf-command-reference-top);
     left: 50%;
     transform: translateX(-50%);
@@ -2622,7 +2618,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-media-viewer {
     position: fixed;
     inset: 0;
-    z-index: var(--lf-z-media-viewer);
     width: 100%;
     max-width: none;
     height: 100dvh;
@@ -2934,7 +2929,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * {
   .lf-page-map-dialog {
     --lf-page-map-top: max(10dvh, calc(var(--lf-safe-top) + 12px));
     position: fixed;
-    z-index: var(--lf-z-dialog);
     inset: var(--lf-page-map-top) 0 auto;
     width: min(560px, calc(100vw - 24px));
     max-height: min(720px, calc(100dvh - var(--lf-page-map-top) - var(--lf-safe-bottom) - 12px));

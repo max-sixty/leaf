@@ -241,6 +241,12 @@
    * its own holder. Zero until read, the holder taken as the column. */
   @property --lf-indent-l { syntax: "<length>"; inherits: false; initial-value: 0px; }
   @property --lf-indent-r { syntax: "<length>"; inherits: false; initial-value: 0px; }
+  /* `--lf-breakout: 1` says a box may stand past its holder because the theme lets it:
+   * each rule that lets a box break out says so beside what it sets, as a frame says
+   * `--lf-block-frame`, so what reads the page (the render check, layout.js) asks the
+   * box rather than restating which boxes those are. It does not inherit: a block inside
+   * a breakout keeps to it. */
+  @property --lf-breakout { syntax: "<integer>"; inherits: false; initial-value: 0; }
   @media screen {
     /* `data-lf-space` is the room an element takes: what its tag or idiom declares
      * (x-space), or the page's own occurrence saying so (`data-width`). Delivery paints
@@ -257,9 +263,8 @@
      * a workspace, or a page with no Layout, gives a block the box it stands in.
      *
      * The first rule is the room's arithmetic, read on every allocated box. A box allocated
-     * the column reaches no further than its holder, so it has no surplus, unless it spans
-     * a breakout among its own blocks, as an Ask does (the default package's ask.css), and
-     * reaches as far as that block. */
+     * the column reaches no further than its holder, so it has no surplus, unless it holds
+     * a breakout among its own blocks and reaches as far as that block (below). */
     :where(main.layout-column, main.layout-sidebar) [data-lf-space] {
       /* Held to what is free beside the page (main's --lf-free-l and --lf-free-r), and
        * spent so the box stands even about the prose axis where both sides have the
@@ -299,18 +304,31 @@
      * rule is held to no Layout. */
     [data-lf-space]:where(:not([data-lf-space="column"])) {
       contain: inline-size;
+      --lf-breakout: 1;
     }
     /* `wide` is one width wherever the block stands in a document. The breakout above
      * only grows a block past its holder, so in a holder already wider than `--wide`,
      * such as a sidebar page's body, the block would take the holder's width; the cap
      * holds it to the evidence width there, at the holder's start. A holder narrower than
-     * `--wide` still bounds it, and `available` is the width that takes everything. */
-    :where(main.layout-column, main.layout-sidebar) [data-lf-space="wide"] {
+     * `--wide` still bounds it, and `available` is the width that takes everything.
+     *
+     * A box allocated the column reaches as far as the widest block among its own
+     * children, as theme.css widens it to in a wider flow, so each reach is stated once
+     * for the block and the box around it alike; a block the page arranged keeps to its
+     * holder, so it lends the box no reach (`data-lf-arranged`, prepaint.js). The reach
+     * only states how far the box may stand: a box that draws no frame spends it on the
+     * column page by spanning the block (the default package's ask.css), and a box that
+     * draws one keeps the block inside it instead (`--lf-block-frame`, below). */
+    :where(main.layout-column, main.layout-sidebar) :is([data-lf-space="wide"],
+      [data-lf-space="column"]:where(:has(> [data-lf-space="wide"]:not([data-lf-arranged])))) {
       --lf-reach: min(var(--wide), var(--lf-room, 0px));
-      max-width: var(--wide);
     }
-    :where(main.layout-column, main.layout-sidebar) [data-lf-space="available"] {
+    :where(main.layout-column, main.layout-sidebar) :is([data-lf-space="available"],
+      [data-lf-space="column"]:where(:has(> [data-lf-space="available"]:not([data-lf-arranged])))) {
       --lf-reach: var(--lf-room, 0px);
+    }
+    :where(main.layout-column, main.layout-sidebar) [data-lf-space="wide"] {
+      max-width: var(--wide);
     }
     /* A table is the one breakout whose box paints nothing of its own, only its columns'
      * rules, so the room it was granted is a limit rather than a size: spread across its

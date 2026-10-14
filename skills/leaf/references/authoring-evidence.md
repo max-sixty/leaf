@@ -180,8 +180,12 @@ make them visibly fictional. Render tickets, source locations, and URLs as real
 links.
 
 For a page-scale visual change, use `lf-shot` with before and after captures from
-the same viewport, of the versions the page compares. For a small change, crop
-both frames to the changed area or show the element itself at real size.
+the same viewport, of the versions the page compares. The pair draws each capture
+across the column, about 720px, so how much of the page a capture spans sets the
+scale its details are read at: a whole 1440px window shows at half size. For a
+smaller change, capture the subject as a page lays it out, in a reading column
+rather than across the window, and crop both frames to the changed area, or show
+the element itself at real size.
 The expand symbol beside each label opens that capture at full size; clicking
 the comparison itself still flips between its endpoints.
 Before writing the prose and `alt` around a pair, open both images and compare

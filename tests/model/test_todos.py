@@ -1038,8 +1038,8 @@ def test_ending_a_section_todo_done_names_the_section_left_among_the_open_work(
 ):
     """Finished work belongs collapsed after what is still open, so ending a to-do on
     an element `done` says on stderr when that element still stands open, and says
-    nothing for another outcome, while work on it or inside it stays on either list,
-    or once the saved page folds it."""
+    nothing for another outcome, while work or a thread on it or inside it stays on
+    either list, or once the saved page folds it."""
     publish(page_dir)
     parent = written(leaf("task", "open", page_dir, "plan", "Rework the plan"))
     child = written(
@@ -1051,6 +1051,21 @@ def test_ending_a_section_todo_done_names_the_section_left_among_the_open_work(
     record, note = ended.output.splitlines()
     assert json.loads(record)["outcome"] == "done"
     assert "`plan-choice-decision` is done, and it still stands among" in note
+    comment = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Is this still the choice?",
+            "anchor": {"section": "plan-choice-decision"},
+        },
+    )
+    held = written(leaf("task", "open", page_dir, "plan", "Recheck the plan"))
+    ended = leaf("task", "end", page_dir, held["id"], "done", "version 2")
+    assert len(ended.output.splitlines()) == 1
+    reply = ["--done", response_reference(page_dir, comment["id"]), "--text", "Yes."]
+    written(leaf("response", "reply", *reply))
     again = written(leaf("task", "open", page_dir, "plan", "Recheck the plan"))
     ended = leaf("task", "end", page_dir, again["id"], "done", "version 2")
     assert "`plan` is done" in ended.output.splitlines()[1]

@@ -483,7 +483,8 @@ def put_down(page) -> dict | None:
 
 def finished_in_view(page_dir: Path, end: dict) -> str | None:
     """The element a `done` end finished, where it still stands among the open work
-    (`work.open_ids`) and nothing on it or inside it is on either list; else None."""
+    (`work.open_ids`) and nothing on it or inside it, a thread anchored there
+    included, is on either list; else None."""
     from .event_log import read_events
     from .served_state.context import read_page
     from .served_state.page import read_served_page
@@ -506,12 +507,22 @@ def finished_in_view(page_dir: Path, end: dict) -> str | None:
     if within is None:
         return None
     served, _, _ = read_served_page(read_page(page_dir, events))
-    queues = served["browser"]["views"][str(served["active"]["revision"])]["queues"]
+    view = served["browser"]["views"][str(served["active"]["revision"])]
+    # A thread item stands where its thread is anchored.
+    anchored = {
+        thread["id"]: thread["anchor"].get("section")
+        for thread in view["thread"]["threads"]
+        if thread["anchor"]
+    }
     if any(
-        item["subject"]["id"] in within
+        (
+            anchored.get(item["subject"]["id"])
+            if item["subject"]["kind"] == "thread"
+            else item["subject"].get("id")
+        )
+        in within
         for side in ("on_user", "on_agent")
-        for item in queues[side]
-        if item["subject"]["kind"] in ("element", "widget")
+        for item in view["queues"][side]
     ):
         return None
     return subject["id"]

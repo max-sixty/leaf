@@ -362,7 +362,7 @@
   },
   "lf-shot": {
     "description": "A before-and-after screenshot pair with an operable divider, optional change outlines and changed-pixel view, and component-owned comparison, overlay, scaling and focus-crop presentation.",
-    "x-instructions": "Use served image paths printed by leaf page media for before and after, and describe the pair in alt. Read authoring-evidence.md, Source files and media, for captures and when to use outlines or pixels. Write explanations in surrounding prose rather than element content. When a decision turns on the change, put the pair inside the proposing option, or with the group of an accept-or-reject ask, where it compares both answers.",
+    "x-instructions": "Use for two versions of an interface, current and proposed. Use served image paths printed by leaf page media for before and after, and describe the pair in alt. Read authoring-evidence.md, Source files and media, for captures, the table that sets captures varying along other axes, and when to use outlines or pixels. Write explanations in surrounding prose rather than element content. When a decision turns on the change, put the pair inside the proposing option, or with the group of an accept-or-reject ask, where it compares both answers.",
     "type": "object",
     "properties": {
       "id": {

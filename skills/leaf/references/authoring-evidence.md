@@ -155,6 +155,16 @@ in a footer outside the image; images without an authored caption have no footer
 Alt text remains the image's accessible description. Original opens the file separately.
 Links to another destination retain that destination.
 
+Keep each capture its own image file; never join captures into one. The theme frames
+each image apart, so the reader sees at a glance where one capture ends, and Image
+preview opens one capture at a time. Where captures vary along named axes, such as the
+moment in an interaction, the case, the window width or the colour scheme, set them in
+a `<table>` with one linked capture per cell, a `<th scope="col">` naming each
+column's value and a `<th scope="row">` each row's. Each axis is then labeled once,
+and Image preview names the capture it opens by both heads. Place the captures the
+reader compares side by side or one above the other, so what moved reads as a
+misalignment. `lf-shot` is for two versions of an interface, current and proposed.
+
 Use a recording for a fixed
 demo or screen capture; keep a live widget where the user should manipulate the
 subject. Show a browser journey recorded with Playwright as its trace in `lf-trace`

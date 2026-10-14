@@ -49,7 +49,22 @@ The sketch's breathing leaf was left out: `skills/leaf/assets/AGENTS.md`,
 "Motion", allows one continuous animation. On 13 October the user had the working
 status carry that one sheen instead, asked for the resting status to read dimmer
 than body text ("currently it's too 'normal text'"), and for the focused field's
-placeholder to say where the words go.
+placeholder to say where the words go. Later that day the line over the field lost
+its recipient ("I don't think we need 'To Agent' (who else might we be sending it
+to??)"), menu rows drew their keys as key caps, and About's copy rows took Leaf's copy
+icon.
+
+### Follow-ups the user named
+
+- **A nicer way to fold to the leaf.** "We need a nicer way to 'Fold to the leaf',
+  probably something that appears on hover that looks like a minimize." Today it is a
+  row at the foot of the leaf's menu and the `.` key. The user recalls Codex's panel
+  having one, and the Codex study bears that out: a minimize button its header reveals
+  on hover (`codex-app-study.md`, "Chrome appears only while you engage").
+- **About's contents are orphaned.** The Leaf version and the share link (and, where
+  they apply, the session reference and preview diagnostics) "are both a bit
+  orphaned": find more that belongs in About, or move them elsewhere and drop the
+  group.
 
 Build an opt-in alternative to Leaf's chrome: one panel that hovers over the
 bottom of the page, like the Codex app's floating chat panel, and replaces both
@@ -213,14 +228,16 @@ shortfall. Add each improvement you make, with its reason. Where an item here an
   the surface layer follows the box's outline by a clip on the Codex panel's 300 ms
   `cubic-bezier(.23,1,.32,1)`. (The first build tweened the card's height; a layout
   tween's last frame landed outside CI's input window as a shift.)
-- **The focused field shows no frame and no ground**: the line naming where the words
-  go opens above it. A dark frame around the field was the previous attempt's "form"
-  look.
+- **The focused field shows no frame and no ground**: one quiet line opens above it,
+  with the keys that send. A dark frame around the field was the previous attempt's
+  "form" look.
 - **While the user types, Send stands in the counts' place;** the counts come back
   when the caret leaves, and the line naming where the words go stays while the field
   holds words. (Replaces the first build's counts on the destination line.)
-- **In a thread the destination line reads "Reply in {thread} · to {agent}",** since
-  the thread's name now heads the view rather than standing just above the field.
+- **The line over the field names where the words go only once they hide the
+  placeholder that said it,** in the placeholder's words ("Comment on the page",
+  "Reply in this thread"), and never who reads them: the page has one agent. The
+  thread's own name heads its view.
 - **A short thread reserves its "New reply · Show" slot,** so arriving news moves
   nothing.
 - **Answers are the widget's own choices** (a multiple-choice ask shows its options and

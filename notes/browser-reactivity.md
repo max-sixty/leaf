@@ -1,8 +1,8 @@
 # Browser reactivity
 
 How the browser runtime decides what to repaint, what moving further toward Lit's
-reactive model would take, and where the code could get simpler. This note gathers the
-open questions; each owning module's header states the current contract.
+reactive model would take, and what a paint's readers cost. This note gathers the
+findings; each owning module's header states the current contract.
 
 ## Where it stands
 
@@ -13,13 +13,23 @@ open questions; each owning module's header states the current contract.
   only when its part does.
 - **Watchers collect what they read.** `watchProjection(owner, paint)` collects every
   part of the publication its paint reads synchronously (`collectReads`, `snapshot.ts`)
-  and repaints when one of those parts moves (`runtime/projection-watch.js`). The named
-  watchers (`watchAsks`, `watchReports`, `watchWork` and the rest) are that watcher
-  around a reader, and a widget callback that also calls `readWork` or a controller's
-  `read()` is subscribed to those parts too. Only reads of the publication count. A
-  Preact effect also subscribes the paint to private signals it reads, such as where
-  the user stands, which a paint may also write: tracked by an effect, the annotation
-  inventory's paint re-ran itself without end and hung the page.
+  and repaints when one of those parts moves (`runtime/projection-watch.js`). It is the
+  one watcher packages use too: a reading has a reader (`readAsks`, `readQueues`,
+  `readThreads`, `readWork`, `reportSequence`, `readHistory`, a controller's `read()`)
+  and no watcher of its own, so a paint that reads several needs one watcher, and a
+  paint that narrates reports passes `reportsPresented` as the watcher's proof. The
+  same record holds the paint's readings of what stands outside the publication
+  (`outsideReading`): the time it shows, whether a drag holds the projection back, and
+  the page's `PRESENTATION` count, each followed by the same rule. Nothing else a
+  paint reads is followed. A Preact effect also subscribes the paint to private
+  signals it reads, such as where the user stands, which a paint may also write:
+  tracked by an effect, the annotation inventory's paint re-ran itself without end and
+  hung the page.
+- **Chrome paints are watchers too.** The banner's status, the floating panel, the
+  version picker and the pages drawer each paint through one `watchProjection`, and
+  call its `refresh()` for their own mechanical inputs, such as an open menu or a
+  comparison. How the server answered the latest read is in the publication (`reach`),
+  so the status reads it rather than the state feed pushing each answer at it.
 - **Regions collect what they read.** The four document regions (projection, threads,
   asks, the Questions panel) are `applicationPresenter`s (`runtime/semantic-state.js`).
   Each one's `reading` says whether it owes a paint, and the parts its reading and its
@@ -46,11 +56,10 @@ continuation, a `.then` callback or a function called after an `await`, so its r
 join the paint's parts while the paint is current. The thread presentation resumes its
 commit after a package's thread reader prepares, and the thread list resumes the rows it
 derives again once frozen widgets have connected (`renderReading`,
-`thread/presentation.js`; `renderThreads`, `thread/thread-list.js`). The clock keeps its
-own record of what a paint read (`clocked`), so `clocked` hands a paint the same kind
-of `resume` for its time readings, and the thread presentation composes the two.
-Nothing checks that a continuation is wrapped: a read in one that is not goes
-unfollowed, as a read outside a watcher's paint does.
+`thread/presentation.js`; `renderThreads`, `thread/thread-list.js`). The time a paint
+shows is recorded with its parts (`outsideReading`, `snapshot.ts`), so `resume` carries
+those reads too. Nothing checks that a continuation is wrapped: a read in one that is
+not goes unfollowed, as a read outside a watcher's paint does.
 
 A region checks its parts from one subscription to the publication, made when the
 region is. Subscribing to each part it read, again after every read, put its claim
@@ -105,21 +114,6 @@ collection, not all thread state), the to-dos and undo list (`runtime.todos`,
 `runtime.undo`, not the whole browser reading or view), and approval's blocking asks
 and approved state (not every ask). No check finds the rest;
 `leaf-dev bench-latency` against the previous commit shows one that costs time.
-
-## Simplifications this opens
-
-- **One watcher.** With tracking, `watchAsks(owner, cb)` is
-  `watchProjection(owner, () => cb(readAsks()))`, and each named watcher is that
-  composition. The repository asks for one canonical API per capability: the named
-  watchers could go, leaving one watcher and the readers. That changes the public
-  widget API across the packages and examples, and `module-authoring.md`'s "Page
-  readings" section.
-- **One record of what a paint read.** `clockValue` and `clocked`
-  (`runtime/presence.js`) keep their own record of which paints read the time, and the
-  watcher separately compares the projection deferral (`projectionDeferred`) and the
-  `PRESENTATION` count it last saw. Readings of the clock, the deferral and the
-  presentation that record themselves in the same collection as the publication's
-  parts would leave the watcher one rule for every input and retire those records.
 
 ## What reactivity will not fix
 

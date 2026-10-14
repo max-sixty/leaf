@@ -8,7 +8,6 @@
    user. */
 import { readPart } from "../semantic-state.js";
 import { registry } from "../registry.js";
-import { watchProjection } from "../projection-watch.js";
 
 export const readAsks = readPart((root) => root.effective.asks);
 
@@ -23,7 +22,3 @@ export const approvalBlockingAsks = readPart((root) => {
   const held = new Set(view.approval_blocking);
   return asks.all.filter((ask) => held.has(ask.id));
 });
-
-export function watchAsks(owner, callback) {
-  return watchProjection(owner, () => callback(readAsks()));
-}

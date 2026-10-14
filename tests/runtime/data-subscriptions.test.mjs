@@ -175,7 +175,8 @@ test("projection subscriptions follow their owner and cancel queued reads", asyn
     clocked: 3,
     moved: 3,
     detached: 3,
-    resumed: 3,
+    // The time it shows aged while it was away, so its return paints it at once.
+    resumed: 4,
     ticked: 4,
     refreshed: 5,
     stopped: 5,
@@ -531,6 +532,24 @@ test("a projection watcher repaints for a part its own paint published after rea
   stop();
   owner.remove();
   assert.deepEqual(drawn, [drawn[0], !drawn[0]]);
+});
+
+test("a projection watcher repaints for an outside reading its own paint moved", async () => {
+  const { watchProjection } = await import("/runtime/projection-watch.js");
+  const { projectionDeferred, setProjectionDeferred } =
+    await import("/runtime/projection/state.js");
+  const owner = document.createElement("div");
+  document.body.append(owner);
+  const drawn = [];
+  const stop = watchProjection(owner, () => {
+    drawn.push(projectionDeferred());
+    if (drawn.length === 1) setProjectionDeferred(true);
+  });
+  await new Promise((resolve) => setTimeout(resolve));
+  stop();
+  setProjectionDeferred(false);
+  owner.remove();
+  assert.deepEqual(drawn, [false, true]);
 });
 
 test("a projection watcher's paint that reads the whole publication fails", async (t) => {

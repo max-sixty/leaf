@@ -62,7 +62,7 @@ function place(press, seat) {
       label: () => word(controls.get(press.id).press.words),
       shortcut: () => {
         const [binding] = bindings(controls.get(press.id).press.row);
-        return binding ? spell(binding) : "";
+        return binding ? [spell(binding)] : [];
       },
       group: press.row.menu ?? "page",
       // The same activation as the control's own: a command that acts on where the

@@ -347,7 +347,7 @@ registerBannerControl({
   control: keyboardSettings,
   rank: BANNER_CONTROL_RANK.keyboard,
   seat: "menu",
-  row: { label: "Keyboard shortcuts", shortcut: "?", group: "page" },
+  row: { label: "Keyboard shortcuts", shortcut: ["?"], group: "page" },
 });
 // The first `?` expands the bar where the bar is drawn; where it is not, under the
 // floating panel or a finger, there is nothing to expand, and `?` opens the reference.

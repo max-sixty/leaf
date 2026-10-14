@@ -11,6 +11,7 @@ import {
   readPart,
   whenApplicationPresented,
 } from "/runtime/semantic-state.js";
+import { clockValue, tickClock } from "/runtime/presence.js";
 
 const phase = readPart((root) => root.phase);
 
@@ -96,5 +97,40 @@ test("a part a paint reads after it waits is followed only where it resumes", as
   await whenApplicationPresented();
   assert.equal(paints.resumed.length, 2);
   assert.equal(paints.bare.length, 1);
+  for (const region of regions) region.disconnect();
+});
+
+test("a region repaints when a time its paint shows ages, wherever the paint read it", async () => {
+  let clock = 0;
+  const paints = { synchronous: [], resumed: [], bare: [] };
+  const regions = Object.entries(paints).map(([name, seen]) =>
+    applicationPresenter({
+      region: `probe-clock-${name}`,
+      reading: () => true,
+      paint: async (value, current, resume) => {
+        const after = () => seen.push(clockValue(() => clock));
+        if (name === "synchronous") after();
+        else {
+          await null;
+          if (name === "resumed") resume(after)();
+          else after();
+        }
+        return true;
+      },
+    }),
+  );
+  await Promise.all(regions.map((region) => region.present()));
+  await whenApplicationPresented();
+  clock += 1;
+  await tickClock((message) => {
+    throw new Error(message);
+  });
+  await whenApplicationPresented();
+  // A second tick that moves nothing paints nothing.
+  await tickClock((message) => {
+    throw new Error(message);
+  });
+  await whenApplicationPresented();
+  assert.deepEqual(paints, { synchronous: [0, 1], resumed: [0, 1], bare: [0] });
   for (const region of regions) region.disconnect();
 });

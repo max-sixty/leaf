@@ -362,23 +362,6 @@ export function misplacedBoxes() {
       if (draws(a)) return a;
     return null;
   };
-  // A box holding a breakout of its own may grow round it, as an Ask allocated the
-  // column does so its ring goes round the block (the default package's ask.css): its
-  // margins carry its edges out and equal padding keeps its content box on the column.
-  // So its content box is held to the column, where its own words stand, and its border
-  // box is asked what a wide widget's is. Holding the border box to the column named
-  // every such Ask as standing in the margin; excusing a box no wider than its block
-  // still named an Ask round a two-column table, which reaches further than the table
-  // does, and passed a box pulled into the margin with its words. A breakout the page
-  // arranged keeps to its holder (prepaint.js), so its holder does not grow, and nor
-  // does an inline box, whose words stand where its own box does.
-  const holdsBreakout = (el) =>
-    [...el.children].some(
-      (child) =>
-        child.matches(BREAKOUT) &&
-        !child.hasAttribute("data-lf-arranged") &&
-        child.checkVisibility(),
-    );
   // How far a box stands past the band from `start` to `end`.
   const outside = (box, start, end) =>
     Math.round(Math.max(box.right - end, start - box.left));
@@ -395,17 +378,14 @@ export function misplacedBoxes() {
     if (!pageBox(el) || !el.checkVisibility() || (!wide && answeredFor(el))) continue;
     const b = el.getBoundingClientRect();
     if (b.width < 1) continue;
+    const frame = wide ? framing(el) : null;
     const host = wide ? null : insideWide(el);
-    if (!wide && !host) {
-      const grown = getComputedStyle(el).display !== "inline" && holdsBreakout(el);
-      const past = outside(grown ? contentBox(el) : b, left, right);
-      if (past > 1) over.set(el, [past, false, null, null]);
-      if (past > 1 || !grown) continue;
-    }
-    const frame = host ? null : framing(el);
     const bound = (frame || host)?.getBoundingClientRect();
-    const past = outside(b, bound?.left ?? roomLeft, bound?.right ?? roomRight);
-    if (past > 1) over.set(el, [past, !host, frame, host]);
+    const past =
+      wide || host
+        ? outside(b, bound?.left ?? roomLeft, bound?.right ?? roomRight)
+        : outside(b, left, right);
+    if (past > 1) over.set(el, [past, wide, frame, host]);
   }
   // Each finding is a record (findings.py) carrying its element's place
   // (locate.js) beside its code, so a reader that takes this pass at several widths

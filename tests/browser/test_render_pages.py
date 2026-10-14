@@ -1496,16 +1496,15 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         at
     )
     assert at["tracked"]["width"] == 350, at
-    # An Ask that spans its block keeps its own words in the column, as the gate reads
-    # it, even where it reaches further than a table of two columns does; a box pulled
-    # out of the column by its margins, or an inline one, still stands in the margin
-    # with its words, and
-    # one grown round its block past the page's own box is asked as the block would be.
+    # An Ask that spans its block is a breakout the theme grows, so the gate reads it as
+    # one, even where it reaches further than a table of two columns does; a box the
+    # page pulls out of the column by its margins, an inline one, or one it grows round
+    # its block by margins and padding of its own, still stands in the margin.
     misplaced = evaluate_probe(column, "misplacedBoxes")
     assert [(m["code"], m["at"]) for m in misplaced] == [
         ("past-column", "<div id=pulled>"),
         ("past-column", "<span id=spilled>"),
-        ("past-room", "<div id=padded>"),
+        ("past-column", "<div id=padded>"),
         ("clipped-out", "<div id=padded>"),
     ], misplaced
 

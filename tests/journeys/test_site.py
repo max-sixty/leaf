@@ -717,7 +717,7 @@ def test_published_visual_evidence_loads_from_its_page(served_example, browser):
         # Web Awesome finishes hiding the listbox after it records the selection.
         expect(case_select.locator('[part~="listbox"]')).to_have_attribute("hidden", "")
         expect(case_select).to_have_js_property("value", case_id)
-        comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
+        comparison = review.locator(".lf-vr-case[data-selected] lf-shot")
         expect(comparison).to_be_visible()
         images = comparison.locator("img")
         expect(images).to_have_count(2)

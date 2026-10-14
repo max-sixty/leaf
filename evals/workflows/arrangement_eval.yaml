@@ -1,4 +1,4 @@
-preference: 'A standing preference for all my pages from now on: I read them in a window about
+preference: 'A lasting preference for all my pages from now on: I read them in a window about
   900px wide, beside my editor. At that width, keep the page''s summary, status, contents or
   queue beside the main content rather than stacked above or below it.'
 reachable: A labeled control whose content is out of view, such as a collapsed section, an unselected
@@ -150,7 +150,7 @@ cases:
         phase: 2
         required_widths: [narrow, short]
         rubric: >-
-          At both 900px window heights, the page follows the standing preference quoted in the
+          At both 900px window heights, the page follows the lasting preference quoted in the
           output: summary, status, contents or queue remains beside the main content.
     - &comment_answered
       type: llm-rubric

@@ -66,7 +66,6 @@ const startupTime = z.nullable(
   z.number().check(z.int(), z.nonnegative(), z.maximum(300_000)),
 );
 const startupReportSchema = z.strictObject({
-  version: z.literal(2),
   loadId: z.string().check(z.regex(/^[0-9a-f]{32}$/)),
   release: siteRelease,
   layer: z.string().check(z.regex(/^[A-Za-z0-9_-]{1,128}$/)),

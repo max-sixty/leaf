@@ -182,6 +182,101 @@ def test_a_claim_records_where_the_session_is_working(page_dir, tmp_path, monkey
     assert presence_model.presence(page_dir, [])["session_alive"] is False
 
 
+@pytest.mark.skipif(not shutil.which("sandbox-exec"), reason="macOS's sandbox")
+def test_a_session_whose_shell_is_sandboxed_claims_its_page(page_dir, monkeypatch):
+    """Claude Code's and Codex's macOS sandboxes refuse their commands any signal
+    to a process outside the sandbox, the session's own included, so signal 0 to
+    CLAUDE_PID meets EPERM there as it does for another user's process. The claim
+    still takes, since the session is this user's; a pid of another user's still
+    reads as gone."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sandboxed")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    signals_stay_inside = (
+        "(version 1)(allow default)(deny signal)(allow signal (target same-sandbox))"
+    )
+    claimed = subprocess.run(
+        ["sandbox-exec", "-p", signals_stay_inside, *LEAF_COMMAND]
+        + ["page", "claim", str(page_dir)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert claimed.returncode == 0, claimed.stderr
+    assert service_model.page_claim(page_dir)["id"] == "sandboxed"
+    assert not machine_model.pid_alive(1)
+
+
+@pytest.mark.skipif(not shutil.which("sandbox-exec"), reason="macOS's sandbox")
+@pytest.mark.parametrize(
+    ("refused", "command"),
+    [
+        ('(deny file-write* (subpath "{state}"))', ["page", "claim"]),
+        ("(deny network-bind)", ["server", "start"]),
+    ],
+)
+def test_a_sandbox_refusal_says_to_run_outside_it(
+    page_dir, monkeypatch, refused, command
+):
+    """Claude Code's sandbox lets a command write only its working directory and
+    temporary files, not Leaf's state home, which a claim writes, and bind no port
+    unless the user allows it. Each refusal says so in one line naming the sandbox
+    and what to do, whether the command or the server it starts meets it, rather
+    than a traceback or an OS error the agent would read as the host's."""
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "confined")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    monkeypatch.setenv("SANDBOX_RUNTIME", "1")
+    state = os.path.realpath(os.environ["XDG_STATE_HOME"])
+    profile = f"(version 1)(allow default){refused.format(state=state)}"
+    done = subprocess.run(
+        ["sandbox-exec", "-p", profile, *LEAF_COMMAND, *command, str(page_dir)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert done.returncode == 1
+    assert "[Errno 1] Operation not permitted" in done.stderr
+    assert "(SANDBOX_RUNTIME=1), so rerun it outside the sandbox" in done.stderr
+    assert "Traceback" not in done.stderr
+
+
+def test_a_sandbox_that_hides_the_session_says_to_claim_outside_it(
+    page_dir, monkeypatch
+):
+    """Claude Code's Linux sandbox runs each command in a process namespace of its
+    own, so CLAUDE_PID names no process the command can see, and the claim cannot
+    take there at all. The refusal says so where the harness declares its sandbox,
+    since the agent's fix is to rerun the command outside it."""
+    gone = subprocess.Popen(["true"])
+    gone.wait()
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "namespaced")
+    monkeypatch.setenv("CLAUDE_PID", str(gone.pid))
+    monkeypatch.setenv("SANDBOX_RUNTIME", "1")
+    refused = CliRunner().invoke(cli_model.cli, ["page", "claim", str(page_dir)])
+    assert refused.exit_code == 1, refused.output
+    assert "SANDBOX_RUNTIME=1" in refused.output
+    assert "outside the sandbox" in refused.output
+    assert service_model.page_claim(page_dir) is None
+
+
+def test_a_page_calls_its_agent_by_its_claimant_or_last_voice(page_dir, monkeypatch):
+    """The page's agent has one name, which every label naming the agent's side reads
+    (`presence.page_agent`): its claimant's, else the voice that last wrote on it, else
+    the unnamed agent's."""
+    voiced = [
+        {"seq": 1, "kind": "comment", "author": "agent", "agent": "Codex"},
+        {"seq": 2, "kind": "reply", "author": "user"},
+        {"seq": 3, "kind": "reply", "author": "agent", "agent": "Claude"},
+        {"seq": 4, "kind": "reply", "author": "agent"},
+    ]
+    assert presence_model.presence(page_dir, [])["agent"] == "Agent"
+    assert presence_model.presence(page_dir, voiced)["agent"] == "Claude"
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    assert service_model.claim_page(page_dir)
+    claimant = service_model.page_claim(page_dir)["agent"]
+    assert presence_model.presence(page_dir, voiced[:1])["agent"] == claimant
+
+
 def test_reinitializing_a_deleted_page_path_drops_its_old_claim(page_dir, monkeypatch):
     """A regenerated page is not the deleted page that occupied its path."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "old-session")

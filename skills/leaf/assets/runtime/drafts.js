@@ -122,6 +122,9 @@ import { CARET_KEYS, selectsAll } from "./control-selectors.js";
 // the older shared attempt. The log still outranks both: an attempt already present in
 // `events` is settled whatever stale active record storage hands back on reload.
 const DRAFT = "lf-draft:";
+// The page's own draft: the box of Comment on the page (thread/page-comment.js), which
+// the floating panel's field shares, and the one place a page thread starts.
+export const PAGE_DRAFT = "general";
 // Where the draft at `ctx` is kept, as the store says (`where`): the page scope is in
 // the key. The storage listener below reads other tabs' writes by it, and a test that
 // seeds or reads a stored draft asks it rather than spelling the key.
@@ -169,7 +172,7 @@ export const storedDraft = (ctx) => {
   return read.available ? parseDraftRecord(read.value) : null;
 };
 const attemptAccepted = (attempt) =>
-  (runtime.browser?.receipts ?? []).some((event) => event.attempt === attempt);
+  runtime.receipts.some((event) => event.attempt === attempt);
 const writeDraftRecord = (ctx, record) =>
   draftStore.set(DRAFT + ctx, JSON.stringify(record));
 const rawDraftRecord = (ctx) => {
@@ -224,13 +227,13 @@ const refreshDraftRecord = (ctx) => {
   if (changed) projectDraftRecord(ctx, shared);
   return shared;
 };
-// A generation this document has sent and not heard back on. Its words are standing
+// A generation this document has sent and not heard back on. Its words are shown
 // wherever the gesture drew them, so the box they were written in reads empty, while
 // the record itself stands, unsettled, until the log accepts it. The two are different
 // facts: what a box shows is about this document, and settlement is a claim over every
 // tab. That is what lets a second tab still show and send the same generation, and what
 // brings the words back here on a refusal with nothing to restore them from.
-const standingGestures = new Map(); // ctx -> attempt
+const sentAttempts = new Map(); // ctx -> attempt
 
 const unsettledDraftRecord = (ctx) => {
   const record = rawDraftRecord(ctx);
@@ -238,7 +241,7 @@ const unsettledDraftRecord = (ctx) => {
 };
 const activeDraftRecord = (ctx) => {
   const record = unsettledDraftRecord(ctx);
-  return standingGestures.get(ctx) === record?.attempt ? null : record;
+  return sentAttempts.get(ctx) === record?.attempt ? null : record;
 };
 // Sending hides a generation's words while its result stands on screen, but does
 // not end its editor's lifetime: refusal still owes those words that same editor.
@@ -291,11 +294,11 @@ export const saveDraft = (ctx, text, payload, held = carriedHeld(ctx)) => {
 // edit made meanwhile starts without it.
 const carriedHeld = (ctx) => {
   const previous = rawDraftRecord(ctx);
-  return previous && !previous.settled && standingGestures.get(ctx) !== previous.attempt
+  return previous && !previous.settled && sentAttempts.get(ctx) !== previous.attempt
     ? previous.held
     : undefined;
 };
-// Set the held reply on the draft's standing generation without minting another: the
+// Set the held reply on the draft's current generation without minting another: the
 // refused attempt stays the one a resend re-evaluates.
 const holdReply = (ctx, held) => {
   const current = activeDraftRecord(ctx);
@@ -330,7 +333,9 @@ export function transferDraft(from, to, text) {
     writingPlace?.context === from
       ? writingPlace.selection
       : readCaret(editor && editorInput(editor));
-  const held = carriedHeld(from) ?? null;
+  // A destination already holding a reply keeps it, with the source's after it.
+  const held =
+    [carriedHeld(to), carriedHeld(from)].filter(Boolean).join("\n\n") || null;
   const durable = to.startsWith("reply:")
     ? saveDraft(to, held ? `${text}\n\n${held}` : text, undefined, null)
     : saveDraft(to, text, undefined, held);
@@ -377,7 +382,7 @@ export function settleAcceptedDrafts() {
 //
 // Attempt and exact untrimmed text are rechecked immediately before POST. A successful
 // older send settles only that generation; any later edit has a fresh attempt and remains
-// standing. This is the claim both senders below make, and the only thing they share: a
+// open. This is the claim both senders below make, and the only thing they share: a
 // send that no longer owns its generation appends nothing, whichever lifecycle it is in.
 function claimDraft(ctx, owns) {
   const before = activeDraftRecord(ctx);
@@ -400,19 +405,19 @@ function claimDraft(ctx, owns) {
 // Both senders below stage the same way, because both draw their result in the document
 // before the log has answered: `post` paints the message in its thread, and a dispatched
 // action paints its projected outcome. So the box stops showing words the user can now
-// see standing, while the record keeps them — one copy of the words on screen, and a
+// see painted, while the record keeps them — one copy of the words on screen, and a
 // generation still owed an answer. Acceptance settles exactly that generation. A refusal
 // withdraws the result and lifts the mask, so the box the user typed in has the words
 // again; the record stood in the store throughout, which is what a tab that went down
 // with the send recovers from.
 const standGesture = (ctx, current) => {
-  standingGestures.set(ctx, current.attempt);
+  sentAttempts.set(ctx, current.attempt);
   tellDraft(ctx, null);
   return (sent) => {
-    // Lift this generation's mask, not whatever is standing for the context: a second
+    // Lift this generation's mask, not whatever is current for the context: a second
     // send into the box this one emptied has masked its own words by the time this
     // answer arrives, and they are on screen as a gesture of their own.
-    if (standingGestures.get(ctx) === current.attempt) standingGestures.delete(ctx);
+    if (sentAttempts.get(ctx) === current.attempt) sentAttempts.delete(ctx);
     if (sent) {
       if (settleDraft(ctx, current.attempt)) tellDraft(ctx, null);
       return;
@@ -426,7 +431,7 @@ const standGesture = (ctx, current) => {
 
 // An action the sender waits on: a widget edit, an added option. Its dispatch paints the
 // projected outcome before the delivery it returns resolves, so the words are already
-// standing in the document by the time this awaits them. The caller's own control shows
+// shown in the document by the time this awaits them. The caller's own control shows
 // the wait.
 export async function sendDraft(ctx, owns, send) {
   const current = claimDraft(ctx, owns);
@@ -576,8 +581,8 @@ export function forgetWritingPlace(ctx) {
 // sent behind the message or still unsent. That box began with any reply the draft held,
 // so its words now are the draft's held reply (`held`), part of the draft the message
 // was sent from (`openedFrom`), which brings them to the thread its next send opens,
-// edited, carried elsewhere or not (`sendMessage`). Resume writing standing in the
-// withdrawn box moves to that draft, the one place the user acts to get them back.
+// edited, carried elsewhere or not (`sendMessage`). Resume writing, shown in the
+// withdrawn box, moves to that draft, the one place the user acts to get them back.
 //
 // Words back in a box on screen need no sentence. Words back only in a box out of view
 // are the ones a refusal otherwise appears to lose, so they become the Resume writing
@@ -660,7 +665,37 @@ export function registerWritingDestination(prefix, reveal) {
 // (`rewrite:<message id>`, thread/message-edit.js).
 const THREAD_HELD = /^(reply|rewrite):/;
 
-export function createWritingResume({ revealInThread, arriveEditor }) {
+// Words nothing on the active document holds a box for, as when a version removes the
+// content an edit was for, join the page's own draft after the words it already holds,
+// and Resume writing moves with them (`transferDraft`): one copy, sent or put away like
+// any page comment. Whatever took the box away, the words now stand where a comment
+// about no particular place is written.
+function moveToPage(ctx) {
+  const words = loadDraft(ctx) ?? "";
+  const text = [loadDraft(PAGE_DRAFT), words].filter(Boolean).join("\n\n");
+  if (!transferDraft(ctx, PAGE_DRAFT, text)) return false;
+  const shift = text.length - words.length;
+  const [start, end, ...direction] = writingPlace.selection;
+  keepWritingPlace({
+    ...writingPlace,
+    selection: [start + shift, end + shift, ...direction],
+  });
+  return true;
+}
+
+// `holdsThreadDraft` answers whether the thread or message a thread-held draft is
+// written under still stands; any other draft is held by a route declared for its kind
+// or an editor registered for it, each for its owner's lifetime.
+export function createWritingResume({
+  revealInThread,
+  arriveEditor,
+  holdsThreadDraft,
+}) {
+  const holdsBox = (ctx) =>
+    THREAD_HELD.test(ctx)
+      ? holdsThreadDraft(ctx)
+      : [...writingRoutes.keys()].some((prefix) => ctx.startsWith(prefix)) ||
+        [...draftEditors].some((view) => view.ctx === ctx);
   const resume = async () => {
     const place = writingPlace;
     if (!place) return;
@@ -685,16 +720,26 @@ export function createWritingResume({ revealInThread, arriveEditor }) {
       (view) => view.ctx === place.context && editorInput(view) === input,
     );
     if (
-      !matchesEditor ||
-      !input?.isConnected ||
-      !input.checkVisibility() ||
-      input.readOnly ||
-      input.disabled
+      matchesEditor &&
+      input?.isConnected &&
+      input.checkVisibility() &&
+      !input.readOnly &&
+      !input.disabled
     ) {
-      notice("That writing place is unavailable on this version");
+      intent.handoff(() => focusDestination(input, "move", { caret: place.selection }));
       return;
     }
-    intent.handoff(() => focusDestination(input, "move", { caret: place.selection }));
+    // A document behind the active one may lack a box the active one holds, so only
+    // the active document moves the words to the page.
+    if (runtime.showsActive && !holdsBox(place.context) && moveToPage(place.context)) {
+      notice("Its box is gone, so its words moved to a comment on the page");
+      return resume();
+    }
+    // A box that stands but takes no words now, as a resolved thread's in the floating
+    // panel, is no fault of the version shown.
+    notice(
+      `That writing place is unavailable${runtime.showsActive ? "" : " on this version"}`,
+    );
   };
   return {
     id: "writing.resume",
@@ -702,7 +747,7 @@ export function createWritingResume({ revealInThread, arriveEditor }) {
     description: "Resume writing",
     title: "Resume writing",
     touch: "Resume writing",
-    menu: "navigate",
+    menu: "keys",
     covering: true,
     when: () => writingPlace !== null,
     run: resume,
@@ -827,6 +872,14 @@ addEventListener("storage", (ev) => {
 // send or report settlement, so its lifecycle reads canonical draft availability.
 // `blank` answers what the box holds with no draft: nothing for a new message, and the
 // message's own words for a rewrite of it.
+/** @param {any} ta @param {any} sync @param {any} ctx
+ * @param {{
+ *   retained?: boolean,
+ *   mirrored?: boolean,
+ *   resume?: any,
+ *   onChange?: (value: string | null) => void,
+ *   blank?: () => string,
+ * }} [options] */
 export function mirrorDraft(
   ta,
   sync,

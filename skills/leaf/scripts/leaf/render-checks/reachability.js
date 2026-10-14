@@ -24,7 +24,7 @@ export function reachabilityReading() {
 // words is a line tall wherever it is laid out, which leaves a flattened chip caught.
 //
 // Declared, not read off the computed display, because a custom element with no rule
-// left standing computes as inline: a theme that lost the chip block would silence the
+// left computes as inline: a theme that lost the chip block would silence the
 // check that exists to catch it.
 //
 // [hidden] needs its own exclusion: hidden="until-found" (what a closed tab wears)
@@ -259,7 +259,12 @@ function unreachableWords() {
   // the runtime builds it through `offer`, as a widget builds its own.
   const CONTROL = `button, ${TEXT_BOX}, input, select, label, a[href], [data-lf-offer]`;
   const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+  // A text walk visits text nodes.
+  for (
+    let n = /** @type {Text} */ (walk.nextNode());
+    n;
+    n = /** @type {Text} */ (walk.nextNode())
+  ) {
     const el = n.parentElement;
     if (!n.data.trim()) continue;
     // Whose the .lf-ui is, per `widget` above. A widget's own chrome is read

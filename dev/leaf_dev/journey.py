@@ -2,7 +2,7 @@
 the page's own record and checked.
 
     uv run leaf-dev journey TARGET [--browser | --http] [--release RELEASE]
-                                   [--hooks-module] [--preview]
+                                   [--hooks-module] [--sandbox] [--preview]
 
 The user tells the agent that a release passed its deployment checks, asking it to
 record that on the board. How the page records it is the agent's call, as with a
@@ -32,7 +32,8 @@ with its turn closed. A website target runs `release` alone, since only a termin
 can start a turn or interrupt one. What the harnesses share lives here: their
 isolation and its evidence (`isolated`), the session the journey hears through every
 wait (`Terminal`), and the user (`User`). `--hooks-module` turns on Claude Code's
-opt-in hooks module; `--preview` has Codex serve the page with the canonical
+opt-in hooks module; `--sandbox` runs Claude Code's shell commands in its sandbox;
+`--preview` has Codex serve the page with the canonical
 `leaf-dev preview --user`. The journey stops at the first check that fails and keeps
 no sample.
 
@@ -109,7 +110,7 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, PageClient, extract_payload, run_directory, run_leaf
-from leaf_dev.browser import DESKTOP, chrome
+from leaf_dev.browser import DESKTOP, headless_shell
 from leaf_dev.review_scenario import COMMENTS, post
 from leaf_dev.startup import startup_reading
 from leaf_dev.verify_site import (
@@ -1326,7 +1327,13 @@ def local_session(browser, url: str) -> Session:
 
 @contextmanager
 def target_session(
-    browser, target: str, release: str | None, *, hooks_module: bool, preview: bool
+    browser,
+    target: str,
+    release: str | None,
+    *,
+    hooks_module: bool,
+    sandbox: bool,
+    preview: bool,
 ) -> Iterator[tuple[User, dict, Callable[[], None]]]:
     """The user at the page TARGET answers, what names TARGET in the journey's
     output (`target` the same across runs, as a local server's `origin` is not), and
@@ -1336,8 +1343,9 @@ def target_session(
         if target == "claude-code":
             from leaf_dev.journey_claude_code import answering
 
-            harness = answering(browser, hooks_module=hooks_module)
+            harness = answering(browser, hooks_module=hooks_module, sandbox=sandbox)
             named |= {"hooksModule": True} if hooks_module else {}
+            named |= {"sandbox": True} if sandbox else {}
         elif target == "pi":
             from leaf_dev.journey_pi import answering
 
@@ -1396,6 +1404,12 @@ def target_session(
     help="On claude-code, turn the plugin's hooks module on.",
 )
 @click.option(
+    "--sandbox",
+    is_flag=True,
+    help="On claude-code, run the session's shell commands in Claude Code's sandbox, "
+    "configured as the README says.",
+)
+@click.option(
     "--preview",
     is_flag=True,
     help="On a codex target, serve the page with `leaf-dev preview --user`.",
@@ -1411,6 +1425,7 @@ def journey(
     target: str,
     release: str | None,
     hooks_module: bool,
+    sandbox: bool,
     preview: bool,
     browser: bool | None,
 ) -> None:
@@ -1425,6 +1440,8 @@ def journey(
     """
     if hooks_module and target != "claude-code":
         raise click.UsageError("--hooks-module is an option of claude-code")
+    if sandbox and target != "claude-code":
+        raise click.UsageError("--sandbox is an option of claude-code")
     if preview and HARNESS_TARGETS.get(target, {}).get("harness") != "codex":
         raise click.UsageError("--preview is an option of the codex targets")
     website = target not in HARNESS_TARGETS
@@ -1433,10 +1450,15 @@ def journey(
             "a website's journey is its page in a browser, so it has no --http"
         )
     with ExitStack() as stack:
-        chromium = stack.enter_context(chrome()) if website or browser else None
+        chromium = stack.enter_context(headless_shell()) if website or browser else None
         user, named, run = stack.enter_context(
             target_session(
-                chromium, target, release, hooks_module=hooks_module, preview=preview
+                chromium,
+                target,
+                release,
+                hooks_module=hooks_module,
+                sandbox=sandbox,
+                preview=preview,
             )
         )
         try:

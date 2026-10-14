@@ -1,18 +1,27 @@
 .lf-drawing-reference { display: block; margin-top: 2px; color: var(--muted-2);
           font: 500 var(--t-6)/1.35 var(--sans); }
 .lf-page-thread-open { margin-top: var(--sp-2); }
-.lf-page-thread-resolved { margin-top: var(--sp-2); color: var(--ok); }
-.lf-page-thread-summary { padding: 8px 10px; color: var(--ok); cursor: pointer;
-          font-weight: 600; }
-.lf-page-thread[open] > .lf-page-thread-summary { margin-bottom: var(--sp-2);
-          border-bottom: 1px solid var(--rule); }
-.lf-page-thread > .lf-page-thread-summary[hidden] { display: none; }
+/* A seat's resolved threads stand under one disclosure (thread/inline.js), whose
+   threads are page threads like any other. Its summary is one line at the aim floor,
+   so a notice of what its threads hold back says so without growing it. */
+.lf-resolved-threads { position: relative; min-width: 0; }
+/* Closed, the disclosure hides its threads by display rather than by the
+   content-visibility a closed details gives its content: Chrome drops scroll anchoring
+   for a change that moves a node into content hidden that way, so a thread the agent
+   resolved above the screen moved what the user read by the thread's height. */
+.lf-resolved-threads::details-content { content-visibility: visible; }
+.lf-resolved-threads:not([open]) > :not(summary) { display: none; }
+.lf-resolved-summary { border-radius: var(--r); cursor: pointer;
+          padding: max(var(--sp-1), (var(--aim-floor) - 1lh) / 2) var(--sp-1);
+          color: var(--muted); font: 600 var(--t-5)/var(--lf-ui-lh) var(--sans);
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lf-resolved-summary:hover { color: var(--ink-2); }
 .lf-page-thread .lf-btn { font: inherit; }
-.lf-page-thread :is(.lf-btn, summary)[data-lf-focus] {
+:is(.lf-page-thread :is(.lf-btn, summary), .lf-resolved-summary)[data-lf-focus] {
           outline: var(--focus-ring); outline-offset: 1px; --lf-focus-ring: thread; }
 @media print {
   .lf-page-thread,
-  .lf-page-thread :is(.lf-msg, .lf-page-thread-resolved) {
+  .lf-page-thread .lf-msg {
           display: block !important; }
   .lf-page-thread :is(.lf-thread-reply, .lf-say, button, .lf-msg-sending) {
           display: none !important; }
@@ -78,7 +87,7 @@
           background: var(--ink); color: var(--paper); box-shadow: 0 2px 8px var(--shade);
           font: 500 var(--t-6)/1.2 var(--sans); white-space: nowrap; pointer-events: none; }
 /* A reaction surface offers one quiet trigger. It disappears when its list opens;
-   a standing token remains visible in a closed message strip as the user's receipt
+   a token in force remains visible in a closed message strip as the user's receipt
    and eraser. */
 .lf-react-palette { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .lf-react-open > .lf-react-trigger { display: none; }
@@ -120,9 +129,14 @@
           display: inline-flex; align-items: center; justify-content: center;
           border-radius: var(--r);
           opacity: 0; cursor: pointer; }
-.lf-msg-control-icon { inline-size: 16px; block-size: 16px; overflow: visible;
-          fill: none; stroke: currentColor; stroke-width: 1.6;
-          stroke-linecap: round; stroke-linejoin: round; }
+/* Every Leaf icon (icons.js) is drawn the same way, whatever class its caller sizes or
+   places it by: a round-capped stroke in the text's colour, unfilled, so no caller's
+   class can leave one drawn as the browser's default black fill. It keeps the size that
+   class gives it, which the page's rule for its own pictures (theme.css, `max-width`)
+   would otherwise narrow to a holder no wider than the icon. */
+svg[data-lf-icon] { max-width: none; overflow: visible; fill: none; stroke: currentColor;
+          stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.lf-msg-control-icon { inline-size: 16px; block-size: 16px; }
 .lf-msg:is(:hover, [data-lf-focus-within]) .lf-msg-control,
 .lf-msg-control[data-lf-focus] { opacity: 1; }
 .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
@@ -137,7 +151,7 @@
    is not a press outside it, and its anchor, named here since a source sets none. Hung
    below the trigger, or above where the window has no room below, it follows the
    message as the list scrolls, and closes once the trigger is out of view
-   (reactions.js). Closed, it is the strip's own row of standing reactions, in flow,
+   (reactions.js). Closed, it is the strip's own row of reactions in force, in flow,
    so the popover's UA box is taken off; whether it is open is read off the popover
    alone, so a light dismiss leaves no frame between. */
 .lf-react-strip > .lf-react-palette[popover] {
@@ -253,18 +267,15 @@
   }
 }
 @media print {
-  /* A shut disclosure on paper is a summary and a stub: the words are in the document,
-     nothing on the sheet says they are there, and there is no press to open them with.
-     Six of them printed that way on the corpus, one of them holding 3270px of an exact
-     source. The layer already takes this line for the other two ways a page puts
-     content behind a gesture — a settled group's cards and an inactive tab both print
-     open (packages/default) — and <details> was the one that was missed.
-
-     `::details-content` is what the browser hides the body with, so it is what says
-     otherwise; the marker goes because paper has nothing to turn. A page that means a
-     disclosure to stay shut on paper says so in its own stylesheet, at a weight this
-     does not contest. */
-  details:not([open])::details-content { content-visibility: visible; }
+  /* Paper has no press to open what a page puts behind a gesture, so it prints open:
+     a shut <details>, and whatever a widget folds with `hidden="until-found"`
+     (`HIDDEN`, widget-elements.js), such as an inactive tab or a settled group's
+     cards. Each is hidden by content-visibility, so that is what says otherwise; the
+     marker goes because paper has nothing to turn. A page that means a disclosure to
+     stay shut on paper says so in its own stylesheet, at a weight this does not
+     contest. */
+  details:not([open])::details-content, [hidden="until-found"] {
+    content-visibility: visible; }
   details > summary { list-style: none; }
   details > summary::-webkit-details-marker { display: none; }
 }
@@ -273,9 +284,22 @@
  * Packages may adjust placement and density; margin entries and reaction chips
  * retain their separate forms. The block padding carries the aim floor (above), less
  * the 1px border, so a rule restating it restates the floor with it. */
-:is(.lf-btn, .button) { width: var(--lf-reserved-width, auto);
+:is(.lf-btn, .button) {
   padding: max(4px, (var(--aim-floor) - 1lh) / 2 - 1px) 10px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--card); cursor: pointer; white-space: nowrap; color: var(--ink); display: inline-block; }
-:is(.lf-btn, .button)[hidden]:not([hidden="until-found"]) { display: none; }
+/* A label whose words change holds the room of all of them, so a count or a result
+ * changing moves nothing beside it. `data-lf-room` lists those words, one per line, on
+ * the element that holds only the label's words. Its ::before lays them out as an
+ * invisible block of no height, so the element is as wide as the widest of them in the
+ * face it renders in, and no script measures anything. Generated content is not in the
+ * element's text, and hidden content is not in its accessible name. Words longer than
+ * every room line widen the element, as any label's would. Because the room wraps at
+ * its spaces, it never holds the element wider than its container; where the words
+ * outgrow the container, the element's owner decides whether they truncate. Leading
+ * the words, the block leaves their line as the element's baseline. The element's own
+ * rules outrank this one, so an owner's tighter cap or display stands. */
+:where([data-lf-room]) { display: inline-block; max-inline-size: 100%; }
+[data-lf-room]::before { content: attr(data-lf-room); display: block; block-size: 0;
+  overflow: hidden; visibility: hidden; white-space: pre-line; }
 :is(.lf-btn, .button):not(:disabled, [aria-disabled="true"]):hover { background: var(--chip); }
 /* The committing action carries the accent as ink on the ordinary card, under a
    softened accent hairline, with the tint rising on hover. The selected face below is its
@@ -298,7 +322,7 @@
    one thing.
 
    The gap is its own, because these shapes stand at different densities and the ring
-   may not reach its neighbour: the standing gap is what a box with room around it
+   may not reach its neighbour: the default gap is what a box with room around it
    takes, the composer's row puts 6px between two buttons, a chip takes 1px below, and
    margin entries sit 4px apart out in the margin.
 

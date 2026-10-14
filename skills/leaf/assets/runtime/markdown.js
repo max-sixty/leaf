@@ -11,6 +11,7 @@ const escapeHtml = (text) =>
 
 const escapedSource = (text) => escapeHtml(text);
 let render = escapedSource;
+/** @type {(text: string, breaks?: boolean) => string} */
 let renderInline = escapedSource;
 let tokenize = null;
 let ready;

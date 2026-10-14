@@ -7,7 +7,8 @@ The suite's browser fixture reports through it too: what the browser said, and w
 health sensors (`tests/*_watch.js`) found. So does every gate that refuses one event at
 the append door (`event_contracts.admitted_event`). A refusal raised with what a check
 found (`Rejected`, such as `RegistryError` or `event_log.EventRefused`) carries the
-records, so a command that reports it reads them from it. Each is produced where it is
+records, so a command that reports it reads them from it. So does the advice `task end`
+gives on the to-do it ends (`todos.finished_in_view`). Each is produced where it is
 detected, the browser probes and sensors included, which return records rather than
 sentences, and its words are written here and nowhere else. The command boundary prints
 `str(finding)` for a reader and `finding.json()` for `--json`, as the event door's
@@ -151,16 +152,9 @@ def _visual_problem(problem: dict) -> str:
     kind = problem["kind"]
     if kind == "unregistered":
         return "did not call registerVisualParts"
-    if kind in ("unreadable", "unrevealable"):
-        verb = "read" if kind == "unreadable" else "reveal"
-        return f"could not {verb} visual parts: {problem['error']}"
-    said = {
-        "unregistered-parts": "did not register declared parts",
-        "unadmitted-parts": "registered parts its prefixes do not admit",
-        "unlisted-parts": "leaves nameable parts unlisted",
-        "unrevealed-parts": "did not reveal declared parts",
-    }[kind]
-    return f"{said} {', '.join(problem['parts'])}"
+    if kind == "unreadable":
+        return f"could not read visual parts: {problem['error']}"
+    return f"registered parts its prefixes do not admit {', '.join(problem['parts'])}"
 
 
 def _verbatim(at: str, v: dict) -> str:
@@ -315,11 +309,7 @@ def _visual_parts(declared: dict) -> str:
     """The part ids a section admits, as `registry.contract.VisualParts` says them."""
     from leaf.registry.contract import VisualParts
 
-    return str(
-        VisualParts(
-            tuple(declared["tokens"]), tuple(declared["prefixes"]), declared["all"]
-        )
-    )
+    return str(VisualParts(tuple(declared["prefixes"]), declared["all"]))
 
 
 def _size(box: dict) -> str:
@@ -491,7 +481,7 @@ _TEXT = {
     "unmarkable": lambda at, v: (
         f"{at} shows {v['w']}x{v['h']}px of words and offers no box to mark: it draws"
         " none of its own and no element inside it draws one either, so a comment"
-        " anchored here would outline nothing and the Questions walk would travel to"
+        " anchored here would outline nothing and the On me walk would travel to"
         " the top of the page. Put the words in an element that takes a box"
     ),
     "undeclared-shadow": lambda at, v: (
@@ -560,6 +550,11 @@ _TEXT = {
     "over-margin": lambda at, v: (
         f"{at} is drawn over {v['resident']}, which stands in the margin it grew into"
         " — the side that holds it gives no room"
+    ),
+    "off-axis": lambda at, v: (
+        f"{at} is drawn {v['drawn']}px wide where its width grants {v['granted']}px"
+        " of room, so it stands off the prose axis — a width or max-width set on it"
+        " overrides the room's"
     ),
     "clipped-out": lambda at, v: (
         f"{at} is drawn {v['past']}px outside {v['container']}, which does not show it"
@@ -744,6 +739,11 @@ _TEXT = {
     "not-member": lambda at, v: (
         f"{_line(at, v)}: must be a direct member of "
         + " or ".join(f"<{owner}>" for owner in v["owners"])
+        + " or stand inside its "
+        + " or ".join(f"<{region}>" for region in v["within"])
+        if v["within"]
+        else f"{_line(at, v)}: must be a direct member of "
+        + " or ".join(f"<{owner}>" for owner in v["owners"])
         + (f", found <{v['parent']}>" if v["parent"] else "")
     ),
     "content-empty": lambda at, v: (
@@ -778,9 +778,6 @@ _TEXT = {
         " body element between its header and footer, found "
         + (_json(v["body"]) if v["body"] else "nothing")
         + "; wrap several blocks in one <div> or <section>"
-    ),
-    "repeated-parts": lambda at, v: (
-        f"{_line(at, v)}: visual part ids must be unique, repeated {_json(v['parts'])}"
     ),
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
@@ -1111,9 +1108,6 @@ _TEXT = {
             " for their anchor"
         )
     ),
-    "visual-parts-attr": _declared(
-        lambda v: f"x-visual parts attribute `{v['attr']}` must be a non-empty string"
-    ),
     "visual-upgrade": _declared(
         lambda v: (
             "declares addressable visual parts but has no upgraded handler to"
@@ -1203,7 +1197,7 @@ _TEXT = {
         lambda v: (
             "declares agent-written x-state verbs"
             f" {_json(v['verbs'])} but not the boolean `overruled` attribute a"
-            " version overrules a standing report with"
+            " version overrules a report in force with"
         )
     ),
     "unrestated": _declared(
@@ -1398,16 +1392,18 @@ _TEXT = {
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
     "keeps-first-box": lambda at, v: (
-        f"{at} keeps-first-box: first painted {_size(v['first'])},"
-        f" {_size(v['now'])} once presented"
+        f"{at} keeps-first-box: in a {v['layout']} page, first painted"
+        f" {_size(v['first'])}, {_size(v['now'])} once presented"
     ),
     "shows-context-keys": lambda at, v: (
-        f"{at} shows-context-keys: {v['command']} declares context keys and no"
+        f"{at} shows-context-keys: in a {v['layout']} page, {v['command']} declares"
+        " context keys and no"
         " bindingBadge, so its key works with nothing on the page showing it; lend"
         " the command a face, or request a corner badge with bindingBadge: null"
     ),
     "grows-with-content": lambda at, v: (
-        f"{at} grows-with-content: {v['box']} holds {v['height']}px and scrolls"
+        f"{at} grows-with-content: in a {v['layout']} page, {v['box']} holds"
+        f" {v['height']}px and scrolls"
         " inside it; let it grow with its content, or declare --lf-holds-height: 1"
         " where the task needs its own scroll"
     ),
@@ -1523,10 +1519,6 @@ _TEXT = {
         f"{_invalid_record(v)}position record cannot put <{v['unit_tag']}>"
         f" {v['unit']!r} within <{v['found']}> {v['destination']!r}"
     ),
-    "thread-widget-publication": lambda at, v: (
-        f"thread widget {v['widget']!r} belongs to publication "
-        f"r{v['publication']}, not r{v['revision']}"
-    ),
     "unknown-members": lambda at, v: (
         f"{_invalid_record(v)}{', '.join(v['strangers'])} name no member of"
         f" {v['widget']!r}"
@@ -1625,7 +1617,7 @@ _TEXT = {
     "not-a-widget": lambda at, v: f"{v['widget']!r} is not a widget on this page",
     "not-an-element": lambda at, v: f"{v['element']!r} is not an element on this page",
     "hidden-widget": lambda at, v: (
-        f"{v['widget']} is not visible under the page's standing outcomes"
+        f"{v['widget']} is not visible under the page's outcomes in force"
     ),
     "quoted-seat": lambda at, v: (
         f"{v['widget']} is quoted exhibit content, not a live page widget"
@@ -1659,9 +1651,26 @@ _TEXT = {
         " when it no longer applies"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
+    "todo-execution": lambda at, v: (
+        f"to-do {v['todo']!r} was last started by "
+        + (
+            f"session {v['session']!r}"
+            if v["session"] is not None
+            else "a sessionless command"
+        )
+        + f" (start {v['start']!r}); take it in hand with `leaf task start`"
+        " before ending it from another session"
+    ),
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
     "agents-todo": lambda at, v: (
         f"to-do {v['todo']!r} is the agent's; the user ends only a to-do on them"
+    ),
+    # Advice on a to-do ended `done` (`todos.finished_in_view`).
+    "finished-in-view": lambda at, v: (
+        f"Your work on `{v['element']}` is done, and it still stands among the open"
+        " work. Unless it is the page's current content, move it, cut to its outcome,"
+        " to the finished work collapsed after the open work, and let what comes next"
+        ' take its place (authoring-revisions.md, "Keep the current page current").'
     ),
     # The thread and task commands' refusals (`thread`, `tasks.cmd_open`), before or
     # beside the append door's. `held` is what the log holds a refused id as

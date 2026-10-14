@@ -98,7 +98,7 @@
   align-items: center;
   grid-template: var(--lf-shot-rail-size) / auto auto minmax(0, 1fr) auto auto;
   height: var(--lf-shot-rail-size);
-  padding: 0 11px;
+  padding: 0;
   border: 1px solid var(--rule);
   border-bottom: 0;
   border-radius: var(--r) var(--r) 0 0;
@@ -132,7 +132,7 @@
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state=before] {
   grid-column: 1;
-  margin-inline-start: -5px;
+  border-start-start-radius: calc(var(--r) - 1px);
 }
 :scope:is(lf-shot) .lf-shot-open[data-lf-shot-open=before] {
   grid-column: 2;
@@ -142,7 +142,7 @@
 }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state=after] {
   grid-column: 5;
-  margin-inline-end: -5px;
+  border-start-end-radius: calc(var(--r) - 1px);
 }
 :scope:is(lf-shot) .lf-shot-open {
   display: grid;
@@ -167,33 +167,41 @@
   text-align: center;
   line-height: 1.2;
 }
-:scope:is(lf-shot) :is(.lf-shotchanges, .lf-shotpixels-action) {
+:scope:is(lf-shot) .lf-shotviews {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+:scope:is(lf-shot) .lf-shotview {
   appearance: none;
   margin: 0;
   padding: 0;
   border: 0;
   background: none;
+  min-width: var(--aim-floor);
   min-height: var(--lf-shot-rail-size);
   cursor: pointer;
-  color: var(--accent);
+  color: var(--muted);
   font: 700 10px/14px var(--sans);
   white-space: nowrap;
   outline-offset: 1px;
 }
-:scope:is(lf-shot) .lf-shotchanges[aria-pressed=false] {
-  color: var(--muted);
+:scope:is(lf-shot) .lf-shotview[aria-checked=true] {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
-:scope:is(lf-shot) :is(.lf-shotchanges, .lf-shotpixels-action):hover {
+:scope:is(lf-shot) .lf-shotview:hover {
   box-shadow: none;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-:scope:is(lf-shot) .lf-shotchanges {
+:scope:is(lf-shot) .lf-shotoutlines {
   touch-action: none;
   -webkit-touch-callout: none;
   user-select: none;
 }
-:scope:is(lf-shot) .lf-shotchanges:is(:hover, [data-lf-focus], [data-lf-held-word])::after {
+:scope:is(lf-shot) .lf-shotoutlines:is(:hover, [data-lf-focus], [data-lf-held-word])::after {
   content: attr(aria-description);
   position: absolute;
   z-index: 2;
@@ -213,7 +221,7 @@
   pointer-events: none;
 }
 @media screen {
-  @container lf-shot (width < 300px) {
+  @container lf-shot (width < 400px) {
     :scope:is(lf-shot):is([outlines], [pixels]) > .lf-shotrail {
       grid-template-rows: repeat(2, var(--lf-shot-rail-size));
       height: calc(2 * var(--lf-shot-rail-size));
@@ -284,7 +292,7 @@
   color: var(--warn-ink);
   font-weight: 650;
 }
-:scope:is(lf-shot):is(:not([outlines]), [data-lf-shot-changes=off]) .lf-shotdiff,
+:scope:is(lf-shot):not([data-lf-shot-view=outlines]) .lf-shotdiff,
 :scope:is(lf-shot):not([outlines], [pixels]) .lf-shotdelta[data-lf-shot-delta=areas] {
   display: none;
 }
@@ -316,6 +324,12 @@
   inset: 0;
   background: var(--warn);
   mask: var(--lf-shot-pixels, linear-gradient(transparent, transparent)) 0 0 / 100% 100% no-repeat;
+}
+:scope:is(lf-shot) > .lf-shotpixels > span[data-lf-shot-side=before] {
+  background: var(--danger);
+}
+:scope:is(lf-shot) > .lf-shotpixels > span[data-lf-shot-side=after] {
+  background: var(--accent);
 }
 :scope:is(lf-shot) > input.lf-shotflip {
   display: none;
@@ -1131,11 +1145,6 @@
     padding-inline-start: var(--lf-key-badge-col);
   }
 }
-@media print {
-  :scope:is(lf-options) > :is(.lf-another, lf-options-done) {
-    display: none;
-  }
-}
 :scope:is(lf-options):not(:has(> lf-option > strong)) > lf-option {
   position: relative;
   display: table;
@@ -1264,14 +1273,6 @@
     box-shadow: none;
     margin: 0;
   }
-  :scope:is(lf-options)[settled] > lf-option[hidden]:not([hidden=until-found]) {
-    display: none;
-  }
-}
-@media print {
-  :scope:is(lf-options)[settled] > lf-option {
-    content-visibility: visible !important;
-  }
 }
 
 /* skills/leaf/packages/default/styles/board.css */
@@ -1280,7 +1281,7 @@
 }
 @media screen {
   :scope:is(lf-board) {
-    min-inline-size: min(calc(var(--lf-board-columns) * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)), var(--lf-reach, calc(100cqi - 2 * var(--col-pad))), var(--lf-box-cap, 100vw));
+    min-inline-size: min(calc(var(--lf-board-columns) * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)), var(--lf-reach, min(100%, 100cqi)), var(--lf-box-cap, 100vw));
   }
 }
 :scope:is(lf-board):has(> lf-column:nth-of-type(2)) {
@@ -1606,9 +1607,6 @@
   }
   :scope:is(lf-tabs).lf-rendered > lf-tab[hidden] {
     margin: 0;
-  }
-  :scope:is(lf-tabs).lf-rendered > lf-tab[hidden]:not([hidden=until-found]) {
-    display: none;
   }
   :scope:is(lf-tabs).lf-rendered[data-lf-tabs-flow=box] > lf-tab {
     container-type: inline-size;
@@ -1991,9 +1989,6 @@
   }
 }
 @media print {
-  :scope:is(lf-tabs).lf-rendered > lf-tab {
-    content-visibility: visible !important;
-  }
   :scope:is(lf-tabs)[list=side] > lf-tab[group]::before {
     content: attr(group) " · " attr(label);
   }
@@ -2231,18 +2226,6 @@
       :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current=location])::before {
         background: var(--ink-2);
         border-color: var(--ink-2);
-      }
-      :scope:is(lf-toc) li[data-lf-depth="1"] {
-        --lf-toc-indent: 10px;
-      }
-      :scope:is(lf-toc) li[data-lf-depth="2"] {
-        --lf-toc-indent: 20px;
-      }
-      :scope:is(lf-toc) li[data-lf-depth="3"] {
-        --lf-toc-indent: 30px;
-      }
-      :scope:is(lf-toc) li[data-lf-depth="4"] {
-        --lf-toc-indent: 40px;
       }
       :scope:is(lf-toc) .lf-toc-start a,
       :scope:is(lf-toc) li a {
@@ -2507,15 +2490,19 @@
   color: var(--muted);
   font: var(--t-5) var(--sans);
 }
-@media print {
-  :scope:is(lf-activity) .lf-activity-news {
-    display: none;
-  }
-}
 
 /* skills/leaf/packages/default/styles/ask.css */
 :scope:is(lf-ask) {
   display: block;
+}
+@media screen {
+  :scope:is(lf-ask)[data-lf-space=column]:has(> :is([data-lf-space=wide], [data-lf-space=available]):not([data-lf-arranged])) {
+    margin-left: calc(-1 * var(--lf-grow-l));
+    margin-right: calc(-1 * var(--lf-grow-r));
+    padding-left: var(--lf-grow-l);
+    padding-right: var(--lf-grow-r);
+    --lf-breakout: 1;
+  }
 }
 :scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
   --lf-options-across: 1;
@@ -2539,7 +2526,7 @@
 :scope:is(lf-sample) {
   display: table;
   table-layout: fixed;
-  width: var(--lf-breakout-width);
+  width: 100%;
   box-sizing: border-box;
   margin: 18px 0;
   padding-left: var(--sp-4);
@@ -2615,8 +2602,36 @@
   gap: 8px;
 }
 .lf-sample-status {
+  position: relative;
+  flex: 1 1 10em;
+  min-width: 0;
+  min-height: max(1lh, var(--aim-floor));
+  align-content: center;
+  white-space: nowrap;
   color: var(--muted);
   font: var(--t-6)/1.4 var(--sans);
+}
+.lf-sample-failure {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.lf-sample-failure,
+.lf-sample-failure > summary {
+  font: inherit;
+  color: inherit;
+}
+.lf-sample-failure > summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lf-sample-failure[open] > summary {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  white-space: normal;
+  background: var(--paper);
+  border-bottom: 1px solid var(--border-2);
 }
 .lf-sample-frame {
   display: block;

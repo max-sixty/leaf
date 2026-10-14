@@ -6,7 +6,7 @@ semantic HTML and its effective inputs, not a second widget renderer. Exact even
 bodies, generated children and placement retain their event authority. Opaque widgets
 expose their source and declared data rather than invented screen text. A page's own
 document has no such reading: its HTML is the active revision file, read beside `page
-state`'s standing `state`.
+state`'s current `state`.
 """
 
 from copy import deepcopy
@@ -92,7 +92,7 @@ def constructed_content(
     """Read structure, effective values, and mutation owners from one snapshot.
 
     Source attributes remain the construction vocabulary. `authored` appears only
-    where a standing event changes a node, while `state` names that event and the
+    where an event in force changes a node, while `state` names that event and the
     exact declared slot. No value in this reading is an instruction to overwrite
     another owner's decision. Node locations inherit the enclosing reading's
     document source; source and vocabulary paths are not repeated per element.
@@ -140,7 +140,7 @@ def constructed_content(
             }
             owner["content"].append(child)
             by_id[identity] = child
-    # Owner and verb → the position record a standing move places units by.
+    # Owner and verb → the position record a move in force places units by.
     placed = {}
     ordered = sorted(projection.desired.items(), key=lambda item: item[1][0]["seq"])
     for (widget, unit, _verb), (event, spec) in ordered:

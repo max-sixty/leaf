@@ -60,14 +60,7 @@ def _clock_until_ready(page, through="rendering"):
 
 
 def _history_outstanding(page):
-    """Local interaction finishes while history is still loading, before its deadline."""
-    assert (
-        page.evaluate("""async () => {
-      const {runtime} = await __lfRuntimeImport('/runtime/context.js');
-      return runtime.statePhase;
-    }""")
-        == "waiting"
-    )
+    """Offline presentation does not supply the held authoritative log."""
     assert (
         page.evaluate(
             "() => document.querySelector('script[data-lf-entry]').lfReadiness(null, 'log')"
@@ -208,7 +201,6 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     ]
     assert len(drawings) == 1
     assert drawings[0]["revision"] == 1
-    assert drawings[0]["drawing"]["format"] == "leaf-drawing/3"
     expect(
         page.locator(".lf-thread .lf-msg-body", has_text=drawing_words)
     ).to_have_count(1)
@@ -311,13 +303,13 @@ COLD_ASK = leaf_page(
 )
 
 
-@pytest.mark.parametrize("key", ["q", "1", "z"])
+@pytest.mark.parametrize("key", ["m", "1", "z"])
 def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     browser, serve, key
 ):
-    """Ask walking, Decisions, and Undo wait for their own standing history."""
+    """Ask walking, Decisions, and Undo wait for their own saved history."""
     url = serve(COLD_ASK)
-    if key != "q":
+    if key != "m":
         append_command(
             serve.page_dir,
             {
@@ -345,7 +337,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
         lambda keys: keys == [key],
         failure="the retained key never appeared",
     )
-    if key == "q":
+    if key == "m":
         expect(page.locator("#cold-ask")).not_to_be_focused()
     expect(page.locator("#cold-a")).not_to_have_attribute("chosen", "")
     expect(page.locator("#cold-b")).not_to_have_attribute("chosen", "")
@@ -355,7 +347,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
         release_state()
     _clock_until_ready(page)
     page.clock.resume()
-    if key == "q":
+    if key == "m":
         expect(page.locator("#cold-ask")).to_be_focused()
     elif key == "1":
         expect(page.locator("#cold-a")).to_have_attribute("chosen", "")

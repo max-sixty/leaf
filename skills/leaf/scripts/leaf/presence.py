@@ -11,7 +11,6 @@ from pathlib import Path
 
 from .activity import Turn, current_turn, declared_at, takes_input
 from .event_log import read_cursor
-from .file_changes import FileChanges, existing_root
 from .files import (
     entry_stamps,
     file_stamp,
@@ -51,7 +50,6 @@ VIEWED_RENEW_S = 30
 _candidates = ((), ())
 _candidates_lock = threading.Lock()
 _row_files = {}
-_row_subscription = None
 _row_home = None
 
 
@@ -121,44 +119,22 @@ def neighbor_candidates() -> tuple:
     stamp; readers hold the parsed envelopes until a producer changes them.
     Server leases are still checked on every observation, independent of files.
     """
-    global _candidates, _row_home, _row_subscription, _row_files
+    global _candidates, _row_home, _row_files
     home = state_home()
     rows = home / "rows"
     stamp = (home, file_stamp(rows))
     with _candidates_lock:
-        roots = {existing_root(rows.parent): False, existing_root(rows): False}
-        if (
-            _row_home != rows
-            or _row_subscription is None
-            or not _row_subscription.matches(roots)
-        ):
-            if _row_subscription is not None:
-                _row_subscription.close()
-            _row_subscription = FileChanges(
-                roots,
-                lambda changed: (
-                    changed == rows
-                    or (changed.parent == rows and changed.suffix == ".json")
-                ),
-                collect=True,
-            )
-            if _row_home != rows:
-                _row_files = {}
+        if _row_home != rows:
+            _row_files = {}
             _row_home = rows
-        changes = {Path(path) for path in _row_subscription.batch(0)}
-        if _candidates[0] == stamp and not changes:
+        if _candidates[0] == stamp:
             return _candidates[1]
-        # Atomic producer publications move the directory stamp. Native batches
-        # normally identify the changed files; a read ahead of notification
-        # delivery still observes the directory's authoritative changed listing.
-        if _candidates[0] != stamp or rows in changes:
-            current = set(rows.glob("*.json")) if rows.is_dir() else set()
-            for path in _row_files.keys() - current:
-                del _row_files[path]
-            changes |= current
-        for path in changes:
-            if path.parent != rows or path.suffix != ".json":
-                continue
+        # Atomic producer publications move the directory stamp. Scan only when
+        # it changes; the parsed rows retain their per-file stamps between scans.
+        current = set(rows.glob("*.json")) if rows.is_dir() else set()
+        for path in _row_files.keys() - current:
+            del _row_files[path]
+        for path in current:
             key = file_stamp(path)
             if key is None:
                 _row_files.pop(path, None)
@@ -179,7 +155,7 @@ def other_leaves(page_dir: Path) -> list:
     """Live neighboring pages, from their own compact canonical publications.
 
     A closed page is not one of them. Its server stays up so the page stays
-    readable, a standing one for good, so nothing else would ever drop its row, and
+    readable, a persistent one for good, so nothing else would ever drop its row, and
     a count the user glances at to find who needs them would become a tally of
     everything that has run here. This page's own row is never in the list, so a
     user looking at a closed page still sees it.
@@ -238,6 +214,29 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
     }
 
 
+def page_agent(claim: dict | None, events: list, *, process: bool = True) -> str:
+    """The name the page calls its agent: the claimant's, who reads what the user
+    writes; on a page no session holds now, the voice that last wrote on it, whose
+    words the page shows; and `UNNAMED_AGENT` where neither names one. One name for
+    the agent's side, so a page whose session ended still calls its agent what its
+    messages do.
+
+    A captured publication (`process` false) names none from its log: whoever
+    answers a hosted copy is the host's agent, not the one that wrote the page."""
+    if claim:
+        return claim["agent"]
+    if not process:
+        return UNNAMED_AGENT
+    return next(
+        (
+            event["agent"]
+            for event in reversed(events)
+            if event["author"] == "agent" and event.get("agent")
+        ),
+        UNNAMED_AGENT,
+    )
+
+
 def presence_with_activity(
     page_dir: Path,
     events: list,
@@ -281,10 +280,11 @@ def presence_with_activity(
         "pending": sum(
             1 for e in unacknowledged(events, cursor) if e["author"] == "user"
         ),
-        # The claimant's chosen display name. Harness-specific facts stay out of
-        # this reading: it is what a browser seat may know, and the browser has
-        # never had a use for which program is running the agent.
-        "agent": claim["agent"] if claim else UNNAMED_AGENT,
+        # The page's agent, by the name every label naming the agent's side reads
+        # (`page_agent`). Harness-specific facts stay out of this reading: it is what
+        # a browser seat may know, and the browser has never had a use for which
+        # program is running the agent.
+        "agent": page_agent(claim, events, process=process),
         # Which session the turn-closed evidence belongs to. Thread updates carry
         # their posting session too, so a claim another session wrote — the page
         # task's, while a Codex watcher task holds the page — is not declared

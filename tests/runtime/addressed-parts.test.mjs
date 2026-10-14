@@ -3,7 +3,7 @@
    widget hands back its hydration. A thread anchored to a part and a module's
    `navigateToDatum` both ask this, so a part one of them reaches the other reaches too.
 
-   The vocabulary is stated here: a film declaring its parts in `parts` and drawing one
+   The vocabulary is stated here: a film admitting frame ids by prefix and drawing one
    frame at a time, and a lazy list answering `lfRevealDatum`. */
 
 import assert from "node:assert/strict";
@@ -16,26 +16,25 @@ import { registerVisualParts } from "/runtime/visual-parts.js";
 beforeEach(() => {
   for (const tag of Object.keys(registry)) delete registry[tag];
   Object.assign(registry, {
-    "lf-film": { "x-visual": { parts: "parts" } },
+    "lf-film": { "x-visual": { prefixes: ["frame:"] } },
     "lf-lazy": {},
   });
 });
 
-// A film that draws one of its declared frames at a time.
+// A film that draws one admitted frame at a time.
 const film = () => {
   const element = document.createElement("lf-film");
   element.id = "film";
-  element.setAttribute("parts", "one two");
   const draw = (id) => {
     element.replaceChildren(document.createElement("span"));
-    element.firstChild.dataset.frame = id;
+    element.firstChild.dataset.frame = id.replace("frame:", "");
   };
   draw("one");
   registerVisualParts(
     element,
     () => [
       {
-        id: element.firstChild.dataset.frame,
+        id: `frame:${element.firstChild.dataset.frame}`,
         element: element.firstChild,
         label: "a frame",
       },
@@ -46,7 +45,7 @@ const film = () => {
 };
 
 const frame = (element, key) =>
-  addressedElements(element, key).map((part) => part.dataset.frame);
+  addressedElements(element, `frame:${key}`).map((part) => part.dataset.frame);
 
 test("a part a visual draws in another state is drawn before travel reads it", () => {
   document.body.innerHTML = "<main></main>";
@@ -54,12 +53,16 @@ test("a part a visual draws in another state is drawn before travel reads it", (
   document.querySelector("main").append(source);
 
   assert.deepEqual(frame(source, "two"), [], "the film opens on its first frame");
-  assert.equal(revealAddressed(source, "two"), null, "a visual draws synchronously");
+  assert.equal(
+    revealAddressed(source, "frame:two"),
+    null,
+    "a visual draws synchronously",
+  );
   assert.deepEqual(frame(source, "two"), ["two"]);
   assert.equal(
     revealAddressed(source, "three"),
     null,
-    "an undeclared part is not drawn",
+    "an unadmitted part is not drawn",
   );
   assert.deepEqual(frame(source, "two"), ["two"]);
 });
@@ -81,63 +84,20 @@ test("a lazy widget answers with its hydration", () => {
 
 test("an opted-in complete inventory derives targets while omission keeps the whole visual", () => {
   document.body.innerHTML = "<main></main>";
-  registry["lf-film"]["x-visual"].all = "all";
+  registry["lf-film"]["x-visual"] = { parts: "parts" };
   const source = film();
   source.setAttribute("parts", "all");
   document.querySelector("main").append(source);
   assert.deepEqual(frame(source, "one"), ["one"]);
-  revealAddressed(source, "two");
+  revealAddressed(source, "frame:two");
   assert.deepEqual(frame(source, "two"), ["two"]);
   source.removeAttribute("parts");
   assert.deepEqual(frame(source, "two"), []);
 });
 
-test("visual ownership and authored IDs follow each publication's own declaration", async () => {
-  const { visualAt, isAddressable, aimTargetAt } =
-    await import("/runtime/anchor-resolution.js");
-  const { bindVocabulary, rememberVocabulary } =
-    await import("/runtime/widget-contexts.js");
-  const root = document.createElement("main");
-  root.innerHTML =
-    '<lf-publication-visual id="frozen-visual"><p id="generated-id">Frozen drawing.</p></lf-publication-visual><lf-publication-visual id="current-prose"><p id="authored-id">Current prose.</p><img id="ordinary-picture"></lf-publication-visual>';
-  document.body.append(root);
-  const [visual, prose] = root.children;
-  for (const [index, host] of [visual, prose].entries()) {
-    const context = {
-      revision: 401 + index,
-      declarations: {
-        $layer: { generation: `visual-ownership-${index}` },
-        "lf-publication-visual": index === 0 ? { "x-visual": "whole" } : {},
-      },
-    };
-    rememberVocabulary(context);
-    bindVocabulary(host, context);
-  }
-  try {
-    assert.ok(visualAt(prose.firstElementChild) === null);
-    assert.ok(visualAt(prose.lastElementChild)?.element === prose.lastElementChild);
-    assert.equal(isAddressable(prose.firstElementChild), true);
-    assert.deepEqual(aimTargetAt(prose.firstElementChild.firstChild).anchor, {
-      section: "authored-id",
-    });
-    assert.ok(visualAt(visual.firstElementChild)?.element === visual);
-    assert.equal(isAddressable(visual.firstElementChild), false);
-    assert.deepEqual(aimTargetAt(visual.firstElementChild.firstChild).anchor, {
-      section: "frozen-visual",
-    });
-    // The outermost provider reading skips a same-tag ancestor whose publication
-    // declares prose, rather than letting it take the nested drawing's identity.
-    prose.append(visual);
-    assert.ok(visualAt(visual.firstElementChild)?.element === visual);
-  } finally {
-    root.remove();
-  }
-});
-
 test("travel settles a visible part before a pending replacement can retire it", async () => {
   document.body.innerHTML = "<main></main>";
   const source = document.createElement("lf-film");
-  source.setAttribute("parts", "one two");
   let shown = "one";
   let replacing = true;
   const surface = document.createElement("span");
@@ -145,11 +105,11 @@ test("travel settles a visible part before a pending replacement can retire it",
   document.querySelector("main").append(source);
   registerVisualParts(
     source,
-    () => [{ id: shown, element: surface, label: "a frame" }],
+    () => [{ id: `frame:${shown}`, element: surface, label: "a frame" }],
     {
       reveal: (id) => {
         replacing = false;
-        shown = id;
+        shown = id.replace("frame:", "");
       },
     },
   );
@@ -157,7 +117,7 @@ test("travel settles a visible part before a pending replacement can retire it",
     if (replacing) shown = "two";
   });
 
-  revealAddressed(source, "one");
+  revealAddressed(source, "frame:one");
   await replacement;
   assert.equal(shown, "one", "the requested destination remains the drawn part");
 });

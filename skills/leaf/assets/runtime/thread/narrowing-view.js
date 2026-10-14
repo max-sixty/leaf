@@ -17,20 +17,28 @@ import {
   nothing,
   render,
   repeat,
-} from "../../vendor/browser-runtime.js";
-import { searchField, reserve } from "../widget-elements.js";
+  signal,
+} from "/vendor/browser-runtime.js";
+import { searchField } from "../widget-elements.js";
 import { focusDestination, focused } from "../focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-thread-narrowing";
 
+/** @typedef {ThreadNarrowingView} ThreadNarrowingViewElement For its tag (`runtime-globals.d.ts`). */
 class ThreadNarrowingView extends HTMLElement {
   #changeWords = null;
   #chooseFacet = null;
   #disclosed = false;
-  #model = null;
+  // A signal, because the panel's waiting toggle reads it for its liveness.
+  #shown = signal(null);
+  get #model() {
+    return this.#shown.value;
+  }
+  set #model(model) {
+    this.#shown.value = model;
+  }
   #countDigits = 2;
-  #reservedCounts = new WeakMap();
   #reset = null;
   #toggleUser = null;
   #searchInput = searchField("lf-find-box", {
@@ -78,28 +86,12 @@ class ThreadNarrowingView extends HTMLElement {
 
   present(model) {
     this.#model = model;
+    // Each counted choice holds the room of the widest count it could show, so a count
+    // changing with the view, a refusal's return included, moves no choice after it.
+    // Its words keep the leading edge (chrome.css). The room only grows, from two
+    // digits, so threads arriving or leaving move the choices at most once per digit.
+    this.#countDigits = Math.max(this.#countDigits, model.countDigits);
     render(this.#template(), this);
-    this.#reserveCounts();
-  }
-
-  // Each counted choice reserves the width of the widest count it could show, so a
-  // count changing with the view, a refusal's return included, moves no choice after
-  // it. Its words keep the leading edge (chrome.css). The room only grows, from two
-  // digits, so threads arriving or leaving move the choices at most once per digit.
-  #reserveCounts() {
-    this.#countDigits = Math.max(this.#countDigits, this.#model.countDigits);
-    const room = "0".repeat(this.#countDigits);
-    for (const group of this.#model.groups)
-      for (const choice of group.choices) {
-        if (choice.amount === null) continue;
-        const button = this.querySelector(
-          `[data-filter-kind="${choice.kind}"][data-filter-value="${choice.value}"]`,
-        );
-        const widest = `${choice.label} (${room})`;
-        if (this.#reservedCounts.get(button) === widest) continue;
-        this.#reservedCounts.set(button, widest);
-        reserve(button, [widest]);
-      }
   }
 
   #toggleFilters() {
@@ -142,7 +134,14 @@ class ThreadNarrowingView extends HTMLElement {
       ?disabled=${keyTitle ? noChange : choice.disabled}
       @click=${keyTitle ? nothing : () => this.#chooseFacet(choice.kind, choice.kind === "gone" ? !choice.selected : choice.value)}
     >
-      ${choice.amount === null ? choice.label : `${choice.label} (${choice.amount})`}
+      ${
+        choice.amount === null
+          ? choice.label
+          : html`<span
+              data-lf-room=${`${choice.label} (${"0".repeat(this.#countDigits)})`}
+              >${choice.label} (${choice.amount})</span
+            >`
+      }
     </button>`;
   }
 

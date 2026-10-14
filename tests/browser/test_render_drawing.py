@@ -184,7 +184,7 @@ def test_a_drawing_uses_its_anonymous_svg_inside_its_semantic_figure(browser, se
     start = native_ink_start(page, "#visuals svg:nth-of-type(2)")
     assert start == pytest.approx([108, 129.2], abs=0.03)
     second.evaluate("""async svg => {
-      const {layoutChanged} = await import('/runtime/widget-elements.js');
+      const {layoutChanged} = await window.__lfWidgetApi();
       svg.setAttribute('viewBox', '50 50 400 160');
       await layoutChanged(svg);
     }""")
@@ -319,7 +319,7 @@ def test_native_frames_resolve_css_positions_in_supported_engines(
         ),
     )
     results = page.evaluate("""async () => {
-      const {elementFrame} = await import('/runtime/element-frame.js');
+      const {elementFrame} = await window.__lfCheckApi();
       const image = document.querySelector('#pixels');
       await image.decode();
       const readings = [];
@@ -978,10 +978,10 @@ def test_an_unsent_drawing_survives_reload_before_it_has_words(browser, serve):
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "note"
 
 
-def test_an_older_runtimes_anchored_drawing_draft_keeps_its_words_without_the_mark(
+def test_another_protocols_anchored_drawing_draft_keeps_its_words_without_the_mark(
     browser, serve
 ):
-    """A draft an older runtime saved holds a drawing in a format this one does not
+    """A draft a runtime at another protocol saved may hold a drawing this one cannot
     draw, so its words come back and its mark neither shows nor sends."""
     page = open_page(browser, serve(TARGETS_PAGE))
     # The composer's draft is keyed on the passage it is on.
@@ -991,11 +991,13 @@ def test_an_older_runtimes_anchored_drawing_draft_keeps_its_words_without_the_ma
           const anchor = {section: 'prose'};
           localStorage.setItem(key, JSON.stringify({
             text: JSON.stringify({
+              format: 'leaf-draft/0',
               text: 'Keep these anchored words.',
               anchor,
+              revision: 1,
               suggest: false,
               about: null,
-              drawing: {format: 'leaf-drawing/2', strokes: [[[0, 0], [9, 9]]]},
+              drawing: {strokes: [[[0, 0], [9, 9]]]},
               touched: Date.now(),
             }),
             attempt: record.attempt,
@@ -1038,7 +1040,7 @@ def test_a_drawing_can_be_sent_without_words(browser, serve):
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["kind"] == "comment"
     assert "text" not in event
-    assert event["drawing"]["format"] == "leaf-drawing/3"
+    assert event["drawing"]["strokes"]
     thread = page.get_by_role("dialog", name=re.compile("Thread for"))
     expect(thread).to_be_visible()
     expect(thread.locator(".lf-drawing-reference")).to_have_text("Drawing comment")
@@ -1050,7 +1052,6 @@ def test_an_inline_thread_keeps_drawing_context_on_the_page(browser, serve):
     in the inline transcript."""
     url = serve(THREAD_DIFF_PAGE)
     drawing = {
-        "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
         "viewport": [1280, 720],
@@ -1161,10 +1162,10 @@ def test_page_mode_keeps_visible_native_ink_and_exact_drawing_comment(browser, s
     expect(
         page.locator(".lf-thread-panel .lf-msg").filter(has_text="The bend I mean")
     ).to_be_visible()
-    physical = page.evaluate(
-        "() => performance.getEntriesByType('resource').some(e=>new URL(e.name).pathname.includes('/annotation-overlay/'))"
-    )
-    assert not physical
+    expect(
+        page.locator(".lf-margin-layer, .lf-margin-cluster, .lf-margin-preview")
+    ).to_have_count(0)
+    expect(page.locator('[data-lf-command="annotations.toggle"]')).to_have_count(0)
 
 
 CLIPPED_DRAWING_PAGE = leaf_page(
@@ -1190,7 +1191,7 @@ def test_drawing_ink_follows_its_targets_transform(browser, serve, transform):
     )
     transformed.evaluate(
         """async (el, value) => {
-      const {layoutChanged} = await import('/runtime/widget-elements.js');
+      const {layoutChanged} = await window.__lfWidgetApi();
       el.style.transformOrigin = '0 0';
       el.style.transform = value;
       await layoutChanged(el);
@@ -1230,7 +1231,7 @@ def test_a_drawing_captured_on_a_scaled_svg_keeps_its_local_feature(browser, ser
     assert drawing["box"] == pytest.approx([180, 100], abs=0.02)
     assert drawing["strokes"][0][0] == pytest.approx([180 * 0.22, 100 * 0.62], abs=0.02)
     target.evaluate("""async el => {
-      const {layoutChanged} = await import('/runtime/widget-elements.js');
+      const {layoutChanged} = await window.__lfWidgetApi();
       el.style.transform = 'none';
       await layoutChanged(el);
     }""")

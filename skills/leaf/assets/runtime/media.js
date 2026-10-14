@@ -6,10 +6,12 @@
    change or Send reads the draft. Each appended block carries its own two-newline
    separator; removing that suffix preserves every newline the user wrote.
    Draft, sent-message, and authored links to their own image open one native modal
-   viewer. PhotoSwipe supplies image zoom, pan, and touch gestures on demand; native
+   viewer. A local drawing supplies its frozen canvas pixels at the press; its
+   temporary image URL belongs only to that opening, never to the durable draft.
+   PhotoSwipe supplies image zoom, pan, and touch gestures on demand; native
    modality, retained controls, and focus return remain Leaf's. An authored figure
-   caption or an inspection link's explicit caption stays outside the image in a readable
-   footer; alt text stays with the image.
+   caption, an inspection link's explicit caption, or a table cell's column and row
+   heads stay outside the image in a readable footer; alt text stays with the image.
    Links to other destinations and modified link presses keep their authored meaning. The document
    declares its public page root because a website module may live under an immutable
    release URL shared with a sample. All three resolve
@@ -20,7 +22,7 @@
    it on every box. A queued close from an earlier opening leaves a reopened viewer's
    image and focus intact. */
 
-import { html, render } from "../vendor/browser-runtime.js";
+import { html, render } from "/vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import {
   handBack,
@@ -38,6 +40,7 @@ import {
 } from "./keyboard/layer-stack.js";
 import { keeps, keepsHidden, keepsText } from "./keeps.js";
 import { reducedMotion, foldDuration } from "./motion.js";
+import { says } from "./passages.js";
 import { plainPress } from "./pointer.js";
 
 // Page media is whatever a reference names under this directory. The name a file there
@@ -90,6 +93,7 @@ caption.className = "lf-media-viewer-caption";
 let inspector = null;
 let loading = null;
 let opening = 0;
+let canvasUrl = null;
 
 function imageTools() {
   if (!loading) {
@@ -181,27 +185,83 @@ keys(
   { when: () => mediaViewer.open },
 );
 
+// A capture in a table cell is named by the heads it stands under and beside, since a
+// table of captures labels each axis once rather than each frame (authoring-evidence.md,
+// "Source files and media"). Heads are read where they stand rather than where they
+// come in the markup: a column head is a heading of the cell's own table across the
+// cell's middle and above it, and a row head a `scope="row"` heading level with its
+// middle and before it in the reading direction. So a spanning head names every cell
+// under it, a two-row header names a cell twice, outer first, and a header row written
+// without `<thead>` still counts. Each head reads as what it says, which leaves out a
+// comment's mark the paint pass wrote into it.
+const cellHeads = (from) => {
+  const cell = from.closest("td");
+  if (!cell) return "";
+  const table = cell.closest("table");
+  const box = cell.getBoundingClientRect();
+  const x = box.left + box.width / 2;
+  const y = box.top + box.height / 2;
+  const rtl = getComputedStyle(table).direction === "rtl";
+  const columns = [];
+  const rows = [];
+  for (const head of table.querySelectorAll("th")) {
+    if (head.closest("table") !== table) continue;
+    const at = head.getBoundingClientRect();
+    if (head.matches('[scope="row"]')) {
+      const before = rtl ? at.left >= box.right - 1 : at.right <= box.left + 1;
+      if (before && at.top <= y && y < at.bottom) rows.push(head);
+    } else if (at.bottom <= box.top + 1 && at.left <= x && x < at.right)
+      columns.push(head);
+  }
+  // A header row repeated before a later section stands above the capture twice.
+  return [...new Set([...columns, ...rows].map(says).filter(Boolean))].join(" · ");
+};
+
 // The viewer hands the user back to the image they opened it from (focus.js,
 // `openLayer`) once the platform has closed it, by its button, Escape or a press outside.
-const open = (url, alt, from) => {
+const open = async (source, alt, from) => {
   const attempt = ++opening;
   inspector?.destroy();
   inspector = null;
+  if (canvasUrl) URL.revokeObjectURL(canvasUrl);
+  canvasUrl = null;
+  const canvas = source instanceof window.HTMLCanvasElement;
   openLayer(mediaViewer, from);
-  presentViewer({ url, alt });
-  render(
-    html`<span class="lf-media-viewer-probe"><img src=${url} alt="" /></span>`,
-    stage,
-  );
+  presentViewer(canvas ? null : { url: source, alt });
+  render(canvas ? html`<p>Preparing image…</p>` : null, stage);
+  const figureCaption = from.closest("figure")?.querySelector("figcaption");
   const description =
     from.dataset.lfMediaCaption ||
-    from.closest("figure")?.querySelector("figcaption")?.textContent.trim() ||
-    "";
+    (figureCaption && says(figureCaption)) ||
+    cellHeads(from);
   keepsText(caption, description);
   keepsHidden(caption, !description);
   keepsText(viewerZoom, "100%");
   if (!mediaViewer.open) showNativeLayer(mediaViewer);
   focusDestination(viewerClose, "move");
+  let url = source;
+  if (canvas) {
+    // Native encoding snapshots the pixels at this press. A late completion cannot
+    // reopen a closed viewer or replace an image the reader opened since.
+    let blob;
+    try {
+      blob = await new Promise((resolve) => source.toBlob(resolve));
+      if (!blob) throw new Error("the drawing could not be encoded");
+    } catch (error) {
+      if (attempt !== opening || !mediaViewer.open) return;
+      render(html`<p>Image preview unavailable: ${error.message}.</p>`, stage);
+      return;
+    }
+    if (attempt !== opening || !mediaViewer.open) return;
+    canvasUrl = URL.createObjectURL(blob);
+    url = canvasUrl;
+    presentViewer({ url, alt });
+  }
+  render(
+    html`<span class="lf-media-viewer-probe"><img src=${url} alt="" /></span>`,
+    stage,
+  );
+  /** @type {HTMLImageElement} */
   const probe = stage.querySelector(".lf-media-viewer-probe > img");
   Promise.all([imageTools(), probe.decode()]).then(
     ([PhotoSwipe]) => {
@@ -294,6 +354,8 @@ mediaViewer.addEventListener("close", () => {
   ++opening;
   inspector?.destroy();
   inspector = null;
+  if (canvasUrl) URL.revokeObjectURL(canvasUrl);
+  canvasUrl = null;
   const origin = openerOf(mediaViewer);
   openLayer(mediaViewer, null);
   closeLayer(
@@ -308,12 +370,17 @@ document.addEventListener("click", (event) => {
   if (event.defaultPrevented || !plainPress(event)) return;
   // The path ends at the document and the window, and an element whose id is
   // `matches` puts an object at `window.matches`, so only elements are asked.
-  const trigger = event
-    .composedPath()
-    .find(
-      (node) =>
-        node instanceof Element && node.matches(".lf-media-open[data-lf-media-url]"),
-    );
+  const trigger = /** @type {HTMLElement | undefined} */ (
+    event
+      .composedPath()
+      .find(
+        (node) =>
+          node instanceof Element &&
+          node.matches(
+            ".lf-media-open[data-lf-media-url], .lf-media-open[data-lf-media-canvas]",
+          ),
+      )
+  );
   const link = event.composedPath().find((node) => node instanceof HTMLAnchorElement);
   const image = link?.querySelector("img");
   // A linked image explicitly names its inspection destination; other image links
@@ -325,7 +392,10 @@ document.addEventListener("click", (event) => {
   if (trigger || imageLink) {
     event.preventDefault();
     open(
-      trigger?.dataset.lfMediaUrl || link.href,
+      (trigger?.hasAttribute("data-lf-media-canvas") &&
+        trigger.querySelector("canvas")) ||
+        trigger?.dataset.lfMediaUrl ||
+        link.href,
       trigger?.dataset.lfMediaAlt ||
         (trigger?.querySelector("img") || image)?.alt ||
         "Image",

@@ -82,7 +82,6 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         "meaning": {**page_pick["meaning"], "scope": "thread"},
     }
     drawing = {
-        "format": "leaf-drawing/3",
         "strokes": [[[0, 0], [10, 10]]],
         "box": [640, 120],
         "viewport": [1200, 900],
@@ -184,7 +183,6 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
             "kind": "comment",
             "text": "later drawing",
             "drawing": {
-                "format": "leaf-drawing/3",
                 "strokes": [[[0, 0], [1, 1]]],
                 "box": [640, 120],
                 "viewport": [1200, 900],
@@ -619,7 +617,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     # out because it only encloses the option chosen in it.
     assert shown[0]["says"] == {"m-cap": "Cap retries"}
 
-    # Standing, so a later delivery in this thread carries what the user
+    # In force, so a later delivery in this thread carries what the user
     # settled. Without it the agent meets the question with no answer under it
     # and replies reopening a list they have already ticked.
     receive_through(page_dir, last_deliverable_seq(page_dir))
@@ -633,11 +631,10 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
         },
     )
     assert session_model.cmd_wait(page_dir) == 0
-    _, standing_batch, _ = delivered(capsys)
-    [standing] = standing_batch["threads"]
+    _, batch, _ = delivered(capsys)
+    [carried] = batch["threads"]
     assert [
-        (a["author"], a["widget"], a["action"], a["detail"])
-        for a in standing["actions"]
+        (a["author"], a["widget"], a["action"], a["detail"]) for a in carried["actions"]
     ] == [("user", "gm", "choose", {"value": ["m-cap"]})]
 
     # Taken back, and the thread stops carrying it — the log keeps the
@@ -816,17 +813,20 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
     parent = root["id"]
     asking_message = None
     for index in range(11):
-        markup = ""
+        message = {
+            "kind": "reply",
+            "author": "agent",
+            "parent": parent,
+            "text": f"Recovery context {index}.",
+        }
         if index == 2:
-            markup = (
+            message["markup"] = (
                 '<lf-options id="thread-commands" choose>'
                 '<lf-option id="restart"><strong>Restart</strong></lf-option>'
                 '<lf-option id="park"><strong>Park</strong></lf-option>'
                 "</lf-options>"
             )
-        sent = thread_model.post_reply(
-            page_dir, {"to": parent}, f"Recovery context {index}.", markup
-        )
+        sent = append_carried_log_record(page_dir, message)
         parent = sent["id"]
         if index == 2:
             asking_message = sent
@@ -931,8 +931,8 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
     _, header, _ = delivered(capsys)
     [delivered_thread] = header["threads"]
     assert delivered_thread["id"] == opened["id"]
-    [standing] = state_json(page_dir)["threads"]
-    assert delivered_thread["resolved"] == standing["resolved"]
+    [served] = state_json(page_dir)["threads"]
+    assert delivered_thread["resolved"] == served["resolved"]
     # The new spoken turn resumes either thread, regardless of its old answer.
     assert delivered_thread["resolved"] is None
 
@@ -952,7 +952,6 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
     asked = append_carried_log_record(
         page_dir,
         {
-            "revision": 1,
             "kind": "reply",
             "author": "agent",
             "parent": root["id"],

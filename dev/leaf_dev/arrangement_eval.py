@@ -79,7 +79,7 @@ from leaf_dev.arms import (
     trace_result,
     trace_summary,
 )
-from leaf_dev.browser import chrome, load, tab
+from leaf_dev.browser import headless_shell, load, tab
 from leaf_dev.eval_cases import definition
 from leaf_dev.eval_user import COMMAND_LIMIT, cli, comment_on_passage, decide
 
@@ -566,7 +566,7 @@ def capture_phase(
         return captures
     run.shots.mkdir(parents=True, exist_ok=True)
     html = run.condition == "html"
-    with chrome() as browser:
+    with headless_shell() as browser:
         for name, (viewport, _) in WIDTHS.items():
             with tempfile.TemporaryDirectory(prefix="leaf-capture-") as temporary:
                 copied = Path(temporary) / "page"
@@ -861,7 +861,7 @@ def listing(captures: dict[str, list[str]]) -> list[str]:
 def later_messages(subject: str, first: str = "version 1") -> list[str]:
     """The user's messages after the first version, as both judges read them."""
     scenario = CASES[subject]
-    lines = [f'After {first}, the user added a standing preference: "{PREFERENCE}"']
+    lines = [f'After {first}, the user added a lasting preference: "{PREFERENCE}"']
     if comment := scenario.comment:
         lines += ["", f'Then the user commented: "{comment_message(comment)}"']
     if decision := scenario.decision:

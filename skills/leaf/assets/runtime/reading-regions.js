@@ -246,7 +246,8 @@ for (const type of ["pointerdown", "wheel", "touchstart", "click"])
     (event) => {
       const at = event.composedPath()[0];
       if (type !== "click") actedAt(at, false);
-      else if (event.isTrusted && event.button === 0) readingInput(at);
+      else if (event.isTrusted && /** @type {MouseEvent} */ (event).button === 0)
+        readingInput(at);
     },
     { capture: true, passive: true },
   );
@@ -342,7 +343,7 @@ export function* scrollersOf(node) {
 
 // The boxes a scroll passes to once each inner one is spent, as native input chains it
 // at a box whose overscroll-behavior lets it go: `scrollersOf`'s, then the page's. A
-// fixed box ends `scrollersOf` because the page's scroll leaves it standing, but its
+// fixed box ends `scrollersOf` because the page's scroll leaves it in place, but its
 // scroll still chains to the page, the box its containing block, the viewport, scrolls.
 export function* scrollChainOf(node) {
   let last = null;

@@ -53,8 +53,8 @@
    The application constructs this owner with its semantic invalidation command.
    Each instance batches changed roots until the next microtask; the renderer never
    imports application coordination to discover how a changed datum is presented. */
-import { registryFor } from "../registry.js";
 
+import { registry } from "../registry.js";
 import { reachScrollers } from "../reach.js";
 import { shadowRootsIn, under } from "../shadow.js";
 import { DATUM } from "../passages.js";
@@ -84,10 +84,11 @@ export function createDataProjection({ invalidateDom }) {
     });
   }
 
+  /** @param {Element} root @param {any} datums @param {{snapshot?: any}} [options] */
   function projectData(root, datums, { snapshot } = {}) {
     if (!root.id)
       throw new TypeError("projectData root needs an id to name its projection");
-    const declaredInputs = registryFor(root)[root.localName]?.["x-data"] ?? {};
+    const declaredInputs = registry[root.localName]?.["x-data"] ?? {};
     if (
       snapshot === undefined &&
       Object.values(declaredInputs).some(({ source }) => root.hasAttribute(source))

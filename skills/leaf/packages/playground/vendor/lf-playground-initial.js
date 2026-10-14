@@ -1,16 +1,23 @@
 (() => {
   // skills/leaf/packages/playground/initial.js
   var own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
+  var belongsTo = (host, member) => member.parentElement.closest("lf-playground, [data-lf-exhibit]") === host;
+  var ownControls = (host, preview) => [
+    ...own(host, "lf-playground-control"),
+    ...[...preview?.querySelectorAll("lf-playground-control") ?? []].filter(
+      (control) => belongsTo(host, control)
+    )
+  ];
   var COPY_LABELS = [
     ["rest", "Copy instruction"],
     ["success", "Copied"],
     ["error", "Copy failed"]
   ];
   function render(host, { tabStore, offer, keeps }) {
-    const controls = own(host, "lf-playground-control");
     const presets = own(host, "lf-playground-preset");
     const outputs = own(host, "lf-playground-output");
     const previews = own(host, "lf-playground-preview");
+    const controls = ownControls(host, previews[0]);
     if (!controls.length || outputs.length !== 1 || previews.length !== 1)
       throw new Error("playground needs controls, one preview and one output");
     const output = outputs[0], preview = previews[0];
@@ -120,12 +127,13 @@
     );
     let submit = null, copy = null, reset = null;
     if (interactive) {
+      const railed = controls.filter((control) => control.parentElement === host);
       const panel = node("div", "lf-playground-controls");
       const panelTitle = node("p", "lf-playground-controls-title", "Controls");
       panelTitle.id = `${host.id}-controls-title`;
       panel.setAttribute("role", "group");
       panel.setAttribute("aria-labelledby", panelTitle.id);
-      panel.append(panelTitle, ...controls);
+      panel.append(panelTitle, ...railed);
       for (const control of controls) {
         const name = control.getAttribute("name"), kind = control.getAttribute("kind"), label = control.getAttribute("label");
         control.classList.add(`lf-playground-${kind}`);
@@ -172,7 +180,7 @@
       }
       let presetBar = null;
       if (presets.length) {
-        presetBar = node("header", "lf-playground-presets");
+        presetBar = node(railed.length ? "header" : "div", "lf-playground-presets");
         const title = node("span", "lf-playground-presets-title", "Starting points");
         title.id = `${host.id}-presets-title`;
         presetBar.setAttribute("role", "group");
@@ -227,7 +235,7 @@
       const split = node("div", "lf-playground-split");
       split.append(
         pane("preview", "Preview", null, previewBody),
-        pane("controls", "Controls", presetBar, panel),
+        ...railed.length ? [pane("controls", "Controls", presetBar, panel)] : presetBar ? [pane("controls", "Controls", null, presetBar)] : [],
         pane(
           "instruction",
           "Instruction to agent",
@@ -269,6 +277,7 @@
     };
     const renderValues = (next) => {
       for (const slot of output.querySelectorAll("lf-playground-value")) {
+        if (!belongsTo(host, slot)) continue;
         const name = slot.getAttribute("for");
         text(slot, formatted(controlByName.get(name), next[name]));
       }

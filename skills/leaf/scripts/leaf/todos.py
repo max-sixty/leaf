@@ -1,10 +1,11 @@
 """To-dos, the one kind of item on both lists, and the item the agent has in hand.
 
 A to-do is explicit work someone owes, and its `owner` says who: the agent, whose
-to-dos are on Tasks, or the user, whose to-dos are on Questions. How it ends follows
-from its owner and what it stands on, so no field records it.
+to-dos are on its On <agent> list, or the user, whose to-dos are on their On me
+list. How it ends follows from its owner and what it stands on, so no field records
+it.
 
-An item on the agent's Tasks is either an update it owes an answer, whose id is the
+An item on the agent's list is either an update it owes an answer, whose id is the
 update's event id (`workflows`), or a to-do it opened. Working always names one of
 them: `leaf task start` writes a `start` event naming the item with the line the
 banner shows, and the item is in hand, running, from then on. An ephemeral reply to
@@ -23,7 +24,7 @@ resolution, another version, or the end of the session that opened it leaves it
 open: that is what a to-do adds over an update, which its answer settles. Work that
 outlasts the turn that took it on, such as a worker's build, a CI wait, or a change
 promised for the next version, so stays on the agent's side: an open to-do holds its
-thread `waiting` (`served_state.browser`), counts under `queues.tasks` in `page
+thread `waiting` (`served_state.browser`), counts under `queues.on_agent` in `page
 state`, and is named in the banner. Work no update asked for, such as writing or
 revising the page on the agent's own initiative, is a to-do the agent opens on the
 page or the widget or section it concerns; housekeeping, such as re-vendoring or
@@ -52,6 +53,14 @@ which `leaf status` writes ahead of the declaration whenever a start stands
 every other reader does. A start on a page declared `idle` reopens the page with a
 bare `waiting` after it, which writes no `put_down`.
 
+For an agent to-do, the latest start's posting session has completion authority,
+both for `todo_end` and a stamp's `--completes`. A later start transfers that
+authority. Putting work down affects activity, not authority: neither a turn
+ending nor a page claim changing restores an earlier session's right to end it.
+A delayed result from the same session remains valid across turns. Before any
+start, any agent session can end the to-do. Commands outside a harness share
+the absent session identity; Leaf cannot distinguish their executions.
+
 The door admits the agent's `todo` event on a live page widget that declares
 `x-work` or holds an unsettled action (`work.widget_seat_error`), on any element of
 the page, or on the page, and a to-do on the user on any of those, a widget needing
@@ -59,9 +68,11 @@ no seat; a start on an open to-do of the agent's or an update the agent owes; an
 end of an open to-do, the user's only of one the agent opened on them
 (`todo_error`). `TodoReading` holds the log's to-dos, starts and endings for one
 event basis, and `WorkReading.page_todos` attaches thread and activity readings to
-to-dos.
-
-Not yet: a to-do whose session has ended reads open until another session ends it.
+to-dos. Ending a to-do on an element `done` while that element still stands among
+the open work, with nothing on it or inside it left on either list, makes `task end`
+say so (`finished_in_view`): agents
+recorded each result where its item stood and left pages mostly finished work. The
+agent judges whether the element is finished work or the page's current content.
 
 Experimental: to-dos and the two lists are new, and their shape is expected to
 change a lot (notes/what-needs-you/). Change them freely; nothing outside this
@@ -113,7 +124,7 @@ def start_reading(event: dict) -> dict | None:
 
 
 def item_starts(events: list) -> dict[str, dict]:
-    """The start standing on each item, by the item's id: the newest naming it, unless
+    """The start in force on each item, by the item's id: the newest naming it, unless
     a `put_down` came after it."""
     starts: dict[str, dict] = {}
     for event in events:
@@ -191,8 +202,36 @@ class TodoReading:
             if todo["state"] == "open" and todo["owner"] == "agent"
         ]
 
+    def completion_error(self, event: dict, todo: dict) -> Finding | None:
+        """Whether the writer can end this agent to-do under its latest start.
 
-def _todos(events: list, withdrawn: set, standing: dict) -> list[dict]:
+        Read the log rather than `starts`, whose in-hand reading a `put_down`
+        clears. Admission alone checks authority; projections consume admitted
+        endings without reclassifying them against later activity or claims.
+        """
+        if todo["owner"] != "agent":
+            return None
+        latest = next(
+            (
+                start
+                for logged in reversed(self.events)
+                if (start := start_reading(logged)) and start["item"] == todo["id"]
+            ),
+            None,
+        )
+        if latest is not None and latest.get("session") != event.get("session"):
+            return Finding(
+                "todo-execution",
+                values={
+                    "todo": todo["id"],
+                    "start": latest["id"],
+                    "session": latest.get("session"),
+                },
+            )
+        return None
+
+
+def _todos(events: list, withdrawn: set, starts: dict) -> list[dict]:
     todos: dict[str, dict] = {}
 
     def end(todo: dict, state: str, event: dict, detail: str | None) -> None:
@@ -229,8 +268,8 @@ def _todos(events: list, withdrawn: set, standing: dict) -> list[dict]:
                 if todo is not None and todo["state"] == "open":
                     end(todo, "done", event, f"v{event['version']}")
     for todo in todos.values():
-        if todo["state"] == "open" and todo["id"] in standing:
-            todo["running"] = running(standing[todo["id"]])
+        if todo["state"] == "open" and todo["id"] in starts:
+            todo["running"] = running(starts[todo["id"]])
     return list(todos.values())
 
 
@@ -261,12 +300,13 @@ def todo_error(
     todos,
     asks,
 ) -> Finding | None:
-    """Why the append door refuses a to-do, start or end event, or None.
+    """Why the append door refuses a to-do, start or completion, or None.
 
     A to-do stands on an admitted widget, page element or page; a to-do on a
     thread is opened by the reply that promises it (`todo_reading`), which the
     schema keeps off a `todo` event. A start names an open agent to-do or an owed
-    update. Either side can end a to-do within its ownership rules. An agent end may
+    update. Both completion carriers share `TodoReading.completion_error`.
+    Either side can end a to-do within its ownership rules. An agent end may
     also withdraw an open prose ask by canonical id or source message id, while
     widget asks remain owned by their declared state.
     """
@@ -287,6 +327,12 @@ def todo_error(
         if item in owed or any(todo["id"] == item for todo in log.owed):
             return None
         return Finding("unowed-start", values={"item": item})
+    if kind == "note":
+        completed = note_settlements(event, "todo")
+        for todo in log.owed:
+            if todo["id"] in completed and (error := log.completion_error(event, todo)):
+                return error
+        return None
     if kind != "todo_end":
         return None
     identity = event["todo"]
@@ -319,7 +365,7 @@ def todo_error(
         return Finding("ended-todo", values={**named, "state": todo["state"]})
     if event["author"] == "user" and todo["owner"] != "user":
         return Finding("agents-todo", values=named)
-    return None
+    return log.completion_error(event, todo)
 
 
 def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
@@ -421,7 +467,7 @@ def cmd_start(page_dir: Path, item: str, text: str) -> dict:
 
 
 def put_down(page) -> dict | None:
-    """Put down every start standing on the page `page`, an open
+    """Put down every start in force on the page `page`, an open
     `service.PageTransaction`, as `leaf status waiting` and `idle` do; the record, or
     None when no start stands and the log has nothing to add."""
     from .event_contracts import append_admitted
@@ -435,17 +481,68 @@ def put_down(page) -> dict | None:
     return record
 
 
+def finished_in_view(page_dir: Path, end: dict) -> Finding | None:
+    """Advice naming the element a `done` end finished, where it still stands among
+    the open work (`work.open_ids`) and nothing on it or inside it, a thread anchored
+    there included, is on either list; else None."""
+    from .event_log import read_events
+    from .served_state.context import read_page
+    from .served_state.page import read_served_page
+    from .work import open_ids
+
+    if end["outcome"] != "done":
+        return None
+    events = read_events(page_dir)
+    subject = next(
+        (
+            todo["subject"]
+            for todo in TodoReading(events).todos
+            if todo["id"] == end["todo"]
+        ),
+        None,
+    )
+    if subject is None or subject["kind"] != "element":
+        return None
+    within = open_ids(page_dir, subject["id"])
+    if within is None:
+        return None
+    served, _, _ = read_served_page(read_page(page_dir, events))
+    view = served["browser"]["views"][str(served["active"]["revision"])]
+    # A thread item stands where its thread is anchored.
+    anchored = {
+        thread["id"]: thread["anchor"].get("section")
+        for thread in view["thread"]["threads"]
+        if thread["anchor"]
+    }
+    if any(
+        (
+            anchored.get(item["subject"]["id"])
+            if item["subject"]["kind"] == "thread"
+            else item["subject"].get("id")
+        )
+        in within
+        for side in ("on_user", "on_agent")
+        for item in view["queues"][side]
+    ):
+        return None
+    return Finding(
+        "finished-in-view", values={"element": subject["id"]}, severity="advice"
+    )
+
+
 def cmd_end(page_dir: Path, todo: str, outcome: str, detail: str | None) -> dict:
     """End `todo` with `outcome`, `detail` saying where the result is or why there
     is none; the record."""
     from .event_contracts import append_admitted
     from .harness import message_identity
     from .leases import contract_writer
+    from .revisioning import activate_source
     from .service import PageTransaction
 
     @contract_writer
     def write(page_dir: Path) -> dict:
         with PageTransaction(page_dir) as page:
+            activate_source(page_dir, transaction=page)
             record, _ = append_admitted(
                 page,
                 {

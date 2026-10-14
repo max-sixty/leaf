@@ -55,7 +55,7 @@
     background: var(--card); }
 :scope:is(lf-shot) .lf-shotrail { display: grid; grid-area: 1 / 1; align-items: center;
     grid-template: var(--lf-shot-rail-size) / auto auto minmax(0, 1fr) auto auto;
-    height: var(--lf-shot-rail-size); padding: 0 11px;
+    height: var(--lf-shot-rail-size); padding: 0;
     border: 1px solid var(--rule); border-bottom: 0;
     border-radius: var(--r) var(--r) 0 0; color: var(--muted);
     background: var(--card); }
@@ -76,36 +76,37 @@
 :scope:is(lf-shot) .lf-shotcap { display: flex; align-items: center; align-self: stretch;
     font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
     letter-spacing: .04em; padding: 0 5px; color: var(--muted); }
-/* BEFORE ⤢ · delta · ⤢ AFTER: each expand link sits on its label's inner side, so a
- * label reaches into the rail's padding only on its outer side and the two targets
- * meet without overlapping. */
+/* BEFORE ⤢ · delta · ⤢ AFTER: each endpoint fills its outer edge, with the same
+ * small text inset on both sides. Its expand link meets the target on the inner side. */
 :scope:is(lf-shot) .lf-shotcap[data-lf-state="before"] { grid-column: 1;
-    margin-inline-start: -5px; }
+    border-start-start-radius: calc(var(--r) - 1px); }
 :scope:is(lf-shot) .lf-shot-open[data-lf-shot-open="before"] { grid-column: 2; }
 :scope:is(lf-shot) .lf-shot-open[data-lf-shot-open="after"] { grid-column: 4; }
 :scope:is(lf-shot) .lf-shotcap[data-lf-state="after"] { grid-column: 5;
-    margin-inline-end: -5px; }
+    border-start-end-radius: calc(var(--r) - 1px); }
 :scope:is(lf-shot) .lf-shot-open { display: grid; place-items: center; align-self: stretch;
     width: max(28px, var(--aim-floor)); color: var(--muted); }
 :scope:is(lf-shot) .lf-shot-open:hover { color: var(--ink); background: var(--chip); }
-/* Changes and Pixels borrow the message notice's compact text treatment. Their
- * targets fill the reserved row; only Changes has a persistent toggle state. */
+/* Comparison views borrow the message notice's compact text treatment. Their
+ * targets fill the reserved row and the selected view has an underline. */
 :scope:is(lf-shot) .lf-shotdelta { grid-area: 1 / 3; justify-self: center;
     position: relative; display: flex; align-items: center; justify-content: center; gap: 12px;
     padding-inline: 4px; text-align: center; line-height: 1.2; }
-:scope:is(lf-shot) :is(.lf-shotchanges, .lf-shotpixels-action) {
+:scope:is(lf-shot) .lf-shotviews { display: flex; align-items: center; gap: 12px; }
+:scope:is(lf-shot) .lf-shotview {
     appearance: none; margin: 0; padding: 0; border: 0; background: none;
-    min-height: var(--lf-shot-rail-size); cursor: pointer;
-    color: var(--accent); font: 700 10px/14px var(--sans); white-space: nowrap;
+    min-width: var(--aim-floor); min-height: var(--lf-shot-rail-size); cursor: pointer;
+    color: var(--muted); font: 700 10px/14px var(--sans); white-space: nowrap;
     outline-offset: 1px; }
-:scope:is(lf-shot) .lf-shotchanges[aria-pressed="false"] { color: var(--muted); }
-:scope:is(lf-shot) :is(.lf-shotchanges, .lf-shotpixels-action):hover {
+:scope:is(lf-shot) .lf-shotview[aria-checked="true"] {
+    color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+:scope:is(lf-shot) .lf-shotview:hover {
     box-shadow: none; text-decoration: underline; text-underline-offset: 3px; }
-:scope:is(lf-shot) .lf-shotchanges {
+:scope:is(lf-shot) .lf-shotoutlines {
     touch-action: none; -webkit-touch-callout: none; user-select: none; }
 /* The count uses the shared hold-to-read gesture as well as hover and focus.
  * Its bubble stands below the sticky rail, clear of the page's header and finger. */
-:scope:is(lf-shot) .lf-shotchanges:is(:hover, [data-lf-focus], [data-lf-held-word])::after {
+:scope:is(lf-shot) .lf-shotoutlines:is(:hover, [data-lf-focus], [data-lf-held-word])::after {
     content: attr(aria-description); position: absolute; z-index: 2;
     inset-block-start: calc(100% + 6px); inset-inline-start: 50%; translate: -50% 0;
     width: max-content; max-width: calc(100cqi - 24px); box-sizing: border-box;
@@ -115,7 +116,7 @@
 /* Below the width of the endpoint and inspection targets, keep the latter on
  * their own row. Container width also covers shots in narrow page columns. */
 @media screen {
-  @container lf-shot (width < 300px) {
+  @container lf-shot (width < 400px) {
     :scope:is(lf-shot):is([outlines], [pixels]) > .lf-shotrail {
       grid-template-rows: repeat(2, var(--lf-shot-rail-size));
       height: calc(2 * var(--lf-shot-rail-size));
@@ -151,7 +152,7 @@
    solid warning rule and what only moved a dashed accent one. The marks take the pair's
    own frame (natural width by the taller image's height), stand a little outside what
    they mark rather than over it, and stop at the frame's edge, so a region that reaches
-   the edge still shows its outline there. Changes carries their count, and the rail
+   the edge still shows its outline there. Outlines carries their count, and the rail
    says when there is none to draw: identical, throughout the image, or only slight. */
 :scope:is(lf-shot) .lf-shotdiff { position: absolute; top: 0; left: 0; width: 100%;
     aspect-ratio: var(--lf-shot-ratio); pointer-events: none; }
@@ -168,16 +169,16 @@
    describes wrong, so the rail raises those readings. */
 :scope:is(lf-shot) .lf-shotdelta:is([data-lf-shot-delta="identical"], [data-lf-shot-delta="slight"]) {
     color: var(--warn-ink); font-weight: 650; }
-/* Outlines start visible where authored; Changes keeps their local visibility. */
-:scope:is(lf-shot):is(:not([outlines]), [data-lf-shot-changes="off"]) .lf-shotdiff,
+/* The selected comparison view owns which marks stand over the frames. */
+:scope:is(lf-shot):not([data-lf-shot-view="outlines"]) .lf-shotdiff,
 :scope:is(lf-shot):not([outlines], [pixels]) .lf-shotdelta[data-lf-shot-delta="areas"] {
     display: none; }
 
 /* The Pixels view stands over the comparison in the pair's frame: the after image
-   faded to grey, and over it the warning colour painted through the changed pixels'
-   mask (`changedPixels`), opaque where a pixel moved far and faint where it moved a
-   little. The mask has the pair's size, as the frame does, so the paint lands on the
-   pixels it marks at every width. The view comes before the rail in the tree, so the
+   faded to grey, and over it the changed pixels' masks (`changedPixels`), what only
+   before drew painted in danger, what only after drew in accent, and what both drew in
+   warn, opaque where a pixel moved far and faint where it moved a little. The masks have the pair's size, as the frame
+   does, so the paint lands on the pixels it marks at every width. The view comes before the rail in the tree, so the
    sticky rail, at the same z-index, stays over it. */
 :scope:is(lf-shot) > .lf-shotpixels { display: none; position: relative; grid-area: 2 / 1;
     z-index: 1; overflow: clip; cursor: pointer;
@@ -188,6 +189,8 @@
     width: 100%; height: auto; filter: grayscale(1); opacity: .28; }
 :scope:is(lf-shot) > .lf-shotpixels > span { position: absolute; inset: 0;
     background: var(--warn); mask: var(--lf-shot-pixels, linear-gradient(transparent, transparent)) 0 0 / 100% 100% no-repeat; }
+:scope:is(lf-shot) > .lf-shotpixels > span[data-lf-shot-side="before"] { background: var(--danger); }
+:scope:is(lf-shot) > .lf-shotpixels > span[data-lf-shot-side="after"] { background: var(--accent); }
 
 /* Before the progressive flip comparison arrives the image is the native target. */
 :scope:is(lf-shot) > input.lf-shotflip { display: none; grid-area: 2 / 1; z-index: 2;

@@ -33,7 +33,7 @@
    work. Code running inside a sample's child page reports to the child's own
    disposable log, not the page that embeds it. */
 
-import { describeFailure } from "../vendor/browser-runtime.js";
+import { describeFailure } from "/vendor/browser-runtime.js";
 import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
 import { DELIVERY, offlineInteractive, pageUrl, runtime } from "./context.js";
@@ -90,7 +90,7 @@ function reloadNow(message) {
 // while the page waits — this very page can be re-vendored during the hold — and an
 // answer carried over from an earlier reading would leave the tab with no way back. One
 // probe is in the air at a time, so a burst of refusals costs one. The words are said
-// once for the page rather than once an answer: a standing condition explained once is
+// once for the page rather than once an answer: a lasting condition explained once is
 // enough, and repeating a transient status line would hold the page's foot for as long
 // as the disagreement lasts.
 let asking = false;
@@ -158,9 +158,11 @@ export async function requestJson(url, init, what) {
     } catch (error) {
       throw failed(`${what}: HTTP ${response.status}`, error);
     }
+  // `said` is the server's own words for the refusal, where it gave any.
   if (!response.ok)
     throw Object.assign(failed(answer?.error ?? `${what}: HTTP ${response.status}`), {
       current: answer?.current,
+      said: answer?.error,
     });
   return answer;
 }
@@ -232,6 +234,7 @@ function observeKey(response) {
   runtime.keyRefused = response.status === KEY_REFUSED;
 }
 
+/** @type {PromiseWithResolvers<void>} */
 const { promise: layerReady, resolve: revealLayer } = Promise.withResolvers();
 export { revealLayer };
 
@@ -320,6 +323,7 @@ const reportedReasons = new WeakSet();
 const reportedPrimitives = new Set();
 const reportedErrors = new Set();
 export function reportPageError(reason, context = "") {
+  if (!document.documentElement.lfDocumentLifetime.active) return;
   if (typeof reason === "object" && reason !== null) reportedReasons.add(reason);
   else reportedPrimitives.add(String(reason));
   const text = exceptionText(reason, context);

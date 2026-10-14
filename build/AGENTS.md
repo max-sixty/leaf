@@ -5,15 +5,19 @@ This directory builds the browser bundles Leaf commits: everything under
 Installation, page init, and export consume that committed output and never run a
 compiler, so nothing here runs on a host.
 
-`runtime-bundle.mjs` compiles the kernel for website delivery and for the
-installation tree the website's container runs, which `leaf-dev distribution`
-writes under `.tmp/`. Generated kernel chunks never enter Git, and consumer
-installs serve the source modules; package authors continue to use native
-JavaScript without a build.
+`runtime-bundle.mjs` compiles the kernel for the website, suite, and developer
+previews. `leaf_dev.distribution` shares one compiled payload per relevant byte
+revision; producer metadata gets a new installation snapshot without recompiling.
+The named runtime entries include core and optional overlay diagnostics, so core
+checks never load the physical renderer. Generated kernel chunks never enter Git.
+Consumer installs serve the source modules; package authors use native JavaScript
+without a build.
 
 `browser/build.mjs` is the one builder: `pnpm run build:browser` writes every
 output below, and `pnpm run check:browser`, part of `pnpm run check`, compares a
-fresh build with the committed bytes without writing.
+fresh build with the committed bytes without writing. Both first type-check the
+framework and the browser's JavaScript (`browser/tsconfig.json` and
+`browser/tsconfig.runtime.json`; the `typecheck` header in `browser/build.mjs`).
 
 - `browser/` is the TypeScript browser framework, its Node tests, and `build.mjs`,
   which compiles each of its modules to one JavaScript module, line for line, and

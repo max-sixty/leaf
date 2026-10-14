@@ -14,7 +14,7 @@ import {
   designPressAt,
 } from "./anchor-resolution.js";
 import { inChrome, leafSurface } from "./passages.js";
-import { registryFor } from "./registry.js";
+import { tagsDeclaring } from "./registry.js";
 import { designName, DESIGN_MODE_KEY } from "./design-readings.js";
 import { pageCommand, pageRung, pageScope } from "./keyboard/register.js";
 import { coarsePointer } from "./pointer.js";
@@ -88,9 +88,7 @@ export function createDesignMode({
       announce(
         on
           ? `Design mode: a click comments on what it lands on — a widget, a control, a picture. ${
-              coarsePointer.matches
-                ? "Exit Design mode on the banner leaves."
-                : "Escape leaves."
+              coarsePointer.matches ? "Exit Design mode leaves." : "Escape leaves."
             }`
           : "Design mode off",
       );
@@ -200,11 +198,12 @@ export function createDesignMode({
     // compound owner, and is what the owner is made of — rather than what stands inside a
     // widget: a tab holds a whole page, and every heading and paragraph of that page is
     // the author's, and named.
+    const parts = new Set(tagsDeclaring((e) => e["x-owners"]));
     for (const addressable of addressables) {
       if (legendBoxes.has(addressable)) continue;
       const box = el("div", "lf-legend-box lf-page-paint");
       box.dataset.for = addressable.id; // which element, stated where a test can read it (as .lf-aim's)
-      if (!registryFor(addressable)[addressable.localName]?.["x-owners"])
+      if (!parts.has(addressable.tagName.toLowerCase()))
         box.append(el("span", "lf-legend-tag", designName(addressable)));
       legendBoxes.set(addressable, { box });
       legendSizes.observe(addressable);

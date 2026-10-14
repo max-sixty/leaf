@@ -6,10 +6,12 @@
    file move on the page's own news rather than by reading it on a timer. */
 import { offlineInteractive, pageUrl } from "./context.js";
 import { LayerRefused, requestJson } from "./layer-client.js";
-import { applicationState, readApplication } from "./semantic-state.js";
+import { applicationState, readPart } from "./semantic-state.js";
+
+const live = readPart((root) => root.document.live);
 
 export function boundFile(binding) {
-  const writable = () => !offlineInteractive && readApplication().document.live;
+  const writable = () => !offlineInteractive && live();
   async function request(options = {}) {
     if (!writable()) throw new Error("File editing is available in live pages.");
     try {
@@ -19,8 +21,21 @@ export function boundFile(binding) {
         "file",
       );
     } catch (error) {
+      // Each failure reads as one sentence the editor can show and follow with its
+      // own: the server's words where it gave any, and these where it gave none. A
+      // request that got no answer rejects in the engine's words ("Failed to fetch",
+      // "Load failed"), and a proxy's page names only a status.
       if (error instanceof LayerRefused)
-        throw new Error("Leaf changed while accessing the file. The draft is kept.");
+        throw new Error("Leaf changed while accessing the file.");
+      if (error.status === undefined)
+        throw new Error("The page's server did not answer.", { cause: error });
+      if (error.said === undefined)
+        throw new Error(
+          error.status < 400
+            ? "The page's server answered in a form the page cannot read."
+            : `The page's server answered HTTP ${error.status}.`,
+          { cause: error },
+        );
       throw error;
     }
   }

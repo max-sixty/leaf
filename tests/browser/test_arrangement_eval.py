@@ -18,7 +18,7 @@ def test_capture_preserves_arrival_without_operating_page(
     def existing_browser():
         yield browser
 
-    monkeypatch.setattr(arrangement_eval, "chrome", existing_browser)
+    monkeypatch.setattr(arrangement_eval, "headless_shell", existing_browser)
     monkeypatch.setattr(
         arrangement_eval,
         "WIDTHS",

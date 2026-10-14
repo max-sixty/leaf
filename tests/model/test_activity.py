@@ -563,11 +563,11 @@ def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
         )
     changed = (claimed / "status.json").read_bytes()
     assert changed != unchanged
-    standing = files_model.read_json(claimed / "status.json")["stream"]["activity"]
-    assert standing["detail"] == "Reviewing the result"
+    observed = files_model.read_json(claimed / "status.json")["stream"]["activity"]
+    assert observed["detail"] == "Reviewing the result"
 
     renewed_at = (
-        datetime.fromisoformat(standing["ts"]) + timedelta(minutes=6)
+        datetime.fromisoformat(observed["ts"]) + timedelta(minutes=6)
     ).isoformat()
     with monkeypatch.context() as patch:
         patch.setattr(service_model, "now_iso", lambda: renewed_at)
@@ -966,3 +966,326 @@ def test_a_process_free_publication_keeps_input_without_claimant_facts(claimed):
         assert not captured["turn_takes_input"]
     finally:
         leases_model.release_lease(lease)
+
+
+def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_pid):
+    """The banner may claim no more than the page directory can prove. A watch that
+    has stopped must read differently from a watch with nothing to report, and a page
+    nothing is behind differently from either, without reading as a fault: a
+    persistent page spends the night that way. This walks one page through each
+    declaration, claim and turn the banner tells apart; what each reading says is
+    `tests/runtime/activity-words.test.mjs`'s."""
+    d = page_dir
+    append_carried_log_record(
+        d, {"kind": "comment", "author": "user", "revision": 1, "text": "Comment 0."}
+    )
+
+    def declare(
+        state,
+        detail="",
+        *,
+        agent="Claude",
+        quiet_for=0,
+        turn_ended=None,
+        session_pid=None,
+        claimed=True,
+        stream=None,
+    ):
+        """`quiet_for` ages the declaration; `turn_ended` says how long ago the Stop
+        hook watched the turn behind it end. Separate seconds, because the case the
+        second exists for is a start that is not old at all. `working` is a start on
+        the page's own task, in the claimant's voice, with a `waiting` status of the
+        same age beside it; anything else ends that task and writes the status. The
+        answer is the page's agent and activity once they are written."""
+        ts = datetime.now().astimezone() - timedelta(seconds=quiet_for)
+        end_work(d)
+        status = {
+            "state": "waiting" if state == "working" else state,
+            "detail": "" if state == "working" else detail,
+            "ts": ts.isoformat(timespec="seconds"),
+        }
+        if stream is not None:
+            # What a transport watched for itself, written the way an App Server
+            # observer writes it: bound to this session and its live turn.
+            status["stream"] = {
+                "activity": {
+                    "session": "s",
+                    "turn": "turn-live",
+                    "ts": ts.isoformat(timespec="seconds"),
+                    "after": events_model.read_events(d)[-1]["seq"],
+                }
+                | stream
+            }
+        if claimed:
+            record_claim(
+                d,
+                id="s",
+                pid=session_pid or os.getpid(),
+                agent=agent,
+                turn_closed=None
+                if turn_ended is None
+                else (
+                    datetime.now().astimezone() - timedelta(seconds=turn_ended)
+                ).isoformat(timespec="seconds"),
+            )
+        else:
+            service_model.claim_path(d).unlink(missing_ok=True)
+        cleanup_model.write_json(d / "status.json", status)
+        if state == "working":
+            declare_work(
+                d,
+                detail,
+                ts=ts.isoformat(timespec="seconds"),
+                **({"session": "s"} if claimed else {}),
+            )
+        state = page_state(d)
+        return state["agent"], state["activity"]
+
+    def minutes_old(activity):
+        return round(
+            (datetime.now().astimezone() - datetime.fromisoformat(activity["ts"]))
+            / timedelta(minutes=1)
+        )
+
+    agent, activity = declare("working", "revising the plan")
+    assert (agent, activity["kind"], activity["detail"]) == (
+        "Claude",
+        "working",
+        "revising the plan",
+    )
+    assert activity["counts"]["pending"] == 1
+    # A claim still believed but minutes old is dated by its own word.
+    _, activity = declare("working", "revising the plan", quiet_for=5 * 60)
+    assert (activity["kind"], minutes_old(activity)) == ("working", 5)
+
+    [first_comment] = [
+        event for event in events_model.read_events(d) if event["kind"] == "comment"
+    ]
+    with service_model.PageTransaction(d) as transaction:
+        delivery_model.record_pickup(transaction, [first_comment], phase="queued")
+    _, activity = declare("working", "revising the plan")
+    assert activity["kind"] == "working"
+    assert (activity["counts"]["queued"], activity["counts"]["pending"]) == (1, 0)
+
+    # Picked up into the claimant's open turn before the agent has said anything: the
+    # page is working, on the comment the turn picked up.
+    with service_model.PageTransaction(d) as transaction:
+        delivery_model.record_pickup(
+            transaction, [first_comment], phase="opened", session="s", turn="turn-1"
+        )
+    # Fresh page work keeps its own sentence beside the comment the turn picked up.
+    _, activity = declare("working", "revising the plan")
+    assert (activity["kind"], activity["detail"]) == ("working", "revising the plan")
+    assert (
+        activity["counts"]["handling"],
+        activity["counts"]["handling_comments"],
+    ) == (1, 1)
+    _, activity = declare("waiting", "your read on the plan")
+    assert (activity["kind"], activity["detail"]) == ("working", "")
+    assert (
+        activity["counts"]["handling"],
+        activity["counts"]["handling_comments"],
+    ) == (1, 1)
+
+    append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": first_comment["id"],
+            "responds": first_comment["id"],
+            "text": "Handled before the next turn.",
+        },
+    )
+    lease = leases_model.take_lease(leases_model.waiter_lease_path(d, "s"))
+    assert lease
+    try:
+        declare("working", "revising the plan")
+        append_carried_log_record(
+            d, {"kind": "comment", "author": "user", "text": "A later update."}
+        )
+        # A newer user input keeps its own pending delivery while the page's fresh
+        # work declaration continues to describe what the agent is doing overall.
+        activity = page_state(d)["activity"]
+        assert (activity["kind"], activity["detail"]) == (
+            "working",
+            "revising the plan",
+        )
+        assert activity["counts"]["pending"] == 1
+
+        # A transport that can watch the session's own steps reports one beside the
+        # agent's own sentence.
+        _, activity = declare(
+            "working",
+            "revising the plan",
+            stream={"kind": "tool", "detail": "Running the tests"},
+        )
+        assert (
+            activity["kind"],
+            activity["detail"],
+            activity["observed_kind"],
+            activity["observed"],
+        ) == ("working", "revising the plan", "tool", "Running the tests")
+
+        # A claim of work that has gone quiet is still a claim of work, and a live
+        # watcher does not turn it into an invitation: it is the silence with no
+        # watcher, dated by the claim's last word.
+        _, activity = declare("working", "revising the plan", quiet_for=20 * 60)
+        assert (activity["kind"], activity["dropped"], minutes_old(activity)) == (
+            "stalled",
+            False,
+            20,
+        )
+        assert activity["detail"] == "revising the plan"
+
+        # The same silence reached by evidence rather than by the clock: the Stop hook
+        # watched the turn that wrote the claim end, and the silence is dated by that
+        # ending, not by the claim's own last word.
+        for quiet_for in (6 * 60, 5 * 60):
+            _, activity = declare(
+                "working", "revising the plan", quiet_for=quiet_for, turn_ended=5 * 60
+            )
+            assert (activity["kind"], activity["dropped"], minutes_old(activity)) == (
+                "stalled",
+                True,
+                5,
+            )
+
+        # A turn that has only just ended still holds it, since an agent that ends its
+        # turn with work running can be back a minute later; and a status written after
+        # the turn closed carries the claim past the ending on its own.
+        for turn_ended in (30, 5 * 60):
+            _, activity = declare(
+                "working", "revising the plan", quiet_for=60, turn_ended=turn_ended
+            )
+            assert activity["kind"] == "working"
+
+        # What the page wants back, in the agent's words, with input on its way.
+        _, activity = declare("waiting", "pick a storage engine")
+        assert (activity["kind"], activity["detail"]) == (
+            "listening",
+            "pick a storage engine",
+        )
+        assert activity["counts"]["pending"] == 1
+    finally:
+        leases_model.release_lease(lease)
+
+    # No watcher, but Claude checked in moments ago, so it is between turns; and with
+    # nobody listening and the turn over, an update that has only just arrived still
+    # reads away, since the session's next turn takes it.
+    _, activity = declare("waiting")
+    assert (activity["kind"], activity["counts"]["overdue"]) == ("away", 0)
+    _, activity = declare(
+        "working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60
+    )
+    assert (activity["kind"], activity["counts"]["overdue"]) == ("away", 0)
+
+    # Once an update has waited past the pickup grace with nothing to carry it, the
+    # remedy is the user's, dated since nobody has been there.
+    append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "Still there?",
+            "ts": (datetime.now().astimezone() - timedelta(minutes=3)).isoformat(
+                timespec="seconds"
+            ),
+        },
+    )
+    _, activity = declare(
+        "working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60
+    )
+    assert (activity["kind"], activity["dropped"], minutes_old(activity)) == (
+        "away",
+        True,
+        5,
+    )
+    assert activity["counts"]["overdue"] == 1
+
+    # Claude's own status gets a far longer rope: with no turn closed, the same
+    # silence is just a long turn.
+    _, activity = declare("working", "running the migration", quiet_for=10 * 60)
+    assert activity["kind"] == "working"
+
+    # A dead session needs no timeout: the owning pid is gone, so the claim it left has
+    # nothing behind it however lately it was written.
+    _, activity = declare("working", "running the migration", session_pid=dead_pid)
+    assert activity["kind"] == "unheld"
+
+    # Nothing ever claimed the page, as a server started outside an agent harness: a
+    # claim of work made moments ago is evidence and still stands, and an hour of its
+    # silence leaves nothing holding the page.
+    agent, activity = declare("working", "running the migration", claimed=False)
+    assert (agent, activity["kind"]) == ("Agent", "working")
+    agent, activity = declare(
+        "working", "running the migration", quiet_for=60 * 60, claimed=False
+    )
+    assert (agent, activity["kind"]) == ("Agent", "unheld")
+
+    agent, activity = declare("working", "revising the plan", agent="Codex")
+    assert (agent, activity["kind"]) == ("Codex", "working")
+
+    _, activity = declare("idle")
+    assert activity["kind"] == "closed"
+
+
+def test_an_ended_pickup_keeps_the_invitation_the_agent_declared(page_dir):
+    """A comment a turn picked up and ended without answering is still owed, but it is
+    on its way to nobody, so a `waiting` the agent writes after the turn reads as its
+    request to the user rather than as input it is listening for."""
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Comment 0."},
+    )
+    claim = record_claim(page_dir, id="s", pid=os.getpid(), agent="Claude")
+    lease = leases_model.take_lease(leases_model.waiter_lease_path(page_dir, "s"))
+    assert lease
+    try:
+        with service_model.PageTransaction(page_dir) as transaction:
+            delivery_model.record_pickup(transaction, [comment])
+            cleanup_model.close_session_turn(claim["id"])
+        result = CliRunner().invoke(
+            cli_model.cli, ["status", str(page_dir), "waiting", "pick a storage engine"]
+        )
+        assert result.exit_code == 0, result.output
+        state = page_state(page_dir)
+    finally:
+        leases_model.release_lease(lease)
+    activity = state["activity"]
+    assert (activity["kind"], activity["detail"]) == (
+        "listening",
+        "pick a storage engine",
+    )
+    assert (activity["counts"]["pending"], activity["counts"]["queued"]) == (0, 0)
+    [view] = state["browser"]["views"].values()
+    assert [item["kind"] for item in view["queues"]["on_agent"]] == ["answer"]
+
+
+def test_newer_page_work_takes_the_activity_from_an_older_thread_start(page_dir):
+    """The page's activity says the agent's latest word about what it is doing: a
+    start on the page's own task after a start on a thread's comment replaces the
+    thread's line there, while the thread keeps its own on its workflow."""
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Why?"},
+    )
+    record_claim(page_dir, id="s", pid=os.getpid(), agent="Claude")
+    with service_model.PageTransaction(page_dir) as transaction:
+        delivery_model.record_pickup(transaction, [comment])
+    started = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "start", str(page_dir), comment["id"], "reading the traces"],
+    )
+    assert started.exit_code == 0, started.output
+    activity = page_state(page_dir)["activity"]
+    assert (activity["kind"], activity["detail"]) == ("working", "reading the traces")
+
+    working(page_dir, "drafting v2")
+    state = page_state(page_dir)
+    assert (state["activity"]["kind"], state["activity"]["detail"]) == (
+        "working",
+        "drafting v2",
+    )
+    [workflow] = [w for w in state["workflows"] if w["input"] == comment["id"]]
+    assert workflow["at_work"]

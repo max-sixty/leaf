@@ -28,14 +28,17 @@ KNOWN = {
         # Residency (`data-lf-margin`, prepaint.js) already decides their form
         # before that paint.
         ("lf-toc", "keeps-first-box"),
+        # At working density, the workspace's, a card whose title and text are one line
+        # each is shorter than its grip, and the float that keeps the title's line clear
+        # of the grip (board.css) then reaches 1px past the card's content, so the card
+        # and its column grow 1px when the module measures the grip and sizes the float.
+        ("lf-card", "keeps-first-box"),
+        ("lf-column", "keeps-first-box"),
     },
-    "file-editor": {
-        # The problem panel caps itself at `min(50%, 20rem)` in an auto grid row, where
-        # the percentage resolves against the panel's own content, so a two-line problem
-        # is cut to 78px and scrolls inside it. Capping it from
-        # `--lf-file-editor-height` instead shows the problem whole, but its height then
-        # follows the problem's text, and test_render_files.py's in-flight save journey
-        # reads a 17px shift without input in the editor's shadow tree.
-        ("lf-file-editor", "grows-with-content"),
+    "diff": {
+        # The worked example states its drawing's height in pixels (`data-height="151"`),
+        # measured at reading density; at working density the drawing's rows are
+        # shorter and it presents at 145px. A stated height is one density's.
+        ("lf-diff", "keeps-first-box"),
     },
 }

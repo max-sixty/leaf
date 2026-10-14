@@ -5,7 +5,7 @@
  * cloned DOM, inverse action, or restoration statement is retained. */
 import { recordedWidgetSelector, stateSpecs } from "../registry.js";
 import { elementReading } from "../passages.js";
-import { readApplication } from "../semantic-state.js";
+import { readPart } from "../semantic-state.js";
 import { dataBody } from "../widget-upgrade.js";
 import { authoredRank } from "./model.js";
 import { initialParent, initialSource } from "../initial-render.js";
@@ -42,11 +42,11 @@ import { initialParent, initialSource } from "../initial-render.js";
    Ownership of record members stops at `recordedOwner`, the nearest widget with a
    declared record. A custom outer container must not capture or restore a nested
    recorded widget's members. */
-export const authoredStates = () => readApplication().document.authored;
+export const authoredStates = readPart((root) => root.document.authored);
 export const authoredParents = new WeakMap();
 /** @param {Element} member */
 const recordedOwner = (member) => {
-  const selector = recordedWidgetSelector(member);
+  const selector = recordedWidgetSelector();
   return selector ? member.closest(selector) : null;
 };
 /** @param {Element} widget @param {string} selector */
@@ -70,6 +70,7 @@ export function domValue(el, record) {
 // `parent` states where a root that is not yet in the document will stand, so the
 // readings that ask about its place are right before insertion; a root already in the
 // document answers for itself.
+/** @param {Document | Element | DocumentFragment} [root] @param {Element | null} [parent] */
 export function rememberAuthoredParents(root = document, parent = root.parentElement) {
   if (root.nodeType === Node.ELEMENT_NODE && !authoredParents.has(root))
     authoredParents.set(root, root.parentElement ? initialParent(root) : parent);
@@ -115,7 +116,7 @@ export function stageAuthoredStates(root = document, existing = authoredStates()
   const captured = new Map();
   /** @type {Map<string, Map<string, ActionSpec>>} */
   const byTag = new Map();
-  for (const { tag, verb, spec } of stateSpecs(root)) {
+  for (const { tag, verb, spec } of stateSpecs()) {
     const specs = byTag.get(tag) ?? new Map();
     specs.set(verb, spec);
     byTag.set(tag, specs);

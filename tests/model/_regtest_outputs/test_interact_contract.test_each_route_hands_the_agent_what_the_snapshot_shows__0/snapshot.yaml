@@ -48,7 +48,7 @@
 # comment's `answer` is a `reply`, for `leaf response reply`, except on App Server,
 # where it is a `turn` the turn's own messages write. The `handling` follows from
 # the answer, so each agent is told only its own route.
-# The agent's standing instructions (its harness contract, and on leaf.page the
+# The agent's lasting instructions (its harness contract, and on leaf.page the
 # developer instructions) are not part of a delivery; test_website_server records
 # leaf.page's.
 #
@@ -77,7 +77,7 @@
 
 leaf wait:
   output:
-    format: leaf-delivery-v5
+    format: leaf-delivery/6
     id: '11111111'
     created_at: 1790046750.29
     acknowledge: >-
@@ -168,7 +168,7 @@ Claude Code hook:
     instruction: >-
       Leaf has new input for your turn. Read this complete delivery before answering.
     delivery:
-      format: leaf-delivery-v5
+      format: leaf-delivery/6
       id: '44444444'
       created_at: 1790046750.29
       acknowledge: null
@@ -253,7 +253,7 @@ Codex queue:
     <leaf-delivery id="22222222" operation="delivery read" />
     ```
   leaf delivery read 22222222:
-    format: leaf-delivery-v5
+    format: leaf-delivery/6
     id: '22222222'
     created_at: 1790046750.29
     acknowledge: >-
@@ -341,7 +341,7 @@ Codex App Server:
     toolOutput:
       name: leaf_delivery
       output:
-        format: leaf-delivery-v5
+        format: leaf-delivery/6
         id: '33333333'
         created_at: 1790046750.29
         acknowledge: null

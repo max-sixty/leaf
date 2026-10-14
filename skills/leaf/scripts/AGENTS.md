@@ -32,8 +32,8 @@ transport boundary exits, prints, or answers HTTP.
 - `event_endpoint`: the browser's HTTP transport onto the door;
 - `event_meaning`: admitted widget-command meaning and layer compatibility;
 - `interaction_log`: page-local diagnostics of browser gestures and requests;
-- `events`, `projection`, `document_reading`, `construction`: standing event and
-  durable state folds, the shared document and decision reading, and a thread's
+- `events`, `projection`, `document_reading`, `construction`: folds of the events
+  in force and durable state, the shared document and decision reading, and a thread's
   frozen markup as effective content with its origins;
 - `page_snapshot`: the transaction-consistent reading one browser preview serves;
 - `agent_state`, `read_state`, `gesture_words`, `history`, `transcript`: agent-facing

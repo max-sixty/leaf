@@ -10,10 +10,12 @@ widget's tag in the page's `registry.json` when needed.
 
 When `source.live` is false, the candidate in `index.html` differs from the live
 revision and `source.error` says why; reconcile the candidate by stable id and content
-before editing. `data_bindings` names each external source and the widgets that read
-it, and `data/<source>.json` holds its publication; change its value with
-`leaf data set`. `leaf page state <page> <id>` narrows the reading to what the id
-names: a page widget's element, standing actions, asks and workflows, or a thread's
+before editing. Where `source.error` names `leaf page init`, this Leaf cannot serve or
+write the page as vendored, and the rest of the reading may misread it: run that
+command, then read the state again. `data_bindings` names each external source and
+the widgets that read it, and `data/<source>.json` holds its publication; change its
+value with `leaf data set`. `leaf page state <page> <id>` narrows the reading to what
+the id names: a page widget's element, actions in force, asks and workflows, or a thread's
 messages with their frozen HTML content, which changes only through that thread.
 
 ## Publish several authored files together
@@ -112,17 +114,17 @@ in the log.
 A list of work holds what is still to do. When an item of a plan, a backlog, or a list
 of problems found is done, move it out of that list to the finished work, which sits
 collapsed after the open work, with the item cut down to its outcome, for example in a
-`<details>` at the foot whose summary says what is done. A widget that tracks
-completion itself, such as a milestone rail, a board, or a task list, keeps its
-members and shows them its own way. Material the current state replaces, such as a
-concluded run, a superseded section, or a page tab the current work no longer needs
-(the `lf-tabs` entry says what of it to keep), is removed outright rather than kept
-beside its successor; keep older material only where the current work still needs its
-context, collapsed the same way. Put deferred work in the list of work with enough
-context to resume it.
+`<details>` at the foot whose summary says what is done, or on a tab of its own. A
+widget that tracks completion itself, such as a milestone rail, a board, or a task
+list, keeps its members and shows them its own way. Material the current state
+replaces, such as a concluded run, a superseded section, or a page tab the current
+work no longer needs (the `lf-tabs` entry says what of it to keep), is removed
+outright rather than kept beside its successor; keep older material only where the
+current work still needs its context, collapsed the same way. Put deferred work in
+the list of work with enough context to resume it.
 
 An ask the user answered and you have acted on is finished work too. Move it whole
-to the finished work with the user's answer standing, and put anything still worth
+to the finished work with the user's answer in force, and put anything still worth
 asking in a new ask under new ids. An `lf-options` group takes `settled` there,
 which collapses it to the pick. The answered ask is the record of what the user
 was asked and chose: say what came of the choice beside it, and correct its words

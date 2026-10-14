@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/11b181fcc7c956e1835bd3f2d27b49c4262d015b/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/11b181fcc7c956e1835bd3f2d27b49c4262d015b/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/40dc7c4e2078357b89ec0b5f1be59f7a6235761d/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/40dc7c4e2078357b89ec0b5f1be59f7a6235761d/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/11b181fcc7c956e1835bd3f2d27b49c4262d015b/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/40dc7c4e2078357b89ec0b5f1be59f7a6235761d/demo/demo.gif)
 
 </details>
 
@@ -78,6 +78,40 @@ Leaf's "Watch pages with a hooks module" option, in `/config`, moves that watch 
 Claude Code hooks module, an early-access Claude Code feature, which goes on watching
 after a turn you interrupt. A Claude Code that doesn't load hooks modules keeps the
 default watch.
+
+</details>
+
+<details>
+<summary>Agent sandboxes</summary>
+
+Leaf's hooks run outside an agent's sandbox, but `leaf` commands run wherever the
+agent's shell commands do. The sandboxes of Claude Code and Codex refuse those
+commands what they need: writes to Leaf's state in `~/.local/state/leaf`, a port on
+localhost for the page server, and a browser for render checks. On Linux, Claude
+Code's sandbox also hides the session's process from them and ends the server when
+the command returns. The agent can rerun each refused command outside the
+sandbox, asking you first.
+
+To have `leaf` commands run outside the sandbox without asking, add this to Claude
+Code's settings, such as `~/.claude/settings.json`:
+
+```json
+{
+  "sandbox": { "excludedCommands": ["leaf *"] },
+  "permissions": { "allow": ["Bash(leaf *)"] }
+}
+```
+
+For Codex, add a rules file, such as `~/.codex/rules/leaf.rules`, and restart Codex:
+
+```
+prefix_rule(pattern = ["leaf"], decision = "allow")
+```
+
+Either one runs `leaf` with your own access, as Leaf's hooks already run, while the
+agent chooses its arguments, such as the directory `page init` writes to. Both
+apply only where the whole command line is `leaf` commands, so one chained after
+`cd` or piped into another program stays in the sandbox.
 
 </details>
 

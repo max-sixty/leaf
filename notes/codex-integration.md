@@ -47,6 +47,6 @@ These alternatives need a user-facing purpose before implementation:
 - Route several threads' responses within one Codex turn. This needs explicit
   response targets and a policy for approvals and input requests.
 - Delegate a page to a Leaf-owned child task. This needs context transfer and
-  coordinated workspace ownership; standing pages are one possible use.
+  coordinated workspace ownership; persistent pages are one possible use.
 - Make Leaf the Codex client. This would add transcript, approval, interruption,
   and reconnect ownership to Leaf's page and feedback responsibilities.

@@ -115,13 +115,12 @@ export function adapt(adaptations) {
   return {
     name: "leaf-adapt",
     setup(builder) {
-      adaptations.forEach(({ file, edit, loader = "js" }, index) =>
+      adaptations.forEach(({ file, edit }, index) =>
         builder.onLoad({ filter: file }, async ({ path: at }) => {
           used.add(index);
           return {
             contents: await edit(await readFile(at, "utf8"), at),
             resolveDir: path.dirname(at),
-            loader,
           };
         }),
       );
@@ -150,14 +149,6 @@ const bindTo = (filter, target) => ({
  * file as it stands instead, and may `finish` it.
  */
 const bundles = {
-  "scoped-registry": () => ({
-    out: `${assets}/vendor/scoped-registry.js`,
-    // The published stand-in drops connectedMoveCallback, turning native retained
-    // moves into disconnect/connect and bypassing editors' caret restoration.
-    entry:
-      'import "@webcomponents/scoped-custom-element-registry/src/scoped-custom-element-registry.ts";',
-    adapt: [{ ...patches("scoped-registry-native-move.patch"), loader: "ts" }],
-  }),
   // Browser-native DOM rasterization, loaded only when capturing a page region.
   //
   // After a capture, SnapDOM counts each later mutation against the target's
@@ -322,7 +313,7 @@ const bundles = {
       "export { markdownLanguage, insertNewlineContinueMarkup }" +
       ' from "@codemirror/lang-markdown";\n' +
       'export { ChangeSet, EditorSelection, Prec, Transaction, Annotation, Facet, RangeSet, RangeSetBuilder, StateField, Text, codePointAt, codePointSize, fromCodePoint, combineConfig, MapMode, RangeValue, CharCategory } from "@codemirror/state";\n' +
-      'export { drawSelection, lineNumbers, highlightActiveLineGutter, highlightActiveLine, dropCursor, rectangularSelection, crosshairCursor, GutterMarker, gutter, WidgetType, logException, Direction, showTooltip, getTooltip } from "@codemirror/view";\n' +
+      'export { drawSelection, lineNumbers, highlightActiveLineGutter, highlightActiveLine, dropCursor, rectangularSelection, crosshairCursor, GutterMarker, gutter, WidgetType, logException, Direction, showTooltip, getTooltip, placeholder } from "@codemirror/view";\n' +
       'export { defaultKeymap } from "@codemirror/commands";\n' +
       'export { HighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, syntaxTree, indentUnit, language, highlightingFor } from "@codemirror/language";\n' +
       'export { tags, highlightTree } from "@lezer/highlight";\n',

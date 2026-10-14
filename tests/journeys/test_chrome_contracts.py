@@ -35,6 +35,7 @@ from render_harness import (
     consume_browser_errors,
     holding,
     leaf_page,
+    nudge,
     open_page,
     open_versions,
     page_comment,
@@ -234,9 +235,7 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
             "text": "For B",
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     expect(live).to_have_text("Codex replied")
     expect(notice).to_have_text("Codex replied")
     expect(draft).to_be_focused()
@@ -270,48 +269,19 @@ def test_agent_reply_arrivals_keep_open_panel_drafts_and_summarize_batches(
     expect(draft).to_be_focused()
     expect(draft).to_have_js_property("value", "Keep this draft")
 
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/notifications.js')).holdStatus(10000)"
-    )
-    for parent in (a["id"], b["id"]):
-        append_carried_log_record(
-            directory,
-            {
-                "kind": "reply",
-                "author": "agent",
-                "agent": "Codex",
-                "parent": parent,
-                "text": "Another answer",
-            },
-        )
-        page.evaluate(
-            "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-        )
-    page.wait_for_function(
-        "() => window.__lfReplyAnnouncements.filter(words => words === 'Codex replied').length === 3"
-    )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/notifications.js')).holdStatus(1)"
-    )
-    expect(notice).to_have_text("4 replies in 2 threads")
-    expect(notice).to_be_visible()
-    expect(draft).to_be_focused()
-    expect(draft).to_have_js_property("value", "Keep this draft")
-
-    # A duplicate read makes no fresh announcement; a fresh document announces what
-    # the user has still not read.
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
-    page.wait_for_timeout(100)
+    # A fresh server snapshot of unchanged content makes no fresh announcement;
+    # a fresh document announces what the user has still not read. Moving the
+    # freshness token ensures this actually admits another read.
+    nudge(directory)
+    told(page)
+    round_trip(page)
+    expect(live).to_have_text("2 replies in 2 threads")
     assert page.evaluate("() => window.__lfReplyAnnouncements") == [
         "Codex replied",
         "2 replies in 2 threads",
-        "Codex replied",
-        "Codex replied",
     ]
     page.reload()
-    expect(page.locator(".lf-live")).to_have_text("6 replies in 2 threads")
+    expect(page.locator(".lf-live")).to_have_text("4 replies in 2 threads")
 
 
 def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
@@ -350,9 +320,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
             "text": "The new answer should come into view. " * 5,
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     message = page.locator(f'.lf-msg[data-mid="{newest["id"]}"]')
     expect(message).to_be_visible()
     page.wait_for_function(
@@ -386,9 +354,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
                 "text": "The answer grows while the user is following it. " * length,
             },
         )
-        page.evaluate(
-            "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-        )
+        told(page)
         page.wait_for_function(
             "before => document.querySelector('.lf-threads').scrollTop > before",
             arg=before_growth,
@@ -410,9 +376,7 @@ def test_incoming_reply_follows_a_thread_at_its_latest_message(browser, serve):
             "text": "Later answer must not pull the user away from history.",
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     assert threads.evaluate("el => el.scrollTop") == pytest.approx(earlier_place, abs=2)
 
 
@@ -494,10 +458,10 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
     list_box = page.locator(".lf-threads").evaluate(
         "el => { const r = el.getBoundingClientRect(); return [r.top, r.bottom]; }"
     )
-    standing = card.evaluate(REPLY_BOX)
-    assert standing["caret"] == [True, 8, 8]
+    resting = card.evaluate(REPLY_BOX)
+    assert resting["caret"] == [True, 8, 8]
     # The live field and Send remain inside the list's visible reading band.
-    assert list_box[0] <= standing["field"][0] < standing["field"][1] <= list_box[1]
+    assert list_box[0] <= resting["field"][0] < resting["field"][1] <= list_box[1]
     send = card.locator(".lf-thread-send").bounding_box()
     assert list_box[0] <= send["y"] < send["y"] + send["height"] <= list_box[1]
 
@@ -528,10 +492,10 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
         # box the list follows lands within a pixel of where it stood (0.875px measured
         # on CI's Linux Chrome, nothing on macOS).
         now = card.evaluate(REPLY_BOX)
-        assert now["caret"] == standing["caret"]
-        assert now["box"] == pytest.approx(standing["box"], abs=0.99), (standing, now)
-        assert now["field"] == pytest.approx(standing["field"], abs=0.99), (
-            standing,
+        assert now["caret"] == resting["caret"]
+        assert now["box"] == pytest.approx(resting["box"], abs=0.99), (resting, now)
+        assert now["field"] == pytest.approx(resting["field"], abs=0.99), (
+            resting,
             now,
         )
         if answers > 1:
@@ -544,7 +508,7 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
                   return range.getBoundingClientRect().bottom;
                 }"""
             )
-            assert list_box[0] < tail <= now["box"][0], (standing, now, tail)
+            assert list_box[0] < tail <= now["box"][0], (resting, now, tail)
 
 
 @pytest.mark.parametrize("contents", ["short", "long"])
@@ -671,7 +635,7 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
         expect(page.locator(".lf-bottom-status")).to_be_hidden()
     edges = card.evaluate(
         """async card => {
-          const {notice} = await window.__lfRuntimeImport('/runtime/notifications.js');
+          const {notice} = await window.__lfWidgetApi();
           notice('Keep feedback clear while reading', {announce: false});
           const list = card.parentElement;
           list.scrollTop = card.offsetTop + (card.offsetHeight - list.clientHeight) / 2;
@@ -727,7 +691,7 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     # (geometry.js), so a turn half under Reply has not been seen there.
     seen = card.evaluate(
         """async card => {
-          const {seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const {seenRect} = await window.__lfCheckApi();
           const turns = [...card.querySelectorAll('.lf-msg')];
           const turn = turns[Math.floor(turns.length / 2)];
           // Put an actual message across each edge: a fixed scroll fraction may
@@ -781,7 +745,7 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     )
     assert covered == 0
     # Wheeled on until its trigger has left the list, the list closes rather than
-    # standing unseen, so the keys answer the thread being read.
+    # staying open unseen, so the keys answer the thread being read.
     away = message.evaluate(
         """message => {
           const list = message.closest('.lf-threads');
@@ -908,9 +872,7 @@ def test_incoming_reply_follows_a_visible_composer_below_earlier_words(browser, 
             "text": "This reply grows below the older words and above the draft. " * 20,
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     page.wait_for_function(
         "before => document.querySelector('.lf-threads').scrollTop > before", arg=before
     )
@@ -970,9 +932,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
             "text": "This new answer belongs to the selected thread. " * 5,
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     page.wait_for_function(
         "before => document.querySelector('.lf-threads').scrollTop > before",
         arg=before,
@@ -1002,9 +962,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
             "text": "This short answer arrives while I read later cards.",
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     arriving = card.locator(f'.lf-msg[data-mid="{also_visible["id"]}"]')
     expect(arriving).to_have_count(1)
     expect(card.locator(".lf-thread-news")).to_have_count(0)
@@ -1030,9 +988,7 @@ def test_incoming_reply_follows_a_selected_thread_before_later_cards(
                 "text": "A long answer must not pull me back to this thread. " * 120,
             },
         )
-        page.evaluate(
-            "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-        )
+        told(page)
         assert later.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
             reading_later, abs=2
         )
@@ -1092,9 +1048,7 @@ def test_a_later_cards_reader_stays_at_the_list_end(browser, serve, intent):
             "text": "A long answer should not pull me from the later cards. " * 120,
         },
     )
-    page.evaluate(
-        "async () => (await window.__lfRuntimeImport('/runtime/application.js')).readAndApply()"
-    )
+    told(page)
     assert later_card.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
         later_top, abs=2
     )
@@ -1105,7 +1059,7 @@ def test_interrupted_background_notice_keeps_the_newer_version(browser, serve):
     page = open_page(browser, serve(leaf_page("Notice order", "<h1>Notice order</h1>")))
     page.evaluate(
         """async () => {
-          const {notice} = await window.__lfRuntimeImport('/runtime/notifications.js');
+          const {notice} = await window.__lfWidgetApi();
           notice('Updated to v3', {background: true});
           notice('Updated to v4', {background: true});
           notice('Saved — sent');
@@ -1538,7 +1492,7 @@ def test_opening_a_line_under_a_full_last_line_moves_no_words(browser, serve):
 
 
 def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
-    """A standing comparison remains legible in its fixed menu seat."""
+    """An active comparison remains legible in its fixed menu seat."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -1586,9 +1540,7 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     door = page.locator(".lf-banner-more")
     _publish(serve.page_dir, 3, html, "reworded the suggestion again")
     told(page)
-    expect(door).to_have_attribute(
-        "aria-label", "More page controls, questions waiting, new"
-    )
+    expect(door).to_have_attribute("aria-label", "More page controls, items on me, new")
     accent = token_colour(page, "--accent")
     face = door.evaluate(
         "d => ({dot: getComputedStyle(d, '::after').backgroundColor,"
@@ -1599,7 +1551,7 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
 
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
     """The fixed menu and primary row keep one reading order at every desk width, and
-    a phone reads the same order with Approval, Comment on the page and Questions,
+    a phone reads the same order with Approval, Comment on the page and On me,
     which stand before Threads on a desk, moved to the head of More."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
@@ -1620,7 +1572,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         resized(page, width, 900)
         orders[width] = page.evaluate(BANNER_ORDER)
     phone = orders.pop(390)
-    moved = ["Approve version", "Comment on the page", "Questions"]
+    moved = ["Approve version", "Comment on the page", "On me"]
     assert phone[: len(moved)] == moved, phone
     rest = phone[len(moved) :]
     assert rest[:-1] + moved + rest[-1:] == orders[800], (phone, orders[800])
@@ -1640,7 +1592,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
 
     # More follows the primary reading loop, with one order at every width.
     widest = max(orders.values(), key=len)
-    for wanted in ("All pages", "Questions", "Accept all", "v1", "Approve version"):
+    for wanted in ("All pages", "On me", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in widest), (
             f"{wanted} was not on the row at all, so this order proves little: {widest}"
         )

@@ -70,15 +70,16 @@ report.
 
 An ordinary document's thread namespace is the thread ids its log holds,
 including a thread whose opening comment the log lost. A sample template's
-namespace comes from its initial history. `sample_content.initial_sample_history`
-constructs effective events and reserved widget identities once for static validation,
-message admission and allocation. Unavailable captured islands contribute no markup;
-carried actions still reserve their raw widget identities. A template is declared
-in the page document or frozen message markup. `data-sample-events` names an inert
-JSON script in that declaring markup, whose ordinary commands pass through child
-admission, file-side anchor capture and the message-markup gate. The resulting
-history defines the child namespace before presentation and never writes the
-parent log.
+namespace comes from its initial history. `sample_content.initial_sample_events`
+constructs it once for static validation, message admission and allocation. A
+template is declared in the page's document or in a message's frozen markup, and
+`validation.source.sample_errors` checks its child as a page wherever it is declared:
+`check_source` for the page's templates, the shared message-markup gate for a
+message's. `data-sample-events` names an inline inert JSON script in the markup
+declaring the template: its ordinary event
+commands are admitted against the child, including file-side anchor capture and the
+shared message-markup gate. The resulting history defines the child's thread namespace
+before presentation and never writes the parent's log.
 
 Alternatively, `data-sample-threads` selects from the parent page's available history,
 for a message's template as for the page's.
@@ -117,7 +118,7 @@ is a console error, since the page reports it);
 every widget upgraded, painted with values that resolve, and given real space;
 words a user can mark, reach, and select, with the registry's verbatim and shadow
 declarations honored; no sideways scroll, clipped control, or misplaced box; space below words and controls for a horizontal overlay scrollbar;
-and standing state that replays without conflict and idempotently.
+and current state that replays without conflict and idempotently.
 `render_gate/readings.py` is the list. Those readings run
 at a desktop and a phone viewport; once they are done, the loaded desktop page is
 resized through the widths from 360px to 1920px and sideways overflow, misplaced boxes,
@@ -160,7 +161,7 @@ rather than sentences, and the words are written once, at the command boundary,
 which prints them, or with `--json` prints the records.
 
 The browser checks that rendering the same complete state twice is idempotent.
-A standing decision may paint over a changed authored baseline; this is the
+A decision in force may paint over a changed authored baseline; this is the
 state fold's behavior, not a reason to refuse the revision. `restated` explicitly
 retracts a decision when the agent needs a fresh answer.
 
@@ -191,8 +192,8 @@ later in the user's browser. Anchor on an opaque widget's element instead
 The render gate pairs each preserving owner with the file by its source and
 document-order occurrence, captured before upgrade. Page markup and each frozen thread
 event are separate sources, so this pairing does not require authored ids. It compares
-the rendered owner with the same projected passage a user can point at: standing
-user body rewrites replace authored words, retired slots contribute none, and
+the rendered owner with the same projected passage a user can point at: the
+user body rewrites in force replace authored words, retired slots contribute none, and
 declared generated children join their owner. Reports do not license a body rewrite.
 Page expectations stop at the rendered revision; frozen thread markup has no later
 authored version and uses the thread's whole action window.

@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 describe("published runtime bundle", () => {
-  it("bundles the current kernel while keeping historical publication modules native", async () => {
+  it("bundles every captured layer without absorbing shared page modules", async () => {
     const directory = await mkdtemp(join(tmpdir(), "leaf-revision-bundles-"));
     temporary.push(directory);
     const assetRoot = "/_leaf-release/release/study";
@@ -59,10 +59,6 @@ describe("published runtime bundle", () => {
         `export const state = { revision: "${revision}" };`,
       );
       await writeFile(join(layer, "vendor", "lit.js"), "export const html = 1;\n");
-      if (revision === revisions[0]) {
-        await rm(join(layer, "leaf.js"));
-        await rm(join(layer, "runtime"), { recursive: true });
-      }
     }
 
     await bundleSite(directory);
@@ -70,13 +66,6 @@ describe("published runtime bundle", () => {
     for (const revision of revisions) {
       const layer = join(directory, "examples", "study", "revisions", revision);
       const root = `${assetRoot}/revisions/${revision}`;
-      if (revision === revisions[0]) {
-        expect(await readdir(layer)).not.toContain("leaf.js");
-        expect(await readFile(join(layer, "widgets", "lf-study.js"), "utf8")).toBe(
-          `import { state } from "${root}/page/state.js"; import { html } from "../vendor/lit.js"; console.log(state, html);`,
-        );
-        continue;
-      }
       for (const entry of ["leaf.js", "widgets/lf-study.js"]) {
         const bundled = await readFile(join(layer, entry), "utf8");
         expect(bundled).toContain(`from"${root}/page/state.js"`);

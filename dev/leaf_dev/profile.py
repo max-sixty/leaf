@@ -6,11 +6,14 @@
 goes. It drives TRANSITION on this checkout's page exactly as the benchmark does
 (`leaf_dev.bench_latency.served`), RUNS times, each under a V8 CPU profile and a
 Chrome trace with style invalidation tracking, and reads the window from the last
-keydown (or the recording's start, for an agent write) to the frame the benchmark's
-probe marks as painting the result. It prints each run's main-thread tasks with the
-JS that dominated them, then per run: style and layout time and how much of it script
-forced, the forced style recalculations and the writes that invalidated style with
-the JS behind each, and JS by self and inclusive time.
+keydown (or the recording's start, for an agent write) to the last frame the
+benchmark's probe marks as painting one of the transition's goals: for a gesture,
+the server's reading presented (Sent), so the window holds the local draw, the wait
+for the POST's answer and the answer's application. It prints when each goal was
+painted and each run's main-thread tasks with the JS that dominated them, then per
+run: style and layout time and how much of it script forced, the forced style
+recalculations and the writes that invalidated style with the JS behind each, and JS
+by self and inclusive time.
 
 Tracing slows the page, so read proportions here and durations from the benchmark.
 Each run's `.trace.json` (DevTools or Perfetto) and `.cpuprofile` land in
@@ -28,7 +31,7 @@ import click
 from leaf_dev import ROOT
 from leaf_dev.arms import run_directory
 from leaf_dev.bench_latency import SOURCES, TRANSITIONS, served
-from leaf_dev.browser import chrome
+from leaf_dev.browser import headless_shell
 
 OUT = ROOT / ".tmp" / "profile"
 RUNS = 3
@@ -147,7 +150,12 @@ def attribute(trace: Path, profile: Profile) -> dict:
     everything = (
         everything["traceEvents"] if isinstance(everything, dict) else everything
     )
-    end = min(e["ts"] for e in everything if e.get("name", "").startswith("lf-bench:"))
+    marks = {
+        e["name"].removeprefix("lf-bench:"): e["ts"]
+        for e in everything
+        if e.get("name", "").startswith("lf-bench:")
+    }
+    end = max(marks.values())
     events = [e for e in main_thread(everything) if e["ts"] <= end]
     spans = [e for e in events if e.get("ph") == "X"]
     keys = [
@@ -171,7 +179,7 @@ def attribute(trace: Path, profile: Profile) -> dict:
         for e in spans
         if e["name"] == "RunTask" and inside(e) >= TASK_MIN_MS * 1000
     ]
-    render, forced, recalcs = Counter(), Counter(), Counter()
+    render, forced, recalcs, recalc_time = Counter(), Counter(), Counter(), Counter()
     open_spans = []  # (name, end) of the spans enclosing the current one
     for e in spans:
         while open_spans and open_spans[-1][1] <= e["ts"]:
@@ -191,7 +199,9 @@ def attribute(trace: Path, profile: Profile) -> dict:
                     count = args.get("elementCount") or (args.get("endData") or {}).get(
                         "elementCount"
                     )
-                    recalcs[(stack_label(frames, 4), count)] += 1
+                    site = (stack_label(frames, 4), count)
+                    recalcs[site] += 1
+                    recalc_time[site] += inside(e)
         open_spans.append((e["name"], e["ts"] + e.get("dur", 0)))
     invalidations = Counter()
     for e in events:
@@ -211,10 +221,12 @@ def attribute(trace: Path, profile: Profile) -> dict:
     own, inclusive = profile.functions(start, end)
     return {
         "window": end - start,
+        "marks": {name: at - start for name, at in marks.items()},
         "tasks": tasks,
         "render": render,
         "forced": forced,
         "recalcs": recalcs,
+        "recalc_time": recalc_time,
         "invalidations": invalidations,
         "own": own,
         "inclusive": inclusive,
@@ -242,9 +254,8 @@ def recorded(session, browser, name: str, runs: list, out: Path):
 
 def show(runs: list) -> None:
     for number, run in enumerate(runs, 1):
-        click.echo(
-            f"run {number}: {ms(run['window'])} ms from input to the painted frame"
-        )
+        painted = ", ".join(f"{name} {ms(at)}" for name, at in run["marks"].items())
+        click.echo(f"run {number}: ms from input to each painted goal: {painted}")
         for at, duration, paths in run["tasks"]:
             click.echo(
                 f"  {ms(at):7.1f} ms  task {ms(duration):6.1f} ms  {' | '.join(paths)}"
@@ -265,9 +276,12 @@ def show(runs: list) -> None:
             for k, v in render.most_common()
         )
     )
-    click.echo("  forced style recalculations (count, elements, forced by):")
-    for (where, count), n in total("recalcs").most_common(TOP):
-        click.echo(f"    {n:4}  {count or '?':>5}  {where}")
+    click.echo("  forced style recalculations (ms, count, elements, forced by):")
+    recalcs = total("recalcs")
+    for (where, count), spent in total("recalc_time").most_common(TOP):
+        click.echo(
+            f"    {per_run(spent):6.1f}  {recalcs[(where, count)]:4}  {count or '?':>5}  {where}"
+        )
     click.echo("  style invalidations (count, event, cause, node, written by):")
     for (event, cause, node, where), n in total("invalidations").most_common(TOP):
         click.echo(f"    {n:4}  {event} | {cause} | {node} | {where}")
@@ -285,7 +299,7 @@ def profile(source: str, transition: str) -> None:
 
     Runs one `bench-latency` TRANSITION on SOURCE a few times on this working tree,
     under a CPU profiler and a Chrome trace, and prints the main-thread tasks up to
-    the painted frame, forced style and layout and the writes that invalidated
+    the last painted goal (Sent, for a gesture), forced style and layout and the writes that invalidated
     style, and JS by function. Each run's trace and CPU profile land in
     .tmp/profile/ for DevTools or Perfetto.
     """
@@ -293,7 +307,7 @@ def profile(source: str, transition: str) -> None:
     runs = []
     with (
         tempfile.TemporaryDirectory(prefix="leaf-profile-") as scratch,
-        chrome() as browser,
+        headless_shell() as browser,
         served(browser, "head", ROOT, source, Path(scratch)) as session,
     ):
         for run in range(RUNS):

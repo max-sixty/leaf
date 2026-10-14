@@ -57,7 +57,6 @@ import { shownScheme } from "../color-scheme.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 import {
   DRAWING_COORDINATE_LIMIT,
-  DRAWING_FORMAT,
   MAX_DRAWING_POINTS,
   MAX_DRAWING_STROKES,
   MAX_DRAWING_SAYS_LENGTH,
@@ -199,9 +198,7 @@ export function createDrawingController({
       announce(
         on
           ? `Draw mode: draw anywhere on the page; each stroke adds to one drawing, and z takes one back. ${
-              coarsePointer.matches
-                ? "Exit Draw mode on the banner leaves."
-                : "Escape leaves."
+              coarsePointer.matches ? "Exit Draw mode leaves." : "Escape leaves."
             }`
           : "Draw mode off",
       );
@@ -284,7 +281,6 @@ export function createDrawingController({
   function drawingOf(strokes, frame, reference) {
     const { clientWidth, clientHeight } = document.documentElement;
     return {
-      format: DRAWING_FORMAT,
       strokes,
       box: [rounded(frame.width), rounded(frame.height)],
       ...(reference && { frame: reference }),

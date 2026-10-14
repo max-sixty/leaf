@@ -353,7 +353,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
         a["name"] for a in restore_cases
     ]
     # And each was the restore case it names rather than that one plus everything the
-    # reloads before it left standing — a difference no finding could show on its own,
+    # reloads before it left open — a difference no finding could show on its own,
     # since all of them would still be reported, each under a name that had stopped
     # being true. Only the other restore cases' keys are held against an arrival: the
     # page writes its own reading position on the way out of every load, so a store
@@ -370,9 +370,9 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     """A page put back the way the user left it is simply there, and does not assemble
     itself in front of them.
 
-    Standing a drawer up is a gesture and gestures move: the drawer slides in over a fifth
+    Opening a drawer is a gesture and gestures move: the drawer slides in over a fifth
     of a second and the document steps aside to make the room. Coming back to a drawer
-    that was already standing is not a gesture — nothing was just decided, and a page
+    that was already open is not a gesture — nothing was just decided, and a page
     that replays the decisions on arrival would be showing the user a fifth of a
     second of furniture instead of what they came back to read. The auxiliary-surface
     owner passes arrival separately from a gesture, so even a drawer whose first paint
@@ -400,9 +400,9 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     So the poll is held on every load and let go once the surface is up, which is this
     suite's answer to a race wherever it finds one, and the reading it waits for is the
     page's own. The window that opens is also the one this test is about: it is where a
-    restore is put back, and standing in it is strictly more than catching it.
+    restore is put back, and waiting in it is strictly more than catching it.
 
-    What the user left standing is the restore case the runtime declares, all of them
+    What the user left open is the restore case the runtime declares, all of them
     in turn, so a fourth remembered surface is covered the day it starts remembering.
     """
     url = serve(CHANGE_SHAPES_PAGE)
@@ -432,7 +432,7 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
         return found
 
     def arrive():
-        """One load, standing in the arrival rather than catching it as it goes past."""
+        """One load, waiting in the arrival rather than catching it as it goes past."""
         held = []
         polls = itertools.count()
         page.route(
@@ -460,8 +460,8 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     restore_cases = user_view_restore_cases(page)
     assert len(restore_cases) > 1, "the runtime declares nothing to arrive in"
 
-    # The control, and the whole reason the silences below say anything: standing the
-    # drawer up by hand is the gesture whose motion the arrivals must not have. What it
+    # The control, and the whole reason the silences below say anything: opening the
+    # drawer by hand is the gesture whose motion the arrivals must not have. What it
     # paints is the runtime's business and is not named here; that it paints at all is
     # this reading's, and a reading that reports nothing when something moved would
     # pass every assertion after it.
@@ -534,7 +534,7 @@ def test_the_gate_passes_what_the_renderer_draws(browser, serve):
     family it can draw is no failure, whether or not the guide names it.
     """
     extra = (
-        """<lf-diagram id="authored-life" parts="node:_start2 node:_end2"><pre>
+        """<lf-diagram id="authored-life" parts="all"><pre>
 stateDiagram-v2
   [*] --&gt; _start2
   _start2 --&gt; _end2
@@ -608,8 +608,8 @@ def test_rest_watches_a_frame_created_by_contained_arrival(browser, serve):
     wait_until_ready(child)
     child.evaluate(
         """async () => {
-            const {deferredArrival} = await window.__lfRuntimeImport('/runtime/presentation.js');
-            deferredArrival(new Promise(resolve => setTimeout(() => {
+            const {afterPresentation} = await window.__lfWidgetApi();
+            afterPresentation(() => new Promise(resolve => setTimeout(() => {
                 const nested = document.createElement('iframe');
                 nested.srcdoc = `<body><script>
                     Object.defineProperty(window, 'lfRest', {
@@ -677,7 +677,7 @@ def test_page_fixture_renders(browser, serve, source):
     # while the scroll pass measures its writes.
     page = still_page(browser, url, width=RESIZE_PATH[0])
     findings = {
-        "render gate": gate,
+        "render gate": [str(finding) for finding in gate],
         "at rest": rest_findings(page),
         "framing": [
             str(finding)
@@ -757,17 +757,16 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     entries["lf-callout"]["x-shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
-        """import { once, shadowStage } from "/runtime/widget-api.js";
-export default class extends HTMLElement {
-  connectedCallback() {
-    if (!once(this)) return;
-    const content = document.createElement('span');
-    content.textContent = this.textContent;
-    this.textContent = '';
-    shadowStage(this, [content]);
-  }
-};
-"""
+        'import { once, shadowStage } from "/runtime/widget-api.js";\n'
+        'customElements.define("lf-callout", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        "    const content = document.createElement('span');\n"
+        "    content.textContent = this.textContent;\n"
+        "    this.textContent = '';\n"
+        "    shadowStage(this, [content]);\n"
+        "  }\n"
+        "});\n"
     )
     wide = "sideways words " * 30
     source = leaf_page(

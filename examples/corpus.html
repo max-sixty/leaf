@@ -213,7 +213,6 @@
 <!-- notification-playground.html authored script -->
 <script type="module">
       import {
-        afterPresentation,
         keeps,
         keepsText,
         layoutChanged,
@@ -346,23 +345,22 @@
             this.append(candidates);
           }
 
-          #connect(signal) {
-            return afterPresentation(() => {
-              if (signal.aborted) return;
-              const playground = this.closest("lf-playground");
-              if (!playground) return;
-              playground.addEventListener(
-                "lf-playground-change",
-                (event) => {
-                  if (event.target !== playground) return;
-                  this.#values = event.detail.values;
-                  this.#render();
-                },
-                { signal },
-              );
-              this.#values = playground.values;
-              this.#render();
-            });
+          async #connect(signal) {
+            await customElements.whenDefined("lf-playground");
+            if (signal.aborted) return;
+            const playground = this.closest("lf-playground");
+            if (!playground) return;
+            playground.addEventListener(
+              "lf-playground-change",
+              (event) => {
+                if (event.target !== playground) return;
+                this.#values = event.detail.values;
+                this.#render();
+              },
+              { signal },
+            );
+            this.#values = playground.values;
+            this.#render();
           }
 
           #render() {
@@ -381,7 +379,7 @@
               this.#values.format === "status strip",
             );
             // The cards read only the event count, the first title and the owner line;
-            // a colour or a radius leaves them standing.
+            // a colour or a radius leaves them unchanged.
             const cards = JSON.stringify([
               this.#values.events,
               this.#values.title,
@@ -486,8 +484,6 @@
 </style>
 <!-- data-explorer.html authored script -->
 <script type="module">
-      import { afterPresentation } from "/runtime/widget-api.js";
-
       import { keepsText, layoutChanged, offer, once } from "/runtime/widget-api.js";
 
       const RELEASES = [
@@ -590,40 +586,39 @@
             this.append(toolbar, this.#rows, this.#count, tableFrame);
           }
 
-          #connect() {
-            return afterPresentation(() => {
-              if (!this.isConnected || this.#notify) return;
-              this.#playground = this.closest("lf-playground");
-              this.#notify = this.#playground.registerContributor(
-                "filters",
-                DEFAULT_FILTERS,
-                {
-                  read: () => clone(this.#state),
-                  apply: (state) => {
-                    this.#state = clone(state);
-                    this.#next =
-                      Math.max(
-                        0,
-                        ...this.#state.rows.map((row) =>
-                          Number(row.id.split("-").at(-1)),
-                        ),
-                      ) + 1;
-                    this.#render();
-                  },
+          async #connect() {
+            await customElements.whenDefined("lf-playground");
+            if (!this.isConnected || this.#notify) return;
+            this.#playground = this.closest("lf-playground");
+            this.#notify = this.#playground.registerContributor(
+              "filters",
+              DEFAULT_FILTERS,
+              {
+                read: () => clone(this.#state),
+                apply: (state) => {
+                  this.#state = clone(state);
+                  this.#next =
+                    Math.max(
+                      0,
+                      ...this.#state.rows.map((row) =>
+                        Number(row.id.split("-").at(-1)),
+                      ),
+                    ) + 1;
+                  this.#render();
                 },
+              },
+            );
+            this.#playground.registerInstructionProvider((values) => {
+              const rows = values.filters.order.map((id) =>
+                values.filters.rows.find((row) => row.id === id),
               );
-              this.#playground.registerInstructionProvider((values) => {
-                const rows = values.filters.order.map((id) =>
-                  values.filters.rows.find((row) => row.id === id),
-                );
-                const conditions = rows
-                  .map((row) => `${row.field} ${row.operator} ${row.value}`)
-                  .join(" and ");
-                const filterTask = conditions
-                  ? `Require ${conditions}`
-                  : "Apply no filters";
-                return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
-              });
+              const conditions = rows
+                .map((row) => `${row.field} ${row.operator} ${row.value}`)
+                .join(" and ");
+              const filterTask = conditions
+                ? `Require ${conditions}`
+                : "Apply no filters";
+              return `Implement the release query in release-report.sql. ${filterTask}. Return at most ${values.limit} matching releases in source order, and show the query plus its result-table test.`;
             });
           }
 
@@ -745,10 +740,10 @@
             });
             for (const id of this.#rowEls.keys())
               if (!byId.has(id)) this.#rowEls.delete(id);
-            const standing = this.#rows.children;
+            const current = this.#rows.children;
             if (
-              shown.length !== standing.length ||
-              shown.some((element, index) => element !== standing[index])
+              shown.length !== current.length ||
+              shown.some((element, index) => element !== current[index])
             )
               this.#rows.replaceChildren(...shown);
             const values = this.#playground?.values;
@@ -875,8 +870,6 @@
 </style>
 <!-- code-comparison.html authored script -->
 <script type="module">
-      import { afterPresentation } from "/runtime/widget-api.js";
-
       import {
         frameFor,
         keeps,
@@ -929,21 +922,23 @@
             this.prepend(toolbar);
           }
 
-          #connect(signal) {
-            return afterPresentation(() => {
-              if (signal.aborted) return;
-              if (!this.#notify) this.#initialize();
-              this.#playground.addEventListener("lf-playground-change", this.#change, {
-                signal,
-              });
-              this.addEventListener("lf-layout", this.#readerLayout, { signal });
-              const watching = sizeObserver(this.#scheduleMeasurement);
-              signal.addEventListener("abort", () => watching.disconnect());
-              for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
-                watching.observe(reader);
-              }
-              this.#render();
+          async #connect(signal) {
+            await Promise.all([
+              customElements.whenDefined("lf-playground"),
+              customElements.whenDefined("lf-code"),
+            ]);
+            if (signal.aborted) return;
+            if (!this.#notify) this.#initialize();
+            this.#playground.addEventListener("lf-playground-change", this.#change, {
+              signal,
             });
+            this.addEventListener("lf-layout", this.#readerLayout, { signal });
+            const watching = sizeObserver(this.#scheduleMeasurement);
+            signal.addEventListener("abort", () => watching.disconnect());
+            for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
+              watching.observe(reader);
+            }
+            this.#render();
           }
 
           #initialize() {
@@ -1019,6 +1014,365 @@
           });
         },
       );
+    </script>
+<!-- alert-thresholds.html authored styles -->
+<style>
+      /* The stage holds the totals and one pair per alert: its evidence, and beside it
+         the controls that change only that alert. */
+      #alert-preview {
+        align-content: start;
+      }
+
+      .alert-board {
+        display: grid;
+        gap: var(--sp-4);
+        min-width: 0;
+        container: alert-board / inline-size;
+      }
+
+      .alert-totals {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+        gap: var(--sp-2) var(--sp-3);
+        margin: 0;
+        padding: var(--sp-3);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        background: var(--card);
+      }
+
+      .alert-total {
+        display: grid;
+        align-content: start;
+        gap: 2px;
+      }
+
+      .alert-total dt {
+        color: var(--ink-2);
+        font: var(--t-6) / 1.3 var(--sans);
+      }
+
+      .alert-total dd {
+        margin: 0;
+        color: var(--muted);
+        font: var(--t-6) / 1.3 var(--sans);
+      }
+
+      .alert-total strong {
+        color: var(--ink);
+        font-size: var(--t-4);
+      }
+
+      .alert-total[data-tone="danger"] strong {
+        color: var(--danger-ink);
+      }
+
+      .alert-total[data-tone="ok"] strong {
+        color: var(--ok-ink);
+      }
+
+      .alert-pair {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--sp-2);
+      }
+
+      .alert-evidence,
+      .alert-settings {
+        min-width: 0;
+        padding: var(--sp-3);
+        border: 1px solid var(--rule);
+        border-radius: var(--r);
+        background: var(--card);
+      }
+
+      .alert-settings {
+        display: grid;
+        align-content: start;
+        gap: var(--sp-3);
+      }
+
+      @container alert-board (min-width: 40rem) {
+        /* Where the totals fit in a band, they stay in view while the user works
+           down the alerts. */
+        .alert-totals {
+          position: sticky;
+          top: var(--lf-top);
+          z-index: 1;
+        }
+
+        .alert-pair {
+          grid-template-columns: minmax(0, 3fr) minmax(12rem, 2fr);
+          gap: var(--sp-3);
+        }
+      }
+
+      .alert-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: var(--sp-1) var(--sp-3);
+      }
+
+      .alert-head h3 {
+        margin: 0;
+        font-size: var(--t-5);
+      }
+
+      .alert-today,
+      .alert-what,
+      .alert-note,
+      .alert-owner {
+        color: var(--ink-2);
+        font: var(--t-6) / 1.4 var(--sans);
+      }
+
+      .alert-what {
+        margin: var(--sp-1) 0 var(--sp-2);
+      }
+
+      .alert-note,
+      .alert-owner {
+        margin: var(--sp-2) 0 0;
+      }
+
+      .alert-replay {
+        width: 100%;
+        margin: 0;
+        font-size: var(--t-6);
+      }
+
+      .alert-replay tr.chosen > * {
+        background: var(--accent-tint);
+        font-weight: 650;
+      }
+
+      .alert-outcome {
+        margin: var(--sp-2) 0 0;
+        padding: var(--sp-1) var(--sp-2);
+        border-radius: var(--r);
+        font: 600 var(--t-6) / 1.4 var(--sans);
+      }
+
+      .alert-outcome[data-tone="danger"] {
+        background: var(--danger-tint);
+        color: var(--danger-ink);
+      }
+
+      .alert-outcome[data-tone="warn"] {
+        background: var(--warn-tint);
+        color: var(--warn-ink);
+      }
+
+      .alert-outcome[data-tone="ok"] {
+        background: var(--ok-tint);
+        color: var(--ok-ink);
+      }
+</style>
+<!-- alert-thresholds.html authored script -->
+<script type="module">
+      import { afterPresentation, keepsText } from "/runtime/widget-api.js";
+
+      const ALERTS = [
+        {
+          key: "rate",
+          name: "payments-5xx-rate",
+          rotation: "payments on-call",
+          today: "1%",
+          route: "page",
+          rows: {
+            "0.5%": ["over 0.5%", 31, 3],
+            "1%": ["over 1%", 12, 3],
+            "2%": ["over 2%", 4, 3],
+            "5%": ["over 5%", 1, 1],
+          },
+        },
+        {
+          key: "latency",
+          name: "payments-p99-latency",
+          rotation: "payments on-call",
+          today: "800ms",
+          route: "page",
+          rows: {
+            "600ms": ["over 600 ms", 44, 2],
+            "800ms": ["over 800 ms", 19, 2],
+            "1200ms": ["over 1,200 ms", 5, 2],
+            "2000ms": ["over 2,000 ms", 0, 0],
+          },
+        },
+        {
+          key: "declines",
+          name: "card-auth-decline-spike",
+          rotation: "payments on-call",
+          today: "2x",
+          route: "ticket",
+          rows: {
+            "1.5x": ["over 1.5×", 9, 1],
+            "2x": ["over 2×", 3, 1],
+            "3x": ["over 3×", 1, 1],
+          },
+        },
+        {
+          key: "webhooks",
+          name: "webhook-backlog",
+          rotation: "payments on-call",
+          today: "5000",
+          route: "page",
+          rows: {
+            1000: ["over 1,000", 22, 0],
+            5000: ["over 5,000", 6, 1],
+            20000: ["over 20,000", 1, 1],
+          },
+        },
+        {
+          key: "ledger",
+          name: "ledger-reconciliation-lag",
+          rotation: "finance-ops",
+          today: "90min",
+          route: "off",
+          rows: {
+            "60min": ["over 60 min", 14, 2],
+            "90min": ["over 90 min", 7, 2],
+            "180min": ["over 180 min", 2, 2],
+          },
+        },
+        {
+          key: "cert",
+          name: "gateway-cert-expiry",
+          rotation: "payments on-call",
+          today: "14d",
+          route: "ticket",
+          rows: {
+            "30d": ["under 30 days", 1, 1],
+            "14d": ["under 14 days", 1, 1],
+            "7d": ["under 7 days", 1, 1],
+          },
+        },
+      ];
+      const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+      function outcome(alert, values) {
+        const route = values[`${alert.key}-route`];
+        const [, fired, real] = alert.rows[values[`${alert.key}-threshold`]];
+        const seen = Math.max(...Object.values(alert.rows).map((row) => row[2]));
+        const missed = seen - (route === "off" ? 0 : real);
+        const head =
+          route === "page"
+            ? `${plural(fired, "page")} to ${alert.rotation}: ${real} real, ${fired - real} false`
+            : route === "ticket"
+              ? `${plural(fired, "ticket")}: ${real} real, ${fired - real} false`
+              : "Off: nothing fires";
+        const tail = !seen
+          ? ""
+          : missed
+            ? ` · misses ${plural(missed, "real incident")}`
+            : ` · catches ${seen === 1 ? "the" : `all ${seen}`} real`;
+        const tone = missed
+          ? "danger"
+          : route === "page" && fired > real
+            ? "warn"
+            : "ok";
+        return { route, fired, real, missed, text: head + tail, tone };
+      }
+
+      function totals(values) {
+        const sum = { oncall: 0, false: 0, finance: 0, tickets: 0, missed: 0 };
+        for (const alert of ALERTS) {
+          const result = outcome(alert, values);
+          sum.missed += result.missed;
+          if (result.route === "ticket") sum.tickets += result.fired;
+          if (result.route !== "page") continue;
+          const finance = alert.rotation === "finance-ops";
+          if (finance) sum.finance += result.fired;
+          if (!finance || values["finance-counts"]) {
+            sum.oncall += result.fired;
+            sum.false += result.fired - result.real;
+          }
+        }
+        return sum;
+      }
+
+      const keepsTone = (element, tone) => {
+        if (element.dataset.tone !== tone) element.dataset.tone = tone;
+      };
+
+      function paint(values, today) {
+        for (const alert of ALERTS) {
+          const pair = document.getElementById(`alert-${alert.key}`);
+          const chosen = values[`${alert.key}-threshold`];
+          for (const row of pair.querySelectorAll("tr[data-threshold]"))
+            row.classList.toggle("chosen", row.dataset.threshold === chosen);
+          const result = outcome(alert, values);
+          const line = pair.querySelector("[data-outcome]");
+          keepsText(line, result.text);
+          keepsTone(line, result.tone);
+        }
+        const now = totals(values);
+        const before = totals(today);
+        for (const item of document.querySelectorAll("[data-total]")) {
+          const key = item.dataset.total;
+          keepsText(item.querySelector("strong"), now[key]);
+          keepsText(
+            item.querySelector("span"),
+            key === "oncall"
+              ? `of ${values.budget} allowed · today ${before[key]}`
+              : `today ${before[key]}`,
+          );
+          keepsTone(
+            item,
+            key === "oncall"
+              ? now.oncall > values.budget
+                ? "danger"
+                : "ok"
+              : ["missed", "false"].includes(key)
+                ? now[key]
+                  ? "danger"
+                  : "ok"
+                : "",
+          );
+        }
+      }
+
+      function instruction(values) {
+        const settings = ALERTS.map((alert) => {
+          const route = values[`${alert.key}-route`];
+          const [label] = alert.rows[values[`${alert.key}-threshold`]];
+          const action =
+            route === "page"
+              ? `page ${alert.rotation}`
+              : route === "ticket"
+                ? "open a ticket"
+                : "off";
+          return `${alert.name} ${label}, ${action}`;
+        });
+        return (
+          `Apply these settings to payments-api's alerts in the monitoring config: ${settings.join("; ")}. ` +
+          `Hold payments on-call to ${values.budget} pages per 30 days` +
+          `${values["finance-counts"] ? ", counting finance-ops pages" : ""}, ` +
+          "and show me the config diff."
+        );
+      }
+
+      // What each alert does today: the replay's other column of comparison.
+      const today = {
+        budget: 10,
+        "finance-counts": false,
+        ...Object.fromEntries(
+          ALERTS.flatMap((alert) => [
+            [`${alert.key}-threshold`, alert.today],
+            [`${alert.key}-route`, alert.route],
+          ]),
+        ),
+      };
+      afterPresentation(() => {
+        const playground = document.getElementById("alert-playground");
+        playground.registerInstructionProvider(instruction);
+        paint(playground.values, today);
+        playground.addEventListener("lf-playground-change", (event) =>
+          paint(event.detail.values, today),
+        );
+      });
     </script>
 <!-- live-progress.html authored styles -->
 <style>
@@ -1100,6 +1454,14 @@
         #lp-status {
           grid-template-columns: repeat(4, minmax(0, 1fr));
         }
+      }
+</style>
+<!-- alert-review.html authored styles -->
+<style>
+      /* Each alert is one decision read top to bottom, so it keeps the evidence width
+         rather than spreading its lines across a wide window. */
+      #ar-queue > lf-tab > * {
+        max-inline-size: var(--wide);
       }
 </style>
 <!-- pr-walkthrough.html authored styles -->
@@ -2060,58 +2422,56 @@
           output.hidden = false;
         });
 
-      void afterPresentation(() => {
-        const titleSample = document.querySelector("#bg-title-sheen-sample");
-        let titleRequested = false;
-        let shownTitleRevision = null;
-        const showPendingTitle = () => {
-          const ready = titleSample.ready;
-          if (!titleRequested || !ready || shownTitleRevision === ready) return;
-          shownTitleRevision = ready;
-          void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
-        };
-        document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
-          titleRequested = true;
-          shownTitleRevision = null;
-          showPendingTitle();
-        });
-        titleSample.addEventListener("lf-sample-ready", showPendingTitle);
-        void titleSample.ready.then(showPendingTitle);
+      await customElements.whenDefined("lf-sample");
 
-        const sample = document.querySelector("#bg-panel-sample");
-        let selected = null;
-        function selectPanelView(view) {
-          selected = view;
-          for (const button of document.querySelectorAll("#bg-panel-presets button")) {
-            const pressed = String(button.dataset.view === view);
-            if (button.getAttribute("aria-pressed") !== pressed)
-              button.setAttribute("aria-pressed", pressed);
-          }
-          const thread = {
-            overview: "72e031c5bf0d485ba9054628e09869d4",
-            you: "2be2443f0bb6cc49fc86b52f340e6073",
-            resolved: "bab3cdfcfb8c02aacbb27da731de947a",
-            summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
-            progress: "bg-progress-question",
-          }[view];
-          void sample.showThread(thread, {
-            surface: "panel",
-            status: view === "resolved" ? "resolved" : "open",
-            waiting: view === "you" ? "user" : "all",
-          });
-        }
+      const titleSample = document.querySelector("#bg-title-sheen-sample");
+      let titleRequested = false;
+      let shownTitleRevision = null;
+      const showPendingTitle = () => {
+        const ready = titleSample.ready;
+        if (!titleRequested || !ready || shownTitleRevision === ready) return;
+        shownTitleRevision = ready;
+        void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
+      };
+      document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
+        titleRequested = true;
+        shownTitleRevision = null;
+        showPendingTitle();
+      });
+      titleSample.addEventListener("lf-sample-ready", showPendingTitle);
+      void titleSample.ready.then(showPendingTitle);
 
+      const sample = document.querySelector("#bg-panel-sample");
+      let selected = null;
+      function selectPanelView(view) {
+        selected = view;
         for (const button of document.querySelectorAll("#bg-panel-presets button")) {
-          button.addEventListener("click", () => selectPanelView(button.dataset.view));
+          const pressed = String(button.dataset.view === view);
+          if (button.getAttribute("aria-pressed") !== pressed)
+            button.setAttribute("aria-pressed", pressed);
         }
-        document
-          .querySelector("#bg-panel-width")
-          .addEventListener("change", (event) => {
-            sample.style.maxWidth = event.target.value;
-          });
-        sample.addEventListener("lf-sample-ready", () => {
-          if (selected) selectPanelView(selected);
+        const thread = {
+          overview: "72e031c5bf0d485ba9054628e09869d4",
+          you: "2be2443f0bb6cc49fc86b52f340e6073",
+          resolved: "bab3cdfcfb8c02aacbb27da731de947a",
+          summary: "9ee465bb3f9c1fa309ea9cb1767fa365",
+          progress: "bg-progress-question",
+        }[view];
+        void sample.showThread(thread, {
+          surface: "panel",
+          status: view === "resolved" ? "resolved" : "open",
+          waiting: view === "you" ? "user" : "all",
         });
+      }
+
+      for (const button of document.querySelectorAll("#bg-panel-presets button")) {
+        button.addEventListener("click", () => selectPanelView(button.dataset.view));
+      }
+      document.querySelector("#bg-panel-width").addEventListener("change", (event) => {
+        sample.style.maxWidth = event.target.value;
+      });
+      sample.addEventListener("lf-sample-ready", () => {
+        if (selected) selectPanelView(selected);
       });
     </script>
 </head>
@@ -3069,6 +3429,616 @@ export const summarize = checks =>
       </section>
 </lf-tab>
 
+<lf-tab id="corpus-alert-thresholds" label="Thresholds">
+<h1 id="alert-title">Tune payments-api's alert thresholds</h1>
+      <p class="lede" id="alert-lede">
+        On-call asked for at most 10 pages a month, every page a real incident, and a
+        ticket for anything real but not urgent. Each alert below shows what it would
+        have done between 12 September and 11 October at each threshold.
+      </p>
+      <lf-ask id="alert-ask">
+        <h2>Which threshold and route should each alert use?</h2>
+        <p id="alert-premise">
+          Each alert's threshold and route stand beside its replay; the page budget, and
+          whether finance-ops pages count against it, apply to every alert.
+        </p>
+        <lf-playground
+          id="alert-playground"
+          submit-label="Apply these settings"
+          data-width="available"
+        >
+          <lf-playground-control
+            name="budget"
+            label="On-call page budget, per 30 days"
+            kind="range"
+            value="10"
+            min="0"
+            max="30"
+          ></lf-playground-control>
+          <lf-playground-control
+            name="finance-counts"
+            label="Count finance-ops pages in the budget"
+            kind="toggle"
+            value="false"
+          ></lf-playground-control>
+          <lf-playground-preview id="alert-preview">
+            <div class="alert-board">
+              <dl
+                class="alert-totals"
+                aria-label="Last 30 days with these settings"
+                aria-live="polite"
+              >
+                <div class="alert-total" data-total="oncall" data-tone="danger">
+                  <dt>Payments on-call pages</dt>
+                  <dd><strong>37</strong> <span>of 10 allowed · today 37</span></dd>
+                </div>
+                <div class="alert-total" data-total="false" data-tone="danger">
+                  <dt>False pages</dt>
+                  <dd><strong>31</strong> <span>today 31</span></dd>
+                </div>
+                <div class="alert-total" data-total="finance" data-tone="">
+                  <dt>Finance-ops pages</dt>
+                  <dd><strong>0</strong> <span>today 0</span></dd>
+                </div>
+                <div class="alert-total" data-total="tickets" data-tone="">
+                  <dt>Tickets</dt>
+                  <dd><strong>4</strong> <span>today 4</span></dd>
+                </div>
+                <div class="alert-total" data-total="missed" data-tone="danger">
+                  <dt>Real incidents missed</dt>
+                  <dd><strong>2</strong> <span>today 2</span></dd>
+                </div>
+              </dl>
+              <div class="alert-pair" id="alert-rate" data-alert="rate">
+                <article class="alert-evidence" id="alert-rate-evidence">
+                  <header class="alert-head">
+                    <h3><code>payments-5xx-rate</code></h3>
+                    <span class="alert-today">Today: over 1%, pages</span>
+                  </header>
+                  <p class="alert-what">
+                    Share of requests returning a 5xx, over 5 minutes.
+                  </p>
+                  <table class="alert-replay" id="alert-rate-replay">
+                    <thead>
+                      <tr>
+                        <th scope="col">Threshold</th>
+                        <th scope="col" class="num">Fired</th>
+                        <th scope="col" class="num">Real</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr data-threshold="0.5%">
+                        <th scope="row">over 0.5%</th>
+                        <td class="num">31</td>
+                        <td class="num">3</td>
+                      </tr>
+                      <tr data-threshold="1%" class="chosen">
+                        <th scope="row">over 1% <span class="tag">today</span></th>
+                        <td class="num">12</td>
+                        <td class="num">3</td>
+                      </tr>
+                      <tr data-threshold="2%">
+                        <th scope="row">over 2%</th>
+                        <td class="num">4</td>
+                        <td class="num">3</td>
+                      </tr>
+                      <tr data-threshold="5%">
+                        <th scope="row">over 5%</th>
+                        <td class="num">1</td>
+                        <td class="num">1</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p class="alert-note">
+                    Over 5% would have missed the 19 September partial outage and the 26
+                    September card-network incident.
+                  </p>
+                  <p class="alert-outcome" data-outcome data-tone="warn">
+                    12 pages to payments on-call: 3 real, 9 false · catches all 3 real
+                  </p>
+                </article>
+                <section
+                  class="alert-settings"
+                  id="alert-rate-settings"
+                  aria-label="payments-5xx-rate settings"
+                >
+                  <lf-playground-control
+                    name="rate-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="1%"
+                  >
+                    <lf-playground-choice
+                      value="0.5%"
+                      label="over 0.5%"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="1%"
+                      label="over 1%"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="2%"
+                      label="over 2%"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="5%"
+                      label="over 5%"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                  <lf-playground-control
+                    name="rate-route"
+                    label="Route"
+                    kind="choice"
+                    value="page"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="off"
+                      label="Off"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                </section>
+              </div>
+              <div class="alert-pair" id="alert-latency" data-alert="latency">
+                <article class="alert-evidence" id="alert-latency-evidence">
+                  <header class="alert-head">
+                    <h3><code>payments-p99-latency</code></h3>
+                    <span class="alert-today">Today: over 800 ms, pages</span>
+                  </header>
+                  <p class="alert-what">p99 latency over 10 minutes.</p>
+                  <table class="alert-replay" id="alert-latency-replay">
+                    <thead>
+                      <tr>
+                        <th scope="col">Threshold</th>
+                        <th scope="col" class="num">Fired</th>
+                        <th scope="col" class="num">Real</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr data-threshold="600ms">
+                        <th scope="row">over 600 ms</th>
+                        <td class="num">44</td>
+                        <td class="num">2</td>
+                      </tr>
+                      <tr data-threshold="800ms" class="chosen">
+                        <th scope="row">over 800 ms <span class="tag">today</span></th>
+                        <td class="num">19</td>
+                        <td class="num">2</td>
+                      </tr>
+                      <tr data-threshold="1200ms">
+                        <th scope="row">over 1,200 ms</th>
+                        <td class="num">5</td>
+                        <td class="num">2</td>
+                      </tr>
+                      <tr data-threshold="2000ms">
+                        <th scope="row">over 2,000 ms</th>
+                        <td class="num">0</td>
+                        <td class="num">0</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p class="alert-outcome" data-outcome data-tone="warn">
+                    19 pages to payments on-call: 2 real, 17 false · catches all 2 real
+                  </p>
+                </article>
+                <section
+                  class="alert-settings"
+                  id="alert-latency-settings"
+                  aria-label="payments-p99-latency settings"
+                >
+                  <lf-playground-control
+                    name="latency-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="800ms"
+                  >
+                    <lf-playground-choice
+                      value="600ms"
+                      label="over 600 ms"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="800ms"
+                      label="over 800 ms"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="1200ms"
+                      label="over 1,200 ms"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="2000ms"
+                      label="over 2,000 ms"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                  <lf-playground-control
+                    name="latency-route"
+                    label="Route"
+                    kind="choice"
+                    value="page"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="off"
+                      label="Off"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                </section>
+              </div>
+              <div class="alert-pair" id="alert-declines" data-alert="declines">
+                <article class="alert-evidence" id="alert-declines-evidence">
+                  <header class="alert-head">
+                    <h3><code>card-auth-decline-spike</code></h3>
+                    <span class="alert-today">Today: over 2×, opens a ticket</span>
+                  </header>
+                  <p class="alert-what">
+                    Card authorization declines against their 7-day baseline, for 15
+                    minutes.
+                  </p>
+                  <table class="alert-replay" id="alert-declines-replay">
+                    <thead>
+                      <tr>
+                        <th scope="col">Threshold</th>
+                        <th scope="col" class="num">Fired</th>
+                        <th scope="col" class="num">Real</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr data-threshold="1.5x">
+                        <th scope="row">over 1.5×</th>
+                        <td class="num">9</td>
+                        <td class="num">1</td>
+                      </tr>
+                      <tr data-threshold="2x" class="chosen">
+                        <th scope="row">over 2× <span class="tag">today</span></th>
+                        <td class="num">3</td>
+                        <td class="num">1</td>
+                      </tr>
+                      <tr data-threshold="3x">
+                        <th scope="row">over 3×</th>
+                        <td class="num">1</td>
+                        <td class="num">1</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p class="alert-outcome" data-outcome data-tone="ok">
+                    3 tickets: 1 real, 2 false · catches the real
+                  </p>
+                </article>
+                <section
+                  class="alert-settings"
+                  id="alert-declines-settings"
+                  aria-label="card-auth-decline-spike settings"
+                >
+                  <lf-playground-control
+                    name="declines-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="2x"
+                  >
+                    <lf-playground-choice
+                      value="1.5x"
+                      label="over 1.5×"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="2x"
+                      label="over 2×"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="3x"
+                      label="over 3×"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                  <lf-playground-control
+                    name="declines-route"
+                    label="Route"
+                    kind="choice"
+                    value="ticket"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="off"
+                      label="Off"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                </section>
+              </div>
+              <div class="alert-pair" id="alert-webhooks" data-alert="webhooks">
+                <article class="alert-evidence" id="alert-webhooks-evidence">
+                  <header class="alert-head">
+                    <h3><code>webhook-backlog</code></h3>
+                    <span class="alert-today">Today: over 5,000, pages</span>
+                  </header>
+                  <p class="alert-what">Undelivered merchant webhooks in the queue.</p>
+                  <table class="alert-replay" id="alert-webhooks-replay">
+                    <thead>
+                      <tr>
+                        <th scope="col">Threshold</th>
+                        <th scope="col" class="num">Fired</th>
+                        <th scope="col" class="num">Real</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr data-threshold="1000">
+                        <th scope="row">over 1,000</th>
+                        <td class="num">22</td>
+                        <td class="num">0</td>
+                      </tr>
+                      <tr data-threshold="5000" class="chosen">
+                        <th scope="row">over 5,000 <span class="tag">today</span></th>
+                        <td class="num">6</td>
+                        <td class="num">1</td>
+                      </tr>
+                      <tr data-threshold="20000">
+                        <th scope="row">over 20,000</th>
+                        <td class="num">1</td>
+                        <td class="num">1</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p class="alert-outcome" data-outcome data-tone="warn">
+                    6 pages to payments on-call: 1 real, 5 false · catches the real
+                  </p>
+                </article>
+                <section
+                  class="alert-settings"
+                  id="alert-webhooks-settings"
+                  aria-label="webhook-backlog settings"
+                >
+                  <lf-playground-control
+                    name="webhooks-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="5000"
+                  >
+                    <lf-playground-choice
+                      value="1000"
+                      label="over 1,000"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="5000"
+                      label="over 5,000"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="20000"
+                      label="over 20,000"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                  <lf-playground-control
+                    name="webhooks-route"
+                    label="Route"
+                    kind="choice"
+                    value="page"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="off"
+                      label="Off"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                </section>
+              </div>
+              <div class="alert-pair" id="alert-ledger" data-alert="ledger">
+                <article class="alert-evidence" id="alert-ledger-evidence">
+                  <header class="alert-head">
+                    <h3><code>ledger-reconciliation-lag</code></h3>
+                    <span class="alert-today">Today: over 90 min, off</span>
+                  </header>
+                  <p class="alert-what">
+                    Minutes since the last successful ledger reconciliation run.
+                  </p>
+                  <table class="alert-replay" id="alert-ledger-replay">
+                    <thead>
+                      <tr>
+                        <th scope="col">Threshold</th>
+                        <th scope="col" class="num">Fired</th>
+                        <th scope="col" class="num">Real</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr data-threshold="60min">
+                        <th scope="row">over 60 min</th>
+                        <td class="num">14</td>
+                        <td class="num">2</td>
+                      </tr>
+                      <tr data-threshold="90min" class="chosen">
+                        <th scope="row">over 90 min <span class="tag">today</span></th>
+                        <td class="num">7</td>
+                        <td class="num">2</td>
+                      </tr>
+                      <tr data-threshold="180min">
+                        <th scope="row">over 180 min</th>
+                        <td class="num">2</td>
+                        <td class="num">2</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p class="alert-note">
+                    Off since August, after a noisy weekend. Both real firings were
+                    reconciliation runs that silently stopped; finance found them two
+                    days later.
+                  </p>
+                  <p class="alert-outcome" data-outcome data-tone="danger">
+                    Off: nothing fires · misses 2 real incidents
+                  </p>
+                </article>
+                <section
+                  class="alert-settings"
+                  id="alert-ledger-settings"
+                  aria-label="ledger-reconciliation-lag settings"
+                >
+                  <lf-playground-control
+                    name="ledger-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="90min"
+                  >
+                    <lf-playground-choice
+                      value="60min"
+                      label="over 60 min"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="90min"
+                      label="over 90 min"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="180min"
+                      label="over 180 min"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                  <lf-playground-control
+                    name="ledger-route"
+                    label="Route"
+                    kind="choice"
+                    value="off"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="off"
+                      label="Off"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                  <p class="alert-owner">
+                    Finance owns this alert: its pages go to the finance-ops rotation,
+                    not payments on-call.
+                  </p>
+                </section>
+              </div>
+              <div class="alert-pair" id="alert-cert" data-alert="cert">
+                <article class="alert-evidence" id="alert-cert-evidence">
+                  <header class="alert-head">
+                    <h3><code>gateway-cert-expiry</code></h3>
+                    <span class="alert-today"
+                      >Today: under 14 days, opens a ticket</span
+                    >
+                  </header>
+                  <p class="alert-what">
+                    Days until the payment gateway’s TLS certificate expires.
+                  </p>
+                  <table class="alert-replay" id="alert-cert-replay">
+                    <thead>
+                      <tr>
+                        <th scope="col">Threshold</th>
+                        <th scope="col" class="num">Fired</th>
+                        <th scope="col" class="num">Real</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr data-threshold="30d">
+                        <th scope="row">under 30 days</th>
+                        <td class="num">1</td>
+                        <td class="num">1</td>
+                      </tr>
+                      <tr data-threshold="14d" class="chosen">
+                        <th scope="row">
+                          under 14 days <span class="tag">today</span>
+                        </th>
+                        <td class="num">1</td>
+                        <td class="num">1</td>
+                      </tr>
+                      <tr data-threshold="7d">
+                        <th scope="row">under 7 days</th>
+                        <td class="num">1</td>
+                        <td class="num">1</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p class="alert-note">
+                    It fires once per renewal whatever the threshold; only the warning
+                    time changes.
+                  </p>
+                  <p class="alert-outcome" data-outcome data-tone="ok">
+                    1 ticket: 1 real, 0 false · catches the real
+                  </p>
+                </article>
+                <section
+                  class="alert-settings"
+                  id="alert-cert-settings"
+                  aria-label="gateway-cert-expiry settings"
+                >
+                  <lf-playground-control
+                    name="cert-threshold"
+                    label="Threshold"
+                    kind="choice"
+                    value="14d"
+                  >
+                    <lf-playground-choice
+                      value="30d"
+                      label="under 30 days"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="14d"
+                      label="under 14 days"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="7d"
+                      label="under 7 days"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                  <lf-playground-control
+                    name="cert-route"
+                    label="Route"
+                    kind="choice"
+                    value="ticket"
+                  >
+                    <lf-playground-choice
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="ticket"
+                      label="Ticket"
+                    ></lf-playground-choice>
+                    <lf-playground-choice
+                      value="off"
+                      label="Off"
+                    ></lf-playground-choice>
+                  </lf-playground-control>
+                </section>
+              </div>
+            </div>
+          </lf-playground-preview>
+          <lf-playground-output id="alert-instruction">
+            Apply these alert settings to payments-api's monitoring config and show me
+            the config diff.
+          </lf-playground-output>
+        </lf-playground>
+      </lf-ask>
+</lf-tab>
+
 <lf-tab id="corpus-live-progress" label="Live">
 <header>
         <p class="eyebrow">release · production · checkout-v2</p>
@@ -3335,7 +4305,7 @@ export const summarize = checks =>
           group="Mostly noise"
           summary="0 of 47 pages real"
         >
-          <lf-ask id="ar-canary-decision" data-width="wide">
+          <lf-ask id="ar-canary-decision">
             <h4>How should the canary probe page?</h4>
             <dl class="facts">
               <dt>Rule</dt>
@@ -3488,7 +4458,7 @@ export const summarize = checks =>
           group="Mostly noise"
           summary="0 of 18 pages real"
         >
-          <lf-ask id="ar-export-decision" data-width="wide">
+          <lf-ask id="ar-export-decision">
             <h4>What should happen during the nightly batch?</h4>
             <p>Finance reads the export at 07:00 UTC.</p>
             <dl class="facts">
@@ -3629,7 +4599,7 @@ export const summarize = checks =>
           group="Mostly noise"
           summary="1 of 3 pages real"
         >
-          <lf-ask id="ar-3ds-decision" data-width="wide">
+          <lf-ask id="ar-3ds-decision">
             <h4>Should one issuer's outage page us?</h4>
             <p>Per-issuer failure rates are already on the payments dashboard.</p>
             <dl class="facts">
@@ -5983,8 +6953,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                   </lf-option>
                   <lf-option id="api-land-as-is">
                     <strong>Land as-is — discard revision</strong> Merge tree-w-3
-                    (atlas/public-api) over a standing change request and reap its
-                    reviser.
+                    (atlas/public-api) over an open change request and reap its reviser.
                   </lf-option>
                 </lf-options>
               </lf-ask>
@@ -6762,6 +7731,61 @@ observe --cohort staff</code></pre>
       </lf-tabs>
 </lf-tab>
 
+<lf-tab id="corpus-thread-choice-hints" label="Thread Choice Hints">
+<h1 id="heading">Heating the bird bath</h1>
+      <lf-ask id="heating-decision">
+        <h2>Which heater should we use?</h2>
+        <p>
+          The bath froze eleven mornings last winter. Both heaters would keep it usable,
+          but the cable takes more work to fit around the basin.
+        </p>
+        <table id="comparison">
+          <thead>
+            <tr>
+              <th>Requirement</th>
+              <th>Immersion heater</th>
+              <th>Heated cable</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th>Installation</th>
+              <td>Drop into the water.</td>
+              <td>Wrap around the basin.</td>
+            </tr>
+            <tr>
+              <th>Maintenance</th>
+              <td>Lift out to clean.</td>
+              <td>Leave fitted while cleaning.</td>
+            </tr>
+            <tr>
+              <th>When spring arrives</th>
+              <td>Store indoors.</td>
+              <td>Disconnect the power.</td>
+            </tr>
+          </tbody>
+        </table>
+        <lf-options id="heaters" choose>
+          <lf-option id="immersion"
+            ><strong>Fit an immersion heater</strong>
+            <p>
+              This is the simpler installation. It drops into the water and can be
+              lifted out for cleaning or stored indoors when spring arrives.
+            </p></lf-option
+          >
+          <lf-option id="cable"
+            ><strong>Wrap a heated cable around the basin</strong>
+            <p>
+              The cable can stay in place through the year. It takes more work to fit
+              but keeps the basin clear for the birds.
+            </p></lf-option
+          >
+        </lf-options>
+      </lf-ask>
+      <h2 id="next">Next question</h2>
+      <p>Continue after reading the discussion.</p>
+</lf-tab>
+
 <lf-tab id="corpus-thread-journey-inline" label="Thread Journey Inline">
 <h1 id="title">Review the changed line</h1>
       <p id="plan">Keep the shipping order visible while we discuss this change.</p>
@@ -6803,9 +7827,9 @@ observe --cohort staff</code></pre>
 <h1 id="dfg-title">Review app.py</h1>
       <p id="dfg-guide">
         Two fictional conversations sit below the same file. Reply to one while keeping
-        the other separate. Resolve a conversation with its check, then open its
-        resolved summary to reopen it. Comment on app.py starts another conversation
-        without opening the patch.
+        the other separate. Resolve a conversation with its check, then open Resolved
+        below them to reopen it. Comment on app.py starts another conversation without
+        opening the patch.
       </p>
       <script id="dfg-history" type="application/json">
         [
@@ -6856,33 +7880,34 @@ observe --cohort staff</code></pre>
           <section id="bg-core-surfaces">
             <p class="eyebrow bg-feature-elements">lf-ask · lf-options · lf-option</p>
             <h2>
-              <strong>Questions</strong
+              <strong>On me</strong
               ><span class="bg-feature-detail">: decisions and answers</span>
             </h2>
             <p id="bg-core-surfaces-guide">
               An <code>lf-ask</code> puts a heading and context around the choice below.
-              Your questions are everything waiting on you: open asks, threads whose
-              question is yours to answer (such as the gallery thread about a pasted
-              image), to-dos the agent put on you, and updates whose reply failed and
-              need sending again.
+              <strong>On me</strong> lists everything waiting on you: open asks, threads
+              whose question is yours to answer (such as the gallery thread about a
+              pasted image), to-dos the agent put on you, and updates whose reply failed
+              and need sending again.
             </p>
             <ul id="bg-core-surfaces-steps">
               <li>
-                Press <kbd>q</kbd>: the page moves to your next question in page order,
-                and <kbd>Shift+Q</kbd> walks back. Where that question is in another
+                Press <kbd>m</kbd>: the page moves to the next item on you in page
+                order, and <kbd>Shift+M</kbd> walks back. Where that item is in another
                 view, it appears at once and the view's tab name briefly highlights;
                 with reduced motion, there is no glide or highlight.
               </li>
               <li>
-                Look at the banner: the <strong>Questions</strong> control beside
-                Threads counts your questions, and the agent's Tasks count follows its
-                status.
+                Look at the banner: the <strong>On me</strong> control beside Threads
+                counts what is on you, and the agent's count, such as
+                <strong>On Claude: 1</strong>, follows its status.
               </li>
               <li>
-                Press either, or <kbd>g</kbd> then <kbd>Shift+Q</kbd>: the experimental
-                Questions panel opens where Threads opens, with both lists and with
-                answered asks and ended to-dos folded under Done. Press Enter on a row:
-                it goes where <kbd>q</kbd> would.
+                Press either, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the experimental
+                On panel opens where Threads opens, on the list you pressed, with a tab
+                for the other. What left each list is folded under it as Done: answered
+                asks under On me, sent replies and ended to-dos under the agent's. Press
+                Enter on a row: it goes where <kbd>m</kbd> would.
               </li>
               <li>
                 On a stamped page that asks for sign-off, find the version approval
@@ -6890,7 +7915,7 @@ observe --cohort staff</code></pre>
                 answers it, and Undo reopens it.
               </li>
               <li>
-                Comment on the map question, then press <kbd>q</kbd> until it lands
+                Comment on the map question, then press <kbd>m</kbd> until it lands
                 there: the discussion stays closed while you read and choose, even when
                 Tab enters the controls. Press <kbd>c</kbd> to reply in that discussion,
                 <kbd>t</kbd> to read it, or, under a finger, its Thread marker to open
@@ -6927,14 +7952,14 @@ observe --cohort staff</code></pre>
               </p>
               <ul>
                 <li>
-                  Open the Questions panel: the to-do waits under Questions, and its row
-                  has a Done button.
+                  Open the On panel: the to-do waits under On me, and its row has a Done
+                  button.
                 </li>
                 <li>
-                  Press <kbd>q</kbd> until it lands on the to-do, after the ask above,
+                  Press <kbd>m</kbd> until it lands on the to-do, after the ask above,
                   then press <kbd>x</kbd>, or under a finger the banner's
-                  <strong>Done</strong>: the to-do moves to the panel's Done fold, and
-                  the agent is told.
+                  <strong>Done</strong>: the to-do moves to On me's Done fold, and the
+                  agent is told.
                 </li>
               </ul>
             </section>
@@ -7003,7 +8028,7 @@ observe --cohort staff</code></pre>
             <p id="bg-core-controls-guide">
               The banner also shows <strong>Threads</strong>, the
               <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
-              then <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd>
+              then <kbd>Shift+P</kbd>), <strong>Command reference</strong> (<kbd>?</kbd>
               twice), and <strong>All pages</strong> when another Leaf page is live. A
               quiet status line at the bottom right reports the current keyboard walk or
               a useful command result. It moves above the bottom-left shortcuts when
@@ -7277,8 +8302,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <ul id="bg-drawing-comments-steps">
                 <li>
                   Look at the comment box: it pictures the page beneath the drawing,
-                  beside Undo last stroke and Remove drawing. Send the drawing alone, or
-                  add words first.
+                  beside Undo last stroke and Remove drawing. Click the drawing to
+                  inspect its frozen page context and ink; <kbd>z</kbd> toggles fit and
+                  native size when the image is larger than the window. Close Image
+                  preview to return to the same draft. Send the drawing alone, or add
+                  words first.
                 </li>
                 <li>
                   In the box, press <kbd>⌘Z</kbd> and <kbd>⌘⇧Z</kbd>: strokes and words
@@ -7648,7 +8676,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </li>
                 <li>
                   Start a conversation and mark the proofreading to-do Done: the
-                  package's lists and Leaf's Questions panel show the same outcomes.
+                  package's lists and Leaf's On panel show the same outcomes.
                 </li>
                 <li>
                   Use first-unread and question navigation: each lands in this reader.
@@ -8005,7 +9033,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Choose “Progress messages” in the practice page, then use “Show 2
                 progress messages” beside the answer’s timestamp with a press or Enter.
                 Expanded progress runs have an inset border and ordinary message headers
-                on the page’s normal background. User replies separate the groups.
+                on the page’s normal background. User replies separate the groups. The
+                later room check has no answer yet, so it stands as a dim working
+                message above the reply box rather than as a reply, and counts nothing
+                unread.
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread,
@@ -8180,8 +9211,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Walk the list with the up and down arrows: they pass the headings by.
               </li>
               <li>
-                Press Next question in the tally: it opens the first item's ask, whose
-                row carries an open mark.
+                Press Next on me in the tally: it opens the first item's ask, whose row
+                carries an open mark.
               </li>
               <li>
                 Answer the ask: its row shows a check and the option you picked, and the
@@ -9171,13 +10202,15 @@ gallery/
                 stays at the top of the view until the pair ends, below any page tabs.
                 This pair carries
                 <code>outlines</code>, so outlines mark each region where the two images
-                differ, on both sides of the divider. Press “Changes” to hide and
-                restore every outline. Hover or focus it to read the changed and moved
-                counts, or hold it on a phone. Slide off before releasing to leave the
-                outlines as they were. “Pixels” opens the after image greyed with every
-                changed pixel painted over it. Press Pixels again, or click the picture,
-                to return to the comparison with its divider and outline setting
-                preserved.
+                differ, on both sides of the divider. The rail offers three views:
+                Plain, Outlines, and Pixels. Outlines starts selected; Plain hides the
+                outlines, while Pixels shows the after image greyed with every changed
+                pixel painted over it: red where only Before drew something, blue where
+                only After did, and amber where both did. Use the arrow keys to select a
+                view, or choose it directly. Hover or focus Outlines to read the changed
+                and moved counts, or hold it on a phone. Slide off before releasing to
+                leave the current view selected. Clicking the pixel picture returns to
+                the previous comparison view with its divider preserved.
               </p>
               <lf-shot
                 id="bg-shot"
@@ -9188,11 +10221,10 @@ gallery/
                 after="/media/a99a1b63048502d0.png"
               ></lf-shot>
               <p id="bg-shot-plain-guide">
-                The same pair without <code>outlines</code>: nothing is marked, and the
-                rail offers no Changes control. This one carries <code>pixels</code>
-                instead: press “Pixels” with Enter to inspect the changed pixels. Choose
-                Before or After to leave it, or click the picture to return to the
-                comparison as it stood.
+                The same pair without <code>outlines</code> offers Plain and Pixels,
+                starting in Pixels, which shows what each image draws differently in one
+                picture. Selecting Pixels again keeps that view open. Choose Plain,
+                Before or After, or click the pixel picture, to see the comparison.
               </p>
               <lf-shot
                 id="bg-shot-plain"
@@ -9211,6 +10243,54 @@ gallery/
                 before="/media/051bee487bfb5d13.png"
                 after="/media/051bee487bfb5d13.png"
               ></lf-shot>
+              <p id="bg-capture-table-guide">
+                Captures that differ by something other than a version, such as the
+                moments of one journey, share a table whose heads name each column's and
+                each row's value once. Open a capture: Image preview names it by its
+                column and its row.
+              </p>
+              <table id="bg-capture-table" data-width="wide">
+                <thead>
+                  <tr>
+                    <td></td>
+                    <th scope="col">Opened</th>
+                    <th scope="col">Documentation reviewed</th>
+                    <th scope="col">API changes reviewed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row">Release review</th>
+                    <td>
+                      <a href="/media/c9f9c30f168dd264.png"
+                        ><img
+                          src="/media/c9f9c30f168dd264.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with both sections pending"
+                      /></a>
+                    </td>
+                    <td>
+                      <a href="/media/298268218fde4619.png"
+                        ><img
+                          src="/media/298268218fde4619.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with documentation reviewed and API changes pending"
+                      /></a>
+                    </td>
+                    <td>
+                      <a href="/media/006a318b091c6d1d.png"
+                        ><img
+                          src="/media/006a318b091c6d1d.png"
+                          width="960"
+                          height="640"
+                          alt="the release review with both sections reviewed"
+                      /></a>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </section>
           </section>
 

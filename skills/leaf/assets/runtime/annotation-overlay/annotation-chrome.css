@@ -166,8 +166,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     box-sizing: border-box; overflow: hidden; scroll-padding-block: var(--focus-ring-room);
     margin: 0; padding: var(--lf-comment-inset);
     border: 1px solid var(--border-2); border-radius: 10px;
-    background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade); }
-  .lf-margin-preview:not([hidden]) { display: flex; flex-direction: column; }
+    background: var(--paper); color: var(--ink); box-shadow: 0 12px 36px var(--shade);
+    display: flex; flex-direction: column; }
   /* Open before its first placement lands (thread-preview.js, `placeThreadPreview`),
      the card has no spot yet, so it is not seen or pressed where it happens to lie. */
   .lf-margin-preview:not([data-lf-thread-placement]) { opacity: 0; pointer-events: none; }
@@ -200,6 +200,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   }
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body {
     display: flex; flex-direction: column; min-height: 0;
+  }
+  /* A rewrite of those words is the thread's comment box, as wide as its reply box. */
+  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body:not(:has(> .lf-msg-editor)) {
     box-sizing: border-box; width: min(100%, calc(var(--lf-comment-message-measure) + var(--lf-comment-text-pad-end)));
   }
   /* Only the submitted words inherit a clipped editor viewport. Message metadata,
@@ -213,28 +216,17 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     max-height: var(--lf-comment-message-height); overflow-y: auto;
     padding-inline: 0 var(--lf-comment-text-pad-end);
   }
-  /* A rewrite of those words wraps them where they wrapped. It grows with them rather
-     than scroll, since a scrolling box would clip the frame and ring it draws around
-     itself, and the card's transcript scrolls. */
-  .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-editor {
-    box-sizing: border-box; padding-inline-end: var(--lf-comment-text-pad-end);
-  }
   /* The editor's room for Send, held where the editor held it when the words were sent
      (text-field.js, `endRoom`): on every line, after the last words only — the last
      paragraph of words, before any pasted images, or a suggestion's text — or, where
      the draft ended on a blank line, nowhere. */
   .lf-margin-preview[data-lf-comment-frame="every-line"] .lf-msg:first-of-type > .lf-msg-body
-    > :is(.lf-msg-text, .lf-msg-editor) {
+    > .lf-msg-text {
     padding-inline-end: calc(var(--lf-comment-text-pad-end) + var(--lf-comment-send-room)); }
   .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text
     > p:is(:last-child, :has(+ p > .lf-message-media:only-child)):not(:has(> .lf-message-media:only-child))::after,
   .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-suggest-body > .lf-msg-text::after {
     content: ""; display: inline-block; inline-size: var(--lf-comment-send-room); }
-  /* A rewrite holds that room as the field it is holds its own action's: after its last
-     words (text-field.js). */
-  .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type
-    > .lf-msg-body > .lf-msg-editor leaf-text {
-    --lf-field-end-room: var(--lf-comment-send-room); }
   .lf-margin-preview-close { flex: none; }
   /* A floating comment surface is carried by its edge (surface-grip.js): a band
      `--lf-grip-out` outside its box and `--lf-grip-in` inside, cut out of a box over
@@ -275,7 +267,6 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-fab-bar[data-lf-target-only] > .lf-surface-grip { display: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
     gap: 0; color: var(--muted-2); font-size: 10px; }
-  .lf-margin-preview-nav[hidden] { display: none; }
   .lf-margin-preview-position { white-space: nowrap; }
   .lf-margin-preview-step { border: 0;
     background: transparent; color: var(--muted); }
@@ -315,10 +306,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     scrollbar-width: thin;
     scrollbar-color: color-mix(in srgb, var(--ink) 12%, var(--paper)) transparent;
     scroll-padding-block: var(--focus-ring-room);
-    /* Room past the words for an open progress group's border, taken from the
-       card's inset so the words keep their width and nothing scrolls sideways. */
-    padding-inline-end: var(--lf-group-ring-end);
-    margin-inline-end: calc(-1 * var(--lf-group-ring-end)); }
+    /* Room past its edges for what is drawn beyond a box: a focus ring, which a
+       rewrite reaching the reply box's edges draws outside itself as the reply box
+       does, and an open progress group's border. It is taken from the card's inset,
+       so the words keep their width and place and nothing scrolls sideways. */
+    --lf-transcript-room: max(var(--focus-ring-room), var(--lf-group-ring-end));
+    padding-inline: calc(var(--lf-thread-text-inset) + var(--lf-transcript-room))
+      var(--lf-transcript-room);
+    padding-block-end: var(--lf-transcript-room);
+    margin-inline: calc(-1 * var(--lf-transcript-room));
+    margin-block-end: calc(-1 * var(--lf-transcript-room)); }
   /* The field stands at the card's inset; words stand one inset inside it. */
   .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }
   .lf-margin-thread .lf-page-thread::after { content: none; }
@@ -360,10 +357,20 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-thread-transcript .lf-msg-meta { overflow: hidden; }
   .lf-margin-thread .lf-thread-transcript .lf-msg-sending { min-width: 0;
     overflow: hidden; text-overflow: ellipsis; }
+  /* The actions' ground hides words scrolling past beside a head. It stands beneath the
+     head's own controls, which stop short of the actions by its padding, so a focused
+     control's ring stays whole over that ground. */
   .lf-margin-thread-controls { position: absolute; inset-block-start: 0;
-    inset-inline-end: 0; z-index: 2; display: flex; align-items: center; gap: 4px;
+    inset-inline-end: 0; z-index: 1; display: flex; align-items: center; gap: 4px;
     min-height: var(--lf-msg-head-height); padding-inline-start: var(--sp-2);
     background: var(--paper); }
+  /* A held-news notice stands beside the actions over the end of the head beneath it,
+     message controls included, rather than narrowing that head, since news must not
+     rewrap it (thread-card.js, `allotMarginControls`); pressing it shows the news. */
+  .lf-margin-thread-news { position: absolute; inset-block-start: 0;
+    inset-inline-end: var(--lf-margin-controls-width, 0px); z-index: 3;
+    display: flex; align-items: center; min-height: var(--lf-msg-head-height);
+    padding-inline-start: var(--sp-2); background: var(--paper); }
   /* A sticky head and its words paint the message's one animated ground.
      Shared message rules own wrapping, including progress disclosures below the
      capped metadata when the card's actions leave too little inline room. */

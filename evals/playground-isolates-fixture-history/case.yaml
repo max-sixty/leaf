@@ -34,7 +34,8 @@ vars:
     instructions `page init` copied into the page; the same file is
     `packages/playground/instructions/author.md` inside the leaf skill's base
     directory, the directory that holds its `references/`. Read that file and
-    `references/page-authoring.md` from that same skill directory.
+    `references/page-authoring.md` and `references/live-samples.md` from that
+    same skill directory.
     Write the playground HTML with real operable Leaf candidates, including their
     initial exchange. The page directory is not reachable, so reply with the HTML.
 assert:

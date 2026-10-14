@@ -76,13 +76,13 @@ def _render_version_attempt(
     an upgrade module that never defines its declared element, an x-thread-seat whose module
     placed no matching page host, a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored
-    there would outline nothing and the Questions walk would travel to the top of the page,
+    there would outline nothing and the On me walk would travel to the top of the page,
     the page scrolling sideways, content set past the column and out into the margin,
     words the user can read and can't select, words drawn on top of other words — each
     in both color schemes at wide and compact viewports, because the dark theme and
     responsive layout are real CSS nobody otherwise renders — plus, in one scheme at
     each viewport, a word the registry promised that never reached
-    the page (a declaration is scheme-blind), an attribute a module left standing on a
+    the page (a declaration is scheme-blind), an attribute a module left on a
     widget that its entry never declared (a file's reading sees one writer, and this is
     the other), a version that authors widget state the log replays over, a widget whose
     renderState is relative, so a read's replay of the sender's own gesture moves the

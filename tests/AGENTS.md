@@ -89,10 +89,11 @@ A test in `model/` or `process/` takes under three seconds on CI's runner, about
 opening a page costs, and one in `browser/` under eight (`BUDGETS` in
 `leaf_dev/suite_profile.py`). A new test goes in the directory of the boundary it
 crosses, or in `journeys/` when it is over that budget or must not gate a pull
-request, as a test that needs the network must not. Each `test` job's summary lists
-the tests over their directory's budget and the journeys within the browser budget,
-and tend's weekly pass moves them or makes them faster. A change that wants a test in
-an earlier tier makes it cheaper rather than moving it.
+request, as a test that needs the external network must not. Mark that dependency
+`network` too. Each `test` job's summary lists the tests over their directory's
+budget and the journeys within the browser budget, and tend's weekly pass moves
+them or makes them faster. A change that wants a test in an earlier tier makes it
+cheaper rather than moving it.
 
 Directory tiers are the user's choice (2026-10-11), replacing the rule that expense
 alone never took a test out of the landing gates: a suite whose gate grows with every
@@ -116,28 +117,62 @@ Broad discovery skips both later tiers; `--run-main` adds `browser/` and
 or `--lf` runs what it names.
 Both landing gates pass `--changed-since`, which adds the tests of either later tier
 whose own source the change edits; a test moved to another module or directory
-unchanged is no edit.
+unchanged is no edit. `pytest_collection_modifyitems` in `conftest.py` lists what
+that selection misses, such as an edited fixture, and why it stays narrow. Tests
+marked `network` require an explicit selection or `--run-nightly`; broad discovery
+and `--changed-since` never add them.
+
+### Without external network access
+
+Setup needs network access to install Python/Node dependencies, browser engines and
+pinned image assets. After setup, use the installed dependencies and cache for the
+ordinary offline selection:
+
+```sh
+UV_OFFLINE=1 uv run pytest tests
+```
+
+`UV_OFFLINE` keeps uv and its child uv invocations on the setup cache. It controls uv,
+not the network permissions of Python or browsers. Local sockets must remain
+available: the suite serves pages on loopback and connects to browser drivers.
+The `network` marker isolates tests that deliberately download from external
+services, such as installation with an empty package cache. To include every tier
+while excluding those tests, use:
+
+```sh
+UV_OFFLINE=1 uv run pytest tests --run-nightly -m 'not network'
+```
+
+These selections have the same local compute constraints as online execution.
+Selecting by `-m` includes every tier. For focused local checks, name the needed
+node ids or use `-k`, with the same environment variable.
+
+### Selecting checks
 
 Before handing over, run the tests that hold the behavior you changed, in any file and
-any tier, named by node id or `-k`; find them by reading which tests
-exercise the code the change touches. Run `pnpm run test:runtime` too when the change
-reaches the runtime. A change lands through a landing gate, which runs the broad
-selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there
-that the change causes is the gate doing its job, even one your selection missed; fix
-it and push. A failure it doesn't cause, such as a test main's latest run also fails,
-blocks nothing and calls for no rerun: say so in the pull request and land it. `wt
-merge` refuses on any failure, so such a change lands through a pull request. Every
-other test is CI's to report: the `test` job in `ci.yaml` runs the `main` tier
-once main moves and every tier in the daily run, and `tend-ci-fix` answers what either
-fails. That trade is the user's choice (2026-10-04): a pull request can land green and
-break a test it never ran, and main can stay red while `tend-ci-fix` repairs it,
-so a red main is no reason to widen a change, its gate, or its test selection. One
-push suite always runs while newer commits land, and each new commit replaces the run
-waiting behind it, which GitHub records as cancelled; the daily run has a queue of its
-own. That is the design working: a suite per merge would report each commit slightly
-sooner at up to twenty times the CI usage. Root `AGENTS.md`, "Working on the
-repository", says which runs not to start by hand before landing. To learn what main
-fails, read that job's run, and reproduce a failure it
+any tier, named by node id or `-k`; find them by reading which tests exercise the code
+the change touches. Run `pnpm run test:runtime` too when the change reaches the
+runtime. A change lands through a landing gate, which runs the broad selection: a pull
+request's `test` job, or `wt merge`'s pre-merge. A failure there that the change
+causes is the gate doing its job, even one your selection missed; fix it and push. For
+now Leaf merges any change that introduces no new failure, a mode the user chose
+(2026-10-13) and may reassess as the suite and development improve. A failure the
+change doesn't cause, such as a test main's latest run also fails (run it by node id
+on main to confirm), blocks nothing and calls for no rerun: the change lands as it is.
+Name it in the pull request as inherited. So that such a change can land, `test` is
+not a required check on `main`; the user wants it required again once the suite and
+development improve. `wt merge` refuses on any failure, so such a change lands through
+a pull request. Every other test is CI's to report: the `test` job in `ci.yaml` runs
+the `main` tier once main moves and every tier in the daily run, and `tend-ci-fix`
+answers what either fails. That trade is the user's choice (2026-10-04): a pull
+request can land green and break a test it never ran, and main can stay red while
+`tend-ci-fix` repairs it, so a red main is no reason to widen a change, its gate, or
+its test selection. One push suite always runs while newer commits land, and each new
+commit replaces the run waiting behind it, which GitHub records as cancelled; the
+daily run has a queue of its own. That is the design working: a suite per merge would
+report each commit slightly sooner at up to twenty times the CI usage. Root
+`AGENTS.md`, "Working on the repository", says which runs not to start by hand before
+landing. To learn what main fails, read that job's run, and reproduce a failure it
 names by node id. `tend-ci-fix` sees only that run, so a failure on main that it does
 not show, such as one only macOS reproduces, is left to a local session. Check whether
 a live session, worktree or open pull request already covers it; if none does, start a
@@ -198,9 +233,12 @@ Where the product already answers a reading's question, such as `shownBand` for 
 band a box shows, consume that answer instead of copying it: `root_overflow` for
 whether the page scrolls sideways, `draft_key` for where a draft is stored,
 `stored_draft` for the record stored there, and `event_log.read_events` for what
-the log holds. Page-side code reaches a runtime
-module through `window.__lfRuntimeImport`; a bare `/runtime/…` import loads a second
-instance that shares none of the page's state.
+the log holds. Page-side observations use the captured document's public entries:
+`window.__lfWidgetApi()`, `window.__lfCheckApi()`, and `window.__lfClientApi()`.
+Native overlay geometry uses `window.__lfOverlayApi()`, which leaves core-only checks
+independent of the optional physical renderer. These entries share one compiled
+kernel; tests cannot import private source paths. Pure internal rules belong in
+`tests/runtime/`, where their source owner is the lowest boundary preserving them.
 
 A corpus source gets its own case only when its content is the cause under test. Put a
 probe's independent faults on one composed page beside clean controls and call the
@@ -257,7 +295,7 @@ Take each resource from its owner: a child process from `spawn`, a page server f
 `_no_page_outlives_its_test`, a preview from `preview_slot` and `start_preview`, an
 in-process HTTP server from `running_http_server`, a Unix socket directory from
 `socket_dir` (`test_the_resources_a_fixture_owns_are_taken_from_that_fixture`). A test
-of a standing server stops it explicitly, since a `Popen` handle does not own a
+of a persistent server stops it explicitly, since a `Popen` handle does not own a
 detached server's tree. The cleanup sweep reads only `isolated_session`'s state home
 and `tmp_path`, never the developer's.
 
@@ -514,7 +552,7 @@ refused it.
 
 The corpus has these matrices. Return state is anchored on a first visit
 (`arrival_findings`); semantic replay is anchored on a static authored state, applying
-standing actions or reports twice and checking the visible state and idempotence; a
+the actions or reports in force twice and checking the visible state and idempotence; a
 scroll's writes (`scroll_writes`, read by `scroll_followers`) fail where a place is
 written on every step; a page left alone (`at_rest`) fails anything it does; a
 surface's round trips fail where one leaves a different `reader_state` than the first

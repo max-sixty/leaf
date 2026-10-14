@@ -3,7 +3,9 @@
 ## Launcher
 
 The skill directory's `../../bin/leaf` launcher resolves to
-`${CLAUDE_SKILL_DIR}/../../bin/leaf`. Claude Code also puts it on `PATH`.
+`${CLAUDE_SKILL_DIR}/../../bin/leaf`. Claude Code also puts it on `PATH`, so run
+it as `leaf`: Claude Code's settings match a command by its text, and the ones
+that run Leaf outside its sandbox name `leaf`.
 
 ## Serve the page
 
@@ -57,10 +59,10 @@ so a session waiting on its page reads as idle there. The list groups the sessio
 by the closing line of its last chat message: a `needs input:` line files it
 under Needs input and a `result:` line under Completed. A reply with neither is
 left to Claude Code's classifier, which reads a closing like "the page will pick
-up new comments" as work in progress. So when a turn leaves anything only the user
-can give (an answer on the page, or a decision about other work), end the closing
-reply with a line `needs input: <what you want back>`; only when nothing waits on
-the user or on work still running, end it with `result: <what you delivered>`.
+up new comments" as work in progress. So when the user's On me list holds
+anything, end the closing reply with a line `needs input: <what you want back>`
+naming those items; only when nothing waits on the user or on work still running,
+end it with `result: <what you delivered>`.
 Keep either line to 200 characters or fewer, on its own line, not in a code block.
 
 ## Subagents

@@ -2,9 +2,9 @@
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { anchoringIsReady } from "../anchor-resolution.js";
 import { bindings, bindingEnabled, cycledRow } from "../keyboard/bindings.js";
-import { el, LAYOUT, reserve, searchField } from "../widget-elements.js";
+import { el, LAYOUT, searchField } from "../widget-elements.js";
 import { coarsePointer } from "../pointer.js";
-import { html, nothing, render } from "../../vendor/browser-runtime.js";
+import { html, nothing, render } from "/vendor/browser-runtime.js";
 
 import {
   contextAround,
@@ -43,7 +43,7 @@ import {
   progressStates,
 } from "../keyboard/key-sequence.js";
 import { announce } from "../notifications.js";
-import { keepsHidden } from "../keeps.js";
+import { keeps, keepsHidden } from "../keeps.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
 
 import {
@@ -248,10 +248,15 @@ export function createTargetPicker({
     pageSearchOpen = on;
     keepsHidden(pageSearchSurface, !on);
     if (on) {
-      // A nonempty query cannot match more often than there are characters. Reserve
-      // the whole reading's count before editing, so narrowing never resizes the field.
+      // A nonempty query cannot match more often than there are characters. Hold the
+      // room of the whole reading's count before editing, so narrowing never resizes
+      // the field.
       const maximum = pageText().raw.length;
-      reserve(pageSearchStatus, [noMatches, searchCount(maximum, maximum)]);
+      keeps(
+        pageSearchStatus,
+        "data-lf-room",
+        `${noMatches}\n${searchCount(maximum, maximum)}`,
+      );
       focusDestination(pageSearchInput, "move");
       presentSearchStatus();
       announce("Search the page.");
@@ -389,7 +394,7 @@ export function createTargetPicker({
     return true;
   }
 
-  // Layout invalidation is the mechanical source of a standing walk's refresh: a reflow
+  // Layout invalidation is the mechanical source of an active walk's refresh: a reflow
   // moves the marked line boxes even where the words stand, so the walk repaints either
   // way. The read handed to the shared walk remains a cheap cached lookup.
   function refreshMatchWalk() {
@@ -453,7 +458,7 @@ export function createTargetPicker({
     announce(
       `Selected match: ${quote}. ${
         coarsePointer.matches || !bindingEnabled("c")
-          ? "Comment on selection on the banner comments on it."
+          ? "Comment on selection comments on it."
           : "Press n for next, Shift+n for previous, or c to comment."
       }`,
     );
@@ -767,7 +772,8 @@ export function createTargetPicker({
     // the route off the short line while a target is in hand.
     lineWhen: () => !Boolean(fabAnchorAt()),
     when: canChoose,
-    run: (...args) => openTargetPicker(...args),
+    run: (/** @type {Parameters<typeof openTargetPicker>} */ ...args) =>
+      openTargetPicker(...args),
   });
   // Search remains one press from the expanded shortcut bar and named in full by the
   // reference.

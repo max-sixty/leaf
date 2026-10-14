@@ -68,6 +68,7 @@ const ORDER = group("order", "Order", [
   choice("order", "recent", "Recent"),
 ]);
 
+/** @typedef {{[K in keyof typeof DEFAULT_INTENT]: typeof DEFAULT_INTENT[K] extends string ? string : typeof DEFAULT_INTENT[K]}} NarrowingIntent */
 export const DEFAULT_INTENT = Object.freeze({
   order: "page",
   words: "",
@@ -169,7 +170,7 @@ const entryReading = (declaration, selected, amount, disabled, hidden = false) =
     hidden,
   });
 
-// Counts describe each named subset under the other standing filters, including
+// Counts describe each named subset under the other active filters, including
 // Status clearing Waiting on. An active choice keeps its subset count; clearing it
 // broadens the results rather than changing what its label counts.
 function presentationReading(reading, threads, shown, places, complete) {
@@ -295,6 +296,7 @@ export function narrowingReading(reading, threads, places, complete = true) {
 export function createThreadNarrowing({ view, listRoot, readThreads, repaint }) {
   // Replace the whole value on every change. A retained arrival can then distinguish
   // its own transition from a later choice by identity.
+  /** @type {Readonly<NarrowingIntent>} */
   let intent = DEFAULT_INTENT;
   const threadSearchActive = () => Boolean(intent.finding);
   const needsYou = () => intent.waiting === "user";

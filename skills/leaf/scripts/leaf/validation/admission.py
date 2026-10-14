@@ -9,16 +9,11 @@ from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
 from leaf.files import list_revisions
 from leaf.findings import Finding, Rejected
-from leaf.passages import SourceReading
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
 from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
-from leaf.thread_context import (
-    effective_thread_events,
-    thread_names,
-    thread_structure,
-)
+from leaf.thread_context import thread_names, thread_structure
 
 from ..refusals import Refused
 from .instances import (
@@ -140,32 +135,30 @@ def check_markup(
     markup: str,
     events: list,
     *,
-    reading: SourceReading | None = None,
+    page: SourceDocument | None = None,
     thread: str | None = None,
 ) -> SourceDocument:
-    """A message's HTML fragment, validated against its captured publication
-    reading — the discussion-side `page check`, and the field's one gate: the browser
+    """A message's HTML fragment, validated against the vendored registry at post
+    time — the discussion-side `page check`, and the field's one gate: the browser
     door refuses `markup` outright, so nothing reaches the log under that name
     unvalidated. Text needs no vocabulary gate — the runtime renders it with every tag
     escaped, so it cannot claim a widget — but its Markdown can still point at a file,
     which `read_text_arg` asks about wherever a body arrives. `thread` is the thread
     a reply joins; a comment opens one whose id is not yet assigned. Refuses with
     what's wrong."""
+    registry = require_registry(page_dir)
     frag = SourceDocument(markup)
     revisions = list_revisions(page_dir)
-    effective_events = effective_thread_events(events, revisions)
-    if reading is None:
-        reading = (
-            read_revision(page_dir, revisions[-1])
+    if page is None:
+        page = (
+            read_revision(page_dir, revisions[-1]).document
             if revisions
-            else SourceReading(SourceDocument(""), require_registry(page_dir))
+            else SourceDocument("")
         )
-    registry = reading.registry
-    page = reading.document
     extra_errors = data_binding_errors(
         page_dir,
         registry,
-        effective_events,
+        events,
         incoming=[(frag, f"incoming {kind} markup")],
     )
     if errors := message_markup_errors(
@@ -178,7 +171,6 @@ def check_markup(
         extra_errors,
         read_contracts(page_dir),
         thread,
-        effective_events=effective_events,
     ):
         raise Rejected(errors, f"{kind} markup doesn't validate")
     return frag
@@ -194,16 +186,15 @@ def message_markup_errors(
     extra_errors: list[Finding],
     contracts: dict,
     thread_id: str | None,
-    *,
-    effective_events: list | None = None,
 ) -> list[Finding]:
     """The shared message-fragment gate for a stored or newly constructed page.
 
-    Callers supply their lifetime binding checks. Fragment structure, vocabulary,
-    presentation, media, ids, references and live sample children have one gate,
-    whether or not its page is allocated. `thread_id` names the joined thread.
-    Each stage reads only a fragment the stages before it accept, so it gives the
-    first stage's findings, or none.
+    Callers supply their lifetime's binding checks. The
+    fragment's structure, vocabulary, presentation, media, ids, references and
+    live sample children have one gate regardless of whether its page has been
+    allocated yet. `thread_id` is the thread the message joins, where known. Each
+    stage reads only a fragment the stages before it accept, so it gives the first
+    stage's findings, or none.
     """
     if errs := (
         thread_markup_contract_errors(frag, registry)
@@ -215,12 +206,8 @@ def message_markup_errors(
         return errs
     if names := id_errors(frag):
         return names
-    thread = thread_structure(
-        effective_events if effective_events is not None else events
-    )
-    reserved = thread_structure(events)
-    clash = sorted(frag.ids & (prior_ids | page.ids | reserved.ids))
-    if clash:
+    thread = thread_structure(events)
+    if clash := sorted(frag.ids & (prior_ids | page.ids | thread.ids)):
         return [Finding("ids-taken", values={"ids": clash})]
     if reference_errs := reference_errors(
         frag.lf_elements,

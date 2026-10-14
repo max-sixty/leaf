@@ -7,7 +7,6 @@ A reading about Leaf's own chrome or theme, including one that would have to
 recognize a Leaf control by its markup to judge it, belongs in the suite, which holds
 Leaf's half."""
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from itertools import pairwise
 
@@ -122,7 +121,6 @@ class _SchemeContext:
     light: bool
     errors: list
     registry: dict
-    registry_for_revision: Callable[[int], dict]
     declarations: dict
     state: dict
     markup: str
@@ -144,9 +142,7 @@ def _projected_verbatim(document, registry, projection, authored_ids, source):
     ).verbatim
 
 
-def _expected_verbatim(
-    markup, events, registry, here, registry_for_revision, available_revisions
-):
+def _expected_verbatim(markup, events, registry, here):
     """Expected preserving-owner readings in the page and frozen thread.
 
     Page actions are bounded by the immutable revision being rendered. Frozen message
@@ -161,16 +157,12 @@ def _expected_verbatim(
         page.document.ids,
         ("page", None),
     )
-    thread = frozen_thread_reading(
-        events,
-        registry_for_revision,
-        available_revisions=available_revisions,
-    )
+    thread = frozen_thread_reading(events, registry)
     for event_id, fragment in thread.structure.fragments.items():
         expected.update(
             _projected_verbatim(
                 fragment,
-                thread.registry_for_message(event_id),
+                registry,
                 thread.projection,
                 thread.structure.ids,
                 ("event", event_id),
@@ -188,8 +180,6 @@ def _verbatim_findings(context: _SchemeContext) -> list[Finding]:
         context.state["events"],
         context.registry,
         context.here,
-        context.registry_for_revision,
-        {int(revision) for revision in context.state["vocabularies"]},
     )
     findings = []
     for reading in shown:

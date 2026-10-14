@@ -7,7 +7,7 @@ from .state import EVENTS_FILE
 
 # A session-managed server gives a replacement session one short poll window to
 # claim the page before it closes. The external claim record is the ownership
-# source; a standing lifetime ignores it and remains enabled until `server stop`.
+# source; a persistent lifetime ignores it and remains enabled until `server stop`.
 ORPHAN_GRACE_SECS = 1
 # The harness-neutral name of an agent nothing names: a page's when no claimant
 # supplies one, and an agent-authored event's that carries no `agent` (`agent_name`).
@@ -100,10 +100,10 @@ AWAITING_CONDITION = {
 }
 
 # When a local ask is answered: a map from each answering x-state verb to the
-# condition its standing state meets. An empty condition means the verb's state stands
-# (a non-empty attribute or value record, otherwise a standing action). `when` narrows
+# condition its current state meets. An empty condition means the verb's state stands
+# (a non-empty attribute or value record, otherwise an action in force). `when` narrows
 # the verb to instances whose attributes match; `empty` holds when the one member
-# container it names inside the widget is left with no members by the standing
+# container it names inside the widget is left with no members by the current
 # positions. One map, so every answer is a reading of state the fold already keeps.
 ANSWERED_SCHEMA = {
     "type": "object",
@@ -338,8 +338,6 @@ EXTENSION_SCHEMA = {
                     "type": "object",
                     "properties": {
                         "parts": _ATTRIBUTE_NAME,
-                        "all": {"type": "string", "pattern": "^\\S+$"},
-                        "complete": {"const": True},
                     },
                     "required": ["parts"],
                     "additionalProperties": False,
@@ -364,19 +362,6 @@ EXTENSION_SCHEMA = {
         # A default height in CSS pixels, or `true` for a widget that has none and
         # reserves only what an occurrence's data-height states.
         "x-height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
-        # Child selectors, each matched inside the element, for the painted boxes that
-        # draw its own face: a margin pin whose target is the element may stand on them.
-        # Only a light-DOM child by tag and classes, so a malformed selector is refused
-        # here rather than throwing in the browser's layout pass.
-        "x-face": {
-            "type": "array",
-            "items": {
-                "type": "string",
-                "pattern": r"^:scope > (?:[a-z][a-z0-9-]*(?:\.[A-Za-z_][\w-]*)*|(?:\.[A-Za-z_][\w-]*)+)$",
-            },
-            "minItems": 1,
-            "uniqueItems": True,
-        },
         "x-history": {"const": True},
         # A captured classic bundle registering one synchronous DOM producer. Delivery
         # runs it after each occurrence closes; the module adopts its existing nodes.
@@ -408,6 +393,11 @@ EXTENSION_SCHEMA = {
         },
         "x-views": {"const": True},
         "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "x-within": {
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+            "minItems": 1,
+        },
         "x-word": {"enum": ["module"]},
         "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-work": {"const": True},
@@ -415,6 +405,7 @@ EXTENSION_SCHEMA = {
     "required": ["x-content", "x-upgrade"],
     "dependentRequired": {
         "x-retired-when": ["x-owners"],
+        "x-within": ["x-owners"],
         "x-measured": ["x-data"],
     },
     # Only an upgraded container has members its module could leave in place.
@@ -612,14 +603,7 @@ PLUGIN_ROOT = SKILL_ROOT.parent.parent
 ASSETS = SKILL_ROOT / "assets"
 BUNDLED_PACKAGES = SKILL_ROOT / "packages"
 DEFAULT_PACKAGE = BUNDLED_PACKAGES / "default"
-VENDORED_FILES = (
-    "leaf.js",
-    "theme.css",
-    "widget-theme.css",
-    "shadow.css",
-    "registry.json",
-    "icon.svg",
-)
+VENDORED_FILES = ("leaf.js", "theme.css", "shadow.css", "registry.json", "icon.svg")
 BROWSER_DIRS = ("runtime", "widgets", "vendor")
 INSTRUCTIONS_DIR = "instructions"
 PACKAGE_DIRS = (*BROWSER_DIRS, INSTRUCTIONS_DIR)
@@ -714,15 +698,32 @@ VERSION_NAME = r"v(?P<version>[1-9][0-9]*)"
 # names with the endpoints under it.
 SESSION_ROUTE_DIRS = (MEDIA_DIR, "revisions", "versions", RENDER_CHECKS_DIR)
 PAGE_ROUTE_DIRS = ("api", *BROWSER_DIRS, *SESSION_ROUTE_DIRS)
+CONTENT_TYPES = {
+    ".js": "application/javascript",
+    ".mjs": "application/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".html": "text/html",
+    **MEDIA_TYPES,
+}
+JAVASCRIPT_SUFFIXES = frozenset(
+    suffix for suffix, mime in CONTENT_TYPES.items() if mime == "application/javascript"
+)
+MODULE_EXTENSION = (
+    "(?:" + "|".join(re.escape(suffix) for suffix in sorted(JAVASCRIPT_SUFFIXES)) + ")"
+)
+# Helper modules have package-owned names; only widget entry names follow tag syntax.
+# Share safe path segments with vendor files, excluding traversal segments.
+BROWSER_FILE = r"(?:(?!\.{1,2}/)[^/\\\x00-\x20?#]+/)*(?!\.{1,2}$)[^/\\\x00-\x20?#]+"
 # What the server exposes from a page: the browser layer, media, immutable revisions,
 # and event-backed version addresses. Agent-side instructions stay vendored but are read
 # only through the CLI.
 # The dir patterns are keyed by the public directories themselves, so growing
 # that surface without saying what it may serve fails here, at import.
 DIR_FILES = {
-    "runtime": r"(?:[A-Za-z0-9-]+/)*[A-Za-z0-9-]+\.(?:js|css)",
-    "widgets": r"(?:[a-z0-9-]+/)*[a-z0-9-]+\.js",
-    "vendor": (r"(?:(?!\.{1,2}/)[A-Za-z0-9._-]+/)*" r"(?!\.{1,2}$)[A-Za-z0-9._-]+"),
+    "runtime": rf"{BROWSER_FILE}(?:{MODULE_EXTENSION}|\.css)",
+    "widgets": rf"{BROWSER_FILE}{MODULE_EXTENSION}",
+    "vendor": BROWSER_FILE,
     MEDIA_DIR: rf"[a-f0-9]{{{MEDIA_DIGEST}}}(?:"
     + "|".join(re.escape(e) for e in MEDIA_TYPES)
     + ")",
@@ -737,13 +738,6 @@ SERVED_PATH = re.compile(
     )
     + ")"
 )
-CONTENT_TYPES = {
-    ".js": "application/javascript",
-    ".css": "text/css",
-    ".json": "application/json",
-    ".html": "text/html",
-    **MEDIA_TYPES,
-}
 BINARY_TYPES = frozenset(MEDIA_TYPES.values()) - {"image/svg+xml"}
 
 

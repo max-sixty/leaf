@@ -3,9 +3,10 @@
    A behavior module builds injected controls with `offer`, and uses `relabel` when a
    control's label is also one of the page's words. A Lit template reaches the same
    writers through element directives built by `elementDirective`. A behavior module
-   reserves a control's room from inside `measure`: a widget upgrades wherever the
-   runtime connects it, and a shut panel is `display: none`, where every word measures
-   zero and the reservation the press needs is nothing at all. It calls
+   reads a box from inside `measure`: a widget upgrades wherever the runtime connects
+   it, and a shut panel is `display: none`, where every word measures zero. A label
+   whose words change holds the room of all of them with `data-lf-room`, which the
+   theme sizes without script (controls.css). A module calls
    `layoutChanged(el)` after view state rearranges descendants without resizing its
    outer box — `ResizeObserver` already covers size changes, and geometry consumers
    listen to this signal instead of watching every DOM mutation.
@@ -39,8 +40,8 @@
    choice while the user operates nested evidence. */
 import { WORKS } from "./control-selectors.js";
 import { sizeObserver } from "./rendering.js";
-import { registryFor, tagsDeclaring } from "./registry.js";
-import { paintKeys } from "./keyboard/scopes.js";
+import { tagsDeclaring } from "./registry.js";
+import { paintKeysWithin } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { iconElement, iconTemplate } from "./icons.js";
@@ -53,7 +54,8 @@ import {
   nothing,
   html,
   render,
-} from "../vendor/browser-runtime.js";
+  signal,
+} from "/vendor/browser-runtime.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container
@@ -107,11 +109,10 @@ export function el(tag, cls, text) {
 // How a widget collapses content it may need to show again (lf-tabs' inactive
 // panels, a settled lf-options' cards): hidden="until-found", so find-in-page
 // and fragment navigation still reach it — `beforematch` fires and the widget
-// reopens what it owns. It is only a hide where the UA supports it (it rides
-// content-visibility, and the theme's display:block outranks the boolean
-// [hidden] rule) — without beforematch, fall back to plain boolean hidden,
-// which the theme hides itself; the widget still collapses and reopens, ⌘F
-// just can't see in. content-visibility skips only what the element holds: one
+// reopens what it owns, and paper prints it open (controls.css). It is only a
+// hide where the UA supports it, since it rides content-visibility — without
+// beforematch, fall back to plain boolean hidden, which hides in every medium;
+// the widget still collapses and reopens, ⌘F just can't see in. content-visibility skips only what the element holds: one
 // that is itself a tab stop stays one while hidden, so its widget withdraws it.
 export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 
@@ -123,16 +124,14 @@ export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 // with the hand up would hold every waiter for the rest of the page's life.
 //
 // Held is half of composing/engagement.js's `unaccountedGesture`, so taking it up or
-// putting it down moves core's `z` row — a row no widget declares, and therefore the one
-// no widget would think to repaint. So the paint is owed here, where the hand is
-// recorded, rather than by whoever remembers. Coalesced to a frame like every paint,
-// which is what lets it stand for everything else the same gesture moved: the widget's
-// own rows where the grab is a press on an already-focused grip and no focus event
-// fires, and a send the drop states after this returns.
-const hands = new Set();
+// putting it down moves core's `z` row — a row no widget declares. The hands are a
+// signal, so that row's reflection, which reads them, hears them move (keyboard/scopes.js,
+// `reflectKeys`). The widget's own rows move with the grab too, even where it is a press
+// on an already-focused grip and no focus event fires, so its keys are painted here.
+const hands = signal(new Set());
 const releaseWatchers = new Set();
 
-export const dragHeld = () => hands.size > 0;
+export const dragHeld = () => hands.value.size > 0;
 
 // Told, in the order they began watching, each time the last hand is put down.
 export function watchDragRelease(released) {
@@ -141,10 +140,12 @@ export function watchDragRelease(released) {
 }
 
 export const dragging = (el, on) => {
-  if (on) hands.add(el);
-  else hands.delete(el);
-  if (!hands.size) for (const released of [...releaseWatchers]) released();
-  paintKeys();
+  const held = new Set(hands.peek());
+  if (on) held.add(el);
+  else held.delete(el);
+  hands.value = held;
+  if (!held.size) for (const released of [...releaseWatchers]) released();
+  paintKeysWithin(el);
 };
 
 // ResizeObserver covers size changes. A view swap can instead keep its outer box while
@@ -212,8 +213,8 @@ export function measure(el, take) {
   // of its own and never will, and its contents are what the measurement is about. Asked
   // the narrow way it would wait forever, holding the take and the observation with it.
   if (drawn(el)) {
-    // A wait already standing for this element is over: it was waiting for the box
-    // this reading just found. Left standing it would deliver a second reading of
+    // A wait already pending for this element is over: it was waiting for the box
+    // this reading just found. Left pending it would deliver a second reading of
     // the same number, which is harmless and still a claim that nothing was read.
     if (measurements.delete(el)) unmeasured.unobserve(el);
     return take();
@@ -249,20 +250,19 @@ export function measure(el, take) {
 export function worksInside(node, container) {
   // The closure, not one level: "what this container is made of" includes a
   // part's own parts — a column's cards are the board's, and one level deep a
-  // grandchild part would swallow the gesture. Each candidate's publication says
-  // whether it is a part; another publication cannot lend it that role.
-  const isPart = (element) => {
-    const declarations = registryFor(element);
-    const owners = [element.localName];
-    const seen = new Set();
-    for (const tag of owners) {
-      if (tag === container.localName) return true;
-      if (seen.has(tag)) continue;
-      seen.add(tag);
-      owners.push(...(declarations[tag]?.["x-owners"] ?? []));
-    }
-    return false;
-  };
+  // grandchild part would land in `held` and swallow the gesture.
+  const parts = new Set([container.localName]);
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const tag of tagsDeclaring((entry) =>
+      (entry["x-owners"] ?? []).some((owner) => parts.has(owner)),
+    ))
+      if (!parts.has(tag)) {
+        parts.add(tag);
+        grew = true;
+      }
+  }
+  const held = tagsDeclaring(() => true).filter((tag) => !parts.has(tag));
   // `closest` walks past the container to the root, so a match has to be read back
   // against it: an ordinary pick on an option's prose finds the enclosing group, which
   // is a widget the option does not hold but is above it rather than inside it. And
@@ -272,15 +272,10 @@ export function worksInside(node, container) {
   // A message workflow line is runtime apparatus too. It may sit in one of
   // this container's declared parts, where the part is otherwise the gesture target;
   // reading or selecting the status must not cast that gesture on its way through.
-  const apparatus = [WORKS, "[data-lf-offer]", ".lf-msg-sending"].join(",");
-  const candidates = [...tagsDeclaring(() => true), apparatus].join(",");
-  for (
-    let inner = node.closest(candidates);
-    inner && inner !== container && container.contains(inner);
-    inner = inner.parentElement?.closest(candidates)
-  )
-    if (inner.matches(apparatus) || !isPart(inner)) return inner;
-  return null;
+  const inner = node.closest(
+    [...held, WORKS, "[data-lf-offer]", ".lf-msg-sending"].join(","),
+  );
+  return inner && inner !== container && container.contains(inner) ? inner : null;
 }
 
 // The chrome a widget injects: a control, or the box that holds controls. Three
@@ -298,7 +293,9 @@ export function worksInside(node, container) {
 // the complete activation method that the go-to sequence can call.
 // Native elements also receive lf-ui-face, the default Leaf typography and ink.
 // Custom-element hosts keep their component-owned face and state styling.
+/** @type {LeafInitial["offer"]} */
 export const offer = (...args) => document.documentElement.lfInitial.offer(...args);
+/** @type {LeafInitial["offerElement"]} */
 const offerElement = (...args) =>
   document.documentElement.lfInitial.offerElement(...args);
 
@@ -333,7 +330,8 @@ export function elementDirective(name, write) {
         if (part.type !== PartType.ELEMENT)
           throw new TypeError(`${name} belongs in a template's element part`);
       }
-      render() {
+      // The values the template passes, which `update` writes.
+      render(...args) {
         return nothing;
       }
       update(part, args) {
@@ -408,7 +406,9 @@ document.addEventListener(
     // A drag is a pointer's; the keyboard's own activation of the control is not one and
     // is read the one way every press claim reads it (pointer.js).
     if (pressIsKeyboardActivation(ev)) return;
-    const control = ev.target.closest?.("[data-lf-offer]");
+    const control = /** @type {Partial<Element>} */ (ev.target).closest?.(
+      "[data-lf-offer]",
+    );
     if (control && reachedForWords(control)) {
       ev.stopPropagation();
       ev.preventDefault();
@@ -455,6 +455,7 @@ document.addEventListener(
 // costs a printed page its words, and silently. Refusing throws where the widget
 // upgrades, which the console reports and the render gate reads back as a finding
 // — the loud direction, in front of whoever wrote the label.
+/** @param {Element} node @param {string} label @param {{says?: boolean | "echo"}} [options] */
 export function relabel(node, label, { says } = {}) {
   if (typeof says !== "boolean" && says !== "echo")
     throw new TypeError(
@@ -466,74 +467,6 @@ export function relabel(node, label, { says } = {}) {
   node.toggleAttribute("data-lf-echo", says === "echo");
   keepsText(node, label);
 }
-
-// A changing label reserves its widest words in its actual computed face. The shared
-// button rule reads --lf-reserved-width as a preferred size; the containing layout may
-// stretch it to a menu row or shrink it to available room. CSS owns the minimum hit
-// target, and the label's owner owns truncation. The press and poll sweeps check that
-// the labels supplied here are the labels the writers actually use.
-//
-// A hidden, absolute shallow copy measures intrinsic words beside the control, with
-// its imposed width cleared. It leaves in the same task, so no frame paints it and
-// neither the control's focus nor its neighbours move. Reservation waits through
-// `measure` until the control's ancestors draw a box; a shut panel measures nothing.
-// It retains its labels and measured face so a viewport change that alters typography
-// or padding, such as the banner's narrower phone inset, remeasures the reservation.
-export function reserve(control, labels) {
-  measure(control, () => sizeReservation(control, labels));
-}
-
-function sizeReservation(control, labels) {
-  const copy = control.cloneNode(false);
-  copy.removeAttribute("id");
-  Object.assign(copy.style, {
-    minWidth: "0",
-    width: "auto",
-    display: "inline-block",
-    position: "absolute",
-    visibility: "hidden",
-  });
-  control.after(copy);
-  let widest = 0;
-  for (const label of labels) {
-    copy.textContent = label;
-    widest = Math.max(widest, copy.getBoundingClientRect().width);
-  }
-  copy.remove();
-  control.style.setProperty("--lf-reserved-width", Math.ceil(widest) + "px");
-  forgetDetached();
-  reservations.set(control, { labels, face: reservedFace(control) });
-}
-
-// What of a control's computed face a reservation was measured in.
-const reservedFace = (control) => {
-  const style = getComputedStyle(control);
-  return [
-    style.font,
-    style.letterSpacing,
-    style.paddingInline,
-    style.borderInlineStartWidth,
-    style.borderInlineEndWidth,
-  ].join("|");
-};
-// A control swapped out of the document leaves with the next reservation rather than
-// waiting on a resize: the playground replaces its copy trigger on every instruction.
-const reservations = new Map();
-function forgetDetached() {
-  for (const control of reservations.keys())
-    if (!control.isConnected) reservations.delete(control);
-}
-// When the window's size changes, a control whose face has changed measures its words
-// again, through `reserve`, so one undrawn by then waits for its box. The root is
-// watched from the start rather than by each reservation: a floor is often taken inside
-// `measure`'s own resize delivery, and observing the root there asks for a delivery
-// shallower than the one in progress, which the browser reports as undelivered.
-const reservedFaces = sizeObserver(() => {
-  forgetDetached();
-  for (const [control, { labels, face }] of reservations)
-    if (reservedFace(control) !== face) reserve(control, labels);
-});
-reservedFaces.observe(document.documentElement);
 
 // Every surface that closes wears one control for it: the cross, named for what it
 // closes, since the glyph alone says only "close". `name` is the accessible name, such

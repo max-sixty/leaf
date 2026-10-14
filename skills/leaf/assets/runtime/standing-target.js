@@ -5,7 +5,7 @@
    answered or not, wherever it is drawn: an ask frozen into a reply is where a user
    working it is, never the page ask its thread is about. A presentation can stand at the
    source target it shows in authored flow or chrome, as its owner declares (`declareSide`): the margin for its
-   cluster controls, the thread card, and a thread in the Threads panel; the Questions panel
+   cluster controls, the thread card, and a thread in the Threads panel; the On panel
    for its rows; the details shelf for the elements that name its notes. A side's answer
    drawn in the chrome itself, such as a margin control on a widget frozen into a reply,
    stands only where an ask holds it. Chrome no side
@@ -16,7 +16,7 @@
    ask source or unique context holding it, `c` and `e` its semantic target, the walks its place
    in the page's order. Every side answers alike: an open ask stood at from its card still wears its
    ring and takes its digits, `c` at an element whose own thread is shown continues it,
-   and `q` and `t` step from the target.
+   and `m` and `t` step from the target.
 
    The chrome stands over the page rather than in it and is appended after it,
    so a chrome node measured as a place would put the user behind every ask and thread

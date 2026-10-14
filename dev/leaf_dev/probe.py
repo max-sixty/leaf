@@ -25,7 +25,7 @@ from playwright.sync_api import Error as PlaywrightError
 
 from leaf_dev import ROOT
 from leaf_dev.arms import base_ref, build_arm, serving_source
-from leaf_dev.browser import DESKTOP, chrome, load, settle, tab
+from leaf_dev.browser import DESKTOP, headless_shell, load, settle, tab
 from leaf_dev.example_data import named_source
 from leaf_dev.recording import recording
 from leaf_dev.startup import observe_startup, startup_reading
@@ -193,7 +193,9 @@ def probe(
     Recordings add observation overhead; they are behavior evidence, not timing
     benchmarks. Plain recording inserts no pauses. --actions adds visible input
     annotations and Playwright's 500 ms wait before each annotated input; use it
-    for demos, not timing-sensitive reproductions. --motion reproduces either
+    for a demo video, not timing-sensitive reproductions. A trace shown in lf-trace
+    needs none: lf-trace marks each recorded input itself, and the annotations
+    would draw a second cursor and pointer into every frame. --motion reproduces either
     motion preference. Native video holds the final frame for at least one second.
     A journey must keep its page and context open for video finalization; if it
     closes its page, the live context can still save the trace and GIF frames.
@@ -222,7 +224,7 @@ def probe(
         if base is not None:
             commit = build_arm(base_ref(base), scratch / "base-arm")
             arms = {"base": (commit, scratch / "base-arm"), **arms}
-        with chrome() as browser:
+        with headless_shell() as browser:
             for arm, (ran, arm_dir) in arms.items():
                 reading, doing = {}, "build"
                 try:

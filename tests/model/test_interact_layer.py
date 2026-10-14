@@ -63,7 +63,6 @@ from leaf.registry import widgets as registry_widgets
 from leaf.render_gate import browser as browser_model
 from leaf.render_gate.preview import preview_server
 from leaf.revisioning import activate_source
-from leaf.validation.source import check_source
 from model_folds import leaf_page
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
@@ -299,34 +298,52 @@ def test_a_page_another_leaf_vendored_at_this_protocol_takes_its_writes(
     assert checked.returncode == 0, checked.stderr
 
 
-def test_response_reply_names_a_page_vendored_at_another_protocol(claimed, server):
+def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(claimed, server):
+    """A reply through a reference names no page, so it is refused on a page an older
+    Leaf vendored, naming the re-vendor. The session's next command naming the page
+    makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
+    its address, and the reply then goes."""
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
     assert f"leaf page init {claimed}" in replied.stderr
-    checked = subprocess.run(
-        [*LEAF_COMMAND, "page", "check", str(claimed)],
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
+    for command in (["page", "state", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
+        ran = subprocess.run(
+            [*LEAF_COMMAND, *command],
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        )
+        assert ran.returncode == 0, ran.stderr
+        assert "re-vendor" not in ran.stderr
+    assert fetch(f"{server}/api/state")[0] == 200
+
+
+def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
+    """A process the session started before its plugin updated still runs the older
+    Leaf, and must not take the page back to it: the newer Leaf's next hook would
+    re-vendor it up again, reloading the user's tabs each time."""
+    foreign = vendored_at_another_protocol(claimed, newer=True)
+    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(claimed)])
+    assert checked.exit_code != 0
+    assert f"page protocol {foreign}" in checked.output
+    assert (
+        interact_files.read_json(claimed / "registry.json")["$events"]["protocol"]
+        == foreign
     )
-    assert checked.returncode != 0, checked.stdout
-    assert f"leaf page init {claimed}" in checked.stderr
-    assert interact_files.list_revisions(claimed) == [1]
-    [refusal] = check_source(claimed, events_model.read_events(claimed)).errors
-    record = json.loads(json.dumps(refusal.json()))
-    assert record["code"] == "foreign-layer"
-    assert record["values"]["page"] == str(claimed)
 
 
-def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir):
+def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(claimed):
     """A layer vendored before an x- key was renamed (`x-question-context`, now
     `x-ask-context`) declares nothing under the new name, so this Leaf would quietly
     drop what the key said. The layer still reads, but the one reading every server
     and writer refuses on (`layer.incompatible_layer`) names the re-vendor, and so
-    does `page check`. A layer that lacks a key this Leaf added is refused nothing."""
+    does `page check` from a session that may not make it, as one that does not
+    hold the page. A layer that lacks a key this Leaf added is refused nothing."""
     from leaf.event_contracts import write_refusal
 
+    page_dir = claimed
+    other = {"CLAUDE_CODE_SESSION_ID": "s2"}
     path = page_dir / "registry.json"
 
     def vendored(change):
@@ -342,26 +359,61 @@ def test_a_layer_documenting_a_key_this_leaf_renamed_names_the_revendor(page_dir
     revendor = f"leaf page init {page_dir}"
     assert registry_storage.load_registry(page_dir) is not None
     assert write_refusal(page_dir).values["retired"] == ["x-question-context"]
-    checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+    checked = CliRunner().invoke(
+        cli_model.cli, ["page", "check", str(page_dir)], env=other
+    )
     assert checked.exit_code != 0
     assert "x-question-context" in checked.output and revendor in checked.output
     as_json = CliRunner().invoke(
-        cli_model.cli, ["page", "check", "--json", str(page_dir)]
+        cli_model.cli, ["page", "check", "--json", str(page_dir)], env=other
     )
     report = json.loads(as_json.output)
     assert report["status"] == 1 and report["browser"] is None
     [finding] = report["findings"]
     assert finding["code"] == "retired-layer" and revendor in finding["text"]
-    # Full source composition first rejects this retired key inventory; the
-    # layer-only transport gate above reports the retired-layer refusal.
-    [refusal] = check_source(page_dir, events_model.read_events(page_dir)).errors
-    source_finding = json.loads(json.dumps(refusal.json()))
-    assert source_finding["code"] == "keys-documentation"
-    assert source_finding["values"]["missing"] == ["x-ask-context"]
-    assert source_finding["values"]["unadmitted"] == ["x-question-context"]
 
     vendored(lambda keys: keys.pop("x-question-context"))
     assert write_refusal(page_dir) is None
+
+
+@pytest.mark.parametrize(
+    ("vendored", "named"),
+    [
+        (vendored_at_another_protocol, "page protocol"),
+        (vendored_before_the_ask_rename, "x-question-context"),
+    ],
+)
+def test_page_state_reports_a_layer_this_leaf_cannot_serve(claimed, vendored, named):
+    """`page state` on a page this Leaf can neither serve nor write, from a session
+    that may not re-vendor it since another one holds the page, still prints its
+    reading, and says why under `source.error`, naming the re-vendor, from the one
+    reading the servers and the append door refuse on (`layer.incompatible_layer`).
+    Activation writes no revision under that layer, even for an edited source.
+
+    A fresh process, as an agent's is: this one holds the revision `publish`
+    captured in memory, under the vocabulary before the change."""
+    page_dir = claimed
+    publish(page_dir)
+    vendored(page_dir)
+    source = page_dir / "index.html"
+    source.write_text(source.read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>"))
+    revisions = interact_files.list_revisions(page_dir)
+
+    result = subprocess.run(
+        [*LEAF_COMMAND, "page", "state", str(page_dir)],
+        capture_output=True,
+        text=True,
+        timeout=STATED_TIMEOUT,
+        check=False,
+        env={**os.environ, "CLAUDE_CODE_SESSION_ID": "s2"},
+    )
+    assert result.returncode == 0, result.stderr
+    state = json.loads(result.stdout)
+    assert state["source"]["live"] is False
+    assert named in state["source"]["error"]
+    assert f"leaf page init {page_dir}" in state["source"]["error"]
+    assert state["active"]["revision"] == revisions[-1]
+    assert interact_files.list_revisions(page_dir) == revisions
 
 
 def test_response_reply_names_a_published_page_vendored_before_a_key_was_renamed(
@@ -753,10 +805,13 @@ def test_shim_dispatches_every_command_through_one_uv_run(tmp_path, monkeypatch,
     # than whatever project the caller's directory sits in. `--no-dev` because
     # the dev group is the suite and the repo's own scripts, neither a harness's to
     # install. The module rather than the `leaf` console script because a long
-    # payload path turns the console script into a `/bin/sh` trampoline.
+    # payload path turns the console script into a `/bin/sh` trampoline. The
+    # checkout's environment exists, so uv skips its cache, which an agent's
+    # sandbox refuses; the hook registration tests run a payload with none.
     assert dispatched == [
         "run",
         "-q",
+        "--no-cache",
         "--no-dev",
         "--project",
         str(PLUGIN_ROOT),
@@ -959,6 +1014,9 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "skills/leaf/references/page-checkpoints.md",
         "skills/leaf/references/packages.md",
         "skills/leaf/references/page-authoring.md",
+        "skills/leaf/references/page-behavior.md",
+        "skills/leaf/references/page-layout.md",
+        "skills/leaf/references/live-samples.md",
         "skills/leaf/references/serving-pages.md",
         "skills/leaf/packages/default/registry.json",
         "skills/leaf/packages/diagram/registry.json",
@@ -989,8 +1047,8 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     # payload naming one — in the project file, or in a `uv.toml` beside it —
     # so that is what this forbids. Read off the lines rather than a parsed
     # table because a comment is free to discuss an index where a setting is
-    # not. The `main` test below drives the same claim through a real
-    # resolve against a closed port; this is the half every run sees.
+    # not. The loopback launcher test below drives the same claim through a real
+    # resolve against a closed port.
     configured = [
         line
         for line in (PLUGIN_ROOT / "pyproject.toml").read_text().splitlines()
@@ -1003,6 +1061,43 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         for path in shipped_payload()
         if path.suffix == ".lock"
     ] == ["uv.lock"]
+
+
+def test_the_launcher_resolves_through_the_hosts_own_index(tmp_path):
+    """A closed local index fails without falling back to the shipped lock's URLs.
+
+    A fresh cache makes uv consult the index. Allow uv's local HTTP request even
+    when the rest of the suite uses UV_OFFLINE; forbid interpreter downloads and
+    ignore host index configuration so this test needs only loopback networking.
+    """
+    installed = install_payload(tmp_path / "leaf")
+    unconfigured = {
+        name: value
+        for name, value in os.environ.items()
+        if not name.startswith("UV_INDEX")
+        and name
+        not in {"UV_DEFAULT_INDEX", "UV_FIND_LINKS", "UV_NO_INDEX", "UV_OFFLINE"}
+    }
+    mirrored = subprocess.run(
+        [installed / "bin" / "leaf", "--help"],
+        cwd=tmp_path,
+        env={
+            **unconfigured,
+            "UV_CACHE_DIR": str(tmp_path / "mirror-cache"),
+            "UV_DEFAULT_INDEX": "http://127.0.0.1:1/simple",
+            "UV_NO_CONFIG": "1",
+            "UV_PYTHON": sys.executable,
+            "UV_PYTHON_DOWNLOADS": "never",
+            "UV_HTTP_RETRIES": "0",
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    output = mirrored.stdout + mirrored.stderr
+    assert mirrored.returncode != 0, output
+    assert "127.0.0.1:1" in output, output
+    assert "pypi.org" not in output and "pythonhosted.org" not in output, output
 
 
 def test_a_run_keeps_its_temporary_tree_out_of_the_candidate_payload(tmp_path):
@@ -1060,6 +1155,22 @@ def test_the_payload_is_text():
         except UnicodeDecodeError:
             binary.append(path.relative_to(PLUGIN_ROOT).as_posix())
     assert binary == [], "binary files in the tree: " + ", ".join(binary)
+
+
+def test_every_skill_file_reads_in_one_command():
+    """An agent reads a skill file with `cat` as often as with Read, and Claude Code
+    hands a Bash output over 30,000 characters back as a 2 KB preview with the rest
+    saved to a file the agent rarely opens. page-authoring.md at 48 KB reached
+    authoring sessions that way until it was split, so each skill's files stay
+    under that cap."""
+    oversized = {
+        path.relative_to(ROOT).as_posix(): size
+        for root in (ROOT / "skills", ROOT / ".claude" / "skills")
+        for path in root.rglob("*.md")
+        if path.name == "SKILL.md" or {"references", "instructions"} & set(path.parts)
+        if (size := len(path.read_text())) > 30_000
+    }
+    assert oversized == {}, oversized
 
 
 def test_claude_and_codex_read_the_same_repository_skills():
@@ -1613,6 +1724,43 @@ def test_layout_style_and_widgets_never_read_each_other():
         readers
     )
     assert not typed, "layouts.css sets type:\n" + "\n".join(typed)
+
+
+def test_every_token_a_sheet_reads_is_set_somewhere():
+    """A `var(--name)` with no fallback reads a property something sets: a sheet's
+    declaration or `@property`, or a module or delivery writing it by name. One nothing
+    sets makes its declaration invalid, so the property falls back to what it inherits or
+    its initial value, and the page shows no sign of it: a hover background that never
+    painted, an empty state with no padding, a size the scale has no step for."""
+    # Anything that names a property as a declaration, an `@property` or a string sets
+    # it, a vendored component's sheet included; what is read is Leaf's own sheets.
+    written, prefixes, reads = set(), set(), []
+    for source in sorted(schema_model.ASSETS.parent.rglob("*")):
+        if source.suffix not in (".css", ".js", ".py"):
+            continue
+        text = source.read_text()
+        written |= set(re.findall(r"(--[\w-]+)\s*:", text))
+        written |= set(re.findall(r"@property\s+(--[\w-]+)", text))
+        written |= set(re.findall(r"[\"'`](--[\w-]+)[\"'`]", text))
+        prefixes |= set(re.findall(r"`(--[\w-]+)\$\{", text))
+        if (
+            source.suffix != ".css"
+            or "vendor" in source.parts
+            or text.startswith("/* Generated from ")
+        ):
+            continue
+        for _conditions, _enclosing, selector, declarations in _style_rules(source):
+            reads += [
+                (name, f"{source.relative_to(schema_model.ASSETS.parent)}: {selector}")
+                for _property, value in declarations
+                for name in re.findall(r"var\(\s*(--[\w-]+)\s*\)", value)
+            ]
+    unset = sorted(
+        f"{where} reads {name}"
+        for name, where in set(reads)
+        if name not in written and not name.startswith(tuple(prefixes))
+    )
+    assert not unset, "a token nothing sets:\n" + "\n".join(unset)
 
 
 def _pseudo_arguments(compound, pseudos):
@@ -3179,7 +3327,7 @@ def test_explicit_package_order_is_registry_file_and_theme_precedence(
     assert registry["$layer"]["packages"] == ["./first", "./second"]
     assert registry["lf-shared"]["description"] == "second"
     assert (page / "widgets" / "shared.js").read_text() == "// second\n"
-    theme = (page / "widget-theme.css").read_text()
+    theme = (page / "theme.css").read_text()
     assert theme.index("package first") < theme.index("package second")
 
 
@@ -4184,11 +4332,10 @@ def test_page_init_selects_the_same_directory_contract_at_any_cardinality(
         ":scope:is(lf-solo) { --lf-block-frame: 1; }\n"
     )
     (widget_package / "widgets" / "lf-solo.js").write_text(
-        """import { ready } from "./ready.js";
-export default class extends HTMLElement {
-  connectedCallback() { ready(this); }
-};
-"""
+        'import { ready } from "./ready.js";\n'
+        'customElements.define("lf-solo", class extends HTMLElement {\n'
+        "  connectedCallback() { ready(this); }\n"
+        "});\n"
     )
     (widget_package / "widgets" / "ready.js").write_text(
         "export const ready = (el) => { el.dataset.ready = '1'; };\n"
@@ -4227,14 +4374,11 @@ export default class extends HTMLElement {
     assert (page / "widgets" / "ready.js").is_file()
     assert (page / "vendor" / "solo.json").is_file()
     theme = (page / "theme.css").read_text()
-    widgets = (page / "widget-theme.css").read_text()
     # A package with a widget reaches only inside it; a package without one is a
-    # theme, and its rules reach the page as written. Their separate sheets let a
-    # publication retain its widget rules while current chrome keeps its theme.
-    assert ":scope:is(lf-solo) { --lf-block-frame: 1; }" in widgets
-    assert ":scope:is(lf-solo) { --lf-block-frame: 1; }" not in theme
-    assert ":root { --solo-night: 1; }" in theme
-    assert "--solo-night" not in widgets
+    # theme, and its rules reach the page as written.
+    assert theme.index(":scope:is(lf-solo) { --lf-block-frame: 1; }") < theme.index(
+        ":root { --solo-night: 1; }"
+    )
     instructions = (page / "instructions" / "author.md").read_text()
     assert instructions == (
         "# Package `solo`\n\nUse one solo.\n\n# Package `night`\n\nUse after dusk.\n"
@@ -4640,6 +4784,12 @@ def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
     assert browser_model.discovered_executable() is None
     hint = browser_model.browser_hint()
     assert "chromium" in hint and "LEAF_BROWSER_EXECUTABLE" in hint
+
+    # Inside an agent's sandbox no browser starts however the host names one, so
+    # the line sends the check outside the sandbox instead.
+    monkeypatch.setenv("CODEX_SANDBOX", "seatbelt")
+    hint = browser_model.browser_hint()
+    assert "CODEX_SANDBOX=seatbelt" in hint and "outside the sandbox" in hint
 
 
 def test_producer_instructions_names_a_package_script_the_run_door_reaches(tmp_path):

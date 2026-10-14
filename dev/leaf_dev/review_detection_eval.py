@@ -28,11 +28,11 @@ from urllib.request import urlopen
 
 import click
 import yaml
-from playwright.sync_api import expect
+from leaf.render_gate.browser import ending
+from playwright.sync_api import expect, sync_playwright
 
 from leaf_dev import ROOT
 from leaf_dev.arms import environment
-from leaf_dev.browser import chrome
 from leaf_dev.eval import PROMPTFOO, screenshot_judge
 
 SOURCE = ROOT / "evals/ui-review-detection"
@@ -346,7 +346,12 @@ def eval_ui_review(models, condition, mode, repeat, prepare_only, output):
                     f"Private fixture path was exposed: {private}"
                 )
         tests, readings = [], {}
-        with chrome() as browser:
+        # Installed Chrome, the browser `provider.mjs` gives the model's live tool, so
+        # the screenshots, the tool and the recorded version are one build.
+        with (
+            sync_playwright() as playwright,
+            ending(playwright.chromium.launch(channel="chrome")) as browser,
+        ):
             runtime = json.loads((output / "environment.json").read_text())
             runtime["chrome"] = browser.version
             write_json(output / "environment.json", runtime)

@@ -1,14 +1,13 @@
 /* The upgrade lifecycle every behavior module shares.
 
-   A module exports its constructor for publication-owned registration and makes
-   `connectedCallback` safe after reconnection, using `once(el)` for generated chrome
-   so reconnecting does not
+   A module defines its custom element once and makes `connectedCallback` safe to run
+   after reconnection, using `once(el)` for generated chrome so reconnecting does not
    duplicate it. A failed upgrade becomes a visible error box (`failSoft`) rather than
    a blank page, and reaches the agent as the page's error; widgetController owns
    asynchronous presentation. */
 import { reportPageError } from "./layer-client.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { render } from "../vendor/browser-runtime.js";
+import { render } from "/vendor/browser-runtime.js";
 import { shadowStage } from "./shadow-stage.js";
 
 const initialized = new WeakSet();

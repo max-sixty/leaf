@@ -131,8 +131,7 @@ the user's question and the baseline and candidate views, and ask first whether
 those views are enough to make that choice; ask for a preference only once they
 are. Operate an interactive comparison's baseline and candidates through the
 same journey before handoff. For a live Leaf interface, embed them as
-`lf-sample window` children (`skills/leaf/references/page-authoring.md`, "Live
-samples"). The outer page carries the configuration and feedback, and each child
+`lf-sample window` children (`skills/leaf/references/live-samples.md`). The outer page carries the configuration and feedback, and each child
 carries practice interactions, which its Full view lets the user try at viewport
 size. Start their fictional histories with `data-sample-events`, sharing one
 parent-local JSON fixture when the candidates need the same conversation.
@@ -317,7 +316,9 @@ checks:
 - `claude-code` (`journey_claude_code.py`): run it, with and without
   `--hooks-module`, after a change to `hooks/hooks.json`, `hooks/claude-code.ts`,
   `ClaudeCodeHarness`, `hooks.py`, `background-watch.py`, or the watch between
-  turns in `session.py`.
+  turns in `session.py`. Run it with `--sandbox` after a change to the README's
+  "Agent sandboxes" settings or to what a `leaf` command needs from the machine
+  outside its page directory.
 - `codex-app-server` and `codex-queue` (`journey_codex.py`): run both after a change
   to `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's
   turn in `service.py`, adding `--preview` for a change to preview startup or
@@ -337,7 +338,8 @@ journey against the deployed release is the only production reading.
 ## Compare checkout versions
 
 `uv run leaf-dev compare <example> --user` serves the merge-base runtime beside
-this checkout, and keeps running in the foreground. Keep the default shared source
+this checkout. A desktop Codex `--user` comparison detaches and returns both URLs;
+every other comparison runs in the foreground. Keep the default shared source
 for a runtime change and pass `--authored` when the authored content changed; omit
 `--user` for claimless tests. Its `--help` lists the other flags.
 
@@ -348,15 +350,15 @@ example or fixture, a playground, or a page made for this conversation. Before
 writing its content, read `<root>/skills/leaf/SKILL.md` completely and follow
 its authoring, validation, handoff, and conversation-loop routes, using the
 checkout launcher for every `leaf` command and resolving its references from
-`<root>/skills/leaf/`. A brief for a subagent that writes the page names the
+`<root>/skills/leaf/`. After a compaction, which drops the text of files you read,
+read it again before the page's next revision or handoff. A brief for a subagent that writes the page names the
 content and the decisions the page puts to the user, and leaves how they are
 posed to those instructions.
 To make an existing page exercise the current checkout, re-vendor it with the
 checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
 report a compatibility refusal rather than falling back to the installed plugin.
 A page that explains how a Leaf widget, verb, or event flow behaves lets the user
-operate it in a live sample (`<root>/skills/leaf/references/page-authoring.md`,
-"Live samples"). The sample's template holds only the demonstrated page and an
+operate it in a live sample (`<root>/skills/leaf/references/live-samples.md`). The sample's template holds only the demonstrated page and an
 `lf-activity` feed of the sample's own log, so each gesture shows the event it
 writes; nothing in it mentions the sample. The parent's prose directly above the
 sample lists the gestures to try, in an order that exercises each verb the page

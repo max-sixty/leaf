@@ -14,7 +14,6 @@
    tracking, without admitting or delivering a newer source. Modules project the
    result into the authored seat; they do not fetch it, mutate the accepted copy, or keep a
    hidden current-value map of their own.*/
-import { registryFor, registry } from "./registry.js";
 
 import { offlineData, offlineInteractive, pageUrl, runtime } from "./context.js";
 import {
@@ -24,6 +23,7 @@ import {
 } from "./semantic-state.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
+import { registry } from "./registry.js";
 import { reportPageError, requestJson } from "./layer-client.js";
 import { watchOwner } from "./arrivals.js";
 import { readingPaint } from "./presence.js";
@@ -77,7 +77,7 @@ export async function notifyDataSubscribers() {
 // `projectData` remains the rendering boundary: this helper delivers records but writes no
 // DOM and keeps no widget-specific cache.
 export function watchData(element, input, callback) {
-  const declaration = registryFor(element)[element.localName]?.["x-data"]?.[input];
+  const declaration = registry[element.localName]?.["x-data"]?.[input];
   if (!declaration)
     throw new Error(
       `watchData(${element.localName}, ${input}) input is not declared by this widget`,
@@ -198,7 +198,9 @@ export function watchData(element, input, callback) {
 export async function loadDeferred(manifest, key) {
   const { source, revision } = manifest;
   const current = () => {
-    const reading = runtime.data.sources[source];
+    const reading = /** @type {{revision?: string, contract?: unknown} | undefined} */ (
+      runtime.data.sources[source]
+    );
     return (
       reading?.revision === revision &&
       reading.contract === manifest.contract &&

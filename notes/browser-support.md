@@ -76,6 +76,28 @@ what fails and what still works.
   `test_the_lens_follows_the_scroll_without_a_scroll_timeline` holds the fallback
   against the native timeline in Chromium with the API removed.
 
+### Shadow-tree startup and draw-mode rules
+
+- **Owner:** `runtime/shadow.js` (`SHADOW_LEADING_CSS`) and
+  `styles/components/integration.css`. A declared shadow tree hides its generated
+  interface until upgrade, holds transitions until presentation, and shows draw
+  mode's crosshair under `main`. Its selectors cannot see the document's stamps, so
+  the document states each condition as an inherited custom property
+  (`--lf-before-upgrade`, `--lf-before-presentation`, `--lf-draw-mode`) and the
+  tree's rules query it with `@container style()`. `:host-context()`, which these
+  rules used before, has no Firefox or Safari support.
+- **Compatibility checked 2026-10-13:** container style queries on custom
+  properties support Chrome/Edge 111+, Firefox 151+, and Safari 18+, according to
+  [web.dev's May 2026 platform notes](https://web.dev/blog/web-platform-05-2026).
+- **Observed:** Playwright's Chromium 153, Firefox 155 and WebKit 26.6 each hide a
+  shadow `.lf-ui` until the upgrade stamp, report `transition-duration: 0s` until
+  the presentation stamp, and give a shadow tree under `main` the crosshair in draw
+  mode while a tree outside `main` and `[data-lf-runtime]` apparatus keep their own
+  cursors. WebKit's `getComputedStyle` keeps reporting the held `0s` for a
+  `::before` until its element next restyles; that restyle reads the new duration
+  and runs the pseudo-element's transition, so nothing visible differs.
+- **Disposition:** adopted without a fallback.
+
 ## Known gaps
 
 ### Browser dictation in comment boxes
@@ -117,7 +139,7 @@ what fails and what still works.
   even while the child already owns focus. Native dialog close can return focus
   after the parent has reclaimed input, including into another modal that escapes
   ancestor inertness. Temporarily making the opening layer, or the document and
-  standing modal roots during close, inert prevents these transfers before they
+  open modal roots during close, inert prevents these transfers before they
   occur. Leaf then places its own intended arrival without native scrolling.
 - **Reproduction:** serve a window sample with a tall body, a focusable SVG
   link, a dialog containing an autofocus input, and a popover containing an
@@ -173,7 +195,30 @@ what fails and what still works.
   native destination and Reset. A valid Leaf reload reconnects; a non-Leaf document
   stays visible without a private port. The opaque parent cannot classify a later
   failed reload separately from authored departure. The author-facing contract is
-  [Live samples](../skills/leaf/references/page-authoring.md#live-samples).
+  [Live samples](../skills/leaf/references/live-samples.md).
+
+- **Observed, 2026-10-13:** Playwright Chromium 153.0.8010.12 rejects an
+  opaque sample's pending icon, registry, and state fetches during a second native
+  reload before `pagehide`. Its `pageswap` runs before those rejected promises;
+  reporting them as startup faults retired the replacement frame. Holding the
+  replacement document before commit keeps the old realm alive and its icon fetch
+  pending; continuing the document triggers the swap and cancellation. The native
+  loader/form/popup/nested-sample/reload journey and this held-destination control
+  exercise the compiled kernel.
+- **Disposition:** prepaint owns one document fault lifetime. `pageswap` or
+  `pagehide` retires it, and `pageshow` restores it for a cached realm. Startup
+  fault intake, the sample error port, and runtime error reporting consume that
+  lifetime. A canceled `beforeunload` does not retire it. No error-text matching
+  or delayed fault reporting participates.
+- **Compatibility limit:** [MDN's compatibility data](https://raw.githubusercontent.com/mdn/browser-compat-data/main/api/Window.json)
+  lists `pageswap` from Chrome 124, no Firefox support, and partial Safari 18.2
+  support because cross-origin navigation omits it
+  ([WebKit issue](https://webkit.org/b/306447)). Installed Playwright Chromium 153
+  and WebKit 26.6 expose the event; Firefox 155 does not. The Firefox double-reload
+  probe failed with native `NS_BINDING_ABORTED` and dynamic-module cancellation;
+  it does not establish whether this differs from the source runtime. `pagehide`
+  still retires departed documents there, but does not promise Chromium's earlier
+  cancellation boundary. Safari's opaque-frame ordering has not been established.
 
 ### Back during smooth arrival
 
@@ -208,11 +253,15 @@ what fails and what still works.
   authored paragraph at the frame's edge. Leaf's shared rules keep the same edge
   policy in those cases. The [CSS Box draft](https://drafts.csswg.org/css-box-4/#margin-trim)
   defines native trimming for block containers.
-- **Recheck:** the installed Chrome reading is available through:
+- **Recheck:** `leaf-dev probe` reads the pinned headless shell; installed Chrome's
+  reading is:
 
   ```sh
-  uv run leaf-dev probe developer/feature-gallery \
-    --js '({browser:navigator.userAgent, marginTrim:CSS.supports("margin-trim", "block")})'
+  uv run python -c 'from playwright.sync_api import sync_playwright
+  with sync_playwright() as p:
+      b = p.chromium.launch(channel="chrome")
+      print(b.version, b.new_page().evaluate("CSS.supports(\"margin-trim\", \"block\")"))
+      b.close()'
   ```
 
   The browser tests `test_frame_edges_pass_through_whatever_stands_at_them` and
@@ -251,6 +300,16 @@ what fails and what still works.
   threads. Selection stays with that allocation until dismissal, another choice,
   a view change, or safe departure. Complete-list rollback restores native content
   and editors from the same committed reading.
+- **Stale native `:focus-within`, observed 2026-10-12 in Playwright's Chromium
+  153.0.8010.12:** a focused element that `moveBefore` carries into a hidden
+  (`display: none`) parent and out again still matches `:focus`, and its new
+  ancestors match `:focus-within`, but the element itself no longer matches
+  `:focus-within`. A reply editor waiting in `thread/replies.js`'s park between a
+  seat and the margin card takes that route. No Leaf style reads it: focus paints
+  through `data-lf-focus-within`, which `focus.js` derives from the rendered
+  ancestry. A selector for the focused editor uses `:focus`. Reproduce with a
+  focused `<input>`, a hidden `<div>` and a visible one, two `moveBefore` calls, and
+  `input.matches(":focus-within")`.
 - **Fallback limit:** insertion blurs a focused descendant and reloads an iframe.
   `move` restores the focus and caret, but cannot preserve iframe documents. The
   native guarantee for Leaf's retained moves is described in the
@@ -347,3 +406,25 @@ application. Recheck the affected Leaf journey when resolving this entry.
   and `test_touch_capture_can_cancel_and_reopen_before_attaching` in
   `tests/*/test_render_threads.py`. Compare the rasterizer's same crop with a
   native screenshot in each installed engine when updating SnapDOM.
+
+### Anchoring from a shadow root to the outer document
+
+- **Disposition: blocks moving the chrome into a shadow root.** Leaf's chrome is a
+  light-DOM `div` (`runtime/chrome.js`), and its anchored surfaces (the floating
+  card, passage outlines, page-search paint, design hints, margin carriers) name
+  anchors on page elements. A spike that moved the chrome into a shadow root left
+  each of them at its fallback position.
+- **Spec:** the [anchor positioning draft](https://drafts.csswg.org/css-anchor-1/)
+  makes anchor names loosely matched tree-scoped names, so an element in a shadow
+  tree may anchor to a name declared in an outer tree.
+- **Observed, 2026-10-13:** a `position: fixed` element in an open shadow root with
+  `position-anchor` naming an `anchor-name` declared in the document stays at its
+  static position in Playwright Chromium 153.0.8010.12, installed Chrome
+  155.0.8059.40, Firefox 155 and WebKit 26.6, whether the rule is inline or in the
+  root's sheet. The same element anchors to a name declared inside its own root,
+  and a light-DOM element anchors to the document's name. In Chromium 153, a
+  document-level rule that positions the host's `::part()` does anchor, which is
+  the only bridge found.
+- **Recheck:** set `anchor-name` on a document element, attach a shadow root after
+  it, and compare a fixed child's `getBoundingClientRect()` against the anchor in
+  each engine.

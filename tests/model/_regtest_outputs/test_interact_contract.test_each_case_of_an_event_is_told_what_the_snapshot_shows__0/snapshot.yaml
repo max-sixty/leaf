@@ -69,7 +69,7 @@
 #        text: A design comment is about how the page looks or behaves rather than
 #              what it says. Its anchor's `section` is an authored element's id or,
 #              when it starts `lf-`, a part of Leaf's own chrome, such as `lf-banner`,
-#              `lf-threads` (the Threads panel), `lf-queue` (the Questions panel),
+#              `lf-threads` (the Threads panel), `lf-queue` (the On panel),
 #              `lf-versions` or `lf-composer`; `part`, when present, describes the
 #              control, region or picture the click landed on. Find the source that
 #              produces what it names and fix it in this page's own source, unless the
@@ -148,7 +148,7 @@
 #    This comment fits in one reading, shown here as the wait prints it:
 #
 #      {
-#        "format": "leaf-delivery-v5",
+#        "format": "leaf-delivery/6",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
 #        "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; until then the user's updates read Sent rather than Picked up. If the output was cut off, reread it with `leaf delivery read e8417b8a`. Follow any `next` commands before confirming. If you handle it, acknowledge before any other work; if you forward it, acknowledge once it durably arrives there. To acknowledge, start `leaf wait --ack e8417b8a` as the next background task: it confirms this delivery and waits for the next.",
@@ -364,7 +364,6 @@ comment with a drawing:
   event:
     kind: comment
     drawing:
-      format: leaf-drawing/3
       strokes: [[[0, 0], [9, 9]]]
       box: [640, 120]
       viewport: [1200, 900]
@@ -509,15 +508,15 @@ design comment:
         A design comment is about how the page looks or behaves rather than what
         it says. Its anchor's `section` is an authored element's id or, when it
         starts `lf-`, a part of Leaf's own chrome, such as `lf-banner`, `lf-threads`
-        (the Threads panel), `lf-queue` (the Questions panel), `lf-versions` or
-        `lf-composer`; `part`, when present, describes the control, region or picture
-        the click landed on. Find the source that produces what it names and fix
-        it in this page's own source, unless the behavior belongs to a package's
-        widget or the user asks for a wider fix: then change the package as the
-        Leaf skill's `references/packages.md` says, re-vendor, and note the re-vendor
-        on the stamp. A fix that belongs in Leaf itself is the user's to raise,
-        as the Leaf skill's "Improve Leaf through use" says. The stamped version
-        that carries the fix is the result the reply reports.
+        (the Threads panel), `lf-queue` (the On panel), `lf-versions` or `lf-composer`;
+        `part`, when present, describes the control, region or picture the click
+        landed on. Find the source that produces what it names and fix it in this
+        page's own source, unless the behavior belongs to a package's widget or
+        the user asks for a wider fix: then change the package as the Leaf skill's
+        `references/packages.md` says, re-vendor, and note the re-vendor on the
+        stamp. A fix that belongs in Leaf itself is the user's to raise, as the
+        Leaf skill's "Improve Leaf through use" says. The stamped version that carries
+        the fix is the result the reply reports.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         When the event asks for work, say in its thread what you will do before
@@ -1062,7 +1061,7 @@ report:
         until a stamped version answers it. Answer it in a stamped version before
         the page ends: write the reported state into the markup, or mark the element
         `overruled` and say why in the version note. A version that leaves the widget
-        as it was leaves the report standing, and `page check` refuses one whose
+        as it was leaves the report in force, and `page check` refuses one whose
         markup contradicts the report without answering it.
 
 error:

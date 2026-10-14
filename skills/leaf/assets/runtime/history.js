@@ -92,7 +92,7 @@ export function returnPlace(checkpoint) {
   // A thread card may have closed on departure. Its page target is the same working
   // place from the other side, and remains a browser focus destination on return.
   else if (drawn(place)) focusDestination(place, "return");
-  else deepFocus()?.blur();
+  else /** @type {HTMLElement | null} */ (deepFocus())?.blur();
   const selection = getSelection();
   selection.removeAllRanges();
   // Editing the passage can remove its saved endpoint. That checkpoint then has no
@@ -161,6 +161,7 @@ export function prepareEntry() {
 
 // `claim(url)` returns the handler that places the page at a traversal to `url`, or
 // nothing when the entry is not the claimant's. The first claim to answer takes it.
+/** @param {(url: URL) => unknown} claim @param {{signal?: AbortSignal}} [options] */
 export function claimTraversals(claim, { signal } = {}) {
   claims.add(claim);
   signal?.addEventListener("abort", () => claims.delete(claim), { once: true });

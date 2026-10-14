@@ -86,95 +86,98 @@ const numbering = (el, count) => {
   return numbers;
 };
 
-export default class extends HTMLElement {
-  // The rendered lines a range addresses, none before the lines are in; the render
-  // states their arrival through layoutChanged, and an indication resolves again then.
-  lfElementsFor(key) {
-    const addressed = within(key);
-    return [
-      ...this.querySelectorAll(":scope > pre > :is(.lf-code-line, .lf-code-elided)"),
-    ].filter((row) => addressed(...rowSpan(row)));
-  }
-
-  connectedCallback() {
-    if (!once(this)) return;
-    // Registered with the controller so the runtime holds the first anchor pass until
-    // the lines are in — the tokenizer loads lazily, so even an uncolored block
-    // lands a microtask late and one writer has to finish before another reads.
-    widgetController(this).present(this.render());
-  }
-
-  async render() {
-    // The code is the <pre>'s and nothing else's; notes are its siblings and say
-    // which line they are about, so a note never sits between two halves of the
-    // source and there is no interrupted-line arithmetic to get right.
-    const notes = [...this.querySelectorAll(":scope > lf-note")];
-    const source = bodyText(this);
-    try {
-      const lang = this.getAttribute("language");
-      // One representation either way: an uncolored block is the whole source as a
-      // single unstyled token, so the line walk below has one shape to handle.
-      const lines = tokenLines(
-        lang ? await syntax(source, lang) : [{ text: source, style: {} }],
-      );
-      const numbers = numbering(this, lines.length);
-      const hi = within(this.getAttribute("hi"));
-      const byLine = new Map();
-      for (const note of notes) {
-        const at = Number(note.getAttribute("at"));
-        byLine.set(at, [...(byLine.get(at) ?? []), note]);
-      }
-      // No tab stop written here: the runtime's reachScrollers pass grants one to
-      // every scrollable box alike.
-      const pre = document.createElement("pre");
-      // The gutter fits the widest number, so an excerpt from deep in a file keeps
-      // its code aligned with its notes.
-      pre.style.setProperty("--lf-code-digits", String(numbers.at(-1)).length);
-      // A note stands at the row of the line it names, or the elided row standing
-      // for it; one naming a line past either end of the block stands at its foot.
-      lines.forEach((tokens, i) => {
-        const n = numbers[i];
-        if (i && n > numbers[i - 1] + 1) {
-          const [from, to] = [numbers[i - 1] + 1, n - 1];
-          const captions = [...byLine]
-            .filter(([at]) => from <= at && at <= to)
-            .sort(([a], [b]) => a - b)
-            .flatMap(([, list]) => list);
-          pre.append(elided(from, to, hi(from, to), captions));
-        }
-        const line = document.createElement("span");
-        line.className = `lf-code-line${hi(n) ? " hi" : ""}`;
-        line.dataset.line = n;
-        // A line too long for the frame wraps, and its later rows hang from its own
-        // indent (the theme's `--lf-code-indent`), so a wrapped line keeps its place
-        // in the code's structure.
-        const indent = indentColumns(tokens);
-        if (indent) line.style.setProperty("--lf-code-indent", String(indent));
-        line.append(...synNodes(tokens), "\n");
-        // The tint says "this is the line" to the eye and nothing to a user
-        // listening, who is handed the whole block with no idea which of it the note
-        // beside it is about. A word per highlighted line rather than one at the top
-        // saying which numbers: the numbers are painted from data-line, into no text
-        // node on purpose — a line number in the text would be a line number in the
-        // clipboard — so "lines 3 to 4" would name something the user cannot hear.
-        // Said per line, it arrives where it is true. The one word rides the same
-        // clip as every other quiet word, out of the selection with it, so a copied
-        // block is still the source and nothing else.
-        if (hi(n)) quietWord(line, "highlighted");
-        pre.append(line);
-        // Moved, not copied: the authored element keeps its text and id.
-        pre.append(...(byLine.get(n) ?? []));
-      });
-      pre.append(...notes.filter((note) => !pre.contains(note)));
-      this.replaceChildren(pre);
-      this.classList.add("lf-rendered");
-      this.append(copyBlock(pre, () => source, "code"));
-      layoutChanged(this);
-    } catch (err) {
-      failSoft(this, err, source);
+customElements.define(
+  "lf-code",
+  class extends HTMLElement {
+    // The rendered lines a range addresses, none before the lines are in; the render
+    // states their arrival through layoutChanged, and an indication resolves again then.
+    lfElementsFor(key) {
+      const addressed = within(key);
+      return [
+        ...this.querySelectorAll(":scope > pre > :is(.lf-code-line, .lf-code-elided)"),
+      ].filter((row) => addressed(...rowSpan(row)));
     }
-  }
-}
+
+    connectedCallback() {
+      if (!once(this)) return;
+      // Registered with the controller so the runtime holds the first anchor pass until
+      // the lines are in — the tokenizer loads lazily, so even an uncolored block
+      // lands a microtask late and one writer has to finish before another reads.
+      widgetController(this).present(this.render());
+    }
+
+    async render() {
+      // The code is the <pre>'s and nothing else's; notes are its siblings and say
+      // which line they are about, so a note never sits between two halves of the
+      // source and there is no interrupted-line arithmetic to get right.
+      const notes = [...this.querySelectorAll(":scope > lf-note")];
+      const source = bodyText(this);
+      try {
+        const lang = this.getAttribute("language");
+        // One representation either way: an uncolored block is the whole source as a
+        // single unstyled token, so the line walk below has one shape to handle.
+        const lines = tokenLines(
+          lang ? await syntax(source, lang) : [{ text: source, style: {} }],
+        );
+        const numbers = numbering(this, lines.length);
+        const hi = within(this.getAttribute("hi"));
+        const byLine = new Map();
+        for (const note of notes) {
+          const at = Number(note.getAttribute("at"));
+          byLine.set(at, [...(byLine.get(at) ?? []), note]);
+        }
+        // No tab stop written here: the runtime's reachScrollers pass grants one to
+        // every scrollable box alike.
+        const pre = document.createElement("pre");
+        // The gutter fits the widest number, so an excerpt from deep in a file keeps
+        // its code aligned with its notes.
+        pre.style.setProperty("--lf-code-digits", `${String(numbers.at(-1)).length}`);
+        // A note stands at the row of the line it names, or the elided row standing
+        // for it; one naming a line past either end of the block stands at its foot.
+        lines.forEach((tokens, i) => {
+          const n = numbers[i];
+          if (i && n > numbers[i - 1] + 1) {
+            const [from, to] = [numbers[i - 1] + 1, n - 1];
+            const captions = [...byLine]
+              .filter(([at]) => from <= at && at <= to)
+              .sort(([a], [b]) => a - b)
+              .flatMap(([, list]) => list);
+            pre.append(elided(from, to, hi(from, to), captions));
+          }
+          const line = document.createElement("span");
+          line.className = `lf-code-line${hi(n) ? " hi" : ""}`;
+          line.dataset.line = n;
+          // A line too long for the frame wraps, and its later rows hang from its own
+          // indent (the theme's `--lf-code-indent`), so a wrapped line keeps its place
+          // in the code's structure.
+          const indent = indentColumns(tokens);
+          if (indent) line.style.setProperty("--lf-code-indent", String(indent));
+          line.append(...synNodes(tokens), "\n");
+          // The tint says "this is the line" to the eye and nothing to a user
+          // listening, who is handed the whole block with no idea which of it the note
+          // beside it is about. A word per highlighted line rather than one at the top
+          // saying which numbers: the numbers are painted from data-line, into no text
+          // node on purpose — a line number in the text would be a line number in the
+          // clipboard — so "lines 3 to 4" would name something the user cannot hear.
+          // Said per line, it arrives where it is true. The one word rides the same
+          // clip as every other quiet word, out of the selection with it, so a copied
+          // block is still the source and nothing else.
+          if (hi(n)) quietWord(line, "highlighted");
+          pre.append(line);
+          // Moved, not copied: the authored element keeps its text and id.
+          pre.append(...(byLine.get(n) ?? []));
+        });
+        pre.append(...notes.filter((note) => !pre.contains(note)));
+        this.replaceChildren(pre);
+        this.classList.add("lf-rendered");
+        this.append(copyBlock(pre, () => source, "code"));
+        layoutChanged(this);
+      } catch (err) {
+        failSoft(this, err, source);
+      }
+    }
+  },
+);
 
 // The row standing for the lines an excerpt leaves out. Its count is painted from the
 // attribute, as the gutter's numbers are, so a copied excerpt is still only source and

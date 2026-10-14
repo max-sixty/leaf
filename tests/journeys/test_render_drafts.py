@@ -253,7 +253,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     refuse(held[0])
     first.unroute("**/api/event")
     round_trip(first)
-    # The words standing in the seat's own thread are what says the send landed;
+    # The words shown in the seat's own thread are what says the send landed;
     # a notice saying so beside them would be the same acknowledgement twice.
     expect(first.locator("#jobs > .lf-thread-seat")).to_contain_text(raw.strip())
     roots = [
@@ -263,7 +263,7 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     ]
     assert [event["text"] for event in roots] == [raw]
     # Asked of the words rather than of the box: a seat that can hold keeps its composer
-    # standing after every root (renderSeats), so an empty one is what says the
+    # open after every root (renderSeats), so an empty one is what says the
     # tab adopted the durable outcome instead of holding the words for a second send.
     expect(first_say.locator("leaf-text")).to_have_js_property("value", "")
     expect(second_say.locator("leaf-text")).to_have_js_property("value", "")
@@ -328,7 +328,7 @@ def test_executable_revision_routes_one_editor_among_visible_reply_mirrors(
     wait_for_revision(page, 2)
     current = page.evaluate(
         """async()=>{
-      const {focused}=await window.__lfRuntimeImport('/runtime/focus.js');
+      const {focused}=await window.__lfWidgetApi();
       const el=focused();
       return {tag:el.tagName,value:el.value,caret:[el.selectionStart,el.selectionEnd,el.selectionDirection]};
     }"""
@@ -377,7 +377,7 @@ def test_executable_revision_does_not_restore_a_new_draft_generation(browser, se
     editor.evaluate("el=>el.setSelectionRange(4,9,'backward')")
     saved = page.evaluate(
         """async()=>{
-      const owner=await window.__lfRuntimeImport('/runtime/drafts.js');
+      const owner=await window.__lfCheckApi();
       const editing=owner.captureDraftEditing();
       return {editing,key:owner.whereDraft(editing.context).key};
     }"""
@@ -391,9 +391,7 @@ def test_executable_revision_does_not_restore_a_new_draft_generation(browser, se
     )
     replace_editing_document(page, serve)
     assert (
-        page.evaluate(
-            "async()=> (await window.__lfRuntimeImport('/runtime/drafts.js')).captureDraftEditing()"
-        )
+        page.evaluate("async()=> (await window.__lfCheckApi()).captureDraftEditing()")
         is None
     )
     expect(page.locator(".lf-composer leaf-text")).not_to_be_visible()
@@ -419,8 +417,8 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
     other = open_page(browser, page.url, context=one_user)
     held = page.evaluate(
         """async()=>{
-      const drafts=await window.__lfRuntimeImport('/runtime/drafts.js');
-      const focus=await window.__lfRuntimeImport('/runtime/thread/focus.js');
+      const drafts=await window.__lfCheckApi();
+      const focus=await window.__lfCheckApi();
       return {editing:drafts.captureDraftEditing(),id:focus.heldThreadId()};
     }"""
     )
@@ -442,10 +440,12 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
     hold_visible_thread_presentation(page, held["id"])
     page.evaluate(
         """async held=>{
-      const drafts=await window.__lfRuntimeImport('/runtime/drafts.js');
-      const {replyDestination}=await window.__lfRuntimeImport('/runtime/thread/focus.js');
-      const {retainUserIntent,restrictUserIntent}=await window.__lfRuntimeImport('/runtime/user-intent.js');
-      const {openThread}=await window.__lfRuntimeImport('/runtime/application.js');
+      const drafts=await window.__lfCheckApi();
+      const {replyDestination}=await window.__lfCheckApi();
+      const {retainUserIntent}=await window.__lfWidgetApi();
+      const {restrictUserIntent}=await window.__lfCheckApi();
+      const {threadActions, readThreads}=await window.__lfWidgetApi();
+      const openThread=(id,options)=>threadActions.open(readThreads().threads.find(thread=>thread.id===id).key,options);
       const button=document.createElement('button');button.id='held-reply-route';button.textContent='Continue the held reply';document.querySelector('main').append(button);
       button.onclick=()=>{
         const original=retainUserIntent();window.readOriginalIntent=original;
@@ -463,13 +463,13 @@ def test_delayed_thread_destination_yields_to_shared_generation_or_new_input(
         assert page.evaluate("window.readOriginalIntent()")
         other.evaluate(
             """async editing=>{
-          const drafts=await window.__lfRuntimeImport('/runtime/drafts.js');
+          const drafts=await window.__lfWidgetApi();
           drafts.saveDraft(editing.context,editing.words);
         }""",
             held["editing"],
         )
         page.wait_for_function(
-            "async()=>!(await window.__lfRuntimeImport('/runtime/drafts.js')).draftEditingStands(heldEditing)"
+            "async()=>!(await window.__lfCheckApi()).draftEditingStands(heldEditing)"
         )
         assert page.evaluate("window.readOriginalIntent()"), (
             "the state change must not supersede input intent"

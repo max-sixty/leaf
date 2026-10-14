@@ -12,15 +12,25 @@ Interactive behavior does not by itself justify a package; `references/packages.
 says where page-only and reused behavior belong. A page module can define custom
 elements, register structured state with its playground, and derive the output.
 
-The playground draws its own regions: the preview is a stage, and the controls and the
-instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks as a
-sidebar page's body and aside, wherever it has 43.5rem; narrower, they stack. A preview
-that needs width, such as two candidates side by side, takes the room beside the column:
-give the `lf-playground` `data-width="available"`, so it widens while the question and
-premise in its `lf-ask` keep the prose's width. On a workspace page (`<main
-class="layout-workspace density-working">`) whose body is that `lf-ask`, the stage also
-grows to the window's height. Draw candidates directly on the stage without separate
-cards.
+The playground draws its own regions: the preview is a stage, and the instruction to the
+agent stands in a rail beside it, on the same `2fr 1fr` tracks as a sidebar page's body
+and aside, wherever it has 43.5rem; narrower, they stack.
+
+Put each control as close as it can stand to what it changes, so the user never has to
+match a setting to its item. A control that changes the whole preview, as most do, is a
+direct child of `lf-playground` and stands in the rail above the instruction. When the
+preview holds several items that each take their own settings, such as alerts that each
+need a threshold, write each item's controls inside the preview beside that item, in
+markup and CSS you arrange, and leave only the settings shared by every item in the
+rail. A control belongs to its playground wherever it stands: its value joins the
+submitted map, and presets and Reset set it.
+
+A preview that needs width, such as two candidates side by side, takes the room beside
+the column: give the `lf-playground` `data-width="available"`, so it widens while the
+question and premise in its `lf-ask` keep the prose's width. On a workspace page (`<main
+class="layout-workspace density-working">`) whose body is that `lf-ask`, the ask fills
+the window and the stage grows to the window's height. Draw candidates directly on the
+stage without separate cards.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
 mounted there with the same configuration and starting content. Candidates that stand
@@ -66,7 +76,7 @@ Separate the configuration the user is choosing from the cases used to inspect i
 Configuration controls and presets describe what to build. Give preview cases and
 inspection settings their own labeled controls and page-local state, outside the
 playground's submitted values. Style these controls with the layer's control idioms
-(`references/page-authoring.md`, "Theme and vocabulary"). Changing a case preserves
+(`references/page-layout.md`, "Page CSS and Leaf's controls"). Changing a case preserves
 the configuration; applying a preset preserves the case; all compared candidates use
 the same case. When editing the data is the task, that data belongs in the configuration.
 
@@ -151,7 +161,7 @@ host controls outside the samples.
 
 Start fictional threads or decisions with `data-sample-events`, naming one inert JSON
 history in the parent; samples can share it without sharing subsequent gestures.
-`references/page-authoring.md`, "Live samples", owns this declaration and its event
+`references/live-samples.md` owns this declaration and its event
 commands. Keep fixture anchors in the child template. Do not copy fictional history
 into the outer page's log or post it with a setup script.
 
@@ -175,8 +185,8 @@ A preview that needs JavaScript keeps its page-specific behavior in an inline
 page-specific custom element, following `references/module-authoring.md`, "What a behavior
 module owes".
 
-Read `closest("lf-playground").values` in `afterPresentation(() => …)`.
-Later snapshots arrive in the bubbling
+Wait for `customElements.whenDefined("lf-playground")` before reading
+`closest("lf-playground").values`. Later snapshots arrive in the bubbling
 `lf-playground-change` event's `detail.values`.
 
 A custom state model joins the same configuration with

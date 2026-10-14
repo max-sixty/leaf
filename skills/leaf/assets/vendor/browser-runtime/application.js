@@ -4,7 +4,7 @@
  * readings. The existing pure folds derive every published projection synchronously.
  * Promises, rendering instances, and proof of presentation stay outside this owner.
  */
-import { createApplicationPublisher,                } from "./snapshot.js";
+import { createApplicationPublisher, share,                } from "./snapshot.js";
 import {
   coordinateOf,
   foldProjection,
@@ -289,8 +289,8 @@ function advance(
 
 
 
-/** One item on Questions or Tasks, as `served_state.queues` serves it. An ask item
- * keeps its record; a to-do item the fields a row draws. */
+/** One item on On me or On <agent>, as `served_state.queues` serves it: `owner` names
+ * the list. An ask item keeps its record; a to-do item the fields a row draws. */
 
 
 
@@ -303,7 +303,8 @@ function advance(
 
 
 
-/** A finished item: how it ended, when, and the outcome's detail. */
+/** A finished item, in the Done of the list `owner` names: how it ended, when, and the
+ * outcome's detail. */
 
 
 
@@ -407,11 +408,35 @@ function advance(
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /** A server view with its basis, the transport identity, left off. */
 
 
-// The server classifies the page under the viewed revision's vocabulary and each
-// frozen message under its admitted vocabulary; every entry has its own captured spec.
+// The server classifies a view's page and thread entries alike under that revision's
+// registry, so every entry is one the view's widgets can draw.
 function normalizedProjection(view                             ) {
   const entries = [];
   const actionIds = [];
@@ -440,13 +465,6 @@ function normalizedProjection(view                             ) {
   }
   return { entries, actionIds, reportIds, desiredIds, coverage: view?.coverage ?? [] };
 }
-
-// The selected server view already bounds page history to the captured revision and
-// thread history to its frozen document. Widget ids are unique across both, so
-// filtering again by the event's authored revision would incorrectly discard carried
-// decisions from an earlier revision.
-const appliesTo = (descriptor                  , event                           ) =>
-  event.widget === descriptor.id;
 
 const NO_ASKS = {
   all: []               ,
@@ -551,9 +569,9 @@ function localTodos(
   };
 }
 
-const NO_QUEUES             = { questions: [], tasks: [], done: [] };
+const NO_QUEUES             = { on_user: [], on_agent: [], done: [] };
 
-/* What is on the user (Questions), what is on the agent (Tasks), and what is done:
+/* What is on the user (On me), what is on the agent (On <agent>), and what is done:
  * the view's served lists (`served_state.queues`), with this tab's unresolved sends
  * placed against them. A send moves an item the server listed only where the item is
  * its own subject: a Done or its undo moves a to-do between its list and done, and an
@@ -615,7 +633,7 @@ function localQueues(
   const reopened = (item          ) =>
     item.kind === "ask"
       ? askOf(item).status === "open" && askOf(item).next_actor === "user"
-      : open.has(item.id);
+      : item.kind === "todo" && open.has(item.id);
   // Whether an item the server listed as open has ended in this tab.
   const endedHere = (item           ) =>
     item.kind === "ask"
@@ -637,17 +655,17 @@ function localQueues(
     detail: null,
   });
   const listed = new Set(
-    [...served.questions, ...served.tasks].map((item) => `${item.kind}:${item.id}`),
+    [...served.on_user, ...served.on_agent].map((item) => `${item.kind}:${item.id}`),
   );
   const resend = (id        , subject                      , thread               ) =>
     listed.has(`resend:${id}`)
       ? []
-      : [{ kind: "resend"         , id, subject, thread, live: false }];
+      : [{ kind: "resend"         , id, owner: "user"         , subject, thread, live: false }];
   const reopenedFor = (owner                  ) =>
-    served.done.filter((item) => (item.owner ?? "user") === owner && reopened(item));
+    served.done.filter((item) => item.owner === owner && reopened(item));
   return {
-    questions: [
-      ...served.questions.filter(standsOpen).map(current),
+    on_user: [
+      ...served.on_user.filter(standsOpen).map(current),
       ...reopenedFor("user").map(asOpen),
       ...threads.flatMap((thread) =>
         retrying(thread.id)
@@ -661,11 +679,11 @@ function localQueues(
       ),
     ].toSorted(
       (a, b) =>
-        questionsRank(a) - questionsRank(b) ||
+        onUserRank(a) - onUserRank(b) ||
         (a.kind === "ask" && b.kind === "ask" ? asked.get(a.id)  - asked.get(b.id)  : 0),
     ),
-    tasks: [
-      ...served.tasks.filter((item) => item.kind !== "todo" && standsOpen(item)),
+    on_agent: [
+      ...served.on_agent.filter((item) => item.kind !== "todo" && standsOpen(item)),
       // One answer per thread, as the server lists one for the newest turn owed.
       ...sending
         .filter((workflow, at) =>
@@ -674,83 +692,137 @@ function localQueues(
         .map((workflow) => ({
           kind: "answer"         ,
           id: workflow.id,
+          owner: "agent"         ,
           subject: workflow.subject,
           thread: workflow.thread,
           live: false,
           answer: workflow.answer,
           stage: workflow.stage,
         })),
-      ...served.tasks.filter((item) => item.kind === "todo" && standsOpen(item)),
+      ...served.on_agent.filter((item) => item.kind === "todo" && standsOpen(item)),
       ...reopenedFor("agent").map(asOpen),
     ],
+    // Newest first, as the server serves it: what ended in this tab has just ended.
     done: [
+      ...[...served.on_user, ...served.on_agent].filter(endedHere).map(asDone),
       ...served.done.filter((item) => !reopened(item)).map(current),
-      ...[...served.questions, ...served.tasks].filter(endedHere).map(asDone),
-    ].toSorted((a, b) => Number(a.kind === "todo") - Number(b.kind === "todo")),
+    ],
   };
 }
 
-// The order the server lists Questions in: asks, to-dos, then resends; asks among
+// The order the server lists On me in: asks, to-dos, then resends; asks among
 // themselves in the order the view's ask inventory holds them.
-const questionsRank = (item           ) =>
+const onUserRank = (item           ) =>
   item.kind === "ask" ? 0 : item.kind === "todo" ? 1 : 2;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Every widget's share of the root's action entries and threads, grouped once per
+// publication rather than filtered from the whole projection by each widget. The
+// publisher shares each widget's group across publications, so a widget whose entries
+// did not move reads the group it read before. Entries group by widget id alone: the
+// selected server view already bounds page history to the captured revision and thread
+// history to its frozen document, and widget ids are unique across both, so filtering
+// again by the event's authored revision would discard carried decisions from an
+// earlier revision.
+function widgetIndex(root              )              {
+  const projection = root.effective.projection;
+
+  const byWidget = new Map               ();
+  const group = (widget        ) => {
+    let entries = byWidget.get(widget);
+    if (!entries) byWidget.set(widget, (entries = { classified: [], desired: [], undo: [] }));
+    return entries;
+  };
+  for (const entry of projection.classified.values())
+    if (!entry.terminal && entry.e.kind === "action") group(entry.e.widget).classified.push(entry);
+  for (const entry of projection.actions.values()) group(entry.e.widget).desired.push(entry);
+  for (const { event } of root.effective.view?.undo ?? [])
+    if (event.kind === "action" && !projection.pendingWithdrawals.has(event.id))
+      group(event.widget).undo.push(event);
+  const heldBy = new Map                ();
+  for (const thread of root.effective.thread.all)
+    if (
+      !thread.resolved &&
+      !thread.root.pending &&
+      thread.root.holds &&
+      !heldBy.has(thread.root.holds)
+    )
+      heldBy.set(thread.root.holds, thread.id);
+  return { byWidget, heldBy };
+}
+
+const NO_ENTRIES                = { classified: [], desired: [], undo: [] };
+
+// Everything one widget's reading draws from the root, each part by identity.
+function widgetInputs(
+  root              ,
+  index             ,
+  { id, tag }                  ,
+) {
+  return {
+    registered: root.document.descriptors.get(id),
+    states: root.document.registry.$states[tag],
+    current: root.effective.widgets.get(id),
+    authored: root.document.authored.get(id),
+    hostAvailable: root.effective.hostAvailable,
+    ready: root.phase === "ready",
+    entries: index.byWidget.get(id) ?? NO_ENTRIES,
+    heldBy: index.heldBy.get(id) ?? null,
+  };
+}
+
 function widgetReading(
-  root                                                                  ,
+  inputs                                 ,
   descriptor                  ,
 ) {
-  const registered = root.document.descriptors.get(descriptor.id);
-  const currentDescriptor = JSON.stringify(registered) === JSON.stringify(descriptor);
+  const currentDescriptor =
+    JSON.stringify(inputs.registered) === JSON.stringify(descriptor);
   // A live revision connects and prepares replacement nodes before their complete
   // document capture is adopted. An id shared with the outgoing node must not lend the
   // replacement its old semantic state during that preparation window.
-  const current = currentDescriptor
-    ? root.effective.widgets.get(descriptor.id)
-    : undefined;
-  const authored = currentDescriptor
-    ? root.document.authored.get(descriptor.id)?.state
-    : undefined;
-  const projection = root.effective.projection;
-  const classified = [...projection.classified.values()]
-    .filter(
-      ({ e, terminal }) => !terminal && e.kind === "action" && appliesTo(descriptor, e),
-    )
-    .sort((left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0));
-  const desired = [...projection.actions.values()].filter(({ e }) =>
-    appliesTo(descriptor, e),
+  const current = currentDescriptor ? inputs.current : undefined;
+  const authored = currentDescriptor ? inputs.authored?.state : undefined;
+  const classified = inputs.entries.classified.toSorted(
+    (left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0),
   );
-  const durableUndo = (root.effective.view?.undo ?? [])
-    .map((candidate) => candidate.event)
-    .filter(
-      (event       ) =>
-        event.kind === "action" &&
-        appliesTo(descriptor, event) &&
-        !projection.pendingWithdrawals.has(event.id),
-    );
+  const actionSpecs = descriptor.declaration["x-state"] ?? {};
+  const states = inputs.states ?? {};
+  const desired = inputs.entries.desired;
+  const durableUndo = inputs.entries.undo;
   const localUndo = desired
     .map(({ e }) => e)
     .filter((event) => String(event.id).startsWith(PENDING));
   // The user acts only on the verbs they write; an agent's verb reaches this widget as
   // state and never as a control.
   const actions = Object.fromEntries(
-    Object.entries(descriptor.states)
-      .filter(([, state]) => state.writer === "user")
+    Object.entries(actionSpecs)
+      .filter(([verb]) => states[verb]?.writer === "user")
       .map(([verb]) => [
         verb,
         {
           available:
             currentDescriptor &&
-            root.effective.hostAvailable &&
-            root.phase === "ready" &&
+            inputs.hostAvailable &&
+            inputs.ready &&
             !descriptor.quoted,
-          unavailable: root.effective.hostAvailable
-            ? null
-            : "no agent or server is available",
+          unavailable: inputs.hostAvailable ? null : "no agent or server is available",
           history: classified.filter(({ e }) => e.action === verb).map(({ e }) => e),
-          standing: desired
+          inForce: desired
             .filter(({ e }) => e.action === verb)
             .map(({ e, unit, value }) => ({ event: e, unit, value })),
-          undo: root.effective.hostAvailable
+          undo: inputs.hostAvailable
             ? [...localUndo, ...durableUndo].filter((event) => event.action === verb)
             : [],
         },
@@ -764,14 +836,10 @@ function widgetReading(
       { event: e, unit, value },
     ]),
   );
-  const holdingThread = root.effective.thread.all.find(
-    (thread) =>
-      !thread.resolved && !thread.root.pending && thread.root.holds === descriptor.id,
-  );
   return {
     authored: authored ?? {},
     state: current?.state ?? {},
-    thread: { heldBy: holdingThread?.id ?? null },
+    thread: { heldBy: inputs.heldBy },
     provenance,
     actions,
   };
@@ -803,6 +871,11 @@ export function createSemanticApplication({
     // `unresolved` ledger; each leaves once the answer carrying it is applied.
     markingRead: []                    ,
     phase: "waiting",
+    // How the server answered the page's latest read: not yet (`waiting`), with a
+    // reading the page adopted (`reached`), with nothing (`unreachable`, or `refused`
+    // where it refused this tab's key), or with one the page could not apply
+    // (`broken`). It is what the banner says about the server, and no semantic epoch.
+    reach: "waiting"                                                                ,
     hostAvailable: true,
     data: { version: null                 , sources: {}                            },
     effective: derive(
@@ -821,9 +894,9 @@ export function createSemanticApplication({
     semanticEpoch: 0,
   };
   const publisher = createApplicationPublisher(initial);
+  const widgets = publisher.select(widgetIndex);
   let dataTaken = -Infinity;
   let order = 0;
-  let signature = semanticSignature([initial.effective, initial.data, initial.phase]);
   let publicationDepth = 0;
   let activePresentation                                         = null;
 
@@ -858,7 +931,7 @@ export function createSemanticApplication({
     // the id the log gave it, or as a pending action by the rule above.
     const drawsAction = (e                      ) => {
       const descriptor = document.descriptors.get(e.widget);
-      const state = descriptor && stampedState(descriptor.states, e);
+      const state = descriptor && stampedState(document.registry, descriptor.tag, e);
       return Boolean(state && sameStateDefinition(e.meaning?.state, state.definition));
     };
     const localProjections = local.flatMap((entry)                      => {
@@ -878,8 +951,8 @@ export function createSemanticApplication({
     });
     // A local comment belongs to the shown document even before saved history arrives.
     // Fold it through the same ledger and receipt path in every phase; collection.phase
-    // still says whether this is a complete reading. Questions need the log to say which
-    // authored asks the page still holds, so their inventory waits for that reading.
+    // still says whether this is a complete reading. The asks need the log to say which
+    // of them the page still holds, so their inventory waits for that reading.
     const ready = phase === "ready";
     // The ledger's thread gestures, in the order the user made them.
     const gestures = local.flatMap(({ event, thread, namedParent })                  =>
@@ -1074,16 +1147,16 @@ export function createSemanticApplication({
         gestured: [...new Set(unresolved.flatMap(threadsOfEntry))],
       },
       asks: { phase, ...asks },
-      // Questions (on the user), Tasks (on the agent), and done: the served lists
+      // On me (on the user), On <agent> (on the agent), and done: the served lists
       // with this tab's sends placed against them (`localQueues`).
       queues: {
         phase,
-        questions: contextual(selectedQueues.questions, true),
-        tasks: contextual(selectedQueues.tasks),
+        on_user: contextual(selectedQueues.on_user, true),
+        on_agent: contextual(selectedQueues.on_agent),
         done: contextual(selectedQueues.done),
       },
-      // Inside the publication signature, so a read that changes only the view's
-      // reports, publication time, or undo list still reaches its watchers.
+      // Part of the effective reading, so a read that changes only the view's
+      // reports, publication time, or undo list opens an epoch and reaches its readers.
       view,
       // The attempts still waiting for their POST's answer, in ledger order.
       sending: unresolved
@@ -1094,31 +1167,31 @@ export function createSemanticApplication({
     };
   }
 
-  function semanticSignature(value         ) {
-    return JSON.stringify(value, (_key, child) =>
-      child instanceof Map ? [...child] : child,
-    );
-  }
-
   function publish(changes                         ) {
-    const prior = publisher.read();
+    const prior = publisher.peek();
     const next = { ...prior, ...changes }                  ;
-    next.effective = derive(
-      next.document,
-      next.authoritative,
-      next.unresolved,
-      next.markingRead,
-      next.phase,
-      next.hostAvailable,
+    // Shared against the current reading, so a part whose contents did not move keeps
+    // its identity: that is what an epoch and every selection compare.
+    next.effective = share(
+      prior.effective,
+      derive(
+        next.document,
+        next.authoritative,
+        next.unresolved,
+        next.markingRead,
+        next.phase,
+        next.hostAvailable,
+      ),
     );
-    const nextSignature = semanticSignature([next.effective, next.data, next.phase]);
+    next.data = share(prior.data, next.data);
     next.semanticEpoch =
       prior.semanticEpoch +
       Number(
-        nextSignature !== signature ||
+        next.effective !== prior.effective ||
+          next.data !== prior.data ||
+          next.phase !== prior.phase ||
           next.document.revision !== prior.document.revision,
       );
-    signature = nextSignature;
     if (presentation) activePresentation = presentation.begin(next.semanticEpoch);
     publicationDepth += 1;
     try {
@@ -1138,7 +1211,7 @@ export function createSemanticApplication({
 
   // An answer taken, read through, or activated before the one already adopted.
   const overtaken = (state                    ) => {
-    const prior = publisher.read().authoritative;
+    const prior = publisher.peek().authoritative;
     return Boolean(
       prior &&
       (state.taken < prior.taken ||
@@ -1153,7 +1226,7 @@ export function createSemanticApplication({
     state                    ,
     candidate                                  ,
   ) => {
-    const prior = publisher.read();
+    const prior = publisher.peek();
     if (overtaken(state)) return false;
     const revision =
       typeof candidate === "number"
@@ -1167,16 +1240,20 @@ export function createSemanticApplication({
     );
   };
 
+  // The ledger's own readings select their parts, so a paint that reads one follows
+  // the ledger and the receipts rather than every publication.
+  const unresolvedPart = publisher.select((root) => root.unresolved);
+  const receiptsPart = publisher.select(
+    (root) => root.authoritative?.browser.receipts ?? [],
+  );
+  const widgetsPart = publisher.select((root) => root.effective.widgets);
   const entry = (attempt        ) =>
-    publisher.read().unresolved.find((item) => item.event.attempt === attempt);
-  const ledgerAndReceipts = () => {
-    const { unresolved, authoritative } = publisher.read();
-    return [unresolved, authoritative?.browser.receipts ?? []]         ;
-  };
+    unresolvedPart.read().find((item) => item.event.attempt === attempt);
+  const ledgerAndReceipts = () => [unresolvedPart.read(), receiptsPart.read()]         ;
   const update = (attempt        , change                                     ) =>
     publish({
       unresolved: publisher
-        .read()
+        .peek()
         .unresolved.map((item) =>
           item.event.attempt === attempt ? change(item) : item,
         ),
@@ -1185,7 +1262,7 @@ export function createSemanticApplication({
   // event for it (or null), and the attempts that left. The caller publishes it.
   const transition = (signal        , admitted                           ) => {
     const left           = [];
-    const unresolved = publisher.read().unresolved.flatMap((item) => {
+    const unresolved = publisher.peek().unresolved.flatMap((item) => {
       if (!admitted.has(item.event.attempt)) return [item];
       const next = advance(item, signal, admitted.get(item.event.attempt) ?? null);
       if (!next) left.push(item.event.attempt);
@@ -1219,7 +1296,7 @@ export function createSemanticApplication({
     // Render checks compare authored, carried, and current states. The event filter is
     // a semantic selection of the same root, not a presentation-owned partial fold.
     selectWidgets(eventIds                  = null) {
-      if (eventIds === null) return publisher.read().effective.widgets;
+      if (eventIds === null) return widgetsPart.read();
       const wanted = new Set(eventIds);
       return publisher
         .select((root) =>
@@ -1234,22 +1311,23 @@ export function createSemanticApplication({
         )
         .read();
     },
+    // A widget's reading, recomputed only when one of the parts it draws moves, so a
+    // publication about another widget or a thread costs each widget a comparison.
     selectWidget(descriptor                  ) {
-      let prior                                              ;
-      let priorSignature                    ;
+      let inputs                                         = null;
+      let reading                                  ;
       return publisher.select((root) => {
-        const reading = widgetReading(root, descriptor);
-        const readingSignature = semanticSignature(reading);
-        if (readingSignature === priorSignature && prior) return prior;
-        prior = reading;
-        priorSignature = readingSignature;
-        return reading;
+        const next = widgetInputs(root, widgets.read(), descriptor);
+        const keys = Object.keys(next)                         ;
+        if (inputs && keys.every((key) => next[key] === inputs [key])) return reading;
+        inputs = next;
+        return (reading = widgetReading(next, descriptor));
       });
     },
     entry,
     identify(revision               , stamp                = null, live = false) {
       return publish({
-        document: { ...publisher.read().document, revision, stamp, live },
+        document: { ...publisher.peek().document, revision, stamp, live },
       });
     },
     setHostAvailable(hostAvailable         ) {
@@ -1257,12 +1335,12 @@ export function createSemanticApplication({
     },
     markRead(items                  ) {
       return publish({
-        markingRead: [...publisher.read().markingRead, ...structuredClone(items)],
+        markingRead: [...publisher.peek().markingRead, ...structuredClone(items)],
       });
     },
     settleMarkRead(items                  ) {
       const remaining = publisher
-        .read()
+        .peek()
         .markingRead.filter(
           (item) =>
             !items.some(
@@ -1272,7 +1350,7 @@ export function createSemanticApplication({
       return publish({ markingRead: remaining });
     },
     captureDocument(document                  ) {
-      if (publisher.read().authoritative)
+      if (publisher.peek().authoritative)
         throw new Error("an admitted document changes only through adopt");
       return publish({
         document: {
@@ -1285,13 +1363,17 @@ export function createSemanticApplication({
     setPhase(phase        ) {
       return publish({ phase });
     },
+    setReach(reach                      ) {
+      if (publisher.peek().reach === reach) return publisher.peek();
+      return publish({ reach });
+    },
     // Source revisions are digests with no order, so a reading's data is ordered by
     // the moment the server took it: an answer taken before the one already accepted
     // is older, whichever order the two arrive in.
     acceptData(data                     , taken        ) {
       if (taken < dataTaken) return false;
       dataTaken = taken;
-      if (data.version === publisher.read().data.version) return false;
+      if (data.version === publisher.peek().data.version) return false;
       publish({ data: structuredClone(data) });
       return true;
     },
@@ -1318,7 +1400,7 @@ export function createSemanticApplication({
     // projection, indistinguishable for many widgets from their authored condition,
     // so the second publication changes nothing and never reaches them.
     adopt(state                    , document                          = null) {
-      const prior = publisher.read();
+      const prior = publisher.peek();
       if (!adoptable(state, document)) return false;
       const authoritative = structuredClone(state);
       // The reading and what it logs are one publication: the entries whose receipts
@@ -1329,8 +1411,8 @@ export function createSemanticApplication({
       );
       // A capture can add message bodies without changing the shown document.
       // Retain its explicit identity and share fields the publisher already owns.
-      const capture =    (value   , standing         )    =>
-        value === standing ? value : structuredClone(value);
+      const capture =    (value   , previous         )    =>
+        value === previous ? value : structuredClone(value);
       publish({
         document: document
           ? {
@@ -1351,6 +1433,7 @@ export function createSemanticApplication({
         authoritative,
         unresolved,
         phase: "ready",
+        reach: "reached",
       });
       return true;
     },
@@ -1360,7 +1443,7 @@ export function createSemanticApplication({
       plainText         = event.text ?? event.token ?? "",
     ) {
       if (entry(event.attempt)) return null;
-      const before = publisher.read();
+      const before = publisher.peek();
       const localId = PENDING + event.attempt;
       const thread = isThreadEvent(event)
         ? { ...threadForAttempt(event, timestamp), plainText }
@@ -1381,13 +1464,13 @@ export function createSemanticApplication({
         event.kind === "action" ? before.document.authored.get(event.widget) : null;
       // The widget's own captured declaration, as its reading (`widgetReading`) and the
       // projection's meaning check read it.
-      const descriptor =
+      const declaration =
         event.kind === "action"
-          ? before.document.descriptors.get(event.widget)
+          ? before.document.descriptors.get(event.widget)?.declaration
           : null;
       const spec =
         event.kind === "action" && widget
-          ? descriptor?.declaration["x-state"]?.[event.action]
+          ? declaration?.["x-state"]?.[event.action]
           : null;
       const unit =
         event.kind === "action" && spec
@@ -1407,11 +1490,7 @@ export function createSemanticApplication({
               coordinate: target.coordinate,
               localOrder,
             }
-          : event.kind === "action" &&
-              descriptor &&
-              widget &&
-              spec &&
-              typeof unit === "string"
+          : event.kind === "action" && widget && spec && typeof unit === "string"
             ? {
                 unit,
                 spec,
@@ -1421,7 +1500,10 @@ export function createSemanticApplication({
                   ...event,
                   id: localId,
                   meaning: {
-                    state: structuredClone(descriptor.states[event.action] .definition),
+                    state: structuredClone(
+                      before.document.registry.$states[widget.tag]?.[event.action]
+                        ?.definition,
+                    ),
                   },
                 },
                 value: spec.record ? foldedValue(event, spec.record) : event.action,
@@ -1458,7 +1540,7 @@ export function createSemanticApplication({
     refuse(attempt        ) {
       const refused = entry(attempt);
       if (!refused) return [];
-      const ledger = publisher.read().unresolved;
+      const ledger = publisher.peek().unresolved;
       const gone = [refused.localId];
       const dependents           = [];
       for (let grew = true; grew; ) {
@@ -1490,15 +1572,15 @@ export function createSemanticApplication({
     },
     // The entries no document pass has presented yet.
     unpresented: () =>
-      publisher.read().unresolved.filter((item) => UNPRESENTED.has(item.state)),
+      unresolvedPart.read().filter((item) => UNPRESENTED.has(item.state)),
     // The entries `release` would retire now, in ledger order.
     releasable: () =>
-      publisher.read().unresolved.filter((item) => RELEASABLE.has(item.state)),
+      unresolvedPart.read().filter((item) => RELEASABLE.has(item.state)),
     // Retire those of `attempts` still in a releasable state.
     release(attempts             ) {
       return publish({
         unresolved: publisher
-          .read()
+          .peek()
           .unresolved.filter(
             (item) => !(attempts.has(item.event.attempt) && RELEASABLE.has(item.state)),
           ),

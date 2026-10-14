@@ -20,7 +20,6 @@
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { el } from "../widget-elements.js";
 import { paintSet } from "../target-paint-geometry.js";
-import { validDrawing } from "./drawing-record.js";
 import { drawingGeometry } from "./drawing-geometry.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -76,7 +75,7 @@ export function createDrawingInk({ drawings }) {
   // The complete description is the retained-node key. Two equal marks in one pass
   // still consume distinct prior nodes in order.
   function mark(drawing, target, className, id = "") {
-    if (!validDrawing(drawing)) return null;
+    if (!drawing) return null;
     const geometry = drawingGeometry(drawing, target);
     if (!geometry) return null;
     const { box, strokes } = geometry;
@@ -96,12 +95,12 @@ export function createDrawingInk({ drawings }) {
       rect,
       cut: className !== "lf-drawing-active",
     };
-    const standing = mounted.get(described)?.shift();
-    const svg = standing ?? document.createElementNS(SVG_NS, "svg");
+    const existing = mounted.get(described)?.shift();
+    const svg = existing ?? document.createElementNS(SVG_NS, "svg");
     const next = mounting.get(described) ?? [];
     next.push(svg);
     mounting.set(described, next);
-    if (standing) return { ...item, node: svg };
+    if (existing) return { ...item, node: svg };
     svg.classList.add("lf-drawing-mark", className);
     if (id) svg.dataset.thread = id;
     svg.setAttribute("viewBox", `${frame.x} ${frame.y} ${frame.width} ${frame.height}`);

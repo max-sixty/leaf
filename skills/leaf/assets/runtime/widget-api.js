@@ -7,7 +7,7 @@
    gate's probes read belongs in check-api.js instead.
 
    Every export above the `// Internal:` comment is the authoring API, and
-   references/module-authoring.md documents each one; the exports below it serve Leaf's
+   the references/module-*.md files document each one; the exports below it serve Leaf's
    bundled packages and kernel widgets alone (tests/runtime/widget-api.test.mjs). */
 export {
   html,
@@ -22,7 +22,8 @@ export {
   repeat,
   styleMap,
   unsafeHTML,
-} from "../vendor/browser-runtime.js";
+  signal,
+} from "/vendor/browser-runtime.js";
 export { move } from "./dom-move.js";
 export { iconElement, iconTemplate } from "./icons.js";
 export { widgetController } from "./widget-controller.js";
@@ -44,7 +45,9 @@ export { authoredScope, elementById } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // Experimental: one widget marking part of another (indication.js).
 export { indicate } from "./indication.js";
-export { landingInsets, shownWindow } from "./geometry.js";
+// `growthIsSeen(element)`: whether the element changing size now would move what the
+// user sees, as scroll anchoring and the chrome leave it.
+export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
 export { under } from "./shadow.js";
@@ -69,7 +72,7 @@ export {
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place.
 export { setChildLists, setChildren, setRenderedChildren } from "./dom-children.js";
-export { readAsks, watchAsks } from "./asks/model.js";
+export { readAsks } from "./asks/model.js";
 // The asks a region of the page holds, by the rule every count and walk of them reads.
 export { asksIn } from "./asks/place.js";
 export { comparisonChanges, watchComparison } from "./version.js";
@@ -82,7 +85,7 @@ export {
   workAncestor,
 } from "./work.js";
 export { askActions } from "./application.js";
-export { readQueues, watchQueues, queueItemKey } from "./queue-api.js";
+export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";
 export { registerVisualParts } from "./visual-parts.js";
@@ -96,7 +99,6 @@ export {
 } from "./application.js";
 export { readThreads } from "./thread/state.js";
 export { releaseOutlets, threadSurface } from "./thread/surfaces.js";
-export { watchThreads } from "./thread/watch.js";
 export { turns as threadTurns, threadSummary } from "./thread/model.js";
 // Holding a region's rows the log or the clock decides while their growth would be seen
 // (assets/AGENTS.md, "Stability").
@@ -115,6 +117,8 @@ export {
   paintKeys,
   saying,
 } from "./keyboard/scopes.js";
+// The claim of a scope standing over the page: every key but the command reference's.
+export { allButCommandReference } from "./keyboard/register.js";
 export {
   afterScript,
   cancelRender,
@@ -199,9 +203,15 @@ export {
   reducedMotion,
   scrollBehavior,
 } from "./motion.js";
-// `afterPresentation` is the package's whole route past presentation: it waits and
-// declares the arrival in one call, so a widget cannot defer without the page knowing.
-export { PAGE_INTERFACE, PRESENTATION, afterPresentation } from "./presentation.js";
+// A package's routes past presentation both declare the arrival, so a widget cannot
+// defer without the page knowing: `afterPresentation` waits for presentation and then
+// starts the work; `deferredArrival` counts work the widget has already started.
+export {
+  PAGE_INTERFACE,
+  PRESENTATION,
+  afterPresentation,
+  deferredArrival,
+} from "./presentation.js";
 export { quietWord } from "./declared-words.js";
 export { projectData } from "./application.js";
 export { copyBlock } from "./code-copy.js";
@@ -220,7 +230,9 @@ export {
   tokenLines,
 } from "./syntax.js";
 export { bodyText, dataBody, failSoft, once, reportFailure } from "./widget-upgrade.js";
-export { saidAt, reportSequence, watchHistory, watchReports } from "./reports.js";
+export { saidAt, readHistory, reportSequence, reportsPresented } from "./reports.js";
+// The one watcher of the page's readings (module-reading.md, "Page readings").
+export { watchProjection } from "./projection-watch.js";
 export {
   HIDDEN,
   LAYOUT,
@@ -233,7 +245,6 @@ export {
   offered,
   reachedForWords,
   relabel,
-  reserve,
   searchField,
   selectableOffer,
   worksInside,
@@ -241,10 +252,9 @@ export {
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 
 export { LeafEditorView } from "./editor-view.js";
-export { createWidgetElement } from "./widget-vocabularies.js";
 
 // Internal: what Leaf's own bundled packages and kernel widgets import beyond the
-// authoring API module-authoring.md documents. Package authors do not use these.
+// authoring API the references/module-*.md files document. Package authors do not use these.
 export async function mountSample(frame, options) {
   const owner = await import("./sample.js");
   return owner.mountSample(frame, options);
@@ -256,3 +266,4 @@ export { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";
 export { shownParts } from "./geometry.js";
 export { renderRetired, textNodesUnder } from "./passages.js";
 export { isPagePaint } from "./declared-words.js";
+export { heldGrowth } from "./thread/held-news.js";

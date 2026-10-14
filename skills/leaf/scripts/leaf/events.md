@@ -114,7 +114,7 @@ user's own. An exact control may withdraw a forward action before that action's
 POST finishes: the browser derives the withdrawal immediately, keeps both gestures
 in its ordered ledger, and replaces the local dependency with the accepted action id
 before sending the undo. Refusal of the action discards its dependent undo; refusal
-of the undo re-derives the still-standing action. A reaction's withdrawal is drawn
+of the undo re-derives the action still in force. A reaction's withdrawal is drawn
 the same way, from the moment it is sent, and its refusal brings the reaction back.
 
 ## Authorship and voice
@@ -135,7 +135,7 @@ browser receives carries that name as `agent`, and the browser shows it as serve
 Admission stamps `attention`: whether the input changes asks on the user or
 to-dos the agent put on them (so their Done is heard),
 pending answers, the work it has in hand (a started update,
-or an open to-do on a thread or widget) and its standing inputs, or sign-off
+or an open to-do on a thread or widget) and its inputs in force, or sign-off
 approval. `workflows.obligation_reading` compares those canonical readings before
 and after the gesture under the active revision's vocabulary. The decision survives
 later replies, versions and to-do endings: a cancellation already delivered to the
@@ -159,7 +159,7 @@ without repeating the gesture, and refuses an attempt the log holds for another
 command (HTTP 409); otherwise it reads the named revision's vocabulary and checks the command against
 its kernel record schema before kind-specific gates consume the fields, allocates the
 event's unique identity, and runs its gates against the page
-and standing log, derives server-owned
+and current log, derives server-owned
 meaning and `attention`, and validates the record against its stored-record contract.
 Using the event's revision keeps re-vendoring from reinterpreting an open document.
 A refusal (`EventRefused`) rests on one finding (`findings.Finding`): a stable `code`
@@ -169,6 +169,9 @@ body carries `findings` beside the `error` the browser shows. A fault raises ins
 it may land either side of the append; the HTTP transport's one fault boundary
 (`http.PageEndpoint._answer`) records it and answers HTTP 500 without `final`, so
 the browser retries the same attempt.
+
+Task completion, whether a `todo_end` or a note's to-do settlements, uses the
+latest-start authority defined in `todos.py`.
 
 Transports own only their input boundary: which kinds and fields they accept.
 `thread.post_reply` matches its own `attempt` before the door, by kind and response
@@ -202,7 +205,7 @@ closing one; a decision whose outcome is the widget's `x-withdrawn-as` declines 
 closes none. Historical thread folds use this coordinate even after its
 widget retires. Every action at the coordinate competes: a later action of the
 same verb on the same unit supersedes its prior answer, while another verb leaves
-it standing. Coordinates are independent, so a position record places its unit by a
+it in force. Coordinates are independent, so a position record places its unit by a
 rank key rather than an index: the key means the same place whichever other units'
 moves stand, and undoing or superseding one unit's move never moves another. The key
 lies among the container's authored units on the revision the move was made on,
@@ -286,7 +289,7 @@ completed delivery answer whose update was settled during the turn. A proactive
 message (`leaf thread reply <page> <message-id>`) carries no `responds`. Settlement
 consumes this exact identity rather than log order, so answering older work cannot
 erase newer user input. A substantive reply reopens a resolved thread;
-reactions and harness failure receipts leave its closure standing. A later resolution
+reactions and harness failure receipts leave its closure in force. A later resolution
 closes the thread again. Reopening restores its still-unanswered widget asks,
 as an explicit reopen does.
 A harness that gives up on an update writes the failure the update's answer takes
@@ -296,7 +299,7 @@ carries `failure`, a nonempty harness-owned code, which is what tells a harness'
 reply from an agent's. Only the harness writer supplies `failure`, and the panel draws
 such a reply as a receipt whose head says the message answers nothing, since
 otherwise it is indistinguishable from the answer it stands in for.
-When a reply carries a widget with a local `x-awaits` ask, the widget's standing
+When a reply carries a widget with a local `x-awaits` ask, the widget's current
 projection declares the ask instead; the CLI refuses a parallel `--ask` flag on
 that markup. A frozen widget keeps its ask open until its
 `x-awaits.answered` condition holds. Actions on the widget before then have not been handed over: they carry no receipt and
@@ -310,8 +313,8 @@ An open structural ask in an unresolved thread keeps it awaiting the user until
 the user writes after it: their later prose hands the ask to the agent, still open
 and unanswered, until the agent answers that turn. A thread anchored on a page ask
 does the same while the agent owes it a reply (`asks.sections_with_agent`), so
-an ask the user has commented on leaves their Questions while the reply it is owed
-stands on the agent's Tasks. Without an ask, the latest unanswered
+an ask the user has commented on leaves their On me list while the reply it is owed
+stands on the agent's. Without an ask, the latest unanswered
 prose ask determines the obligation. Later agent messages leave it open.
 A user turn answers every ask before it; a reaction whose token declares
 `settles` answers only the ask it names, so an older unanswered ask may
@@ -324,7 +327,7 @@ neither outcome is a user answer.
 `work_reading.WorkReading.all_asks` combines page widgets, frozen widgets and
 prose into one canonical inventory. Every record carries stable `id`, `source`,
 `thread`, `message`, `prompt`, `answer`, `status`, `end` and `next_actor`;
-`questions` owns the statuses, and `end` holds the agent `todo_end` that retired a
+`asks` owns the statuses, and `end` holds the agent `todo_end` that retired a
 prose ask, its detail and event reference, or `null`. A frozen widget's
 `message` names the exact message whose markup owns it, independently of the thread's
 root; a prose ask names its source message. Page widgets and approval have no
@@ -370,11 +373,11 @@ them:
   the edit as `responds` and the rewritten message as its parent (`workflows`,
   `turn_message`). Its delivery carries `was`, since the thread's digest reads the new
   text. Only whose turn it is reads revisions; everything else reads the messages
-  (`events.conversation_turns`). So a question is answered by words standing after
+  (`events.conversation_turns`). So a question is answered by words that come after
   it, and a rewrite of a message before an agent's question leaves that question on
   the user, beside the answer the agent owes the rewrite.
 - A comment or reply's `title` gives its thread a first name atomically with the
-  message, and leaves an existing name standing. `thread_title` names or renames an existing thread with a nonblank, single-line
+  message, and leaves an existing name in place. `thread_title` names or renames an existing thread with a nonblank, single-line
   plain-text title of at most 80 characters. The latest title is projected separately
   from messages into browser state and agent context; an unnamed thread has
   a null title and the panel shows three animated dots until the agent names it.

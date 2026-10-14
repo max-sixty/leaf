@@ -25,10 +25,10 @@ import leaf_website
 from leaf.hosting import LeafHTTPServer
 from leaf.render_gate.scheme import collect_page_exceptions
 from PIL import Image
-from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import Page
 
 from leaf_dev import site as site_build
-from leaf_dev.browser import load, tab
+from leaf_dev.browser import headless_shell, load, tab
 from leaf_dev.example_data import catalog_sources
 from leaf_dev.leaf_assets import pinned_assets, publish, stage
 
@@ -116,7 +116,7 @@ def refresh_previews() -> None:
 
     with (
         tempfile.TemporaryDirectory(prefix="leaf-preview-site-") as raw_site,
-        sync_playwright() as playwright,
+        headless_shell() as browser,
     ):
         staging = Path(raw_site)
         assets = bootstrap_assets(staging / "assets")
@@ -124,33 +124,25 @@ def refresh_previews() -> None:
         # `serve_examples` runs this checkout's website adapter, which serves only the
         # pages this checkout's Leaf vendored.
         site_build.build_examples(site, site_build.checkout_leaf(), assets=assets)
-        # The locked headless shell the browser suite runs, not the host's Chrome
-        # (`chrome()`), so the published pixels do not follow each host's Chrome.
-        browser = playwright.chromium.launch()
-        try:
-            with serve_examples(site) as origin, tab(browser, VIEWPORT) as page:
-                errors = []
-                collect_page_exceptions(page, errors)
-                for source in catalog_sources():
-                    errors.clear()
-                    load(page, f"{origin}/examples/{source.stem}/")
-                    if not captures:
-                        require_capture_fonts(page)
-                    png = page.screenshot(animations="disabled", caret="hide")
-                    image = Image.open(io.BytesIO(png)).convert("RGB")
-                    image = image.resize(OUTPUT_SIZE, Image.Resampling.LANCZOS)
-                    target = f"example-{source.stem}.jpg"
-                    output = io.BytesIO()
-                    image.save(
-                        output, "JPEG", quality=82, optimize=True, progressive=True
+        with serve_examples(site) as origin, tab(browser, VIEWPORT) as page:
+            errors = []
+            collect_page_exceptions(page, errors)
+            for source in catalog_sources():
+                errors.clear()
+                load(page, f"{origin}/examples/{source.stem}/")
+                if not captures:
+                    require_capture_fonts(page)
+                png = page.screenshot(animations="disabled", caret="hide")
+                image = Image.open(io.BytesIO(png)).convert("RGB")
+                image = image.resize(OUTPUT_SIZE, Image.Resampling.LANCZOS)
+                target = f"example-{source.stem}.jpg"
+                output = io.BytesIO()
+                image.save(output, "JPEG", quality=82, optimize=True, progressive=True)
+                if errors:
+                    raise RuntimeError(
+                        f"{source.name}: {'; '.join(map(str, errors[:3]))}"
                     )
-                    if errors:
-                        raise RuntimeError(
-                            f"{source.name}: {'; '.join(map(str, errors[:3]))}"
-                        )
-                    captures[target] = output.getvalue()
-        finally:
-            browser.close()
+                captures[target] = output.getvalue()
 
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = stage("examples", captures, Path(raw))

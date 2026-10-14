@@ -267,12 +267,19 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     second = tmp_path / "second-page"
     shutil.copytree(claimed, second)
     assert service_model.claim_page(second)
-    for page, comment in ((claimed, "c1"), (second, "c2")):
+    deliveries = {}
+    for page, comment, label in (
+        (claimed, "c1", "first"),
+        (second, "c2", "second"),
+    ):
         append_carried_log_record(
             page,
             {"kind": "comment", "id": comment, "author": "user", "text": "look"},
         )
         receive_through(page, last_deliverable_seq(page))
+        deliveries[delivered_ref(page, comment).partition(":")[0]] = (
+            f"<{label}-delivery>"
+        )
         session_model.cmd_waiting(page, "")
 
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
@@ -284,10 +291,8 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     # The lines stand together, so the user reaches every page before the
     # first protocol rather than one page per protocol.
     assert reason.index(str(second)) < reason.index(schema_model.ANSWER_ASK_INSTRUCTION)
-    reason = re.sub(r'(<leaf-delivery id=")[0-9a-f]{8}(" )', r"\1<delivery>\2", reason)
-    reason = re.sub(
-        r"`leaf response reply [0-9a-f]{8}:", "`leaf response reply <delivery>:", reason
-    )
+    for identity, label in deliveries.items():
+        reason = reason.replace(identity, label)
     snapshot.check(
         yaml_document(
             "Two pages carry distinct debts and one shared answering instruction.",
@@ -1069,12 +1074,12 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
     leases_model.release_lease(lease)
 
 
-@pytest.mark.parametrize("history", ["no-delivery", "lost-pointer", "newest-in-thread"])
+@pytest.mark.parametrize("history", ["handoff", "lost-pointer", "newest-in-thread"])
 def test_a_stop_reminder_recovers_the_exact_reply_address(
     page_dir, codex_loop, capsys, history
 ):
-    """The reminder alone recovers a usable response address, even when no original
-    delivery exists. Consecutive user messages owe the newest input one answer.
+    """The reminder recovers captured input and a usable response address, including
+    after ownership changes. Consecutive user messages owe the newest one answer.
     """
     codex_loop(page_dir)
     cleanup_model.prompt_turn("codex-thread", "active")
@@ -1085,8 +1090,6 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
         latest = append_carried_log_record(
             page_dir, {"kind": "comment", "author": "user", "text": "why here?"}
         )
-        if history != "no-delivery":
-            receive_through(page_dir, last_deliverable_seq(page_dir))
         if history == "newest-in-thread":
             latest = append_carried_log_record(
                 page_dir,
@@ -1097,11 +1100,23 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
                     "text": "and when?",
                 },
             )
-        if history != "lost-pointer":
-            # The motivating preview advanced its cursor over seeded history
-            # without ever making an envelope for that input.
-            (page_dir / "cursor.json").write_text(json.dumps({"seq": latest["seq"]}))
+        if history == "lost-pointer":
+            receive_through(page_dir, latest["seq"])
+        else:
+            with service_model.PageTransaction(page_dir) as page:
+                page.take_claim(
+                    harness_model.EmbeddedHarness("prior", "Prior owner", os.getpid())
+                )
+            cleanup_model.open_session_turn("prior")
+            original = delivery_model.read_delivery(
+                delivery_through(page_dir, latest["seq"])
+            )
+            delivery_model.receive(original, "prior")
+            codex_loop(page_dir)
         cursor = events_model.read_cursor(page_dir)
+        deliveries = set(
+            delivery_model.state_home().joinpath("deliveries").glob("*.json")
+        )
 
         cleanup_model.prompt_turn("codex-thread", "active")
         hooks_model.cmd_hook(
@@ -1121,11 +1136,19 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
         )
         assert read.exit_code == 0, read.output
         envelope = json.loads(read.output)
+        if history == "lost-pointer":
+            assert (
+                set(delivery_model.delivery_path(envelope["id"]).parent.glob("*.json"))
+                == deliveries
+            )
+        else:
+            assert envelope["id"] != original["id"]
         assert events_model.read_cursor(page_dir) == cursor
         assert not codex_records("codex-thread")
         [batch] = envelope["batches"]
         [event] = batch["events"]
         assert event["id"] == latest["id"]
+        assert event["text"] == latest["text"]
         reply = CliRunner().invoke(
             cli_model.cli,
             [

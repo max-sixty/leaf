@@ -24,6 +24,9 @@ from render_cases_navigation import (
     source_revision,
 )
 from render_cases_widgets import (
+    GENERIC_VISUAL_LAYER,
+    GENERIC_VISUAL_PAGE,
+    GENERIC_VISUAL_WIDGETS,
     PART_DIAGRAM_PAGE,
 )
 from render_harness import (
@@ -51,7 +54,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 MARGIN_RESPONSES = '[data-lf-margin-entry-owner="responses"]'
 
-# The wash and the glyphs a standing reaction paints, read off the page: the ranges in
+# The wash and the glyphs a reaction in force paints, read off the page: the ranges in
 # the highlight registry (their words, whitespace dropped, the way the corpus reads a
 # comment's mark) and every seated glyph by its target and accessible action name.
 PAINTED = """() => ({
@@ -131,7 +134,7 @@ def painted(page, glyphs):
     return page.evaluate(PAINTED)
 
 
-def test_a_late_standing_reaction_does_not_move_the_readable_column(browser, serve):
+def test_a_late_reaction_in_force_does_not_move_the_readable_column(browser, serve):
     """Passive information may join the RHS after presentation without claiming space."""
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1440, 900)
@@ -261,7 +264,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     panel_settled(page)
     expect(page.locator(".lf-thread")).to_have_count(0)
     # The bar raised on the same passage again says the token stands. Its general
-    # response disclosure keeps those choices with the field, while the standing glyph
+    # response disclosure keeps those choices with the field, while the reaction's glyph
     # remains the margin receipt and removal disclosure.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, open=False)
@@ -282,7 +285,7 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     expect(surface.locator('.lf-react[data-token="keep"]')).to_have_attribute(
         "aria-pressed", "false"
     )
-    page.mouse.click(40, 300)  # the bar down, the standing glyph remains
+    page.mouse.click(40, 300)  # the bar down, the reaction's glyph remains
     expect(bar).to_be_hidden()
     expect(receipt_item.locator(".lf-react-mark")).to_have_count(1)
     mark = receipt_item.get_by_role(
@@ -367,12 +370,12 @@ def test_comment_reaction_digits_stop_at_nine_for_a_larger_vocabulary(browser, s
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])
 def test_selected_reactions_keep_neutral_button_furniture(browser, serve, scheme):
-    """A standing reaction keeps neutral furniture, and the fill it holds with the
+    """A reaction in force keeps neutral furniture, and the fill it holds with the
     pointer away is what says it stands.
 
-    #371 left the lifecycle marker to `busy`, so a standing reaction chip paints no
+    #371 left the lifecycle marker to `busy`, so the chip of a reaction in force paints no
     second witness on top of itself. Hover lays down the same fill; the readings here
-    therefore move the pointer away before distinguishing standing from idle.
+    therefore move the pointer away before distinguishing in force from idle.
     """
     page = open_page(
         browser,
@@ -611,7 +614,7 @@ def test_deciding_a_reaction_target_releases_its_temporary_choices(browser, serv
     page.keyboard.press("e")
     expect(item.locator(f"{MARGIN_RESPONSES}:visible")).to_have_count(6)
     # The full inventory remains available to Page Map while the focused rail view
-    # shows reactions alone. Invoke its standing control directly here: this test is
+    # shows reactions alone. Invoke its control directly here: this test is
     # about reconciliation when another owner settles the target, not banner overflow.
     page.locator(".lf-page-map-toggle").evaluate("button => button.click()")
     sheet = page.get_by_role("dialog", name="Page Map", exact=True)
@@ -1271,14 +1274,15 @@ def test_a_visual_target_places_the_bar_from_the_target_and_keeps_it_through_ref
         after_reactivation,
     )
 
-    page.locator('#flow g[data-id="U"]').click(modifiers=["Alt"])
-    expect(page.locator("#flow")).to_have_class(re.compile(r"\blf-pending\b"))
+    result = page.locator('#flow g[data-id="U"]')
+    result.click(modifiers=["Alt"])
+    expect(result).to_have_class(re.compile(r"\blf-pending\b"))
     expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
-    whole = bar.bounding_box()
+    moved = bar.bounding_box()
     assert (
-        abs(whole["x"] - after_reactivation["x"]) > 1
-        or abs(whole["y"] - after_reactivation["y"]) > 1
-    ), (after_reactivation, whole)
+        abs(moved["x"] - after_reactivation["x"]) > 1
+        or abs(moved["y"] - after_reactivation["y"]) > 1
+    ), (after_reactivation, moved)
 
     start.click(modifiers=["Alt"])
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
@@ -1317,12 +1321,13 @@ def test_a_declared_visual_and_its_figure_keep_their_own_targets(browser, serve)
             {"section": "flow"},
             {"section": "flow", "visual": "node:S"},
             {"section": "flow", "visual": "node:H"},
+            {"section": "flow", "visual": "node:U"},
             {"section": "frame"},
         ],
         key=json.dumps,
     )
     page.keyboard.press("Escape")
-    page.keyboard.type(hint_code(page, "#caption", 6))
+    page.keyboard.type(hint_code(page, "#caption", 7))
     expect(page.locator("#caption")).to_have_class(re.compile(r"\blf-pending\b"))
     page.keyboard.press("Escape")
     expect(page.locator("#caption")).not_to_have_class(re.compile(r"\blf-pending\b"))
@@ -1351,7 +1356,7 @@ def test_plain_clicks_stay_native_and_explicit_gestures_comment_on_visuals(
 <figure id="figure"><svg viewBox="0 0 80 40" width="160" height="80"
   role="img" aria-label="Plain picture"><rect x="2" y="2" width="76" height="36" /></svg>
   <figcaption>Plain picture</figcaption></figure>
-<lf-diagram id="flow" parts="node:S"><pre>
+<lf-diagram id="flow" parts="all"><pre>
 graph LR
   S[Start request] --&gt; H[Handle request]
 </pre></lf-diagram>
@@ -1536,7 +1541,7 @@ def test_a_focus_stop_leaves_the_pictures_it_holds_commentable(browser, serve):
 <figure id="tabbed"><svg viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg></figure>
 </lf-tab><lf-tab id="second" label="Second"><p>More.</p></lf-tab></lf-tabs>
 <div id="stage" role="application" tabindex="0" aria-label="Stage">
-<lf-diagram id="flow" parts="node:S node:H"><pre>
+<lf-diagram id="flow" parts="all"><pre>
 graph LR
   S[Start request] --> H[Handle request]
 </pre></lf-diagram>
@@ -1696,7 +1701,7 @@ def test_a_drawing_names_its_proxies_and_keeps_its_place_among_the_page(browser,
 def test_a_bar_re_placed_by_its_own_controls_still_hands_back_its_subject(
     browser, serve
 ):
-    """Opening the bar's other responses re-places it on the anchor already standing. That
+    """Opening the bar's other responses re-places it on the anchor already in place. That
     is the same gesture continuing, not a fresh one that stood the user nowhere, so the
     way out still ends on the bar's subject — as it does for a user who goes straight
     back out."""
@@ -1768,9 +1773,16 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
 
 def test_a_visual_proxy_keeps_user_standing_across_provider_updates(browser, serve):
     """A keyed proxy retains a held press and focus while its label and order change."""
-    page = open_page(browser, serve(PART_DIAGRAM_PAGE))
+    page = open_page(
+        browser,
+        serve(
+            GENERIC_VISUAL_PAGE.replace('id="visual"', 'id="flow"'),
+            layer_registry=GENERIC_VISUAL_LAYER,
+            layer_widgets=GENERIC_VISUAL_WIDGETS,
+        ),
+    )
     control = page.locator(".lf-visual-action").filter(
-        has_text=re.compile(r"^Respond to Start request$")
+        has_text=re.compile(r"^Respond to Outer store$")
     )
     control.focus()
     control.evaluate("control => { window.lfRetainedVisualControl = control; }")
@@ -1783,15 +1795,14 @@ def test_a_visual_proxy_keeps_user_standing_across_provider_updates(browser, ser
     page.mouse.down()
     page.evaluate(
         """() => {
-          const diagram = document.querySelector('#flow');
-          const current = diagram.visualParts.get('node:S');
-          diagram.visualParts.set('node:S', { ...current, label: 'Begin request' });
-          diagram.visualPartRegistration.update();
+          const visual = document.querySelector('#flow');
+          visual.parts.find(part => part.id === 'outer').label = 'Outer revised';
+          visual.visualRegistration.update();
         }"""
     )
 
     page.wait_for_function(
-        "() => window.lfRetainedVisualControl.textContent.endsWith('Begin request')"
+        "() => window.lfRetainedVisualControl.textContent.endsWith('Outer revised')"
     )
     assert page.evaluate(
         """() => window.lfRetainedVisualControl.isConnected &&
@@ -1800,14 +1811,14 @@ def test_a_visual_proxy_keeps_user_standing_across_provider_updates(browser, ser
     page.mouse.up()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Escape")
-    expect(page.locator('#flow g[data-id="S"]')).to_be_focused()
+    expect(page.locator("#flow #outer")).to_be_focused()
     page.evaluate("() => window.lfRetainedVisualControl.focus()")
 
     page.evaluate(
         """() => {
-          const diagram = document.querySelector('#flow');
-          diagram.setAttribute('parts', 'node:H node:S');
-          diagram.visualPartRegistration.update();
+          const visual = document.querySelector('#flow');
+          visual.parts.reverse();
+          visual.visualRegistration.update();
         }"""
     )
     page.wait_for_function(
@@ -1815,14 +1826,14 @@ def test_a_visual_proxy_keeps_user_standing_across_provider_updates(browser, ser
           [...document.querySelectorAll('.lf-visual-action')]
             .filter(node => node.lfAnchor.section === 'flow')
             .map(node => node.lfAnchor.visual ?? null)
-        ) === JSON.stringify([null, 'node:H', 'node:S'])"""
+        ) === JSON.stringify([null, 'html', 'inner', 'outer'])"""
     )
     order = page.evaluate(
         """() => [...document.querySelectorAll('.lf-visual-action')]
                 .filter(node => node.lfAnchor.section === 'flow')
                 .map(node => node.lfAnchor.visual ?? null)"""
     )
-    assert order == [None, "node:H", "node:S"]
+    assert order == [None, "html", "inner", "outer"]
     assert page.evaluate(
         """() => window.lfRetainedVisualControl.isConnected &&
           document.activeElement === window.lfRetainedVisualControl &&
@@ -1859,9 +1870,7 @@ diff --git a/value.txt b/value.txt
             picture.setAttribute('viewBox', '0 0 20 20');
             root.append(picture);
           }
-          const { layoutChanged } = await window.__lfRuntimeImport(
-            '/runtime/widget-api.js'
-          );
+          const { layoutChanged } = await window.__lfWidgetApi();
           layoutChanged(document.querySelector('#patch'));
         }"""
     )
@@ -1874,9 +1883,7 @@ diff --git a/value.txt b/value.txt
 
     page.evaluate(
         """async () => {
-          const { layoutChanged } = await window.__lfRuntimeImport(
-            '/runtime/widget-api.js'
-          );
+          const { layoutChanged } = await window.__lfWidgetApi();
           layoutChanged(document.querySelector('#patch'));
         }"""
     )

@@ -795,6 +795,35 @@ def test_trace_frames_retain_saved_elements_and_disclosure_stays_closable(
     )
 
 
+def test_trace_playback_frames_stand_over_the_capture_they_replace(browser, serve):
+    """A frame played over a fitted capture covers it exactly, so playback shows one
+    image and the recorded pointer lands on the frame it marks."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    user = context.new_page()
+    user.goto(serve(ROOT / "examples/developer/playwright-trace-gallery.html"))
+    wait_until_ready(user)
+    widget = user.locator("lf-trace")
+    widget.get_by_role("button", name="Start", exact=True).click()
+    rendered(user)
+    # The fitted capture is narrower than its canvas, where centering rules would
+    # otherwise reach the playback layer.
+    assert widget.evaluate("""widget => {
+      const image = widget.querySelector(
+        '.lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img');
+      return image.parentElement.closest('.lf-trace-image').getBoundingClientRect().width
+        - image.getBoundingClientRect().width > 20;
+    }""")
+    widget.get_by_role("button", name="Play", exact=True).click()
+    # Read both in one task while the frame shows: the Viewer takes over again once
+    # playback stops.
+    shown, under = user.wait_for_function("""() => {
+      const layer = document.querySelector('.lf-trace-playback-image:not([hidden])');
+      const under = layer?.parentElement.querySelector('.viewer-canvas img');
+      return under && [layer, under].map(image => image.getBoundingClientRect().toJSON());
+    }""").json_value()
+    assert all(abs(shown[key] - under[key]) <= 1 for key in shown), (shown, under)
+
+
 def test_trace_play_press_belongs_to_its_pointer_click(browser, serve):
     """A held Pause keeps its meaning; a canceled press leaves keyboard Play free."""
     source = ROOT / "examples/developer/playwright-trace-gallery.html"

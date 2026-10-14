@@ -238,8 +238,10 @@
   .lf-trace-capture-footer { gap: var(--sp-2); }
 }
 
+/* A playback frame stands exactly where lf-trace.js places it, over the committed
+   capture: it takes neither the canvas image's stretch nor a figure image's centering. */
+.lf-trace-canvas > .lf-trace-playback-image { position: absolute; z-index: 1; inset: auto; max-inline-size: none; margin: 0; border: 0; pointer-events: none; }
 /* The image names the input its capture belongs to. */
-.lf-trace-playback-image { position: absolute; z-index: 1; max-inline-size: none; margin: 0; border: 0; pointer-events: none; }
 .lf-trace-input-badge { position: absolute; z-index: 2; inset-block-start: var(--sp-2); inset-inline-end: var(--sp-2); max-inline-size: min(45ch, 85%); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border: 1px solid var(--accent); border-radius: var(--r); padding: var(--sp-1) var(--sp-2); background: var(--paper); color: var(--accent); font: 600 var(--lf-trace-small-type) / 1.5 var(--sans); pointer-events: none; }
 .lf-trace-input-point { position: absolute; z-index: 2; inline-size: 18px; block-size: 18px; border: 2px solid var(--accent); border-radius: 50%; background: var(--accent-tint); transform: translate(-50%, -50%); box-shadow: 0 0 0 2px var(--paper); pointer-events: none; }
 

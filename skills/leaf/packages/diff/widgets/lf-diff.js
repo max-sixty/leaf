@@ -408,9 +408,7 @@ function summaryNode(record, open, verified = true) {
 function fileEntry(row) {
   const node = document.createElement("div");
   node.className = "lf-diff-file";
-  const actions = document.createElement("div");
-  actions.className = "lf-diff-file-actions lf-ui";
-  actions.dataset.lfGen = "1";
+  const actions = offer("div", "lf-diff-file-actions");
   node.append(actions, row);
   return {
     node,

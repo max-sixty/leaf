@@ -15,6 +15,16 @@ prompt: |-
   export them for the assistant, such as a copy button or a box of text summarizing
   them, use that.
 
-  Reply with only JSON: {{"made": true if the page took every decision above, else
-  false, "copied": the text the page showed you to copy, verbatim, or null, "notes":
-  "a sentence on anything the page did not let you do, or empty"}}
+  Report whether the page took every decision, the text it showed you to copy
+  verbatim (or null), and a sentence about anything it did not let you do.
+output_schema:
+  type: object
+  properties:
+    made:
+      type: boolean
+    copied:
+      type: [string, 'null']
+    notes:
+      type: string
+  required: [made, copied, notes]
+  additionalProperties: false

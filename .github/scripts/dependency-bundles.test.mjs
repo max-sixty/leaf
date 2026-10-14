@@ -38,10 +38,17 @@ test("capture includes changed, new and deleted generated files, but rejects sou
     );
     rmSync(path);
     writeFileSync("skills/leaf/assets/vendor/chunk.js", "chunk");
+    // The kernel compiles from the bundles, so a bump rebuilds it too.
+    mkdirSync("skills/leaf/kernel/runtime", { recursive: true });
+    writeFileSync("skills/leaf/kernel/kernel.json", "{}");
+    writeFileSync("skills/leaf/kernel/runtime/bundle-state.js", "state");
     assert.deepEqual(capture().files, [
       { path, content: null },
       { path: "skills/leaf/assets/vendor/chunk.js", content: "chunk" },
+      { path: "skills/leaf/kernel/kernel.json", content: "{}" },
+      { path: "skills/leaf/kernel/runtime/bundle-state.js", content: "state" },
     ]);
+    rmSync("skills/leaf/kernel", { recursive: true });
     symlinkSync("missing.js", path);
     assert.throws(capture, /not a regular file/);
     rmSync(path);

@@ -714,6 +714,21 @@ export function createPresentationSchedule(
   /** The page has caught up with the root it is reading. */
   const passed = () => pass?.promise ?? Promise.resolve();
 
+  /** Queue a renderer that already owns its claim; return only its own completion. */
+  function enqueue(order: number, run: () => void | PromiseLike<void>): Promise<void> {
+    const completion = Promise.withResolvers<void>();
+    collect(order, async () => {
+      try {
+        await run();
+        completion.resolve();
+      } catch (error) {
+        completion.reject(error);
+        throw error;
+      }
+    });
+    return completion.promise;
+  }
+
   function presenter<Value, Proof>({
     attach,
     paint,
@@ -726,7 +741,7 @@ export function createPresentationSchedule(
       current: () => boolean,
     ) => Proof | PromiseLike<Proof>;
     failSoft?: (reason: unknown) => Proof;
-    order?: number;
+    order?: number | (() => number);
   }): EpochPresenter<Value> {
     interface Claim {
       readonly claimed: number;
@@ -762,7 +777,7 @@ export function createPresentationSchedule(
       // The claim is synchronous, inside the publication that opened the epoch. Only
       // the paint waits for the pass.
       const ticket = claim(value);
-      collect(order, () => run(ticket));
+      collect(typeof order === "function" ? order() : order, () => run(ticket));
       return passed();
     }
 
@@ -775,5 +790,5 @@ export function createPresentationSchedule(
     return Object.freeze({ sync, disconnect });
   }
 
-  return Object.freeze({ presenter, passed });
+  return Object.freeze({ presenter, enqueue, passed });
 }

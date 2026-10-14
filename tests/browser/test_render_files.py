@@ -65,6 +65,34 @@ def test_file_editor_page_navigation_preserves_the_caret_position(
         previous = current["scroll"]
 
 
+def test_paper_keeps_the_files_words_and_drops_the_editors_controls(
+    browser, serve, tmp_path
+):
+    """The editor's controls leave paper by the one print rule every offer meets, from
+    inside its shadow tree; the file it shows is content, so its name and lines stay."""
+    file = tmp_path / "notes.md"
+    file.write_text("Words worth printing.\n")
+    url = serve(
+        leaf_page(
+            "Printed files",
+            '<h1>Printed files</h1><lf-file-editor id="notes-file" binding="notes">'
+            '</lf-file-editor><lf-file-editor id="missing-file" binding="missing">'
+            "</lf-file-editor>",
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    bound = page.locator("#notes-file")
+    retry = page.locator("#missing-file").get_by_role("button", name="Retry")
+    expect(bound.locator(".cm-line", has_text="Words worth printing.")).to_be_visible()
+    expect(retry).to_be_visible()
+    page.emulate_media(media="print")
+    expect(retry).to_be_hidden()
+    expect(bound.get_by_text("notes.md", exact=True)).to_be_visible()
+    expect(bound.locator(".cm-line", has_text="Words worth printing.")).to_be_visible()
+
+
 def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     browser, serve, tmp_path
 ):

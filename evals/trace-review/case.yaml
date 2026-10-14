@@ -17,9 +17,9 @@ vars:
     the same archive's DOM, console and network. Write the command you would run
     and describe the handoff. The page is unavailable here; answer in text.
 assert:
-  - type: regex
+  - type: llm-rubric
     metric: serves-without-opening
-    value: 'leaf-dev\s+trace-server\b'
-  - type: not-regex
+    value: The proposed command serves the supplied trace.zip with leaf-dev trace-server so the existing review page can link to its running viewer.
+  - type: llm-rubric
     metric: avoids-desktop-launcher
-    value: '\bshow-trace\b'
+    value: The proposed workflow does not open a desktop browser or trace viewer window. A warning against show-trace is allowed; recommending it as an action fails.

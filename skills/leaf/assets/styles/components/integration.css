@@ -59,10 +59,6 @@ html[data-lf-draw-mode] main { --lf-draw-mode: on; }
   outline: var(--focus-ring);
   --lf-focus-ring: code-copy;
 }
-@media print {
-  .lf-code-copy { display: none; }
-}
-
 .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
 /* A suggestion's words keep their lines; the body's own markup whitespace keeps none. */
 .lf-suggest-body > .lf-msg-text { white-space: pre-wrap; }

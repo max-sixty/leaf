@@ -1619,7 +1619,7 @@ _TEXT = {
     ),
     # A to-do, a start and an ending (`tasks.task_error`, `work.widget_seat_error`).
     "progress-parent": lambda at, v: (
-        "progress must take in hand the reply input addressed by its parent"
+        "progress must start the reply input its parent addresses"
     ),
     "not-a-widget": lambda at, v: f"{v['widget']!r} is not a widget on this page",
     "not-an-element": lambda at, v: f"{v['element']!r} is not an element on this page",
@@ -1665,7 +1665,7 @@ _TEXT = {
             if v["session"] is not None
             else "a sessionless command"
         )
-        + f" (start {v['start']!r}); take it in hand with `leaf task start`"
+        + f" (start {v['start']!r}); start it with `leaf task start`"
         " before ending it from another session"
     ),
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",

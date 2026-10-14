@@ -2,7 +2,7 @@
  * port; documents, DOM nodes, functions and browser owners remain in this realm.
  * `ready` announces the usable, upgraded interface, independently of saved state.
  * Commands that need history wait at their owning child capability. */
-import { canPlaceFocus, focusDestination, onStanding } from "./focus.js";
+import { canPlaceFocus, focusDestination, onStanding, onUserInput } from "./focus.js";
 import { pagePresented, pageUpgraded } from "./page-paint.js";
 import { whenArrived, whenArriving } from "./presentation.js";
 import { afterSettling, sizeObserver } from "./rendering.js";
@@ -55,17 +55,19 @@ if (child) {
   // what that input sets going, until its rendering settles (rendering.js,
   // `afterSettling`): a height measured meanwhile, such as a disclosure the press
   // opened, says it came of a gesture, and the page applies it though it holds a
-  // height that came of nothing the reader did. Activation is input of its own, since
-  // a click lands after the press that began it has settled.
+  // height that came of nothing the reader did. The inputs are the document's one
+  // reading of them (focus.js, `onUserInput`). Activation is input of its own, since a
+  // click, by pointer or by Enter or Space, lands after the press that began it has
+  // settled.
   let gestures = 0;
-  const input = ({ isTrusted }) => {
-    if (!isTrusted) return;
+  const input = (event) => {
+    if (!event.isTrusted || event.type === "blur") return;
     gestures++;
     afterSettling(() => gestures--);
     sampleNotice("input");
   };
-  for (const type of ["pointerdown", "click", "keydown", "keyup", "wheel"])
-    window.addEventListener(type, input, { capture: true, passive: true });
+  onUserInput(input);
+  window.addEventListener("click", input, { capture: true, passive: true });
   registerSampleCommand("restore-standing", () => {
     if (!standing?.isConnected || !canPlaceFocus()) return false;
     focusDestination(standing, "return");

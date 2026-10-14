@@ -2309,6 +2309,46 @@ def test_a_sample_counts_each_document_its_frame_loads(browser, serve):
     counts_until_released(child.locator("#inner").get_by_role("button", name="Reset"))
 
 
+def test_a_sample_arriving_again_holds_growth_the_reader_did_not_cause(browser, serve):
+    """A Reset inside an arrived sample's child begins its arrival again, and while
+    the new document waits the frame holds growth that came of nothing the reader
+    did, as it did on the first arrival, so what follows the frame stays put."""
+    page, release = held_sample_page(
+        browser,
+        serve,
+        "<h1>Containing page</h1>"
+        + live_sample(
+            "outer",
+            content='<div id="room" style="height: 400px"></div>'
+            + live_sample("inner", " window", "<p>Inner</p>"),
+        )
+        + "<p><button id=after>After the sample</button></p>",
+        hold_first=False,
+    )
+    release()
+    wait_until_ready(page)
+    frame = page.locator("#outer iframe")
+    child = frame.content_frame
+    child_document = frame.element_handle().content_frame()
+    held = []
+    page.route(SAMPLE_DOCUMENT, lambda route: held.append(route))
+    child.locator("#inner").get_by_role("button", name="Reset").click()
+    holding(page, held, 1, "the inner sample's new document")
+    assert readiness(page) == "arrived"
+    rendered(child_document)
+    before = frame.evaluate("frame => frame.clientHeight")
+    after = page.locator("#after").bounding_box()
+    child.locator("#room").evaluate("room => { room.style.height = '700px'; }")
+    rendered(child_document)
+    rendered(page)
+    assert frame.evaluate("frame => frame.clientHeight") == before
+    assert page.locator("#after").bounding_box() == after
+    page.unroute(SAMPLE_DOCUMENT)
+    for each in held:
+        each.continue_()
+    wait_until_ready(page)
+
+
 def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     browser, serve
 ):

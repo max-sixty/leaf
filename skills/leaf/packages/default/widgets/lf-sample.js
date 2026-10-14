@@ -141,9 +141,11 @@ customElements.define(
           );
           host.on("arrived", () => this.#arrival?.reported?.());
           // The arrived child began arriving again, as when one of its samples was
-          // Reset: the page reads as arriving until it reports arrival once more.
+          // Reset: the page reads as arriving until it reports arrival once more, and
+          // the frame holds growth the reader didn't ask for meanwhile, as it did first.
           host.on("arriving", () => {
             const arrival = this.#arrive();
+            this.#arriving = true;
             arrival.reported = arrival.land;
           });
           host.on("input", () => this.#release());

@@ -1535,7 +1535,10 @@ export function createFloatingPanel({
       field.replaceChildren(...shown);
       if (had && !replying) focusDestination(leaf, "return");
     }
-    keepsHidden(resolvedLine, !thread || replyAvailable(thread));
+    // A resolved thread takes no reply: the field says how to reopen it instead.
+    const resting = Boolean(thread) && !replyAvailable(thread);
+    keepsHidden(resolvedLine, !resting);
+    keepsHidden(replyOutlet, resting);
     const input = fieldInput();
     if (input) syncInput(input);
     const holds = Boolean(loadDraft(destination())?.trim());

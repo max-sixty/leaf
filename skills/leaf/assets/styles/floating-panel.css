@@ -184,6 +184,7 @@
     margin: 0;
     box-shadow: none;
   }
+  .lf-fp-reply[hidden],
   .lf-fp-reply > .lf-primary-part[hidden] {
     display: none;
   }

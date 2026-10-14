@@ -110,12 +110,15 @@ representative desktop viewport.
   The value names the stationary box and what may move inside it. In a `text` region,
   such as a message header, labels may repack while every contained control stays put.
   In a `controls` region, such as the shortcut bar, hints and controls may repack. In
-  an `append` region, a panel card's transcript, new children may grow its end within
-  its stationary scrollport while existing messages stay put; the idle reply row and
-  later cards may move by that growth, and no other change may. Declare the box that
-  owns the room, not an auto-sized inner label group or a boxless wrapper. A nested
-  region holds its own boundary and every enclosing declaration's guarantees, including
-  across a shadow root, and never relaxes them. Neighbours and the page's reading
+  an `append` region, a thread card's transcript in the panel or the margin, its end
+  may grow within its stationary scrollport while existing messages stay put: new
+  children, or, where none joins, a last child declared its growing tail
+  (`data-lf-append-tail`), the working message or a streaming reply. The idle reply row and later cards may move by that growth, and no
+  other change may. A scrollport sized to what it holds, as the margin's floating card
+  is, counts as stationary while it grows only at its foot, by that growth. Declare the
+  box that owns the room, not an auto-sized inner label group or a boxless wrapper. A
+  nested region holds its own boundary and every enclosing declaration's guarantees,
+  including across a shadow root, and never relaxes them. Neighbours and the page's reading
   content stay put. Check: the shift watch. Owners: `thread/thread-card.js`,
   `thread/messages.js` and `keyboard/shortcut-bar.js` declare today's regions.
 - **News never moves what the reader is reading.** News grows where the reader isn't
@@ -156,6 +159,15 @@ representative desktop viewport.
   sizes a label for all its words). An action awaiting confirmation dims its
   existing control after the shared delay. The parent laying out adjacent actions gives
   them disjoint hit boxes.
+- **An unlikely event fits into what is already there.** Reserve no room for a state
+  the user rarely meets, such as a failed save or another writer changing a file.
+  Show it in a surface that already stands and already has room, such as a status
+  slot, rather than in a new region, and let the user's own gesture expand it where it
+  carries more: a file conflict says so in the editor's status, and its two versions
+  open only on Compare (`lf-file-editor.js` in the file-editor package). Room held
+  empty for an unlikely event is a defect, and so is the jump when it arrives. The
+  settled position above is for interface the ordinary course of use brings, such as
+  a label's other words; an unlikely event takes no room of its own.
 - **A gesture shows the result the page can draw as it is made** (root `AGENTS.md`,
   "The document starts state; the log changes it"). `standGesture` in `drafts.js` owns
   both the send and the refusal that returns words to their box. The content and its

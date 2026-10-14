@@ -279,22 +279,29 @@ export function createThreadDestinations({
   // (`message-edit.js`). Landed on the thread instead, a long one's landing on its
   // latest turn took the view away from a rewrite it had just opened higher up.
   async function openThreadDraft(context, intent) {
+    const thread = threadHolding(context);
+    if (!thread) return null;
+    if (context.startsWith("reply:"))
+      return openPageThread(thread.id, { part: "reply", intent });
     const name = context.slice(context.indexOf(":") + 1);
-    if (context.startsWith("reply:")) {
-      const thread = allThreads().find((each) => threadKey(each) === name);
-      return thread ? openPageThread(thread.id, { part: "reply", intent }) : null;
-    }
-    if (!allThreads().some((each) => each.msgs.some(({ id }) => id === name)))
-      return null;
     const landed = await openPageThread(name, { part: "message", intent });
     const card = landed && closestAcross(landed, THREAD);
     return card ? openMessageEditIn(card, name) : null;
+  }
+  // The thread a thread-held draft is written under: the thread a reply is keyed by, or
+  // the one holding the message a rewrite is of; none once it has left the log's reading.
+  function threadHolding(context) {
+    const name = context.slice(context.indexOf(":") + 1);
+    return context.startsWith("reply:")
+      ? allThreads().find((each) => threadKey(each) === name)
+      : allThreads().find((each) => each.msgs.some(({ id }) => id === name));
   }
 
   return {
     register,
     openPageThread,
     openThreadDraft,
+    holdsThreadDraft: (context) => Boolean(threadHolding(context)),
     threadFocusTarget,
     threadHere,
     threadAtStanding,

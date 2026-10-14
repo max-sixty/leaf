@@ -393,6 +393,16 @@ export const replyCompositionHasDraft = (node) => {
 // Persisted words alone never reopen an editor after settlement or reload.
 export const replyIsEditing = (key) => compositions.has(replyContext(key));
 
+// Whether the user is writing in the reply row `field` stands in: standing anywhere in
+// the row, Send included, holding words in it, or `sending` a turn of theirs. A
+// floating card holds the edge its placement keeps still by this (thread-preview.js),
+// and the news it would move waits by it (thread-card.js, `newsMoves`).
+export const writingIn = (field, sending) =>
+  Boolean(
+    field?.checkVisibility() &&
+    (standingIn(field.closest(".lf-thread-reply")) || field.value !== "" || sending),
+  );
+
 // Every reply renderer and route shares the same admission: open conversation,
 // or a settled conversation whose native editing session still owns its words.
 export const replyAvailable = (thread) =>

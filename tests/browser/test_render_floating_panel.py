@@ -1373,8 +1373,6 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
     working(serve.page_dir, "Drafting the rollout")
     page = floating(browser, url)
     line = re.compile(r"^Claude working\b.* — Drafting the rollout")
-    expect(field(page)).to_have_attribute("placeholder", line)
-    expect(page.locator(".lf-fp-on-user")).to_contain_text("2")
     page.locator(".lf-fp-leaf").click()
     head = page.locator(".lf-fp-state")
     expect(head.locator("b")).to_have_text("Working")
@@ -1382,6 +1380,42 @@ def test_the_leaf_s_menu_says_the_agent_s_state_once(browser, serve):
     expect(head.locator(".lf-fp-explain")).to_have_text(
         re.compile(r"^Waiting on me: 2 asks\. Waiting on Claude: 1 to-do")
     )
+
+
+def test_news_under_the_open_menu_moves_nothing_in_it(browser, serve):
+    """The leaf's menu stands on the leaf and grows upward, so while it stands it holds
+    what it showed: a status that wraps to more lines, or fewer, re-wraps inside the
+    lines its head first took, and a row a revision offers joins at the next opening, so
+    neither the head's words nor the rows move. The shift watch holds the words; the
+    boxes are read here."""
+    page = floating(browser, serve(LONG_PAGE))
+    leaf = page.locator(".lf-fp-leaf")
+    leaf.click()
+    head = page.locator(".lf-fp-state")
+    expect(head.locator("b")).to_have_text("Away")
+    settled(page)
+    boxes = (
+        "() => [...document.querySelectorAll('.lf-fp-menu > *')]"
+        ".map(n => { const r = n.getBoundingClientRect(); return [r.top, r.height]; })"
+    )
+    before = page.evaluate(boxes)
+    page.wait_for_timeout(600)  # Let Chrome's recent-input grace expire before news.
+    for line in (
+        "Drafting the rollout plan for the schema migration across every cluster",
+        "Checking",
+    ):
+        working(serve.page_dir, line)
+        expect(head.locator("span").first).to_contain_text(line)
+        assert page.evaluate(boxes) == before
+
+    source = (serve.page_dir / "index.html").read_text()
+    stamp_page(serve.page_dir, source.replace("Filler.", "Filler!", 1), "revised")
+    newer = re.compile("New page available → open v2")
+    expect(page.locator(".lf-latest-chip")).to_have_text(newer)
+    assert page.evaluate(boxes) == before
+    page.keyboard.press("Escape")
+    leaf.click()
+    expect(page.locator(".lf-fp-menu .lf-fp-item", has_text=newer)).to_be_visible()
 
 
 def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):

@@ -13,8 +13,9 @@ leaf file bind PAGE notes ./research-notes.md
 
 Tell the reader that edits save automatically. Keep the surrounding page quiet:
 the editor already saves, follows clean external updates, and preserves a draft
-when a save fails or another writer changes the file. A delayed save earns a
-small status; conflicts show both versions with explicit recovery actions.
+when a save fails or another writer changes the file. A delayed save, a failed
+save and a conflict each say so in the editor's own status line, which offers
+Retry or the conflict's choices; both versions open for comparison on request.
 Markdown filenames receive Markdown highlighting; other UTF-8 files remain
 plain text. CodeMirror supplies editing, history, selection and bracket behavior.
 

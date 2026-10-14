@@ -663,9 +663,9 @@ def test_a_split_drag_keeps_a_panes_reading(engine, request, serve):
       }
     }""")
     page_at_rest(page)
-    # WebKit's restores leave the passage about 5px off; a lost
-    # reading leaves it lines away.
-    assert page.evaluate(landmark) == pytest.approx(before, abs=8)
+    # Within the pixel the engine rounds a scroll offset to (scrolling.js,
+    # `moveScrollerBy`); a lost reading leaves it lines away.
+    assert page.evaluate(landmark) == pytest.approx(before, abs=1)
 
 
 def test_a_passage_read_in_a_flowing_pane_returns_after_the_panes_scroll_alone(

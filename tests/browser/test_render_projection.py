@@ -1964,6 +1964,49 @@ def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve
     assert after == pytest.approx(before, abs=4), (before, after)
 
 
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_revision_after_revision_keeps_the_reader_on_the_same_line(
+    engine, request, serve
+):
+    """An agent adds a paragraph above the reader in each of several revisions.
+
+    Each restore lands the reader's line within the pixel the engine rounds a scroll
+    offset to, and the next revision's reading starts from where the restore aimed
+    rather than where it landed: read from where it landed, each rounding would add
+    to the last, and the line would creep down the screen revision by revision.
+    """
+    browser = request.getfixturevalue(engine)
+
+    def source(added):
+        paragraphs = "".join(
+            f'<p id="{name}">{name}, long enough to stand as a landmark of its own.</p>'
+            for name in [f"added-{n}" for n in range(added)]
+            + [f"passage-{n}" for n in range(80)]
+        )
+        # A line height whose paragraphs stand a fraction of a pixel apart, which no
+        # scroll offset can match.
+        return leaf_page(
+            f"Arrivals {added}",
+            "<style>html { overflow-anchor: none; } p { line-height: 1.37; }</style>"
+            + paragraphs,
+        )
+
+    page = open_page(browser, live_url(serve(source(0))))
+    resized(page, 1200, 700)
+    page.evaluate("document.scrollingElement.scrollTop = 1500")
+    scroll_settled(page)
+    rendered(page)
+    reading = page.locator("#passage-45")
+    before = reading.evaluate("node => node.getBoundingClientRect().top")
+    for added in range(1, 7):
+        (serve.page_dir / "index.html").write_text(source(added))
+        told(page)
+        expect(page).to_have_title(f"Arrivals {added}")
+        rendered(page)
+    after = reading.evaluate("node => node.getBoundingClientRect().top")
+    assert after == pytest.approx(before, abs=1), (before, after)
+
+
 def test_a_revision_keeps_the_pane_read_over_a_pane_holding_offscreen_focus(
     browser, serve
 ):

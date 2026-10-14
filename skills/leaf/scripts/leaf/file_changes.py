@@ -3,8 +3,10 @@
 The files remain authority; notifications only schedule another canonical read.
 A subscription is installed before its first observation, and a generation taken
 before that observation retains writes arriving during it. Clock-only lifetime
-and activity transitions still have bounded timed reads. Diagnostics never wake
-the page subscribers. watchfiles owns platform notifications and polling fallback.
+and activity transitions still have bounded timed reads. A page's subscription
+accepts exactly the inputs its reading stamps (`served_state.reading`), so
+diagnostics never wake it. watchfiles owns platform notifications and polling
+fallback.
 """
 
 import os
@@ -21,10 +23,9 @@ from watchfiles.main import (
     _default_poll_delay_ms,
 )
 
-from .files import STAGED
 from .page_memory import memo
 from .refusals import Refused
-from .schema import INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK
+from .served_state.reading import outside_inputs, page_input
 
 
 class FileChanges:
@@ -179,19 +180,12 @@ def existing_root(path: Path) -> Path:
     return path
 
 
-def page_change(page: Path, changed: Path) -> bool:
-    """Application files and authored trees, excluding diagnostic writes."""
-    if changed == page or changed in page.parents:
-        return True
-    try:
-        relative = changed.relative_to(page)
-    except ValueError:
-        return False
-    if STAGED.fullmatch(changed.name):
-        return False
-    if len(relative.parts) == 1:
-        return changed.name not in {INTERACTIONS_FILE, USER_VIEWS_FILE, USER_VIEWS_LOCK}
-    return relative.parts[0] in {"page", "data"}
+def target_paths(targets: set[Path]) -> frozenset[Path]:
+    """The notifications that can move a target file: its own, and those of each
+    directory above it, which a rename, replacement or creation of that directory
+    reports by the directory's path. Writes to a directory's other entries report
+    those entries, so a target's neighbours stay quiet."""
+    return frozenset(path for target in targets for path in (target, *target.parents))
 
 
 class _PageChanges:
@@ -208,7 +202,7 @@ class _PageChanges:
         self.release = None
 
     def connect(self, page: Path) -> FileChanges:
-        targets = page_targets(page)
+        targets = outside_inputs(page)
         roots = {existing_root(target.parent): False for target in targets}
         roots[existing_root(page.parent)] = False
         roots[existing_root(page)] = True
@@ -220,9 +214,10 @@ class _PageChanges:
             ):
                 if self.release is not None:
                     self.release()
+                watched = target_paths(targets)
                 self.changes = FileChanges(
                     roots,
-                    lambda changed: page_change(page, changed) or changed in targets,
+                    lambda changed: page_input(page, changed) or changed in watched,
                 )
                 # Threads retain FileChanges, never this memo owner. Discarding
                 # an unheld page memory therefore closes and joins its provider.
@@ -232,19 +227,6 @@ class _PageChanges:
 
 
 def page_changes(page: Path) -> FileChanges:
-    """The process's shared page subscription, refreshed on ownership transfer."""
+    """The process's shared page subscription, refreshed when the claim or the
+    page's file grants move what it watches outside the page."""
     return memo(page, _PageChanges).connect(page)
-
-
-def page_targets(page: Path) -> set[Path]:
-    """External publications this page reads, regardless of its observer's owner."""
-    from .service import claim_path, page_claim, session_claims
-    from .state import SESSION_SUFFIX, session_file
-
-    path = claim_path(page)
-    targets = {path}
-    owner = page_claim(page)
-    if owner:
-        targets.add(session_file(owner["id"], SESSION_SUFFIX).resolve())
-        targets.add(session_claims(owner["id"]) / path.name)
-    return targets

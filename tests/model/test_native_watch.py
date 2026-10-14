@@ -99,6 +99,46 @@ def test_a_quiet_native_watch_discovers_claim_transfer_and_nested_source_edits(
         watch.release()
 
 
+def test_a_page_reading_moves_on_exactly_the_writes_its_watchers_wake_on(
+    page_dir, tmp_path
+):
+    """The page's reading, which a tab polls, and its shared subscription, which its
+    row publisher and lifetime supervisor wake on, derive from one declaration of its
+    inputs. A bound file outside the page moves both, as does renaming the folder
+    that holds it; a tab's attention lease, `viewed.json`, which the server renews
+    while a tab looks, moves neither."""
+    from leaf.file_bindings import bind_file
+    from leaf.file_changes import page_changes
+    from leaf.served_state.reading import page_reading
+
+    folder = tmp_path / "notes"
+    folder.mkdir()
+    target = folder / "notes.txt"
+    target.write_text("hello\n")
+    bind_file(page_dir, "notes", target)
+    changes = page_changes(page_dir)
+    while changes.wait(changes.mark(), DIAGNOSTIC_QUIET_WINDOW_S):
+        pass
+
+    def classified(write, timeout):
+        reading = page_reading(page_dir)
+        mark = changes.mark()
+        write()
+        return changes.wait(mark, timeout), page_reading(page_dir) != reading
+
+    assert classified(
+        lambda: cleanup_model.write_json(page_dir / "viewed.json", {"t": 1.0}),
+        DIAGNOSTIC_QUIET_WINDOW_S,
+    ) == (False, False)
+    assert classified(
+        lambda: target.write_text("edited outside Leaf\n"), STATED_TIMEOUT
+    ) == (True, True)
+    assert classified(lambda: folder.rename(tmp_path / "moved"), STATED_TIMEOUT) == (
+        True,
+        True,
+    )
+
+
 def _write_during_native_wait(watch, write, monkeypatch):
     """Publish after the watch's comparison has completed and native waiting begins."""
     mark = watch.mark()

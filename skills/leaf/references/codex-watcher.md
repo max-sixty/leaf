@@ -35,7 +35,9 @@ whose "Delivery and acknowledgement" section says how a wait ends. Its job is:
 Before ending the page task's turn, wait until the watcher has claimed the page, title
 the watcher task `Leaf watcher — <page name>`, and check that `leaf page state <page>`
 reports `listening: true`. The claim moves the page to the watcher, so the page task's Stop hook
-no longer keeps its turn open, and nothing the page task does later takes the page back.
+no longer keeps its turn open. The page task's status declarations, replies and new
+versions don't take the page back; its own `leaf server start` or `leaf page claim`
+does.
 Setting the page idle ends the watcher's next wait.
 
 When a forwarded batch reaches the page task, follow its instruction.

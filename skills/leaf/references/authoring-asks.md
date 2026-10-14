@@ -18,8 +18,9 @@ its evidence. Only an ask about the whole record comes last.
 
 An `lf-ask` keeps the prose's width. When it frames a figure above its options, the
 options sit side by side under the figure, so question, figure and options share the
-window. Give a playground or other wide surface inside an `lf-ask`
-`data-width="available"` (`page-layout.md`, "Bounds and widths").
+window. Give a table, chart, playground or other wide surface inside an `lf-ask` its
+own `data-width`, such as `data-width="available"` for a playground that uses every
+column it gets (`page-layout.md`, "Bounds and widths").
 
 Write asks the user can answer independently in page order. If a later ask depends on
 an earlier answer, pose it in the next turn rather than writing every branch.
@@ -41,9 +42,9 @@ says for each why it is clear-cut; contested items keep their own asks. Use one
 `lf-options` with `multiple` only when the answers depend on each other, such as a limit
 on how many.
 
-Each option shows, inside the ask, what choosing it gives the user, in the form
-`page-authoring.md`, "Show the subject", gives that kind of thing, on every page,
-plans and work-item lists included:
+Each option shows, inside the ask, what choosing it would give the user, drawn the way
+`page-authoring.md`, "Show the subject", shows that kind of thing. This holds on plans
+and work-item lists too:
 
 - For an interface or behavior choice, make the interaction work inside each option so
   the user can try every alternative.
@@ -57,15 +58,16 @@ plans and work-item lists included:
   beside it.
 - For a choice of wording, show each wording as it would appear.
 
-Vary only the treatment in question, and include today's version or no change as a
-neutral option. Put longer rationale in a disclosure after the ask. The `lf-ask`,
+Vary only the treatment in question, and show today's version, or no change, beside
+them as a neutral baseline. Put longer rationale in a disclosure after the ask. The `lf-ask`,
 `lf-options` and `lf-option` entries say how to word the question and options.
 
 When the page exists for the user to choose among approaches, organize it around that
 choice. The title and headings name the question and what the alternatives differ on,
 without answering it. Mark your recommendation on its option as your advice. Give each
-alternative the same depth on the same example. How to build an alternative, and
-questions that arise only once it is chosen, wait for the user's pick.
+alternative the same depth on the same example. An alternative's costs and open
+questions belong in its case. How to build an alternative, and questions that arise
+only once it is chosen, wait for the user's pick, the one you recommend included.
 
 ## Sign-off
 

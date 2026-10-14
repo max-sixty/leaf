@@ -83,8 +83,9 @@ sample through the element's API:
   `status: "open" | "resolved" | "all"` and `waiting: "user" | "agent" | "all"`. It
   returns false when a newer selection or Reset replaces it.
 
-Use these rather than clicking the sample's controls or reading its DOM. An `lf-sample`
-without a template is static quoted material.
+Use these rather than clicking the sample's controls or reading its DOM. Write the
+sample's content in the template rather than copying rendered controls from the parent.
+An `lf-sample` without a template is static quoted material.
 
 An ordinary served Leaf page can also appear in a plain `<iframe src="…">`, with its own
 lasting history, but only inside a page of the same origin: the same scheme, hostname

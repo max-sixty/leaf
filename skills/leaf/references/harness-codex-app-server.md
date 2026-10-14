@@ -20,9 +20,9 @@ acknowledgement command, `leaf wait` or `leaf wait --ack`.
 
 A slice holds at most one thread reply for the turn to write, marked `kind: "reply"`
 and `writer: "turn"`. Before your first tool call, write a short message to the user:
-the answer, or what you are about to do. Leaf posts it to the thread at once; later
-working messages stay in Codex. When the turn completes, Leaf posts your final message
-as the reply.
+the answer, or what you are about to do. Leaf streams this opening into the thread at
+once, and later working messages stay in Codex. When the turn completes, your final
+message joins the opening as one reply. A turn with no final message posts none.
 
 When the reply needs widgets, an ask in prose (`--ask`), work promised beyond this turn
 (`--todo`), a title or a changed anchor, write it with

@@ -57,10 +57,11 @@ Open pages keep working across Leaf updates, except after an update that changes
 page protocol or removes a registry key the page's layer declares.
 
 After a protocol change, the session holding the page re-vendors it at its first `leaf`
-command or hook, keeping the log and source, and reports only a failure. When a
-registry key was removed, or the protocol changed on a page another live session holds,
-Leaf refuses to serve or write the page, and `leaf page state` explains in
-`source.error`, naming the `leaf page init` command to run. Run it from the session that
+command or hook, keeping the log and source, and reports only a failure. Leaf refuses
+to serve or write the page in two cases: the update removed a registry key the page's
+layer declares, or it changed the protocol while another live session holds the page.
+`leaf page state` then explains in `source.error`, naming the `leaf page init` command
+to run. Run it from the session that
 holds the page. Run it too when you want a newer runtime, theme or package:
 
 ```bash
@@ -73,9 +74,10 @@ the one running, with their dates. If a page misbehaves and its Leaf is much old
 re-vendor it rather than working around the fault. Don't re-vendor a working page for
 its age alone, since that reloads the user's open tabs.
 
-`page init` changes nothing if it refuses. When the layer changed, it restarts a
-running server at the same URL and reloads open tabs; a stopped server stays stopped.
-It refuses a session page while another live session holds it. If the holding session
+`page init` changes nothing if it refuses. When the layer, server code, dependencies,
+package selection or installed files changed, it restarts a running server at the same
+URL and reloads open tabs; a stopped server stays stopped. For a session page, it
+refuses a change while another live session holds the page. If the holding session
 has ended, it leaves the server stopped, and you serve it from your session.
 
 Versions saved before a protocol change stay in the history but no longer open. If
@@ -92,7 +94,8 @@ it and start it with `--persistent`, or start it from the user's shell.
 A session page stops when no live session holds it: when a terminal harness exits, or
 when a desktop Codex chat is archived or deleted.
 
-A persistent page keeps running between sessions with no agent delivery. Tell the user
+A persistent page keeps running between sessions; starting it prepares no agent
+delivery. Tell the user
 when you start one: they now own a process that only `leaf server stop <page>` ends.
 
 A watcher restarts an enabled server whose process dies, at the same URL. `leaf server
@@ -126,9 +129,11 @@ leaf page interactions <page> --session TAB \
   --type keydown --type command --type focusin
 ```
 
-Omit `--session` to include server requests. Each line is one JSON record, in recorded
-time order; `tail -F <page>/interactions.jsonl` follows them live while you reproduce a
-problem. Browser and server clocks can differ, so order alone doesn't prove cause. The
+Omit `--session` to include server requests. Each line is one JSON record:
+`leaf page interactions` sorts records by recorded time, removes retried duplicates and
+reassembles split records. The raw `<page>/interactions.jsonl`, which `tail -F` follows
+live while you reproduce a problem, is in arrival order and still holds retries and
+split records. Browser and server clocks can differ, so order alone doesn't prove cause. The
 user's decisions are in `leaf page events <page>`, and
 [page-storage.md](../scripts/leaf/page-storage.md) defines the file.
 

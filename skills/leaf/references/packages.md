@@ -91,13 +91,13 @@ writing widget CSS, and reuse Leaf's thread symbol, comment box and keyboard hin
 
 ### Styles and composition
 
-Leaf orders its cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`,
-`lf-theme`, `lf-state`. In the document, a widget package's `theme.css` and `shadow.css`
-go in `lf-base`, below the Layouts. A theme package, one that declares no widgets, goes
-in `lf-theme`, above them.
-In a shadow root, each package's `shadow.css` goes in `lf-shadow`, or `lf-theme` for a
-theme package, and Layout rules don't reach inside. The page's own unlayered CSS
-outranks all of these. `!important` and inline styles are not ways to customise a
+A widget package's rules rank below the Layouts, a theme package's (one that declares
+no widgets) above them, and the page's own `<style>` above both. In layer terms: Leaf
+orders its cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-theme`,
+`lf-state`. In the document, a widget package's `theme.css` and `shadow.css` go in
+`lf-base` and a theme package's in `lf-theme`. In a shadow root, each package's
+`shadow.css` goes in `lf-shadow`, or `lf-theme` for a theme package, and Layout rules
+don't reach inside. The page's own CSS is unlayered. `!important` and inline styles are not ways to customise a
 widget.
 
 An element with `hidden` is always `display: none`, in the document and in shadow
@@ -135,12 +135,13 @@ Custom properties come in four kinds:
 | Vendor bridges | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use. |
 
 A `--lf-` prefix doesn't make a property an input; most are outputs. A package
-documents any further inputs it supports.
+documents any further inputs it supports. No type or colour override may shrink a
+control below its touch target or focus clearance.
 
 A package's `icon.svg`, `widgets/` and `vendor/` files replace files at the same path.
-`runtime/` modules add new paths and can't replace the kernel's JavaScript; `package
-check` refuses an import of a private kernel module, so `/runtime/widget-api.js` is the
-interface.
+Import Leaf only through `/runtime/widget-api.js`; `package check` refuses an import of
+any other kernel module, and `runtime/` modules can add paths but not replace the
+kernel's.
 
 Registries merge in order: kernel, `default`, then the selected packages in command
 order, and a later package wins a collision. A later package replaces an element or

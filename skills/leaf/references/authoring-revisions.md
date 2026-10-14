@@ -97,8 +97,8 @@ An ask the user answered and you have acted on is finished work too. Move it who
 the finished work, give its `lf-options` group the `settled` attribute, which collapses
 it to the pick, and say beside it what came of the choice. Pose anything still worth
 asking as a new ask with new ids. Use `$restated` to withdraw the decision and ask
-again. Keep an ask open while you are still applying it, and keep a section open while
-the user is still commenting there.
+again. Don't mark an ask `settled` until you have finished applying it, and keep a
+section open while the user is still commenting there.
 
 Before handing the page back, check that its status, open to-dos and outstanding work
 agree with what you tell the user.

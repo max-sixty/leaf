@@ -112,7 +112,8 @@ Write an empty `lf-toc` with a stable id. On a column page, put it in an
 Leaf shows it in the desktop margin when there is room, and as an open outline in the
 page's flow in a narrow window. On a sidebar page, put the outline and a short verdict
 or status at the top of the `aside` (`page-layout.md`, "A sidebar page"), short enough
-to fit the window. Workspaces and root page tabs have their own navigation.
+to fit the window, and put detailed evidence and history in the body or behind a
+disclosure. Workspaces and root page tabs have their own navigation.
 
 ## Read the registry
 
@@ -128,7 +129,8 @@ leaf page instructions <page> | jq -r '.author // empty'
 ```
 
 `<page>/registry.json` is the vocabulary `page init` vendored, and a
-`page/registry.json` the page writes adds to it (`page-behavior.md`). Ordinary keys are
+`page/registry.json` the page writes adds entries to it; an element entry there
+replaces the layer's entry for that tag (`page-behavior.md`). Ordinary keys are
 element names or CSS selectors; `$` keys are facts shared across the layer. List the
 vocabulary by purpose, then read the entries you pick, and any `$` fact you rely on, in
 full:

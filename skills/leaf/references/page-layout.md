@@ -27,8 +27,9 @@ as a table, a trace or a playground, can ask for one with `data-width` ("Bounds 
 widths"). The block breaks out of the column and the prose stays centred.
 
 On a sidebar page, every block, the title included, starts at the same left edge and
-fills its region. Text, and widgets read as text such as an option list, keep the
-reading measure.
+fills its region. Text, an `lf-ask`, a callout, and widgets read as text such as an
+option list keep the reading measure, on a column page too. Give a table, chart or
+playground inside an ask or callout its own `data-width`.
 
 A workspace fills the window. It has no reading measure, every block fills its region,
 and `data-width` has no effect. Where a region would hold prose too wide to read,
@@ -36,7 +37,8 @@ narrow its grid track or cap its blocks in the page's `<style>`, such as
 `#queue > lf-tab > * { max-inline-size: var(--wide); }`.
 
 The page's own `<style>` comes after the Layout, so ordinary rules can change a track
-share, a gap or an order. A page that no Layout fits writes its own grid or flex rules.
+share, a gap or an order. Where a Layout fits, use it rather than rebuilding it; a page
+that no Layout fits writes its own grid or flex rules.
 
 ## A sidebar page
 
@@ -61,8 +63,13 @@ The body and `aside` sit side by side, two thirds and one third, down to about 8
 and stack in source order below that or when the body's content needs the whole width.
 Write the `aside` first when the reader of the stacked page reads it first, such as a
 verdict; it then sits on the left. Write it after the body when it follows the work,
-such as a dashboard's log; it then sits on the right. A long page read top to bottom is
-a column page with its contents in the margin, not a sidebar page.
+such as a dashboard's log; it then sits on the right. Stack the regions inside the body
+and inside the `aside`, so every region shares the same two vertical edges, rather than
+splitting each row anew.
+
+A long page read top to bottom is a column page with its contents in the margin, not a
+sidebar page, unless the reader also keeps a panel of its own in view, such as a
+verdict and its questions beside the document it judges; that panel is the `aside`.
 
 Put everything the `aside` holds in one block, as the `div` above does. While the two
 sit side by side, Leaf keeps that block in view below the banner as the body scrolls.
@@ -137,7 +144,8 @@ widths. It works on column and sidebar pages:
 
 A `table` with either value is only as wide as its columns need, up to that width. A
 block in a list item gets the same width it would outside the list. A block inside an
-`lf-ask` or callout breaks out while the ask keeps the column. A block inside a box the
+`lf-ask` or callout breaks out only with its own `data-width`; the ask keeps the
+column. A block inside a box the
 page lays out itself, such as a grid or flex item, stays in that box, and a table there
 scrolls sideways.
 
@@ -154,7 +162,9 @@ composition is the point.
 ## The rail and the margin
 
 Leaf places comment markers in a rail beside the column, or over their target where
-nothing beside it is free. Don't pad a heading to make room for its marker.
+nothing beside it is free. Don't pad a heading to make room for its marker; the reader
+hides markers with `o`, or More → Annotations → Hide annotations, to read what's under
+one.
 
 On a column page, write the contents outline in the first `aside.sidebar` and short
 notes in `aside.sidenote`. Leaf moves them into the margin when they fit and leaves

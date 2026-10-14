@@ -36,7 +36,8 @@ window widths where a label drops under 10px. Keep the drawing schematic: a wind
 rounded box, a line of text a grey bar, and only the figure's subject takes the accent
 colour. Put compared states side by side in one figure at one scale, drawn alike except
 where they differ. The idiom's classes use theme tokens, so the drawing follows light
-and dark schemes; an SVG file added with `leaf page media` can't.
+and dark schemes; an SVG file added with `leaf page media` can't. Use the
+`<figcaption>` for what the drawing can't show.
 
 Use `lf-chart` for quantities, not Mermaid's charts. Its body is the options
 Observable Plot's `Plot.plot` takes, so any chart Plot draws is available. A few numbers
@@ -68,7 +69,8 @@ its scrolling box (default `28rem`).
 
 When the user reviews an edit to text, such as code, prose or configuration, show its
 exact patch in `lf-diff` and explain the effect beside it. Consider including the patch
-in updates on current work too; `wt step diff`, when available, often covers a branch.
+in updates on current work too. Choose the comparison that covers the work being
+discussed; `wt step diff`, when available, often covers a branch.
 `lf-diff` ships in the `diff` package: create the page with
 `leaf page init --package diff <page>`. Bind each widget to a data source:
 

@@ -510,3 +510,77 @@ variants:
 
         The page directory is not reachable here, so return the final <main> HTML
         rather than writing a file.
+  # From Claude Code session 07bcc268-9c0b-4b0e-b618-9234e0102238: asked which
+  # refactors were clear and which needed more thought, the agent drew a board
+  # whose "Needs your decision" column held six product choices, invited
+  # comments or drags on the cards, and listed the choices and its "say go"
+  # recommendations only as open items in its chat replies. On me held nothing.
+  # The draft and chat items below reproduce what its own replies repeated.
+  # Paired on Claude Code against 521522dbd: base 6/8, candidate 11/11 across
+  # three rounds of wording. Base misses kept the column and a combined ask.
+  # Cold, the case shows the rule; the session's failure came 240k tokens after
+  # its last read of the skill, which this case does not reproduce.
+  decision-column:
+    metadata:
+      purpose: "On me: a column or chat item that says something waits on the user names a registered ask, whether or not the agent's next step depends on it."
+    vars:
+      prompt: |
+        I asked what the main areas for refactoring Leaf's runtime are, which are
+        unambiguous, and which we need to think about more. You drive the Leaf page
+        at ~/.local/state/leaf/pages/refactor-map. Its Refactoring tab now holds:
+
+        <lf-board id="refactor-board">
+          <lf-column id="col-clear" label="Clear: do it">
+            <lf-card id="card-zindex"><strong>Delete z-index from top-layer menus</strong> Landed as #2799.</lf-card>
+            <lf-card id="card-grid-stack"><strong>Replace reserve() with the grid stack</strong> All ten call sites in one change: about 107 lines out and 60 in. I recommend it.</lf-card>
+            <lf-card id="card-detector"><strong>One change detector per page</strong> The polled token and the watched files from one list of page inputs. I recommend it.</lf-card>
+          </lf-column>
+          <lf-column id="col-measure" label="Measure first">
+            <lf-card id="card-transport"><strong>Price the polling</strong> Measured: about 1% of a core per visible tab; push is not worth it.</lf-card>
+          </lf-column>
+          <lf-column id="col-decide" label="Needs your decision">
+            <lf-card id="card-cover"><strong>May a page paint over Leaf's panels?</strong> Saying no lets main become a stacking context; a page could still rise above Leaf through a dialog or popover.</lf-card>
+            <lf-card id="card-restyle"><strong>How a page restyles Leaf's interface</strong> A stylesheet the page declares, custom properties only, or named ::parts.</lf-card>
+            <lf-card id="card-kernel"><strong>Deliver the compiled kernel to installs</strong> CI commits it to main after each runtime merge, or an npm package per commit.</lf-card>
+          </lf-column>
+        </lf-board>
+
+        Below the board, the ask "Which of these should I start?" is settled: I
+        picked the z-index fix, which has landed. None of the board's decisions
+        block work you are doing now; they decide future work.
+
+        Your latest page state read:
+        {"source":{"live":true,"error":null},
+         "queues":{"on_user":[],"on_agent":[]}}
+
+        Your drafted final reply ends:
+        > - 📌 #4 🟡 **The three "Needs your decision" cards**: decide on the board
+        >   by commenting on a card or dragging it to another column.
+        > - 📌 #9 🟡 **Grid stack in place of reserve()**: I recommend it; say go
+        >   and a worker will make the change.
+        > - 📌 #10 🟡 **One change detector per page**: I recommend it; say go and a
+        >   worker will build it.
+        >
+        > needs input: say which of the recommended refactors to start, and decide the board's open cards
+
+        Finish this turn. Files and services are unreachable here, so write the
+        commands and any HTML edits you would use, followed by the short final reply.
+    assert:
+      - type: llm-rubric
+        metric: decisions-registered
+        value: |
+          Pass only if each of the three "Needs your decision" choices (pages
+          painting over Leaf's panels, how a page restyles Leaf's interface, how
+          installs get the kernel) and each of the two recommended refactors (grid
+          stack, change detector) becomes a registered user ask on the page before
+          handoff. The three choices each need an answering widget, optionally
+          framed by lf-ask, since a reply asking about one would settle a thread
+          question without deciding it; a refactor may also be asked in an agent
+          thread opened with a direct question. Each decision is answerable on its
+          own; one ask that accepts both recommended refactors together passes only
+          if it states why each is clear-cut. The answer reads canonical queues
+          with leaf page state after registering. Fail if any of these stays only
+          a board card, a chat open item, a needs-input line, or an invitation to
+          comment or drag. The landed z-index card and the measured polling card
+          stay informational, with no ask. Do not require exact wording, IDs, or a
+          particular choice widget.

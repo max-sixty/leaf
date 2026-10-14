@@ -348,7 +348,8 @@ example or fixture, a playground, or a page made for this conversation. Before
 writing its content, read `<root>/skills/leaf/SKILL.md` completely and follow
 its authoring, validation, handoff, and conversation-loop routes, using the
 checkout launcher for every `leaf` command and resolving its references from
-`<root>/skills/leaf/`. A brief for a subagent that writes the page names the
+`<root>/skills/leaf/`. After a compaction, which drops the text of files you read,
+read it again before the page's next revision or handoff. A brief for a subagent that writes the page names the
 content and the decisions the page puts to the user, and leaves how they are
 posed to those instructions.
 To make an existing page exercise the current checkout, re-vendor it with the

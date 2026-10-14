@@ -389,13 +389,18 @@ export function misplacedBoxes() {
         ? [bound ? bound.left : roomLeft, bound ? bound.right : roomRight]
         : [left, right];
     const held = reach(el, l, r);
+    // Its insets as drawn: a transform scales them with the rect. An SVG element has
+    // no offsetWidth, and no padding or border either.
     const s = getComputedStyle(el);
+    const k = el.offsetWidth ? b.width / el.offsetWidth : 1;
+    const inL = (parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft)) * k;
+    const inR = (parseFloat(s.borderRightWidth) + parseFloat(s.paddingRight)) * k;
     const past = Math.round(
       Math.max(
         b.right - held.right,
         held.left - b.left,
-        b.right - parseFloat(s.borderRightWidth) - parseFloat(s.paddingRight) - r,
-        l - (b.left + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft)),
+        b.right - inR - r,
+        l - (b.left + inL),
       ),
     );
     if (past > 1) over.set(el, [past, wide, frame, host]);

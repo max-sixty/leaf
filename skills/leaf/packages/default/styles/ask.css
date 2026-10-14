@@ -4,9 +4,9 @@
  * are one ask. */
 :scope:is(lf-ask) { display: block; }
 /* An Ask allocated the column around a block of its own that breaks out of it (`wide`
- * or `available`, layouts.css) reaches as far as that block, and its padding gives
- * everything else it holds the column back. Nothing in it moves, since its content box
- * is still its holder's, and the block still breaks out exactly as it did; what changes
+ * or `available`) spans the reach that block lends it (layouts.css), and its padding
+ * gives everything else it holds the column back. Nothing in it moves, since its content
+ * box is still its holder's, and the block still breaks out exactly as it did; what changes
  * is the box, so the ring the user stands in (chrome.css, `[data-lf-ask]`) goes round
  * the block rather than cutting across it at the column's edges. Where the block does
  * not break out, the Ask does not either: in a box that draws a frame the room is the
@@ -16,12 +16,6 @@
  * block's (prepaint.js, `indents`). Only its own children count, as for the measure it
  * widens to (theme.css). */
 @media screen {
-  :scope:is(lf-ask)[data-lf-space="column"]:has(> [data-lf-space="wide"]:not([data-lf-arranged])) {
-    --lf-reach: min(var(--wide), var(--lf-room, 0px));
-  }
-  :scope:is(lf-ask)[data-lf-space="column"]:has(> [data-lf-space="available"]:not([data-lf-arranged])) {
-    --lf-reach: var(--lf-room, 0px);
-  }
   :scope:is(lf-ask)[data-lf-space="column"]:has(> :is([data-lf-space="wide"], [data-lf-space="available"]):not([data-lf-arranged])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));

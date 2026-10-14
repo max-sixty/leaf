@@ -2532,12 +2532,6 @@
   display: block;
 }
 @media screen {
-  :scope:is(lf-ask)[data-lf-space=column]:has(> [data-lf-space=wide]:not([data-lf-arranged])) {
-    --lf-reach: min(var(--wide), var(--lf-room, 0px));
-  }
-  :scope:is(lf-ask)[data-lf-space=column]:has(> [data-lf-space=available]:not([data-lf-arranged])) {
-    --lf-reach: var(--lf-room, 0px);
-  }
   :scope:is(lf-ask)[data-lf-space=column]:has(> :is([data-lf-space=wide], [data-lf-space=available]):not([data-lf-arranged])) {
     margin-left: calc(-1 * var(--lf-grow-l));
     margin-right: calc(-1 * var(--lf-grow-r));

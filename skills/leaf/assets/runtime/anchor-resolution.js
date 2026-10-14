@@ -19,13 +19,12 @@ import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
 import { inUi, shadowHost, under, upFrom } from "./shadow.js";
 import {
-  registeredVisualPart,
-  registeredVisualPartLabel,
-  revealRegisteredVisualPart,
+  usableVisualPart,
+  usableVisualPartLabel,
+  revealUsableVisualPart,
   revealsVisualParts,
   usableVisualPartAt,
   usableVisualParts,
-  registeredVisualParts,
   visualPartAdmission,
 } from "./visual-parts.js";
 import {
@@ -198,24 +197,20 @@ const wholeVisualSurface = (element) =>
   registry[element?.localName]?.["x-visual"] ? element : null;
 
 /** The admitted parts in their registered inventory order. */
-export function visualParts(visual, { strict = false } = {}) {
+export function visualParts(visual) {
   const admits = visualAdmission(visual);
   if (!admits) return [];
-  return (strict ? registeredVisualParts(visual) : usableVisualParts(visual)).filter(
-    (part) => admits(part.id),
-  );
+  return usableVisualParts(visual).filter((part) => admits(part.id));
 }
 
 const admitsVisualPart = (visual, part) => visualAdmission(visual)?.(part) ?? false;
 
 function visualPart(visual, part) {
-  return admitsVisualPart(visual, part) ? registeredVisualPart(visual, part) : null;
+  return admitsVisualPart(visual, part) ? usableVisualPart(visual, part) : null;
 }
 
 function revealVisualPart(visual, part) {
-  return admitsVisualPart(visual, part)
-    ? revealRegisteredVisualPart(visual, part)
-    : null;
+  return admitsVisualPart(visual, part) ? revealUsableVisualPart(visual, part) : null;
 }
 
 function visualPartAt(visual, target) {
@@ -224,7 +219,7 @@ function visualPartAt(visual, target) {
 }
 
 export const visualPartLabel = (visual, part) =>
-  admitsVisualPart(visual, part) ? registeredVisualPartLabel(visual, part) : null;
+  admitsVisualPart(visual, part) ? usableVisualPartLabel(visual, part) : null;
 
 const declaredVisualSelector = () =>
   [...tagsDeclaring((entry) => entry["x-visual"])].join(",");

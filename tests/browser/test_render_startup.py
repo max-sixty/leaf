@@ -2536,10 +2536,10 @@ def test_visual_comments_arrive_with_the_initialized_document(browser, serve):
 
 
 @pytest.mark.parametrize("phase", ["initial", "history", "ready", "anchored"])
-def test_malformed_visual_inventory_withholds_its_actions_at_each_presentation_phase(
+def test_malformed_visual_inventory_keeps_only_its_whole_action_at_each_presentation_phase(
     browser, serve, phase
 ):
-    """A malformed visual cannot offer comment controls at any startup phase."""
+    """Malformed generated parts leave the authored whole-visual coordinate usable."""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     state_ready = phase in {"ready", "anchored"}
     held = []
@@ -2597,9 +2597,21 @@ def test_malformed_visual_inventory_withholds_its_actions_at_each_presentation_p
         held.pop(0).continue_()
 
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(page.locator(".lf-visual-actions")).to_have_count(0)
+    expect(page.locator(".lf-visual-actions")).to_have_count(1)
+    expect(page.locator(".lf-visual-action")).to_have_count(1)
+    assert page.locator(".lf-visual-action").evaluate(
+        "control => control.lfAnchor"
+    ) == {"section": "visual"}
     if phase == "initial":
-        assert page.evaluate("() => window.__lfVisualActionInsertions") == []
+        insertions = page.evaluate("() => window.__lfVisualActionInsertions")
+        assert insertions and all(insertions)
+    if phase == "ready":
+        page.locator(".lf-visual-action").press("Enter")
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        expect(page.locator(".lf-fab-input")).to_have_attribute(
+            "aria-label", "Comment on test-visual"
+        )
+        page.keyboard.press("Escape")
 
     if phase != "initial":
         page.locator("lf-test-visual").evaluate(
@@ -2610,8 +2622,6 @@ def test_malformed_visual_inventory_withholds_its_actions_at_each_presentation_p
         )
         expect(page.locator(".lf-visual-actions")).to_have_count(1)
         expect(page.locator(".lf-visual-action")).to_have_count(4)
-    if phase == "anchored":
-        consume_browser_errors(page, "registered part outer twice")
 
 
 def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):

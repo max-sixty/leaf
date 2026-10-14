@@ -239,10 +239,11 @@ function levelMotions({ surface, levels, plane, pad }) {
   });
 }
 
-// Whether two placements build a stand alike: anchored, or moving its layers along the
-// same axes of the same scrollers.
+// Whether two placements build a stand alike: each frame anchored, or moving its layers
+// along the same axes of the same scrollers. With no frames the carrier is the whole
+// graph, and changing anchoring has no structure to rebuild.
 const sameGraph = (stand, anchored, levels) =>
-  stand.anchored === anchored &&
+  (!levels.length || stand.anchored === anchored) &&
   levels.length === stand.levels.length &&
   levels.every(
     ({ motions }, i) =>

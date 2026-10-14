@@ -5,6 +5,8 @@
  * and a rendered hit resolves to the nearest registered part. `surface` is the native
  * element whose paint Leaf should follow; it defaults to the semantic element, while a
  * package may name one descendant to exclude decorative paint from a compound part.
+ * Page check reports malformed inventories. Live readers omit their generated parts;
+ * the independently authored whole-visual coordinate remains usable.
  *
  * A visual that draws its parts over time (a timeline, an animation, a stepper) does not
  * hold every declared part at every moment. Its registration names `reveal(id)`, which
@@ -63,10 +65,10 @@ export const revealsVisualParts = (source) =>
   Boolean(registrations.get(source)?.reveal);
 
 /** Settle the requested part, even while old pixels await a replacement. */
-export function revealRegisteredVisualPart(source, id) {
+export function revealUsableVisualPart(source, id) {
   const reveal = registrations.get(source)?.reveal;
   if (reveal) reveal(id);
-  return registeredVisualPart(source, id);
+  return usableVisualPart(source, id);
 }
 
 /** Invalid registrations or ids outside a provider's declared prefixes. */
@@ -127,11 +129,11 @@ export function usableVisualParts(source) {
   }
 }
 
-export const registeredVisualPart = (source, id) =>
-  registeredVisualParts(source).find((part) => part.id === id) ?? null;
+export const usableVisualPart = (source, id) =>
+  usableVisualParts(source).find((part) => part.id === id) ?? null;
 
-export const registeredVisualPartLabel = (source, id) => {
-  const current = registeredVisualPart(source, id)?.label;
+export const usableVisualPartLabel = (source, id) => {
+  const current = usableVisualPart(source, id)?.label;
   if (current) return current;
   const label = registrations.get(source)?.label?.(id);
   return words(label) || null;

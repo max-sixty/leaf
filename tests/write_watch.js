@@ -9,8 +9,10 @@
 // the observer delivers: the writes one script makes to one place (an attribute, a text
 // node's data) change nothing when the place ends the script holding the value it
 // started with, whether the script restated it or took it away and put it back, and a
-// child-list write changes nothing when it puts back nodes equal to the ones it took
-// out. Such a write still costs a style pass and a repaint, of the whole document while
+// child-list write changes nothing when it puts back rendered nodes equal to the ones
+// it took out. Comments draw no content; renderers such as Lit replace their ownership
+// markers while updating real content, so comment-only restoration is not judged.
+// Such a rendered write still costs a style pass and a repaint, of the whole document while
 // a CSS highlight holds a range, so code writes only what changed
 // (skills/leaf/assets/AGENTS.md).
 //
@@ -44,11 +46,60 @@
   const leafSample = /\/api\/samples\/[a-f0-9]{32}(?:\/|$)/.test(location.pathname);
   if (window !== window.top && globalThis.origin === "null" && !leafSample) return;
 
-  // Nodes put back as the ones taken out: the same count, each equal to its twin.
-  const restored = ({ removedNodes, addedNodes }) =>
-    removedNodes.length > 0 &&
-    removedNodes.length === addedNodes.length &&
-    [...removedNodes].every((node, at) => node.isEqualNode(addedNodes[at]));
+  // Read one script's child-list changes together: remove() followed by append()
+  // delivers two records, unlike replaceChildren(), but can restate the same list.
+  const equalChildren = (before, after) => {
+    if (before.length !== after.length) return false;
+    for (let at = 0; at < before.length; at++)
+      if (!before[at].isEqualNode(after[at])) return false;
+    return true;
+  };
+  const renderedChildren = (nodes) =>
+    [...nodes].filter((node) => node.nodeType !== Node.COMMENT_NODE);
+  const restored = (target, records) => {
+    if (!records.some((record) => renderedChildren(record.removedNodes).length))
+      return false;
+    // Preserve the atomic check even when unrelated changes share its delivery.
+    if (
+      records.some(({ removedNodes, addedNodes }) => {
+        const removed = renderedChildren(removedNodes);
+        return removed.length && equalChildren(removed, renderedChildren(addedNodes));
+      })
+    )
+      return true;
+    // Undo the native records once, then replay their actual sequence. A restored
+    // interval is still redundant when a later record adds meaningful content.
+    const current = [...target.childNodes];
+    for (const record of [...records].reverse()) {
+      for (const node of record.addedNodes) current.splice(current.indexOf(node), 1);
+      const at = record.nextSibling
+        ? current.indexOf(record.nextSibling)
+        : current.length;
+      current.splice(at, 0, ...record.removedNodes);
+    }
+    // A freshly introduced measuring node can come and go without rewriting a
+    // resident. Snapshots live only in this callback and compare equal lengths.
+    const residents = new Set(renderedChildren(current));
+    const pending = new Map();
+    for (const record of records) {
+      if ([...record.removedNodes].some((node) => residents.has(node))) {
+        const before = renderedChildren(current);
+        if (!pending.has(before.length)) pending.set(before.length, []);
+        pending.get(before.length).push(before);
+      }
+      for (const node of record.removedNodes) current.splice(current.indexOf(node), 1);
+      const at = record.nextSibling
+        ? current.indexOf(record.nextSibling)
+        : current.length;
+      current.splice(at, 0, ...record.addedNodes);
+      const after = renderedChildren(current);
+      if (
+        (pending.get(after.length) ?? []).some((before) => equalChildren(before, after))
+      )
+        return true;
+    }
+    return false;
+  };
   let count = 0;
   const numbered = new WeakMap();
   const number = (node) => {
@@ -70,6 +121,9 @@
     // CodeMirror reapplies this line decoration when the editor view updates, even
     // when the last line still holds the same words and the class is unchanged.
     /^class on div\.cm-line\.lf-field-last in shadow of leaf-text/,
+    // CodeMirror's CompositeTile.sync replaces a line's children while reconciling
+    // editor updates, including equivalent line-break nodes after clearing a field.
+    /^children of div\.cm-line(?:\.[\w-]+)* in shadow of leaf-text(?:[.#]|$)/,
     // CodeMirror's GutterElement.setMarkers restates its class as marker sets
     // change, including when the resulting gutter class remains the same.
     /^class on div\.cm-gutterElement(?:\.| in shadow|$)/,
@@ -218,10 +272,12 @@
     focusGuards = new WeakSet();
   };
   const watch = (records) => {
+    const children = new Map();
     for (const record of records) {
       const key = `${number(record.target)} ${record.type} ${record.attributeName}`;
       if (record.type === "childList") {
-        if (restored(record)) report("children", place(record.target));
+        if (!children.has(record.target)) children.set(record.target, []);
+        children.get(record.target).push(record);
       } else if (started.has(key)) started.get(key).through.push(record.oldValue);
       else {
         started.set(key, { record, through: [] });
@@ -233,8 +289,13 @@
           type: record.type,
           attribute: record.attributeName,
           target: place(record.target),
+          ...(record.type === "childList"
+            ? { nodes: [...record.removedNodes, ...record.addedNodes].map(number) }
+            : {}),
         });
     }
+    for (const [target, changed] of children)
+      if (restored(target, changed)) report("children", place(target));
     judge();
   };
   const observer = new MutationObserver(watch);

@@ -4223,14 +4223,20 @@ def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
         if scroller == "pane"
         else "document.scrollingElement",
     )
-    # Near-window membership may add distinct boxes to a carrier as targets cross
-    # the observer's boundary. Their placement must still need no per-frame writes.
-    painted = [
-        w
-        for w in writes
-        if PAINT.search(w["target"])
-        and not (w["type"] == "childList" and "lf-paint-carrier" in w["target"])
-    ]
+    # A carrier may gain distinct boxes as targets enter the near-window inventory.
+    # Count each box's membership, so those arrivals are legal while removing and
+    # reinserting the same box every frame is still a scroll follower.
+    painted = []
+    for mutation in writes:
+        if not PAINT.search(mutation["target"]):
+            continue
+        if mutation["type"] == "childList" and "lf-paint-carrier" in mutation["target"]:
+            painted.extend(
+                {**mutation, "key": f"{mutation['key']} {node}"}
+                for node in mutation["nodes"]
+            )
+        else:
+            painted.append(mutation)
     assert not scroll_followers(painted, frames), painted
 
 

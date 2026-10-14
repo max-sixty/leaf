@@ -31,7 +31,11 @@ export const applicationState = createSemanticApplication({
   presentation: {
     begin: (semanticEpoch) =>
       presentation.begin(documentToken, (begunEpoch = semanticEpoch)),
-    seal: (publication) => presentation.seal(publication),
+    // The application seals each publication as `begin` returned it.
+    seal: (publication) =>
+      presentation.seal(
+        /** @type {ReturnType<typeof presentation.begin>} */ (publication),
+      ),
   },
 });
 export const readApplication = applicationState.read;
@@ -99,6 +103,14 @@ const documentPresenters = [];
 // the reading gives, so a reading that stands still is still painted when asked for. A
 // renderer withholds a value it does owe by returning `PRESENTATION_HELD`, which keeps
 // its region pending until a later claim supersedes it.
+/** @param {{
+ *   region: string,
+ *   renderer?: object,
+ *   order?: number,
+ *   reading: () => unknown,
+ *   paint: (value: any, current: () => boolean) => unknown,
+ *   failSoft?: (reason: unknown) => unknown,
+ * }} presenter */
 export const applicationPresenter = ({
   region,
   renderer = document,

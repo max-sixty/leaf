@@ -57,7 +57,8 @@ import { bindQueuedWork } from "../queued-work.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
 
 import { notice } from "../notifications.js";
-import { sentDrawing, validDrawing } from "./drawing-record.js";
+import { sentDrawing } from "./drawing-record.js";
+import { recordFormat } from "../protocol.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
@@ -188,11 +189,13 @@ export function createSelectionComposer({
   // draft follows an identified subject across a data replacement as `sameAnchor` does;
   // reopened on the re-minted anchor, it posts that anchor, the rendering last aimed at.
   const COMPOSER_KEY = "composer:";
+  const DRAFT_FORMAT = recordFormat("draft");
   const composerCtx = (anchor) => COMPOSER_KEY + anchorKey(anchor);
   let syncComposer;
   let pendingRevision = null;
   const composerDraftValue = (text = syncComposer.value()) =>
     JSON.stringify({
+      format: DRAFT_FORMAT,
       text,
       anchor: pendingAnchor,
       revision: pendingRevision,
@@ -217,6 +220,9 @@ export function createSelectionComposer({
     try {
       record = JSON.parse(stored);
       if (!Number.isInteger(record?.revision)) record = null;
+      // Another protocol's draft keeps its words, which are only text, and loses its
+      // drawing, whose shape this runtime may not draw.
+      else if (record.format !== DRAFT_FORMAT) record = { ...record, drawing: null };
     } catch {
       record = null;
     }
@@ -226,8 +232,7 @@ export function createSelectionComposer({
   // The drawing a passage's draft holds, whether or not its box is up: putting the box
   // away keeps the draft, strokes included.
   const draftDrawing = (anchor) => {
-    const drawing = composerRecord(composerCtx(anchor))?.drawing;
-    return validDrawing(drawing) ? drawing : null;
+    return composerRecord(composerCtx(anchor))?.drawing ?? null;
   };
   // Every passage's draft that holds a drawing, box up or not: each is ink the user drew
   // and has neither sent nor taken back, so the page shows all of it. `open` says the
@@ -239,7 +244,7 @@ export function createSelectionComposer({
       if (!ctx.startsWith(COMPOSER_KEY)) continue;
       const record = composerRecord(ctx);
       const drawing = ctx === at ? pendingDrawing : record?.drawing;
-      if (!record || !validDrawing(drawing)) continue;
+      if (!record || !drawing) continue;
       held.push({ anchor: record.anchor, drawing, open: composerOpen && ctx === at });
     }
     return held;
@@ -259,7 +264,7 @@ export function createSelectionComposer({
     const record = composerRecord(ctx);
     if (!record) return;
     if (!record.text && !drawing) clearDraft(ctx);
-    else saveDraft(ctx, JSON.stringify({ ...record, drawing }));
+    else saveDraft(ctx, JSON.stringify({ ...record, format: DRAFT_FORMAT, drawing }));
   }
   // News of any passage's draft, whose ink the page shows whether or not its box is up.
   const watchHeldDrawings = (callback) => watchDrafts(COMPOSER_KEY, callback);
@@ -270,10 +275,7 @@ export function createSelectionComposer({
     for (const ctx of draftContexts()) {
       if (!ctx.startsWith(COMPOSER_KEY)) continue;
       const record = composerRecord(ctx);
-      if (
-        (record?.text || validDrawing(record?.drawing)) &&
-        (!best || record.touched > best.touched)
-      )
+      if ((record?.text || record?.drawing) && (!best || record.touched > best.touched))
         best = record;
     }
     return best;
@@ -455,7 +457,7 @@ export function createSelectionComposer({
     pendingAnchor = anchor;
     pendingRevision = revision;
     pendingAbout = about ?? null;
-    pendingDrawing = validDrawing(drawing) ? drawing : null;
+    pendingDrawing = drawing ?? null;
     suggestCheck.checked = Boolean(suggest);
     return retargeted;
   }
@@ -502,10 +504,7 @@ export function createSelectionComposer({
       // A drawing marks its own passage, so a draft holding one stays where it is, as
       // its words do with it (`carryComposerToReply` says the same of a reply).
       const carrying =
-        carry &&
-        previousText &&
-        !previousDrawing &&
-        !(record?.text || validDrawing(record?.drawing));
+        carry && previousText && !previousDrawing && !(record?.text || record?.drawing);
       if (carrying) {
         text ||= previousText;
         carriedDraft = true;
@@ -530,7 +529,7 @@ export function createSelectionComposer({
     // The box takes up the passage's draft as it stands, and its history starts there; a
     // drawing the gesture brings is a change to that draft, which the history holds.
     if (previousCtx !== ctx) syncComposer.arrive();
-    if (drawingSupplied) pendingDrawing = validDrawing(drawing) ? drawing : null;
+    if (drawingSupplied) pendingDrawing = drawing ?? null;
     // Chromium may collapse the native page Selection before dispatching the field's
     // focus event. Mark the handoff before showing the surface so that an intermediate
     // selectionchange cannot dismiss the durable passage this composer is opening on.

@@ -642,8 +642,16 @@ def test_a_new_codex_adapter_observes_ordinary_turns_without_a_prior_hook(
     )
 
 
-@pytest.mark.parametrize("invalid", ["old-format", "incomplete-correction"])
-def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir, invalid):
+@pytest.mark.parametrize(
+    ("invalid", "raised", "says"),
+    [
+        ("old-format", Refused, "another page protocol"),
+        ("incomplete-correction", RuntimeError, "invalid envelope"),
+    ],
+)
+def test_codex_drops_a_record_whose_delivery_it_cannot_read(
+    page_dir, invalid, raised, says
+):
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "hello"}
     )
@@ -659,7 +667,7 @@ def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir, invalid):
     else:
         payload["correction"] = {"delivery": "12345678"}
     cleanup_model.write_json(delivery_model.delivery_path(payload["id"]), payload)
-    with pytest.raises(RuntimeError, match="invalid envelope"):
+    with pytest.raises(raised, match=says):
         delivery_model.read_delivery(payload["id"])
     assert codex_model.delivery_records("handling-test") == []
 

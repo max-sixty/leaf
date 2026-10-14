@@ -190,6 +190,7 @@ function renderExternalLink(link) {
     };
     externalLinkState.set(link, state);
   } else rememberExternalLinkChanges(link, state);
+  /** @type {SVGElement | null} */
   let mark = link.querySelector(':scope > .lf-external-mark[data-lf-gen="1"]');
   if (!mark) {
     mark = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -332,7 +333,7 @@ export function writePrepaint(root) {
     const declared = registry[tag]["x-prepaint"];
     const markup = document.createElement("template");
     markup.innerHTML = declared.as ? registry[declared.as]["x-prepaint"] : declared;
-    const written = markup.content.firstElementChild;
+    const written = /** @type {HTMLElement} */ (markup.content.firstElementChild);
     written.toggleAttribute("data-lf-prepaint", true);
     written.dataset.lfGen = "1";
     for (const el of elementsIn(root, tag)) el.prepend(written.cloneNode(true));
@@ -437,6 +438,7 @@ function quietFacts(el) {
   return words.join(", ");
 }
 
+/** @param {Element} root @param {Iterable<Element>} [also] */
 export function renderQuiet(root, also = []) {
   const painting = [
     `[${PAGE_PAINT_ATTRIBUTE.restated}]`,

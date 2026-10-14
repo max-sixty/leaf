@@ -156,7 +156,14 @@ export function scrollMotions(source, subject, reach = 0, origin = null) {
     // overflow then changes neither displacement nor the attachment's interval.
     const [start, end] = whole
       ? visibleRange(source, holder, axes, axis, scroll, reach, sign)
-      : [timeline.startOffset.value, timeline.endOffset.value];
+      : // A view timeline's offsets resolve to lengths in pixels.
+        [
+          /** @type {CSSUnitValue} */ (
+            /** @type {ViewTimeline} */ (timeline).startOffset
+          ).value,
+          /** @type {CSSUnitValue} */ (/** @type {ViewTimeline} */ (timeline).endOffset)
+            .value,
+        ];
     motions.push({
       source,
       subject: holder,

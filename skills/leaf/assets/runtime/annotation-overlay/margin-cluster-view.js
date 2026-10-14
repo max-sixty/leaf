@@ -24,6 +24,7 @@ import { holdFocus } from "../focus.js";
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-margin-cluster";
 
+/** @typedef {MarginClusterView} MarginClusterViewElement For its tag (`runtime-globals.d.ts`). */
 class MarginClusterView extends HTMLElement {
   #entryKey = null;
   #marker = null;

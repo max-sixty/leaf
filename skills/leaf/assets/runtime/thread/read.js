@@ -78,7 +78,9 @@ export function createReadTracking({ markRead, openThread, firstUnreadBtn }) {
   const frameWatches = [];
   // The threads the last presented pass drew. A signal, because the first-unread
   // command's liveness reads it once the pass has committed.
-  const committedThreads = signal([]);
+  const committedThreads = signal(
+    /** @type {ReturnType<typeof readThreads>["threads"]} */ ([]),
+  );
   let threadsPresented = false;
   let presentationGeneration = 0;
   let visitGeneration = 0;

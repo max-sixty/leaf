@@ -109,6 +109,7 @@ export function createThreadPresentation({
   let cancelCurrentRender = () => {};
   const startRender = (presenting) => {
     cancelCurrentRender();
+    /** @type {PromiseWithResolvers<void>} */
     const { promise: cancelled, resolve } = Promise.withResolvers();
     cancelCurrentRender = resolve;
     return renderReading(cancelled, presenting);

@@ -172,6 +172,7 @@ function workingMessage(thread, attention, messages) {
   });
 }
 
+/** @param {ReturnType<typeof import("./model.js").readThreadRecords>[number]} thread */
 export function threadReading(thread, surface, commands, options) {
   const { visible = true, kept = null, grow = false, search = null } = options;
   const panel = surface === "panel";
@@ -256,7 +257,7 @@ export function threadReading(thread, surface, commands, options) {
     // said only where it was the agent.
     resolvedBy:
       thread.resolved?.author === "agent"
-        ? `✓ Resolved by ${thread.resolved.agent}`
+        ? `✓ Resolved by ${/** @type {{agent?: string}} */ (thread.resolved).agent}`
         : "",
     settlement: Object.freeze({
       kind,
@@ -453,7 +454,6 @@ export class ThreadView {
   #news = newsNotice();
   #titleNews = newsNotice(true);
   #titleControl = null;
-  #lastMessage = null;
   #continuity = null;
   #heldNews = null;
   #replyReservation = null;
@@ -513,6 +513,8 @@ export class ThreadView {
       reaction: { ...commands.reaction, pressed: () => this.#showNews() },
       edit: this.#rewrites.edit,
     };
+    // A panel's card is a disclosure; any other is a plain box, with no `open`.
+    /** @type {HTMLElement & Partial<HTMLDetailsElement>} */
     this.node = document.createElement(surface === "panel" ? "details" : "div");
     this.#continuity = new ReplyContinuity(this.node);
     // A card draws what its hold releases at once, so an arrival lands on the thread
@@ -554,6 +556,7 @@ export class ThreadView {
       this.node.classList.toggle("grow", false);
     });
     this.node.addEventListener("lf-reveal", (event) => {
+      /** @type {HTMLElement | undefined} */
       const message = event.detail?.target?.closest?.(".lf-msg[data-lf-summary]");
       const id = message?.dataset.lfSummary;
       if (!id || this.#expandedSummaries.has(id)) return;
@@ -564,8 +567,8 @@ export class ThreadView {
       // A press on the title chooses at its click, which lands it; focus arriving on the
       // title any other way chooses at once (thread-list-view.js).
       this.node.addEventListener("click", (event) => {
-        if (event.target.closest(".lf-thread-summary")?.parentElement !== this.node)
-          return;
+        const target = /** @type {Element} */ (event.target);
+        if (target.closest(".lf-thread-summary")?.parentElement !== this.node) return;
         event.preventDefault();
         this.#commands.choose();
       });
@@ -607,12 +610,18 @@ export class ThreadView {
     this.#settlesAt = place;
   }
 
-  // The last of the thread a reader can see, after which its news grows: its last
-  // message, and none while the thread is folded. A closed panel card draws news in a
-  // title row of one size, and a card folded in its seat's Resolved disclosure draws
-  // nothing at all.
+  // The last of the thread a reader can see, after which its news grows: the last
+  // node its transcript shows, which is the working message while one stands, and none
+  // while the thread is folded. Progress behind the working message and originals
+  // behind a closed checkpoint stand in the transcript unrendered, so the last message
+  // alone may have no box to grow after. A closed panel card draws news in a title row
+  // of one size, and a card folded in its seat's Resolved disclosure draws nothing at
+  // all.
   get #foot() {
-    return this.#fold ? null : this.#lastMessage;
+    if (this.#fold) return null;
+    return (
+      [...this.#transcript.children].findLast((node) => node.checkVisibility()) ?? null
+    );
   }
 
   // What the thread draws after its messages that its settlement swaps: the reply box
@@ -952,6 +961,7 @@ export class ThreadView {
         .filter((range) => range.summary?.pending)
         .map((range) => [range.summary.id, range.summary.covers]),
     );
+    /** @type {HTMLElement | null} */
     const standingToggle = this.node.querySelector(".lf-summary-expand:focus");
     const rangeState = describedRanges.map((range) => {
       if (range.kind === "message") return range;
@@ -1003,7 +1013,6 @@ export class ThreadView {
       });
       return { key: message.key, node: view.node };
     });
-    this.#lastMessage = messages.at(-1)?.node ?? null;
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
     // Each message, behind its read boundary, in the transcript or its checkpoint.
     const markers = new Map();
@@ -1143,6 +1152,7 @@ export class ThreadView {
     // Handing it on is the card's own act, which the list holding the card defers to.
     // A progress disclosure the user stood on that this render replaced, as the
     // answer's head takes it over from the working message, hands them to its successor.
+    /** @type {(id: string) => HTMLElement | null} */
     const toggleFor = (id) =>
       this.node.querySelector(
         `.lf-summary-expand[data-summary-toggle="${CSS.escape(id)}"]`,
@@ -1206,10 +1216,12 @@ export class ThreadView {
       return;
     }
     const content = this.node.querySelector(":scope > .lf-thread-content");
+    /** @type {HTMLElement | null} */
     const controls = content?.querySelector(":scope > .lf-thread-controls");
     const first = content?.querySelector(
       ":scope > .lf-thread-transcript > :nth-child(1 of .lf-msg, .lf-thread-checkpoint)",
     );
+    /** @type {HTMLElement | null} */
     const header =
       first?.querySelector(":scope > .lf-summary-checkpoint > .lf-summary-header") ??
       first?.querySelector(":scope > .lf-msg-head");
@@ -1235,7 +1247,7 @@ export class ThreadView {
       const resizing = allocates && this.#headerSlot?.header === header;
       let reading = header;
       if (resizing) {
-        reading = header.cloneNode(true);
+        reading = /** @type {HTMLElement} */ (header.cloneNode(true));
         Object.assign(reading.style, {
           position: "absolute",
           visibility: "hidden",
@@ -1243,7 +1255,9 @@ export class ThreadView {
           margin: "0",
           anchorName: "none",
         });
-        for (const node of reading.children) {
+        for (const node of /** @type {HTMLCollectionOf<HTMLElement>} */ (
+          reading.children
+        )) {
           node.classList.toggle("lf-held-header-item", false);
           node.style.removeProperty("--lf-held-header-width");
         }
@@ -1253,7 +1267,9 @@ export class ThreadView {
         (node) => node.getBoundingClientRect().width,
       );
       if (resizing) reading.remove();
-      const items = [...header.children].map((node, index) => ({
+      const items = [
+        .../** @type {HTMLCollectionOf<HTMLElement>} */ (header.children),
+      ].map((node, index) => ({
         node,
         width: widths[index],
       }));

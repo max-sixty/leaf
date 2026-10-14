@@ -829,6 +829,7 @@ function pinSeating(rows, { bands, shell, pinInset }) {
         bottom: box.top - GAP,
       },
     ];
+    /** @type {{left?: number, right?: number, top: number, bottom?: number}} */
     const within = stop === pageScroller ? rootBounds : contentBox(stop);
     // A board or table can clip the target across without owning its reading region.
     // Seat only in the room it shows; otherwise the seat can leave the scroller and
@@ -1170,6 +1171,23 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
 
   // Packing reads every row's size, then writes all coordinates together. Position
   // comes directly from the target reading, independently of the row's previous spot.
+  /**
+   * A shown row as packing reads it; seating adds where a held pin stands, how far a
+   * rail row steps back, and whether a pin found no seat (`pinSeating`).
+   * @typedef {{
+   *   key: Element,
+   *   rect: {left: number, right: number, top: number, bottom: number},
+   *   held: boolean,
+   *   came: any,
+   *   pushed: any,
+   *   read: any,
+   *   holding?: {left: number, right: number, top: number, bottom: number},
+   *   step?: number,
+   *   unseated?: boolean,
+   *   visualLeft?: number,
+   * }} PlacedRow
+   */
+  /** @type {PlacedRow[]} */
   const placed = reads
     .filter((read) => read.shown)
     .map((read) => {

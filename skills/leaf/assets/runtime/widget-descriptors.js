@@ -67,6 +67,8 @@ const quotedBy = (element) => {
   return false;
 };
 
+/** @param {Document | Element | DocumentFragment} [root]
+ * @param {{kind: "page" | "thread", revision?: number, thread?: string, message?: string}} [documentContext] */
 export function stageWidgetDescriptors(
   root = document,
   documentContext = { kind: "page", revision: runtime.currentRevision },

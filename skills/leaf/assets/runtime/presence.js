@@ -142,6 +142,7 @@ export function readingPaint(owner, draw, invalidate) {
         return refused;
       }
       if (typeof result?.then === "function") {
+        /** @type {{cut?: boolean}} */
         const mark = (pending = {});
         running.add(mark);
         const settled = (reason, rejected) => {

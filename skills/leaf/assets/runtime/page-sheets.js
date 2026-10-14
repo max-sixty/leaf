@@ -131,7 +131,10 @@ function narrowSheet(sheet) {
 let watching = false;
 export function keepPageRulesOffLayer() {
   for (const sheet of document.styleSheets) {
-    if (sheet.ownerNode?.hasAttribute("data-lf-runtime")) continue;
+    if (
+      /** @type {Element | null} */ (sheet.ownerNode)?.hasAttribute("data-lf-runtime")
+    )
+      continue;
     narrowSheet(sheet);
   }
   if (watching) return;

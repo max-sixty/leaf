@@ -767,7 +767,8 @@ export function createTargetPicker({
     // the route off the short line while a target is in hand.
     lineWhen: () => !Boolean(fabAnchorAt()),
     when: canChoose,
-    run: (...args) => openTargetPicker(...args),
+    run: (/** @type {Parameters<typeof openTargetPicker>} */ ...args) =>
+      openTargetPicker(...args),
   });
   // Search remains one press from the expanded shortcut bar and named in full by the
   // reference.

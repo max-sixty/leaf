@@ -63,6 +63,7 @@ const within = (scope, selector) => [
   ...scope.querySelectorAll(selector),
 ];
 
+/** @param {Document | Element | DocumentFragment} [scope] @param {[string, string | null]} [source] */
 export function rememberPassageParts(scope = document, source = ["page", null]) {
   scope = initialSource(scope);
   for (const tag of tagsDeclaring(
@@ -107,6 +108,7 @@ function identifyPreserving(root, owner) {
 // the existing owners on the numbers they arrived with would have two of them answering
 // to the same name. Read from the document rather than from what the patch brought in,
 // for the same reason: the order is the whole document's.
+/** @param {Document | Element | DocumentFragment} [scope] @param {[string, string | null]} [source] */
 export function reindexPassageOwners(scope = document, source = ["page", null]) {
   for (const [ownerIndex, root] of preservingOwners(initialSource(scope)).entries())
     identifyPreserving(root, [...source, ownerIndex]);

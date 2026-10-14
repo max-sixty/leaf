@@ -108,7 +108,10 @@ checks and writes it, so the two often differ. Changes cross that gap in two way
   refuses a page vendored at another number, naming the `leaf page init` that
   rebuilds it. A change to what a page's log holds, what its runtime posts, or the
   reading its server serves, that an earlier page would break on, bumps the
-  number; the browser build holds the event contract to that. Bumps are rare,
+  number; the browser build holds the event contract to that. The number is
+  Leaf's only version: each record Leaf keeps outside a page, such as a delivery
+  envelope or a browser draft, carries it, and a change one of them needs bumps it
+  too (`layer-registry.md`, "Page protocol"). Bumps are rare,
   perhaps one in five hundred commits. Once Leaf is released, a bump is the only
   change allowed to break an existing page.
 - **Drift**, while Leaf is in alpha, may occasionally break an older page without

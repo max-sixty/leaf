@@ -39,6 +39,14 @@ const displaced = (source, at) => {
 // The source is held weakly: an intent can be kept long after its gesture, as a reading
 // place keeps one, and a source the document has since dropped can neither hold focus
 // nor be what focus was carried from, so it answers nothing a held node would.
+/**
+ * @param {{
+ *   source?: unknown,
+ *   available?: () => boolean,
+ *   fallback?: Element | null,
+ *   since?: number,
+ * }} [options]
+ */
 export function retainUserIntent({
   source = focused(),
   available = () => true,

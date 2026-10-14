@@ -201,7 +201,6 @@ def test_an_early_anchored_send_merges_history_and_keeps_its_seen_revision(
     ]
     assert len(drawings) == 1
     assert drawings[0]["revision"] == 1
-    assert drawings[0]["drawing"]["format"] == "leaf-drawing/3"
     expect(
         page.locator(".lf-thread .lf-msg-body", has_text=drawing_words)
     ).to_have_count(1)

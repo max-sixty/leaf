@@ -177,6 +177,15 @@ function* matching(node, selector) {
     if (under(stage.host, node)) yield* stage.querySelectorAll(selector);
 }
 
+/**
+ * @param {string} selector
+ * @param {string[]} attributes
+ * @param {{
+ *   arrive?: (element: Element) => void,
+ *   arriveBatch?: (elements: Element[]) => void,
+ *   leave: (element: Element) => void,
+ * }} watcher Each arrival goes to `arriveBatch` where there is one, else to `arrive`.
+ */
 export function watchArrivals(selector, attributes, { arrive, arriveBatch, leave }) {
   const arrived = new WeakSet();
   // Every departure a batch shows is decided before any arrival in it.

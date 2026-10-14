@@ -535,6 +535,7 @@ Object.defineProperty(document, WATCH_ROOM, {
 });
 export function watchRoom(callback) {
   const viewport = window.visualViewport;
+  /** @type {[EventTarget, string, boolean?][]} */
   const listening = [
     [window, "resize"],
     [viewport, "scroll"],

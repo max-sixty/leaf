@@ -593,4 +593,9 @@ again only when that answer moves. Reading the whole root inside a paint throws.
 which import the runtime's own modules, and writes `vendor/lit.js`, the page's one copy of Lit
 (`build/AGENTS.md` owns the commands). What a module decides on its own is
 tested under `tests/runtime/` (`pnpm run test:runtime`; `tests/AGENTS.md` says
-which readings may go there).
+which readings may go there). `pnpm run check:browser` type-checks every runtime
+module, the framework's types reaching it through `vendor/browser-runtime.d.ts`; a
+module marked `// @ts-check` is held to strict mode, and the rest are checked without
+it. What the classic scripts hang on `<html>` and `window`, the events the runtime
+dispatches with a detail, and the runtime's own elements by tag are declared once in
+`build/browser/runtime-globals.d.ts` (`build/browser/build.mjs`, `typecheck`).

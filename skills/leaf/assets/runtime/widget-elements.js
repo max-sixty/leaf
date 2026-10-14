@@ -293,7 +293,9 @@ export function worksInside(node, container) {
 // the complete activation method that the go-to sequence can call.
 // Native elements also receive lf-ui-face, the default Leaf typography and ink.
 // Custom-element hosts keep their component-owned face and state styling.
+/** @type {LeafInitial["offer"]} */
 export const offer = (...args) => document.documentElement.lfInitial.offer(...args);
+/** @type {LeafInitial["offerElement"]} */
 const offerElement = (...args) =>
   document.documentElement.lfInitial.offerElement(...args);
 
@@ -328,7 +330,8 @@ export function elementDirective(name, write) {
         if (part.type !== PartType.ELEMENT)
           throw new TypeError(`${name} belongs in a template's element part`);
       }
-      render() {
+      // The values the template passes, which `update` writes.
+      render(...args) {
         return nothing;
       }
       update(part, args) {
@@ -403,7 +406,9 @@ document.addEventListener(
     // A drag is a pointer's; the keyboard's own activation of the control is not one and
     // is read the one way every press claim reads it (pointer.js).
     if (pressIsKeyboardActivation(ev)) return;
-    const control = ev.target.closest?.("[data-lf-offer]");
+    const control = /** @type {Partial<Element>} */ (ev.target).closest?.(
+      "[data-lf-offer]",
+    );
     if (control && reachedForWords(control)) {
       ev.stopPropagation();
       ev.preventDefault();
@@ -450,6 +455,7 @@ document.addEventListener(
 // costs a printed page its words, and silently. Refusing throws where the widget
 // upgrades, which the console reports and the render gate reads back as a finding
 // — the loud direction, in front of whoever wrote the label.
+/** @param {Element} node @param {string} label @param {{says?: boolean | "echo"}} [options] */
 export function relabel(node, label, { says } = {}) {
   if (typeof says !== "boolean" && says !== "echo")
     throw new TypeError(

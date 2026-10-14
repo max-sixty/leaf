@@ -81,6 +81,7 @@ const turnOnItsWay = (thread) =>
 const rowStop = (row) =>
   row.kind === "thread" ? threadFocusStop(row.node) : row.node.querySelector("button");
 
+/** @typedef {ThreadListView} ThreadListViewElement For its tag (`runtime-globals.d.ts`). */
 class ThreadListView extends RetainedFace {
   #commands = null;
   #views = new Map();

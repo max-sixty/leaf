@@ -663,7 +663,7 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
 const headingRow = (id, title, hidden = false) => html`
   <tbody ?hidden=${hidden}>
     <tr role="row">
-      <th role="gridcell" colspan="2"><h3 id=${id}>${title}</h3></th>
+      <th role="gridcell" colspan="2"><h3 class="lf-label" id=${id}>${title}</h3></th>
     </tr>
   </tbody>
 `;
